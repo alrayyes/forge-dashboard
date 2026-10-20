@@ -2509,6 +2509,11 @@ a.ci-pill:hover {
 .auto-update-box[aria-disabled="true"] + .auto-update-text {
   cursor: default;
 }
+/* Drawn greyed, as a locked Merge is, while staying in the keyboard order. */
+.auto-update-box[aria-disabled="true"] {
+  opacity: 0.5;
+  accent-color: var(--ink-3);
+}
 .auto-update-box[aria-disabled="true"] + .auto-update-text {
   color: var(--ink-2);
 }

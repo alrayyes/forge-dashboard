@@ -74,7 +74,9 @@ async function serve(
   await page.route('**/api/dashboard/refresh*', snapshot);
   await page.route('**/api/pull-requests/auto-update', async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
+    const index = state.posts.length;
     state.posts.push(body);
+    await state.delay?.(index);
     const next = state.respond?.(body);
     if (next === null)
       return route.fulfill({
@@ -223,7 +225,7 @@ test.describe('A pull request can have its own automatic branch update', () => {
       name: 'Update this branch automatically',
     });
 
-    await box.uncheck();
+    await box.click();
 
     await expect(
       dialog.getByText(
@@ -231,6 +233,76 @@ test.describe('A pull request can have its own automatic branch update', () => {
       ),
     ).toBeVisible();
     await expect(box).toBeChecked();
+  });
+
+  test('while a change is saving the box is busy and shows the new value; two quick clicks end on the last one', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const state = {
+      pr: makePR(FOLLOWS_REPO_ON),
+      posts: [] as Record<string, unknown>[],
+      delay: (index: number) => (index === 0 ? held : undefined),
+      respond: (body: Record<string, unknown>): AutoUpdate => ({
+        enabled: body.enabled as boolean,
+        source: 'pullRequest',
+        unavailable: null,
+      }),
+    };
+    await serve(page, state);
+    await page.goto('/pull-requests.html');
+    const dialog = await openActionsDialog(row(page));
+    const box = dialog.getByRole('checkbox', {
+      name: 'Update this branch automatically',
+    });
+
+    await box.click();
+    await expect(dialog.locator('.auto-update-option')).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    await expect(dialog.getByText('Saving…')).toBeVisible();
+    await expect(box).not.toBeChecked();
+    await box.check();
+    release();
+
+    await expect(dialog.locator('.auto-update-option')).not.toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    await expect(box).toBeChecked();
+    expect(state.posts.map((p) => p.enabled)).toEqual([false, true]);
+    expect(state.pr.autoUpdate).toMatchObject({ enabled: true });
+  });
+
+  test('a change refused twice in a row puts the box back each time', async ({
+    page,
+  }) => {
+    await serve(page, {
+      pr: makePR(FOLLOWS_REPO_ON),
+      posts: [],
+      respond: () => null,
+    });
+    await page.goto('/pull-requests.html');
+    const dialog = await openActionsDialog(row(page));
+    const box = dialog.getByRole('checkbox', {
+      name: 'Update this branch automatically',
+    });
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await box.click();
+      await expect(
+        dialog.getByText(/Couldn't change automatic updates/),
+      ).toBeVisible();
+      await expect(box).toBeChecked();
+      await expect(dialog.locator('.auto-update-option')).not.toHaveAttribute(
+        'aria-busy',
+        'true',
+      );
+    }
   });
 
   for (const theme of ['light', 'dark']) {

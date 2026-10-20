@@ -3908,15 +3908,20 @@
         void loadHiddenList();
     }
 
-    // Sends the checkbox's change, or null to hand the pull request back to its
-    // repo's setting. A local write on the server: nothing goes to the forge.
-    async function doSetAutoUpdate(
+    // The writes to a pull request's automatic update that are not settled
+    // yet, one per pull request. `latest` is what the last click asked for
+    // (null: hand it back to the repo). A click while a write is in flight only
+    // moves `latest`, and the loop below sends it once the first one lands, so
+    // the last click wins and the server never ends on a stale answer. The box
+    // shows `latest` until the board has been read again, so neither a poll nor
+    // a slow answer puts the old value back under the user's hand.
+    const autoUpdateWrites: Record<string, { latest: boolean | null }> = {};
+
+    function postAutoUpdate(
       item: PullRequestItem,
       enabled: boolean | null,
-    ) {
-      const key = prKey(item);
-      delete autoUpdateFailure[key];
-      const ok = await fetch("/api/pull-requests/auto-update", {
+    ): Promise<boolean> {
+      return fetch("/api/pull-requests/auto-update", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3937,14 +3942,43 @@
           return res.status === 204;
         })
         .catch(() => false);
-      if (!ok) {
+    }
+
+    // Sends the checkbox's change, or null to hand the pull request back to its
+    // repo's setting. A local write on the server: nothing goes to the forge.
+    async function doSetAutoUpdate(
+      item: PullRequestItem,
+      enabled: boolean | null,
+    ) {
+      const key = prKey(item);
+      const write = autoUpdateWrites[key];
+      if (write) {
+        write.latest = enabled;
+        return;
+      }
+      delete autoUpdateFailure[key];
+      const mine = { latest: enabled };
+      autoUpdateWrites[key] = mine;
+      refreshDialogChrome();
+      let ok = true;
+      let sent: boolean | null;
+      do {
+        sent = mine.latest;
+        ok = await postAutoUpdate(item, sent);
+      } while (ok && mine.latest !== sent);
+      if (ok) await refreshBoard();
+      else {
         autoUpdateFailure[key] =
           `Couldn't change automatic updates for ${item.repo}#${item.number}. Try again.`;
         feedback.announce(autoUpdateFailure[key]);
-        renderPRBoard();
-        return;
       }
-      await refreshBoard();
+      delete autoUpdateWrites[key];
+      // The chrome's signature is built from markup, which does not carry a
+      // box's checked state: force the redraw so a refused change always puts
+      // the box back to what the server has.
+      lastChromeSig = "";
+      renderPRBoard();
+      refreshDialogChrome();
     }
 
     // The dialog's checkbox for "Update this branch automatically". The label
@@ -3956,13 +3990,19 @@
       const control = autoUpdateControl(item.autoUpdate);
       if (!control) return null;
       const id = `${idScope}auto-update-${domSafeId(prKey(item))}`;
+      const saving = autoUpdateWrites[prKey(item)];
+      const checked =
+        saving && saving.latest !== null ? saving.latest : control.checked;
       const wrap = el("div", "auto-update-option");
+      // Carried in the markup, which the footer's redraw check compares.
+      wrap.dataset.checked = String(checked);
+      if (saving) wrap.setAttribute("aria-busy", "true");
       const label = el("label", "auto-update-label");
       const box = document.createElement("input");
       box.type = "checkbox";
       box.id = id;
       box.className = "auto-update-box";
-      box.checked = control.checked;
+      box.checked = checked;
       box.setAttribute("aria-describedby", `${id}-note`);
       if (control.disabled) box.setAttribute("aria-disabled", "true");
       box.addEventListener("click", (event) => {
@@ -3976,10 +4016,14 @@
         el("span", "auto-update-text", "Update this branch automatically"),
       );
       wrap.appendChild(label);
-      const note = el("p", "auto-update-note", control.note);
+      const note = el(
+        "p",
+        "auto-update-note",
+        saving ? "Saving…" : control.note,
+      );
       note.id = `${id}-note`;
       wrap.appendChild(note);
-      if (control.canReset) {
+      if (control.canReset && !saving) {
         const reset = buttonEl(
           "row-action auto-update-reset",
           "Use the repo's setting",
