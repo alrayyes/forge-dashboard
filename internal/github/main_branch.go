@@ -148,6 +148,7 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 			row.Status = dashboard.MainBranchCancelled
 		}
 	}
+	row.Checks = branchCheckCounts(rollup, row.Status)
 	if url := branchRunURL(checks, row.Status); url != "" {
 		row.RunURL = url
 	}
@@ -156,6 +157,24 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 	}
 
 	return row
+}
+
+// branchCheckCounts is the rollup's counts for a branch in its final status. A
+// cancelled branch has nothing failed, like a cancelled run anywhere. A failed
+// branch with nothing counted as failed has a held run, which it reads as a
+// failure and names as the failing job, or else cancelled runs with nothing
+// running to replace them; a pull request says a held run with its own flag.
+func branchCheckCounts(rollup *statusCheckRollup, status dashboard.MainBranchStatus) dashboard.CheckCounts {
+	counts := rollup.rawCheckCounts()
+	if status != dashboard.MainBranchFailed || counts.Failed > 0 {
+		return counts
+	}
+	counts.Failed = rollup.runsInState("ACTION_REQUIRED")
+	if counts.Failed == 0 {
+		counts.Failed = rollup.runsInState("CANCELLED")
+	}
+
+	return counts
 }
 
 // markAwaitingApproval gives the row the awaiting-approval status when the
