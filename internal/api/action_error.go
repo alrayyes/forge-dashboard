@@ -16,6 +16,11 @@ type actionErrorBody struct {
 	Code     string     `json:"code"`
 	Message  string     `json:"message"`
 	ResetsAt *time.Time `json:"resetsAt,omitempty"`
+	// UpstreamStatus and RequestID say what the forge answered with when it
+	// failed on its own side (a 5xx), for tracing a report. Both are left out
+	// otherwise.
+	UpstreamStatus int    `json:"upstreamStatus,omitempty"`
+	RequestID      string `json:"requestId,omitempty"`
 }
 
 // writeActionRefusal answers a refused pull request action with the shared
@@ -126,16 +131,22 @@ func notOfferedRefusal(action dashboard.ActionName, pr dashboard.PullRequest) da
 // `message`. logAttrs say which call was refused.
 func writeRefusal(w http.ResponseWriter, status int, refusal dashboard.ActionRefusal, actionErr error, logAttrs ...any) {
 	errText := actionErr.Error()
+	body := actionErrorBody{
+		Code:     string(refusal.Code),
+		Message:  refusal.Message,
+		ResetsAt: refusal.ResetsAt,
+	}
+	if clientErr, ok := errors.AsType[*dashboard.ClientError](actionErr); ok && clientErr.ForgeFailed() {
+		body.UpstreamStatus = clientErr.UpstreamStatus
+		body.RequestID = clientErr.RequestID
+		slog.Warn("forge failed on its own side", append(logAttrs, "status", status, "upstream_status", clientErr.UpstreamStatus, "request_id", clientErr.RequestID, "error", errText)...)
+	}
 	if refusal.Code == dashboard.ActionUnknown {
 		slog.Warn("forge call refused with no reason code", append(logAttrs, "status", status, "error", errText)...)
 		errText = refusal.Message
 	}
-	writeJSON(w, status, actionErrorBody{
-		Error:    errText,
-		Code:     string(refusal.Code),
-		Message:  refusal.Message,
-		ResetsAt: refusal.ResetsAt,
-	})
+	body.Error = errText
+	writeJSON(w, status, body)
 }
 
 func refusalNeedsNoReRead(err error) bool {
