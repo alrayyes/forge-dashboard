@@ -11,11 +11,12 @@ Releases page the pop-up shows the release notes in place of the description.
 A Dependabot or Renovate pull request opens the same pop-up, with its long
 generated description folded away until you open it.
 
-The footer of the pop-up has every action the row offers, so a pull request can
-be acted on from it: the main action first (the one the server marks primary),
-then the others, with **Close pull request** last, on the right. They are the row's
-own buttons with the same states: locked with the reason, queued, in flight and
-the two-step confirm for Merge and Close. A locked button stays on screen,
+The footer of the pop-up has every action a pull request offers, so it can be
+acted on from it. The row itself draws only the main one. The footer lists the
+main action first (the one the server marks primary), then the others, with
+**Close pull request** last, on the right. The buttons have the same states on
+the row and in the footer: locked with the reason, queued, in flight and the
+two-step confirm for Merge and Close. A locked button stays on screen,
 greyed, with the reason printed as text beside it or in the status block under
 the header, and described to screen readers. A failure shows as a line above
 the footer, with room for several, and leaves the buttons usable. The footer
@@ -23,7 +24,7 @@ also holds Hide this pull request and Hide for 7 days, and **Rerun failed
 checks** when CI is failing and the server offers it. Results are spoken
 through a status region inside the pop-up, since the page's own is out of reach
 while a modal is open. Escape first ends an armed confirm and a second press
-closes the pop-up. The row keeps its own buttons too. The footer follows its
+closes the pop-up. The footer follows its
 pull request while the pop-up is open: when a refresh changes what it offers,
 the footer changes with it, and when the pull request has left the board
 (closed or hidden, or merged somewhere else) the footer says so and keeps only
@@ -80,13 +81,16 @@ pop-up. Issues rows link their author the same way.
 Release pull requests have their own page, `/releases.html`, reached from the
 **Releases** item in the navigation. It is the pull request board over the
 pull requests the server marks `kind: release` (release-please's, by its
-`autorelease:` label), with the same filters, rows and actions as the main
-page. The main pull request page lists none of them, and doesn't count them. Each
-row shows the version being released next to the title. Merge is offered when
-the release can merge, or greyed out with the reason when it can't. A release
-that is behind its base branch gets Update branch and a line saying
-release-please won't update it until a releasable change lands. With no release
-pull requests open the page says nothing is waiting to ship.
+`autorelease:` label, or by its `release-please--branches--<base>` head branch
+when release-please failed before it could label the pull request, as long as
+the pull request is from the same repository and aimed at that base), with the
+same filters, rows and actions as the main page. The main pull request page
+lists none of them, and doesn't count them. Each row shows the version being
+released next to the title. Merge is offered when the release can merge, or
+greyed out with the reason when it can't. A release that is behind its base
+branch gets Update branch and a line saying release-please won't update it
+until a releasable change lands. With no release pull requests open the page
+says nothing is waiting to ship.
 
 The quick filter pills above the list include **Failing CI**, **Running CI**
 and **Passing CI**, each offered only when it would show something. Next to
@@ -107,9 +111,9 @@ open the page says there is nothing to review.
 
 ## Hiding one pull request
 
-A pull request you can't or won't act on yet can be hidden. **More actions** on
-its row has **Hide this pull request**, and **Hide for 7 days** under it; the
-footer of the pop-up has both too. Hiding from the pop-up closes it, so the
+A pull request you can't or won't act on yet can be hidden. The footer of the
+pop-up has **Hide this pull request** and **Hide for 7 days**. Hiding from the
+pop-up closes it, so the
 status message and its **Undo** below are within reach. A failed hide shows as a
 line in the pop-up instead. It leaves the list, the quick-filter counts and
 Insights at once, with no confirm step, since it is reversible. Nothing is sent

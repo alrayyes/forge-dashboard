@@ -234,3 +234,46 @@ func TestClassifyForgeRefusal_PermissionMessageReplacesTheTokenHint(t *testing.T
 	assert.Equal(t, dashboard.ActionPermission, custom.Code)
 	assert.Equal(t, "Grant the App Webhooks.", custom.Message)
 }
+
+// GitHub's own 5xx arrives as the text "Server Error": it passes for a plain
+// sentence, so it used to be shown as the reason. A person needs to hear that
+// the forge failed and that asking again may work, for every action.
+func TestClassifyActionRefusal_ForgeServerError_SaysSoAndToTryAgain(t *testing.T) {
+	t.Parallel()
+
+	for _, action := range []dashboard.PullRequestAction{
+		dashboard.PullRequestActionMerge,
+		dashboard.PullRequestActionClose,
+		dashboard.PullRequestActionUpdateBranch,
+		dashboard.PullRequestActionAutoMerge,
+	} {
+		t.Run(string(action), func(t *testing.T) {
+			t.Parallel()
+
+			err := &dashboard.ClientError{
+				Kind:           dashboard.ForgeErrorUnknown,
+				Err:            errors.New("github: PUT /repos/o/r/pulls/5/update-branch: Server Error"),
+				UpstreamStatus: 500,
+			}
+
+			got := dashboard.ClassifyActionRefusalFor(action, err, nil)
+
+			assert.Equal(t, dashboard.ActionForgeError, got.Code)
+			assert.Equal(t, "The forge had a server error. Try again in a moment.", got.Message)
+		})
+	}
+}
+
+// A refusal without an upstream 5xx behind it is not the forge's own failure.
+func TestClassifyActionRefusal_NoUpstreamStatus_IsNotAForgeServerError(t *testing.T) {
+	t.Parallel()
+
+	err := &dashboard.ClientError{
+		Kind: dashboard.ForgeErrorUnknown,
+		Err:  errors.New("github: PUT /repos/o/r/pulls/5/merge: Validation failed"),
+	}
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionMerge, err, nil)
+
+	assert.NotEqual(t, dashboard.ActionForgeError, got.Code)
+}

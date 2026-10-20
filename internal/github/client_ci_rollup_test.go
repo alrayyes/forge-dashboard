@@ -173,6 +173,14 @@ func ciFromRESTCheckRuns(t *testing.T, runs []map[string]string) dashboard.CISta
 func restPullRequest(t *testing.T, runs []map[string]string) dashboard.PullRequest {
 	t.Helper()
 
+	return restPullRequestFrom(t, runs, "alrayyes/a")
+}
+
+// restPullRequestFrom is restPullRequest with the head branch in headRepo,
+// so a pull request from a fork can be served.
+func restPullRequestFrom(t *testing.T, runs []map[string]string, headRepo string) dashboard.PullRequest {
+	t.Helper()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
 		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
@@ -195,7 +203,7 @@ func restPullRequest(t *testing.T, runs []map[string]string) dashboard.PullReque
 			"draft": false, "user": map[string]string{"login": "ryankes"},
 			"labels":     []map[string]string{},
 			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
-			"head": map[string]any{"sha": "cafef00d", "ref": "feat/child", "repo": map[string]string{"full_name": "alrayyes/a"}},
+			"head": map[string]any{"sha": "cafef00d", "ref": "feat/child", "repo": map[string]string{"full_name": headRepo}},
 			"base": map[string]any{"ref": "feat/parent", "repo": map[string]string{"full_name": "alrayyes/a"}},
 		}})
 	})
@@ -278,6 +286,17 @@ func TestFetch_NoToken_MapsTheBranches(t *testing.T) {
 	assert.Equal(t, "feat/parent", pr.BaseBranch)
 	assert.Equal(t, "feat/child", pr.HeadBranch)
 	assert.False(t, pr.CrossRepository)
+}
+
+// A fork's pull request is never a release, whatever its branch is called, so
+// the fallback has to say when the head is in another repository.
+func TestFetch_NoToken_AHeadInAnotherRepositoryIsAFork(t *testing.T) {
+	t.Parallel()
+
+	pr := restPullRequestFrom(t, nil, "mallory/a")
+
+	assert.Equal(t, "feat/child", pr.HeadBranch)
+	assert.True(t, pr.CrossRepository)
 }
 
 // The unauthenticated REST fallback carries the head SHA too (#759).

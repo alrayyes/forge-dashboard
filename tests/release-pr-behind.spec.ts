@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import {
+  actionsFooter,
+  closeActionsDialog,
+  openActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -40,13 +45,15 @@ const releasePR = {
       },
     },
     { action: 'close' },
-    { action: 'update_branch' },
+    // The server marks the cure for being behind as the primary action.
+    { action: 'update_branch', primary: true },
   ],
   // The status repeats Merge's reason, as the server sends it (#1375).
   status: {
     code: 'behind',
     message: 'Behind the base branch',
     next: NEXT,
+    action: 'update_branch',
   },
 };
 
@@ -92,20 +99,31 @@ test.describe('a behind release-please pull request (#1104)', () => {
     await expect(update).toBeEnabled();
     await expect(update).not.toHaveAttribute('aria-disabled', 'true');
 
-    // Merge stays greyed, and the reason is printed beside it and wired up
-    // as its accessible description.
-    const merge = row.getByRole('button', { name: 'Merge', exact: true });
-    await expect(merge).toHaveAttribute('aria-disabled', 'true');
+    // The row says why, and the cure sits inside that warning; the row draws
+    // no second button for the locked Merge.
     await expect(row).toContainText('Behind the base branch');
     await expect(row).toContainText(NEXT);
-    await expect(merge).toHaveAccessibleDescription(
-      /Behind the base branch.*Use Update branch\./,
-    );
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toHaveCount(0);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+
+    // Merge stays greyed in the pop-up's footer, its reason wired up as its
+    // accessible description.
+    const dialog = await openActionsDialog(row);
+    const merge = actionsFooter(dialog).getByRole('button', {
+      name: 'Merge',
+      exact: true,
+    });
+    await expect(merge).toHaveAttribute('aria-disabled', 'true');
+    await expect(merge).toHaveAccessibleDescription(
+      /Behind the base branch.*Use Update branch\./,
+    );
+    await closeActionsDialog(dialog);
 
     await update.click();
     await expect.poll(() => requestBody).toBeDefined();

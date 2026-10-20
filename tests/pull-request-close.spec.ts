@@ -66,25 +66,6 @@ function mockDashboard(page: Page, pr?: MockPR) {
   );
 }
 
-// #705: Close lives in the row's "More actions" menu, so every path to it
-// opens that first. A menu that's already open (a confirm step in flight)
-// is left alone.
-async function openClose(row: Locator) {
-  const trigger = row.getByRole('button', { name: 'More actions' });
-  // A row whose only extra action is Close draws it directly (#1139).
-  await row
-    .getByRole('button', { name: /^(More actions|Close pull request)$/ })
-    .first()
-    .waitFor();
-  if (
-    (await trigger.count()) > 0 &&
-    (await trigger.getAttribute('aria-expanded')) !== 'true'
-  ) {
-    await trigger.click();
-  }
-  return row.getByRole('button', { name: 'Close pull request', exact: true });
-}
-
 // Close is in the row's dialog footer, with the Hide items. Opens the dialog
 // and returns its footer and Close button.
 async function openCloseInDialog(row: Locator) {
@@ -100,44 +81,6 @@ async function openCloseInDialog(row: Locator) {
   };
 }
 
-// Holds requestAnimationFrame callbacks queued after holdFrames() until
-// releaseFrames(), the way a loaded CI runner delays them. The menu moves
-// focus into its popover from one of these, so a held frame is how a test
-// makes "focus() landed first, the frame fires later" deterministic (#770).
-async function controlFrames(page: Page) {
-  await page.addInitScript(() => {
-    const w = window as unknown as {
-      __hold: boolean;
-      __held: FrameRequestCallback[];
-    };
-    w.__hold = false;
-    w.__held = [];
-    const native = window.requestAnimationFrame.bind(window);
-    window.requestAnimationFrame = (cb: FrameRequestCallback) => {
-      if (!w.__hold) return native(cb);
-      w.__held.push(cb);
-      return 0;
-    };
-  });
-}
-
-async function holdFrames(page: Page) {
-  await page.evaluate(() => {
-    (window as unknown as { __hold: boolean }).__hold = true;
-  });
-}
-
-async function releaseFrames(page: Page) {
-  await page.evaluate(() => {
-    const w = window as unknown as {
-      __hold: boolean;
-      __held: FrameRequestCallback[];
-    };
-    w.__hold = false;
-    for (const cb of w.__held.splice(0)) cb(performance.now());
-  });
-}
-
 test.describe('pull request close button', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so a shared user's
@@ -148,8 +91,8 @@ test.describe('pull request close button', () => {
 
   // mergeStatus: 'blocked' throughout — Close is offered regardless of
   // mergeability (a PR that can't be merged is often exactly the one that
-  // needs closing), but since #705 only from "More actions": never as a
-  // standalone row button, and never while the menu is shut.
+  // needs closing), but only in the pop-up: never as a standalone row
+  // button.
   test('Close is not a standalone row button, even when the pull request cannot be merged', async ({
     page,
   }) => {
@@ -253,74 +196,6 @@ test.describe('pull request close button', () => {
     expect(closeCalled).toBe(false);
   });
 
-  // #705: the confirm step now lives inside the menu's popover, so the
-  // menu has to survive the re-render that swaps Close for it, and Escape
-  // has to behave like it does everywhere else in the menu.
-  test('the menu stays open while Close is being confirmed', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-
-    const popover = row.locator('.row-actions-popover');
-    await expect(popover).toBeVisible();
-    await expect(
-      popover.getByRole('button', { name: 'Confirm close pull request?' }),
-    ).toBeFocused();
-    await expect(
-      row.getByRole('button', { name: 'More actions' }),
-    ).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  // #764: the first Escape ends the confirm and puts focus back on Close;
-  // the menu stays, and a second Escape closes it as it always did.
-  test('Escape drops the pending confirm and keeps the menu; a second Escape closes it', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    let closeCalled = false;
-    await page.route('**/api/pull-requests/close', (route: Route) => {
-      closeCalled = true;
-      return route.fulfill({ status: 204 });
-    });
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
-    ).toBeFocused();
-
-    await page.keyboard.press('Escape');
-
-    await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
-    ).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
-    ).toBeFocused();
-    await expect(row.locator('.row-actions-popover')).toBeVisible();
-
-    await page.keyboard.press('Escape');
-    await expect(row.locator('.row-actions-popover')).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'More actions' }),
-    ).toBeFocused();
-    expect(closeCalled).toBe(false);
-
-    // Reopening finds a plain Close, not a confirm that was left armed.
-    await row.getByRole('button', { name: 'More actions' }).click();
-    await expect(
-      row.getByRole('button', { name: 'Confirm close pull request?' }),
-    ).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
-    ).toBeVisible();
-  });
-
   test('confirm close has no axe-core violations inside the open dialog', async ({
     page,
   }) => {
@@ -382,29 +257,6 @@ test.describe('pull request close button', () => {
       fullName: 'alrayyes/forge-dashboard',
       number: 42,
     });
-  });
-
-  test('confirming closes the menu so the refreshed board is not held back, and focus returns to the trigger', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', async (route: Route) => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return route.fulfill({ status: 204 });
-    });
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
-      .getByRole('button', { name: 'Confirm close pull request?' })
-      .click();
-
-    await expect(row.locator('.row-actions-popover')).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'More actions' }),
-    ).toBeFocused();
-    await expect(row.locator('.wait-chip-label')).toHaveText('Closing');
   });
 
   test('shows an in-progress status while closing, then a success status', async ({
@@ -478,105 +330,5 @@ test.describe('pull request close button', () => {
     await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(close).toBeVisible();
     await expect(close).toBeEnabled();
-  });
-
-  // #770: opening the menu queues a frame that moves focus to the first
-  // item. On a slow runner it fired after the user (or a test) had already
-  // focused another item, and pulled focus off it.
-  test('a delayed menu-open frame does not pull focus off the item the user reached', async ({
-    page,
-  }) => {
-    await controlFrames(page);
-    await mockDashboard(page, makePR());
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await holdFrames(page);
-    const close = await openClose(row);
-    await close.focus();
-    await expect(close).toBeFocused();
-    await releaseFrames(page);
-
-    await expect(close).toBeFocused();
-  });
-
-  test('a delayed menu-open frame does not pull focus off a locked Close', async ({
-    page,
-  }) => {
-    await controlFrames(page);
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
-      .getByRole('button', { name: 'Confirm close pull request?' })
-      .click();
-
-    await holdFrames(page);
-    const button = await openClose(row);
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await button.focus();
-    await releaseFrames(page);
-
-    await expect(button).toBeFocused();
-  });
-
-  // #747: confirming closes the menu, so a refused Close used to show its
-  // lock only after reopening More actions. The row now says so itself.
-  test('a refused Close shows a visible lock cue on the row without opening the menu', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await (await openClose(row)).click();
-    await row
-      .getByRole('button', { name: 'Confirm close pull request?' })
-      .click();
-
-    const trigger = row.getByRole('button', { name: 'More actions' });
-    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    const cue = row.locator('.row-actions-lock');
-    await expect(cue).toBeVisible();
-    await expect(cue).toHaveText('Close locked');
-    await expect(trigger).toHaveAccessibleDescription(
-      /Close is locked.*rate limit/i,
-    );
-
-    // A row with nothing locked has no cue.
-    await expect(page.locator('#pr-rows .row .row-actions-lock')).toHaveCount(
-      1,
-    );
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 });
