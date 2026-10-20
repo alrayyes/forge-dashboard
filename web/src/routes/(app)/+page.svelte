@@ -474,6 +474,10 @@
       padding: 0;
       justify-content: flex-start;
     }
+    .mb-row .ci-pill.segmented .check-glyph {
+      width: 12px;
+      height: 12px;
+    }
     .mb-row .ci-slot:has(.ci-pill.segmented) {
       width: max-content;
     }

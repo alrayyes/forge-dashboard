@@ -1558,6 +1558,8 @@ a.ci-pill:hover {
 }
 .ci-pill.failure.segmented {
   box-shadow: inset 0 0 0 1px var(--critical);
+  /* Failed stays the strongest weight. */
+  font-weight: 700;
 }
 .ci-seg-passed {
   color: var(--good);

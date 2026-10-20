@@ -169,6 +169,7 @@ test.describe('Passed and Failed pill counts (#2074)', () => {
       await expect(pill(page, title).locator('.ci-seg-label')).toBeHidden();
       const box = await pill(page, title).boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
+      expect(box?.width).toBeGreaterThanOrEqual(44);
     }
     await expect(segments(page, 'Mixed run')).toHaveText(['8', '1', '2', '3']);
   });

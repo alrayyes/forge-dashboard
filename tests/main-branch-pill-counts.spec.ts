@@ -183,6 +183,7 @@ test.describe('Main branches pill counts (#2074)', () => {
     await expect(segments(page, 'acme/red')).toHaveText(['8', '1', '2', '3']);
     const box = await pill(page, 'acme/red').boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(44);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - window.innerWidth,
     );
