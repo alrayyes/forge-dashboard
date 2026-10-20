@@ -2,6 +2,7 @@ package apistats_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -133,6 +134,25 @@ func TestTransport_AnAccountWideListingHasNoRepo(t *testing.T) {
 	do(apistats.WithKind(t.Context(), apistats.KindFull), t, countingClient(c, "forgejo", "token:cd34"), http.MethodGet, srv.URL+"/api/v1/user/repos")
 
 	assert.EqualValues(t, 1, find(c, apistats.Key{Forge: "forgejo", Credential: "token:cd34", Kind: apistats.KindFull}).REST)
+}
+
+type failingTransport struct{ err error }
+
+func (f failingTransport) RoundTrip(*http.Request) (*http.Response, error) { return nil, f.err }
+
+func TestTransport_ReturnsTheBaseTransportsErrorUnchangedAndStillCountsTheCall(t *testing.T) {
+	t.Parallel()
+
+	c := apistats.New()
+	boom := errors.New("connection refused")
+	req, err := http.NewRequestWithContext(apistats.WithKind(t.Context(), apistats.KindFull), http.MethodGet, "http://forge.invalid/user", nil)
+	require.NoError(t, err)
+
+	resp, err := apistats.Transport(failingTransport{err: boom}, c, "github", "token:ab12").RoundTrip(req)
+
+	require.ErrorIs(t, err, boom)
+	assert.Nil(t, resp)
+	assert.EqualValues(t, 1, find(c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindFull}).REST)
 }
 
 func TestNilCounters_AreSafe(t *testing.T) {
