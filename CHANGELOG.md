@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.227.0](https://github.com/alrayyes/forge-dashboard/compare/v0.226.0...v0.227.0) (2026-10-20)
+
+
+### Features
+
+* **api:** list a default branch's jobs at /api/main-branches/checks ([#1982](https://github.com/alrayyes/forge-dashboard/issues/1982)) ([a856d70](https://github.com/alrayyes/forge-dashboard/commit/a856d70404d098a5599834aed0394c90ec9a2874))
+
 ## [0.226.0](https://github.com/alrayyes/forge-dashboard/compare/v0.225.0...v0.226.0) (2026-10-20)
 
 
