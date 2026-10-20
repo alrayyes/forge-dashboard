@@ -3429,7 +3429,11 @@ components:
         whatever the frontend's `$lib/filters` `loadState`/`saveState` already produce
         client-side (shared forge/repo/label/author/title/created/
         updated/groupBy, plus the two board-owned extras with no
-        equivalent on the other entity type). This server stores and
+        equivalent on the other entity type). `shared.label` is one
+        lowercase label, or several lowercase labels separated by a
+        newline: the Label filter matches an item carrying any of
+        them, and a single label saved before it took several still
+        reads as a list of one. This server stores and
         returns it verbatim, byte for byte, and never parses or
         validates its shape — the same "opaque blob, not this layer's
         concern" treatment WebAuthnCeremonyOptions above gets, so a

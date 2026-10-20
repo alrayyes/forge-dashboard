@@ -7,6 +7,13 @@ import {
 } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
+import {
+  clearLabels,
+  labelButton,
+  labelChoices,
+  pickedLabels,
+  toggleLabels,
+} from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
 import { setTheme } from './theme-helper';
@@ -1525,7 +1532,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(0);
       await expect(page.locator('#shared-repo-select option')).toHaveCount(2); // All repos + shared/tools.
       await expect(page.locator('#shared-author-select option')).toHaveCount(2); // All authors + ryan.
-      await expect(page.locator('#shared-label-select option')).toHaveCount(2); // All labels + enhancement.
+      await expect(page.locator('.label-filter-option')).toHaveCount(1); // enhancement.
     });
 
     test('clearing the forge filter widens the repo, author, and label options back out', async ({
@@ -1536,7 +1543,7 @@ test.describe('dashboard page', () => {
 
       await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(2);
       await expect(page.locator('#shared-author-select option')).toHaveCount(3); // All + claude + ryan.
-      await expect(page.locator('#shared-label-select option')).toHaveCount(3); // All + bug + enhancement.
+      await expect(page.locator('.label-filter-option')).toHaveCount(2); // bug + enhancement.
     });
 
     test('a repo selection that no longer exists once the forge filter narrows clears itself, not just the control', async ({
@@ -1611,9 +1618,9 @@ test.describe('dashboard page', () => {
       await expect(
         page.locator('#shared-author-select option[value="claude"]'),
       ).toHaveCount(1);
-      await expect(page.locator('#shared-label-select option')).toHaveCount(2); // All + bug.
+      await expect(page.locator('.label-filter-option')).toHaveCount(1); // bug.
       await expect(
-        page.locator('#shared-label-select option[value="bug"]'),
+        page.locator('.label-filter-option input[value="bug"]'),
       ).toHaveCount(1);
     });
 
@@ -1633,16 +1640,16 @@ test.describe('dashboard page', () => {
           '#shared-repo-select option[value="forgejo:shared/tools"]',
         ),
       ).toHaveCount(0);
-      await expect(page.locator('#shared-label-select option')).toHaveCount(2); // All + bug.
+      await expect(page.locator('.label-filter-option')).toHaveCount(1); // bug.
       await expect(
-        page.locator('#shared-label-select option[value="enhancement"]'),
+        page.locator('.label-filter-option input[value="enhancement"]'),
       ).toHaveCount(0);
     });
 
     test('picking a label narrows the repo and author selects to that label only', async ({
       page,
     }) => {
-      await page.selectOption('#shared-label-select', 'bug');
+      await toggleLabels(page, 'bug');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
 
@@ -1799,10 +1806,7 @@ test.describe('dashboard page', () => {
         'github:team/two',
       );
       expect(await optionValues('shared-author-select')).toEqual(['', 'ryan']);
-      expect(await optionValues('shared-label-select')).toEqual([
-        '',
-        'enhancement',
-      ]);
+      expect(await labelChoices(page)).toEqual(['enhancement']);
     });
   });
 
@@ -2642,10 +2646,10 @@ test.describe('dashboard page', () => {
     test('the label select lists labels actually on screen, and picking one filters and marks the matching chip active', async ({
       page,
     }) => {
-      const options = page.locator('#shared-label-select option');
-      await expect(options).toHaveCount(3); // "All labels" plus the two.
+      const options = page.locator('.label-filter-option');
+      await expect(options).toHaveCount(2); // The two on screen.
 
-      await page.selectOption('#shared-label-select', 'kind/bug');
+      await toggleLabels(page, 'kind/bug');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
       await expect(page.locator('#issue-rows > .row')).toContainText(
         'A bug report',
@@ -2655,22 +2659,24 @@ test.describe('dashboard page', () => {
         .locator('.label-chip', { hasText: 'kind/bug' });
       await expect(bugChip).toHaveClass(/active/);
 
-      await page.selectOption('#shared-label-select', '');
+      await clearLabels(page);
       await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
     });
 
-    test('clicking a label chip keeps the select in sync', async ({ page }) => {
+    test('clicking a label chip keeps the label filter in sync', async ({
+      page,
+    }) => {
       await page
         .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
         .click();
-      await expect(page.locator('#shared-label-select')).toHaveValue(
-        'kind/bug',
-      );
+      await expect(labelButton(page)).toHaveText('kind/bug');
+      expect(await pickedLabels(page)).toEqual(['kind/bug']);
 
       await page
         .locator('#issue-rows .label-chip', { hasText: 'kind/bug' })
         .click();
-      await expect(page.locator('#shared-label-select')).toHaveValue('');
+      await expect(labelButton(page)).toHaveText('All labels');
+      expect(await pickedLabels(page)).toEqual([]);
     });
 
     test('a label beyond the first three chips on an item is still clearable via the select, even with no chip on screen to click', async ({
@@ -2713,7 +2719,7 @@ test.describe('dashboard page', () => {
       await page.goto('/issues.html');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
-      await page.selectOption('#shared-label-select', 'kind/buried');
+      await toggleLabels(page, 'kind/buried');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
       // Only the first three labels render a chip — the filtered-on one
       // genuinely has no chip anywhere on screen right now.
@@ -2722,8 +2728,8 @@ test.describe('dashboard page', () => {
       ).toHaveCount(0);
 
       // Still clearable, with no chip to click.
-      await page.selectOption('#shared-label-select', '');
-      await expect(page.locator('#shared-label-select')).toHaveValue('');
+      await clearLabels(page);
+      expect(await pickedLabels(page)).toEqual([]);
     });
   });
 

@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickedLabels, toggleLabels } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1620: a filter set on one page is still set when you come back to it. The
@@ -92,7 +93,6 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
 
   for (const [control, select, value, kept] of [
     ['author', '#shared-author-select', 'ryan', 2],
-    ['label', '#shared-label-select', 'bug', 1],
     ['repo', '#shared-repo-select', 'github:acme/docs', 1],
   ] as const) {
     test(`the ${control} pick on Issues is still set after a client navigation through Pull requests`, async ({
@@ -124,6 +124,34 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
       await expect(issueRows(page)).toHaveCount(kept);
     });
   }
+
+  test('the label pick on Issues is still set after a client navigation through Pull requests', async ({
+    page,
+  }) => {
+    await toggleLabels(page, 'bug');
+    await expect(issueRows(page)).toHaveCount(1);
+
+    await nav(page, 'pull-requests').click();
+    await expect(prRows(page)).toHaveCount(2);
+    await nav(page, 'issues').click();
+
+    expect(await pickedLabels(page)).toEqual(['bug']);
+    await expect(issueRows(page)).toHaveCount(1);
+  });
+
+  test('the label pick on Issues is still set after a full load of Pull requests', async ({
+    page,
+  }) => {
+    await toggleLabels(page, 'bug');
+    await expect(issueRows(page)).toHaveCount(1);
+
+    await open(page, '/pull-requests.html');
+    await expect(prRows(page)).toHaveCount(2);
+    await open(page, '/issues.html');
+
+    expect(await pickedLabels(page)).toEqual(['bug']);
+    await expect(issueRows(page)).toHaveCount(1);
+  });
 
   test('the same pick follows the account to a second browser after the detour', async ({
     page,

@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { choicesOf } from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1593: "Hide titles matching (regex)" on the Issues page, next to the Hide
@@ -82,12 +83,7 @@ const input = (page: Page) =>
 const note = (page: Page) => page.locator('#issue-hide-title-note');
 const error = (page: Page) => page.locator('#issue-hide-title-regex-error');
 const rows = (page: Page) => page.locator('#issue-rows > .row');
-const choices = (page: Page, id: string) =>
-  page
-    .locator(`#${id} option`)
-    .evaluateAll((os) =>
-      os.map((o) => (o as HTMLOptionElement).textContent?.trim() ?? ''),
-    );
+const choices = choicesOf;
 
 test.describe('hide titles matching a pattern (#1593)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {

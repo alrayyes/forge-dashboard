@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { choicesOf } from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1427: a filter offers only choices that exist in the results the page can
@@ -73,12 +74,7 @@ async function open(page: Page, path: string, issues = ISSUES) {
   await page.goto(path);
 }
 
-const choices = (page: Page, id: string) =>
-  page
-    .locator(`#${id} option`)
-    .evaluateAll((os) =>
-      os.map((o) => (o as HTMLOptionElement).textContent?.trim() ?? ''),
-    );
+const choices = choicesOf;
 
 for (const path of ['/issues.html', '/insights.html']) {
   test.describe(`filter choices on ${path} (#1427)`, () => {

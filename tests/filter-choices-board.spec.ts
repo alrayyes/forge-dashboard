@@ -5,6 +5,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { choicesOf } from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1427: the Repo, Author and Label choices on the Pull requests page offer
@@ -81,14 +82,8 @@ async function open(page: Page) {
   await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
 }
 
-const choices = (page: Page, id: string) =>
-  page
-    .locator(`#${id} option`)
-    .evaluateAll((os) =>
-      os
-        .map((o) => (o as HTMLOptionElement).textContent?.trim() ?? '')
-        .filter((text) => !text.startsWith('All')),
-    );
+const choices = async (page: Page, id: string) =>
+  (await choicesOf(page, id)).filter((text) => !text.startsWith('All'));
 
 const pill = (page: Page, name: string) =>
   page

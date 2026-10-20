@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { labelChoices } from './label-filter-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { registerViaInvite } from './register-helper';
 
@@ -190,7 +191,7 @@ test.describe('issues page (#827)', () => {
 
     for (const id of [
       '#shared-author-select',
-      '#shared-label-select',
+      '#shared-label-filter-button',
       '[data-col="created"]',
       '[data-col="updated"]',
     ]) {
@@ -231,7 +232,7 @@ test.describe('issues page (#827)', () => {
       'github:alrayyes/pr-only',
     ]);
     expect(await values('#shared-author-select')).toEqual(['pr-author']);
-    expect(await values('#shared-label-select')).toEqual(['pr-label']);
+    expect(await labelChoices(page)).toEqual(['pr-label']);
 
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
@@ -239,7 +240,7 @@ test.describe('issues page (#827)', () => {
       'github:alrayyes/issue-only',
     ]);
     expect(await values('#shared-author-select')).toEqual(['issue-author']);
-    expect(await values('#shared-label-select')).toEqual(['issue-label']);
+    expect(await labelChoices(page)).toEqual(['issue-label']);
   });
 
   test('a filter set on one page is still set on the other, and survives a reload', async ({
