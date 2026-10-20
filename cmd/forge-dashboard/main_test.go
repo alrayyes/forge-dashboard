@@ -70,24 +70,36 @@ func TestResolveCIPollInterval_ExplicitZero_DisablesRatherThanFallingBack(t *tes
 }
 
 func TestResolveIdleAfter_NoEnv_UsesDefault(t *testing.T) {
-	assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter(""))
+	got, err := resolveIdleAfter("")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.DefaultIdleAfter, got)
 }
 
 func TestResolveIdleAfter_ValidEnv_Overrides(t *testing.T) {
-	assert.Equal(t, 5*time.Minute, resolveIdleAfter("5m"))
-}
-
-func TestResolveIdleAfter_InvalidEnv_FallsBackToDefault(t *testing.T) {
-	assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter("soon"))
+	got, err := resolveIdleAfter("5m")
+	require.NoError(t, err)
+	assert.Equal(t, 5*time.Minute, got)
 }
 
 // "0s" turns idle mode off: the refresh runs on its schedule whoever is there.
 func TestResolveIdleAfter_ExplicitZero_DisablesRatherThanFallingBack(t *testing.T) {
-	assert.Equal(t, time.Duration(0), resolveIdleAfter("0s"))
+	got, err := resolveIdleAfter("0s")
+	require.NoError(t, err)
+	assert.Equal(t, time.Duration(0), got)
 }
 
-func TestResolveIdleAfter_Negative_FallsBackToDefault(t *testing.T) {
-	assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter("-5m"))
+// A setting that cannot be read is a mistake to fix, not one to paper over with
+// a default the operator did not choose.
+func TestResolveIdleAfter_InvalidEnv_FailsWithAMessageThatNamesTheSetting(t *testing.T) {
+	_, err := resolveIdleAfter("soon")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDLE_AFTER")
+}
+
+func TestResolveIdleAfter_Negative_Fails(t *testing.T) {
+	_, err := resolveIdleAfter("-5m")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDLE_AFTER")
 }
 
 // TestOpenDatabase_SurvivesConcurrentWriters is a regression test for

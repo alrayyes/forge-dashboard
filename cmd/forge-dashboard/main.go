@@ -133,20 +133,24 @@ func resolveCIPollInterval(v string) time.Duration {
 }
 
 // resolveIdleAfter reads IDLE_AFTER, how long nothing may have used the
-// dashboard before its scheduled refresh rests. Empty, invalid or negative
-// falls back to the default; "0s" is a real zero and turns idle mode off.
-func resolveIdleAfter(v string) time.Duration {
+// dashboard before its scheduled refresh rests. Empty means the default and
+// "0s" is a real zero that turns idle mode off. A value that does not parse, or
+// is negative, is an error: the other intervals fall back to their default
+// with a log line, but this one silently changing how long a refresh rests
+// would hide a mistake.
+func resolveIdleAfter(v string) (time.Duration, error) {
 	if v == "" {
-		return dashboard.DefaultIdleAfter
+		return dashboard.DefaultIdleAfter, nil
 	}
 	d, err := time.ParseDuration(v)
-	if err != nil || d < 0 {
-		slog.Error("invalid IDLE_AFTER, using default", "value", v, "default", dashboard.DefaultIdleAfter, "error", err)
-
-		return dashboard.DefaultIdleAfter
+	if err != nil {
+		return 0, fmt.Errorf("invalid IDLE_AFTER %q: want a duration such as 15m, or 0s to turn idle mode off: %w", v, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("invalid IDLE_AFTER %q: must not be negative; use 0s to turn idle mode off", v)
 	}
 
-	return d
+	return d, nil
 }
 
 func main() {
@@ -258,7 +262,11 @@ func run() error {
 
 	manager := newManager(settingsStore, refreshInterval, ciPollInterval)
 	defer manager.Stop()
-	manager.SetActivity(dashboard.NewActivity(resolveIdleAfter(os.Getenv("IDLE_AFTER")), nil))
+	idleAfter, err := resolveIdleAfter(os.Getenv("IDLE_AFTER"))
+	if err != nil {
+		return err
+	}
+	manager.SetActivity(dashboard.NewActivity(idleAfter, nil))
 	// Existing app-created webhooks get new events without a click on
 	// "Add a webhook" (#1555); same origin the ensure endpoint builds URLs from.
 	manager.SetWebhookUpgrade(settingsStore, envOr("RP_ORIGIN", "http://localhost:8080"))
