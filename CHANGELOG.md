@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.234.0](https://github.com/alrayyes/forge-dashboard/compare/v0.233.0...v0.234.0) (2026-10-20)
+
+
+### Features
+
+* **web:** show how many checks passed, run, wait and failed in the Running pill ([#2051](https://github.com/alrayyes/forge-dashboard/issues/2051)) ([64a6dd7](https://github.com/alrayyes/forge-dashboard/commit/64a6dd7cd935c4a500a272efc9f890f9eedda475))
+
 ## [0.233.0](https://github.com/alrayyes/forge-dashboard/compare/v0.232.0...v0.233.0) (2026-10-20)
 
 
