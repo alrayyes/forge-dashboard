@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { clearLabels, pickedLabels, toggleLabels } from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1713: the saved filters come from the cookie, read at once, and from the
@@ -93,7 +94,7 @@ async function expectCopyApplied(
   page: Page,
   edited: 'box' | 'author' | 'title' | 'regex',
 ) {
-  await expect(page.locator('#shared-label-select')).toHaveValue('bug');
+  await expect.poll(() => pickedLabels(page)).toEqual(['bug']);
   if (edited !== 'author')
     await expect(page.locator('#shared-author-select')).toHaveValue('ryan');
   if (edited !== 'title')
@@ -227,9 +228,9 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     // The cookie knows one pick, so the button is on offer while the copy,
     // which also has an author, is still out.
     await page.goto('/issues.html');
-    await expect(page.locator('#shared-label-select')).toHaveValue('bug');
-    await page.locator('#shared-label-select').selectOption('');
-    await page.locator('#shared-label-select').selectOption('bug');
+    await expect.poll(() => pickedLabels(page)).toEqual(['bug']);
+    await clearLabels(page);
+    await toggleLabels(page, 'bug');
     await expect
       .poll(async () => (await savedCopy(page)).shared?.label)
       .toBe('bug');
@@ -251,7 +252,7 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     await expect(issueRows(page)).toHaveCount(3);
     copy.release();
 
-    await expect(page.locator('#shared-label-select')).toHaveValue('');
+    await expect.poll(() => pickedLabels(page)).toEqual([]);
     await expect(page.locator('#shared-author-select')).toHaveValue('');
     await expect(issueRows(page)).toHaveCount(3);
     await expect

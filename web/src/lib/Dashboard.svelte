@@ -36,7 +36,21 @@
     formatCheckDuration,
     type Check,
   } from "#lib/pipeline-checks.js";
+  import {
+    announceChange,
+    ciSignature,
+    createLiveChecks,
+    keepOrder,
+    type LiveChecks,
+  } from "#lib/pipeline-live.js";
   import * as Filters from "#lib/filters.js";
+  import {
+    type LabelFilterControl,
+    joinLabels,
+    mountLabelFilter,
+    parseLabels,
+    toggleLabel,
+  } from "#lib/label-filter.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import {
@@ -669,12 +683,12 @@
     ): HTMLButtonElement {
       const chip = document.createElement("button");
       chip.type = "button";
-      // activeLabel (the shared label filter) is always lowercase — set
-      // that way by both a chip click and the shared Label <select>'s
-      // generic .col-filter wiring, which lowercases every filter value
-      // uniformly — so the comparison here has to lowercase label.name
+      // activeLabel (the shared label filter) is lowercase, one label or
+      // several joined — so the comparison here has to lowercase label.name
       // to match.
-      const isActive = label.name.toLowerCase() === activeLabel;
+      const isActive = parseLabels(activeLabel).includes(
+        label.name.toLowerCase(),
+      );
       chip.className = `label-chip${isActive ? " active" : ""}`;
       chip.textContent = label.name;
       if (label.color && !isActive) {
@@ -4954,6 +4968,25 @@
     // to land and overwrite whatever the dialog is showing now.
     let pipelineRequestToken = 0;
 
+    // The open panel's own live state. It reads its checks again only when a
+    // snapshot says this pull request's CI changed (see pipeline-live.ts), and
+    // never while updates are paused.
+    let pipelineLive: LiveChecks | null = null;
+    // The newest copy of the open panel's pull request, for the reads it makes.
+    let pipelineItem: PullRequestItem | null = null;
+    // What the panel shows now, to keep its order and to tell a real change.
+    let pipelineShown: Check[] = [];
+    // The first read has drawn; a change before that restarts it instead.
+    let pipelineReady = false;
+    const pipelineNote = document.getElementById("pipeline-paused-note");
+    const pipelineAnnounce = document.getElementById("pipeline-live-status");
+
+    function setPipelineNote(text: string) {
+      if (!pipelineNote) return;
+      pipelineNote.textContent = text;
+      pipelineNote.hidden = text === "";
+    }
+
     function renderPipelineLoading() {
       if (!pipelineDialogBody) return;
       pipelineDialogBody.innerHTML = "";
@@ -5161,8 +5194,22 @@
       return wrap;
     }
 
-    function renderPipelineChecks(checks: Check[], item: PullRequestItem) {
+    // `inPlace` is a live redraw: the order the panel already has stands, so a
+    // check's pill changes where it stands.
+    function renderPipelineChecks(
+      checks: Check[],
+      item: PullRequestItem,
+      inPlace = false,
+    ) {
       if (!pipelineDialogBody) return;
+      // Blocking failures first, once, when the panel opens (a stable sort,
+      // so the forge's own order stands otherwise). What is kept is the order
+      // drawn, so a live redraw leaves every check where it stands.
+      if (!inPlace)
+        checks = [...checks].sort(
+          (a, b) => Number(isBlocking(b)) - Number(isBlocking(a)),
+        );
+      pipelineShown = checks;
       pipelineDialogBody.innerHTML = "";
       if (checks.length === 0) {
         pipelineDialogBody.appendChild(
@@ -5180,9 +5227,7 @@
       }
       // Blocking failures first within Required; a stable sort keeps the
       // forge's own order otherwise.
-      const required = checks
-        .filter((check) => check.required === true)
-        .sort((a, b) => Number(isBlocking(b)) - Number(isBlocking(a)));
+      const required = checks.filter((check) => check.required === true);
       const advisory = checks.filter((check) => check.required === false);
       // Never filed under Advisory on a guess.
       const unknown = checks.filter((check) => check.required === undefined);
@@ -5216,9 +5261,11 @@
     // own eager pull, per the checks endpoint's own doc comment: this is
     // detail a row doesn't show until the panel is actually opened for
     // it.
-    function loadPipelineChecks(item: PullRequestItem) {
+    function loadPipelineChecks(item: PullRequestItem, wantLive = false) {
+      const live = wantLive && pipelineReady;
+      if (!live) pipelineReady = false;
       const token = ++pipelineRequestToken;
-      renderPipelineLoading();
+      if (!live) renderPipelineLoading();
 
       fetch(
         `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
@@ -5242,21 +5289,72 @@
         })
         .then((data) => {
           if (token !== pipelineRequestToken) return;
-          renderPipelineChecks(data.checks || [], item);
+          if (live) redrawPipelineLive(data.checks || [], item);
+          else {
+            setPipelineNote("");
+            pipelineLive?.refreshed();
+            renderPipelineChecks(data.checks || [], item);
+            pipelineReady = true;
+          }
         })
         .catch((err: Error & { status?: number }) => {
           if (token !== pipelineRequestToken) return;
+          // A failed live read leaves the checks on screen and says so; the
+          // next change reads again.
+          if (live) {
+            pipelineLive?.failed();
+            setPipelineNote(
+              "Couldn't refresh these checks. They may be out of date.",
+            );
+            return;
+          }
           const message = `Couldn't load pipeline checks for ${item.repo}#${item.number}: ${err.message}`;
           renderPipelineError(message, () => loadPipelineChecks(item));
         });
     }
 
+    // A live read's answer: nothing is redrawn when nothing changed, and a
+    // redraw keeps the scroll position and the control the keyboard is on.
+    function redrawPipelineLive(next: Check[], item: PullRequestItem) {
+      setPipelineNote("");
+      if (!pipelineDialogBody) return;
+      const ordered = keepOrder(pipelineShown, next);
+      if (JSON.stringify(ordered) === JSON.stringify(pipelineShown)) return;
+      const message = announceChange(pipelineShown, ordered);
+      const focusable = () =>
+        Array.from(
+          pipelineDialogBody.querySelectorAll<HTMLElement>("a, button, pre"),
+        );
+      const at = focusable().indexOf(document.activeElement as HTMLElement);
+      const scroll = pipelineDialogBody.scrollTop;
+      renderPipelineChecks(ordered, item, true);
+      pipelineDialogBody.scrollTop = scroll;
+      if (at >= 0) focusable()[at]?.focus({ preventScroll: true });
+      if (pipelineAnnounce && message) pipelineAnnounce.textContent = message;
+    }
+
     function openPipelineDialog(item: PullRequestItem) {
       if (!pipelineDialog) return;
       pipelineDialogRowKey = prKey(item);
+      pipelineItem = item;
+      pipelineShown = [];
+      pipelineReady = false;
+      setPipelineNote("");
+      if (pipelineAnnounce) pipelineAnnounce.textContent = "";
       if (pipelineDialogSubtitle) {
         pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
       }
+      pipelineLive = createLiveChecks({
+        signature: ciSignature(item),
+        paused: updatesPaused,
+        reload: () => pipelineItem && loadPipelineChecks(pipelineItem, true),
+        onStale: (stale) =>
+          setPipelineNote(
+            stale
+              ? "Live updates are paused. These checks may be out of date."
+              : "",
+          ),
+      });
       loadPipelineChecks(item);
       pipelineDialog.showModal();
     }
@@ -5275,6 +5373,10 @@
     pipelineDialog?.addEventListener("close", () => {
       const rowKey = pipelineDialogRowKey;
       pipelineDialogRowKey = null;
+      pipelineLive = null;
+      pipelineItem = null;
+      // A read still out must not draw into a closed panel.
+      pipelineRequestToken++;
       renderPRBoard();
       if (rowKey) {
         document
@@ -5446,6 +5548,9 @@
     // offer is cleared here only, and stays in the saved copy for the page
     // that does (#1620). A later change that makes a pick stale is the
     // user's own, and clears it for good.
+    // The Label filter's control, mounted once the shared bar exists.
+    let labelFilter: LabelFilterControl | null = null;
+
     function updateSharedFilterOptions(
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
@@ -5474,16 +5579,18 @@
           ) as HTMLDataListElement | null,
           Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
         );
-      const staleLabel = Filters.populateSelect(
-        document.getElementById(
-          "shared-label-select",
-        ) as HTMLSelectElement | null,
-        Filters.distinctValues(
-          (item) => (item.labels || []).map((l) => l.name),
-          sharedPoolExcluding("label"),
-        ),
-        sharedState.shared.label,
+      // The Label filter holds several labels; the ones this page does not
+      // offer are set aside, the rest stay picked.
+      const labelChoices = Filters.distinctValues(
+        (item) => (item.labels || []).map((l) => l.name),
+        sharedPoolExcluding("label"),
       );
+      const staleLabel = Filters.reconcileLabels(
+        sharedState,
+        labelChoices,
+        holdPicks,
+      );
+      labelFilter?.render(labelChoices, parseLabels(sharedState.shared.label));
       // The fixed choices offer only what the results have too (#1427): the
       // age ranges something falls in, and the CI states pull requests are in.
       const staleCreated = populateEvery(
@@ -5518,7 +5625,6 @@
       };
       clearPick(staleRepo, "shared", "repo");
       clearPick(staleAuthor, "shared", "author");
-      clearPick(staleLabel, "shared", "label");
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
       clearPick(Boolean(staleStatus), "pr", "status");
@@ -5625,33 +5731,31 @@
       issueBoard.render();
     }
 
-    // Toggles the one shared label filter and re-renders both boards —
-    // a chip click on either board's rows affects the other board too,
-    // the same as the Label <select> in the shared bar does.
-    function handleLabelClick(label: string) {
-      // The shared label filter is always lowercase — but a real
-      // <option>'s value keeps its real case, so select.value can't
-      // just be assigned next directly; the browser only accepts an
-      // exact (case-sensitive) option value, silently clearing the
-      // selection on any case mismatch otherwise.
-      const lower = label.toLowerCase();
-      const next = sharedState.shared.label === lower ? "" : lower;
-      sharedState.shared.label = next;
+    // Sets the labels the shared Label filter matches (any of them) and
+    // re-renders both boards — a pick in the control, a chip click on either
+    // board's rows or a removed filter chip all land here, so they affect the
+    // other board too. The saved value is lowercase, like every saved pick.
+    function applyLabels(next: string[]) {
+      sharedState.shared.label = joinLabels(next);
       Filters.touchKey("shared", "label");
       Filters.releaseHeld("shared", "label");
       prBoard.resetPage();
       issueBoard.resetPage();
+      // The other choices narrow against the labels picked (#550), and a
+      // label that no longer matches anything is set aside.
+      updateSharedFilterOptions();
       Filters.saveState(sharedState);
-      const select = document.getElementById(
-        "shared-label-select",
-      ) as HTMLSelectElement | null;
-      if (select) {
-        const option = Array.from(select.options).find(
-          (o) => o.value.toLowerCase() === next,
-        );
-        select.value = option ? option.value : "";
-      }
       renderBoth();
+      const noun = view === "issues" ? "issue" : "pull request";
+      labelFilter?.announce(
+        `${visibleResultCount} ${noun}${visibleResultCount === 1 ? "" : "s"}`,
+      );
+    }
+
+    // A label chip on a row ticks the label, or unticks it when it is
+    // already picked.
+    function handleLabelClick(label: string) {
+      applyLabels(toggleLabel(parseLabels(sharedState.shared.label), label));
     }
 
     // ---- board state + render ----
@@ -6121,6 +6225,7 @@
       Filters.touchKey("view", "paused");
       Filters.saveState(sharedState);
       syncPauseControl();
+      if (!updatesPaused()) pipelineLive?.resume();
       if (view === "issues") reconcileIssues();
       else reconcilePRs();
     });
@@ -6213,6 +6318,9 @@
         c.addEventListener("input", apply);
         c.addEventListener("change", apply);
       });
+
+    const labelHost = document.getElementById("shared-label-filter");
+    if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
 
     // ---- quick filter pills (#678) ----
     // Toggle buttons with aria-pressed: exactly one is active at a time.
@@ -6427,10 +6535,13 @@
           label: `Author ${shared.author}`,
           clear: () => clearSelect("author"),
         });
-      if (shared.label)
+      for (const name of parseLabels(shared.label))
         chips.push({
-          label: `Label ${shared.label}`,
-          clear: () => clearSelect("label"),
+          label: `Label ${name}`,
+          clear: () =>
+            applyLabels(
+              toggleLabel(parseLabels(sharedState.shared.label), name),
+            ),
         });
       if (shared.created)
         chips.push({
@@ -7675,6 +7786,15 @@
       }
     }
 
+    // The open pipeline panel follows its own pull request: when this snapshot
+    // shows that one's CI changed, the panel reads its checks again.
+    function followOpenPipeline() {
+      if (!pipelineLive || !pipelineDialogRowKey) return;
+      const now = allPRs.find((p) => prKey(p) === pipelineDialogRowKey);
+      if (now) pipelineItem = now;
+      pipelineLive.seen(now ? ciSignature(now) : null);
+    }
+
     function applySnapshot(
       data: DashboardSnapshot,
       userAsked = false,
@@ -7766,6 +7886,7 @@
       const botChanged = syncServerRequests(prs, startedSeq);
       const issues = data.issues || [];
       allPRs = prs;
+      followOpenPipeline();
       evictRerunState();
       allIssues = issues;
       reposByKey = new Map(
@@ -8020,6 +8141,7 @@
       destroyed = true;
       Filters.leavePage(page);
       titleHover.destroy();
+      labelFilter?.destroy();
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
       for (const stop of stopListening) stop();
@@ -8361,14 +8483,7 @@
       >
         <option value="">All authors</option>
       </select>
-      <select
-        class="col-filter"
-        data-col="label"
-        id="shared-label-select"
-        aria-label="Filter by label"
-      >
-        <option value="">All labels</option>
-      </select>
+      <div id="shared-label-filter"></div>
       <select
         class="col-filter"
         data-col="created"
@@ -8636,6 +8751,17 @@
         >
       </button>
     </div>
+    <p
+      class="pipeline-paused-note"
+      id="pipeline-paused-note"
+      aria-live="polite"
+      hidden
+    ></p>
+    <p
+      class="sr-only pipeline-live-status"
+      id="pipeline-live-status"
+      aria-live="polite"
+    ></p>
     <div class="pipeline-dialog-body" id="pipeline-dialog-body"></div>
   </dialog>
 {/if}

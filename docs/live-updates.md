@@ -26,6 +26,18 @@ Last activity (the default, the server's order: most recently updated first,
 whether or not a pull request is ready to merge), Created and Repository. Pause
 and sort are saved with your other filters.
 
+The pipeline panel follows its row. While it is open, a check's pill changes
+where it stands, in the order the panel already shows, when the live stream
+(or, on the Branches page, the page's own read) says that pull request's or
+branch's CI changed. The panel makes one request for each such change and none
+while nothing changes, so a finished pipeline costs no more requests, and a
+rerun that starts reads it again once. It doesn't poll the forge on a timer of
+its own. A change that finishes a check is announced politely once ("Checks
+updated: test is now Passed."), and the panel redraws nothing when no check
+differs. With **Pause live updates** on, the panel makes no request and says
+"Live updates are paused. These checks may be out of date."; turning updates
+back on reads once if the CI changed meanwhile.
+
 Draft pull requests are left out by default. The **Show drafts** toggle in the
 filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
@@ -167,6 +179,35 @@ and picking a choice never leaves an empty list. The quick pills do too: a pill
 is offered only when clicking it would show something, and the one that is
 active stays so it can be cleared.
 
+## The Label filter
+
+The Label filter takes several labels at once and shows the pull requests or
+issues that carry **any** of them, so ticking "bug" and "security" lists
+everything with either. Pick one to see it by name, or two or more to see the
+count ("2 labels"). The button opens a group of checkboxes, one per label on
+offer, with a **Clear labels** button under it. Tab and Space tick and clear a box,
+Escape closes the group and puts focus back on the button, and each change is
+announced once with the number of results. A label on a row does the same as
+its checkbox: click it to add it to the pick, click it again to remove it.
+
+It matches any rather than all because that is the question a triage usually
+asks, and because every label offered then still leads to a non-empty list.
+Some trackers match all and some any, and users of both ask for the other, so
+the group says which one this is.
+
+The other filters' choices follow the labels ticked, and the label choices
+follow the other filters. A ticked label that a later filter leaves nothing for
+is cleared, and the others stay. On a phone each ticked label also shows as its
+own chip in the row under the search, and the group sits in the Filters sheet
+with 44px choices.
+
+A label saved before the list existed is read as a list of one, so nothing
+needs doing after an upgrade. A pick holds up to 20 labels and 1000
+characters, and the server refuses a longer one. The pick is saved in the same
+field as before, the labels in lowercase one after another. A page that doesn't
+offer one of the saved labels leaves it saved and says so, as it does for any
+other filter.
+
 ## Remembered filters
 
 Filters are remembered per account, in a cookie and in a copy on the server,
@@ -198,7 +239,7 @@ page size is not remembered, as on the other pages.
 Below 760px wide the filter bar folds down so the first screen shows pull
 requests. Closed, it is one search row (the title filter and a **Filters**
 button) and one row of quick filters that scrolls sideways. The button's count,
-as in "Filters (2)", is how many filters are on: forge, repo, author, label,
+as in "Filters (2)", is how many filters are on: forge, repo, author, each label,
 created, updated, CI status, and Show drafts. Each active filter also shows as a
 chip you can tap to remove without opening anything.
 

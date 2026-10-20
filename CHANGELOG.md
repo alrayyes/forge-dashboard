@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.245.0](https://github.com/alrayyes/forge-dashboard/compare/v0.244.0...v0.245.0) (2026-10-20)
+
+
+### Features
+
+* **web:** select several labels in the Label filter, matching any of them ([#2096](https://github.com/alrayyes/forge-dashboard/issues/2096)) ([8eb154f](https://github.com/alrayyes/forge-dashboard/commit/8eb154f5761d40e03ac41bb8fa50cc13b0afe341))
+
+## [0.244.0](https://github.com/alrayyes/forge-dashboard/compare/v0.243.0...v0.244.0) (2026-10-20)
+
+
+### Features
+
+* **web:** link each repository on the Branches page to its latest release ([#2093](https://github.com/alrayyes/forge-dashboard/issues/2093)) ([a19ef63](https://github.com/alrayyes/forge-dashboard/commit/a19ef63b95a727ec269de41c47403c2b7b42e149))
+
 ## [0.243.0](https://github.com/alrayyes/forge-dashboard/compare/v0.242.0...v0.243.0) (2026-10-20)
 
 

@@ -620,9 +620,9 @@ test.describe('insights page', () => {
       await expect(
         page.locator('.filter-bar [data-col="author"] option'),
       ).toHaveText(['All authors', 'alice', 'bob']);
-      await expect(
-        page.locator('.filter-bar [data-col="label"] option'),
-      ).toHaveText(['All labels', 'bug']);
+      await expect(page.locator('.filter-bar .label-filter-option')).toHaveText(
+        ['bug'],
+      );
     });
 
     test('a filter set on the main dashboard already applies here — the same cookie, not a separate preference', async ({

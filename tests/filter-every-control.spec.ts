@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { pickedLabels, toggleLabels } from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1620, acceptance criterion 1: a list, from a test, of which filter controls
@@ -301,13 +302,19 @@ const CONTROLS: Control[] = [
     'shared',
     'author',
   ),
-  select(
-    'label select',
-    '#shared-label-select',
-    { issues: 'docs', other: 'bug' },
-    'shared',
-    'label',
-  ),
+  {
+    name: 'label filter',
+    boards: ALL,
+    group: 'shared',
+    key: 'label',
+    stored: { issues: 'docs', other: 'bug' },
+    set: (page, board) =>
+      toggleLabels(page, board === 'issues' ? 'docs' : 'bug'),
+    show: (page, board) =>
+      expect
+        .poll(() => pickedLabels(page))
+        .toEqual([board === 'issues' ? 'docs' : 'bug']),
+  },
   select('created select', '[data-col="created"]', '1440', 'shared', 'created'),
   select('updated select', '[data-col="updated"]', '1440', 'shared', 'updated'),
   select(

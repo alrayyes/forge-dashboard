@@ -156,6 +156,13 @@ export function setPill(state: SharedFilterState, pill: string): void {
 }
 
 import { FORGE_LABELS } from './forges';
+import {
+  carriesAny,
+  joinLabels,
+  narrowLabels,
+  parseLabels,
+  unionLabels,
+} from './label-filter';
 
 export { FORGE_LABELS };
 // The slice of /api/dashboard's repos[] that a repo group header needs.
@@ -343,6 +350,32 @@ export function holdStale(
   state[group][key] = '';
 }
 
+// The Label filter holds several labels, and the page may offer only some of
+// them. The ones it does not offer are set aside (held, when the page is
+// reconciling its saved picks; dropped for good after the user's own change)
+// and the rest stay picked. True if any were set aside.
+export function reconcileLabels(
+  state: SharedFilterState,
+  offered: string[],
+  hold: boolean,
+): boolean {
+  const { kept, dropped } = narrowLabels(
+    parseLabels(state.shared.label),
+    offered,
+  );
+  if (dropped.length === 0) return false;
+  const before = heldValue('shared', 'label') ?? '';
+  releaseHeld('shared', 'label');
+  if (hold)
+    held.push({
+      group: 'shared',
+      key: 'label',
+      value: unionLabels(before, joinLabels(dropped)),
+    });
+  state.shared.label = joinLabels(kept);
+  return true;
+}
+
 // The user chose something else for this control (or cleared it): the held
 // value is no longer wanted.
 export function releaseHeld(group: StateGroup, key: string): void {
@@ -376,6 +409,7 @@ export function heldPicks(): HeldPick[] {
           ? CI_CHOICES
           : [];
     text = choices.find((c) => c.value === h.value)?.label ?? text;
+    if (h.key === 'label') text = parseLabels(h.value).join(', ');
     const name = h.key === 'status' ? FILTER_NAMES.status : h.key;
     return { group: h.group, key: h.key, name, text };
   });
@@ -482,8 +516,13 @@ function savedCopy(state: SharedFilterState): SharedFilterState {
     branches: { ...state.branches },
     webhooks: { ...state.webhooks },
   };
-  for (const h of held)
+  for (const h of held) {
     if (!copy[h.group][h.key]) copy[h.group][h.key] = h.value;
+    // The Label filter holds several: what this page set aside joins what is
+    // picked here.
+    else if (h.group === 'shared' && h.key === 'label')
+      copy.shared.label = unionLabels(copy.shared.label, h.value);
+  }
   return copy;
 }
 
@@ -822,11 +861,8 @@ export function failingFilters(
     failing.push('created');
   if (shared.updated && minutesAgo(item.updatedAt) > Number(shared.updated))
     failing.push('updated');
-  if (
-    shared.label &&
-    !(item.labels || []).some((l) => l.name.toLowerCase() === shared.label)
-  )
-    failing.push('label');
+  // Any of the picked labels (shared.label holds one or several).
+  if (!carriesAny(item.labels, shared.label)) failing.push('label');
   if (
     isPR &&
     extra?.status &&
