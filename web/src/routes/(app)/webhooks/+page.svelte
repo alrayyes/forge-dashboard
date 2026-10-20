@@ -3,7 +3,9 @@
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import {
     type ActionRequestError,
+    FORGE_UNAVAILABLE,
     interpretActionFailure,
+    NO_REASON,
     readActionFailure,
   } from "#lib/action-error.js";
   import {
@@ -384,10 +386,15 @@
       if (outcome.kind === "locked") {
         // A permission refusal carries the server's own sentence, which
         // names what a GitHub App is missing; the shared text says "token".
+        // readActionFailure fills in a stock sentence when the server sent
+        // none, and that one says nothing about permission, so it loses.
+        const sentence = (err as Error).message;
+        const serverSaidSomething =
+          sentence && sentence !== NO_REASON && sentence !== FORGE_UNAVAILABLE;
         rowState[key] = {
           lockReason:
-            outcome.code === "permission" && (err as Error).message
-              ? (err as Error).message
+            outcome.code === "permission" && serverSaidSomething
+              ? sentence
               : outcome.reason,
         };
         setStatus(`Couldn't add a webhook for ${repo.fullName}.`, "error");
