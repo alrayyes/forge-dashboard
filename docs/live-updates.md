@@ -26,6 +26,18 @@ Last activity (the default, the server's order: most recently updated first,
 whether or not a pull request is ready to merge), Created and Repository. Pause
 and sort are saved with your other filters.
 
+The pipeline panel follows its row. While it is open, a check's pill changes
+where it stands, in the order the panel already shows, when the live stream
+(or, on the Branches page, the page's own read) says that pull request's or
+branch's CI changed. The panel makes one request for each such change and none
+while nothing changes, so a finished pipeline costs no more requests, and a
+rerun that starts reads it again once. It doesn't poll the forge on a timer of
+its own. A change that finishes a check is announced politely once ("Checks
+updated: test is now Passed."), and the panel redraws nothing when no check
+differs. With **Pause live updates** on, the panel makes no request and says
+"Live updates are paused. These checks may be out of date."; turning updates
+back on reads once if the CI changed meanwhile.
+
 Draft pull requests are left out by default. The **Show drafts** toggle in the
 filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
