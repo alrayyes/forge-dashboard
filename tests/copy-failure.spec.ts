@@ -82,10 +82,13 @@ const ACTIONS: {
     name: 'Merge',
     endpoint: 'merge',
     action: 'merge',
-    start: async (row) => {
-      await row.getByRole('button', { name: 'Merge', exact: true }).click();
-      await row.getByRole('button', { name: 'Confirm merge?' }).click();
-    },
+    start: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer
+          .getByRole('button', { name: 'Merge', exact: true })
+          .click();
+        await footer.getByRole('button', { name: 'Confirm merge?' }).click();
+      }),
   },
   {
     name: 'Close',
@@ -105,9 +108,10 @@ const ACTIONS: {
     name: 'Update branch',
     endpoint: 'update-branch',
     action: 'update-branch',
-    start: async (row) => {
-      await row.getByRole('button', { name: 'Update branch' }).click();
-    },
+    start: (row) =>
+      viaActionsDialog(row, async (footer) => {
+        await footer.getByRole('button', { name: 'Update branch' }).click();
+      }),
   },
   {
     name: 'Enable auto-merge',
