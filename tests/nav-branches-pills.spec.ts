@@ -18,6 +18,7 @@ type Counts = {
   running: number;
   passed: number;
   none: number;
+  awaitingApproval?: number;
 };
 
 const MIXED: Counts = { total: 7, failed: 2, running: 1, passed: 3, none: 1 };
@@ -84,6 +85,40 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
       'nav-running',
       'nav-none',
     ]);
+  });
+
+  test('a branch held for workflow approval is drawn, so the parts add up to the total (#2024)', async ({
+    page,
+  }) => {
+    // 8 branches: 3 passed, 4 running, and one waiting for someone to approve
+    // its workflow runs. The pill used to show 8 with 3 and 4 and nothing for
+    // the eighth.
+    await open(page, {
+      total: 8,
+      failed: 0,
+      running: 4,
+      passed: 3,
+      none: 0,
+      awaitingApproval: 1,
+    });
+    const pill = header(page).locator('.nav-pills');
+
+    await expect(pill.locator('.nav-total')).toHaveText('8');
+    await expect(pill.locator('.nav-passed')).toHaveText('3');
+    await expect(pill.locator('.nav-running')).toHaveText('4');
+    await expect(pill.locator('.nav-awaiting')).toHaveText('1');
+    await expect(pill.locator('.nav-awaiting svg').first()).toBeAttached();
+    const shown = await pill
+      .locator('.nav-count')
+      .evaluateAll((els) =>
+        els.reduce((n, el) => n + Number(el.textContent?.trim()), 0),
+      );
+    expect(shown).toBe(8);
+    // The link's own name says it in words as well as numbers.
+    await expect(header(page)).toHaveAttribute(
+      'aria-label',
+      /1 waiting for approval/,
+    );
   });
 
   test('a count of zero is not drawn, and no branches means no pill', async ({

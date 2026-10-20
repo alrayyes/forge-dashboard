@@ -65,6 +65,9 @@ const defaultBranchSelection = `
 type graphqlBranchRef struct {
 	Name   string        `json:"name"`
 	Target graphqlCommit `json:"target"`
+	// heldRunURL is the page of a workflow run held for approval on the newest
+	// commit, set by withCheckedCommits (#2024). Not part of the response.
+	heldRunURL string
 }
 
 // graphqlCommit is a commit with the CI that ran on it.
@@ -127,9 +130,10 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 		row.Commit.CommittedAt = &at
 	}
 	row.RunURL = target.URL + "/checks"
-
 	rollup := target.StatusCheckRollup
 	if rollup == nil {
+		markAwaitingApproval(&row, ref)
+
 		return row
 	}
 	row.Status = dashboard.MainBranchStatusOfCI(rollup.ci())
@@ -152,6 +156,17 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 	}
 
 	return row
+}
+
+// markAwaitingApproval gives the row the awaiting-approval status when the
+// newest commit's runs are held: they made no check run, so there is no rollup
+// to read. The run's own page carries GitHub's approve button (#2024).
+func markAwaitingApproval(row *dashboard.MainBranch, ref *graphqlBranchRef) {
+	if ref.heldRunURL == "" {
+		return
+	}
+	row.Status = dashboard.MainBranchAwaitingApproval
+	row.RunURL = ref.heldRunURL
 }
 
 // failedConclusion reports a check run conclusion that breaks the branch, the
@@ -307,16 +322,55 @@ type branchRepo struct {
 	ref         *graphqlBranchRef
 }
 
-// withCheckedCommits moves each ref's target to the newest commit a check ran
-// on, for the repos whose newest commit has none. Any failure leaves the refs
-// as they were, so the row reads none rather than the poll failing.
-func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) {
+// heldBranchRun reports whether the commit's workflow runs are held for
+// approval, and the page of the newest held run. It answers from the per-commit
+// answer the pull request pill and the panel share when there is one, whether
+// held, not held or unreadable, so a poll every few seconds costs a request a
+// minute for a commit, and a token that cannot read Actions is not asked again
+// on every poll (the forge API budget). Unreadable reads as not held.
+func (c *Client) heldBranchRun(ctx context.Context, owner, name, sha string) (string, bool) {
+	if answer, ok := c.requiredChecks.cachedHeld(sha); ok {
+		return answer.runURL, answer.held
+	}
+	held := c.heldWorkflowChecks(ctx, owner, name, sha)
+	if len(held) == 0 {
+		return "", false
+	}
+
+	return held[0].URL, true
+}
+
+// uncheckedBranches picks the repos whose newest commit has no rollup and are
+// worth walking back for. A commit whose runs are held for approval has no check
+// run for the same reason a [skip ci] one has none, but it is not finished: its
+// ref is marked and left where it is, so the row says so rather than showing an
+// older commit's result (#2024).
+func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) []branchRepo {
 	var unchecked []branchRepo
 	for _, r := range tracked {
-		if ref := r.DefaultBranchRef; ref != nil && ref.Target.OID != "" && ref.Target.StatusCheckRollup == nil {
-			unchecked = append(unchecked, branchRepo{owner: r.Owner.Login, name: r.Name, ref: ref})
+		ref := r.DefaultBranchRef
+		if ref == nil || ref.Target.OID == "" || ref.Target.StatusCheckRollup != nil {
+			continue
 		}
+		if runURL, held := c.heldBranchRun(ctx, r.Owner.Login, r.Name, ref.Target.OID); held {
+			ref.heldRunURL = runURL
+			if ref.heldRunURL == "" {
+				ref.heldRunURL = ref.Target.URL + "/checks"
+			}
+
+			continue
+		}
+		unchecked = append(unchecked, branchRepo{owner: r.Owner.Login, name: r.Name, ref: ref})
 	}
+
+	return unchecked
+}
+
+// withCheckedCommits moves each ref's target to the newest commit a check ran
+// on, for the repos whose newest commit has none and no runs held for approval. Any failure leaves the refs
+// as they were, so the row reads none rather than the poll failing.
+func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) {
+	unchecked := c.uncheckedBranches(ctx, tracked)
 	if len(unchecked) == 0 {
 		return
 	}

@@ -4738,3 +4738,41 @@ func TestFetch_ClosingIssuesAreAnEmptyListWhenThePullRequestClosesNothing(t *tes
 	require.Len(t, result.PullRequests, 1)
 	assert.Equal(t, []dashboard.IssueRef{}, result.PullRequests[0].ClosesIssues, "never null")
 }
+
+// #2024: a newest commit whose runs are held for approval has no check runs,
+// but it is the commit the row reports, so the panel lists the held workflows
+// and does not fall back to an older commit's checks.
+func TestListDefaultBranchChecks_NewestCommitHeldForApproval_ListsTheHeldWorkflows(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"sha": "cafef00d"}, {"sha": "deadbeef"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"statuses": []map[string]any{}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"id": 1, "name": "ci", "workflow_id": 7, "html_url": "https://github.com/alrayyes/a/actions/runs/1"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/deadbeef/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"name": "build", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/runs/9"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, []dashboard.Check{
+		{Name: "ci", State: dashboard.CheckAwaitingApproval, URL: "https://github.com/alrayyes/a/actions/runs/1"},
+	}, checks)
+}

@@ -93,7 +93,7 @@ func TestMainBranches_LeaveOutARepoIgnoredForPullRequests(t *testing.T) {
 	assert.Equal(t, "acme/kept", body.Branches[0].FullName)
 	assert.Equal(t, 1, body.Counts.Total)
 	assert.Equal(t, 0, body.Counts.Failed)
-	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 0.0, "passed": 1.0, "none": 0.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"),
+	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 0.0, "passed": 1.0, "none": 0.0, "awaitingApproval": 0.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"),
 		"the badge agrees with the page")
 }
 
@@ -111,7 +111,7 @@ func TestMainBranches_KeepARepoIgnoredOnlyForIssues(t *testing.T) {
 	body := readMainBranchesFrom(t, srvURL, cookie, 1)
 
 	assert.Equal(t, 1, body.Counts.Failed)
-	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 1.0, "passed": 0.0, "none": 0.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"))
+	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 1.0, "passed": 0.0, "none": 0.0, "awaitingApproval": 0.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"))
 }
 
 func branchRow(repo string, status dashboard.MainBranchStatus) dashboard.MainBranch {
@@ -177,7 +177,7 @@ func TestMainBranches_NoRepos(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	assert.JSONEq(t, `[]`, string(rawField(t, got.body, "branches")), "an array, never null")
-	assert.JSONEq(t, `{"failed":0,"passed":0,"running":0,"cancelled":0,"none":0,"total":0}`, string(rawField(t, got.body, "counts")))
+	assert.JSONEq(t, `{"failed":0,"passed":0,"running":0,"cancelled":0,"awaitingApproval":0,"none":0,"total":0}`, string(rawField(t, got.body, "counts")))
 }
 
 func rawField(t *testing.T, body []byte, name string) json.RawMessage {

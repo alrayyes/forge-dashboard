@@ -520,6 +520,11 @@ header,
 .nav-running {
   color: var(--warning);
 }
+/* Held until someone approves (#2024): the warning ink, like the running state,
+   with its own pause glyph so the colour is never alone. */
+.nav-awaiting {
+  color: var(--warning);
+}
 .nav-passed {
   color: var(--good);
 }
