@@ -13,9 +13,6 @@ import (
 
 // kindSpy records the apistats kind its forge calls arrive under.
 type kindSpy struct {
-	fakePullRequestCloserSource
-	fakeDetailerSource
-
 	mu   sync.Mutex
 	kind apistats.Kind
 }

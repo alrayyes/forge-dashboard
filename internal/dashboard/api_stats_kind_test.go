@@ -61,9 +61,8 @@ func (c *hookKindClient) HasWebhook(ctx context.Context, owner, name string) (bo
 func TestAPIStats_AWebhookCheckInsideAFullRefreshIsTaggedHookMaintenance(t *testing.T) {
 	t.Parallel()
 
-	client := &hookKindClient{fakeWebhookCheckerClient: fakeWebhookCheckerClient{
-		fakeForgeClient: fakeForgeClient{repos: []dashboard.RepoRef{{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"}}},
-	}}
+	client := &hookKindClient{}
+	client.repos = []dashboard.RepoRef{{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a"}}
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
 
 	source.Fetch(apistats.WithKind(t.Context(), apistats.KindFull))

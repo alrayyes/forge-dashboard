@@ -251,9 +251,6 @@ func run() error {
 	requestLogWriter := requestlog.NewWriter(authStore, requestLogQueueSize)
 	defer requestLogWriter.Close()
 
-	// Zero at every start; /api/stats/forge-api says when counting began.
-	apiStats := apistats.New()
-
 	var drain api.Drain
 	deps := api.Deps{
 		Drain:         &drain,
@@ -265,8 +262,7 @@ func run() error {
 		Manager:       manager,
 		Database:      schemaPinger{db: db},
 		Dashboard:     manager,
-		BuildSources:  buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, apiStats),
-		APIStats:      apiStats,
+		APIStats:      apistats.New(),
 		AppContext:    ctx,
 		// Same env var buildAuth already required for WebAuthn's own
 		// RPOrigins — reused rather than adding a second "what's my own
@@ -274,6 +270,7 @@ func run() error {
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
 		GitHubAppConfigured: githubAppID != 0,
 	}
+	deps.BuildSources = buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
 
 	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)

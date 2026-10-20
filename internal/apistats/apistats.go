@@ -16,6 +16,7 @@ import (
 // Kind says why a request was made.
 type Kind string
 
+// The kinds a request is counted under.
 const (
 	KindFull            Kind = "full"
 	KindScopedWebhook   Kind = "scoped_webhook"

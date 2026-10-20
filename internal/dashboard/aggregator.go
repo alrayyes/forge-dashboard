@@ -296,7 +296,7 @@ func (a *Aggregator) Get() Snapshot {
 // unreachable ForgeHealth entry instead, so one broken forge never drops
 // the other's data.
 func (a *Aggregator) Refresh(ctx context.Context) {
-	a.refresh.do(func() { a.refreshOnce(ctx) })
+	a.refresh.do(func() { a.refreshOnce(apistats.WithKind(ctx, apistats.KindFull)) })
 }
 
 // RefreshRepo refreshes just the named repository's pull requests and
@@ -511,7 +511,6 @@ func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bo
 }
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
-	ctx = apistats.WithKind(ctx, apistats.KindFull)
 	seq := a.fetchSeq.Add(1)
 	results := a.fetchSources(ctx)
 

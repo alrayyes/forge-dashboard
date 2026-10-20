@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func find(t *testing.T, c *apistats.Counters, key apistats.Key) apistats.Count {
-	t.Helper()
+func find(c *apistats.Counters, key apistats.Key) apistats.Count {
 	for _, b := range c.Snapshot() {
 		if b.Key == key {
 			return b.Count
@@ -21,16 +22,12 @@ func find(t *testing.T, c *apistats.Counters, key apistats.Key) apistats.Count {
 	return apistats.Count{}
 }
 
-func get(ctx context.Context, t *testing.T, client *http.Client, url string) {
+func do(ctx context.Context, t *testing.T, client *http.Client, method, url string) {
 	t.Helper()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	req, err := http.NewRequestWithContext(ctx, method, url, nil)
+	require.NoError(t, err)
 	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	_ = resp.Body.Close()
 }
 
@@ -42,141 +39,141 @@ func okServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func TestTransportCountsRESTUnderKindAndRepo(t *testing.T) {
-	srv := okServer(t)
-	c := apistats.New()
-	client := &http.Client{Transport: apistats.Transport(nil, c, "github", "token:ab12")}
-
-	ctx := apistats.WithRepo(apistats.WithKind(context.Background(), apistats.KindScopedWebhook), "owner/repo")
-	get(ctx, t, client, srv.URL+"/repos/owner/repo/pulls")
-
-	got := find(t, c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindScopedWebhook, Repo: "owner/repo"})
-	if got.REST != 1 || got.GraphQL != 0 || got.NotModified != 0 {
-		t.Fatalf("got %+v, want one REST call", got)
-	}
+func countingClient(c *apistats.Counters, forge, credential string) *http.Client {
+	return &http.Client{Transport: apistats.Transport(nil, c, forge, credential)}
 }
 
-func TestTransportCountsGraphQLSeparatelyAndAddsCost(t *testing.T) {
+func TestTransport_CountsRESTUnderKindAndRepo(t *testing.T) {
+	t.Parallel()
+
 	srv := okServer(t)
 	c := apistats.New()
-	client := &http.Client{Transport: apistats.Transport(nil, c, "github", "app:7")}
+	ctx := apistats.WithRepo(apistats.WithKind(t.Context(), apistats.KindScopedWebhook), "owner/repo")
 
-	ctx := apistats.WithRepo(apistats.WithKind(context.Background(), apistats.KindScopedWebhook), "owner/repo")
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, srv.URL+"/graphql", nil)
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = resp.Body.Close()
+	do(ctx, t, countingClient(c, "github", "token:ab12"), http.MethodGet, srv.URL+"/user")
+
+	got := find(c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindScopedWebhook, Repo: "owner/repo"})
+	assert.EqualValues(t, 1, got.REST)
+	assert.Zero(t, got.GraphQL+got.NotModified)
+}
+
+func TestTransport_CountsGraphQLSeparatelyAndAddsCost(t *testing.T) {
+	t.Parallel()
+
+	srv := okServer(t)
+	c := apistats.New()
+	ctx := apistats.WithRepo(apistats.WithKind(t.Context(), apistats.KindScopedWebhook), "owner/repo")
+
+	do(ctx, t, countingClient(c, "github", "app:7"), http.MethodPost, srv.URL+"/graphql")
 	c.AddCost(ctx, "github", "app:7", 3)
 
-	got := find(t, c, apistats.Key{Forge: "github", Credential: "app:7", Kind: apistats.KindScopedWebhook, Repo: "owner/repo"})
-	if got.GraphQL != 1 || got.GraphQLCost != 3 || got.REST != 0 {
-		t.Fatalf("got %+v, want one GraphQL call costing 3", got)
-	}
+	got := find(c, apistats.Key{Forge: "github", Credential: "app:7", Kind: apistats.KindScopedWebhook, Repo: "owner/repo"})
+	assert.EqualValues(t, 1, got.GraphQL)
+	assert.EqualValues(t, 3, got.GraphQLCost)
+	assert.Zero(t, got.REST)
 }
 
-func TestTransportCountsA304AsNotModifiedNotREST(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotModified)
-	}))
+func TestTransport_CountsA304AsNotModifiedNotREST(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotModified) }))
 	defer srv.Close()
 	c := apistats.New()
-	client := &http.Client{Transport: apistats.Transport(nil, c, "github", "token:ab12")}
 
-	get(apistats.WithKind(context.Background(), apistats.KindHookMaintenance), t, client, srv.URL+"/repos/o/r/hooks")
+	do(apistats.WithKind(t.Context(), apistats.KindHookMaintenance), t, countingClient(c, "github", "token:ab12"), http.MethodGet, srv.URL+"/repos/o/r/hooks")
 
-	got := find(t, c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindHookMaintenance, Repo: "o/r"})
-	if got.NotModified != 1 || got.REST != 0 {
-		t.Fatalf("got %+v, want one not-modified and no REST", got)
-	}
+	got := find(c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindHookMaintenance, Repo: "o/r"})
+	assert.EqualValues(t, 1, got.NotModified)
+	assert.Zero(t, got.REST)
 }
 
-func TestUntaggedCallIsCountedAsUnknown(t *testing.T) {
+func TestTransport_AnUntaggedCallIsCountedAsUnknown(t *testing.T) {
+	t.Parallel()
+
 	srv := okServer(t)
 	c := apistats.New()
-	client := &http.Client{Transport: apistats.Transport(nil, c, "forgejo", "user:ryan")}
 
-	get(context.Background(), t, client, srv.URL+"/api/v1/user")
+	do(t.Context(), t, countingClient(c, "forgejo", "token:cd34"), http.MethodGet, srv.URL+"/api/v1/user")
 
-	got := find(t, c, apistats.Key{Forge: "forgejo", Credential: "user:ryan", Kind: apistats.KindUnknown})
-	if got.REST != 1 {
-		t.Fatalf("got %+v, want the call under unknown", got)
-	}
+	assert.EqualValues(t, 1, find(c, apistats.Key{Forge: "forgejo", Credential: "token:cd34", Kind: apistats.KindUnknown}).REST)
 }
 
-func TestTwoCallsOnOneCredentialShareARow(t *testing.T) {
+func TestTransport_TwoClientsOnOneCredentialShareARow(t *testing.T) {
+	t.Parallel()
+
 	srv := okServer(t)
 	c := apistats.New()
-	a := &http.Client{Transport: apistats.Transport(nil, c, "github", "token:ab12")}
-	b := &http.Client{Transport: apistats.Transport(nil, c, "github", "token:ab12")}
-	ctx := apistats.WithKind(context.Background(), apistats.KindFull)
+	ctx := apistats.WithKind(t.Context(), apistats.KindFull)
 
-	get(ctx, t, a, srv.URL+"/x")
-	get(ctx, t, b, srv.URL+"/y")
+	do(ctx, t, countingClient(c, "github", "token:ab12"), http.MethodGet, srv.URL+"/x")
+	do(ctx, t, countingClient(c, "github", "token:ab12"), http.MethodGet, srv.URL+"/y")
 
-	if got := find(t, c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindFull}); got.REST != 2 {
-		t.Fatalf("got %+v, want 2 on one row", got)
-	}
+	assert.EqualValues(t, 2, find(c, apistats.Key{Forge: "github", Credential: "token:ab12", Kind: apistats.KindFull}).REST)
 }
 
-func TestNilCountersAreSafe(t *testing.T) {
+func TestTransport_RepoComesFromTheURLWhenThePathNamesOne(t *testing.T) {
+	t.Parallel()
+
+	srv := okServer(t)
+	c := apistats.New()
+	// The context names another repo, as a shared SDK context can after a race.
+	ctx := apistats.WithRepo(apistats.WithKind(t.Context(), apistats.KindFull), "someone/else")
+
+	do(ctx, t, countingClient(c, "forgejo", "token:cd34"), http.MethodGet, srv.URL+"/api/v1/repos/alrayyes/a/pulls")
+
+	assert.EqualValues(t, 1, find(c, apistats.Key{Forge: "forgejo", Credential: "token:cd34", Kind: apistats.KindFull, Repo: "alrayyes/a"}).REST)
+}
+
+func TestTransport_AnAccountWideListingHasNoRepo(t *testing.T) {
+	t.Parallel()
+
+	srv := okServer(t)
+	c := apistats.New()
+
+	do(apistats.WithKind(t.Context(), apistats.KindFull), t, countingClient(c, "forgejo", "token:cd34"), http.MethodGet, srv.URL+"/api/v1/user/repos")
+
+	assert.EqualValues(t, 1, find(c, apistats.Key{Forge: "forgejo", Credential: "token:cd34", Kind: apistats.KindFull}).REST)
+}
+
+func TestNilCounters_AreSafe(t *testing.T) {
+	t.Parallel()
+
 	var c *apistats.Counters
-	c.AddCost(context.Background(), "github", "x", 1)
-	if len(c.Snapshot()) != 0 {
-		t.Fatal("nil counters should snapshot empty")
-	}
-	if rt := apistats.Transport(http.DefaultTransport, nil, "github", "x"); rt != http.DefaultTransport {
-		t.Fatal("nil counters should leave the transport untouched")
-	}
+	c.AddCost(t.Context(), "github", "x", 1)
+
+	assert.Empty(t, c.Snapshot())
+	assert.True(t, c.Since().IsZero())
+	assert.Same(t, http.DefaultTransport, apistats.Transport(http.DefaultTransport, nil, "github", "x"), "no counters leaves the transport as it was")
 }
 
-func TestCardinalityIsBounded(t *testing.T) {
+func TestCounters_CardinalityIsBoundedAndNoCallIsLost(t *testing.T) {
+	t.Parallel()
+
 	c := apistats.New()
 	for i := range apistats.MaxBuckets * 2 {
 		c.Add(apistats.Key{Forge: "github", Credential: "x", Kind: apistats.KindFull, Repo: "o/r" + strconv.Itoa(i)}, apistats.Count{REST: 1})
 	}
-	if n := len(c.Snapshot()); n > apistats.MaxBuckets+1 {
-		t.Fatalf("%d buckets, want at most %d", n, apistats.MaxBuckets+1)
-	}
+
 	var total int64
 	for _, b := range c.Snapshot() {
 		total += b.REST
 	}
-	if total != int64(apistats.MaxBuckets*2) {
-		t.Fatalf("total %d, want no call lost to the overflow row", total)
-	}
+	assert.LessOrEqual(t, len(c.Snapshot()), apistats.MaxBuckets+1)
+	assert.EqualValues(t, apistats.MaxBuckets*2, total)
 }
 
-func TestRepoComesFromTheURLWhenThePathNamesOne(t *testing.T) {
-	srv := okServer(t)
-	c := apistats.New()
-	client := &http.Client{Transport: apistats.Transport(nil, c, "forgejo", "user:ryan")}
+func TestCounters_SayWhenCountingBegan(t *testing.T) {
+	t.Parallel()
 
-	// The context names another repo, as a shared SDK context can after a race.
-	ctx := apistats.WithRepo(apistats.WithKind(context.Background(), apistats.KindFull), "someone/else")
-	get(ctx, t, client, srv.URL+"/api/v1/repos/alrayyes/a/pulls")
-
-	got := find(t, c, apistats.Key{Forge: "forgejo", Credential: "user:ryan", Kind: apistats.KindFull, Repo: "alrayyes/a"})
-	if got.REST != 1 {
-		t.Fatalf("got %+v, want the call under the repo in the path", got)
-	}
+	assert.False(t, apistats.New().Since().IsZero())
 }
 
-func TestAnAccountWideListingHasNoRepo(t *testing.T) {
-	srv := okServer(t)
-	c := apistats.New()
-	client := &http.Client{Transport: apistats.Transport(nil, c, "forgejo", "user:ryan")}
+func TestCredentialLabels_CarryNoSecret(t *testing.T) {
+	t.Parallel()
 
-	get(apistats.WithKind(context.Background(), apistats.KindFull), t, client, srv.URL+"/api/v1/user/repos")
-
-	if got := find(t, c, apistats.Key{Forge: "forgejo", Credential: "user:ryan", Kind: apistats.KindFull}); got.REST != 1 {
-		t.Fatalf("got %+v, want the call under an empty repo", got)
-	}
-}
-
-func TestSinceIsSetAtStart(t *testing.T) {
-	if apistats.New().Since().IsZero() {
-		t.Fatal("since must be set")
-	}
+	assert.Equal(t, "app:7", apistats.AppCredential(7))
+	assert.NotContains(t, apistats.TokenCredential("ghp_secret"), "secret")
+	label := apistats.TokenCredential("ghp_secret")
+	assert.Equal(t, label, apistats.TokenCredential("ghp_secret"), "one token, one label")
+	assert.NotEqual(t, apistats.TokenCredential("a"), apistats.TokenCredential("b"))
 }
