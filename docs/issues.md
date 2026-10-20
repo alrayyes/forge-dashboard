@@ -33,6 +33,14 @@ the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
 
+## Who filed it
+
+A row shows the avatar of whoever filed the issue to the left of their name,
+the same as a pull request row. It is the forge's own HTTPS image URL, loaded
+straight from the forge by your browser. When the forge sends none, the URL
+isn't HTTPS, or the image can't load, the row shows the name alone. The narrow
+layout drops the author column, avatar and all.
+
 ## Issues your settings hide
 
 Two settings, saved with your account and applied by the server, keep issues
