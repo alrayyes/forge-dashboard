@@ -38,6 +38,7 @@
   // GET /api/pull-requests/details, fetched when the dialog opens and never
   // as part of the snapshot. Dashboard.svelte calls open() from a row's
   // trigger and holds nothing else of this dialog's state.
+  import { avatarSrc } from "#lib/avatar.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
 
@@ -225,19 +226,6 @@
       phase = "error";
 
       return false;
-    }
-  }
-
-  // The avatar is the forge's own URL, passed through unchanged. Only https
-  // is loaded: the dashboard is served over https, where the browser blocks
-  // an http image anyway, and javascript: or data: have no business in an
-  // <img>. Anything else shows the initial.
-  function avatarSrc(url: string | undefined): string | null {
-    if (!url) return null;
-    try {
-      return new URL(url).protocol === "https:" ? url : null;
-    } catch {
-      return null;
     }
   }
 

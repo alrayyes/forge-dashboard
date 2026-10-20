@@ -4108,6 +4108,7 @@ components:
           title,
           url,
           author,
+          authorAvatarUrl,
           draft,
           labels,
           createdAt,
@@ -4153,6 +4154,9 @@ components:
           description: The real pull request URL on its own forge.
         author:
           type: string
+        authorAvatarUrl:
+          type: string
+          description: The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
         draft:
           type: boolean
         labels:

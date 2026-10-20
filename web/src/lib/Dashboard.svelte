@@ -42,6 +42,7 @@
     findAction,
     primaryAction,
   } from "#lib/allowed-actions.js";
+  import { avatarSrc } from "#lib/avatar.js";
   import * as Stacks from "#lib/stacks.js";
   import { createTitleHover } from "#lib/title-hover.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -137,6 +138,8 @@
   type PullRequestItem = FilterableItem & {
     number: number;
     url: string;
+    // The forge's own avatar URL for the author; empty when it has none.
+    authorAvatarUrl?: string;
     draft: boolean;
     ci: string;
     mergeStatus: string;
@@ -1557,7 +1560,28 @@
       }
 
       const meta = el("div", "row-meta");
-      meta.appendChild(el("div", "author", item.author));
+      const authorCell = el("div", "author", item.author);
+      const avatar = isPR
+        ? avatarSrc((item as PullRequestItem).authorAvatarUrl)
+        : null;
+      if (avatar) {
+        // Decorative: the name beside it already says who. A failed load
+        // drops the image and leaves the name alone.
+        const img = el("img", "author-avatar") as HTMLImageElement;
+        img.src = avatar;
+        img.alt = "";
+        img.width = 20;
+        img.height = 20;
+        img.loading = "lazy";
+        img.referrerPolicy = "no-referrer";
+        img.addEventListener("error", () => {
+          img.remove();
+          authorCell.classList.remove("has-avatar");
+        });
+        authorCell.classList.add("has-avatar");
+        authorCell.replaceChildren(img, el("span", "author-name", item.author));
+      }
+      meta.appendChild(authorCell);
       meta.appendChild(timeCell("created", "Created", item.createdAt));
       meta.appendChild(timeCell("updated", "Updated", item.updatedAt));
       if (isPR) {
