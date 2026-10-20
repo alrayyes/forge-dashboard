@@ -9,11 +9,11 @@ package dashboard
 // the reason is stated here and Close is the way out.
 func PullRequestStatus(pr PullRequest, actions []ActionAvailability) *Status {
 	if pr.Empty {
-		return &Status{Blocked: Blocked{
+		return &Status{
 			Code:    ActionAlreadyUpToDate,
 			Message: "Nothing to merge: the branch is already on the target branch.",
 			Next:    "Close it. There is nothing left to land.",
-		}}
+		}
 	}
 	for _, a := range actions {
 		if a.Action == ActionMerge && a.Blocked != nil {
