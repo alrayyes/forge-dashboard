@@ -6,6 +6,14 @@ issues without Renovate's Dependency Dashboard, which the page hides by
 default. The badge is set from each snapshot on the dashboard and issues
 pages, and loaded once on the other signed-in pages.
 
+An issue's title opens a pop-up with its description and comments, laid out
+like a pull request's. It loads when it opens, from `GET /api/issues/details`,
+and nothing about it is part of the snapshot. The header shows that the issue
+is open and its labels, and the footer links to the issue on its forge. There
+are no actions: you can't merge, close, or comment from here. If the forge can't
+be read, the pop-up says why and offers **Try again** instead of showing an
+empty thread. Escape or **Close details** returns you to the issue's row.
+
 Next to **Hide Dependency Dashboard**, the **Hide titles matching (regex)**
 box hides the issues whose title matches a regular expression. The match is
 case-insensitive and can fall anywhere in the title, so `^Weekly report` hides

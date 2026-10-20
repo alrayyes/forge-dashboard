@@ -236,31 +236,6 @@ test.describe('on the other pages and on a phone', () => {
     }
   });
 
-  test('issues rows keep a title link to the forge', async ({ page }) => {
-    await mockDashboard(
-      page,
-      [],
-      [
-        {
-          forge: 'github',
-          repo: 'alrayyes/forge-dashboard',
-          number: 7,
-          title: 'An issue',
-          url: 'https://example.com/issues/7',
-          author: 'ryankes',
-          labels: [],
-          createdAt: ago(60),
-          updatedAt: ago(5),
-        },
-      ],
-    );
-    await page.goto('/issues.html');
-    await expect(page.locator('#issue-rows .row a.title')).toHaveAttribute(
-      'href',
-      'https://example.com/issues/7',
-    );
-  });
-
   for (const scheme of ['light', 'dark'] as const) {
     test(`at 360px the whole row is the tap target and nothing scrolls sideways (${scheme})`, async ({
       page,
