@@ -43,11 +43,13 @@
   async function load(row: PipelineTarget) {
     const mine = ++request;
     phase = "loading";
+    checks = [];
     try {
       const res = await fetch(
         `/api/main-branches/checks?forge=${encodeURIComponent(row.forge)}&fullName=${encodeURIComponent(row.fullName)}`,
         { headers: { Accept: "application/json" } },
       );
+      if (mine !== request) return;
       if (res.status === 401) {
         window.location.href = "/login.html";
         return;
@@ -137,7 +139,9 @@
       <p class="pipeline-status">No jobs were found for this branch.</p>
     {:else}
       <ul class="pipeline-check-list">
-        {#each checks as check (check.name + check.url)}
+        <!-- Unkeyed: two jobs can share a name with no page, and the list is
+             replaced whole on every load. -->
+        {#each checks as check}
           <li class="pipeline-check">
             <span class="pipeline-check-status {check.state}">
               {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}

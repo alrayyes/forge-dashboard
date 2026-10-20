@@ -469,6 +469,26 @@ test.describe('Main branches page (#1224, #1279)', () => {
     expect(asked).toHaveLength(1);
   });
 
+  test('two jobs with the same name and no page both list', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page, {
+      body: {
+        checks: [
+          { name: 'build', state: 'success', url: '' },
+          { name: 'build', state: 'failure', url: '' },
+        ],
+      },
+    });
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await expect(dialog(page).getByRole('listitem')).toHaveCount(2);
+  });
+
   test('a branch with no jobs says so in the panel', async ({ page }) => {
     await mock(page, snapshot(MIXED));
     await mockChecks(page, { body: { checks: [] } });
