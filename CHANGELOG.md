@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.237.0](https://github.com/alrayyes/forge-dashboard/compare/v0.236.0...v0.237.0) (2026-10-20)
+
+
+### Features
+
+* **api:** debounce the scoped refresh a webhook delivery causes ([#2059](https://github.com/alrayyes/forge-dashboard/issues/2059)) ([8548687](https://github.com/alrayyes/forge-dashboard/commit/854868749f2430ecdffbca8693556e701224690b))
+
 ## [0.236.0](https://github.com/alrayyes/forge-dashboard/compare/v0.235.0...v0.236.0) (2026-10-20)
 
 
