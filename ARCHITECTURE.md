@@ -140,7 +140,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
 - **Every forge request is counted.** A counting transport sits under each
   client's HTTP cache, so it sees the real answers, including a `304`. Each
   request is counted by forge, credential, why it was made (a full refresh, a
-  webhook's scoped refresh, a CI poll, a detail dialog, webhook upkeep, a
+  webhook's scoped refresh, a CI poll, a detail view, webhook upkeep, a
   button you pressed) and repo, and `GET /api/stats/forge-api` serves the
   rows for your own credentials. The counters are in memory and restart at
   zero. A key carries no user id, only a label for the account or App
