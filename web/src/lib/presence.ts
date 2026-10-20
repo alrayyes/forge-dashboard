@@ -31,7 +31,9 @@ export function createPresence(opts: PresenceOptions) {
   let idleAfterMs = 0;
   let lastInput = opts.now();
   let inputIdle = false;
-  // What the server was last told; null until anything got through.
+  // What the server was last told, counting a report still in flight (the tab
+  // may hide before the answer); null until a report was sent, and again after
+  // one that did not get through.
   let reported: boolean | null = null;
   let heartbeatTimer: unknown;
   let idleTimer: unknown;
@@ -39,9 +41,12 @@ export function createPresence(opts: PresenceOptions) {
   const wanted = () => running && opts.isVisible() && !inputIdle;
 
   function report(visible: boolean) {
+    reported = visible;
     void opts.send(visible).then((timings) => {
-      if (!timings) return;
-      reported = visible;
+      if (!timings) {
+        if (reported === visible) reported = null;
+        return;
+      }
       heartbeatMs = Math.max(1, timings.heartbeatSeconds) * 1000;
       idleAfterMs = Math.max(0, timings.idleAfterSeconds) * 1000;
       if (visible) armIdle();

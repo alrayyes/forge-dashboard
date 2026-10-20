@@ -178,4 +178,43 @@ describe('presence', () => {
     await h.advance(3600_000);
     expect(h.sent).toEqual([true, false]);
   });
+
+  test('input before the idle timer fires pushes the idle moment back, with no timer to spare', async () => {
+    const h = harness({ heartbeatSeconds: 600, idleAfterSeconds: 300 });
+    h.presence.start();
+    await h.flush();
+
+    await h.advance(250_000);
+    h.presence.input();
+    // The first idle timer fires at 300 s, finds input 50 s ago, and re-arms.
+    await h.advance(100_000);
+    expect(h.sent).not.toContain(false);
+    await h.advance(200_000);
+    expect(h.sent.at(-1)).toBe(false);
+  });
+
+  test('hiding while the first report is still in flight still retracts it', async () => {
+    let release: (t: PresenceTimings) => void = () => {};
+    const sent: boolean[] = [];
+    const presence = createPresence({
+      now: () => 0,
+      isVisible: () => visible,
+      setTimer: () => 1,
+      clearTimer: () => {},
+      send: (v) => {
+        sent.push(v);
+        if (!v) return Promise.resolve(null);
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      },
+    });
+    let visible = true;
+    presence.start();
+    visible = false;
+    presence.visibilityChanged();
+    release({ heartbeatSeconds: 60, idleAfterSeconds: 0 });
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+    expect(sent).toEqual([true, false]);
+  });
 });
