@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.240.0](https://github.com/alrayyes/forge-dashboard/compare/v0.239.0...v0.240.0) (2026-10-20)
+
+
+### Features
+
+* **github:** key the ETag cache by credential and inventory every REST read ([#2070](https://github.com/alrayyes/forge-dashboard/issues/2070)) ([4915f86](https://github.com/alrayyes/forge-dashboard/commit/4915f86f8a3953931d62c111884b820e9826afcf))
+* **web:** put a phone card's one action in its own full-width row ([#2078](https://github.com/alrayyes/forge-dashboard/issues/2078)) ([e10d013](https://github.com/alrayyes/forge-dashboard/commit/e10d013b0a8daefc396354593f4c4ac60eddcc82))
+
 ## [0.239.0](https://github.com/alrayyes/forge-dashboard/compare/v0.238.1...v0.239.0) (2026-10-20)
 
 
