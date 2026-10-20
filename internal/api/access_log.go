@@ -24,9 +24,10 @@ import (
 //
 // That same slot says the request was a signed-in one, so it is where the
 // dashboard learns someone is using it: a request that got past
-// auth.RequireAuth touches the manager's Activity, and a rejected one, a probe or a page for
-// people does not. Touched after the handler returns, because the slot is
-// filled by then; a long-lived stream says it is open itself (StreamOpened).
+// auth.RequireAuth touches the manager's Activity, and a rejected one, a
+// probe or a page for people does not. Touched after the handler returns,
+// because the slot is filled by then; a long-lived stream says it is open
+// itself (StreamOpened).
 func accessLogMiddleware(manager *dashboard.Manager, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
