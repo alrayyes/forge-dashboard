@@ -2,6 +2,12 @@
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import * as Filters from "#lib/filters.js";
+  import {
+    type LabelFilterControl,
+    joinLabels,
+    mountLabelFilter,
+    parseLabels,
+  } from "#lib/label-filter.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
 
@@ -162,7 +168,8 @@
 
   let sharedRepoSelect: HTMLSelectElement | undefined = $state();
   let sharedAuthorSelect: HTMLSelectElement | undefined = $state();
-  let sharedLabelSelect: HTMLSelectElement | undefined = $state();
+  let labelHost: HTMLDivElement | undefined = $state();
+  let labelFilter: LabelFilterControl | null = null;
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
   let filterBarEl: HTMLDivElement | undefined = $state();
   // Saved picks this page does not offer, said out loud with a way to drop
@@ -202,14 +209,16 @@
         sharedTitleDatalist ?? null,
         Filters.distinctValues((item) => item.title, optionPool("")),
       );
-    const staleLabel = Filters.populateSelect(
-      sharedLabelSelect ?? null,
-      Filters.distinctValues(
-        (item) => (item.labels || []).map((l) => l.name),
-        optionPool("label"),
-      ),
-      sharedState.shared.label,
+    const labelChoices = Filters.distinctValues(
+      (item) => (item.labels || []).map((l) => l.name),
+      optionPool("label"),
     );
+    const staleLabel = Filters.reconcileLabels(
+      sharedState,
+      labelChoices,
+      holdPicks,
+    );
+    labelFilter?.render(labelChoices, parseLabels(sharedState.shared.label));
     // A forge button is offered only when something here is on that forge.
     if (filterBarEl)
       Filters.offerForges(
@@ -227,7 +236,6 @@
     };
     clearPick(staleRepo, "repo");
     clearPick(staleAuthor, "author");
-    clearPick(staleLabel, "label");
     if (!holdPicks && (staleRepo || staleAuthor || staleLabel))
       Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
@@ -257,7 +265,16 @@
 
   let sharedControlsRestored = false;
 
+  function applyLabels(next: string[]) {
+    sharedState.shared.label = joinLabels(next);
+    Filters.touchKey("shared", "label");
+    Filters.releaseHeld("shared", "label");
+    updateSharedFilterOptions();
+    Filters.saveState(sharedState);
+  }
+
   function wireFilterBar() {
+    if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
     filterBarEl
       ?.querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
       .forEach((c) => {
@@ -309,7 +326,10 @@
   }
 
   let page = -1;
-  onDestroy(() => Filters.leavePage(page));
+  onDestroy(() => {
+    Filters.leavePage(page);
+    labelFilter?.destroy();
+  });
 
   onMount(() => {
     sharedState = Filters.loadState();
@@ -770,15 +790,7 @@
       >
         <option value="">All authors</option>
       </select>
-      <select
-        class="col-filter"
-        data-col="label"
-        id="shared-label-select"
-        aria-label="Filter by label"
-        bind:this={sharedLabelSelect}
-      >
-        <option value="">All labels</option>
-      </select>
+      <div id="shared-label-filter" bind:this={labelHost}></div>
     </div>
 
     <div class="held-picks" role="status" tabindex="-1" bind:this={heldPicksEl}>

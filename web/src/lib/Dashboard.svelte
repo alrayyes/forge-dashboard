@@ -37,6 +37,13 @@
     type Check,
   } from "#lib/pipeline-checks.js";
   import * as Filters from "#lib/filters.js";
+  import {
+    type LabelFilterControl,
+    joinLabels,
+    mountLabelFilter,
+    parseLabels,
+    toggleLabel,
+  } from "#lib/label-filter.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import {
@@ -661,12 +668,12 @@
     ): HTMLButtonElement {
       const chip = document.createElement("button");
       chip.type = "button";
-      // activeLabel (the shared label filter) is always lowercase — set
-      // that way by both a chip click and the shared Label <select>'s
-      // generic .col-filter wiring, which lowercases every filter value
-      // uniformly — so the comparison here has to lowercase label.name
+      // activeLabel (the shared label filter) is lowercase, one label or
+      // several joined — so the comparison here has to lowercase label.name
       // to match.
-      const isActive = label.name.toLowerCase() === activeLabel;
+      const isActive = parseLabels(activeLabel).includes(
+        label.name.toLowerCase(),
+      );
       chip.className = `label-chip${isActive ? " active" : ""}`;
       chip.textContent = label.name;
       if (label.color && !isActive) {
@@ -5347,6 +5354,9 @@
     // offer is cleared here only, and stays in the saved copy for the page
     // that does (#1620). A later change that makes a pick stale is the
     // user's own, and clears it for good.
+    // The Label filter's control, mounted once the shared bar exists.
+    let labelFilter: LabelFilterControl | null = null;
+
     function updateSharedFilterOptions(
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
@@ -5375,16 +5385,18 @@
           ) as HTMLDataListElement | null,
           Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
         );
-      const staleLabel = Filters.populateSelect(
-        document.getElementById(
-          "shared-label-select",
-        ) as HTMLSelectElement | null,
-        Filters.distinctValues(
-          (item) => (item.labels || []).map((l) => l.name),
-          sharedPoolExcluding("label"),
-        ),
-        sharedState.shared.label,
+      // The Label filter holds several labels; the ones this page does not
+      // offer are set aside, the rest stay picked.
+      const labelChoices = Filters.distinctValues(
+        (item) => (item.labels || []).map((l) => l.name),
+        sharedPoolExcluding("label"),
       );
+      const staleLabel = Filters.reconcileLabels(
+        sharedState,
+        labelChoices,
+        holdPicks,
+      );
+      labelFilter?.render(labelChoices, parseLabels(sharedState.shared.label));
       // The fixed choices offer only what the results have too (#1427): the
       // age ranges something falls in, and the CI states pull requests are in.
       const staleCreated = populateEvery(
@@ -5419,7 +5431,6 @@
       };
       clearPick(staleRepo, "shared", "repo");
       clearPick(staleAuthor, "shared", "author");
-      clearPick(staleLabel, "shared", "label");
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
       clearPick(Boolean(staleStatus), "pr", "status");
@@ -5526,33 +5537,31 @@
       issueBoard.render();
     }
 
-    // Toggles the one shared label filter and re-renders both boards —
-    // a chip click on either board's rows affects the other board too,
-    // the same as the Label <select> in the shared bar does.
-    function handleLabelClick(label: string) {
-      // The shared label filter is always lowercase — but a real
-      // <option>'s value keeps its real case, so select.value can't
-      // just be assigned next directly; the browser only accepts an
-      // exact (case-sensitive) option value, silently clearing the
-      // selection on any case mismatch otherwise.
-      const lower = label.toLowerCase();
-      const next = sharedState.shared.label === lower ? "" : lower;
-      sharedState.shared.label = next;
+    // Sets the labels the shared Label filter matches (any of them) and
+    // re-renders both boards — a pick in the control, a chip click on either
+    // board's rows or a removed filter chip all land here, so they affect the
+    // other board too. The saved value is lowercase, like every saved pick.
+    function applyLabels(next: string[]) {
+      sharedState.shared.label = joinLabels(next);
       Filters.touchKey("shared", "label");
       Filters.releaseHeld("shared", "label");
       prBoard.resetPage();
       issueBoard.resetPage();
+      // The other choices narrow against the labels picked (#550), and a
+      // label that no longer matches anything is set aside.
+      updateSharedFilterOptions();
       Filters.saveState(sharedState);
-      const select = document.getElementById(
-        "shared-label-select",
-      ) as HTMLSelectElement | null;
-      if (select) {
-        const option = Array.from(select.options).find(
-          (o) => o.value.toLowerCase() === next,
-        );
-        select.value = option ? option.value : "";
-      }
       renderBoth();
+      const noun = view === "issues" ? "issue" : "pull request";
+      labelFilter?.announce(
+        `${visibleResultCount} ${noun}${visibleResultCount === 1 ? "" : "s"}`,
+      );
+    }
+
+    // A label chip on a row ticks the label, or unticks it when it is
+    // already picked.
+    function handleLabelClick(label: string) {
+      applyLabels(toggleLabel(parseLabels(sharedState.shared.label), label));
     }
 
     // ---- board state + render ----
@@ -6115,6 +6124,9 @@
         c.addEventListener("change", apply);
       });
 
+    const labelHost = document.getElementById("shared-label-filter");
+    if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
+
     // ---- quick filter pills (#678) ----
     // Toggle buttons with aria-pressed: exactly one is active at a time.
     // The pill logic itself lives in #lib/filters (setPill/activePill).
@@ -6328,10 +6340,13 @@
           label: `Author ${shared.author}`,
           clear: () => clearSelect("author"),
         });
-      if (shared.label)
+      for (const name of parseLabels(shared.label))
         chips.push({
-          label: `Label ${shared.label}`,
-          clear: () => clearSelect("label"),
+          label: `Label ${name}`,
+          clear: () =>
+            applyLabels(
+              toggleLabel(parseLabels(sharedState.shared.label), name),
+            ),
         });
       if (shared.created)
         chips.push({
@@ -7919,6 +7934,7 @@
       destroyed = true;
       Filters.leavePage(page);
       titleHover.destroy();
+      labelFilter?.destroy();
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
       for (const stop of stopListening) stop();
@@ -8260,14 +8276,7 @@
       >
         <option value="">All authors</option>
       </select>
-      <select
-        class="col-filter"
-        data-col="label"
-        id="shared-label-select"
-        aria-label="Filter by label"
-      >
-        <option value="">All labels</option>
-      </select>
+      <div id="shared-label-filter"></div>
       <select
         class="col-filter"
         data-col="created"

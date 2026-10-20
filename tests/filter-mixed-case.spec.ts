@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './fixtures';
+import { labelButton, pickedLabels, toggleLabels } from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1620: an author or label with capitals ("Ryan", "Bug") is saved lowercase,
@@ -67,7 +68,6 @@ test.describe('a pick with capitals stays picked (#1620)', () => {
 
   for (const [control, select, value, kept] of [
     ['author', '#shared-author-select', 'Ryan', 2],
-    ['label', '#shared-label-select', 'Bug', 1],
   ] as const) {
     test(`the ${control} pick ${value} is kept, and is still set after a full load`, async ({
       page,
@@ -83,4 +83,17 @@ test.describe('a pick with capitals stays picked (#1620)', () => {
       await expect(issueRows(page)).toHaveCount(kept);
     });
   }
+
+  test('the label pick Bug is kept, shown as written, and is still set after a full load', async ({
+    page,
+  }) => {
+    await toggleLabels(page, 'Bug');
+    await expect(issueRows(page)).toHaveCount(1);
+    await expect(labelButton(page)).toHaveText('Bug');
+    expect(await pickedLabels(page)).toEqual(['bug']);
+
+    await open(page, '/issues.html');
+    await expect(labelButton(page)).toHaveText('Bug');
+    await expect(issueRows(page)).toHaveCount(1);
+  });
 });

@@ -6,6 +6,7 @@ import {
   type Route,
 } from '@playwright/test';
 import { test } from './fixtures';
+import { choicesOf } from './label-filter-helper';
 import { registerViaInvite } from './register-helper';
 
 // #1593: "Hide titles matching (regex)" on the Issues page, next to the Hide
@@ -82,12 +83,7 @@ const input = (page: Page) =>
 const note = (page: Page) => page.locator('#issue-hide-title-note');
 const error = (page: Page) => page.locator('#issue-hide-title-regex-error');
 const rows = (page: Page) => page.locator('#issue-rows > .row');
-const choices = (page: Page, id: string) =>
-  page
-    .locator(`#${id} option`)
-    .evaluateAll((os) =>
-      os.map((o) => (o as HTMLOptionElement).textContent?.trim() ?? ''),
-    );
+const choices = choicesOf;
 
 test.describe('hide titles matching a pattern (#1593)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
@@ -250,7 +246,7 @@ test.describe('hide titles matching a pattern (#1593)', () => {
       'alrayyes/reports',
     );
     expect(await choices(page, 'shared-author-select')).toContain('bot');
-    expect(await choices(page, 'shared-label-select')).toContain('report');
+    expect(await choices(page, 'shared-label-filter')).toContain('report');
 
     await input(page).fill('^Weekly report|^Weekly');
 
@@ -259,7 +255,7 @@ test.describe('hide titles matching a pattern (#1593)', () => {
       'alrayyes/reports',
     );
     expect(await choices(page, 'shared-author-select')).not.toContain('bot');
-    expect(await choices(page, 'shared-label-select')).not.toContain('report');
+    expect(await choices(page, 'shared-label-filter')).not.toContain('report');
 
     await input(page).fill('');
     expect(await choices(page, 'shared-repo-select')).toContain(
