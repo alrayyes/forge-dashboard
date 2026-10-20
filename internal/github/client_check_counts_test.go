@@ -36,9 +36,24 @@ func TestFetch_RollupCheckCounts(t *testing.T) {
 		{
 			name: "every bad end state counts as failed",
 			rollup: rollupFixture("FAILURE", map[string]int{
-				"FAILURE": 1, "TIMED_OUT": 1, "STARTUP_FAILURE": 1, "STALE": 1, "CANCELLED": 1,
+				"FAILURE": 1, "TIMED_OUT": 1, "STARTUP_FAILURE": 1, "STALE": 1,
 			}, nil),
-			want: dashboard.CheckCounts{Failed: 5},
+			want: dashboard.CheckCounts{Failed: 4},
+		},
+		{
+			// The overall state does not read a cancelled run as a failure while
+			// others still run (a push superseded it, #1950), so the pill must
+			// not show a red count under Running: it counts in none of the four.
+			name:   "a cancelled run is none of the four",
+			rollup: rollupFixture("FAILURE", map[string]int{"CANCELLED": 2, "IN_PROGRESS": 1}, nil),
+			want:   dashboard.CheckCounts{Running: 1},
+		},
+		{
+			// GitHub reports a finished run under its conclusion, so a bare
+			// COMPLETED carries no failure of its own.
+			name:   "a completed run counts as passed",
+			rollup: rollupFixture("SUCCESS", map[string]int{"COMPLETED": 2, "SUCCESS": 1}, nil),
+			want:   dashboard.CheckCounts{Passed: 3},
 		},
 		{
 			name:   "a run held for approval is none of the four",

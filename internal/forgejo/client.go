@@ -1014,7 +1014,30 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	}
 	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	return statusFromCombinedState(combined.State), checkCountsOf(combined.Statuses), nil
+	counts := checkCountsOf(combined.Statuses)
+	if statusListIsCapped(resp, combined) {
+		// One page of the statuses was read: a count of it would undercount.
+		counts = dashboard.CheckCounts{}
+	}
+
+	return statusFromCombinedState(combined.State), counts, nil
+}
+
+// statusListIsCapped reports whether the combined-status answer holds fewer
+// statuses than the commit has. The SDK has no paging option for the call, so it
+// reads the forge's first page, and the forge puts the full number in the
+// X-Total-Count header. Not tried on a live instance: the header is read from
+// the API's documented paging contract, and a missing or unreadable one counts
+// as not capped.
+func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bool {
+	total := combined.TotalCount
+	if resp != nil && resp.Header != nil {
+		if n, err := strconv.Atoi(resp.Header.Get("X-Total-Count")); err == nil && n > total {
+			total = n
+		}
+	}
+
+	return total > len(combined.Statuses)
 }
 
 // checkCountsOf tallies the statuses the combined-status answer already

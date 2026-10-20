@@ -1417,9 +1417,19 @@ func checkCountsOf(commits []prCommitNode) dashboard.CheckCounts {
 }
 
 // checkCounts sorts every check run and status context into passed, running,
-// waiting or failed. A run held as ACTION_REQUIRED is in none of them: it is
-// awaiting approval, which has its own flag and its own pill (#1280, #1933). A
-// cancelled run is failed, the same as the pipeline panel lists it.
+// waiting or failed, so the counts and the overall state (ci) agree: a pending
+// pull request never carries a failed count.
+//
+// Two kinds of run are in none of the four, for the reason ci() gives them
+// their own handling. A run held as ACTION_REQUIRED is awaiting approval, which
+// has its own flag and its own pill (#1280, #1933). A cancelled run is not a
+// failure while others still run: a push or a concurrency group superseded it
+// (#722, #1950), and settleFailedRollup reads such a rollup as pending, so
+// counting it as failed would put a red count under Running.
+//
+// COMPLETED counts as passed: GitHub reports a finished run under its
+// conclusion (SUCCESS, FAILURE, ...), so a bare COMPLETED carries no failure of
+// its own, and a failing one is a state of its own that is counted as failed.
 func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	if r == nil || r.Contexts == nil {
@@ -1427,13 +1437,13 @@ func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 	}
 	for _, c := range r.Contexts.CheckRunCountsByState {
 		switch c.State {
-		case "SUCCESS", "NEUTRAL", "SKIPPED":
+		case "SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED":
 			out.Passed += c.Count
 		case "IN_PROGRESS":
 			out.Running += c.Count
 		case "QUEUED", "PENDING", "WAITING", "REQUESTED":
 			out.Waiting += c.Count
-		case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE", "CANCELLED":
+		case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
 			out.Failed += c.Count
 		}
 	}
