@@ -57,6 +57,7 @@ func handleIssueDetails(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		linkCommenters(details.Comments, dashboard.Forge(forge), boardWebOrigin(deps, u.ID, dashboard.Forge(forge)))
 		writeJSON(w, http.StatusOK, details)
 	}
 }

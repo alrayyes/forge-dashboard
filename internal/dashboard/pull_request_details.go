@@ -20,6 +20,9 @@ const (
 type Person struct {
 	Login     string `json:"login"`
 	AvatarURL string `json:"avatarUrl"`
+	// URL is the person's profile page on the forge, filled in by the API from
+	// the forge's own web address; empty when none can be built.
+	URL string `json:"url"`
 }
 
 // Reaction is how many people gave one reaction, and the first few of them.
