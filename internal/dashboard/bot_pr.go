@@ -16,9 +16,20 @@ const (
 	DependabotRecreateComment = "@dependabot recreate"
 )
 
+// releasePleaseBranchPrefix starts the head branch of every pull request
+// release-please opens: release-please--branches--<base branch>, with
+// --components--<name> after it when a repo releases several components.
+const (
+	releasePleaseBranchPrefix = "release-please--branches--"
+	releasePleaseComponentSep = "--components--"
+)
+
 // release-please labels every PR it manages with "autorelease: pending"
 // or "autorelease: tagged" — the author is a human in this account's
-// setup, not release-please itself, so the label is the only signal.
+// setup, not release-please itself, so the label is the main signal. The
+// label is applied after the pull request opens, and a run that fails in
+// between leaves a real release pull request without one, so its branch
+// counts too (see fromReleasePleaseBranch).
 func isReleasePleasePR(pr PullRequest) bool {
 	for _, l := range pr.Labels {
 		if strings.HasPrefix(l.Name, "autorelease:") {
@@ -26,7 +37,26 @@ func isReleasePleasePR(pr PullRequest) bool {
 		}
 	}
 
-	return false
+	return fromReleasePleaseBranch(pr)
+}
+
+// fromReleasePleaseBranch reports whether the head branch is the one
+// release-please makes for the pull request's own base branch. Three checks
+// keep a lookalike out: the branch is in this repository (a fork can name its
+// branch anything), the base branch is known, and the base named inside the
+// branch is that base — a human's "release-please--branches--main" aimed at
+// another branch, or a branch that only starts the same way, is not a release.
+func fromReleasePleaseBranch(pr PullRequest) bool {
+	if pr.CrossRepository || pr.BaseBranch == "" {
+		return false
+	}
+	rest, ok := strings.CutPrefix(pr.HeadBranch, releasePleaseBranchPrefix)
+	if !ok {
+		return false
+	}
+	base, _, _ := strings.Cut(rest, releasePleaseComponentSep)
+
+	return base == pr.BaseBranch
 }
 
 // A GitHub App actor's login comes back in two different shapes depending

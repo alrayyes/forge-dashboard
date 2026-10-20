@@ -71,13 +71,16 @@ the name alone. The narrow layout drops the author column, avatar and all.
 Release pull requests have their own page, `/releases.html`, reached from the
 **Releases** item in the navigation. It is the pull request board over the
 pull requests the server marks `kind: release` (release-please's, by its
-`autorelease:` label), with the same filters, rows and actions as the main
-page. The main pull request page lists none of them, and doesn't count them. Each
-row shows the version being released next to the title. Merge is offered when
-the release can merge, or greyed out with the reason when it can't. A release
-that is behind its base branch gets Update branch and a line saying
-release-please won't update it until a releasable change lands. With no release
-pull requests open the page says nothing is waiting to ship.
+`autorelease:` label, or by its `release-please--branches--<base>` head branch
+when release-please failed before it could label the pull request, as long as
+the pull request is from the same repository and aimed at that base), with the
+same filters, rows and actions as the main page. The main pull request page
+lists none of them, and doesn't count them. Each row shows the version being
+released next to the title. Merge is offered when the release can merge, or
+greyed out with the reason when it can't. A release that is behind its base
+branch gets Update branch and a line saying release-please won't update it
+until a releasable change lands. With no release pull requests open the page
+says nothing is waiting to ship.
 
 The quick filter pills above the list include **Failing CI**, **Running CI**
 and **Passing CI**, each offered only when it would show something. Next to
