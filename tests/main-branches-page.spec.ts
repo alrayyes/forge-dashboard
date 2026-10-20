@@ -592,6 +592,23 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(pill).toBeFocused();
   });
 
+  // A browser that does not focus a button on click (Safari) leaves nothing
+  // for the dialog to restore, so the panel hands focus back itself. A click
+  // dispatched from script focuses nothing, which is the same situation.
+  test('focus returns to the pill even when the click never focused it', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page);
+    await page.goto('/');
+    const pill = rows(page).first().locator('.ci-slot .ci-pill');
+    await pill.evaluate((el) => (el as HTMLElement).click());
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await expect(pill).toBeFocused();
+  });
+
   test('the close button returns focus to the pill too', async ({ page }) => {
     await mock(page, snapshot(MIXED));
     await mockChecks(page);
