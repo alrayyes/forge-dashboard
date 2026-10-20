@@ -237,6 +237,10 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 // doesn't support a scoped fetch yet (Aggregator.RefreshRepo's own
 // RepoRefresher check) — a repo should never go unrefreshed just because
 // the scoped path couldn't be taken.
+//
+// A scoped refresh is held back briefly and merged with the repo's other
+// deliveries (Aggregator.RefreshRepoDebounced), because one push sends several
+// deliveries in a burst. The fallback to a full refresh is not held back.
 func triggerRefresh(ctx context.Context, manager *dashboard.Manager, userID []byte, forge dashboard.Forge, delivery string, body []byte) {
 	if owner, name, fullName, ok := repoFromPayload(body); ok {
 		// A failed fetch says which delivery and pull request it was for (#966).
@@ -244,7 +248,7 @@ func triggerRefresh(ctx context.Context, manager *dashboard.Manager, userID []by
 		if _, number, isPR := pullRequestAction(body); isPR {
 			attrs = append(attrs, "pull_request", number)
 		}
-		if manager.RefreshRepo(ctx, userID, forge, owner, name, fullName, attrs...) {
+		if manager.RefreshRepoDebounced(ctx, userID, forge, owner, name, fullName, attrs...) {
 			slog.Info("webhook refresh dispatched", "forge", forge, "delivery", delivery, "repo", fullName, "scoped", true)
 
 			return

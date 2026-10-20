@@ -28,6 +28,9 @@ type Manager struct {
 	webhookCreds   WebhookCredentialSource
 	webhookOrigin  string
 	webhookUpgrade *WebhookUpgrades
+	// debounceTimer is nil until SetWebhookDebounceTimer is called, which
+	// leaves every Aggregator on the real clock.
+	debounceTimer AfterFunc
 	// ciPollInterval is zero until SetCIPollInterval is called — every
 	// Aggregator this Manager builds before that point, or ever, if
 	// it's never called, skips the CI-poll fallback (#177) entirely.
@@ -88,6 +91,15 @@ func (m *Manager) SetAutoUpdateBranchLister(lister AutoUpdateBranchLister) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.autoUpdateBranchLister = lister
+}
+
+// SetWebhookDebounceTimer replaces the timer every Aggregator this Manager
+// builds from here on holds webhook-triggered refreshes with, for tests that
+// drive time by hand. Call once, before the first Ensure.
+func (m *Manager) SetWebhookDebounceTimer(after AfterFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.debounceTimer = after
 }
 
 // SetAutoMergeStore turns on the Forgejo auto-merge hook for every Aggregator
@@ -186,7 +198,11 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 // Manager has been given, and starts its background loops. The caller holds m.mu.
 func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, sources []Source) {
 	runCtx, cancel := context.WithCancel(ctx)
-	agg := NewAggregator(sources)
+	opts := []AggregatorOption{WithDebounceOwner(runCtx)}
+	if m.debounceTimer != nil {
+		opts = append(opts, WithDebounceTimer(m.debounceTimer))
+	}
+	agg := NewAggregator(sources, opts...)
 	if m.autoUpdateBranchLister != nil {
 		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
 	}
@@ -482,6 +498,22 @@ func (m *Manager) RefreshRepo(ctx context.Context, userID []byte, forge Forge, o
 	}
 
 	return entry.agg.RefreshRepo(ctx, forge, owner, name, fullName, attrs...)
+}
+
+// RefreshRepoDebounced delegates to userID's Aggregator — see
+// Aggregator.RefreshRepoDebounced. Reports false if userID has no running
+// Aggregator or the forge can't be scoped, so a caller falls back to
+// RefreshNow without telling the two apart.
+func (m *Manager) RefreshRepoDebounced(ctx context.Context, userID []byte, forge Forge, owner, name, fullName string, attrs ...any) bool {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return false
+	}
+
+	return entry.agg.RefreshRepoDebounced(ctx, forge, owner, name, fullName, attrs...)
 }
 
 // Subscribe delegates to userID's Aggregator — see Aggregator.Subscribe.
