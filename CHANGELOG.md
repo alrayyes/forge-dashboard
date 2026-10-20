@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.239.0](https://github.com/alrayyes/forge-dashboard/compare/v0.238.1...v0.239.0) (2026-10-20)
+
+
+### Features
+
+* **web:** drop the Bot pill from rows on the Bots page ([#2075](https://github.com/alrayyes/forge-dashboard/issues/2075)) ([43d9c60](https://github.com/alrayyes/forge-dashboard/commit/43d9c60d19bf71f642c9676c24a7a87bb4fd8e79))
+
 ## [0.238.1](https://github.com/alrayyes/forge-dashboard/compare/v0.238.0...v0.238.1) (2026-10-20)
 
 
