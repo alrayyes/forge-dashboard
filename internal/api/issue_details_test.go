@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,7 @@ import (
 // dashboard.IssueDetailer directly, the shape github.Client has.
 type fakeIssueDetailerSource struct {
 	forge      dashboard.Forge
+	issues     []dashboard.Issue
 	details    dashboard.IssueDetails
 	detailsErr error
 	lastOwner  string
@@ -27,7 +29,7 @@ type fakeIssueDetailerSource struct {
 func (f *fakeIssueDetailerSource) Forge() dashboard.Forge { return f.forge }
 
 func (f *fakeIssueDetailerSource) Fetch(_ context.Context) dashboard.Result {
-	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}}
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}, Issues: f.issues}
 }
 
 func (f *fakeIssueDetailerSource) GetIssueDetails(_ context.Context, owner, name string, number int) (dashboard.IssueDetails, error) {
@@ -195,4 +197,38 @@ func TestContract_IssueDetails(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)
+}
+
+// A commenter in an issue's dialog carries their profile page, built on the
+// web address of an issue the board holds for the forge (#1991).
+func TestIssueDetails_CommentersCarryTheirProfileURL(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeIssueDetailerSource{
+		forge: dashboard.ForgeForgejo,
+		issues: []dashboard.Issue{{
+			Forge: dashboard.ForgeForgejo, Repo: "team/app", Number: 5,
+			URL: "https://git.example.org/team/app/issues/5",
+		}},
+		details: sampleIssueDetails(),
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	require.Eventually(t, func() bool {
+		issues, _ := fetchDashboard(t, srvURL, sessionCookie)["issues"].([]any)
+
+		return len(issues) == 1
+	}, 2*time.Second, 10*time.Millisecond)
+
+	resp := getIssueDetails(t, srvURL, sessionCookie, "forgejo", "team/app", 5)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body struct {
+		Comments []struct {
+			Author map[string]any `json:"author"`
+		} `json:"comments"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	require.Len(t, body.Comments, 1)
+	assert.Equal(t, "https://git.example.org/demo-a", body.Comments[0].Author["url"])
 }

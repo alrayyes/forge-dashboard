@@ -137,6 +137,9 @@ func (d Deps) firstLoadWait() time.Duration {
 type issueView struct {
 	dashboard.Issue
 	Housekeeping bool `json:"housekeeping"`
+	// AuthorURL is the author's profile page on the forge, built here so no
+	// client needs a rule per forge. Empty for a deleted account.
+	AuthorURL string `json:"authorUrl"`
 }
 
 // pullRequestView is a pull request as the API serves it: the snapshot's own
@@ -148,6 +151,9 @@ type pullRequestView struct {
 	// its own for release and dependency pull requests (#716).
 	Kind           dashboard.PullRequestKind      `json:"kind"`
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
+	// AuthorURL is the author's profile page on the forge, built here so no
+	// client needs a rule per forge. Empty for a deleted account.
+	AuthorURL string `json:"authorUrl"`
 	// Status is what the pull request is waiting on or blocked by, for one
 	// fixed place on a row (#1375). Null when nothing holds it back.
 	Status *dashboard.Status `json:"status"`
@@ -471,6 +477,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 		actions := b.allowedActions(pr)
 		item := pullRequestView{
 			PullRequest:    pr,
+			AuthorURL:      dashboard.ProfileURL(pr.Forge, dashboard.WebBase(pr.URL, pr.Repo), pr.Author),
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
 			AllowedActions: actions,
 			Status:         dashboard.PullRequestStatus(pr, actions),
@@ -697,7 +704,11 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, filter issueFilter) 
 
 			continue
 		}
-		out = append(out, issueView{Issue: issue, Housekeeping: housekeeping})
+		out = append(out, issueView{
+			Issue:        issue,
+			Housekeeping: housekeeping,
+			AuthorURL:    dashboard.ProfileURL(issue.Forge, dashboard.WebBase(issue.URL, issue.Repo), issue.Author),
+		})
 		if !housekeeping {
 			open++
 		}
