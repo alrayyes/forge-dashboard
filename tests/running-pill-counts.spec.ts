@@ -158,6 +158,62 @@ test.describe('Running pill counts (#2004)', () => {
     expect(fits).toBe(true);
   });
 
+  test('in the dialog header a screen reader hears the pill once', async ({
+    page,
+  }) => {
+    await page.route('**/api/pull-requests/details*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          description: null,
+          comments: [],
+          commentCount: 0,
+          commentsTruncated: false,
+          releaseNotes: null,
+        }),
+      }),
+    );
+    await open(page);
+    await page
+      .locator('#pr-rows > .row', { hasText: 'Mid' })
+      .getByRole('button', { name: /^#\d+ / })
+      .click();
+    const badge = page
+      .getByRole('dialog', { name: /^Pull request details/ })
+      .locator('.details-state .ci-pill');
+    await expect(badge).toBeVisible();
+
+    // What a screen reader reads is the text outside anything aria-hidden.
+    const heard = await badge.evaluate((root) => {
+      const read = (node: Node): string => {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+        if (!(node instanceof Element)) return '';
+        if (node.getAttribute('aria-hidden') === 'true') return '';
+        return [...node.childNodes].map(read).join('');
+      };
+      return read(root).replace(/\s+/g, ' ').trim();
+    });
+    expect(heard).toBe('Running 5 2 3: 5 passed, 2 running, 3 waiting');
+  });
+
+  test('with reduced motion the spinner gives way to the still clock', async ({
+    page,
+  }) => {
+    await open(page);
+    const arc = pill(page, 'Mid').locator('.ci-seg-running .check-glyph-arc');
+    const clock = pill(page, 'Mid').locator(
+      '.ci-seg-running .check-glyph-clock',
+    );
+    await expect(arc).toBeVisible();
+    await expect(clock).toBeHidden();
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    await expect(arc).toBeHidden();
+    await expect(clock).toBeVisible();
+  });
+
   for (const theme of ['light', 'dark'] as const) {
     for (const width of [1280, 390]) {
       test(`has no axe violations in ${theme} mode at ${width}px`, async ({

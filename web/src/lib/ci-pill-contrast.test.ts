@@ -96,6 +96,66 @@ function failures(source: string, theme: Map<string, string>): string[] {
   });
 }
 
+// The pill is a button and dims on hover with a brightness filter, which scales
+// the colours of the text and of its background alike. A filter takes the
+// ratio down a little, so the hovered pair is measured too (#2004).
+function hoverFactor(source: string): number {
+  const rule = declared(block(source, 'button.ci-pill:hover {'), 'filter');
+  const factor = rule?.match(/^brightness\(([\d.]+)\)$/)?.[1];
+  if (!factor) throw new Error(`the hover filter is not a brightness: ${rule}`);
+
+  return Number(factor);
+}
+
+function dim(hex: string, factor: number): string {
+  const digits =
+    hex.length === 4
+      ? [...hex.slice(1)].map((c) => c + c).join('')
+      : hex.slice(1);
+  const n = Number.parseInt(digits, 16);
+  const parts = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) =>
+    Math.round(v * factor)
+      .toString(16)
+      .padStart(2, '0'),
+  );
+
+  return `#${parts.join('')}`;
+}
+
+function hoverFailures(source: string, theme: Map<string, string>): string[] {
+  const factor = hoverFactor(source);
+  const bg = dim(
+    resolve(
+      declared(block(source, '.ci-pill.segmented {'), 'background') ?? '',
+      theme,
+    ),
+    factor,
+  );
+
+  return KINDS.flatMap((kind) => {
+    const color = declared(block(source, `.ci-seg-${kind} {`), 'color') ?? '';
+    const r = ratio(dim(resolve(color, theme), factor), bg);
+
+    return r >= 4.5 ? [] : [`.ci-seg-${kind} on hover is ${r.toFixed(2)}:1`];
+  });
+}
+
+describe('Running pill colours on hover', () => {
+  for (const [name, theme] of themes) {
+    test(`every segment still reads at 4.5:1 while hovered in the ${name} theme`, () => {
+      expect(hoverFailures(css, theme)).toEqual([]);
+    });
+  }
+
+  test('fails when the hover dims the pill too far', () => {
+    const bad = css.replace(
+      /(button\.ci-pill:hover \{[^}]*filter:)\s*[^;]+;/,
+      '$1 brightness(0.5);',
+    );
+    expect(hoverFailures(bad, light).length).toBeGreaterThan(0);
+  });
+});
+
 describe('Running pill colours', () => {
   test('the pill draws its own background, never a state tint', () => {
     expect(declared(block(css, '.ci-pill.segmented {'), 'background')).toBe(

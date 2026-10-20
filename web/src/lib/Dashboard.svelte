@@ -784,8 +784,12 @@
         const badge = el("span", classes);
         fill(badge);
         if (segmented) {
-          // A badge has no name of its own to carry the words, so they follow
-          // the sighted counts for a screen reader.
+          // A badge has no name of its own to carry the words, so a hidden
+          // line says them whole, and the sighted word is hidden too or a
+          // screen reader would hear Running twice.
+          badge
+            .querySelector(".ci-seg-label")
+            ?.setAttribute("aria-hidden", "true");
           badge.appendChild(el("span", "sr-only", runningPillName(segments)));
         }
         return badge;
