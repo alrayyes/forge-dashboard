@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.231.0](https://github.com/alrayyes/forge-dashboard/compare/v0.230.2...v0.231.0) (2026-10-20)
+
+
+### Features
+
+* **web:** show the avatar of whoever filed an issue, on the row and in the dialog ([#2035](https://github.com/alrayyes/forge-dashboard/issues/2035)) ([32b389c](https://github.com/alrayyes/forge-dashboard/commit/32b389c22db3e530c85fc559230ea4b9228c6037))
+
 ## [0.230.2](https://github.com/alrayyes/forge-dashboard/compare/v0.230.1...v0.230.2) (2026-10-20)
 
 
