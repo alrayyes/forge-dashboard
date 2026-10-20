@@ -47,3 +47,56 @@ describe('task list items', () => {
     }
   });
 });
+
+// https://github.com/alrayyes/forge-dashboard/issues/1995
+// GitHub turns :name: into an emoji:
+// https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#using-emojis
+describe('emoji shortcodes', () => {
+  test('render as Unicode characters', async () => {
+    const html = await renderMarkdown(
+      ':robot: :tada: :bug: :warning: :white_check_mark:',
+    );
+    expect(html).toContain('🤖');
+    expect(html).toContain('🎉');
+    expect(html).toContain('🐛');
+    expect(html).toContain('⚠');
+    expect(html).toContain('✅');
+    expect(html).not.toContain(':robot:');
+  });
+
+  test('draw the release pull request opening line', async () => {
+    const html = await renderMarkdown(
+      ':robot: I have created a release *beep* *boop*',
+    );
+    expect(html).toContain('🤖 I have created a release');
+    expect(html).toContain('<em>beep</em>');
+  });
+
+  test('leave unknown codes and clock times as written', async () => {
+    for (const src of [':not_an_emoji:', 'at 10:30:45 today', 'a:zzzz:c']) {
+      const html = await renderMarkdown(src);
+      expect(html).toContain(src);
+    }
+  });
+
+  test('leave codes in code spans and code blocks alone', async () => {
+    const span = await renderMarkdown('use `:robot:` here');
+    expect(span).toContain('<code>:robot:</code>');
+    const block = await renderMarkdown('```\n:robot:\n```');
+    expect(block).toContain(':robot:');
+    expect(block).not.toContain('🤖');
+  });
+
+  test('output Unicode only, never an image', async () => {
+    const html = await renderMarkdown(':robot: :tada:');
+    expect(html).not.toContain('<img');
+  });
+
+  test('leave emoticons as typed', async () => {
+    for (const src of [':) hello', 'ok :-( maybe', 'what :P ever']) {
+      const html = await renderMarkdown(src);
+      expect(html).toContain(src.split(' ')[0]);
+      expect(html).not.toMatch(/😃|😊|😞|😛|🙂|😦/u);
+    }
+  });
+});
