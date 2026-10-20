@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -11,6 +12,25 @@ import (
 // key AutoMergeIntents' returned set uses.
 func AutoMergeKey(forge, repoFullName string, number int) string {
 	return forge + "/" + repoFullName + "#" + strconv.Itoa(number)
+}
+
+// ParseAutoMergeKey is AutoMergeKey the other way round: the forge, repo and
+// number a key was built from. False for a string that isn't one.
+func ParseAutoMergeKey(key string) (PullRequestRef, bool) {
+	forge, rest, ok := strings.Cut(key, "/")
+	if !ok {
+		return PullRequestRef{}, false
+	}
+	repo, last, ok := strings.CutLast(rest, "#")
+	if !ok {
+		return PullRequestRef{}, false
+	}
+	number, err := strconv.Atoi(last)
+	if err != nil {
+		return PullRequestRef{}, false
+	}
+
+	return PullRequestRef{Forge: forge, Repo: repo, Number: number}, true
 }
 
 // ArmAutoMerge records that userID asked this app to merge the pull request

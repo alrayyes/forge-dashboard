@@ -530,6 +530,26 @@ conflict, isn't tried again until the pull request changes or an hour passes,
 and any other failure waits five minutes, so a stuck pull request costs one
 request, not one per refresh.
 
+Each pull request can also have its own say, whatever its repo does. Every
+pull request in `GET /api/dashboard` carries its own state under `autoUpdate`:
+whether the pass updates it (`enabled`), where that comes from (`source` is
+`repo` for the repo's setting and `pullRequest` for a choice made on this
+one), and, for a draft or a release-please pull request, the reason under
+`unavailable`, because the pass never touches those however they are
+switched.
+`POST /api/pull-requests/auto-update` with `enabled` true or false sets it,
+so a pull request you are still testing stays put while the rest of the repo
+keeps updating, or the other way round for one pull request in a repo that
+doesn't update by itself. The dashboard only keeps a choice while it differs
+from the repo's setting: choosing what the repo already says, or sending
+`enabled` as `null`, hands the pull request back to the repo, so a later
+change to the repo's setting reaches it. That includes the repo being
+switched to match a choice made earlier: the pull request follows the repo
+from then on. The choice is forgotten once the pull request is no longer open
+or its repo is no longer tracked, and a pull request the dashboard doesn't
+hold is refused. Update branch comes back on a pull request
+you have switched off, and goes away on one you have switched on.
+
 A Renovate-authored pull request, on either forge, gets a `Renovate:
 Rebase` button that ticks the `rebase-check` checkbox in the pull request's
 body, which every Renovate pull request carries and which needs no setup on

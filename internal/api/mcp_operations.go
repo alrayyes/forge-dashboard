@@ -44,6 +44,7 @@ var mcpPending = []string{
 	"rerunPullRequestChecks",
 	"hidePullRequest",
 	"unhidePullRequest",
+	"setPullRequestAutoUpdate",
 	"updatePullRequestBranch",
 	"postPullRequestDependabotAction",
 	"postPullRequestRenovateRebase",
