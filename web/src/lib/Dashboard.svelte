@@ -1786,7 +1786,13 @@
         // other action is in the details pop-up's footer, built by the same
         // functions (#943).
         const rowAction = rowActionCell(pr, settledRow, mergeAction);
-        if (rowAction) statusCell.appendChild(rowAction);
+        // In a bar of its own: on a phone it is the card's last tier, after a
+        // divider; on a wider screen the bar adds no box of its own.
+        if (rowAction) {
+          const bar = el("div", "row-action-bar");
+          bar.appendChild(rowAction);
+          statusCell.appendChild(bar);
+        }
         // A refused Close locks a button that lives in the pop-up, so the row
         // says so in words, or nobody would find it without opening it.
         const closeCue = settledRow ? null : closeLockCue(pr);
