@@ -2672,6 +2672,7 @@ query($owner: String!, $name: String!) {
         isDraft
         author {
           login
+          avatarUrl
         }
         mergeStateStatus
         headRefOid
