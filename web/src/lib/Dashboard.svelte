@@ -1738,6 +1738,10 @@
         // functions (#943).
         const rowAction = rowActionCell(pr, settledRow, mergeAction);
         if (rowAction) statusCell.appendChild(rowAction);
+        // A refused Close locks a button that lives in the pop-up, so the row
+        // says so in words, or nobody would find it without opening it.
+        const closeCue = settledRow ? null : closeLockCue(pr);
+        if (closeCue) statusCell.appendChild(closeCue);
         const queueCell = queueActionCell(pr);
         if (queueCell) statusCell.appendChild(queueCell);
         dedupeRetryButtons(statusCell);
@@ -1749,6 +1753,25 @@
       row.appendChild(el("div", "go", "→"));
       if (isPR) feedbackUI.decorateRow(row, prKey(item as PullRequestItem));
       return row;
+    }
+
+    // The lasting state of a Close the forge refused (a missing permission, a
+    // rate limit). The locked button is in the pop-up's footer, so a row whose
+    // pop-up was closed would show nothing. This is the same note a locked
+    // Merge prints on the row: words, never colour alone, the reason beside
+    // the label so it is read without opening anything. It leaves when the
+    // lock does (the line that explains it is dismissed, or the next snapshot
+    // clears a stale lock), and is skipped while Close is the row's own
+    // action, whose locked button already says why.
+    function closeLockCue(item: PullRequestItem): HTMLElement | null {
+      const entry = closeState[prKey(item)];
+      if (!entry || entry.phase !== "locked") return null;
+      if (primaryAction(item)?.action === "close") return null;
+      const cue = el("span", "row-lock-cue row-action-note");
+      cue.appendChild(el("span", "row-action-note-reason", "Close locked"));
+      if (entry.reason)
+        cue.appendChild(el("span", "row-action-note-next", entry.reason));
+      return cue;
     }
 
     // The one control a row draws beside its status. A settled row keeps the

@@ -1889,6 +1889,12 @@ a.ci-pill:hover {
 .row-action-note-next {
   color: var(--ink-3);
 }
+/* The reason comes from the forge; a long unbroken one wraps in the cue
+   instead of pushing the row wider. */
+.row-lock-cue {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 /* Close (#1223): a neutral secondary button. Closing is reversible, so the
    danger tone is kept for the confirm step. */
 .row-action.close {
