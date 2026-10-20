@@ -246,6 +246,26 @@ test.describe('row failure lines (#752)', () => {
     ).toHaveCount(0);
   });
 
+  // A forge failing on its own side passes by itself whatever 5xx it used, so
+  // the line offers Retry and clears itself, as for an answer that never came.
+  // The status is 500 on purpose: only the page's reading of the code
+  // `forge_error` can make that a failure worth trying again.
+  test("a forge's own server error offers Retry, whichever 5xx it came with", async ({
+    page,
+  }) => {
+    const sentence = 'The forge had a server error. Try again in a moment.';
+    await prepare(page, {
+      status: 500,
+      body: { error: sentence, code: 'forge_error', message: sentence },
+    });
+    await fail(page);
+
+    await expect(line(page)).toContainText(sentence);
+    await expect(
+      line(page).getByRole('button', { name: /^Retry/ }),
+    ).toBeVisible();
+  });
+
   test('on a phone the line wraps, its buttons are 44px tall and axe finds nothing', async ({
     page,
   }) => {

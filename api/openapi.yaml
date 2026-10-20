@@ -3100,6 +3100,7 @@ components:
             - ready_to_merge
             - permission
             - rate_limited
+            - forge_error
             - not_rate_limited
             - not_open
             - unknown
@@ -3108,6 +3109,12 @@ components:
             request's real state. `already_merged` and `already_closed`
             mean the dashboard's row was stale: the pull request has
             nothing left to merge.
+
+            `forge_error` means the forge failed on its own side (a 5xx):
+            nothing is wrong with the request, so asking again may work.
+            `upstreamStatus` and `requestId` then say what the forge
+            answered with, for tracing a report. Update branch is tried a
+            second time by the server before this is answered.
 
             `not_rate_limited` belongs to queueing an action: the forge
             isn't rate limited, so act directly. `not_open` is only an
@@ -3134,6 +3141,14 @@ components:
           type: string
           format: date-time
           description: Only with `rate_limited`, when the forge said so. When the budget comes back. On Forgejo it comes from the `Retry-After` header, in seconds or as a date.
+        upstreamStatus:
+          type: integer
+          minimum: 500
+          maximum: 599
+          description: Only with `forge_error`. The HTTP status the forge answered with.
+        requestId:
+          type: string
+          description: Only with `forge_error`, and only when the forge sent one (GitHub's `X-GitHub-Request-Id`). What the forge's support asks for.
 
     RegisterBeginRequest:
       type: object

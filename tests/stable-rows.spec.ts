@@ -330,32 +330,6 @@ test.describe('stable rows', () => {
     expect(animation).toBe('none');
   });
 
-  test('nothing re-renders while a More actions menu is open', async ({
-    page,
-  }) => {
-    // Waiting on CI, so the row offers auto-merge and Close, and Close sits in
-    // More actions next to it (a lone action is drawn directly, #1139).
-    const waiting = { ci: 'pending', mergeStatus: 'blocked' };
-    const bot = makePR(1, waiting);
-    await page.route('**/api/dashboard', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(snapshot([bot, initial[1]])),
-      }),
-    );
-    await page.reload();
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'More actions' }).click();
-
-    await push(page, [makePR(1, { ...waiting, title: 'Changed' }), initial[1]]);
-    await expect(row).not.toContainText('Changed');
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#pr-rows .row').first()).toContainText(
-      'Changed',
-    );
-  });
-
   // The first row with any part on screen: its key and where its top sits.
   const anchorRow = (page: Page) =>
     page.evaluate(() => {

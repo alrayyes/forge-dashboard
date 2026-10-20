@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.231.2](https://github.com/alrayyes/forge-dashboard/compare/v0.231.1...v0.231.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **api:** say a forge's own 5xx is the forge's, retry Update branch once, and carry the request id ([#2037](https://github.com/alrayyes/forge-dashboard/issues/2037)) ([3c1c06f](https://github.com/alrayyes/forge-dashboard/commit/3c1c06ff12af1f9031b61a53fcee3bee03550daa))
+
+## [0.231.1](https://github.com/alrayyes/forge-dashboard/compare/v0.231.0...v0.231.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **api:** recognise a release-please pull request by its branch when it has no label ([#2036](https://github.com/alrayyes/forge-dashboard/issues/2036)) ([10ba493](https://github.com/alrayyes/forge-dashboard/commit/10ba493f928dc584c1594fd58b0f02ab347898a8))
+
 ## [0.231.0](https://github.com/alrayyes/forge-dashboard/compare/v0.230.2...v0.231.0) (2026-10-20)
 
 

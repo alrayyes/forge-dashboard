@@ -1804,14 +1804,6 @@ a.ci-pill:hover {
 .row-action-note-next {
   color: var(--ink-3);
 }
-/* Close inside "More actions" (#705): set apart from the rest by a rule. */
-.row-actions-popover .row-action-group.close-group,
-.row-actions-popover .row-action-locked.close-group {
-  align-self: stretch;
-  justify-content: flex-end;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
 /* Close (#1223): a neutral secondary button. Closing is reversible, so the
    danger tone is kept for the confirm step. */
 .row-action.close {
@@ -1924,64 +1916,6 @@ a.ci-pill:hover {
   .row-action-reason {
     transition: none;
   }
-}
-
-/* Collapses Dependabot/Renovate/View-pipeline behind one trigger on a
-   row that would otherwise stack up too many buttons at once (#527) —
-   same z-index:1 "stay above .title::after's stretched-link overlay"
-   treatment every other real control in .status-cell already needs. */
-/* Says a closed More actions menu holds a locked action (#747). Text, not
-   colour alone; the reason is the trigger's accessible description. */
-.row-actions-lock {
-  margin-inline-start: 6px;
-  font-size: 12px;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-
-.row-actions-menu {
-  position: relative;
-  z-index: 1;
-}
-/* .row-actions-menu's own position+z-index already makes it a stacking
-   context, so .row-actions-popover's z-index:20 below only outranks
-   siblings *inside that same context* — it says nothing about how the
-   menu as a whole stacks against another row's controls. .row itself
-   never becomes a stacking context (position: relative, but z-index:
-   auto — see its own comment), so every row's z-index:1 descendants
-   compete directly in one shared ancestor context, ordered by document
-   position once the values tie: a later row always paints over an
-   earlier one there. The popover overflows below its own row into the
-   next one, so with the menu stuck at the same z-index:1 as every other
-   row's controls, that overflow rendered *underneath* the next row's
-   own Close/More actions/status pills instead of above them — reported
-   live as the popover's own "View pipeline" button showing up behind
-   the row below's buttons. Bumping the open menu's z-index (not the
-   popover's) is what actually reaches past that: it changes what the
-   whole stacking context is compared against in the shared ancestor
-   context, so an open menu now outranks every row's z-index:1 controls,
-   including a later row's. :has() rather than a JS-toggled class:
-   .row-actions-popover only exists in the DOM at all while the menu is
-   open (moreActionsCell's own `if (open)`), so this reads directly off
-   that instead of needing new state kept in sync with it. */
-.row-actions-menu:has(.row-actions-popover) {
-  z-index: 30;
-}
-.row-actions-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 10px;
-  min-width: 200px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
 }
 
 .go {

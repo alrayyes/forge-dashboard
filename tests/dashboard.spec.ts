@@ -5,6 +5,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 import { rateLimit } from './severity-stand-in';
@@ -2246,8 +2247,8 @@ test.describe('dashboard page', () => {
     // A bot-managed pull request never gets the Update-branch button
     // (updateBranchActionCell returns null for one on purpose) — without
     // a dedicated pill, being behind was invisible on that row, with the
-    // one relevant action (Dependabot/Renovate: Rebase) sitting unlabeled
-    // inside "More actions." Confirmed live: hush-hush-python#153 showed
+    // one relevant action (Dependabot/Renovate: Rebase) not on the row.
+    // Confirmed live: hush-hush-python#153 showed
     // "out-of-date with the base branch" on GitHub with nothing on this
     // dashboard reflecting it.
     test('a behind Dependabot pull request shows the Out of date pill', async ({
@@ -2280,17 +2281,20 @@ test.describe('dashboard page', () => {
     // already gets the Update-branch button as its one clear signal, so
     // a second, generic pill saying the same thing would just be the
     // duplication that issue fixed, restated for a new status.
-    test('a behind, non-bot-managed pull request shows the Update-branch button but no Out of date pill', async ({
+    test('a behind, non-bot-managed pull request offers Update branch in its pop-up but shows no Out of date pill', async ({
       page,
     }) => {
       await mockDashboard(page, [pr({ behind: true })]);
       await page.reload();
 
+      // Merge stays the primary action while only behind, so the row draws
+      // no Update branch; the pop-up's footer offers it.
       const row = page.locator('#pr-rows .row').first();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toBeVisible();
       await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
+      const dialog = await openActionsDialog(row);
+      await expect(
+        actionsFooter(dialog).getByRole('button', { name: 'Update branch' }),
+      ).toBeVisible();
     });
 
     test('a Dependabot pull request that is not behind shows no Out of date pill', async ({
