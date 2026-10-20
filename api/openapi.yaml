@@ -5026,6 +5026,7 @@ components:
           title,
           url,
           author,
+          authorAvatarUrl,
           labels,
           housekeeping,
           createdAt,
@@ -5056,6 +5057,9 @@ components:
             the server leaves it out of `issues` as well.
         author:
           type: string
+        authorAvatarUrl:
+          type: string
+          description: The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
         labels:
           type: array
           items:
