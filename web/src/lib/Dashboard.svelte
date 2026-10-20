@@ -20,6 +20,12 @@
   } from "#lib/PullRequestDetailsDialog.svelte";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import {
+    CHECK_KIND_GLYPH,
+    type CheckCounts,
+    checkSegments,
+    runningPillName,
+  } from "#lib/check-counts.js";
+  import {
     CHECK_STATE_LABELS,
     formatCheckDuration,
     type Check,
@@ -147,6 +153,10 @@
     authorAvatarUrl?: string;
     draft: boolean;
     ci: string;
+    // How many checks passed, are running, are waiting and failed (#2004). The
+    // server tallies them; absent from an older server, which leaves the pill
+    // as it was.
+    checks?: CheckCounts;
     mergeStatus: string;
     // GitHub holds this pull request's workflow runs until someone approves
     // them (#1280). The server decides; the page only says so.
@@ -736,30 +746,63 @@
       const glyphs = pipelineCheckGlyphs(
         awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
       );
+      // A running pipeline says how far it is (#2004): the word, then one
+      // count per state that has any, each with its glyph. The server tallies
+      // the counts; nothing is drawn without them, which leaves the plain pill.
+      const segments =
+        status === "pending" && !awaiting ? checkSegments(item.checks) : [];
+      const segmented = segments.length > 0;
       const addMark = (pill: HTMLElement) => {
         if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));
         else pill.appendChild(el("span", "dot"));
       };
+      const fill = (pill: HTMLElement) => {
+        if (!segmented) {
+          addMark(pill);
+          pill.appendChild(document.createTextNode(label));
+          return;
+        }
+        pill.appendChild(el("span", "ci-seg ci-seg-label", label));
+        for (const { kind, n } of segments) {
+          const seg = el("span", `ci-seg ci-seg-${kind}`);
+          // The counts are said in words by the name (or, on a badge, by the
+          // hidden text after them), so a screen reader skips these.
+          seg.setAttribute("aria-hidden", "true");
+          pipelineCheckGlyphs(CHECK_KIND_GLYPH[kind]).forEach((g) =>
+            seg.appendChild(g),
+          );
+          seg.appendChild(document.createTextNode(String(n)));
+          // A space before each count, so the pill's text reads "Running 5 2 3"
+          // and the name below contains it whole.
+          pill.appendChild(document.createTextNode(" "));
+          pill.appendChild(seg);
+        }
+      };
+      const classes = `ci-pill ${status}${awaiting ? " awaiting" : ""}${segmented ? " segmented" : ""}`;
       // No CI, no pipeline to open: a plain badge (#1139).
       if (status === "none" || !interactive) {
-        const badge = el(
-          "span",
-          `ci-pill ${status}${awaiting ? " awaiting" : ""}`,
-        );
-        addMark(badge);
-        badge.appendChild(document.createTextNode(label));
+        const badge = el("span", classes);
+        fill(badge);
+        if (segmented) {
+          // A badge has no name of its own to carry the words, so they follow
+          // the sighted counts for a screen reader.
+          badge.appendChild(el("span", "sr-only", runningPillName(segments)));
+        }
         return badge;
       }
       const pill = document.createElement("button");
       pill.type = "button";
-      pill.className = `ci-pill ${status}${awaiting ? " awaiting" : ""}`;
+      pill.className = classes;
       // Given a stable id: openPipelineDialog's "close" handler refocuses
       // it by this id once a later render has rebuilt the row.
       pill.id = `pipeline-trigger-${domSafeId(prKey(item))}`;
-      addMark(pill);
-      pill.appendChild(document.createTextNode(label));
-      // The visible word leads the name (WCAG 2.5.3).
-      pill.setAttribute("aria-label", `${label}. Open pipeline`);
+      fill(pill);
+      // The visible word leads the name (WCAG 2.5.3), the counts in words
+      // after it.
+      pill.setAttribute(
+        "aria-label",
+        `${segmented ? runningPillName(segments) : label}. Open pipeline`,
+      );
       pill.addEventListener("click", () => {
         openPipelineDialog(item);
       });
