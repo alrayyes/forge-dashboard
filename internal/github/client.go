@@ -3219,6 +3219,46 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	return checks, nil
 }
 
+// branchCheckCommits is how many of the default branch's newest commits
+// ListDefaultBranchChecks looks through for one a check ran on, the same
+// depth the Main branches row looks to (#1265).
+const branchCheckCommits = 10
+
+// ListDefaultBranchChecks implements dashboard.DefaultBranchChecker: every check
+// run of the newest commit on owner/name's default branch that has any, which
+// is the commit the Main branches row reports. A release bot's "[skip ci]"
+// commit has none, so the commit before it answers. Over REST, on demand, like
+// ListChecks. Branch protection is not read: "required" is a pull request's
+// base-branch notion, so the field stays unknown.
+func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string) ([]dashboard.Check, error) {
+	commitsPath := fmt.Sprintf("/repos/%s/%s/commits", owner, name)
+	slog.Debug("github request", "method", http.MethodGet, "url", commitsPath)
+	opts := &ghsdk.CommitsListOptions{}
+	opts.PerPage = branchCheckCommits
+	commits, resp, err := c.restClient.Repositories.ListCommits(ctx, owner, name, opts)
+	if err != nil {
+		// A repository with no commit yet answers 409: no pipeline, not a failure.
+		if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok && errResp.Response != nil && errResp.Response.StatusCode == http.StatusConflict {
+			return nil, nil
+		}
+
+		return nil, asClientError(c.restError(ctx, http.MethodGet, commitsPath, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, commitsPath, resp)
+
+	for _, commit := range commits {
+		checks, err := c.listChecksForSHA(ctx, owner, name, commit.GetSHA())
+		if err != nil {
+			return nil, err
+		}
+		if len(checks) > 0 {
+			return checks, nil
+		}
+	}
+
+	return nil, nil
+}
+
 // heldWorkflowChecks lists the workflow runs held for approval as checks. They
 // finished as action_required and created no check runs, so the check-runs list
 // never shows them (#1933). The run's own page carries GitHub's approve button.
