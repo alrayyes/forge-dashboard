@@ -7,6 +7,10 @@ are signed and expire.
 The design system is "Forge Engine Visual Language": Geist, Inter and
 JetBrains Mono, with indigo for GitHub and orange for Forgejo.
 
+These screens predate removing the More actions menu. Where one draws a More
+actions button or an open menu, the dashboard now draws only the primary
+action on the row and keeps every other action in the pop-up's footer.
+
 - `dashboard-before.png`: the baseline dashboard.
 - `dashboard-after.png`: the redesigned dashboard the tickets build.
 - `dashboard-merge-states.png`: Merge waiting on CI, blocked and ready,

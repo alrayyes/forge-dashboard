@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import {
+  actionsFooter,
+  closeActionsDialog,
+  openActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { rateLimit } from './severity-stand-in';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
@@ -233,9 +238,12 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     await expect(row(page).getByRole('button', { name: /^Queue/ })).toHaveCount(
       0,
     );
+    // Update branch isn't the primary action here, so the pop-up has it.
+    const dialog = await openActionsDialog(row(page));
     await expect(
-      row(page).getByRole('button', { name: 'Update branch' }),
+      actionsFooter(dialog).getByRole('button', { name: 'Update branch' }),
     ).toBeVisible();
+    await closeActionsDialog(dialog);
 
     // The second state replaces the first on the same page, so this one needs a
     // second load; the routes go in first, so it is the only extra one.

@@ -480,6 +480,42 @@ func TestListRepos_ClassifiesErrorKind(t *testing.T) {
 	}
 }
 
+// The forge's own 5xx is carried as such, so a refusal can say that asking
+// again may work. A 4xx never is.
+func TestListRepos_CarriesTheUpstreamStatusOnlyFor5xx(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name       string
+		statusCode int
+		want       int
+	}{
+		{"server error", http.StatusInternalServerError, http.StatusInternalServerError},
+		{"bad gateway", http.StatusBadGateway, http.StatusBadGateway},
+		{"not found", http.StatusNotFound, 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				writeJSON(t, w, map[string]string{"message": "boom"})
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			client := forgejo.NewClient(srv.URL, "test-token", "")
+			_, err := client.ListRepos(t.Context())
+
+			require.Error(t, err)
+			var clientErr *dashboard.ClientError
+			require.ErrorAs(t, err, &clientErr)
+			assert.Equal(t, tt.want, clientErr.UpstreamStatus)
+		})
+	}
+}
+
 func TestListRepos_ClassifiesConnectionFailureAsUnreachable(t *testing.T) {
 	t.Parallel()
 

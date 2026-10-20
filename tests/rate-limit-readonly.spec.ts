@@ -263,15 +263,17 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     );
     await page.goto('/pull-requests.html');
 
+    // Auto-merge isn't the primary action, so it is in the pop-up's footer.
     const row = page.locator('#pr-rows .row').first();
+    const footer = actionsFooter(await openActionsDialog(row));
     await expect(
-      row.getByRole('button', { name: 'Enable auto-merge', exact: true }),
+      footer.getByRole('button', { name: 'Enable auto-merge', exact: true }),
     ).toBeVisible();
     await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
+      footer.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
     await expect(
-      row.getByRole('button', { name: 'Close pull request', exact: true }),
+      footer.getByRole('button', { name: 'Close pull request', exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /Merge, Update branch, rebase and Close are unavailable until \d{1,2}:\d{2}/,

@@ -3100,6 +3100,7 @@ components:
             - ready_to_merge
             - permission
             - rate_limited
+            - forge_error
             - not_rate_limited
             - not_open
             - unknown
@@ -3108,6 +3109,12 @@ components:
             request's real state. `already_merged` and `already_closed`
             mean the dashboard's row was stale: the pull request has
             nothing left to merge.
+
+            `forge_error` means the forge failed on its own side (a 5xx):
+            nothing is wrong with the request, so asking again may work.
+            `upstreamStatus` and `requestId` then say what the forge
+            answered with, for tracing a report. Update branch is tried a
+            second time by the server before this is answered.
 
             `not_rate_limited` belongs to queueing an action: the forge
             isn't rate limited, so act directly. `not_open` is only an
@@ -3134,6 +3141,14 @@ components:
           type: string
           format: date-time
           description: Only with `rate_limited`, when the forge said so. When the budget comes back. On Forgejo it comes from the `Retry-After` header, in seconds or as a date.
+        upstreamStatus:
+          type: integer
+          minimum: 500
+          maximum: 599
+          description: Only with `forge_error`. The HTTP status the forge answered with.
+        requestId:
+          type: string
+          description: Only with `forge_error`, and only when the forge sent one (GitHub's `X-GitHub-Request-Id`). What the forge's support asks for.
 
     RegisterBeginRequest:
       type: object
@@ -4001,7 +4016,7 @@ components:
 
     Person:
       type: object
-      required: [login, avatarUrl]
+      required: [login, avatarUrl, url]
       description: Who wrote a description or a comment.
       properties:
         login:
@@ -4009,6 +4024,9 @@ components:
         avatarUrl:
           type: string
           description: The forge's own avatar URL, passed through unchanged and never proxied.
+        url:
+          type: string
+          description: The person's profile page on the forge, built by the server from the web address of an item the board already holds for that forge. Empty when the board holds none yet, so a client shows the name alone.
 
     Reaction:
       type: object
@@ -4325,6 +4343,7 @@ components:
           url,
           author,
           authorAvatarUrl,
+          authorUrl,
           draft,
           labels,
           createdAt,
@@ -4374,6 +4393,9 @@ components:
         authorAvatarUrl:
           type: string
           description: The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+        authorUrl:
+          type: string
+          description: The author's profile page on the forge, built by the server from the forge's own web address, so a client needs no rule per forge. A GitHub bot links to its app page. Empty when there is nothing to link to, such as a deleted account.
         draft:
           type: boolean
         labels:
@@ -5034,6 +5056,7 @@ components:
           url,
           author,
           authorAvatarUrl,
+          authorUrl,
           labels,
           housekeeping,
           createdAt,
@@ -5067,6 +5090,9 @@ components:
         authorAvatarUrl:
           type: string
           description: The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+        authorUrl:
+          type: string
+          description: The author's profile page on the forge, built by the server from the forge's own web address. Empty when there is nothing to link to, such as a deleted account.
         labels:
           type: array
           items:

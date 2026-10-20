@@ -28,6 +28,7 @@ export type ActionCode =
   | 'label_missing'
   | 'permission'
   | 'rate_limited'
+  | 'forge_error'
   | 'unknown';
 
 export type ActionFailure = {
@@ -79,6 +80,7 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'label_missing',
   'permission',
   'rate_limited',
+  'forge_error',
   'unknown',
 ]);
 
@@ -185,6 +187,10 @@ export function interpretActionFailure(
           (err as Error & { resetsAt?: string }).resetsAt,
         ),
       };
+    case 'forge_error':
+      // The forge failed on its own side, so nothing is wrong with the
+      // request: keep the action clickable, and let the line clear by itself.
+      return { kind: 'failed', reason: err.message, transient: true };
     case 'unknown':
       return {
         kind: 'failed',

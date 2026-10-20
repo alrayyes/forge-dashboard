@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './fixtures';
 import { rateLimit } from './severity-stand-in';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
@@ -145,12 +146,19 @@ test.describe('pull request update-branch button', () => {
     );
     await page.goto('/pull-requests.html');
 
+    // A blocked action is never primary, so the row draws no Update branch;
+    // the pop-up's footer has it locked, with the reason.
     const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Update branch' });
+    await expect(
+      row.getByRole('button', { name: 'Update branch' }),
+    ).toHaveCount(0);
+    const dialog = await openActionsDialog(row);
+    const footer = actionsFooter(dialog);
+    const button = footer.getByRole('button', { name: 'Update branch' });
     await expect(button).toBeVisible();
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(footer.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText('Conflicts need fixing by hand');
+    await expect(footer).toContainText('Conflicts need fixing by hand');
 
     let requested = false;
     await page.route('**/api/pull-requests/update-branch', (route: Route) => {
@@ -525,8 +533,10 @@ test.describe('pull request update-branch button', () => {
       );
       await page.goto('/releases.html');
 
+      // The locked button is in the pop-up's footer, not on the row.
       const row = page.locator('#pr-rows .row').first();
-      await expect(row).toContainText('Conflicts need fixing by hand');
+      const footer = actionsFooter(await openActionsDialog(row));
+      await expect(footer).toContainText('Conflicts need fixing by hand');
     });
   });
 

@@ -41,9 +41,11 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
     // Higher numbers are newer, so row 0 is the highest number.
     updatedAt: new Date(Date.now() - (100 - number) * 1000).toISOString(),
     mergeStatus: 'mergeable',
-    // Merge, auto-merge and Close, so the dialog footer holds all three.
+    // Merge, auto-merge and Close, so the dialog footer holds all three. A
+    // mergeable pull request with passing CI has Merge as its primary action,
+    // which is the one button the row draws.
     allowedActions: [
-      { action: 'merge' },
+      { action: 'merge', primary: true },
       { action: 'auto_merge' },
       { action: 'close' },
     ],

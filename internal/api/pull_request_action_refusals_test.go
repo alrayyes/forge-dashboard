@@ -290,6 +290,38 @@ func TestPullRequestUpdateBranch_ConflictIsAnsweredEvenWhenTheReReadFails(t *tes
 	assert.Equal(t, "conflict", body.Code)
 }
 
+// GitHub's own 5xx is answered as the forge having failed, in plain words, with
+// the status and request id GitHub gave so a report can be traced, for every
+// action rather than only Update branch.
+func TestPullRequestActions_ForgeServerError_AnswersForgeErrorWithTheUpstreamDetails(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"update-branch", "close", "auto-merge"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			source := &refusalSource{
+				forge: dashboard.ForgeGitHub,
+				err: &dashboard.ClientError{
+					Kind:           dashboard.ForgeErrorUnknown,
+					Err:            errors.New("github: PUT /repos/alrayyes/a/pulls/1/update-branch: Server Error"),
+					UpstreamStatus: http.StatusInternalServerError,
+					RequestID:      "DC37:31D3AC:5E7D4F9:83EE23F:6AD77763",
+				},
+			}
+			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+			status, body := postAction(t, srvURL, cookie, endpointFor(name), "github")
+
+			assert.Equal(t, http.StatusBadGateway, status)
+			assert.Equal(t, "forge_error", body.Code)
+			assert.Equal(t, "The forge had a server error. Try again in a moment.", body.Message)
+			assert.Equal(t, http.StatusInternalServerError, body.UpstreamStatus)
+			assert.Equal(t, "DC37:31D3AC:5E7D4F9:83EE23F:6AD77763", body.RequestID)
+		})
+	}
+}
+
 func TestPullRequestAutoMerge_Refusals(t *testing.T) {
 	t.Parallel()
 

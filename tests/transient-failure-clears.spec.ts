@@ -1,5 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import {
+  actionsFooter,
+  openActionsDialog,
+  viaActionsDialog,
+} from './actions-dialog-helper';
 import { test } from './fixtures';
 import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
@@ -78,7 +83,11 @@ async function failMerge(page: Page) {
 }
 
 async function failUpdateBranch(page: Page) {
-  await row(page).getByRole('button', { name: 'Update branch' }).click();
+  // Update branch isn't the row's primary action here, so it is clicked in
+  // the pop-up's footer; the failure line is drawn on the row as well.
+  await viaActionsDialog(row(page), async (footer) => {
+    await footer.getByRole('button', { name: 'Update branch' }).click();
+  });
   await expect(line(page)).toContainText('Failed');
   await releasePointer(page);
 }
@@ -129,7 +138,9 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await page.clock.fastForward(10_500);
     await expect(line(page)).toHaveCount(0);
     await expect(
-      row(page).getByRole('button', { name: 'Update branch' }),
+      actionsFooter(await openActionsDialog(row(page))).getByRole('button', {
+        name: 'Update branch',
+      }),
     ).toBeEnabled();
   });
 
