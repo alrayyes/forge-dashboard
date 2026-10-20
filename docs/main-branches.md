@@ -18,7 +18,11 @@ subject and author of the newest commit, how long ago the run finished and how
 long it ran. A branch whose only trouble is a cancelled run (a newer push or a
 person stopped it) reads Cancelled, not Failed, with a stop glyph; a real
 failure beside a cancelled run is Failed and names only the failed job, and a
-cancelled run beside one still going is Running. A failed row names its first
+cancelled run beside one still going is Running. A GitHub branch whose newest
+commit has workflow runs held until someone approves them reads "Waiting for
+approval" with a pause glyph, the same one the pull request row uses: nothing
+has run and nothing has failed, and the pipeline panel lists the held workflows
+with a link to GitHub's approve button. A failed row names its first
 failing jobs. The status pill is a button, as on the pull request pages: it
 opens the pipeline panel, a side panel that lists every job of the branch's
 newest pipeline with its state and how long it took, a link to each job, and,
@@ -34,15 +38,15 @@ on the row. The "No pipeline" note is plain, not a button, since there is no
 pipeline to open. Rows come latest commit first, in the order the server sends
 them.
 
-The pills (All, Failing, Passing, Running, Cancelled, No pipeline) keep their
-filter names, like the quick pills on the pull request board, and carry the
-server's counts. A pill, and each forge in the toggle, is offered only when a
-row would show under it, given the search and the other pill, so none leads to
-an empty list; the one that is active always stays, so it can be cleared. A
-forge toggle and a search box narrow the list further; search matches the repo,
-branch, commit, author and failing job names. The filter is saved with the other
-pages' filters, in the shared filter cookie and in the copy on the server, so it
-is still set after a reload and in another browser.
+The pills (All, Failing, Passing, Running, Cancelled, Waiting for approval, No
+pipeline) keep their filter names, like the quick pills on the pull request
+board, and carry the server's counts. A pill, and each forge in the toggle, is
+offered only when a row would show under it, given the search and the other
+pill, so none leads to an empty list; the one that is active always stays, so it
+can be cleared. A forge toggle and a search box narrow the list further; search
+matches the repo, branch, commit, author and failing job names. The filter is
+saved with the other pages' filters, in the shared filter cookie and in the copy
+on the server, so it is still set after a reload and in another browser.
 
 Rows from a forge that can't be read, or whose rate limit is spent, keep their
 last known status, are marked **stale**, and sit under one banner. The page
@@ -57,12 +61,13 @@ offers **Reset filters**. A repo with no pipeline says no run was found.
 `GET /api/main-branches` answers the CI status of every tracked repo's default
 branch, so a broken main shows up without opening each repo. One row per repo:
 its default branch, the status of the pipeline on the newest commit (`failed`,
-`passed`, `running`, `cancelled` or `none`), the commit (short SHA, subject,
-author), the names of the failed jobs, when the pipeline finished and how long
-it ran, and a link to the run. The response also counts the rows per status.
-Every row is returned whatever its status, ordered by commit time, latest first
-(rows with no commit time last, then by repo name), so a client filters it and
-its counts always match what it lists. Status is a filter, not the order.
+`passed`, `running`, `cancelled`, `awaiting_approval` or `none`), the commit
+(short SHA, subject, author), the names of the failed jobs, when the pipeline
+finished and how long it ran, and a link to the run. The response also counts
+the rows per status. Every row is returned whatever its status, ordered by
+commit time, latest first (rows with no commit time last, then by repo name), so
+a client filters it and its counts always match what it lists. Status is a
+filter, not the order.
 
 It reads the snapshot the background refresh already holds and never calls a
 forge, so reading it costs no rate-limit budget. The refresh gets the data
