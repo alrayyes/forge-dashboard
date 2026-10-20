@@ -557,6 +557,16 @@ dashboard refresh. Falls back to the legacy combined commit-status
 API's own per-check entries when a repo (or an older Forgejo instance)
 reports no Actions/Workflow runs at all for that commit.
 
+While a pipeline is running, the pill also says how far it is: the word
+Running, then a count for each state that has any, in the order passed, running,
+waiting, failed, each with its own glyph. A state with no checks is left out. On
+a phone the word goes and the counts stay. The server tallies the counts from
+what it already reads to work out the CI state, so they cost no extra request,
+and a pull request that has none keeps the plain pill. A run held for approval
+and a cancelled run are in none of the four, because the CI state doesn't treat
+them as failures while others still run. On Forgejo nothing counts as running,
+since its statuses only say pending.
+
 On GitHub, the pill stays pending while a check that branch protection or a
 ruleset requires hasn't finished. GitHub's combined status only counts checks
 that exist, and can read as passed for a moment after a push while the rest of
