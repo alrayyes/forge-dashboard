@@ -26,8 +26,9 @@ import (
 // dashboard learns someone is using it: a request that got past
 // auth.RequireAuth touches the manager's Activity, and a rejected one, a
 // probe or a page for people does not. Touched after the handler returns,
-// because the slot is filled by then; a long-lived stream says it is open
-// itself (StreamOpened).
+// because the slot is filled by then. The live stream is not use (it stays
+// open, or reconnects, in a tab nobody is looking at), and neither is the
+// presence report, which says whether anyone is.
 func accessLogMiddleware(manager *dashboard.Manager, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -38,7 +39,7 @@ func accessLogMiddleware(manager *dashboard.Manager, next http.Handler) http.Han
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 
-		if *usernameSlot != "" {
+		if *usernameSlot != "" && countsAsUse(r) {
 			manager.Activity().Touch()
 		}
 
@@ -107,4 +108,15 @@ func (s *statusRecorder) Flush() {
 	if f, ok := s.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+// countsAsUse reports whether a signed-in request is someone using the
+// dashboard. The stream and the presence report each say so another way.
+func countsAsUse(r *http.Request) bool {
+	switch r.URL.Path {
+	case "/api/dashboard/stream", "/api/dashboard/presence":
+		return false
+	}
+
+	return true
 }

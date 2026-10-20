@@ -94,7 +94,7 @@ func TestActivity_AHealthProbeIsNotUse(t *testing.T) {
 	assert.True(t, act.Idle(), "the container's probe hits this all day")
 }
 
-func TestActivity_AnOpenLiveStreamCountsAsUseUntilItCloses(t *testing.T) {
+func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 	t.Parallel()
 
 	srv, manager, authStore := newTestServerWithSourcesAndManager(t, noSources)
@@ -102,25 +102,15 @@ func TestActivity_AnOpenLiveStreamCountsAsUseUntilItCloses(t *testing.T) {
 	user, err := authStore.UserForSession(t.Context(), cookie.Value)
 	require.NoError(t, err)
 	manager.EnsureIfAbsent(t.Context(), user.ID, nil)
-
-	clock := newAPIClock()
-	act := dashboard.NewActivity(15*time.Minute, clock.now)
-	manager.SetActivity(act)
+	act := idleActivity(t, manager)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	clock.advance(3 * time.Hour)
-	assert.False(t, act.Idle(), "an open stream is use however long it has been open")
-
-	require.NoError(t, resp.Body.Close())
-	require.Eventually(t, func() bool {
-		clock.advance(time.Hour)
-
-		return act.Idle()
-	}, 2*time.Second, 10*time.Millisecond, "closing the stream ends it")
+	assert.True(t, act.Idle(), "a stream in a tab nobody is looking at must not keep the refresh running")
 }

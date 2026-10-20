@@ -11,21 +11,33 @@ import (
 // a dashboard left on overnight spends no forge budget for most of it.
 const DefaultIdleAfter = 15 * time.Minute
 
+// PresenceHeartbeat is how often a visible tab tells the server it is still
+// being looked at. A hidden tab sends nothing, so the browser's throttling of
+// background timers (once a minute at worst) never delays a heartbeat.
+const PresenceHeartbeat = time.Minute
+
+// PresenceTTL is how long a tab keeps holding the dashboard active after its
+// last heartbeat. Three heartbeats: a missed one or two (a slow network, a
+// busy tab) do not let go, while a closed laptop or a crashed browser, which
+// can send no "hidden" message and may leave a stream half-open, stops
+// counting within a bounded time.
+const PresenceTTL = 3 * PresenceHeartbeat
+
 // Activity records whether anyone is using the dashboard, so the background
 // refresh can rest when nobody is. Two things count as use:
 //
 //   - a request from a signed-in browser or an API client (Touch), and
-//   - an open live stream (StreamOpened until StreamClosed).
+//   - a tab that is visible and has had input recently, which says so with a
+//     heartbeat (Present) and holds the dashboard active until it says it was
+//     hidden, or stops sending heartbeats for PresenceTTL.
 //
-// An open stream counts as use for as long as it is open. The server cannot
-// tell a stream in a tab someone is looking at from one in a tab on a second
-// monitor nobody is looking at, and a person looking at the board who clicks
-// nothing makes no request: treating their stream as idle would leave their
-// board frozen until they touched something. The cost is that a tab left open
-// never rests the refresh; closing every tab does. The stream's own keep-alive
-// writes are not a request and never touch this.
+// An open live stream does not count. The server cannot tell a stream in a tab
+// someone is looking at from one in a tab nobody is, which is why the page
+// reports visibility itself (Page Visibility API) and why the page's own
+// background reads, which a hidden tab keeps making, are not use either. The
+// stream's keep-alive writes never touch this.
 //
-// Idle is "nothing is using it and the last use was at least the idle period
+// Idle is "no tab is holding it and the last use was at least the idle period
 // ago". A process that has only just started is not idle: its start counts as
 // use. The zero idle period turns idle mode off.
 //
@@ -44,7 +56,7 @@ type Activity struct {
 
 	mu       sync.Mutex
 	lastUsed time.Time
-	streams  int
+	viewers  map[string]time.Time
 }
 
 // NewActivity returns an Activity that reports idle once nothing has used the
@@ -59,6 +71,7 @@ func NewActivity(idleAfter time.Duration, now func() time.Time) *Activity {
 		now:       now,
 		wake:      make(chan struct{}, 1),
 		lastUsed:  now(),
+		viewers:   make(map[string]time.Time),
 	}
 }
 
@@ -78,9 +91,11 @@ func (a *Activity) Touch() {
 	}
 }
 
-// StreamOpened records that a live stream has opened. While any stream is open
-// the dashboard is in use.
-func (a *Activity) StreamOpened() {
+// Present records what one tab (viewer) reports. A visible report is use: it
+// holds the dashboard active for PresenceTTL and wakes it if it was idle. A
+// hidden report lets that tab go and starts the idle period from this moment;
+// one from a tab never heard from changes nothing.
+func (a *Activity) Present(viewer string, visible bool) {
 	if a == nil {
 		return
 	}
@@ -88,28 +103,22 @@ func (a *Activity) StreamOpened() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	now := a.now()
+	if !visible {
+		if _, known := a.viewers[viewer]; known {
+			delete(a.viewers, viewer)
+			a.lastUsed = now
+		}
+
+		return
+	}
+
 	wasIdle := a.idleLocked()
-	a.streams++
+	a.viewers[viewer] = now
+	a.lastUsed = now
 	if wasIdle {
 		a.signalLocked()
 	}
-}
-
-// StreamClosed records that a live stream has closed. The idle period starts
-// from this moment, so closing the last tab does not make the dashboard idle
-// instantly. A close with no open stream is ignored.
-func (a *Activity) StreamClosed() {
-	if a == nil {
-		return
-	}
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.streams > 0 {
-		a.streams--
-	}
-	a.lastUsed = a.now()
 }
 
 // Idle reports whether nothing is using the dashboard and nothing has for the
@@ -126,7 +135,7 @@ func (a *Activity) Idle() bool {
 }
 
 // Woken receives a value when use returns after an idle period: the first
-// request, or the first stream, after Idle was true. It does not receive for
+// request, or the first tab to report itself visible, after Idle was true. It does not receive for
 // use while the dashboard was already in use, and a signal nobody has read yet
 // is not repeated. A nil Activity returns a channel that never receives.
 func (a *Activity) Woken() <-chan struct{} {
@@ -150,11 +159,19 @@ func (a *Activity) drainWake() {
 }
 
 func (a *Activity) idleLocked() bool {
-	if a.idleAfter <= 0 || a.streams > 0 {
+	if a.idleAfter <= 0 {
 		return false
 	}
 
-	return a.now().Sub(a.lastUsed) >= a.idleAfter
+	now := a.now()
+	for id, seen := range a.viewers {
+		if now.Sub(seen) < PresenceTTL {
+			return false
+		}
+		delete(a.viewers, id)
+	}
+
+	return now.Sub(a.lastUsed) >= a.idleAfter
 }
 
 func (a *Activity) signalLocked() {
