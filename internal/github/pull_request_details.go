@@ -48,24 +48,28 @@ type graphqlDetailsAuthor struct {
 	AvatarURL string `json:"avatarUrl"`
 }
 
+// graphqlDetailsThread is the part of a pull request and of an issue that the
+// dialog reads: the description, its reactions and the first comments.
+type graphqlDetailsThread struct {
+	Body           string                 `json:"body"`
+	LastEditedAt   *string                `json:"lastEditedAt"`
+	ReactionGroups []graphqlReactionGroup `json:"reactionGroups"`
+	Comments       struct {
+		TotalCount int `json:"totalCount"`
+		Nodes      []struct {
+			ID             string                 `json:"id"`
+			CreatedAt      string                 `json:"createdAt"`
+			LastEditedAt   *string                `json:"lastEditedAt"`
+			Body           string                 `json:"body"`
+			Author         *graphqlDetailsAuthor  `json:"author"`
+			ReactionGroups []graphqlReactionGroup `json:"reactionGroups"`
+		} `json:"nodes"`
+	} `json:"comments"`
+}
+
 type pullRequestDetailsResponse struct {
 	Repository struct {
-		PullRequest struct {
-			Body           string                 `json:"body"`
-			LastEditedAt   *string                `json:"lastEditedAt"`
-			ReactionGroups []graphqlReactionGroup `json:"reactionGroups"`
-			Comments       struct {
-				TotalCount int `json:"totalCount"`
-				Nodes      []struct {
-					ID             string                 `json:"id"`
-					CreatedAt      string                 `json:"createdAt"`
-					LastEditedAt   *string                `json:"lastEditedAt"`
-					Body           string                 `json:"body"`
-					Author         *graphqlDetailsAuthor  `json:"author"`
-					ReactionGroups []graphqlReactionGroup `json:"reactionGroups"`
-				} `json:"nodes"`
-			} `json:"comments"`
-		} `json:"pullRequest"`
+		PullRequest graphqlDetailsThread `json:"pullRequest"`
 	} `json:"repository"`
 }
 
@@ -77,18 +81,29 @@ func (c *Client) GetPullRequestDetails(ctx context.Context, owner, name string, 
 	if err := c.graphqlDo(ctx, pullRequestDetailsQuery, vars, &resp); err != nil {
 		return dashboard.PullRequestDetails{}, asClientError(err)
 	}
-	pr := resp.Repository.PullRequest
+	thread := threadDetails(resp.Repository.PullRequest)
 
-	text, truncated := dashboard.CapText(pr.Body, dashboard.MaxDetailsBodyRunes)
-	details := dashboard.PullRequestDetails{
+	return dashboard.PullRequestDetails{
+		Description:       thread.Description,
+		Comments:          thread.Comments,
+		CommentCount:      thread.CommentCount,
+		CommentsTruncated: thread.CommentsTruncated,
+	}, nil
+}
+
+// threadDetails maps one description and its first comments to the shape both
+// dialogs share, applying the contract's caps.
+func threadDetails(thread graphqlDetailsThread) dashboard.IssueDetails {
+	text, truncated := dashboard.CapText(thread.Body, dashboard.MaxDetailsBodyRunes)
+	details := dashboard.IssueDetails{
 		Description: dashboard.DetailsBody{
 			Text: text, Format: dashboard.FormatMarkdown, Truncated: truncated,
-			Edited: pr.LastEditedAt != nil, Reactions: reactionsOf(pr.ReactionGroups),
+			Edited: thread.LastEditedAt != nil, Reactions: reactionsOf(thread.ReactionGroups),
 		},
 		Comments:     []dashboard.DetailsComment{},
-		CommentCount: pr.Comments.TotalCount,
+		CommentCount: thread.Comments.TotalCount,
 	}
-	for _, node := range pr.Comments.Nodes {
+	for _, node := range thread.Comments.Nodes {
 		if len(details.Comments) == dashboard.MaxDetailsComments {
 			break
 		}
@@ -105,7 +120,7 @@ func (c *Client) GetPullRequestDetails(ctx context.Context, owner, name string, 
 	}
 	details.CommentsTruncated = details.CommentCount > len(details.Comments)
 
-	return details, nil
+	return details
 }
 
 // reactionsOf keeps the two reactions the dialog shows. A content with no

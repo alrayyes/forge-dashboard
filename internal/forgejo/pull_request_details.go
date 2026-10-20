@@ -43,17 +43,35 @@ func (c *Client) GetPullRequestDetails(ctx context.Context, owner, name string, 
 	if err != nil {
 		return dashboard.PullRequestDetails{}, err
 	}
-	descriptionReactions, err := c.detailsIssueReactions(ctx, owner, name, number)
-	if err != nil {
-		return dashboard.PullRequestDetails{}, err
-	}
-	comments, total, err := c.detailsComments(ctx, owner, name, number)
+	thread, err := c.threadDetails(ctx, owner, name, number, pr.Body)
 	if err != nil {
 		return dashboard.PullRequestDetails{}, err
 	}
 
-	text, truncated := dashboard.CapText(pr.Body, dashboard.MaxDetailsBodyRunes)
-	details := dashboard.PullRequestDetails{
+	return dashboard.PullRequestDetails{
+		Description:       thread.Description,
+		Comments:          thread.Comments,
+		CommentCount:      thread.CommentCount,
+		CommentsTruncated: thread.CommentsTruncated,
+	}, nil
+}
+
+// threadDetails reads what a pull request and an issue share on Forgejo, which
+// serves both through its issue endpoints: the description's reactions, the
+// first comments and each comment's reactions. body is the description the
+// caller already read.
+func (c *Client) threadDetails(ctx context.Context, owner, name string, number int, body string) (dashboard.IssueDetails, error) {
+	descriptionReactions, err := c.detailsIssueReactions(ctx, owner, name, number)
+	if err != nil {
+		return dashboard.IssueDetails{}, err
+	}
+	comments, total, err := c.detailsComments(ctx, owner, name, number)
+	if err != nil {
+		return dashboard.IssueDetails{}, err
+	}
+
+	text, truncated := dashboard.CapText(body, dashboard.MaxDetailsBodyRunes)
+	details := dashboard.IssueDetails{
 		Description: dashboard.DetailsBody{
 			Text: text, Format: dashboard.FormatMarkdown, Truncated: truncated, Reactions: descriptionReactions,
 		},
@@ -72,7 +90,7 @@ func (c *Client) GetPullRequestDetails(ctx context.Context, owner, name string, 
 		return nil
 	})
 	if reactionErr != nil {
-		return dashboard.PullRequestDetails{}, reactionErr
+		return dashboard.IssueDetails{}, reactionErr
 	}
 
 	return details, nil

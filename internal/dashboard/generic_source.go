@@ -439,6 +439,18 @@ func (s *GenericSource) GetPullRequestDetails(ctx context.Context, owner, name s
 	return detailer.GetPullRequestDetails(ctx, owner, name, number) //nolint:wrapcheck // see above
 }
 
+// GetIssueDetails implements IssueDetailer at the Source level, the same
+// shape as GetPullRequestDetails.
+func (s *GenericSource) GetIssueDetails(ctx context.Context, owner, name string, number int) (IssueDetails, error) {
+	detailer, ok := s.client.(IssueDetailer)
+	if !ok {
+		return IssueDetails{}, fmt.Errorf("dashboard: %s's client can't read issue details: %w", s.forge, errUnsupportedByClient)
+	}
+
+	// Not wrapped, for the same reason as AddLabel.
+	return detailer.GetIssueDetails(ctx, owner, name, number) //nolint:wrapcheck // see above
+}
+
 // RerunFailedChecks implements ChecksRerunner at the Source level, the same
 // shape as AddLabel. internal/forgejo.Client reruns, but this was never
 // forwarded, so Rerun failed checks answered 400 on every Forgejo pull request
