@@ -169,15 +169,14 @@ pages and on Insights come from what the page can show: the items every other
 filter lets through, and without the Dependency Dashboard while it is hidden. A
 repo whose only issue is that one isn't offered until **Hide Dependency
 Dashboard** is unchecked. Hiding it again clears a repo picked on that basis.
-The CI status select, the Created and Updated ranges and the forge buttons on
-Insights follow the same rule: a CI state, a range or a forge appears only when
-something in the results is in it, and a pick that nothing matches any more is
-cleared. On the pull request page the repo, author and label choices and the CI
-and age choices also follow the board's own filters (the quick pills, CI status
-and Auto-merge), so an author with nothing in the list on screen isn't offered
-and picking a choice never leaves an empty list. The quick pills do too: a pill
-is offered only when clicking it would show something, and the one that is
-active stays so it can be cleared.
+The Created and Updated ranges and the forge buttons on Insights follow the same
+rule: a range or a forge appears only when something in the results is in it,
+and a pick that nothing matches any more is cleared. On the pull request page
+the repo, author and label choices and the age choices also follow the board's
+own filters (the quick pills and Auto-merge), so an author with nothing in the
+list on screen isn't offered and picking a choice never leaves an empty list.
+The quick pills do too: a pill is offered only when clicking it would show
+something, and the one that is active stays so it can be cleared.
 
 ## The Label filter
 
@@ -211,8 +210,8 @@ other filter.
 ## Remembered filters
 
 Filters are remembered per account, in a cookie and in a copy on the server,
-so they follow you to another browser. The repo, author, label, created,
-updated and CI status choices each page offers come from its own list. When
+so they follow you to another browser. The repo, author, label, created
+and updated choices each page offers come from its own list. When
 you open a page that doesn't offer a saved choice (an author who wrote no
 pull request, on the pull requests page), that page shows its list without
 it and leaves the saved choice alone, so it is still set when you go back to
@@ -240,8 +239,8 @@ Below 760px wide the filter bar folds down so the first screen shows pull
 requests. Closed, it is one search row (the title filter and a **Filters**
 button) and one row of quick filters that scrolls sideways. The button's count,
 as in "Filters (2)", is how many filters are on: forge, repo, author, each label,
-created, updated, CI status, and Show drafts. Each active filter also shows as a
-chip you can tap to remove without opening anything.
+created, updated and Show drafts. Each active filter also shows as a chip you
+can tap to remove without opening anything.
 
 **Filters** opens a bottom sheet with the rest of the controls: forge, Show
 drafts, sort, group, repo, author, label, created and updated. Filters apply as

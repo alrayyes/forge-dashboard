@@ -10,11 +10,11 @@ import {
 import {
   ageChoices,
   ciBucket,
-  ciChoices,
   type FilterableItem,
   matchesFilters,
   matchesQuickFilter,
   optionPool,
+  QUICK_FILTERS,
   showBlockedChip,
 } from './filters';
 
@@ -86,21 +86,6 @@ describe('ageChoices', () => {
 
   test('an invalid date is never counted in a range', () => {
     expect(offered([choiceItem({ createdAt: 'not a date' })])).toEqual([]);
-  });
-});
-
-describe('ciChoices', () => {
-  test('offers only the states items are in, in the select order', () => {
-    expect(
-      ciChoices([
-        choiceItem({ ci: 'none' }),
-        choiceItem({ ci: 'success' }),
-      ]).map((c) => c.value),
-    ).toEqual(['success', 'none']);
-  });
-
-  test('an item with no CI state adds nothing', () => {
-    expect(ciChoices([choiceItem()])).toEqual([]);
   });
 });
 
@@ -273,29 +258,36 @@ describe('the failing filters follow failingCi', () => {
     expect(matchesQuickFilter(oldServer, 'failing')).toBe(true);
   });
 
-  test("the status filter's Failing choice follows the same rule", () => {
-    const status = { status: 'failure' };
-    expect(matchesFilters(held, true, {}, status)).toBe(false);
-    expect(matchesFilters(broken, true, {}, status)).toBe(true);
-    expect(matchesFilters(oldServer, true, {}, status)).toBe(true);
-  });
-
   test('counts file a held pull request under running, not failing', () => {
     expect(ciBucket(held)).toBe('pending');
     expect(ciBucket(broken)).toBe('failure');
     expect(ciBucket(oldServer)).toBe('failure');
     expect(ciBucket(choiceItem({ ci: 'success' }))).toBe('success');
   });
+});
 
-  test('the other statuses still read ci', () => {
+// The No checks pill lists what has no CI (2084). It was the one state the old
+// CI status pulldown had and the pills lacked.
+describe('the No checks quick filter', () => {
+  test('is a quick filter', () => {
+    expect(QUICK_FILTERS).toContain('no-checks');
+  });
+
+  test('matches a pull request with no CI and nothing else', () => {
+    expect(matchesQuickFilter(choiceItem({ ci: 'none' }), 'no-checks')).toBe(
+      true,
+    );
+    for (const ci of ['success', 'failure', 'pending', undefined])
+      expect(matchesQuickFilter(choiceItem({ ci }), 'no-checks')).toBe(false);
+  });
+
+  test('the old CI status key no longer filters', () => {
     expect(
       matchesFilters(
-        choiceItem({ ci: 'pending' }),
+        choiceItem({ ci: 'success' }),
         true,
         {},
-        {
-          status: 'pending',
-        },
+        { status: 'failure' },
       ),
     ).toBe(true);
   });

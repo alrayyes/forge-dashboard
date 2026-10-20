@@ -10,6 +10,7 @@ import {
   loadState,
   releaseAllHeld,
   type SharedFilterState,
+  takeMigratedStatus,
   touchAll,
   touchKey,
 } from './filters';
@@ -61,11 +62,11 @@ describe('applyServerState with keys the user touched', () => {
     applyServerState(state, {
       issue: { hideDependencyDashboard: '1' },
       shared: { repo: 'github:acme/app' },
-      pr: { status: 'failing' },
+      pr: { autoMerge: 'on' },
     });
     expect(state.issue.hideDependencyDashboard).toBe('');
     expect(state.shared.repo).toBe('github:acme/app');
-    expect(state.pr.status).toBe('failing');
+    expect(state.pr.autoMerge).toBe('on');
     expect(hasTouched()).toBe(true);
   });
 
@@ -153,5 +154,82 @@ describe('applyServerState with keys the user touched', () => {
     leavePage(old);
     expect(currentPage()).toBe(next);
     expect(hasTouched()).toBe(true);
+  });
+});
+
+// The CI status pulldown is gone (2084): a status saved from before becomes the
+// pill it matches, so it neither disappears nor filters out of sight. A pill or
+// a forge already picked wins, and the old key never stays in the state.
+describe('a saved CI status after the pulldown went', () => {
+  // Keys touched by an earlier test would keep the user's value.
+  beforeEach(() => {
+    loadState();
+  });
+
+  const fresh = (): SharedFilterState => ({
+    shared: {},
+    pr: {},
+    issue: {},
+    view: {},
+  });
+
+  test.each([
+    ['success', 'passing'],
+    ['failure', 'failing'],
+    ['pending', 'running'],
+    ['none', 'no-checks'],
+  ])('%s from the server copy becomes the %s pill', (status, pill) => {
+    const state = fresh();
+    applyServerState(state, { pr: { status } });
+    expect(state.pr.quick).toBe(pill);
+    expect(state.pr.status).toBeUndefined();
+  });
+
+  test('a pill already picked stays and the status is dropped', () => {
+    const state = fresh();
+    state.pr.quick = 'ready';
+    applyServerState(state, { pr: { status: 'failure' } });
+    expect(state.pr.quick).toBe('ready');
+    expect(state.pr.status).toBeUndefined();
+  });
+
+  test('a forge already picked stays and the status is dropped', () => {
+    const state = fresh();
+    state.shared.forge = 'github';
+    applyServerState(state, { pr: { status: 'failure' } });
+    expect(state.pr.quick ?? '').toBe('');
+    expect(state.pr.status).toBeUndefined();
+  });
+
+  test('a status that is not a known one is dropped', () => {
+    const state = fresh();
+    applyServerState(state, { pr: { status: 'bogus' } });
+    expect(state.pr.quick ?? '').toBe('');
+    expect(state.pr.status).toBeUndefined();
+  });
+
+  test('a pill the user picked meanwhile wins over the copy', () => {
+    const state = fresh();
+    state.pr.quick = '';
+    touchKey('pr', 'quick');
+    applyServerState(state, { pr: { status: 'failure' } });
+    expect(state.pr.quick).toBe('');
+    expect(state.pr.status).toBeUndefined();
+  });
+
+  test('a pill that no longer exists does not block the migration', () => {
+    const state = fresh();
+    state.pr.quick = 'bots';
+    applyServerState(state, { pr: { status: 'failure' } });
+    expect(state.pr.quick).toBe('failing');
+  });
+
+  test('says a saved status was read, once', () => {
+    takeMigratedStatus();
+    applyServerState(fresh(), { pr: { status: 'success' } });
+    expect(takeMigratedStatus()).toBe(true);
+    expect(takeMigratedStatus()).toBe(false);
+    applyServerState(fresh(), { pr: { autoMerge: 'on' } });
+    expect(takeMigratedStatus()).toBe(false);
   });
 });

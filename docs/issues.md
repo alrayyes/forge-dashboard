@@ -162,13 +162,13 @@ an entry. What you had in those fields is kept, not used, and comes back when
 you turn the setting off or empty the list. **Clear filters** changes neither
 setting.
 
-The issues page filters like the pull request page: forge, repo, title,
-author, label, created and updated, plus Group by. Those filters are shared
-and saved with your other filters, so a filter set on one page is still set on
-the other. The pull-request-only controls (CI status, the quick filters for
-failing, ready, needs-review and conflicting pull requests, Show drafts)
-are not on the issues page. Which choices a page offers, and how filters are
-remembered, is in [Live updates and filters](live-updates.md#remembered-filters).
+The issues page filters like the pull request page: forge, repo, title, author,
+label, created and updated, plus Group by. Those filters are shared and saved
+with your other filters, so a filter set on one page is still set on the other.
+The pull-request-only controls (the CI quick filters, the quick filters for
+failing, ready, needs-review and conflicting pull requests, Show drafts) are not
+on the issues page. Which choices a page offers, and how filters are remembered,
+is in [Live updates and filters](live-updates.md#remembered-filters).
 
 The issue list holds still while you read it. A refresh that would add, remove
 or move rows waits while you're scrolled below the top, a control in the list

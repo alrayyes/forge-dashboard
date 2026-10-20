@@ -946,7 +946,7 @@ test.describe('dashboard page', () => {
       await expect(titleFilter).toHaveValue('github');
     });
 
-    test('the shared forge filter persists and applies to both pages, while CI status stays scoped to pull requests only', async ({
+    test('the shared forge filter persists and applies to both pages, while the CI pills stay scoped to pull requests only', async ({
       page,
     }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
@@ -1028,36 +1028,28 @@ test.describe('dashboard page', () => {
         'true',
       );
 
-      // CI status has no equivalent on issues, so it stays scoped to the
-      // pull requests page only.
+      // The CI pills have no equivalent on issues, so they stay scoped to the
+      // pull requests page only. A pill replaces the forge pick: they are one
+      // choice.
       await page.goto('/pull-requests.html');
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        'failure',
-      );
+      await page.locator('.quick-pills [data-pill="failing"]').click();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       // Navigating before the save lands would race it against the next
       // page's own load of the saved state.
       await expect
         .poll(async () => {
           const resp = await page.request.get('/api/settings/filter-state');
-          return (await resp.json())?.pr?.status;
+          return (await resp.json())?.pr?.quick;
         })
-        .toBe('failure');
+        .toBe('failing');
       await page.goto('/issues.html');
-      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
 
       await page.goto('/pull-requests.html');
-      await expect(forgeRadio(page, 'github')).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      );
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(
-        page.locator(
-          'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        ),
-      ).toHaveValue('failure');
+        page.locator('.quick-pills [data-pill="failing"]'),
+      ).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     });
 
     test('a discrete filter change saves to the server immediately, not just the cookie', async ({
@@ -1741,7 +1733,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
     });
 
-    test('a PR-only filter like CI status also narrows the shared repo/author/label choices', async ({
+    test('a PR-only filter like the Failing CI pill also narrows the shared repo/author/label choices', async ({
       page,
     }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
@@ -1784,14 +1776,11 @@ test.describe('dashboard page', () => {
       await page.reload();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        'failure',
-      );
+      await page.locator('.quick-pills [data-pill="failing"]').click();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Failing PR');
 
-      // The CI filter narrows the list on screen, so the shared Repo/Author/
+      // The pill narrows the list on screen, so the shared Repo/Author/
       // Label choices drop what only the passing PR the filter just hid has:
       // offering team/one, claude or bug would lead to an empty list. This
       // replaces the earlier expectation that board filters stay out of the
@@ -2980,7 +2969,7 @@ test.describe('dashboard page', () => {
       await expect(button).toBeDisabled();
     });
 
-    test('becomes enabled once a shared filter is active, and stays enabled for CI status/Hide Dependency Dashboard alone too', async ({
+    test('becomes enabled once a shared filter is active, and stays enabled for a CI pill/Hide Dependency Dashboard alone too', async ({
       page,
     }) => {
       var button = page.getByRole('button', { name: 'Clear filters' });
@@ -2991,23 +2980,17 @@ test.describe('dashboard page', () => {
       await page.fill('.filter-bar .col-filter[data-col="title"]', '');
       await expect(button).toBeDisabled();
 
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        'failure',
-      );
+      await page.locator('.quick-pills [data-pill="failing"]').click();
       await expect(button).toBeEnabled();
     });
 
-    test('clicking resets every shared filter, group-by and CI status in one action, re-renders the board, resets pagination, and disables itself again', async ({
+    test('clicking resets every shared filter, group-by and the CI pill in one action, re-renders the board, resets pagination, and disables itself again', async ({
       page,
     }) => {
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'build');
       await page.selectOption('#shared-group-select', 'repo');
-      await page.selectOption(
-        'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        'failure',
-      );
-      // Title and status together leave the failing "Fix build" PR (#1427:
+      await page.locator('.quick-pills [data-pill="failing"]').click();
+      // Title and the pill together leave the failing "Fix build" PR (#1427:
       // a combination that matched nothing is no longer offered).
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
@@ -3021,11 +3004,9 @@ test.describe('dashboard page', () => {
       ).toHaveValue('');
       await expect(page.locator('#shared-group-select')).toHaveValue('');
       await expect(
-        page.locator(
-          'section[aria-label="Open pull requests"] .col-filter[data-col="status"]',
-        ),
-      ).toHaveValue('');
-      // Both PRs are back (no title/status filter).
+        page.locator('.quick-pills [data-pill="all"]'),
+      ).toHaveAttribute('aria-pressed', 'true');
+      // Both PRs are back (no title/pill filter).
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 

@@ -8,7 +8,7 @@ import {
 import { test } from './fixtures';
 import { registerViaInvite } from './register-helper';
 
-// #1427: the CI status select, the Created and Updated ranges and the forge
+// #1427: the Created and Updated ranges and the forge
 // buttons offer only choices that exist in the results, like the repo, author
 // and label selects do.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
@@ -69,117 +69,25 @@ const values = (page: Page, selector: string) =>
     .locator(`${selector} option`)
     .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
 
-const STATUS = 'select[data-col="status"]';
 const CREATED = 'select[data-col="created"]';
 const UPDATED = 'select[data-col="updated"]';
 
-test.describe('CI status and age choices on the pull request page (#1427)', () => {
+test.describe('age choices on the pull request page (#1427)', () => {
   test.beforeEach(async ({ page, request, baseURL }) => {
     await registerAndSignIn(page, request, baseURL);
   });
 
-  test('offer only the CI states that exist and the age ranges something falls in', async ({
-    page,
-  }) => {
+  test('offer only the age ranges something falls in', async ({ page }) => {
     await open(page, '/pull-requests.html', [
       pr(1, { ci: 'success', createdAt: ago(48), updatedAt: ago(2) }),
       pr(2, { ci: 'failure', createdAt: ago(72), updatedAt: ago(30) }),
     ]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-    expect(await values(page, STATUS)).toEqual(['', 'success', 'failure']);
     // Created 48h and 72h ago: nothing is under an hour or a day old.
     expect(await values(page, CREATED)).toEqual(['', '10080', '43200']);
     // Updated 2h and 30h ago.
     expect(await values(page, UPDATED)).toEqual(['', '1440', '10080', '43200']);
-  });
-
-  test('the CI choices follow the other filters, and the other filters follow the CI pick', async ({
-    page,
-  }) => {
-    await open(page, '/pull-requests.html', [
-      pr(1, { author: 'alice', ci: 'success' }),
-      pr(2, { author: 'bob', ci: 'failure' }),
-    ]);
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    await page.selectOption(STATUS, 'failure');
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-
-    // The failing filter leaves alice, who has no failing pull request, out of
-    // the Author choices, so that pick can't empty the list (#1427).
-    expect(
-      await page
-        .locator('#shared-author-select option')
-        .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value)),
-    ).toEqual(['', 'bob']);
-
-    await page.selectOption(STATUS, '');
-    await page.selectOption('#shared-author-select', 'alice');
-
-    // Alice's one pull request is passing, so that is the only CI choice left.
-    expect(await values(page, STATUS)).toEqual(['', 'success']);
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  });
-
-  test('picking Created refreshes the CI choices to what is left', async ({
-    page,
-  }) => {
-    await open(page, '/pull-requests.html', [
-      pr(1, { ci: 'success', createdAt: ago(0.5), updatedAt: ago(0.5) }),
-      pr(2, { ci: 'failure', createdAt: ago(48) }),
-      pr(3, { ci: 'pending', createdAt: ago(72) }),
-    ]);
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
-    expect(await values(page, STATUS)).toEqual([
-      '',
-      'success',
-      'failure',
-      'pending',
-    ]);
-
-    await page.selectOption(CREATED, '60');
-
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    expect(await values(page, STATUS)).toEqual(['', 'success']);
-  });
-
-  test('typing a title narrows the CI choices as it is typed, and clears a CI pick it leaves nothing for', async ({
-    page,
-  }) => {
-    await open(page, '/pull-requests.html', [
-      pr(1, { title: 'Alpha change', ci: 'success' }),
-      pr(2, { title: 'Beta change', ci: 'failure' }),
-    ]);
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    await page.selectOption(STATUS, 'failure');
-
-    await page.fill('.filter-bar .col-filter[data-col="title"]', 'alpha');
-
-    await expect(page.locator(STATUS)).toHaveValue('');
-    expect(await values(page, STATUS)).toEqual(['', 'success']);
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  });
-
-  test('picking a CI state leaves only the age ranges that state is in', async ({
-    page,
-  }) => {
-    await open(page, '/pull-requests.html', [
-      pr(1, { ci: 'success', createdAt: ago(48) }),
-      pr(2, { ci: 'failure', createdAt: ago(0.5) }),
-    ]);
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    expect(await values(page, CREATED)).toEqual([
-      '',
-      '60',
-      '1440',
-      '10080',
-      '43200',
-    ]);
-
-    await page.selectOption(STATUS, 'success');
-
-    // Only the failing pull request is under an hour old, so it isn't offered.
-    expect(await values(page, CREATED)).toEqual(['', '10080', '43200']);
   });
 
   test('a quick pill narrows the age ranges too', async ({ page }) => {

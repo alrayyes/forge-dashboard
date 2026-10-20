@@ -778,7 +778,7 @@
 
     // status is a real button — see titleCell's comment on why the row
     // isn't an <a> around everything. It opens the pipeline panel
-    // (#1139); filtering by CI status lives in the column filter.
+    // (#1139); filtering by CI state is the quick pills' job.
     //
     // The CI slot (#1563) holds a state (running) and the outcomes it leads to
     // (failed, passed): one pill in one fixed-size slot, a glyph and a word,
@@ -5441,6 +5441,9 @@
       // values; save the merged state so the server keeps the copy's other
       // fields too (#1713).
       if (got && Filters.hasTouched()) Filters.saveState(sharedState);
+      // A CI status saved before its dropdown went has become a pill; save it
+      // once so the old key leaves the cookie and the server copy.
+      else if (Filters.takeMigratedStatus()) Filters.saveState(sharedState);
       syncDraftsPreference();
       // Only when the server's copy actually differs from what the cookie
       // already gave the page: a re-render for nothing replaces every row
@@ -5460,18 +5463,14 @@
     // excludeKey === "" scopes by all four (forge/repo/author/label),
     // which is what the Title datalist wants: free text has no "own
     // selection" to exclude itself from. The pull request board's own
-    // fields (CI status, quick pills, Auto-merge) narrow every choice list
+    // fields (quick pills, Auto-merge) narrow every choice list
     // too, bar the one being populated, so a pick never leaves an empty list
     // and no choice names something the list on screen lacks (#1427). The
     // Issues page's default hiding of a bot's housekeeping issue is in,
     // since a repo with nothing else has nothing to show.
     function sharedPoolExcluding(
       excludeKey: Filters.PoolKey,
-      board:
-        | "apply"
-        | "applyExceptStatus"
-        | "applyExceptQuick"
-        | "applyExceptAutoMerge" = "apply",
+      board: "apply" | "applyExceptQuick" | "applyExceptAutoMerge" = "apply",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -5489,7 +5488,6 @@
           ? withBoard
             ? {
                 ...sharedState.pr,
-                ...(board === "applyExceptStatus" ? { status: "" } : {}),
                 ...(board === "applyExceptQuick" ? { quick: "" } : {}),
                 ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
               }
@@ -5592,7 +5590,7 @@
       );
       labelFilter?.render(labelChoices, parseLabels(sharedState.shared.label));
       // The fixed choices offer only what the results have too (#1427): the
-      // age ranges something falls in, and the CI states pull requests are in.
+      // age ranges something falls in.
       const staleCreated = populateEvery(
         'select[data-col="created"]',
         Filters.ageChoices(sharedPoolExcluding("created"), "createdAt"),
@@ -5603,13 +5601,6 @@
         Filters.ageChoices(sharedPoolExcluding("updated"), "updatedAt"),
         sharedState.shared.updated,
       );
-      const staleStatus =
-        pullsView &&
-        populateEvery(
-          'select[data-col="status"]',
-          Filters.ciChoices(sharedPoolExcluding("", "applyExceptStatus")),
-          sharedState.pr.status,
-        );
       updateGroupByOptions();
       const clearPick = (
         stale: boolean,
@@ -5627,15 +5618,9 @@
       clearPick(staleAuthor, "shared", "author");
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
-      clearPick(Boolean(staleStatus), "pr", "status");
       if (
         !holdPicks &&
-        (staleRepo ||
-          staleAuthor ||
-          staleLabel ||
-          staleCreated ||
-          staleUpdated ||
-          staleStatus)
+        (staleRepo || staleAuthor || staleLabel || staleCreated || staleUpdated)
       )
         Filters.saveState(sharedState);
       // A quick pill is offered only if clicking it would show something
@@ -5761,7 +5746,7 @@
     // ---- board state + render ----
     // Each board (pull requests, issues) owns its own items, pagination,
     // and — for the one field with no equivalent on the other entity
-    // type — its own extraState (status for pull requests,
+    // type — its own extraState (the quick pill and Auto-merge for pull requests,
     // hideDependencyDashboard for issues). Everything else it filters
     // and groups by comes from the shared state above.
     type Board = {
@@ -6054,30 +6039,6 @@
         state.page = 1;
         render();
       });
-
-      // CI status has no equivalent on the issues board, so it's wired
-      // locally here rather than through the shared bar — a change only
-      // ever re-renders this one board.
-      if (isPR) {
-        const statusSelect = section?.querySelector<HTMLSelectElement>(
-          '.col-filter[data-col="status"]',
-        );
-        if (statusSelect) {
-          statusSelect.value = extraState.status || "";
-          statusSelect.addEventListener("change", () => {
-            onUserChange?.();
-            extraState.status = statusSelect.value.trim().toLowerCase();
-            Filters.touchKey("pr", "status");
-            Filters.releaseHeld("pr", "status");
-            state.page = 1;
-            Filters.saveState(sharedState);
-            // The age ranges are worth choosing only if something in this CI
-            // state falls in them (#1427).
-            updateSharedFilterOptions();
-            render();
-          });
-        }
-      }
 
       // Not a generic .col-filter: it's a checkbox (driven by .checked,
       // not .value) and its default is "on" rather than "no filter
@@ -6433,12 +6394,11 @@
     });
 
     // #354: true once nothing in sharedState differs from Filters' own
-    // defaultState() — shared is empty, no CI status, no title pattern, and
+    // defaultState() — shared is empty, no quick pill, no title pattern, and
     // hideDependencyDashboard is back at its default-checked '1'.
     function filtersAreDefault(): boolean {
       return (
         Object.keys(sharedState.shared).every((k) => !sharedState.shared[k]) &&
-        !sharedState.pr.status &&
         !sharedState.pr.quick &&
         !sharedState.pr.autoMerge &&
         // A saved pick this page does not offer is still a filter (#1620).
@@ -6552,11 +6512,6 @@
         chips.push({
           label: `Updated ${selectText("updated", shared.updated)}`,
           clear: () => clearSelect("updated"),
-        });
-      if (pullsView && sharedState.pr.status)
-        chips.push({
-          label: `CI ${selectText("status", sharedState.pr.status)}`,
-          clear: () => clearSelect("status"),
         });
       if (pullsView && sharedState.pr.autoMerge)
         chips.push({
@@ -6749,10 +6704,6 @@
           }
         });
       if (sharedGroupSelect) sharedGroupSelect.value = "";
-      const statusSelect = document.querySelector<HTMLSelectElement>(
-        '.col-filter[data-col="status"]',
-      );
-      if (statusSelect) statusSelect.value = "";
       const hideDependencyDashboardCheckbox = document.getElementById(
         "issue-hide-dependency-dashboard",
       ) as HTMLInputElement | null;
@@ -8323,6 +8274,12 @@
         <button
           type="button"
           class="quick-pill"
+          data-pill="no-checks"
+          aria-pressed="false">No checks</button
+        >
+        <button
+          type="button"
+          class="quick-pill"
           data-pill="conflicting"
           aria-pressed="false">Conflicts</button
         >
@@ -8576,17 +8533,6 @@
               : "Pull requests"}
         </h2>
         <div class="board-head-controls">
-          <select
-            class="col-filter"
-            data-col="status"
-            aria-label="Filter by CI status"
-          >
-            <option value="">CI status</option>
-            <option value="success">Passing</option>
-            <option value="failure">Failing</option>
-            <option value="pending">Running</option>
-            <option value="none">No checks</option>
-          </select>
           <button
             type="button"
             class="hidden-prs-toggle"
