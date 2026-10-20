@@ -92,8 +92,9 @@ function ratio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const KNOWN = ['total', 'failed', 'running', 'passed'];
-const PILL_SELECTOR = /\.nav-(?:pills|total|failed|running|passed|none)\b/;
+const KNOWN = ['total', 'failed', 'running', 'passed', 'awaiting'];
+const PILL_SELECTOR =
+  /\.nav-(?:pills|total|failed|running|passed|awaiting|none)\b/;
 
 type Rule = { selectors: string[]; body: string };
 
@@ -195,12 +196,21 @@ describe('pillColours on a synthetic stylesheet', () => {
   const base = `.nav-total { color: var(--ink); }
 .nav-failed { color: var(--critical); }
 .nav-running { color: var(--warning); }
-.nav-passed { color: var(--good); }`;
+.nav-passed { color: var(--good); }
+.nav-awaiting { color: var(--warning); }`;
 
   test('checks a pill it was not told about', () => {
     const sheet = `${base}\n.nav-none { color: #ff0; }`;
     expect(pillColours(sheet).colours.has('.nav-none')).toBe(true);
     expect(failures(sheet, light)).toEqual(['.nav-none is 1.00:1']);
+  });
+
+  test('measures the awaiting approval pill and fails when its colour is made bad (#2024)', () => {
+    const sheet = base.replace(
+      '.nav-awaiting { color: var(--warning); }',
+      '.nav-awaiting { color: #ff0; }',
+    );
+    expect(failures(sheet, light)).toEqual(['.nav-awaiting is 1.00:1']);
   });
 
   test('fails loudly when a known pill is missing', () => {
