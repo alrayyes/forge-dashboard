@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
-// The Running pill's counts against the pill's own background, in both themes,
+// The CI pills' counts and words against the pill's own background, in both themes,
 // read straight from the stylesheet. axe-core files these as "incomplete", never
 // as a violation (a single digit can't be told from decoration), so a pill
 // with an unreadable colour passes every axe journey; the ratio is measured
@@ -12,7 +12,18 @@ import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
-const KINDS = ['label', 'passed', 'running', 'waiting', 'failed'];
+// The selectors whose colour is drawn on the pill: the counts, and the word,
+// which takes its state's colour (the Passed and Failed pills as well as the
+// Running one).
+const SEGMENTS = [
+  '.ci-seg-label',
+  '.ci-pill.success .ci-seg-label',
+  '.ci-pill.failure .ci-seg-label',
+  '.ci-seg-passed',
+  '.ci-seg-running',
+  '.ci-seg-waiting',
+  '.ci-seg-failed',
+];
 
 function block(source: string, selector: string): string {
   const start = source.indexOf(selector);
@@ -88,11 +99,11 @@ function failures(source: string, theme: Map<string, string>): string[] {
     declared(block(source, '.ci-pill.segmented {'), 'background') ?? '',
     theme,
   );
-  return KINDS.flatMap((kind) => {
-    const color = declared(block(source, `.ci-seg-${kind} {`), 'color');
-    if (!color) return [`.ci-seg-${kind} sets no color`];
+  return SEGMENTS.flatMap((selector) => {
+    const color = declared(block(source, `${selector} {`), 'color');
+    if (!color) return [`${selector} sets no color`];
     const r = ratio(resolve(color, theme), bg);
-    return r >= 4.5 ? [] : [`.ci-seg-${kind} is ${r.toFixed(2)}:1`];
+    return r >= 4.5 ? [] : [`${selector} is ${r.toFixed(2)}:1`];
   });
 }
 
@@ -132,15 +143,15 @@ function hoverFailures(source: string, theme: Map<string, string>): string[] {
     factor,
   );
 
-  return KINDS.flatMap((kind) => {
-    const color = declared(block(source, `.ci-seg-${kind} {`), 'color') ?? '';
+  return SEGMENTS.flatMap((selector) => {
+    const color = declared(block(source, `${selector} {`), 'color') ?? '';
     const r = ratio(dim(resolve(color, theme), factor), bg);
 
-    return r >= 4.5 ? [] : [`.ci-seg-${kind} on hover is ${r.toFixed(2)}:1`];
+    return r >= 4.5 ? [] : [`${selector} on hover is ${r.toFixed(2)}:1`];
   });
 }
 
-describe('Running pill colours on hover', () => {
+describe('Segmented pill colours on hover', () => {
   for (const [name, theme] of themes) {
     test(`every segment still reads at 4.5:1 while hovered in the ${name} theme`, () => {
       expect(hoverFailures(css, theme)).toEqual([]);
@@ -156,7 +167,7 @@ describe('Running pill colours on hover', () => {
   });
 });
 
-describe('Running pill colours', () => {
+describe('Segmented pill colours', () => {
   test('the pill draws its own background, never a state tint', () => {
     expect(declared(block(css, '.ci-pill.segmented {'), 'background')).toBe(
       'var(--surface-sunken)',
