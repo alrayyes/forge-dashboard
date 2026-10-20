@@ -904,6 +904,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		RenovateRebaseRequested: dashboard.RebaseCheckboxOf(p.Body) == dashboard.RebaseCheckboxTicked,
 		CrossRepository:         p.Head != nil && p.Base != nil && p.Head.RepoID != p.Base.RepoID,
 		RequestedReviewerLogins: requestedLogins(p),
+		ClosesIssues:            dashboard.ClosingIssueRefs(p.Body, repo, c.instanceURL),
 		Empty:                   isEmpty(p),
 		// The pull request JSON has no auto-merge field, so this is nil
 		// (unknown) here and ListOpenPullRequests fills it from the issue

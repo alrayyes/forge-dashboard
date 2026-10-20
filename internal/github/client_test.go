@@ -4577,3 +4577,53 @@ func TestListChecks_HeldRunLookupFailureKeepsTheCheckRuns(t *testing.T) {
 	require.Len(t, checks, 1)
 	assert.Equal(t, dashboard.CheckSuccess, checks[0].State)
 }
+
+// A pull request lists the issues GitHub says it will close (closing
+// references), from the same query, so there is no extra call. Another repo's
+// issue keeps that repo's name.
+func TestFetch_MapsTheClosingIssueReferences(t *testing.T) {
+	t.Parallel()
+
+	node := pullRequestNode("CLEAN")
+	pr := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+	pr["closingIssuesReferences"] = map[string]any{"nodes": []map[string]any{
+		{"number": 12, "url": "https://github.com/alrayyes/a/issues/12", "repository": map[string]any{"nameWithOwner": "alrayyes/a"}},
+		{"number": 3, "url": "https://github.com/alrayyes/other/issues/3", "repository": map[string]any{"nameWithOwner": "alrayyes/other"}},
+	}}
+
+	var seenQuery string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		if q := readGraphQLRequest(t, r).Query; !strings.Contains(q, "compare(") {
+			seenQuery = q
+		}
+		writeJSON(t, w, reposQueryFixture(node))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, []dashboard.IssueRef{
+		{Repo: "alrayyes/a", Number: 12, URL: "https://github.com/alrayyes/a/issues/12"},
+		{Repo: "alrayyes/other", Number: 3, URL: "https://github.com/alrayyes/other/issues/3"},
+	}, result.PullRequests[0].ClosesIssues)
+	assert.Contains(t, seenQuery, "closingIssuesReferences")
+}
+
+func TestFetch_ClosingIssuesAreAnEmptyListWhenThePullRequestClosesNothing(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, reposQueryFixture(pullRequestNode("CLEAN")))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, []dashboard.IssueRef{}, result.PullRequests[0].ClosesIssues, "never null")
+}
