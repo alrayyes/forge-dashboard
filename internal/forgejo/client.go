@@ -683,6 +683,14 @@ func toLabels(labels []*gitea.Label) []dashboard.Label {
 	return out
 }
 
+func posterAvatarURL(u *gitea.User) string {
+	if u == nil {
+		return ""
+	}
+
+	return u.AvatarURL
+}
+
 func posterLogin(u *gitea.User) string {
 	if u == nil {
 		return ""
@@ -882,6 +890,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		Title:                   p.Title,
 		URL:                     p.HTMLURL,
 		Author:                  posterLogin(p.Poster),
+		AuthorAvatarURL:         posterAvatarURL(p.Poster),
 		Draft:                   p.Draft,
 		Labels:                  toLabels(p.Labels),
 		CreatedAt:               created,
