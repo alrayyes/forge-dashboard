@@ -13,6 +13,10 @@
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
   import { adviseReadIntervalMs } from "#lib/read-interval.js";
+  import {
+    BACKGROUND_READ_HEADER,
+    startPresence,
+  } from "#lib/presence-browser.js";
   import NavPills from "#lib/NavPills.svelte";
   import {
     firstRefreshLoading,
@@ -158,6 +162,9 @@
     let navReadInFlight = false;
     let navAbort: AbortController | undefined;
     let polling = false;
+    // Tells the server whether this tab is being looked at, so a forgotten
+    // one does not keep the scheduled refresh running.
+    let stopPresence: (() => void) | undefined;
     // Set on unmount, so a session answer that arrives after it starts nothing.
     let gone = false;
     // A tab shown again reads at once instead of waiting out the interval.
@@ -202,7 +209,7 @@
         scheduleNavRead();
       };
       fetch("/api/dashboard", {
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", ...BACKGROUND_READ_HEADER },
         signal: abort.signal,
         // This is the only read of the URL on these pages now (#1801), but the
         // browser's cache lock is shared by every tab and the dashboard views'
@@ -278,6 +285,7 @@
         if (gone) return;
         // From here on every read arms the next one, answered or not.
         polling = true;
+        stopPresence = startPresence();
         loadNavCounts();
       })
       .catch(() => {
@@ -287,6 +295,7 @@
 
     return () => {
       gone = true;
+      stopPresence?.();
       stopFirstRefreshWait();
       window.clearTimeout(navTimer);
       // A read still out has nobody left to tell.
