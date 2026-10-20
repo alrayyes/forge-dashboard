@@ -1461,8 +1461,11 @@ func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 	if r == nil || r.Contexts == nil {
 		return out
 	}
+	var unexplained int
 	for _, c := range r.Contexts.CheckRunCountsByState {
 		switch c.State {
+		case "CANCELLED":
+			unexplained += c.Count
 		case "SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED":
 			out.Passed += c.Count
 		case "IN_PROGRESS":
@@ -1482,6 +1485,14 @@ func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 		case "FAILURE", "ERROR":
 			out.Failed += c.Count
 		}
+	}
+	// A failing rollup with no failed check is failing because of cancelled
+	// runs (nothing is running to replace them, see settleFailedRollup), so
+	// those are what failed. Left in none of the four, a Failed pill would show
+	// counts that never mention the failure. A held run is not counted: a pull
+	// request says that with its own flag.
+	if out.Failed == 0 && r.ci() == dashboard.CIFailure {
+		out.Failed = unexplained
 	}
 
 	return out
@@ -1521,6 +1532,20 @@ func rollupIsOfAnotherCommit(commits []prCommitNode, headOid string) bool {
 	oid := commits[0].Commit.Oid
 
 	return oid != "" && headOid != "" && oid != headOid
+}
+
+// heldRuns is how many runs are held as ACTION_REQUIRED.
+func (r *statusCheckRollup) heldRuns() int {
+	if r == nil || r.Contexts == nil {
+		return 0
+	}
+	for _, c := range r.Contexts.CheckRunCountsByState {
+		if c.State == "ACTION_REQUIRED" {
+			return c.Count
+		}
+	}
+
+	return 0
 }
 
 // awaitingApproval reports whether any run is held as ACTION_REQUIRED, which is
