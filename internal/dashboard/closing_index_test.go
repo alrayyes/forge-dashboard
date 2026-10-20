@@ -74,6 +74,14 @@ func TestPullRequestsClosing_FindsThePullRequestsThatCloseAnIssue(t *testing.T) 
 			want:  []int{},
 		},
 		{
+			name: "a pull request naming the same issue twice, spelled two ways, is listed once", forge: dashboard.ForgeForgejo,
+			prs: []dashboard.PullRequest{
+				{Forge: dashboard.ForgeForgejo, Repo: "Ryan/Hush", Number: 9, ClosesIssues: []dashboard.IssueRef{{Repo: "Ryan/Hush", Number: 3}, {Repo: "ryan/hush", Number: 3}}},
+			},
+			issue: dashboard.Issue{Forge: dashboard.ForgeForgejo, Repo: "Ryan/Hush", Number: 3},
+			want:  []int{9},
+		},
+		{
 			name: "a pull request that closes nothing is not listed", forge: dashboard.ForgeGitHub,
 			prs:   []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "o/a", Number: 5}},
 			issue: dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "o/a", Number: 1},

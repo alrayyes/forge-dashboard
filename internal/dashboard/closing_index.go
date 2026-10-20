@@ -15,8 +15,15 @@ type ClosingIndex map[string][]PullRequest
 func PullRequestsClosing(prs []PullRequest) ClosingIndex {
 	index := ClosingIndex{}
 	for _, pr := range prs {
+		// Forgejo reads "Closes #5" and "Closes Owner/Repo#5" as two
+		// references to one issue, so a pull request is added once per issue.
+		seen := map[string]struct{}{}
 		for _, ref := range pr.ClosesIssues {
 			key := closingKey(pr.Forge, ref.Repo, ref.Number)
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
 			index[key] = append(index[key], pr)
 		}
 	}
