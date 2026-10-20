@@ -147,6 +147,18 @@ func newTestServerWithCountingSource(t *testing.T) (srv string, calls *atomic.In
 // are Ensure's own initial one and whatever RefreshNow calls happen.
 func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
+
+	// The real 2 s hold would stretch every test that waits for a webhook's
+	// refresh; one millisecond keeps them quick without skipping the debouncer.
+	return newTestServerWithDebounceTimer(t, source, func(_ time.Duration, f func()) func() bool {
+		return time.AfterFunc(time.Millisecond, f).Stop
+	})
+}
+
+// newTestServerWithDebounceTimer is newTestServerWithSource with the timer that
+// holds webhook refreshes back under the test's control.
+func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie) {
+	t.Helper()
 	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken == "" {
 			return nil
@@ -179,6 +191,7 @@ func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string,
 	require.NoError(t, sharingStore.Init(t.Context()))
 
 	manager := dashboard.NewManager(time.Hour)
+	manager.SetWebhookDebounceTimer(after)
 	t.Cleanup(manager.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())
@@ -667,4 +680,78 @@ func TestWebhook_CommentDelivery_TriggersOnlyAScopedRefresh(t *testing.T) {
 			assert.Equal(t, fetchesBefore, source.fetchCalls.Load(), "a scoped refresh must not also trigger a full fetch")
 		})
 	}
+}
+
+// heldTimers is a debounce timer that never fires on its own: the test fires
+// what is armed, so a burst of deliveries is judged without waiting on a clock.
+type heldTimers struct {
+	mu    sync.Mutex
+	armed []func()
+}
+
+func (h *heldTimers) After(_ time.Duration, f func()) func() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	i := len(h.armed)
+	h.armed = append(h.armed, f)
+
+	return func() bool {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.armed[i] = nil
+
+		return true
+	}
+}
+
+func (h *heldTimers) fireAll() {
+	h.mu.Lock()
+	armed := h.armed
+	h.armed = nil
+	h.mu.Unlock()
+	for _, f := range armed {
+		if f != nil {
+			f()
+		}
+	}
+}
+
+func TestGitHubWebhook_TenDeliveriesForOneRepo_CauseOneScopedRefresh(t *testing.T) {
+	t.Parallel()
+
+	timers := &heldTimers{}
+	source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
+	srvURL, sessionCookie := newTestServerWithDebounceTimer(t, source, timers.After)
+	require.Eventually(t, func() bool { return source.fetchCalls.Load() >= 1 }, time.Second, 5*time.Millisecond, "Ensure should have fetched at least once already")
+	token, secret := webhookCredentials(t, srvURL, sessionCookie)
+
+	body := []byte(`{"action":"synchronize","repository":{"full_name":"alrayyes/burst","name":"burst","owner":{"login":"alrayyes"}}}`)
+	for range 10 {
+		req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+		require.NoError(t, err)
+		req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	}
+	// The handler queues each refresh from its own goroutine, so wait for the
+	// last of them to have armed before the window closes.
+	require.Eventually(t, func() bool {
+		timers.mu.Lock()
+		defer timers.mu.Unlock()
+		live := 0
+		for _, f := range timers.armed {
+			if f != nil {
+				live++
+			}
+		}
+
+		return len(timers.armed) >= 10 && live == 1
+	}, 5*time.Second, 5*time.Millisecond)
+
+	timers.fireAll()
+
+	require.Eventually(t, func() bool { return source.repoFetchCallCount("alrayyes/burst") >= 1 }, time.Second, 5*time.Millisecond)
+	assert.Equal(t, int64(1), source.repoFetchCallCount("alrayyes/burst"), "ten deliveries in one window are one scoped refresh")
 }

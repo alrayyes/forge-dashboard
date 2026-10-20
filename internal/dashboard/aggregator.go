@@ -68,6 +68,12 @@ type Aggregator struct {
 	updateRequests map[string]*updateEntry
 	fetchSeq       atomic.Uint64
 	now            func() time.Time
+	// after and debounce hold back the scoped refresh a webhook delivery
+	// asks for until its burst is over (RefreshRepoDebounced).
+	after    AfterFunc
+	debounce *debouncer
+	// debounceOwner, when set, ends the debouncer with the Aggregator's run.
+	debounceOwner context.Context
 
 	// firstRefreshed flips once, when the first refreshOnce finishes —
 	// every source answered or reported itself unreachable. Readiness
@@ -130,6 +136,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		botRequests:      make(map[string]*botEntry),
 		updateRequests:   make(map[string]*updateEntry),
 		now:              time.Now,
+		after:            realAfterFunc,
 		lastGood:         make(map[Forge]time.Time),
 		queuedBuffer:     backoffBuffer,
 		firstRefreshedCh: make(chan struct{}),
@@ -137,6 +144,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 	for _, opt := range opts {
 		opt(a)
 	}
+	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold)
 
 	return a
 }
@@ -327,19 +335,7 @@ func (a *Aggregator) Refresh(ctx context.Context) {
 // a caller that knows why it refreshed (a webhook delivery's id and pull
 // request number) can have the failure say so (#966).
 func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
-	var refresher RepoRefresher
-	for _, src := range a.sources {
-		if src.Forge() != forge {
-			continue
-		}
-		r, ok := src.(RepoRefresher)
-		if !ok {
-			return false
-		}
-		refresher = r
-
-		break
-	}
+	refresher := a.repoRefresherFor(forge)
 	if refresher == nil {
 		return false
 	}
@@ -356,6 +352,24 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 	})
 
 	return true
+}
+
+// repoRefresherFor is the Source that drives forge when it can fetch one repo
+// on its own, or nil when no Source drives forge or the one that does can't.
+func (a *Aggregator) repoRefresherFor(forge Forge) RepoRefresher {
+	for _, src := range a.sources {
+		if src.Forge() != forge {
+			continue
+		}
+		r, ok := src.(RepoRefresher)
+		if !ok {
+			return nil
+		}
+
+		return r
+	}
+
+	return nil
 }
 
 // fetchMainBranch re-reads fullName's default branch when the source can, or

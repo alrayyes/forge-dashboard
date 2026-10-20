@@ -137,7 +137,10 @@ action.
   commands still use your saved token.
 - **Track fewer repositories.** Each one adds to every refresh.
 - **Keep the webhooks working.** A webhook delivery refreshes only the repo that
-  changed, which costs far less than a full refresh. With working webhooks the
+  changed, which costs far less than a full refresh. A burst of deliveries for one
+  repo, which is what a push sends, is merged into one refresh that runs 2
+  seconds after the last of them (never more than 5 seconds after the first).
+  With working webhooks the
   full refresh is a safety net, so a longer `REFRESH_INTERVAL` is safe. See
   [Webhooks](webhooks.md).
 - **Wait.** The reset time is in the banner and the header. The page recovers by

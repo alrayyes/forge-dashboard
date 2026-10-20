@@ -31,6 +31,9 @@ type fakeRepoRefresherSource struct {
 	// exhausted makes the source report its GraphQL budget as spent until an
 	// hour from now, as a real forge does after a rate limit.
 	exhausted bool
+	// onFetchRepo, when set, runs at the start of every FetchRepo, before it
+	// counts the call, so a test can hold a scoped refresh in flight.
+	onFetchRepo func(fullName string)
 	// resetsAt is when that budget comes back; zero means an hour from now.
 	resetsAt time.Time
 
@@ -83,6 +86,9 @@ func (f *fakeRepoRefresherSource) Fetch(_ context.Context) dashboard.Result {
 }
 
 func (f *fakeRepoRefresherSource) FetchRepo(_ context.Context, _, _, fullName string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
+	if f.onFetchRepo != nil {
+		f.onFetchRepo(fullName)
+	}
 	time.Sleep(f.delay)
 	f.mu.Lock()
 	defer f.mu.Unlock()
