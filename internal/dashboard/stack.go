@@ -21,18 +21,31 @@ type StackRef struct {
 	URL    string `json:"url"`
 }
 
+// orEmptyIssues is refs, or an empty list where there is none, so the JSON is
+// an array.
+func orEmptyIssues(refs []IssueRef) []IssueRef {
+	if refs == nil {
+		return []IssueRef{}
+	}
+
+	return refs
+}
+
 // AnnotateStacks fills Stack, StackedOn and StackChildren on every pull
 // request in prs, replacing whatever was there (#860). Pull request B is
 // stacked on A when B's base branch is A's head branch, in the same
 // repository on the same forge, and neither is a fork. A branch with several
 // open pull requests takes the lowest-numbered one as parent, and a loop of
 // branches is treated as no stack at all. prs holds open pull requests only,
-// so a base branch no open pull request owns is not flagged.
+// so a base branch no open pull request owns is not flagged. It also turns a
+// missing ClosesIssues into an empty list, the one pass every snapshot goes
+// through, so the field is never null on the wire.
 func AnnotateStacks(prs []PullRequest) {
 	for i := range prs {
 		prs[i].Stack = nil
 		prs[i].StackedOn = nil
 		prs[i].StackChildren = []int{}
+		prs[i].ClosesIssues = orEmptyIssues(prs[i].ClosesIssues)
 	}
 
 	parent := parents(prs)

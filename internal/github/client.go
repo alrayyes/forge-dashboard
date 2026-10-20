@@ -1488,6 +1488,17 @@ type graphqlPullRequest struct {
 			State string `json:"state"`
 		} `json:"nodes"`
 	} `json:"latestReviews"`
+	// ClosingIssuesReferences is GitHub's own list of the issues the pull
+	// request closes on merge. Only the first 10 are read.
+	ClosingIssuesReferences *struct {
+		Nodes []struct {
+			Number     int    `json:"number"`
+			URL        string `json:"url"`
+			Repository struct {
+				NameWithOwner string `json:"nameWithOwner"`
+			} `json:"repository"`
+		} `json:"nodes"`
+	} `json:"closingIssuesReferences"`
 	// Comments feeds the conversation comment count (#1953).
 	Comments *struct {
 		TotalCount int `json:"totalCount"`
@@ -1663,6 +1674,15 @@ query($cursor: String, $since: DateTime) {
                 }
               }
             }
+            closingIssuesReferences(first: 10) {
+              nodes {
+                number
+                url
+                repository {
+                  nameWithOwner
+                }
+              }
+            }
             latestReviews(first: 10) {
               nodes {
                 state
@@ -1772,6 +1792,15 @@ const appRepoFieldsTemplate = `
               ... on User {
                 login
               }
+            }
+          }
+        }
+        closingIssuesReferences(first: 10) {
+          nodes {
+            number
+            url
+            repository {
+              nameWithOwner
             }
           }
         }
@@ -2530,10 +2559,27 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Review:                  reviewFromGraphQL(p),
 
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
+		ClosesIssues:            closingIssuesFromGraphQL(p),
 		ReviewComments:          comments,
 		ConversationComments:    conversationCount(p),
 		UnresolvedThreads:       &unresolved,
 	}
+}
+
+// closingIssuesFromGraphQL lists the issues GitHub says p closes on merge.
+// Never nil.
+func closingIssuesFromGraphQL(p graphqlPullRequest) []dashboard.IssueRef {
+	refs := []dashboard.IssueRef{}
+	if p.ClosingIssuesReferences == nil {
+		return refs
+	}
+	for _, n := range p.ClosingIssuesReferences.Nodes {
+		if n.Number > 0 && n.URL != "" {
+			refs = append(refs, dashboard.IssueRef{Repo: n.Repository.NameWithOwner, Number: n.Number, URL: n.URL})
+		}
+	}
+
+	return refs
 }
 
 // requestedReviewerLoginsFromGraphQL lists the logins of the users asked to
@@ -2711,6 +2757,15 @@ query($owner: String!, $name: String!) {
               ... on User {
                 login
               }
+            }
+          }
+        }
+        closingIssuesReferences(first: 10) {
+          nodes {
+            number
+            url
+            repository {
+              nameWithOwner
             }
           }
         }

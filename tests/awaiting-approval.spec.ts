@@ -81,6 +81,100 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
   });
 
+  // #1988: the details header draws the same pill as a plain badge, which
+  // lost the wrapping and the warning colours the row's pill has.
+  for (const width of [390, 1280]) {
+    test(`the details dialog pill holds its text at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.route('**/api/pull-requests/details*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            description: null,
+            comments: [],
+            commentCount: 0,
+            commentsTruncated: false,
+            releaseNotes: null,
+          }),
+        }),
+      );
+      await open(page);
+      await row(page, 'Held for approval')
+        .getByRole('button', { name: /^#\d+ / })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: /^Pull request details/,
+      });
+      const pill = dialog.locator('.details-state .ci-pill');
+      await expect(pill).toContainText('Waiting for workflow approval');
+      await expect(pill).toHaveClass(/\bawaiting\b/);
+      const fits = await pill.evaluate(
+        (el) => el.scrollWidth <= el.clientWidth,
+      );
+      expect(fits).toBe(true);
+    });
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`the details dialog has no axe violations in ${theme} mode`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.route('**/api/pull-requests/details*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            description: null,
+            comments: [],
+            commentCount: 0,
+            commentsTruncated: false,
+            releaseNotes: null,
+          }),
+        }),
+      );
+      await open(page);
+      await row(page, 'Held for approval')
+        .getByRole('button', { name: /^#\d+ / })
+        .click();
+      const pill = page
+        .getByRole('dialog', { name: /^Pull request details/ })
+        .locator('.details-state .ci-pill');
+      await expect(pill).toContainText('Waiting for workflow approval');
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+      // axe files this pill's contrast under "incomplete", never as a
+      // violation (it can't tell the text from decoration), so a pill with
+      // unreadable colours would pass the scan above. Measure it directly:
+      // 4.5:1 is WCAG 1.4.3 for text this size.
+      // https://www.w3.org/TR/WCAG22/#contrast-minimum
+      // https://github.com/alrayyes/forge-dashboard/issues/1527
+      const contrast = await pill.evaluate((el) => {
+        const channels = (css: string) =>
+          (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+        const luminance = (rgb: number[]) => {
+          const [r, g, b] = rgb.map((v) => {
+            const s = v / 255;
+            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const style = getComputedStyle(el);
+        const [hi, lo] = [
+          luminance(channels(style.color)),
+          luminance(channels(style.backgroundColor)),
+        ].sort((a, b) => b - a);
+        return (hi + 0.05) / (lo + 0.05);
+      });
+      expect(contrast).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
   test('a failing row without the flag is unchanged', async ({ page }) => {
     await open(page);
     const failing = row(page, 'Really failing');
