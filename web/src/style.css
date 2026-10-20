@@ -2479,6 +2479,56 @@ a.ci-pill:hover {
 .details-actions .details-action-close {
   margin-inline-start: auto;
 }
+
+/* The dialog's "Update this branch automatically" checkbox. The label is fixed
+   and the checked state is the state; the note under it says where the value
+   comes from, or why the box cannot be changed. An aria-disabled box keeps its
+   focus, so only the cursor and the text colour change. */
+.auto-update-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+}
+.auto-update-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.auto-update-box {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.auto-update-box[aria-disabled="true"],
+.auto-update-box[aria-disabled="true"] + .auto-update-text {
+  cursor: default;
+}
+/* Drawn greyed, as a locked Merge is, while staying in the keyboard order. */
+.auto-update-box[aria-disabled="true"] {
+  opacity: 0.5;
+  accent-color: var(--ink-3);
+}
+.auto-update-box[aria-disabled="true"] + .auto-update-text {
+  color: var(--ink-2);
+}
+.auto-update-note {
+  order: 3;
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.auto-update-reset {
+  min-height: 32px;
+  font-size: 12px;
+  padding: 2px 10px;
+}
 /* The reason beside a locked button reads left to right here, whole. */
 .details-actions .row-action-locked-visible {
   align-items: flex-start;

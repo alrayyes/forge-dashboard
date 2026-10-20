@@ -554,6 +554,15 @@ or its repo is no longer tracked, and a pull request the dashboard doesn't
 hold is refused. Update branch comes back on a pull request
 you have switched off, and goes away on one you have switched on.
 
+In the details pop-up this is the checkbox "Update this branch
+automatically", just before the buttons. It shows the effective value, and the line
+under it says whether that is the repo's setting or a choice made for this
+pull request. Changing it saves at once. "Use the repo's setting"
+appears only while the pull request has a choice of its own. On a draft or a
+release-please pull request the box is greyed but still reachable by keyboard,
+and the line under it gives the reason. A row carries a small "Auto-update on"
+or "Auto-update off" marker only where the choice is the pull request's own.
+
 A Renovate-authored pull request, on either forge, gets a `Renovate:
 Rebase` button that ticks the `rebase-check` checkbox in the pull request's
 body, which every Renovate pull request carries and which needs no setup on

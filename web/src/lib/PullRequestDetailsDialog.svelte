@@ -36,6 +36,9 @@
   export type DetailsChrome = {
     status: HTMLElement | null;
     feedback: HTMLElement | null;
+    // The per-pull-request switch for automatic branch updates, above the
+    // footer; null where there is none to show.
+    option: HTMLElement | null;
     actions: HTMLElement[];
   };
 </script>
@@ -96,6 +99,7 @@
   // same tick it opens the dialog, and move focus into them at once.
   let statusHost = $state<HTMLElement>();
   let feedbackHost = $state<HTMLElement>();
+  let optionHost = $state<HTMLElement>();
   let actionsHost = $state<HTMLElement>();
   let target = $state<DetailsTarget | null>(null);
   let returnFocusId = "";
@@ -138,6 +142,11 @@
     return dialogEl?.open === true;
   }
 
+  // The option's host, so the page can tell where focus is before it redraws.
+  export function optionElement(): HTMLElement | undefined {
+    return optionHost;
+  }
+
   // The footer area's host, so the page can tell where focus is before it
   // redraws.
   export function actionsElement(): HTMLElement | undefined {
@@ -159,6 +168,8 @@
       ...(chrome.feedback ? [chrome.feedback] : []),
     );
     if (feedbackHost) feedbackHost.hidden = chrome.feedback === null;
+    optionHost?.replaceChildren(...(chrome.option ? [chrome.option] : []));
+    if (optionHost) optionHost.hidden = chrome.option === null;
     actionsHost?.replaceChildren(...chrome.actions);
   }
 
@@ -588,6 +599,8 @@
   <!-- Failure lines, above the footer so there is always room for them. -->
   <div class="details-feedback" bind:this={feedbackHost} hidden></div>
 
+  <div class="details-option" bind:this={optionHost} hidden></div>
+
   <div class="details-footer">
     {#if target}
       <a
@@ -795,6 +808,7 @@
     padding: 10px 18px 0;
   }
   .details-status-block[hidden],
+  .details-option[hidden],
   .details-feedback[hidden] {
     display: none;
   }
@@ -806,6 +820,10 @@
     overflow-y: auto;
     padding: 8px 18px 0;
     border-top: 1px solid var(--border);
+  }
+  .details-option {
+    flex: none;
+    padding: 10px 18px 0;
   }
   .markdown {
     font-size: 13.5px;
