@@ -155,6 +155,29 @@ func TestAggregator_Refresh_BehindReleasePleasePR_NeverUpdated(t *testing.T) {
 	assert.Empty(t, src.updatedBranches(), "a release-please pull request must never get the generic UpdateBranch call")
 }
 
+func TestAggregator_Refresh_BehindUnlabelledReleasePleasePR_NeverUpdated(t *testing.T) {
+	t.Parallel()
+
+	// release-please can fail between opening its pull request and labelling
+	// it. The branch name still says whose it is, so the pass leaves it alone
+	// the same way it leaves a labelled one.
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, HeadBranch: "release-please--branches--main", BaseBranch: "main"},
+		},
+	}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, src.updatedBranches(), "an unlabelled release-please pull request must never get the generic UpdateBranch call")
+}
+
 func TestAggregator_Refresh_BehindDraftPR_NeverUpdated(t *testing.T) {
 	t.Parallel()
 

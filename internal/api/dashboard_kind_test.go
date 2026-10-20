@@ -27,6 +27,8 @@ func TestDashboard_EachPullRequestCarriesItsKind(t *testing.T) {
 			pr(2, "dependabot[bot]"),
 			pr(3, "renovate"),
 			pr(4, "alice", dashboard.Label{Name: "autorelease: pending"}),
+			// release-please failed before it could label this one.
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Author: "alice", HeadBranch: "release-please--branches--main", BaseBranch: "main"},
 		},
 	}
 	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
@@ -44,7 +46,7 @@ func TestDashboard_EachPullRequestCarriesItsKind(t *testing.T) {
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
-		return len(prs) == 4
+		return len(prs) == 5
 	}, time.Second, 10*time.Millisecond)
 
 	kinds := map[int]string{}
@@ -53,5 +55,5 @@ func TestDashboard_EachPullRequestCarriesItsKind(t *testing.T) {
 		item := raw.(map[string]any)
 		kinds[int(item["number"].(float64))], _ = item["kind"].(string)
 	}
-	assert.Equal(t, map[int]string{1: "regular", 2: "dependency", 3: "dependency", 4: "release"}, kinds)
+	assert.Equal(t, map[int]string{1: "regular", 2: "dependency", 3: "dependency", 4: "release", 5: "release"}, kinds)
 }

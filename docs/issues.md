@@ -9,7 +9,8 @@ pages, and loaded once on the other signed-in pages.
 An issue's title opens a pop-up with its description and comments, laid out
 like a pull request's. It loads when it opens, from `GET /api/issues/details`,
 and nothing about it is part of the snapshot. The header shows that the issue
-is open and its labels, and the footer links to the issue on its forge. There
+is open, who filed it with their avatar, and its labels, and the footer links
+to the issue on its forge. There
 are no actions: you can't merge, close, or comment from here. If the forge can't
 be read, the pop-up says why and offers **Try again** instead of showing an
 empty thread. Escape or **Close details** returns you to the issue's row.
@@ -32,6 +33,14 @@ too many: more than 200 characters, two or more open-ended repeats (`*`, `+`,
 the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
+
+## Who filed it
+
+A row shows the avatar of whoever filed the issue to the left of their name,
+the same as a pull request row. It is the forge's own HTTPS image URL, loaded
+straight from the forge by your browser. When the forge sends none, the URL
+isn't HTTPS, or the image can't load, the row shows the name alone. The narrow
+layout drops the author column, avatar and all.
 
 ## Issues your settings hide
 

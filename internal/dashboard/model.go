@@ -270,15 +270,18 @@ type PullRequest struct {
 
 // Issue matches components.schemas.Issue in api/openapi.yaml.
 type Issue struct {
-	Forge     Forge     `json:"forge"`
-	Repo      string    `json:"repo"`
-	Number    int       `json:"number"`
-	Title     string    `json:"title"`
-	URL       string    `json:"url"`
-	Author    string    `json:"author"`
-	Labels    []Label   `json:"labels"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Forge  Forge  `json:"forge"`
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	Author string `json:"author"`
+	// AuthorAvatarURL is the forge's own avatar URL for whoever filed the
+	// issue; empty when the forge supplies none (a deleted account).
+	AuthorAvatarURL string    `json:"authorAvatarUrl"`
+	Labels          []Label   `json:"labels"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 // RateLimit matches components.schemas.RateLimit — the forge API's own

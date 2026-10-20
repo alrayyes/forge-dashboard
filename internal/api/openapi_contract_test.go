@@ -140,7 +140,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		},
 		issues: []dashboard.Issue{
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "Dependency Dashboard", URL: "https://github.com/alrayyes/a/issues/1", Author: "renovate[bot]", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Title: "A real bug", URL: "https://github.com/alrayyes/a/issues/2", Author: "alice", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Title: "A real bug", URL: "https://github.com/alrayyes/a/issues/2", Author: "alice", AuthorAvatarURL: "https://avatars.example.com/u/2", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now},
 		},
 		repos: []dashboard.Repo{
 			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a", LogoURL: "https://repository-images.githubusercontent.com/123/abc"},
