@@ -54,7 +54,10 @@ off: tags show as text, images aren't loaded, only absolute `http`, `https`
 and `mailto` links are links (anything else stays plain text), and they open
 in a new tab with `rel="noopener noreferrer"`. Task list items (`- [x]` and
 `- [ ]`) show as read-only checkboxes; ticking one changes nothing on the
-forge. The library loads the first time a pop-up opens.
+forge. Emoji codes such as `:robot:` show as the emoji, as the forges
+draw them; they become plain Unicode characters, never images, and code stays
+as written. Emoticons like `:)` aren't touched. The library and its emoji
+table load the first time a pop-up opens.
 
 ## Author on a row
 

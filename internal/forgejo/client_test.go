@@ -2161,3 +2161,27 @@ func TestUpgradeWebhook_NoHookOfOurs_DoesNotCreateOne(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, updated)
 }
+
+// Forgejo has no field for the issues a pull request closes, so the client
+// reads the closing keywords in its description, the way Forgejo does.
+func TestListOpenPullRequests_ReadsTheClosingKeywordsInTheDescription(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	closing := reviewPR(1, false, "2026-09-02T00:00:00Z")
+	closing["body"] = "Adds the thing.\n\nCloses #12 and fixes alrayyes/other#3, see #99."
+	plain := reviewPR(2, false, "2026-09-02T00:00:00Z")
+	plain["body"] = "Nothing to close"
+	srv := reviewPRServer(t, []map[string]any{closing, plain}, map[int][]map[string]any{1: {}, 2: {}}, &calls)
+	defer srv.Close()
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 2)
+	assert.Equal(t, []dashboard.IssueRef{
+		{Repo: "alrayyes/a", Number: 12, URL: srv.URL + "/alrayyes/a/issues/12"},
+		{Repo: "alrayyes/other", Number: 3, URL: srv.URL + "/alrayyes/other/issues/3"},
+	}, prs[0].ClosesIssues)
+	assert.Equal(t, []dashboard.IssueRef{}, prs[1].ClosesIssues, "never null: an empty list")
+}
