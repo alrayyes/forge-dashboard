@@ -140,3 +140,58 @@ test('the button in the warning acts once and shows it is queued', async ({
   ).toBeDisabled();
   expect(calls).toBe(1);
 });
+
+test('on a phone the pop-up keeps the fix button as a 44px target in its footer', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const row = await open(page, pr());
+  const dialog = await openActionsDialog(row);
+  const button = actionsFooter(dialog).getByRole('button', {
+    name: 'Update branch',
+  });
+  await expect(button).toBeVisible();
+  const box = await button.boundingBox();
+  expect(box?.height).toBeGreaterThanOrEqual(44);
+  await expect(
+    dialog.locator('.details-status-block').getByRole('button'),
+  ).toHaveCount(0);
+});
+
+test('a Renovate rebase that is already waiting has no button in the warning and keeps its locked one in the row', async ({
+  page,
+}) => {
+  const behind = {
+    code: 'behind',
+    message: 'Behind the base branch',
+    next: 'Bring it up to date to unlock Merge',
+  };
+  const row = await open(
+    page,
+    pr({
+      author: 'renovate[bot]',
+      allowedActions: [
+        { action: 'merge', blocked: behind },
+        { action: 'close' },
+        {
+          action: 'renovate_rebase',
+          blocked: {
+            code: 'already_requested',
+            message: 'Rebase requested',
+            next: 'Renovate has the request and will rebase it.',
+          },
+        },
+      ],
+      // No `action`: the one that would clear it is locked.
+      status: behind,
+      kind: 'dependency',
+    }),
+    '/bots.html',
+  );
+  const status = row.locator('.status-area');
+  await expect(status).toContainText('Behind the base branch');
+  await expect(status.getByRole('button')).toHaveCount(0);
+  await expect(
+    row.getByRole('button', { name: 'Renovate: Rebase' }),
+  ).toHaveAttribute('aria-disabled', 'true');
+});
