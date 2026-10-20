@@ -92,6 +92,37 @@ On a dashboard someone shared with you (`?owner=`), the issues are theirs and
 the settings are yours: your own choices decide what you see, and theirs don't
 reach you.
 
+## Pull requests that close an issue
+
+An issue that an open pull request is set to close shows a small link after its
+title and labels: the pull request's number with a hash sign, then whether it
+is `open` or a `draft`. A pull request in another repository than the issue's
+adds the repo name before the number. Screen readers hear "Pull request", the
+number, its state and "closes this issue". A pull request counts when its
+description closes the issue with a keyword such as "closes" or "fixes" and it
+aims at its repo's default branch, the same rule the pull request page uses for
+the issues it lists.
+
+The server works this out, from the pull requests it already holds, so it costs
+the forge no request. It counts a draft, and a pull request you hid, but not
+one in a repo whose pull requests you ignore. When it merges or closes, the
+link goes with the next refresh. In `GET /api/dashboard` each issue has
+`linkedPullRequests`, ordered by repo and number, and always present.
+
+A row shows the first two and, when there are more, a link such as "2 more"
+that shows the rest in place. Each link opens the page that lists that pull
+request, with its pop-up open: the Pull requests page, or Releases or Bots for
+a release or a dependency update. The address is `?pr=` followed by
+`forge/owner/name/number`, so typing
+`/pull-requests.html?pr=github/alrayyes/hush-hush/12` opens the same pop-up.
+Closing the pop-up leaves you on the page, and the address loses `?pr=` so a
+reload doesn't open it again. The filter bar doesn't matter: the pop-up opens
+even when your filters leave the row out. A draft while **Show drafts** is off,
+or a pull request you hid, opens read only, without the actions, since it has
+no row to act from. A pull request that isn't open any more, or whose repo the
+dashboard doesn't track, opens nothing, and the page says so in a note over the
+list.
+
 ## Issues in Settings
 
 The **Issues** section of Settings holds two standing rules, saved with the

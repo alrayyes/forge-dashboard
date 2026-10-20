@@ -19,6 +19,8 @@ var mcpToolOperations = map[string]string{
 	"get_version":              "getVersion",
 	"get_forge_api_stats":      "getForgeApiStats",
 	"get_settings":             "getSettingsSummary",
+
+	"set_pull_request_auto_update": "setPullRequestAutoUpdate",
 }
 
 // mcpPending are the operations whose tool is still to come, in small pull
@@ -45,7 +47,6 @@ var mcpPending = []string{
 	"rerunPullRequestChecks",
 	"hidePullRequest",
 	"unhidePullRequest",
-	"setPullRequestAutoUpdate",
 	"updatePullRequestBranch",
 	"postPullRequestDependabotAction",
 	"postPullRequestRenovateRebase",

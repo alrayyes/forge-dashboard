@@ -46,6 +46,16 @@ type getMainBranchChecksInput struct {
 	FullName string `json:"fullName" jsonschema:"the repository as owner/repo"`
 }
 
+// setPullRequestAutoUpdateInput is set_pull_request_auto_update's argument
+// shape, the same four fields as POST /api/pull-requests/auto-update's body.
+// Enabled is a pointer, so null and absent both mean "follow the repo".
+type setPullRequestAutoUpdateInput struct {
+	Forge    string `json:"forge" jsonschema:"the forge the pull request lives on: github or forgejo"`
+	FullName string `json:"fullName" jsonschema:"the repository as owner/repo"`
+	Number   int    `json:"number" jsonschema:"the pull request number"`
+	Enabled  *bool  `json:"enabled,omitempty" jsonschema:"true to keep the branch up to date automatically, false to leave it alone, null or omitted to follow the repository's setting again"`
+}
+
 // newMCPHandler returns an http.Handler serving the MCP Streamable HTTP
 // transport (https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#streamable-http)
 // at whatever path server.go mounts it under. It's meant to sit behind
@@ -112,6 +122,7 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 
 	addMainBranchChecksTool(server, deps, u, ok)
 	addPullRequestTools(server, deps, u, ok)
+	addPullRequestWriteTools(server, deps, u, ok)
 
 	addStoreTools(server, deps, u, ok)
 	addSettingsTool(server, deps, u, ok)
@@ -257,6 +268,39 @@ func addPullRequestTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 		}
 
 		return nil, pullRequestChecksResponse{Checks: checks}, nil
+	})
+}
+
+// addPullRequestWriteTools registers the tools that change one pull request's
+// own setting in this app's store. None calls a forge.
+func addPullRequestWriteTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "set_pull_request_auto_update",
+		Description: "Turn the automatic branch update on or off for one pull request, or " +
+			"hand it back to its repository's setting. `enabled` true keeps the branch up " +
+			"to date automatically, false leaves it alone (say, while you test it), and " +
+			"null or omitted means the pull request follows its repo again. A choice " +
+			"equal to the repository's setting is not kept, so the pull request follows " +
+			"its repo and a later change to the repo's setting reaches it. Idempotent. " +
+			"A draft and a release pull request are never updated automatically, " +
+			"whatever you choose (autoUpdate.unavailable in get_dashboard says so). " +
+			"This writes only this app's own setting: it never writes to either forge, " +
+			"sends nothing to one and costs no forge budget. Read the effective value " +
+			"and its source (repo or pullRequest) from autoUpdate on the pull request " +
+			"in get_dashboard. Take forge, fullName and number from get_dashboard; a " +
+			"pull request the dashboard doesn't hold is an error. The app forgets the " +
+			"choice once the pull request is no longer open or its repo is untracked.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, input setPullRequestAutoUpdateInput) (*mcp.CallToolResult, setPullRequestAutoUpdateInput, error) {
+		if !ok {
+			return nil, setPullRequestAutoUpdateInput{}, errNoAuthenticatedUser
+		}
+
+		_, serr := setPullRequestAutoUpdateFor(ctx, deps, u, pullRequestAutoUpdateRequest(input))
+		if serr != nil {
+			return nil, setPullRequestAutoUpdateInput{}, serr
+		}
+
+		return nil, input, nil
 	})
 }
 

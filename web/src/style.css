@@ -1395,6 +1395,41 @@ button.title:focus-visible {
   border-color: var(--accent);
 }
 
+/* The pull requests that will close an issue, after its labels. Links and a
+   count, above .title::after's stretched overlay like .label-chip. The state
+   is a word, and a draft's border is dashed, so neither rests on colour. */
+.linked-prs {
+  display: contents;
+}
+.linked-pr,
+.linked-pr-more {
+  position: relative;
+  z-index: 1;
+  font-family: inherit;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  flex: none;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.linked-pr.draft {
+  border-style: dashed;
+}
+.linked-pr:hover,
+.linked-pr-more:hover {
+  text-decoration: underline;
+}
+.linked-pr:focus-visible,
+.linked-pr-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .author {
   font-size: 12.5px;
   color: var(--ink-2);
@@ -4189,7 +4224,7 @@ footer a[aria-current="page"] {
 
 /* A chip is small to read, so the hit area is a pseudo-element, not
    padding. Above the stretched title link, like the chip itself. */
-:root body .label-chip::after {
+:root body :is(.label-chip, .linked-pr, .linked-pr-more)::after {
   content: "";
   position: absolute;
   inset: -4px -2px -5px;
@@ -4228,7 +4263,7 @@ footer a[aria-current="page"] {
 }
 
 @media (max-width: 760px) {
-  :root body .label-chip::after {
+  :root body :is(.label-chip, .linked-pr, .linked-pr-more)::after {
     /* Up to the title above (the gap between them), the rest below, and
        sideways to the neighbouring chip (see the column gap below). The
        insets are from the chip's padding box, so they include its 1px
@@ -4240,7 +4275,7 @@ footer a[aria-current="page"] {
   :root body .title-cell {
     column-gap: 12px;
   }
-  :root body .label-chip {
+  :root body :is(.label-chip, .linked-pr, .linked-pr-more) {
     min-width: 34px;
   }
   :root

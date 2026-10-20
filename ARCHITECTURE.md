@@ -65,8 +65,8 @@ would need the same answer. The reasons, and what it costs, are in
   browser's network tab and watch it call only this app's own routes (`/api/...`
   and the static `/changelog.json`), never a forge — and that
   `/api/settings` never echoes a forge token back, only whether one is set.
-- **An MCP endpoint for agents, `/api/mcp`, read-only (the web app itself
-  can act on pull requests).**
+- **An MCP endpoint for agents, `/api/mcp`, read-only except for one
+  setting (the web app itself can act on pull requests).**
   Authenticated the same way any other `/api/*` route already
   is — a personal API token (Settings → API tokens),
   `Authorization: Bearer <token>` — not a separate credential system. Its
@@ -98,6 +98,13 @@ would need the same answer. The reasons, and what it costs, are in
   `ignoredTitleCounts` too, null per entry until the first refresh ends.
   Over HTTP the same body is `GET /api/settings/summary`, which also
   creates and returns no webhook credentials.
+  `set_pull_request_auto_update` is the one tool that writes: it mirrors
+  `POST /api/pull-requests/auto-update` and turns the automatic branch update
+  on or off for one pull request, or hands it back to its repo with `enabled`
+  null or omitted. It changes only this app's own setting, sends nothing to a
+  forge and costs no forge budget. It is the same function as the handler, so
+  the validation and the errors are the same, and a token that can call the
+  route can call the tool.
   Each calls the same function as its handler rather than adding a second,
   parallel path to the same data. Built on the official
   [MCP Go SDK](https://github.com/modelcontextprotocol/go-sdk), over the
@@ -151,7 +158,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_main_branch_checks`,
   `get_pull_request_checks`, `get_pull_request_details`,
-  `list_queued_actions` and `get_settings`.**
+  `list_queued_actions`, `get_settings` and `set_pull_request_auto_update`.**
   Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
   150+ only, with no stable spec yet — so this is a no-op everywhere else rather
   than a real dependency the page needs. Where it's present, it lets an
@@ -164,8 +171,11 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   `GET /api/settings/summary`, the same body as the server's tool, with
   `webhookConfigured` and no webhook token or secret). Like the server's
   tool, `get_settings` creates nothing: `webhookConfigured` is false until
-  the user has opened Settings. All ride on the browser's own session
-  cookie exactly like the page's own poll does.
+  the user has opened Settings. `set_pull_request_auto_update` posts to
+  `POST /api/pull-requests/auto-update` like the server's tool of that name,
+  then reads the board through the page so what the person sees matches. All
+  ride on the browser's own session cookie exactly like the page's own poll
+  does.
   Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools
   never see a token, only the same already-filtered JSON the page always got.

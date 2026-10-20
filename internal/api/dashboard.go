@@ -141,6 +141,49 @@ type issueView struct {
 	// AuthorURL is the author's profile page on the forge, built here so no
 	// client needs a rule per forge. Empty for a deleted account.
 	AuthorURL string `json:"authorUrl"`
+	// LinkedPullRequests are the open pull requests that will close this
+	// issue, joined here from the snapshot's own pull requests.
+	LinkedPullRequests []linkedPullRequest `json:"linkedPullRequests"`
+}
+
+// linkedPullRequest is one pull request that will close an issue, with the
+// address on this dashboard that opens its pop-up.
+type linkedPullRequest struct {
+	Forge   dashboard.Forge `json:"forge"`
+	Repo    string          `json:"repo"`
+	Number  int             `json:"number"`
+	Draft   bool            `json:"draft"`
+	PageURL string          `json:"pageUrl"`
+}
+
+// pullRequestPage is the dashboard page that lists a pull request of kind.
+func pullRequestPage(kind dashboard.PullRequestKind) string {
+	switch kind {
+	case dashboard.KindRelease:
+		return "/releases.html"
+	case dashboard.KindDependency:
+		return "/bots.html"
+	default:
+		return "/pull-requests.html"
+	}
+}
+
+// linkedPullRequests lists the pull requests that close issue, each with the
+// address that opens it. Never nil.
+func (b boardSettings) linkedPullRequests(index dashboard.ClosingIndex, issue dashboard.Issue) []linkedPullRequest {
+	prs := index.For(issue)
+	out := make([]linkedPullRequest, 0, len(prs))
+	for _, pr := range prs {
+		out = append(out, linkedPullRequest{
+			Forge:   pr.Forge,
+			Repo:    pr.Repo,
+			Number:  pr.Number,
+			Draft:   pr.Draft,
+			PageURL: pullRequestPage(dashboard.KindOf(pr, b.renovateAuthors)) + "?pr=" + string(pr.Forge) + "/" + pr.Repo + "/" + strconv.Itoa(pr.Number),
+		})
+	}
+
+	return out
 }
 
 // pullRequestView is a pull request as the API serves it: the snapshot's own
@@ -307,7 +350,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 	board.forgetClosedHides(ctx, deps.SettingsStore, userID, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore, viewerID)
-	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, filter)
+	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
 
 	done := firstRefreshDone(deps.Manager, userID)
 
@@ -663,9 +706,18 @@ func loadIssueFilter(ctx context.Context, store *settings.Store, userID []byte) 
 
 // issueViews leaves out the issues of ignored repos, then the ones filter
 // hides, and counts the ones that are real work. It says how many the filter
-// hid.
-func (b boardSettings) issueViews(issues []dashboard.Issue, filter issueFilter) (views []issueView, open, hidden int) {
+// hid. Each carries the open pull requests that will close it, from prs, the
+// snapshot's whole list: a draft or a hidden pull request counts, one in a
+// repo whose pull requests are ignored does not.
+func (b boardSettings) issueViews(issues []dashboard.Issue, prs []dashboard.PullRequest, filter issueFilter) (views []issueView, open, hidden int) {
 	out := make([]issueView, 0, len(issues))
+	visible := make([]dashboard.PullRequest, 0, len(prs))
+	for _, pr := range prs {
+		if !b.ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
+			visible = append(visible, pr)
+		}
+	}
+	index := dashboard.PullRequestsClosing(visible)
 	for _, issue := range issues {
 		if b.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
 			continue
@@ -680,6 +732,8 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, filter issueFilter) 
 			Issue:        issue,
 			Housekeeping: housekeeping,
 			AuthorURL:    dashboard.ProfileURL(issue.Forge, dashboard.WebBase(issue.URL, issue.Repo), issue.Author),
+
+			LinkedPullRequests: b.linkedPullRequests(index, issue),
 		})
 		if !housekeeping {
 			open++

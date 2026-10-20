@@ -103,6 +103,12 @@
   import { copyButton } from "#lib/copy-details.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
   import {
+    type LinkedPullRequest,
+    linkedPills,
+    missingNote,
+    parsePullRequestAddress,
+  } from "#lib/linked-pull-requests.js";
+  import {
     comesBack,
     hideFailedMessage,
     hidMessage,
@@ -270,6 +276,8 @@
     authorAvatarUrl?: string;
     // The author's profile page on the forge, built by the server.
     authorUrl?: string;
+    // The open pull requests that will close it, joined by the server.
+    linkedPullRequests?: LinkedPullRequest[];
   };
   type Forge = {
     forge: string;
@@ -1630,6 +1638,88 @@
       );
     }
 
+    // ---- a pull request named in the address (?pr=forge/owner/name/number) ----
+    // An issue's pill links here. Once a real snapshot is in, the pop-up opens
+    // on the pull request: on the board when it is listed there, else read
+    // only, since a draft with drafts off or a hidden pull request has no
+    // row to act from. One that is nowhere gets a plain note.
+    let addressed = pullsView
+      ? parsePullRequestAddress(window.location.search)
+      : null;
+
+    function sameAddress(
+      wanted: { forge: string; repo: string; number: number },
+      p: { forge: string; repo: string; number: number },
+    ) {
+      return (
+        p.forge === wanted.forge &&
+        p.number === wanted.number &&
+        p.repo.toLowerCase() === wanted.repo.toLowerCase()
+      );
+    }
+
+    function openPullRequestReadOnly(item: PullRequestItem) {
+      dialogKey = null;
+      dialogGone = false;
+      lastChromeSig = "";
+      lastChromeItem = undefined;
+      detailsDialog?.setChrome({
+        status: null,
+        feedback: null,
+        option: null,
+        actions: [],
+      });
+      detailsDialog?.open({ ...item, status: detailsStatus(item) }, "");
+    }
+
+    async function openAddressedPullRequest(listed: PullRequestItem[]) {
+      const wanted = addressed;
+      if (!wanted) return;
+      addressed = null;
+      // Dropped from the address once it is answered, so a reload does not
+      // open it again. An answer that failed keeps it, and a reload tries again.
+      const dropFromAddress = () => {
+        const here = new URL(window.location.href);
+        here.searchParams.delete("pr");
+        history.replaceState(
+          history.state,
+          "",
+          here.pathname + here.search + here.hash,
+        );
+      };
+      const onBoard = listed.find((p) => sameAddress(wanted, p));
+      if (onBoard) {
+        dropFromAddress();
+        openDetailsDialog(onBoard, "");
+        return;
+      }
+      const url =
+        "/api/dashboard?includeDrafts=true&includeHidden=true" +
+        (currentOwner ? `&owner=${encodeURIComponent(currentOwner)}` : "");
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+      }).catch(() => null);
+      if (res?.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      const everything: DashboardSnapshot | null = await Promise.resolve(
+        res?.ok ? res.json() : null,
+      ).catch(() => null);
+      if (!everything) {
+        setHideStatus(
+          `Could not look up pull request ${wanted.repo} #${wanted.number}. Reload the page to try again.`,
+        );
+        return;
+      }
+      dropFromAddress();
+      const found = everything.pullRequests?.find((p) =>
+        sameAddress(wanted, p),
+      );
+      if (found) openPullRequestReadOnly(found);
+      else setHideStatus(missingNote(wanted));
+    }
+
     // The issue header: it is open (the board lists open issues only), and
     // its labels as the pull request header shows them.
     function issueStatus(item: IssueItem): DetailsStatus {
@@ -1694,7 +1784,16 @@
           : (triggerId) => openIssueDialog(item as IssueItem, triggerId),
       );
       row.appendChild(titleCellEl);
-      if (!isPR) row.dataset.issueKey = prKey(item);
+      if (!isPR) {
+        row.dataset.issueKey = prKey(item);
+        const pills = linkedPills(
+          prKey(item),
+          item.repo,
+          (item as IssueItem).linkedPullRequests,
+          !currentOwner,
+        );
+        if (pills) titleCellEl.appendChild(pills);
+      }
       if (isPR && (item as PullRequestItem).stack)
         titleCellEl.appendChild(stackInfo(item as PullRequestItem));
       // The Releases page shows the version being released, and says why a
@@ -7757,6 +7856,8 @@
       // until nothing is disturbed — see reconcilePRs.
       ingestPRs(prs, userAsked, botChanged);
       if (reachabilityChanged) renderPRBoard();
+      if (addressed && !firstRefreshPending(data.firstRefreshDone))
+        void openAddressedPullRequest(prs);
       // A bot request changing state (picked up, finished, expired) changes
       // the row's button, pill and line even when the pull request's own
       // data didn't, so the board redraws for it (#707).

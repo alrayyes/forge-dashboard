@@ -35,6 +35,14 @@ the link to the forge. Merging from the pop-up closes it. On a phone the pop-up
 is a full-height sheet whose footer stays at the bottom, with 44 pixel buttons
 that wrap.
 
+A pull request's pop-up can also open from the address. A page that lists
+pull requests opens it when the address ends in `?pr=` followed by
+`forge/owner/name/number`, as the links on the
+[Issues page](issues.md#pull-requests-that-close-an-issue) do, and then drops
+that part of the address. A pull request that isn't on the board because it is a
+draft or you hid it opens read only, without actions in the footer. One that
+isn't open any more gets a note over the list instead.
+
 The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on
 rows nobody opens. While the pop-up is open, a refresh that shows the pull
