@@ -875,9 +875,10 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 	if p.Head != nil {
 		sha = p.Head.Sha
 	}
-	ci, err := c.ciStatus(ctx, owner, name, sha)
+	ci, checks, err := c.ciStatus(ctx, owner, name, sha)
 	if err != nil {
 		ci = dashboard.CINone
+		checks = dashboard.CheckCounts{}
 	}
 	var created, updated time.Time
 	if p.Created != nil {
@@ -902,6 +903,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		CreatedAt:               created,
 		UpdatedAt:               updated,
 		CI:                      ci,
+		Checks:                  checks,
 		MergeStatus:             mergeStatusOf(p),
 		Behind:                  isBehind(p),
 		HeadSHA:                 sha,
@@ -998,9 +1000,9 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 
 // ciStatus resolves the combined commit status for sha, which Forgejo
 // updates for both external CI and its own Actions runs.
-func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, error) {
+func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, dashboard.CheckCounts, error) {
 	if sha == "" {
-		return dashboard.CINone, nil
+		return dashboard.CINone, dashboard.CheckCounts{}, nil
 	}
 	c.setContext(ctx)
 
@@ -1008,11 +1010,35 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
 	if err != nil {
-		return dashboard.CINone, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+		return dashboard.CINone, dashboard.CheckCounts{}, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
 	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	return statusFromCombinedState(combined.State), nil
+	return statusFromCombinedState(combined.State), checkCountsOf(combined.Statuses), nil
+}
+
+// checkCountsOf tallies the statuses the combined-status answer already
+// carries, so the counts cost no request. Forgejo says pending for a check
+// that is queued or running alike, so it counts as waiting and nothing here is
+// ever running. A warning counts as passed, the way the combined state
+// treats it.
+func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	for _, s := range statuses {
+		if s == nil {
+			continue
+		}
+		switch s.State {
+		case gitea.StatusSuccess, gitea.StatusWarning:
+			out.Passed++
+		case gitea.StatusPending:
+			out.Waiting++
+		case gitea.StatusFailure, gitea.StatusError:
+			out.Failed++
+		}
+	}
+
+	return out
 }
 
 func statusFromCombinedState(state gitea.StatusState) dashboard.CIStatus {
