@@ -225,3 +225,18 @@ func TestActivity_ABackgroundReadIsNotUse(t *testing.T) {
 
 	assert.True(t, act.Idle(), "the page's own poll in a hidden or unattended tab is not use")
 }
+
+func TestPresence_APersonalAPITokenIsRefusedAndHoldsNothingActive(t *testing.T) {
+	t.Parallel()
+
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	token := createTestAPIToken(t, srv.URL, cookie)
+	act := idleActivity(t, manager)
+
+	resp := doWithBearer(t, http.MethodPost, srv.URL+"/api/dashboard/presence", `{"viewerId":"tab-aaaaaaaa","visible":true}`, token)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	assert.True(t, act.Idle(), "a script has no tab to report")
+}
