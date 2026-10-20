@@ -280,16 +280,16 @@ test.describe('row status grammar (#1563)', () => {
           isState: states.includes(getComputedStyle(el).color),
         }));
       });
-    expect(colours.length).toBe(4);
+    expect(colours.length).toBe(3);
     for (const c of colours) expect(c.isState, c.text ?? '').toBe(false);
   });
 
-  test('draft, bot and out of date sit in the attribute cluster', async ({
+  test('draft, out of date and auto-merge sit in the attribute cluster', async ({
     page,
   }) => {
     await open(page, [everything()], '/bots.html');
     const cluster = firstRow(page).locator('.attr-cluster');
-    for (const name of ['Draft', 'Bot', 'Out of date', 'Auto-merge']) {
+    for (const name of ['Draft', 'Out of date', 'Auto-merge']) {
       await expect(
         cluster.locator('.attr-chip', { hasText: name }),
       ).toBeVisible();
@@ -349,7 +349,7 @@ test.describe('row status grammar (#1563)', () => {
     }) => {
       await page.emulateMedia({ colorScheme: theme });
       await open(page, [everything()], '/bots.html');
-      await expect(firstRow(page).locator('.attr-chip')).toHaveCount(4);
+      await expect(firstRow(page).locator('.attr-chip')).toHaveCount(3);
       const results = await new AxeBuilder({ page })
         .withTags(AXE_TAGS)
         .analyze();

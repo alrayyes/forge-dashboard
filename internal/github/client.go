@@ -188,7 +188,11 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 
 	// etagTransport only ever touches a GET, so it's safe to share with
 	// graphqlDo's own POST calls on the same httpClient (#381).
-	etag := newETagTransport(nil)
+	credential := apistats.TokenCredential(token)
+	if token == "" {
+		credential = apistats.AccountCredential(username)
+	}
+	etag := newETagTransport(nil, credential)
 	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: etag}
 	restClient := ghsdk.NewClient(httpClient)
 	if token != "" {
@@ -246,13 +250,13 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 		baseURL = defaultBaseURL
 	}
 
-	// etagTransport is this Client's own base, exactly like NewClient's —
-	// never shared across users or across Clients (etag_transport.go's
-	// own doc comment explains why a shared cache would be wrong here).
+	// etagTransport sits below the installation transport, as in NewClient, and
+	// shares entries only with a Client holding the same installation (see its
+	// doc comment for the keying).
 	// ghinstallation.New wraps it as the *outer* layer: every request's
 	// Authorization header is set by the installation-token transport,
 	// then handed down to etagTransport for its own GET-caching logic.
-	etag := newETagTransport(nil)
+	etag := newETagTransport(nil, apistats.AppCredential(installationID))
 	transport, err := ghinstallation.New(etag, appID, installationID, privateKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("github: build app installation transport: %w", err)
