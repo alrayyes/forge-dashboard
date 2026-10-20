@@ -54,6 +54,8 @@ async function serve(
     pr: Record<string, unknown>;
     posts: Record<string, unknown>[];
     respond?: (body: Record<string, unknown>) => AutoUpdate | null;
+    // Holds the answer to the post with this index, to race a second click.
+    delay?: (index: number) => Promise<void> | undefined;
   },
 ) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
