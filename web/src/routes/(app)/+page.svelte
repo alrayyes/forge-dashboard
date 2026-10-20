@@ -98,6 +98,8 @@
       fullName: b.fullName,
       branch: b.branch,
       runUrl: b.runUrl,
+      status: b.status,
+      checks: b.checks,
       opener,
     });
   }
@@ -110,6 +112,8 @@
       if (!res.ok) throw new Error(String(res.status));
       data = (await res.json()) as MainBranches;
       failed = false;
+      // An open pipeline panel reads again if its own row's CI changed.
+      pipeline?.follow(data.branches);
     } catch {
       // A refresh that fails keeps the rows already on screen.
       if (initial || !data) failed = true;
