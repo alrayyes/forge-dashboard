@@ -372,6 +372,22 @@ func (s *GenericSource) ListChecks(ctx context.Context, owner, name string, numb
 	return checks, nil
 }
 
+// ListDefaultBranchChecks implements DefaultBranchChecker at the Source level by
+// delegating to the underlying client, for the same reason ListChecks does: the
+// Source BuildSources registers for Forgejo must expose what its client can do.
+func (s *GenericSource) ListDefaultBranchChecks(ctx context.Context, owner, name string) ([]Check, error) {
+	checker, ok := s.client.(DefaultBranchChecker)
+	if !ok {
+		return nil, fmt.Errorf("dashboard: %s's client can't list default branch checks: %w", s.forge, errUnsupportedByClient)
+	}
+	checks, err := checker.ListDefaultBranchChecks(ctx, owner, name)
+	if err != nil {
+		return nil, fmt.Errorf("dashboard: list default branch checks: %w", err)
+	}
+
+	return checks, nil
+}
+
 // AddLabel implements PullRequestLabeler at the Source level by delegating to
 // the underlying client, the same "Source unwraps to its ForgeClient" shape
 // ClosePullRequest and ListChecks use. #1347: internal/forgejo.Client labels a

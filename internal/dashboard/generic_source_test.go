@@ -366,6 +366,40 @@ func TestGenericSource_ListChecks_ClientWithoutSupport_ReturnsError(t *testing.T
 	require.Error(t, err)
 }
 
+type fakeBranchCheckerClient struct {
+	fakeForgeClient
+	checks []dashboard.Check
+	calls  []string
+}
+
+func (f *fakeBranchCheckerClient) ListDefaultBranchChecks(_ context.Context, owner, name string) ([]dashboard.Check, error) {
+	f.calls = append(f.calls, owner+"/"+name)
+
+	return f.checks, nil
+}
+
+func TestGenericSource_ListDefaultBranchChecks_DelegatesToClient(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeBranchCheckerClient{checks: []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess}}}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	checks, err := source.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, client.checks, checks)
+}
+
+func TestGenericSource_ListDefaultBranchChecks_ClientWithoutSupport_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, &fakeForgeClient{}, 4)
+
+	_, err := source.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.Error(t, err)
+}
+
 // #596: internal/forgejo.Client already implements dashboard.PullRequestCloser
 // (a real EditPullRequest with State: closed), but GenericSource — the
 // Source BuildSources actually registers for Forgejo — never forwarded it,

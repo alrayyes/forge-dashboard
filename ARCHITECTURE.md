@@ -80,6 +80,10 @@ would need the same answer. The reasons, and what it costs, are in
   `get_pull_request_checks`, which mirrors `GET /api/pull-requests/checks`
   (a pull request's individual CI checks). It spends budget too: 4 REST
   requests on GitHub (more for failed jobs), 3 plus one per run on Forgejo.
+  `get_main_branch_checks` mirrors `GET /api/main-branches/checks` (the jobs
+  of a default branch's newest pipeline, in the same shape). It spends
+  budget too: one request for the commits plus one per commit until one has
+  checks on GitHub, 3 plus one per run on Forgejo.
   `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.
@@ -132,8 +136,9 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   scope — this app still only reads that list, and never creates or edits a
   hook itself.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
-  itself: `get_dashboard`, `get_main_branches`, `get_pull_request_checks`,
-  `get_pull_request_details`, `list_queued_actions` and `get_settings`.**
+  itself: `get_dashboard`, `get_main_branches`, `get_main_branch_checks`,
+  `get_pull_request_checks`, `get_pull_request_details`,
+  `list_queued_actions` and `get_settings`.**
   Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
   150+ only, with no stable spec yet — so this is a no-op everywhere else rather
   than a real dependency the page needs. Where it's present, it lets an
