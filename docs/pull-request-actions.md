@@ -90,8 +90,11 @@ CI slot: one pill of a fixed size with a glyph and a word, so a finished run
 turns into its result in the same place and the row doesn't move. The glyphs
 are the ones in the pipeline panel, and `Failed` is the heaviest weight. The
 running glyph spins, and holds still under reduced motion. An **attribute** is
-something set on the pull request that holds until someone changes it: `Auto-merge`
-on, `Draft`, `Bot` (a Dependabot or Renovate pull request) and `Out of date`.
+something set on the pull request that holds until someone changes it:
+`Auto-merge` on, `Draft`, `Bot` (a Dependabot or Renovate pull request),
+`Out of date` and the automatic branch update. The Bots page leaves `Bot` out
+of its rows, since every row there is a bot's; the details pop-up still shows
+it.
 Attributes are quiet outlined chips with a small icon and no fill or motion,
 in a cluster beside the CI slot, never inside it. Conflicts and Blocked stay
 as merge pills, since they say what the merge needs. On a phone the CI slot sits

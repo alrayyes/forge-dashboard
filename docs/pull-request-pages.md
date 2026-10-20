@@ -116,7 +116,9 @@ failed.
 Dependabot and Renovate pull requests have their own page, `/bots.html`,
 reached from the **Bots** item in the navigation. Like Releases, it is the pull
 request board over the pull requests the server marks `kind: dependency`, with
-the same filters, rows and actions as the main page. The main pull request page
+the same filters, rows and actions as the main page. Its rows leave out the
+**Bot** pill, since every row there is a bot's and the author already names it;
+the pop-up still shows it. The main pull request page
 lists none of them, so it has no quick filter for bots. A saved quick filter
 for bots, from before this page existed, is ignored. With no bot pull requests
 open the page says there is nothing to review.
