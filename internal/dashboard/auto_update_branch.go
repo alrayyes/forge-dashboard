@@ -17,6 +17,11 @@ import (
 // directly. settings.Store satisfies this today.
 type AutoUpdateBranchLister interface {
 	AutoUpdateBranchRepos(ctx context.Context, userID []byte) (map[string]struct{}, error)
+	// PullRequestAutoUpdates reports userID's own choice for the pull
+	// requests that have one, keyed forge/owner/repo#number (settings.AutoMergeKey):
+	// true to update that pull request whatever its repo says, false to leave
+	// it alone. A pull request without an entry follows its repo.
+	PullRequestAutoUpdates(ctx context.Context, userID []byte) (map[string]bool, error)
 	// RenovateRebaseLabel reports userID's own configured Renovate rebase
 	// label (Credentials.RenovateRebaseLabelOrDefault) — what a behind
 	// Renovate pull request gets labeled with instead of the generic
@@ -129,7 +134,14 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 
 		return
 	}
-	if len(enabled) == 0 {
+	// An unreadable list of per-pull-request choices degrades to the repo
+	// setting alone, the same way a lister failure above degrades the pass.
+	overrides, err := a.autoUpdate.lister.PullRequestAutoUpdates(ctx, a.autoUpdate.userID)
+	if err != nil {
+		slog.Warn("auto-update-branch: could not load pull request choices", "error", err)
+		overrides = nil
+	}
+	if len(enabled) == 0 && len(overrides) == 0 {
 		return
 	}
 
@@ -153,7 +165,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		if !pr.Behind || pr.Draft {
 			continue
 		}
-		if _, ok := enabled[string(pr.Forge)+"/"+pr.Repo]; !ok {
+		if !autoUpdateWanted(pr, enabled, overrides) {
 			continue
 		}
 		if isReleasePleasePR(pr) {
