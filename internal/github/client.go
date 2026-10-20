@@ -1808,6 +1808,7 @@ query($cursor: String, $since: DateTime) {
             url
             author {
               login
+              avatarUrl
             }
             labels(first: 20) {
               nodes {
@@ -1926,6 +1927,7 @@ const appRepoFieldsTemplate = `
         url
         author {
           login
+          avatarUrl
         }
         labels(first: 20) {
           nodes {
@@ -2776,15 +2778,16 @@ func (c *Client) resolveAmbiguousBehind(ctx context.Context, prs []dashboard.Pul
 
 func mapIssue(fullName string, i graphqlIssue) dashboard.Issue {
 	return dashboard.Issue{
-		Forge:     dashboard.ForgeGitHub,
-		Repo:      fullName,
-		Number:    i.Number,
-		Title:     i.Title,
-		URL:       i.URL,
-		Author:    authorLogin(i.Author),
-		Labels:    labelsFromNodes(i.Labels.Nodes),
-		CreatedAt: i.CreatedAt,
-		UpdatedAt: i.UpdatedAt,
+		Forge:           dashboard.ForgeGitHub,
+		Repo:            fullName,
+		Number:          i.Number,
+		Title:           i.Title,
+		URL:             i.URL,
+		Author:          authorLogin(i.Author),
+		AuthorAvatarURL: authorAvatarURL(i.Author),
+		Labels:          labelsFromNodes(i.Labels.Nodes),
+		CreatedAt:       i.CreatedAt,
+		UpdatedAt:       i.UpdatedAt,
 	}
 }
 
@@ -2882,6 +2885,7 @@ query($owner: String!, $name: String!) {
         url
         author {
           login
+          avatarUrl
         }
         labels(first: 20) {
           nodes {
@@ -3238,15 +3242,16 @@ func (c *Client) listOpenIssuesREST(ctx context.Context, owner, name, repo strin
 				continue
 			}
 			issues = append(issues, dashboard.Issue{
-				Forge:     dashboard.ForgeGitHub,
-				Repo:      repo,
-				Number:    i.GetNumber(),
-				Title:     i.GetTitle(),
-				URL:       i.GetHTMLURL(),
-				Author:    i.GetUser().GetLogin(),
-				Labels:    restLabelsToDashboard(i.Labels),
-				CreatedAt: i.GetCreatedAt().Time,
-				UpdatedAt: i.GetUpdatedAt().Time,
+				Forge:           dashboard.ForgeGitHub,
+				Repo:            repo,
+				Number:          i.GetNumber(),
+				Title:           i.GetTitle(),
+				URL:             i.GetHTMLURL(),
+				Author:          i.GetUser().GetLogin(),
+				AuthorAvatarURL: i.GetUser().GetAvatarURL(),
+				Labels:          restLabelsToDashboard(i.Labels),
+				CreatedAt:       i.GetCreatedAt().Time,
+				UpdatedAt:       i.GetUpdatedAt().Time,
 			})
 		}
 		if resp.NextPage == 0 {

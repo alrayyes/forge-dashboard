@@ -229,6 +229,8 @@
   type IssueItem = FilterableItem & {
     number: number;
     url: string;
+    // The forge's own avatar URL for whoever filed it; empty when it has none.
+    authorAvatarUrl?: string;
   };
   type Forge = {
     forge: string;
@@ -1580,9 +1582,9 @@
 
       const meta = el("div", "row-meta");
       const authorCell = el("div", "author", item.author);
-      const avatar = isPR
-        ? avatarSrc((item as PullRequestItem).authorAvatarUrl)
-        : null;
+      const avatar = avatarSrc(
+        (item as PullRequestItem | IssueItem).authorAvatarUrl,
+      );
       if (avatar) {
         // Decorative: the name beside it already says who. A failed load
         // drops the image and leaves the name alone.
@@ -5222,20 +5224,18 @@
     // excludeKey === "" scopes by all four (forge/repo/author/label),
     // which is what the Title datalist wants: free text has no "own
     // selection" to exclude itself from. The pull request board's own
-    // fields (CI status, quick pills) stay out of the repo, author and label
-    // choices by design: isPR is false, which skips both checks. The CI
-    // status and age choices do apply them, bar the one being populated, so
-    // a pick never leaves an empty list (#1427). The Issues page's default
-    // hiding of a bot's housekeeping issue is in, since a repo with nothing
-    // else has nothing to show.
+    // fields (CI status, quick pills, Auto-merge) narrow every choice list
+    // too, bar the one being populated, so a pick never leaves an empty list
+    // and no choice names something the list on screen lacks (#1427). The
+    // Issues page's default hiding of a bot's housekeeping issue is in,
+    // since a repo with nothing else has nothing to show.
     function sharedPoolExcluding(
       excludeKey: Filters.PoolKey,
       board:
-        | "ignore"
         | "apply"
         | "applyExceptStatus"
         | "applyExceptQuick"
-        | "applyExceptAutoMerge" = "ignore",
+        | "applyExceptAutoMerge" = "apply",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -5243,7 +5243,7 @@
       const items: FilterableItem[] = pullsView ? allPRs : allIssues;
       // The Issues page hides a bot's housekeeping issue by default, so a
       // repo that has nothing else isn't a choice while it's hidden (#1427).
-      const withBoard = pullsView && board !== "ignore";
+      const withBoard = pullsView;
       return Filters.optionPool(
         items,
         withBoard,
@@ -5354,18 +5354,12 @@
       // age ranges something falls in, and the CI states pull requests are in.
       const staleCreated = populateEvery(
         'select[data-col="created"]',
-        Filters.ageChoices(
-          sharedPoolExcluding("created", "apply"),
-          "createdAt",
-        ),
+        Filters.ageChoices(sharedPoolExcluding("created"), "createdAt"),
         sharedState.shared.created,
       );
       const staleUpdated = populateEvery(
         'select[data-col="updated"]',
-        Filters.ageChoices(
-          sharedPoolExcluding("updated", "apply"),
-          "updatedAt",
-        ),
+        Filters.ageChoices(sharedPoolExcluding("updated"), "updatedAt"),
         sharedState.shared.updated,
       );
       const staleStatus =

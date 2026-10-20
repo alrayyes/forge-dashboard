@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.230.2](https://github.com/alrayyes/forge-dashboard/compare/v0.230.1...v0.230.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** offer only the repos, authors and labels the pull request list has ([#2027](https://github.com/alrayyes/forge-dashboard/issues/2027)) ([9a48a25](https://github.com/alrayyes/forge-dashboard/commit/9a48a250fa5f068453510522a4d8039d1e7ebe3f))
+
+## [0.230.1](https://github.com/alrayyes/forge-dashboard/compare/v0.230.0...v0.230.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** show a default branch held for workflow approval in the Branches pill ([#2030](https://github.com/alrayyes/forge-dashboard/issues/2030)) ([9a9d6ea](https://github.com/alrayyes/forge-dashboard/commit/9a9d6ead36e61af4e48acaa05adcec5ba678df68))
+
 ## [0.230.0](https://github.com/alrayyes/forge-dashboard/compare/v0.229.1...v0.230.0) (2026-10-20)
 
 
