@@ -3078,6 +3078,12 @@ footer a.mono:focus-visible {
   overflow-y: auto;
   flex: 1 1 auto;
 }
+.pipeline-paused-note {
+  margin: 0;
+  padding: 8px 18px 0;
+  color: var(--ink-3);
+  font-size: 13px;
+}
 .pipeline-status {
   margin: 0;
   color: var(--ink-3);

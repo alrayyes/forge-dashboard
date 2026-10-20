@@ -36,6 +36,13 @@
     formatCheckDuration,
     type Check,
   } from "#lib/pipeline-checks.js";
+  import {
+    announceChange,
+    ciSignature,
+    createLiveChecks,
+    keepOrder,
+    type LiveChecks,
+  } from "#lib/pipeline-live.js";
   import * as Filters from "#lib/filters.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
@@ -4855,6 +4862,23 @@
     // to land and overwrite whatever the dialog is showing now.
     let pipelineRequestToken = 0;
 
+    // The open panel's own live state. It reads its checks again only when a
+    // snapshot says this pull request's CI changed (see pipeline-live.ts), and
+    // never while updates are paused.
+    let pipelineLive: LiveChecks | null = null;
+    // The newest copy of the open panel's pull request, for the reads it makes.
+    let pipelineItem: PullRequestItem | null = null;
+    // What the panel shows now, to keep its order and to tell a real change.
+    let pipelineShown: Check[] = [];
+    const pipelineNote = document.getElementById("pipeline-paused-note");
+    const pipelineAnnounce = document.getElementById("pipeline-live-status");
+
+    function setPipelineNote(text: string) {
+      if (!pipelineNote) return;
+      pipelineNote.textContent = text;
+      pipelineNote.hidden = text === "";
+    }
+
     function renderPipelineLoading() {
       if (!pipelineDialogBody) return;
       pipelineDialogBody.innerHTML = "";
@@ -5062,8 +5086,15 @@
       return wrap;
     }
 
-    function renderPipelineChecks(checks: Check[], item: PullRequestItem) {
+    // `inPlace` is a live redraw: the order the panel already has stands, so a
+    // check's pill changes where it stands.
+    function renderPipelineChecks(
+      checks: Check[],
+      item: PullRequestItem,
+      inPlace = false,
+    ) {
       if (!pipelineDialogBody) return;
+      pipelineShown = checks;
       pipelineDialogBody.innerHTML = "";
       if (checks.length === 0) {
         pipelineDialogBody.appendChild(
@@ -5083,7 +5114,9 @@
       // forge's own order otherwise.
       const required = checks
         .filter((check) => check.required === true)
-        .sort((a, b) => Number(isBlocking(b)) - Number(isBlocking(a)));
+        .sort((a, b) =>
+          inPlace ? 0 : Number(isBlocking(b)) - Number(isBlocking(a)),
+        );
       const advisory = checks.filter((check) => check.required === false);
       // Never filed under Advisory on a guess.
       const unknown = checks.filter((check) => check.required === undefined);
@@ -5117,9 +5150,9 @@
     // own eager pull, per the checks endpoint's own doc comment: this is
     // detail a row doesn't show until the panel is actually opened for
     // it.
-    function loadPipelineChecks(item: PullRequestItem) {
+    function loadPipelineChecks(item: PullRequestItem, live = false) {
       const token = ++pipelineRequestToken;
-      renderPipelineLoading();
+      if (!live) renderPipelineLoading();
 
       fetch(
         `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
@@ -5143,21 +5176,69 @@
         })
         .then((data) => {
           if (token !== pipelineRequestToken) return;
-          renderPipelineChecks(data.checks || [], item);
+          if (live) redrawPipelineLive(data.checks || [], item);
+          else {
+            setPipelineNote("");
+            pipelineLive?.refreshed();
+            renderPipelineChecks(data.checks || [], item);
+          }
         })
         .catch((err: Error & { status?: number }) => {
           if (token !== pipelineRequestToken) return;
+          // A failed live read leaves the checks on screen and says so; the
+          // next change reads again.
+          if (live) {
+            setPipelineNote(
+              "Couldn't refresh these checks. They may be out of date.",
+            );
+            return;
+          }
           const message = `Couldn't load pipeline checks for ${item.repo}#${item.number}: ${err.message}`;
           renderPipelineError(message, () => loadPipelineChecks(item));
         });
     }
 
+    // A live read's answer: nothing is redrawn when nothing changed, and a
+    // redraw keeps the scroll position and the control the keyboard is on.
+    function redrawPipelineLive(next: Check[], item: PullRequestItem) {
+      setPipelineNote("");
+      if (!pipelineDialogBody) return;
+      const ordered = keepOrder(pipelineShown, next);
+      if (JSON.stringify(ordered) === JSON.stringify(pipelineShown)) return;
+      const message = announceChange(pipelineShown, ordered);
+      const focusable = () =>
+        Array.from(
+          pipelineDialogBody.querySelectorAll<HTMLElement>("a, button, pre"),
+        );
+      const at = focusable().indexOf(document.activeElement as HTMLElement);
+      const scroll = pipelineDialogBody.scrollTop;
+      renderPipelineChecks(ordered, item, true);
+      pipelineDialogBody.scrollTop = scroll;
+      if (at >= 0) focusable()[at]?.focus({ preventScroll: true });
+      if (pipelineAnnounce && message) pipelineAnnounce.textContent = message;
+    }
+
     function openPipelineDialog(item: PullRequestItem) {
       if (!pipelineDialog) return;
       pipelineDialogRowKey = prKey(item);
+      pipelineItem = item;
+      pipelineShown = [];
+      setPipelineNote("");
+      if (pipelineAnnounce) pipelineAnnounce.textContent = "";
       if (pipelineDialogSubtitle) {
         pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
       }
+      pipelineLive = createLiveChecks({
+        signature: ciSignature(item),
+        paused: updatesPaused,
+        reload: () => pipelineItem && loadPipelineChecks(pipelineItem, true),
+        onStale: (stale) =>
+          setPipelineNote(
+            stale
+              ? "Live updates are paused. These checks may be out of date."
+              : "",
+          ),
+      });
       loadPipelineChecks(item);
       pipelineDialog.showModal();
     }
@@ -5176,6 +5257,10 @@
     pipelineDialog?.addEventListener("close", () => {
       const rowKey = pipelineDialogRowKey;
       pipelineDialogRowKey = null;
+      pipelineLive = null;
+      pipelineItem = null;
+      // A read still out must not draw into a closed panel.
+      pipelineRequestToken++;
       renderPRBoard();
       if (rowKey) {
         document
@@ -6022,6 +6107,7 @@
       Filters.touchKey("view", "paused");
       Filters.saveState(sharedState);
       syncPauseControl();
+      if (!updatesPaused()) pipelineLive?.resume();
       if (view === "issues") reconcileIssues();
       else reconcilePRs();
     });
@@ -7576,6 +7662,15 @@
       }
     }
 
+    // The open pipeline panel follows its own pull request: when this snapshot
+    // shows that one's CI changed, the panel reads its checks again.
+    function followOpenPipeline() {
+      if (!pipelineLive || !pipelineDialogRowKey) return;
+      const now = allPRs.find((p) => prKey(p) === pipelineDialogRowKey);
+      if (now) pipelineItem = now;
+      pipelineLive.seen(now ? ciSignature(now) : null);
+    }
+
     function applySnapshot(
       data: DashboardSnapshot,
       userAsked = false,
@@ -7667,6 +7762,7 @@
       const botChanged = syncServerRequests(prs, startedSeq);
       const issues = data.issues || [];
       allPRs = prs;
+      followOpenPipeline();
       evictRerunState();
       allIssues = issues;
       reposByKey = new Map(
@@ -8535,6 +8631,17 @@
         >
       </button>
     </div>
+    <p
+      class="pipeline-paused-note"
+      id="pipeline-paused-note"
+      aria-live="polite"
+      hidden
+    ></p>
+    <p
+      class="sr-only pipeline-live-status"
+      id="pipeline-live-status"
+      aria-live="polite"
+    ></p>
     <div class="pipeline-dialog-body" id="pipeline-dialog-body"></div>
   </dialog>
 {/if}
