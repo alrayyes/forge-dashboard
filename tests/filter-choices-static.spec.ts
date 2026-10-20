@@ -94,7 +94,7 @@ test.describe('CI status and age choices on the pull request page (#1427)', () =
     expect(await values(page, UPDATED)).toEqual(['', '1440', '10080', '43200']);
   });
 
-  test('the CI choices follow the other filters, and a CI pick that no longer matches is cleared', async ({
+  test('the CI choices follow the other filters, and the other filters follow the CI pick', async ({
     page,
   }) => {
     await open(page, '/pull-requests.html', [
@@ -105,10 +105,18 @@ test.describe('CI status and age choices on the pull request page (#1427)', () =
     await page.selectOption(STATUS, 'failure');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
+    // The failing filter leaves alice, who has no failing pull request, out of
+    // the Author choices, so that pick can't empty the list (#1427).
+    expect(
+      await page
+        .locator('#shared-author-select option')
+        .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value)),
+    ).toEqual(['', 'bob']);
+
+    await page.selectOption(STATUS, '');
     await page.selectOption('#shared-author-select', 'alice');
 
-    // Alice has no failing pull request, so that pick goes and her PR shows.
-    await expect(page.locator(STATUS)).toHaveValue('');
+    // Alice's one pull request is passing, so that is the only CI choice left.
     expect(await values(page, STATUS)).toEqual(['', 'success']);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   });

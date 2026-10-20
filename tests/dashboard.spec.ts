@@ -1734,7 +1734,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
     });
 
-    test('a PR-only filter like CI status is not part of the shared repo/author/label narrowing', async ({
+    test('a PR-only filter like CI status also narrows the shared repo/author/label choices', async ({
       page,
     }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
@@ -1784,13 +1784,25 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Failing PR');
 
-      // The CI filter narrowed the PR board's own rows, but it's a
-      // board-owned field, not a shared one — the shared Repo/Author/
-      // Label selects still offer values from both PRs, including the
-      // passing one CI status just hid.
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(3); // All + team/one + team/two.
-      await expect(page.locator('#shared-author-select option')).toHaveCount(3); // All + claude + ryan.
-      await expect(page.locator('#shared-label-select option')).toHaveCount(3); // All + bug + enhancement.
+      // The CI filter narrows the list on screen, so the shared Repo/Author/
+      // Label choices drop what only the passing PR the filter just hid has:
+      // offering team/one, claude or bug would lead to an empty list. This
+      // replaces the earlier expectation that board filters stay out of the
+      // shared choices, which broke the rule that every choice matches
+      // something in the list being shown.
+      const optionValues = (id: string) =>
+        page
+          .locator(`#${id} option`)
+          .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
+      expect(await optionValues('shared-repo-select')).toHaveLength(2); // All + team/two.
+      expect(await optionValues('shared-repo-select')).toContain(
+        'github:team/two',
+      );
+      expect(await optionValues('shared-author-select')).toEqual(['', 'ryan']);
+      expect(await optionValues('shared-label-select')).toEqual([
+        '',
+        'enhancement',
+      ]);
     });
   });
 
