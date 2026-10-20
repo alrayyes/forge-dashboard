@@ -980,6 +980,10 @@ select.col-filter {
   border-radius: 8px;
   box-shadow: var(--shadow);
 }
+.label-filter-panel.align-end {
+  left: auto;
+  right: 0;
+}
 .label-filter-panel[hidden] {
   display: none;
 }

@@ -89,7 +89,9 @@ async function mock(page: Page) {
 async function open(page: Page, url = '/pull-requests.html') {
   await mock(page);
   await page.goto(url);
-  await expect(page.locator('#pr-rows, #issue-rows').first()).toBeVisible();
+  await expect(
+    page.locator('#pr-rows, #issue-rows, .filter-bar').first(),
+  ).toBeVisible();
 }
 
 const prRows = (page: Page) => page.locator('#pr-rows > .row');
@@ -393,6 +395,35 @@ test.describe('Label filter: keyboard and screen reader', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await axe(page);
   });
+});
+
+test.describe('Label filter: the open group stays inside the window', () => {
+  // The button can be the last control on its row, so a group opening to the
+  // right of it would run off the window and cut its text.
+  for (const width of [1024, 1280, 1440, 1920]) {
+    for (const url of [
+      '/pull-requests.html',
+      '/issues.html',
+      '/insights.html',
+    ]) {
+      test(`${url} at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await open(page, url);
+        await expect(labelButton(page)).toBeVisible();
+        await labelButton(page).click();
+        await expect(labelPanel(page)).toBeVisible();
+
+        const box = await labelPanel(page).boundingBox();
+        expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+        // Its own text isn't cut off either.
+        const clipped = await labelPanel(page).evaluate(
+          (el) => el.scrollWidth > el.clientWidth,
+        );
+        expect(clipped).toBe(false);
+      });
+    }
+  }
 });
 
 test.describe('Label filter: on a phone', () => {

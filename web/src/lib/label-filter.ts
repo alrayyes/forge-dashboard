@@ -142,6 +142,16 @@ export function mountLabelFilter(
   let offeredNow: string[] = [];
   let pickedNow: string[] = [];
 
+  // The group opens under the button, left edges level. When the button is
+  // near the right of the window that would run off it, so the right edges
+  // line up instead.
+  function placePanel() {
+    panel.classList.remove('align-end');
+    const right = panel.getBoundingClientRect().right;
+    if (right > document.documentElement.clientWidth - 8)
+      panel.classList.add('align-end');
+  }
+
   function close(refocus: boolean) {
     if (panel.hidden) return;
     panel.hidden = true;
@@ -153,6 +163,7 @@ export function mountLabelFilter(
     if (panel.hidden) {
       panel.hidden = false;
       button.setAttribute('aria-expanded', 'true');
+      placePanel();
     } else close(false);
   });
   host.addEventListener('keydown', (event) => {
