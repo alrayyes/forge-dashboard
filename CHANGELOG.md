@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.229.0](https://github.com/alrayyes/forge-dashboard/compare/v0.228.1...v0.229.0) (2026-10-20)
+
+
+### Features
+
+* an issue row opens its description and comments in a dialog ([#1997](https://github.com/alrayyes/forge-dashboard/issues/1997)) ([5b292be](https://github.com/alrayyes/forge-dashboard/commit/5b292bea557e49448f6d8aa64362cebce021f6c4))
+
 ## [0.228.1](https://github.com/alrayyes/forge-dashboard/compare/v0.228.0...v0.228.1) (2026-10-20)
 
 
