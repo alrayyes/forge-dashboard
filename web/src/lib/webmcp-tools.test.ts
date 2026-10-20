@@ -35,7 +35,7 @@ function setup(response: { status?: number; body?: unknown } = {}) {
 const PR = { forge: 'forgejo', fullName: 'acme/api', number: 7 };
 
 describe('WebMCP read tools', () => {
-  test('lists get_dashboard and the six server twins', () => {
+  test('lists get_dashboard and the server twins', () => {
     const tools = createWebMCPTools({ getDashboard: async () => ({}) });
     expect(tools.map((t) => t.name)).toEqual([
       'get_dashboard',
@@ -45,6 +45,7 @@ describe('WebMCP read tools', () => {
       'get_pull_request_details',
       'list_queued_actions',
       'get_settings',
+      'set_pull_request_auto_update',
     ]);
   });
 
@@ -373,5 +374,100 @@ describe('WebMCP get_settings', () => {
     expect(desc).toContain('creates nothing');
     expect(desc).not.toContain('first read can create');
     expect(desc).not.toContain('true after the first read');
+  });
+});
+
+describe('WebMCP set_pull_request_auto_update', () => {
+  // The write posts the endpoint's own JSON body, then reads the board through
+  // the page so what the person sees is what the agent changed.
+  function writeSetup(status = 204, body: unknown = {}) {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    let reads = 0;
+    let expired = 0;
+    const tools = createWebMCPTools({
+      getDashboard: async () => {
+        reads++;
+
+        return { pullRequests: [] };
+      },
+      onSessionExpired: () => {
+        expired++;
+      },
+      fetchImpl: async (url, init) => {
+        calls.push({ url: String(url), init });
+
+        return new Response(status === 204 ? null : JSON.stringify(body), {
+          status,
+        });
+      },
+    });
+    const tool = tools.find((t) => t.name === 'set_pull_request_auto_update');
+    if (!tool) throw new Error('no tool set_pull_request_auto_update');
+
+    return { calls, tool, reads: () => reads, expired: () => expired };
+  }
+
+  test('posts the choice to the endpoint and refreshes the page', async () => {
+    const { calls, tool, reads } = writeSetup();
+    await tool.execute({ ...PR, enabled: false });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('/api/pull-requests/auto-update');
+    expect(calls[0].init?.method).toBe('POST');
+    expect(calls[0].init?.credentials).toBe('same-origin');
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      forge: 'forgejo',
+      fullName: 'acme/api',
+      number: 7,
+      enabled: false,
+    });
+    expect(reads()).toBe(1);
+  });
+
+  test('an absent enabled goes out as null, so the pull request follows its repo', async () => {
+    const { calls, tool } = writeSetup();
+    await tool.execute(PR);
+    expect(JSON.parse(String(calls[0].init?.body)).enabled).toBeNull();
+  });
+
+  test('refuses what the endpoint would refuse, without calling it', async () => {
+    const { calls, tool } = writeSetup();
+    await expect(tool.execute({ ...PR, enabled: 'yes' })).rejects.toThrow(
+      'enabled must be true, false or null',
+    );
+    await expect(
+      tool.execute({ ...PR, number: 0, enabled: true }),
+    ).rejects.toThrow('number must be a positive integer');
+    expect(calls).toHaveLength(0);
+  });
+
+  test('a 404 throws with the server reason and does not refresh', async () => {
+    const { tool, reads } = writeSetup(404, {
+      error: 'pull request not found',
+    });
+    await expect(tool.execute({ ...PR, enabled: true })).rejects.toThrow(
+      'pull request not found',
+    );
+    expect(reads()).toBe(0);
+  });
+
+  test('a 401 sends the page to sign in and throws', async () => {
+    const { tool, expired } = writeSetup(401);
+    await expect(tool.execute({ ...PR, enabled: true })).rejects.toThrow(
+      'session expired',
+    );
+    expect(expired()).toBe(1);
+  });
+
+  test('says it writes only this app, null follows the repo, and the input allows null', () => {
+    const { tool } = writeSetup();
+    expect(tool.description).toContain("only this app's own setting");
+    expect(tool.description).toContain('never writes to either forge');
+    expect(tool.description).toContain('follows its repo');
+    const schema = tool.inputSchema as {
+      required: string[];
+      properties: Record<string, { type?: string | string[] }>;
+    };
+    expect(schema.required).toEqual(['forge', 'fullName', 'number']);
+    expect(schema.properties.enabled.type).toEqual(['boolean', 'null']);
   });
 });

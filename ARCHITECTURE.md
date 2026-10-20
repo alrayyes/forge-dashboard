@@ -158,7 +158,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_main_branch_checks`,
   `get_pull_request_checks`, `get_pull_request_details`,
-  `list_queued_actions` and `get_settings`.**
+  `list_queued_actions`, `get_settings` and `set_pull_request_auto_update`.**
   Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
   150+ only, with no stable spec yet — so this is a no-op everywhere else rather
   than a real dependency the page needs. Where it's present, it lets an
@@ -171,8 +171,11 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   `GET /api/settings/summary`, the same body as the server's tool, with
   `webhookConfigured` and no webhook token or secret). Like the server's
   tool, `get_settings` creates nothing: `webhookConfigured` is false until
-  the user has opened Settings. All ride on the browser's own session
-  cookie exactly like the page's own poll does.
+  the user has opened Settings. `set_pull_request_auto_update` posts to
+  `POST /api/pull-requests/auto-update` like the server's tool of that name,
+  then reads the board through the page so what the person sees matches. All
+  ride on the browser's own session cookie exactly like the page's own poll
+  does.
   Nothing new crosses to the browser that the preceding
   "Credentials never reach the browser" bullet doesn't already allow: the tools
   never see a token, only the same already-filtered JSON the page always got.
