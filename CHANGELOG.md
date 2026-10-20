@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.230.0](https://github.com/alrayyes/forge-dashboard/compare/v0.229.1...v0.230.0) (2026-10-20)
+
+
+### Features
+
+* list the issues a pull request closes ([#1999](https://github.com/alrayyes/forge-dashboard/issues/1999)) ([e221846](https://github.com/alrayyes/forge-dashboard/commit/e22184611fe4ab2d4a6190721795057850adc318))
+* **web:** show emoji shortcodes such as :robot: as emoji in descriptions and comments ([#1996](https://github.com/alrayyes/forge-dashboard/issues/1996)) ([db4a59f](https://github.com/alrayyes/forge-dashboard/commit/db4a59fe938cabb60f293c3e518418060a07f531))
+
 ## [0.229.1](https://github.com/alrayyes/forge-dashboard/compare/v0.229.0...v0.229.1) (2026-10-20)
 
 
