@@ -9,7 +9,7 @@ marks it "Updated just now" for a couple of seconds; it never reorders the
 list. Rows that are added, removed or reordered land by themselves in one
 render, with nothing to press. They wait only while something would be
 disturbed, and land the moment it ends: a row action is in flight (or a Merge is
-waiting for its second click), a More actions menu or a pop-up other than the
+waiting for its second click), a pop-up other than the
 pull request pop-up is open, the mouse rests on the list (until you move away,
 close a pop-up or leave the window), or a finger has just touched or scrolled
 the page (for about a second). A refresh you asked for (Refresh now, or the one

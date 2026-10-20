@@ -445,19 +445,6 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     expectNone(problems);
   });
 
-  test('pull requests: a More actions menu open', async ({ page }) => {
-    const problems: string[] = [];
-    await mockDashboard(page);
-    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
-    await page.goto('/pull-requests.html');
-    await ready(page, '#pr-rows .row');
-    await page.getByRole('button', { name: 'More actions' }).first().click();
-    await sweepAll(page, 'pull requests with a menu open', problems, {
-      within: '.row-actions-popover',
-    });
-    expectNone(problems);
-  });
-
   // https://github.com/alrayyes/forge-dashboard/issues/1857
   // The pop-up is a full-height sheet up to 480px and a centred dialog above
   // it, so 700px (under the 761px phone rule) is where the header Close and

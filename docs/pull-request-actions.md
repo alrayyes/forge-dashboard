@@ -17,6 +17,16 @@ action: a blocked, waiting, conflicting, draft or stacked pull request leaves
 its reason to `status`. A blocked action is never primary, and at most one
 entry is.
 
+The row draws one button: the primary action, or, while Merge is locked, the
+greyed Merge with its reason. A pull request with neither draws none, so a
+draft, one waiting on CI, one with failing CI and one with nothing to act on
+show their status and nothing to click. A pull request that is behind the base
+branch is the one case where a locked Merge is not the row's button: the row
+draws no button of its own, because the cure (Update branch, or the bot's
+rebase) sits inside the status block above, and the greyed Merge is in the
+pop-up. Every other action is in the pop-up's footer, one click away, and there
+is no "More actions" menu.
+
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a
 parent it is stacked on), with the same `code`, `message` and `next` as a
@@ -87,8 +97,9 @@ in a cluster beside the CI slot, never inside it. Conflicts and Blocked stay
 as merge pills, since they say what the merge needs. On a phone the CI slot sits
 at the top right and the attributes take a line of their own.
 
-Every open pull request row has a Merge button. It's clickable when the forge
-reports the merge is actually possible. Otherwise it stays on the row, locked
+Merge is clickable when the forge reports the merge is actually possible, and
+it's the row's button when it is the primary action. Otherwise it stays on the
+row, locked
 (`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
 to finish" (it unlocks on its own at the next refresh), a merge conflict, a
 draft, a branch that's behind, or "Blocked by the forge" when the forge says no
@@ -116,21 +127,17 @@ behind whenever its base has commits it lacks, even in a repo that doesn't
 require branches to be up-to-date, and Merge stays allowed there. On a pull
 request that's behind but also conflicts with its base, Update branch is locked
 with a note that the conflicts need fixing by hand, since the forge would refuse
-the update. Close isn't a standalone row button: it lives in the "More actions"
-menu on every open pull request regardless of mergeability. A menu is for the
-overflow, so when Close is the row's only extra action it's drawn directly
-instead. It reads "Close pull request" and is a neutral button on every row,
-never green or red: closing is reversible, since the pull request stays listed
-as closed and can be reopened, so the warning tone is kept for the confirm step
-("Confirm close pull request?"). For one that turns out not to need merging at
-all (a duplicate, or one whose content already landed another way) it's the
-action that applies. It asks for confirmation the same way Merge does, inside
-the menu. Confirming closes the menu and shows progress on the row. Escape drops
-an unconfirmed Close and leaves the menu open, a second Escape closes the menu,
-and closing the menu any other way drops it too. If the forge refuses a
-confirmed Close, the row shows "Close locked" next to the closed menu and the
-reason becomes the menu button's description, so you don't have to reopen the
-menu to find out.
+the update. Close is in the pop-up's footer on every open pull request,
+regardless of mergeability, and on the row only when it is the primary action
+(a pull request whose branch is already on the base). It reads "Close pull
+request" and is a neutral button, never green or red: closing is reversible,
+since the pull request stays listed as closed and can be reopened, so the
+warning tone is kept for the confirm step ("Confirm close pull request?"). For
+one that turns out not to need merging at all (a duplicate, or one whose content
+already landed another way) it's the action that applies. It asks for
+confirmation the same way Merge does. Escape drops an unconfirmed Close. If the
+forge refuses a confirmed Close, the button reads locked and the reason is its
+description.
 A permission refusal is re-read too: if the pull request turns out to be
 merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.
@@ -260,7 +267,7 @@ time comes from the server's `staleSince`, which is gone again after the next
 good refresh.
 
 A GitHub pull request that isn't already auto-merging gets an "Enable
-auto-merge" action in the row's "More actions" menu, arming the forge's
+auto-merge" action in the pop-up's footer, arming the forge's
 own native auto-merge (GitHub's `enablePullRequestAutoMerge` mutation)
 instead of switching to GitHub's own UI just to turn it on. It picks a
 merge method the repo actually allows, the same `merge` > `squash` >
@@ -419,21 +426,21 @@ timed-out line, an error toast and Retry, and a record the page never clicked (a
 reload mid-wait) starts the row with the chip.
 
 A bot `rebase` waits on the bot, not on the dashboard. The button becomes
-`Rebase requested` and is `aria-disabled` (focus returns to the row's More
-actions button when the menu closes), and the chip reads `Rebase requested` with
-the bot's name and an age that ticks along, kept out of what a screen reader
-announces. Its hint says the bot acts on its own schedule and that it can take a
-few minutes. Dependabot is asked with the `@dependabot rebase` comment and
-Renovate with the `rebase-check` checkbox in the pull request body (the `rebase`
-label when the body has none), and the hint says which. The request lives on the
-server: a successful Dependabot or Renovate request shows up on the pull request
-as `botRequest`, so a reload mid-wait still shows the chip, with the age counted
-from when it was asked. The page only draws it. When the server moves the
-request to `rebasing` (the bot pushed, and CI hasn't restarted), the chip reads
-`Rebasing`. When the server drops it (CI showing pending, two minutes after the
-push, or the pull request leaving), the chip reads `Settled`, then goes, and a
-toast says it finished. When the server marks it `expired` (ten minutes with no
-sign of the bot), the row says it timed out, with an error toast and a Retry.
+`Rebase requested` and is `aria-disabled` (focus stays on the button), and the
+chip reads `Rebase requested` with the bot's name and an age that ticks along,
+kept out of what a screen reader announces. Its hint says the bot acts on its
+own schedule and that it can take a few minutes. Dependabot is asked with the
+`@dependabot rebase` comment and Renovate with the `rebase-check` checkbox in
+the pull request body (the `rebase` label when the body has none), and the hint
+says which. The request lives on the server: a successful Dependabot or Renovate
+request shows up on the pull request as `botRequest`, so a reload mid-wait still
+shows the chip, with the age counted from when it was asked. The page only draws
+it. When the server moves the request to `rebasing` (the bot pushed, and CI
+hasn't restarted), the chip reads `Rebasing`. When the server drops it (CI
+showing pending, two minutes after the push, or the pull request leaving), the
+chip reads `Settled`, then goes, and a toast says it finished. When the server
+marks it `expired` (ten minutes with no sign of the bot), the row says it timed
+out, with an error toast and a Retry.
 
 While Renovate's rebase checkbox is ticked, a rebase is already waiting for
 Renovate, so `Renovate: Rebase` is shown disabled, with "A Renovate rebase is
