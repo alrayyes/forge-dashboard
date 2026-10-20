@@ -154,10 +154,71 @@ func isHTTPClient(expr ast.Expr) bool {
 	return false
 }
 
+// isRiskyCall reports whether call could send a GET without being a site
+// getSites counts. hasSite says whether its function has a counted site.
+func isRiskyCall(dir string, call *ast.CallExpr, hasSite bool) (string, bool) {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	name := sel.Sel.Name
+	switch name {
+	case "Get", "Head":
+		return name, isHTTPClient(sel.X)
+	case "Do", "NewRequest":
+		return name, true
+	case "NewRequestWithContext":
+		return name, !isGetSite(dir, call)
+	case "rawRequest":
+		return name, mentionsMethodGet(call) && !hasSite
+	}
+
+	return name, false
+}
+
+func hasCountedSite(dir string, fn *ast.FuncDecl) bool {
+	found := false
+	ast.Inspect(fn, func(node ast.Node) bool {
+		if call, ok := node.(*ast.CallExpr); ok && isGetSite(dir, call) {
+			found = true
+		}
+
+		return !found
+	})
+
+	return found
+}
+
+func riskyIDs(dir, file string, parsed *ast.File, allowed map[string]bool) []string {
+	var found []string
+	for _, decl := range parsed.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		hasSite := hasCountedSite(dir, fn)
+		ast.Inspect(fn, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			name, risky := isRiskyCall(dir, call, hasSite)
+			id := "internal/" + dir + "/" + filepath.Base(file) + ":" + fn.Name.Name + ":" + name
+			if risky && !allowed[id] {
+				found = append(found, id)
+			}
+
+			return true
+		})
+	}
+
+	return found
+}
+
 // httpCallsOutsideTheCount lists calls that could send a GET without being
-// one of the sites getSites counts: Get or Head on anything but the go-github
-// service chain, and Do or a hand-built request in a function that has no
-// counted site of its own. Known senders are named in allowed.
+// one of the sites getSites counts: Get or Head on a plain http client, and
+// Do, a hand-built request or a rawRequest GET in a function with no counted
+// site of its own. Known senders are named in allowed.
 func httpCallsOutsideTheCount(t *testing.T, dir string, allowed map[string]bool) []string {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join("..", "..", "internal", dir, "*.go"))
@@ -170,48 +231,7 @@ func httpCallsOutsideTheCount(t *testing.T, dir string, allowed map[string]bool)
 		}
 		parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, 0)
 		require.NoError(t, err)
-		for _, decl := range parsed.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok {
-				continue
-			}
-			hasSite := false
-			ast.Inspect(fn, func(node ast.Node) bool {
-				if call, ok := node.(*ast.CallExpr); ok && isGetSite(dir, call) {
-					hasSite = true
-				}
-
-				return true
-			})
-			ast.Inspect(fn, func(node ast.Node) bool {
-				call, ok := node.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok {
-					return true
-				}
-				name := sel.Sel.Name
-				var risky bool
-				switch name {
-				case "Get", "Head":
-					risky = isHTTPClient(sel.X)
-				case "Do", "NewRequest":
-					risky = true
-				case "NewRequestWithContext":
-					risky = !isGetSite(dir, call)
-				case "rawRequest":
-					risky = mentionsMethodGet(call) && !hasSite
-				}
-				id := "internal/" + dir + "/" + filepath.Base(file) + ":" + fn.Name.Name + ":" + name
-				if risky && !allowed[id] {
-					found = append(found, id)
-				}
-
-				return true
-			})
-		}
+		found = append(found, riskyIDs(dir, file, parsed, allowed)...)
 	}
 	sort.Strings(found)
 

@@ -103,7 +103,7 @@ func TestAppClient_InstallationRepositoryList_SecondCallIsCountedAsNotModified(t
 	assert.EqualValues(t, 1, conditional.Load())
 	var notModified int64
 	for _, b := range counters.Snapshot() {
-		notModified += int64(b.NotModified)
+		notModified += b.NotModified
 	}
 	assert.EqualValues(t, 1, notModified)
 }
