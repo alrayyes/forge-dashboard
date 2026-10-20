@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -120,8 +121,14 @@ func rewriteDatabase(ctx context.Context, db *sql.DB, owner *auth.User, firstPas
 	}
 	committed := false
 	defer func() {
-		if !committed {
-			_, _ = conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+		if committed {
+			return
+		}
+		if _, err := conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK"); err != nil {
+			// The transaction may still be open: ErrBadConn makes database/sql
+			// close this connection instead of returning it to the pool
+			// (https://pkg.go.dev/database/sql#Conn.Raw).
+			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
 		}
 	}()
 	if err := emptyTables(ctx, conn); err != nil {

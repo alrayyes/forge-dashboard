@@ -156,6 +156,37 @@ func TestE2EReset_WaitsForAConcurrentWriteInsteadOfFailing(t *testing.T) {
 
 	require.NoError(t, <-committed)
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Zero(t, rowCount(t, db, "hidden_pull_requests"), "the row the other writer committed is emptied")
+	assert.Equal(t, 1, rowCount(t, db, "users"), "the owner stays")
+}
+
+// A reset that fails midway rolls back and leaves no open transaction on the
+// connection it hands back to the pool. With one connection the next caller is
+// guaranteed to get the same one, and BEGIN IMMEDIATE on a connection still
+// inside a transaction fails.
+func TestE2EReset_AFailedRewriteLeavesNoOpenTransaction(t *testing.T) {
+	ctx := t.Context()
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "e2e.db")+"?_busy_timeout=5000&_journal_mode=WAL")
+	require.NoError(t, err)
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+	authStore := auth.NewStore(db)
+	require.NoError(t, authStore.Init(ctx))
+	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
+	require.NoError(t, err)
+	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}}))
+	owner, err := authStore.GetUserByID(ctx, user.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, "DROP TABLE credential_metadata") // keepOwner's last statement now fails
+
+	require.NoError(t, err)
+	require.Error(t, rewriteDatabase(ctx, db, owner, owner.Credentials[:1]))
+
+	conn, err := db.Conn(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	_, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE")
+	assert.NoError(t, err, "the connection is not inside the failed transaction")
 }
 
 // A route that wipes the database must never be reachable in a default build.
