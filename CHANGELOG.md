@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.232.0](https://github.com/alrayyes/forge-dashboard/compare/v0.231.2...v0.232.0) (2026-10-20)
+
+
+### Features
+
+* **web:** draw one action on the row and drop the More actions menu ([#2039](https://github.com/alrayyes/forge-dashboard/issues/2039)) ([a932d3f](https://github.com/alrayyes/forge-dashboard/commit/a932d3f2eabe6046827a4c91b39eb57f37565f83))
+* **web:** link a person's avatar and name to their page on the forge ([#2041](https://github.com/alrayyes/forge-dashboard/issues/2041)) ([0ff2724](https://github.com/alrayyes/forge-dashboard/commit/0ff27241965a148703e8bcb92cb72e7aed2fb472))
+
 ## [0.231.2](https://github.com/alrayyes/forge-dashboard/compare/v0.231.1...v0.231.2) (2026-10-20)
 
 
