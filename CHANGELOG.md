@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.225.0](https://github.com/alrayyes/forge-dashboard/compare/v0.224.4...v0.225.0) (2026-10-20)
+
+
+### Features
+
+* **web:** show the author's avatar on pull request rows ([#1984](https://github.com/alrayyes/forge-dashboard/issues/1984)) ([d6aead5](https://github.com/alrayyes/forge-dashboard/commit/d6aead534afc1ec4085c05eee7ff4fa12400b0df))
+
 ## [0.224.4](https://github.com/alrayyes/forge-dashboard/compare/v0.224.3...v0.224.4) (2026-10-20)
 
 
