@@ -19,19 +19,17 @@ const sameRepo = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 const stateOf = (pr: LinkedPullRequest) => (pr.draft ? 'draft' : 'open');
 
-const numberOf = (pr: LinkedPullRequest, issueRepo: string, whole: boolean) => {
-  if (sameRepo(pr.repo, issueRepo)) return `#${pr.number}`;
-  return `${whole ? pr.repo : (pr.repo.split('/').pop() ?? pr.repo)}#${pr.number}`;
-};
+const numberOf = (pr: LinkedPullRequest, issueRepo: string) =>
+  sameRepo(pr.repo, issueRepo) ? `#${pr.number}` : `${pr.repo}#${pr.number}`;
 
-/** What the pill shows: the number and the state, with the repo when it is not the issue's. */
+/** What the pill shows: the number and the state, with the whole repo when it is not the issue's. */
 export function linkedPillText(pr: LinkedPullRequest, issueRepo: string) {
-  return `${numberOf(pr, issueRepo, false)} ${stateOf(pr)}`;
+  return `${numberOf(pr, issueRepo)} ${stateOf(pr)}`;
 }
 
 /** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
 export function linkedPillName(pr: LinkedPullRequest, issueRepo: string) {
-  return `Pull request ${numberOf(pr, issueRepo, true)} ${stateOf(pr)}, closes this issue`;
+  return `Pull request ${numberOf(pr, issueRepo)} ${stateOf(pr)}, closes this issue`;
 }
 
 /** The pills a row shows, and the ones kept behind the count. */
@@ -92,21 +90,28 @@ const expanded = new Set<string>();
 /**
  * The pills for one issue row: the first two, then a count that opens the
  * rest in place. Null when no pull request will close the issue. Each pill is
- * a plain link to the pull request page with its pop-up open.
+ * a link to the pull request page with its pop-up open. With linkable false,
+ * on a dashboard someone shared (a link would open the reader's own board, not
+ * theirs), the pill says the same and goes nowhere.
  */
 export function linkedPills(
   issueKey: string,
   issueRepo: string,
   list: LinkedPullRequest[] | undefined,
+  linkable = true,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
   const wrap = element('span', 'linked-prs');
   const pill = (pr: LinkedPullRequest) => {
-    const link = element('a', pr.draft ? 'linked-pr draft' : 'linked-pr');
-    link.href = pr.pageUrl;
+    const link = element(
+      linkable ? 'a' : 'span',
+      pr.draft ? 'linked-pr draft' : 'linked-pr',
+    );
+    if (link instanceof HTMLAnchorElement) link.href = pr.pageUrl;
     link.textContent = linkedPillText(pr, issueRepo);
-    link.setAttribute('aria-label', linkedPillName(pr, issueRepo));
+    if (linkable)
+      link.setAttribute('aria-label', linkedPillName(pr, issueRepo));
     return link;
   };
   wrap.append(...shown.map(pill));

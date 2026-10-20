@@ -150,7 +150,7 @@ test.describe('the pill on an issue row', () => {
     });
     await page.goto('/issues.html');
 
-    await expect(pills(page, 1)).toHaveText('other#4 open');
+    await expect(pills(page, 1)).toHaveText('alrayyes/other#4 open');
     await expect(pills(page, 1)).toHaveAccessibleName(
       'Pull request alrayyes/other#4 open, closes this issue',
     );
@@ -183,6 +183,43 @@ test.describe('the pill on an issue row', () => {
     await expect(more).toHaveCount(0);
     await expect(pills(page, 1).nth(2)).toBeFocused();
     expect(await height()).toBeLessThanOrEqual(before + 40);
+  });
+
+  test('is not a link on a dashboard someone shared, where it would open your own', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [], issues: [issue(1, [linked(12)])] });
+    // Alice's board has her own issue, with the same pull request closing it.
+    await page.route('**/api/dashboard?owner=alice*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [{ ...issue(1, [linked(12)]), title: 'Alice’s issue' }],
+        }),
+      }),
+    );
+    await page.route('**/api/sharing', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sharedWithMe: [{ username: 'alice', displayName: 'Alice' }],
+        }),
+      }),
+    );
+    await page.goto('/issues.html');
+    await expect(page.locator('a.linked-pr')).toHaveCount(1);
+
+    await page
+      .locator('#dashboard-owner-select')
+      .selectOption({ label: 'Alice’s dashboard' });
+
+    await expect(page.locator('.linked-pr')).toHaveText('#12 open');
+    await expect(page.locator('a.linked-pr')).toHaveCount(0);
   });
 
   test('has no accessibility violations in light, dark and at 390 px', async ({
@@ -286,6 +323,22 @@ test.describe('the address of a pull request', () => {
       dialog(page).getByRole('button', { name: /^(Merge|Close pull request)/ }),
     ).toHaveCount(0);
     expect(asked.some((u) => u.includes('includeHidden=true'))).toBe(true);
+  });
+
+  test('says so, and keeps the address, when the lookup fails', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [pullRequest(12)] });
+    await page.route('**/api/dashboard?includeDrafts=true*', (route) =>
+      route.fulfill({ status: 500, body: '{}' }),
+    );
+
+    await page.goto(address(99));
+
+    await expect(
+      page.getByRole('status').filter({ hasText: '#99' }),
+    ).toContainText('Could not look up pull request');
+    expect(new URL(page.url()).search).toBe(`?pr=github/${REPO}/99`);
   });
 
   test('says plainly when the pull request is not open any more', async ({

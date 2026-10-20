@@ -1662,26 +1662,48 @@
       const wanted = addressed;
       if (!wanted) return;
       addressed = null;
-      // Dropped from the address, so a reload does not open it again.
-      history.replaceState(history.state, "", window.location.pathname);
+      // Dropped from the address once it is answered, so a reload does not
+      // open it again. An answer that failed keeps it, and a reload tries again.
+      const dropFromAddress = () => {
+        const here = new URL(window.location.href);
+        here.searchParams.delete("pr");
+        history.replaceState(
+          history.state,
+          "",
+          here.pathname + here.search + here.hash,
+        );
+      };
       const onBoard = listed.find((p) => sameAddress(wanted, p));
       if (onBoard) {
+        dropFromAddress();
         openDetailsDialog(onBoard, "");
         return;
       }
       const url =
         "/api/dashboard?includeDrafts=true&includeHidden=true" +
         (currentOwner ? `&owner=${encodeURIComponent(currentOwner)}` : "");
-      const everything: DashboardSnapshot | null = await fetch(url, {
+      const res = await fetch(url, {
         headers: { Accept: "application/json" },
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .catch(() => null);
-      const found = everything?.pullRequests?.find((p) =>
+      }).catch(() => null);
+      if (res?.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      const everything: DashboardSnapshot | null = await Promise.resolve(
+        res?.ok ? res.json() : null,
+      ).catch(() => null);
+      if (!everything) {
+        setHideStatus(
+          `Could not look up pull request ${wanted.repo} #${wanted.number}. Reload the page to try again.`,
+        );
+        return;
+      }
+      dropFromAddress();
+      const found = everything.pullRequests?.find((p) =>
         sameAddress(wanted, p),
       );
       if (found) openPullRequestReadOnly(found);
-      else if (everything) setHideStatus(missingNote(wanted));
+      else setHideStatus(missingNote(wanted));
     }
 
     // The issue header: it is open (the board lists open issues only), and
@@ -1754,6 +1776,7 @@
           prKey(item),
           item.repo,
           (item as IssueItem).linkedPullRequests,
+          !currentOwner,
         );
         if (pills) titleCellEl.appendChild(pills);
       }

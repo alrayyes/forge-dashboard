@@ -34,7 +34,7 @@ describe('linkedPillText', () => {
 
   test('names the repo when the pull request is in another one', () => {
     expect(linkedPillText(pr({ repo: 'alrayyes/other' }), 'alrayyes/app')).toBe(
-      'other#12 open',
+      'alrayyes/other#12 open',
     );
   });
 
