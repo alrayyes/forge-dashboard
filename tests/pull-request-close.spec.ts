@@ -31,6 +31,7 @@ interface MockPR {
   createdAt: string;
   updatedAt: string;
   mergeStatus: string;
+  allowedActions?: { action: string; primary?: boolean }[];
 }
 
 function makePR(overrides: Partial<MockPR> = {}): MockPR {
@@ -408,7 +409,7 @@ test.describe('pull request close button', () => {
     await expect(reopened.close).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('the Close lock cue is words, passes axe, and holds at a phone width', async ({
+  test('the Close lock cue (rate limited) is words, passes axe, and holds at a phone width', async ({
     page,
   }) => {
     for (const scheme of ['light', 'dark'] as const) {
@@ -456,13 +457,171 @@ test.describe('pull request close button', () => {
     }
   });
 
-  test('a Close that succeeded or was never tried has no lock cue', async ({
+  test('the permission Close lock cue says why and passes axe, light and dark', async ({
     page,
   }) => {
+    await page.route('**/api/pull-requests/close', (route: Route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: 403 Resource not accessible by integration',
+          code: 'permission',
+          message: "This token can't close pull requests on this repository.",
+        }),
+      }),
+    );
     await mockDashboard(page, makePR());
     await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
+    const { dialog, footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
+    await closeActionsDialog(dialog);
+    const cue = row.locator('.row-lock-cue');
+    await expect(cue).toContainText('Missing permission');
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await expect(cue).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    }
+  });
+
+  test('a Close that succeeded or was never tried has no lock cue', async ({
+    page,
+  }) => {
+    const pr = makePR();
+    let closed = false;
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: closed ? [] : [pr],
+          issues: [],
+        }),
+      }),
+    );
+    await page.route('**/api/pull-requests/close', (route: Route) => {
+      closed = true;
+      return route.fulfill({ status: 204 });
+    });
+    await page.route('**/api/dashboard/refresh', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
     await expect(row.getByRole('button', { name: /^#\d+ / })).toBeVisible();
+    // Never tried.
     await expect(row.locator('.row-lock-cue')).toHaveCount(0);
+
+    // Tried and succeeded: the row is gone, and no cue is left anywhere.
+    const { dialog, footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
+    await closeActionsDialog(dialog);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(0);
+    await expect(page.locator('.row-lock-cue')).toHaveCount(0);
+  });
+
+  test('when Close is the row action itself, a lock shows on that one control, with no second cue', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({
+        mergeStatus: 'mergeable',
+        empty: true,
+        allowedActions: [{ action: 'close', primary: true }],
+      }),
+    );
+    await page.route('**/api/pull-requests/close', (route: Route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: 403 Resource not accessible by integration',
+          code: 'permission',
+          message: "This token can't close pull requests on this repository.",
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    const rowClose = row.getByRole('button', {
+      name: 'Close pull request',
+      exact: true,
+    });
+    await rowClose.click();
+    await row
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
+    await expect(rowClose).toHaveAttribute('aria-disabled', 'true');
+    await expect(rowClose).toHaveCount(1);
+    await expect(row.locator('.row-lock-cue')).toHaveCount(0);
+  });
+
+  test('a long unbroken reason wraps inside the cue at a phone width', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/close', (route: Route) =>
+      route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'close refused',
+          code: 'blocked_by_protection',
+          message: `Refused by ${'x'.repeat(200)}`,
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+    const { dialog, footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
+    await closeActionsDialog(dialog);
+    const cue = row.locator('.row-lock-cue');
+    await expect(cue).toContainText('xxxxxxxxxx');
+    const scroll = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(scroll).toBeLessThanOrEqual(0);
+    // The text wraps inside the cue instead of spilling out of it: its own
+    // box stays within the cue's and within the screen.
+    const cueBox = await cue.boundingBox();
+    const reasonBox = await cue.locator('.row-action-note-next').boundingBox();
+    expect(reasonBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((reasonBox?.x ?? 0) + (reasonBox?.width ?? 0)).toBeLessThanOrEqual(
+      (cueBox?.x ?? 0) + (cueBox?.width ?? 0) + 1,
+    );
+    expect((reasonBox?.x ?? 0) + (reasonBox?.width ?? 0)).toBeLessThanOrEqual(
+      390,
+    );
   });
 });
