@@ -152,7 +152,12 @@
     // Why this pull request is waiting or can't be merged, in one place
     // (#1375): null when nothing holds it back. The server sends it on every
     // pull request; the page only shows it.
-    status?: { code: string; message: string; next?: string } | null;
+    status?: {
+      code: string;
+      message: string;
+      next?: string;
+      action?: string;
+    } | null;
     // Review comments on the pull request, and how many review threads are
     // still open, or null where the forge can't say (#1335). Optional so a
     // server that predates them draws nothing.
@@ -1354,7 +1359,9 @@
       const primary = primaryAction(item)?.action;
       const first: HTMLElement[] = [];
       const rest: HTMLElement[] = [];
+      const inStatus = statusFixName(item);
       for (const [action, build] of named) {
+        if (action === inStatus) continue;
         const cell = build();
         if (!cell) continue;
         if (action === primary) {
@@ -1602,9 +1609,10 @@
         const cancelAutoMerge =
           settledRow || autoMergeWait ? null : cancelAutoMergeCell(pr);
         if (cancelAutoMerge) statusCell.appendChild(cancelAutoMerge);
-        const updateBranchAction = settledRow
-          ? null
-          : updateBranchActionCell(pr);
+        const updateBranchAction =
+          settledRow || statusFixName(pr) === "update_branch"
+            ? null
+            : updateBranchActionCell(pr);
         if (updateBranchAction) statusCell.appendChild(updateBranchAction);
         // Dependabot/Renovate's own Rebase asks for exactly what Update
         // branch does on every other row — bring the branch back in sync
@@ -1625,12 +1633,18 @@
           !pr.empty &&
           Boolean(findAction(pr, "renovate_rebase"));
         if (dependabotRebasePromoted) {
-          if (!dependabotRebaseHidden(pr)) {
+          if (
+            statusFixName(pr) !== "dependabot_rebase" &&
+            !dependabotRebaseHidden(pr)
+          ) {
             const rebaseButton = dependabotActionButton(pr, "rebase");
             if (rebaseButton) statusCell.appendChild(rebaseButton);
           }
         } else if (renovateRebasePromoted) {
-          const promoted = renovateRebaseActionCell(pr);
+          const promoted =
+            statusFixName(pr) === "renovate_rebase"
+              ? null
+              : renovateRebaseActionCell(pr);
           if (promoted) statusCell.appendChild(promoted);
         }
         if (mergeAction) statusCell.appendChild(mergeAction);
@@ -2244,7 +2258,35 @@
       if (status.next)
         text.appendChild(el("span", "status-area-next", status.next));
       area.appendChild(text);
+      // The action that clears the warning sits in it (#1943). The server
+      // names it; the row and the dialog's footer leave their own copy out.
+      const fix = statusFixCell(item);
+      if (fix) area.appendChild(fix);
       return area;
+    }
+
+    // The action the server says clears this pull request's status, or null.
+    // A settled pull request has nothing left to fix.
+    function statusFixName(item: PullRequestItem): ActionName | null {
+      const action = item.status?.action;
+      if (!action || isSettled(item)) return null;
+      return action as ActionName;
+    }
+
+    function statusFixCell(item: PullRequestItem): HTMLElement | null {
+      switch (statusFixName(item)) {
+        case "update_branch":
+          return updateBranchActionCell(item);
+        case "dependabot_rebase":
+          return findAction(item, "dependabot_rebase") &&
+            !dependabotRebaseHidden(item)
+            ? dependabotActionButton(item, "rebase")
+            : null;
+        case "renovate_rebase":
+          return renovateRebaseActionCell(item);
+        default:
+          return null;
+      }
     }
 
     // Always rendered for an open pull request (#705): clickable when

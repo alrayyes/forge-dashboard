@@ -1541,6 +1541,11 @@ a.ci-pill:hover {
   color: var(--ink);
   font-weight: 500;
 }
+/* The action that clears the warning, beside its words (#1943). */
+.status-area .row-action {
+  flex: none;
+  margin-left: auto;
+}
 
 /* Plain badges, not buttons like .ci-pill — there's no filter dimension
    for these, just a fact about the row, so no cursor:pointer and no
