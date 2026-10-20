@@ -203,6 +203,7 @@ func (s *GenericSource) fetchRepo(ctx context.Context, repo RepoRef) repoResult 
 	if err != nil {
 		slog.Warn("list pull requests failed", "forge", s.forge, "repo", repo.FullName, "error", err)
 	}
+	closesOnlyOnDefaultBranch(prs, repo.DefaultBranch)
 	prsFailed := err != nil
 	issues, err := s.client.ListOpenIssues(ctx, repo.Owner, repo.Name, repo.FullName)
 	if err != nil {
@@ -447,12 +448,31 @@ func (s *GenericSource) FetchRepo(ctx context.Context, owner, name, fullName str
 	if err != nil {
 		return nil, nil, fmt.Errorf("dashboard: list open pull requests: %w", err)
 	}
+	s.refsMu.Lock()
+	known := s.refs[fullName]
+	s.refsMu.Unlock()
+	closesOnlyOnDefaultBranch(prs, known.DefaultBranch)
 	issues, err := s.client.ListOpenIssues(ctx, owner, name, fullName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("dashboard: list open issues: %w", err)
 	}
 
 	return prs, issues, nil
+}
+
+// closesOnlyOnDefaultBranch empties ClosesIssues on every pull request not
+// aimed at the repo's default branch: GitHub and Forgejo both act on a closing
+// keyword only when the pull request merges there. With no default branch
+// known there is nothing to compare, so the forge's answer stands.
+func closesOnlyOnDefaultBranch(prs []PullRequest, defaultBranch string) {
+	if defaultBranch == "" {
+		return
+	}
+	for i := range prs {
+		if prs[i].BaseBranch != defaultBranch {
+			prs[i].ClosesIssues = []IssueRef{}
+		}
+	}
 }
 
 func (s *GenericSource) rememberRepos(repos []RepoRef) {

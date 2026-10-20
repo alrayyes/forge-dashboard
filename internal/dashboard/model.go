@@ -206,6 +206,10 @@ type PullRequest struct {
 	// conversation, kept apart from ReviewComments so a client that reads only
 	// that one doesn't change (#1953). 0 when there are none.
 	ConversationComments int `json:"conversationComments"`
+	// ClosesIssues lists the issues this pull request will close when it
+	// merges: GitHub's own closing references, or on Forgejo the closing
+	// keywords in the description. Always a list, empty when there are none.
+	ClosesIssues []IssueRef `json:"closesIssues"`
 	// UnresolvedThreads is how many review threads are still open, or nil when
 	// the forge reports no resolved state (Forgejo), so a client shows the
 	// count without an "open" state rather than a false zero.
