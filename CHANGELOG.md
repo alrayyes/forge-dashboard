@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.224.4](https://github.com/alrayyes/forge-dashboard/compare/v0.224.3...v0.224.4) (2026-10-20)
+
+
+### Bug Fixes
+
+* **web:** show the generic permission text when the server sent no sentence ([#1980](https://github.com/alrayyes/forge-dashboard/issues/1980)) ([41590f7](https://github.com/alrayyes/forge-dashboard/commit/41590f7ffd99b22117edd912a05001aadece309d))
+
 ## [0.224.3](https://github.com/alrayyes/forge-dashboard/compare/v0.224.2...v0.224.3) (2026-10-19)
 
 
