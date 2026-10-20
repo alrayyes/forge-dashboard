@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.231.1](https://github.com/alrayyes/forge-dashboard/compare/v0.231.0...v0.231.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **api:** recognise a release-please pull request by its branch when it has no label ([#2036](https://github.com/alrayyes/forge-dashboard/issues/2036)) ([10ba493](https://github.com/alrayyes/forge-dashboard/commit/10ba493f928dc584c1594fd58b0f02ab347898a8))
+
 ## [0.231.0](https://github.com/alrayyes/forge-dashboard/compare/v0.230.2...v0.231.0) (2026-10-20)
 
 
