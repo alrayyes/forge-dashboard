@@ -1,0 +1,66 @@
+package api
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+
+	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+)
+
+// resolveMainBranchChecksFor lists every job/check of the newest pipeline on the
+// named repository's default branch for u. It is the branch twin of
+// resolvePullRequestChecksFor and shares its response shape, so the pipeline
+// panel that renders one renders the other. Shared by handleMainBranchChecks
+// and the MCP get_main_branch_checks tool so the two can't drift.
+func resolveMainBranchChecksFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string) ([]dashboard.Check, *statusError) {
+	owner, name, ok := splitFullName(fullName)
+	if !ok {
+		return nil, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+	}
+
+	src, _, serr := lookupForgeSource(ctx, deps, u.ID, forge)
+	if serr != nil {
+		return nil, serr
+	}
+	checker, serr := capabilityFor[dashboard.DefaultBranchChecker](src, forge, "doesn't support listing default branch checks")
+	if serr != nil {
+		return nil, serr
+	}
+
+	checks, err := checker.ListDefaultBranchChecks(ctx, owner, name)
+	if err != nil {
+		slog.Warn("default branch checks fetch failed", "forge", forge, "repo", fullName, "error", err)
+
+		return nil, &statusError{clientErrorStatus(err), err.Error()}
+	}
+	if checks == nil {
+		checks = []dashboard.Check{}
+	}
+
+	return checks, nil
+}
+
+// handleMainBranchChecks serves resolveMainBranchChecksFor over HTTP. A GET that
+// fetches on demand, like GET /api/pull-requests/checks: the job list is never
+// part of the dashboard snapshot.
+func handleMainBranchChecks(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+			return
+		}
+
+		checks, serr := resolveMainBranchChecksFor(r.Context(), deps, u, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"))
+		if serr != nil {
+			serr.write(w)
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, pullRequestChecksResponse{Checks: checks})
+	}
+}

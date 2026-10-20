@@ -265,6 +265,15 @@ type PullRequestChecker interface {
 	ListChecks(ctx context.Context, owner, name string, number int) ([]Check, error)
 }
 
+// DefaultBranchChecker is implemented by a ForgeClient (or, for github.Client, a
+// Source directly) that can list the individual jobs of the newest pipeline on a
+// repository's default branch: the branch twin of PullRequestChecker, answering
+// in the same Check shape so one panel shows both. Fetched on demand by its own
+// handler, never as part of a Source's Fetch, for the same cost reason.
+type DefaultBranchChecker interface {
+	ListDefaultBranchChecks(ctx context.Context, owner, name string) ([]Check, error)
+}
+
 // WebhookTargetsPath reports whether rawURL's path component is exactly
 // path — how a Source recognizes "this hook is the one forge-dashboard
 // itself would have created," regardless of the scheme or host a webhook
