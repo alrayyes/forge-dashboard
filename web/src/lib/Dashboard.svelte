@@ -1352,9 +1352,7 @@
       const primary = primaryAction(item)?.action;
       const first: HTMLElement[] = [];
       const rest: HTMLElement[] = [];
-      const inStatus = statusFixName(item);
       for (const [action, build] of named) {
-        if (action === inStatus) continue;
         const cell = build();
         if (!cell) continue;
         if (action === primary) {
@@ -1395,7 +1393,7 @@
         for (const line of own) feedbackNode.appendChild(line);
       }
       return {
-        status: isSettled(item) ? null : statusArea(item),
+        status: isSettled(item) ? null : statusArea(item, false),
         feedback: feedbackNode,
         actions: footerActionCells(item),
       };
@@ -2216,7 +2214,11 @@
       return `${idScope}status-area-${domSafeId(prKey(item))}`;
     }
 
-    function statusArea(item: PullRequestItem): HTMLElement | null {
+    // The pop-up passes withFix false: its footer already lists every action.
+    function statusArea(
+      item: PullRequestItem,
+      withFix = true,
+    ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
       const area = el("div", "status-area");
@@ -2251,11 +2253,17 @@
       text.appendChild(el("span", "status-area-message", status.message));
       if (status.next)
         text.appendChild(el("span", "status-area-next", status.next));
+      // The action that clears the warning sits under its words (#1943). The
+      // server names it; the row leaves its own copy out. The slot keeps the
+      // button's height while the server names an action, so the block keeps
+      // its size when the button goes (queued, hidden).
+      if (withFix && item.status?.action) {
+        const slot = el("span", "status-area-fix");
+        const fix = statusFixCell(item);
+        if (fix) slot.appendChild(fix);
+        text.appendChild(slot);
+      }
       area.appendChild(text);
-      // The action that clears the warning sits in it (#1943). The server
-      // names it; the row and the dialog's footer leave their own copy out.
-      const fix = statusFixCell(item);
-      if (fix) area.appendChild(fix);
       return area;
     }
 

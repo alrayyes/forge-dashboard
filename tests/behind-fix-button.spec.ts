@@ -6,7 +6,7 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // The "Behind the base branch" warning carries its own fix button: the server
 // names the action on `status.action` and the page draws that button inside
-// the status line, with no second copy in the row or the dialog's footer.
+// the status line, with no second copy in the row. The pop-up's footer keeps its own list.
 // https://github.com/alrayyes/forge-dashboard/issues/1943
 
 test.use({ storageState: SHARED_STORAGE_STATE_PATH });
@@ -76,7 +76,7 @@ const cases = [
 ];
 
 for (const { name, overrides, button, path } of cases) {
-  test(`a behind pull request from ${name} has ${button} inside its warning, and nowhere else`, async ({
+  test(`a behind pull request from ${name} has ${button} inside its warning, once in the row`, async ({
     page,
   }) => {
     const row = await open(page, pr(overrides), path);
@@ -86,14 +86,14 @@ for (const { name, overrides, button, path } of cases) {
     await expect(status.getByRole('button', { name: button })).toBeVisible();
     await expect(row.getByRole('button', { name: button })).toHaveCount(1);
 
+    // The pop-up keeps every action in its footer, so its status block
+    // doesn't repeat the button.
     const dialog = await openActionsDialog(row);
     await expect(
-      dialog.locator('.details-status-block').getByRole('button', {
-        name: button,
-      }),
+      actionsFooter(dialog).getByRole('button', { name: button }),
     ).toBeVisible();
     await expect(
-      actionsFooter(dialog).getByRole('button', { name: button }),
+      dialog.locator('.details-status-block').getByRole('button'),
     ).toHaveCount(0);
 
     const results = await new AxeBuilder({ page })

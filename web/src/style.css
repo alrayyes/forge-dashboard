@@ -1541,10 +1541,13 @@ a.ci-pill:hover {
   color: var(--ink);
   font-weight: 500;
 }
-/* The action that clears the warning, beside its words (#1943). */
-.status-area .row-action {
-  flex: none;
-  margin-left: auto;
+/* The action that clears the warning, under its words (#1943). The slot
+   holds the button's height whether or not the button is there. */
+.status-area-fix {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  margin-top: 4px;
 }
 
 /* Plain badges, not buttons like .ci-pill — there's no filter dimension
