@@ -26,6 +26,7 @@ import (
 	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
@@ -59,6 +60,8 @@ type Client struct {
 	// request URLs.
 	instanceURL string
 	httpClient  *http.Client
+	// rawTransport is httpClient's transport before SetStats wraps it.
+	rawTransport http.RoundTripper
 
 	// recorder persists a request_log entry for every outbound request
 	// this Client makes (#482) — always non-nil (NewClient defaults it
@@ -108,7 +111,8 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 	// completely different Client's in-flight request against its own
 	// httptest server — confirmed live as a flaky
 	// "CloseIdleConnections called" failure in TestEnsureWebhook_*.
-	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{}}
+	rawTransport := &http.Transport{}
+	httpClient := &http.Client{Timeout: 30 * time.Second, Transport: rawTransport}
 	opts := []gitea.ClientOption{
 		gitea.SetHTTPClient(httpClient),
 		// Skips the server-version probe NewClient otherwise makes on
@@ -135,14 +139,15 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 	}
 
 	return &Client{
-		sdk:         sdk,
-		token:       token,
-		username:    username,
-		instanceURL: strings.TrimSuffix(instanceURL, "/"),
-		httpClient:  httpClient,
-		recorder:    rec,
-		reviews:     map[string]cachedReview{},
-		schedule:    map[string]cachedSchedule{},
+		sdk:          sdk,
+		token:        token,
+		username:     username,
+		instanceURL:  strings.TrimSuffix(instanceURL, "/"),
+		httpClient:   httpClient,
+		recorder:     rec,
+		rawTransport: rawTransport,
+		reviews:      map[string]cachedReview{},
+		schedule:     map[string]cachedSchedule{},
 	}
 }
 
@@ -164,6 +169,19 @@ func (c *Client) recordRequest(ctx context.Context, method, endpoint string, sta
 	if err := c.recorder.Record(ctx, e); err != nil {
 		slog.Warn("could not record outbound request", "forge", dashboard.ForgeForgejo, "error", err)
 	}
+}
+
+// SetStats counts every request this client makes in counters, under
+// credential, tagged with the kind and repo the request's context carries.
+// Call it right after construction, before the client makes a request. Every
+// SDK call goes through c.httpClient, so this sees them all, not only the
+// ones recordRequest logs. Nil counters count nothing.
+//
+// The SDK keeps one context for all calls (see setContext), so two calls
+// racing on one client can borrow each other's repo tag. The totals per kind
+// and credential stay right.
+func (c *Client) SetStats(counters *apistats.Counters, credential string) {
+	c.httpClient.Transport = apistats.Transport(c.rawTransport, counters, string(dashboard.ForgeForgejo), credential)
 }
 
 func (c *Client) setContext(ctx context.Context) {
