@@ -384,9 +384,13 @@
       if (outcome.kind === "locked") {
         // A permission refusal carries the server's own sentence, which
         // names what a GitHub App is missing; the shared text says "token".
+        // readActionFailure fills in a stock sentence when the server sent
+        // none (`fromServer` is false), and that one says nothing about
+        // permission, so it loses.
         rowState[key] = {
           lockReason:
-            outcome.code === "permission" && (err as Error).message
+            outcome.code === "permission" &&
+            (err as ActionRequestError).fromServer
               ? (err as Error).message
               : outcome.reason,
         };
