@@ -64,10 +64,11 @@ refresh tries again.
   - The CI poll, for pull requests with checks still running or GitHub's
     auto-merge armed.
   - The scheduled refresh itself, while something is waiting on it: a pull
-    request armed for auto-merge, or a behind pull request on a repository with
-    auto-update on that hasn't been tried yet or whose retry wait is up. Those
-    only ever happen after a refresh, so "merge when green" doesn't stall
-    overnight. A refused update (a conflict) isn't waiting on anything.
+    request armed for auto-merge, or a behind pull request with auto-update on
+    (for its repository or for that pull request) that hasn't been tried yet or
+    whose retry wait is up. Those only ever happen after a refresh, so "merge
+    when green" doesn't stall overnight. A refused update (a conflict) isn't
+    waiting on anything.
 
   What waits for the next use instead: Dependabot's acknowledgement checks and
   the check on a rebased Dependabot pull request.

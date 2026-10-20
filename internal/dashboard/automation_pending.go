@@ -14,9 +14,10 @@ import (
 //   - A pull request armed for merge. Its checks may have passed already and
 //     its mergeability can change with no webhook (the base moved, a transient
 //     "unknown", the wait after a rate limit), and only the next refresh sees it.
-//   - A behind pull request on a repo with auto-update on that the hook has no
-//     standing attempt for: not yet tried, or the wait after a failure is up. A
-//     refused one stands for an hour and is no reason to refresh.
+//   - A behind pull request with auto-update on, for its repo or by its own
+//     choice, that the hook has no standing attempt for: not yet tried, or the
+//     wait after a failure is up. A refused one stands for an hour and is no
+//     reason to refresh.
 //
 // What it leaves out rests with the schedule: Dependabot acknowledgement
 // lookups and the watch on a rebased Dependabot pull request. Both settle at
@@ -54,15 +55,17 @@ func (a *Aggregator) updatePending(ctx context.Context) bool {
 
 		return false
 	}
-	if len(enabled) == 0 {
+	overrides, err := cfg.lister.PullRequestAutoUpdates(ctx, cfg.userID)
+	if err != nil {
+		slog.Warn("auto-update-branch: could not load pull request choices", "error", err)
+		overrides = nil
+	}
+	if len(enabled) == 0 && len(overrides) == 0 {
 		return false
 	}
 
 	for _, pr := range a.Get().PullRequests {
-		if !pr.Behind || pr.Draft || isReleasePleasePR(pr) {
-			continue
-		}
-		if _, ok := enabled[string(pr.Forge)+"/"+pr.Repo]; !ok {
+		if !pr.Behind || pr.Draft || !autoUpdateWanted(pr, enabled, overrides) {
 			continue
 		}
 		if a.updateWouldBeTried(pr) {

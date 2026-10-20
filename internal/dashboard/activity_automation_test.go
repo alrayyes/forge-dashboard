@@ -170,6 +170,14 @@ func (l *switchableLister) AutoUpdateBranchRepos(context.Context, []byte) (map[s
 	return l.enabled, nil
 }
 
+func (l *switchableLister) PullRequestAutoUpdates(context.Context, []byte) (map[string]bool, error) {
+	return nil, nil
+}
+
+func (l *switchableLister) ForgetPullRequestAutoUpdates(context.Context, []byte, []string) error {
+	return nil
+}
+
 func (l *switchableLister) RenovateRebaseLabel(context.Context, []byte) (string, error) {
 	return "rebase", nil
 }
