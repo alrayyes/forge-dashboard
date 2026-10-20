@@ -56,3 +56,22 @@ test('a tab reports visible, then hidden, then visible again', async ({
     .toEqual([true, false, true]);
   expect(new Set(reports.map((r) => r.viewerId))).toEqual(new Set([viewerId]));
 });
+
+test('the nav read the page makes on its own timer is marked as a background read', async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  await registerViaInvite(
+    page,
+    request,
+    baseURL,
+    `presence-bg-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+    'Presence background',
+  );
+  const read = page.waitForRequest(
+    (req) => new URL(req.url()).pathname === '/api/dashboard',
+  );
+  await page.goto('/settings.html');
+  expect((await read).headers()['x-background-read']).toBe('true');
+});
