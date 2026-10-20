@@ -22,6 +22,10 @@ type pageCount struct {
 type branchCount struct {
 	pageCount
 	None int `json:"none"`
+	// AwaitingApproval is how many default branches have workflow runs held
+	// until someone approves them (#2024). They are neither running nor failed,
+	// so without this they were in the total and in no part of the pill.
+	AwaitingApproval int `json:"awaitingApproval"`
 }
 
 // issueCount is the Issues item's number. Issues have no failing state, so it
@@ -53,7 +57,8 @@ type navCounts struct {
 // passed when it succeeded; one whose only failure is workflow runs held for
 // approval is in none of the three. A branch is running, failed or passed with
 // its default-branch pipeline. One with no pipeline is counted in None, so a
-// branch is always in exactly one of the four (#1531). A pull request with no
+// branch is always in exactly one of the four (#1531); one whose runs are held
+// for approval is counted on its own (#2024). A pull request with no
 // checks counts in the total only.
 func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []dashboard.MainBranch) navCounts {
 	var counts navCounts
@@ -88,7 +93,7 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int, branches []d
 	counts.Branches = branchCount{
 		Total: branchCounts.Total, Running: branchCounts.Running,
 		Failed: branchCounts.Failed, Passed: branchCounts.Passed,
-		None: branchCounts.None,
+		None: branchCounts.None, AwaitingApproval: branchCounts.AwaitingApproval,
 	}
 
 	return counts
