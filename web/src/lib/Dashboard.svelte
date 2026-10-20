@@ -48,6 +48,7 @@
     primaryAction,
   } from "#lib/allowed-actions.js";
   import { avatarSrc } from "#lib/avatar.js";
+  import { profileHref } from "#lib/profile-link.js";
   import * as Stacks from "#lib/stacks.js";
   import { createTitleHover } from "#lib/title-hover.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -145,6 +146,9 @@
     url: string;
     // The forge's own avatar URL for the author; empty when it has none.
     authorAvatarUrl?: string;
+    // The author's profile page on the forge, built by the server; empty when
+    // there is none to link to.
+    authorUrl?: string;
     draft: boolean;
     ci: string;
     mergeStatus: string;
@@ -229,6 +233,8 @@
   type IssueItem = FilterableItem & {
     number: number;
     url: string;
+    // The author's profile page on the forge, built by the server.
+    authorUrl?: string;
   };
   type Forge = {
     forge: string;
@@ -1599,6 +1605,24 @@
         });
         authorCell.classList.add("has-avatar");
         authorCell.replaceChildren(img, el("span", "author-name", item.author));
+      }
+      // The avatar and the name are one link to the person's page on the
+      // forge, not two links to the same place. It sits above the row's
+      // stretched title link, so clicking it never opens the row's dialog.
+      const profile = profileHref(
+        (item as PullRequestItem | IssueItem).authorUrl,
+      );
+      if (profile) {
+        const link = el("a", "author-link") as HTMLAnchorElement;
+        link.href = profile;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.setAttribute(
+          "aria-label",
+          `${item.author} (opens their profile in a new tab)`,
+        );
+        link.append(...Array.from(authorCell.childNodes));
+        authorCell.replaceChildren(link);
       }
       meta.appendChild(authorCell);
       meta.appendChild(timeCell("created", "Created", item.createdAt));

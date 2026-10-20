@@ -42,6 +42,7 @@
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
   import { avatarSrc } from "#lib/avatar.js";
+  import { profileHref } from "#lib/profile-link.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
 
@@ -65,7 +66,7 @@
   };
   type Comment = Body & {
     id: string;
-    author: { login: string; avatarUrl: string } | null;
+    author: { login: string; avatarUrl: string; url: string } | null;
     createdAt: string;
     updatedAt: string | null;
   };
@@ -472,23 +473,44 @@
                 {@const login = c.author?.login ?? "ghost"}
                 <li class="details-comment">
                   <div class="comment-head">
-                    {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
-                      <img
-                        class="avatar"
-                        src={avatarSrc(c.author?.avatarUrl) ?? undefined}
-                        alt=""
-                        width="32"
-                        height="32"
-                        loading="lazy"
-                        referrerpolicy="no-referrer"
-                        onerror={() => (brokenAvatars[c.id] = true)}
-                      />
-                    {:else}
-                      <span class="avatar" aria-hidden="true"
-                        >{c.author ? login.charAt(0).toUpperCase() : "?"}</span
+                    {#snippet person()}
+                      {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
+                        <img
+                          class="avatar"
+                          src={avatarSrc(c.author?.avatarUrl) ?? undefined}
+                          alt=""
+                          width="32"
+                          height="32"
+                          loading="lazy"
+                          referrerpolicy="no-referrer"
+                          onerror={() => (brokenAvatars[c.id] = true)}
+                        />
+                      {:else}
+                        <span class="avatar" aria-hidden="true"
+                          >{c.author
+                            ? login.charAt(0).toUpperCase()
+                            : "?"}</span
+                        >
+                      {/if}
+                      <span class="comment-login">{login}</span>
+                    {/snippet}
+                    <!-- The avatar and the name are one link to the person's
+                      page on the forge: two links to one place would read as
+                      the same link twice. A deleted account, or a forge the
+                      board has no address for yet, stays plain text. -->
+                    {#if profileHref(c.author?.url)}
+                      <a
+                        class="comment-person"
+                        href={profileHref(c.author?.url) ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="{login} (opens their profile in a new tab)"
                       >
+                        {@render person()}
+                      </a>
+                    {:else}
+                      {@render person()}
                     {/if}
-                    <span class="comment-login">{login}</span>
                     <span class="comment-time">{relativeTime(c.createdAt)}</span
                     >
                     {#if c.edited}<span class="comment-edited">edited</span
@@ -852,6 +874,29 @@
   }
   .comment-login {
     font-weight: 600;
+  }
+  /* The avatar and the name are one link to the person's page on the forge;
+     24px tall at least (WCAG 2.5.8), 44px on a phone. */
+  .comment-person {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .comment-person:hover .comment-login {
+    text-decoration: underline;
+  }
+  .comment-person:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (max-width: 480px) {
+    .comment-person {
+      min-height: 44px;
+    }
   }
   .comment-time,
   .comment-edited {
