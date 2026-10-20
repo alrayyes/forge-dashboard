@@ -148,7 +148,7 @@ func TestTransport_ReturnsTheBaseTransportsErrorUnchangedAndStillCountsTheCall(t
 	req, err := http.NewRequestWithContext(apistats.WithKind(t.Context(), apistats.KindFull), http.MethodGet, "http://forge.invalid/user", nil)
 	require.NoError(t, err)
 
-	resp, err := apistats.Transport(failingTransport{err: boom}, c, "github", "token:ab12").RoundTrip(req)
+	resp, err := apistats.Transport(failingTransport{err: boom}, c, "github", "token:ab12").RoundTrip(req) //nolint:bodyclose // a failed round trip has no body
 
 	require.ErrorIs(t, err, boom)
 	assert.Nil(t, resp)
