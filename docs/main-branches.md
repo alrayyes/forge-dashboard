@@ -66,7 +66,9 @@ branch, so a broken main shows up without opening each repo. One row per repo:
 its default branch, the status of the pipeline on the newest commit (`failed`,
 `passed`, `running`, `cancelled`, `awaiting_approval` or `none`), the commit
 (short SHA, subject, author), the names of the failed jobs, when the pipeline
-finished and how long it ran, and a link to the run. The response also counts
+finished and how long it ran, a link to the run, and the repository's latest
+published release (`latestRelease`, its tag and the page of its notes, or
+null). The response also counts
 the rows per status. Every row is returned whatever its status, ordered by
 commit time, latest first (rows with no commit time last, then by repo name), so
 a client filters it and its counts always match what it lists. Status is a
@@ -78,12 +80,16 @@ cheaply:
 
 - **GitHub**: the default branch's newest commit and its checks ride the
   repository query the refresh already makes for pull requests and issues, so
-  they add no request. That covers a personal access token and a GitHub App.
+  they add no request. The latest release rides the same query. GitHub leaves
+  drafts and pre-releases out of it, so a repository with only drafts or
+  pre-releases has none.
+  That covers a personal access token and a GitHub App.
   A username with no token has no rows, because its hourly budget is too small
   to spend on this.
 - **Forgejo**: the refresh lists the Actions runs of each repo's default
   branch (one call per repo, plus one for the commit, plus one for the jobs of
-  a failed run). Forgejo has no rate limit by default.
+  a failed run). Forgejo has no rate limit by default. Its latest release would
+  be one more read per repo, so a Forgejo row has none for now.
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget
