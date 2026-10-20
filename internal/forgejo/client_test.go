@@ -1980,6 +1980,41 @@ func TestListOpenPullRequests_MapsTheBranchesAndForkFlag(t *testing.T) {
 	assert.True(t, prs[0].CrossRepository, "head and base are different repositories")
 }
 
+// A head in the same repository is not a fork, which is what lets a
+// release-please branch there count as a release.
+func TestListOpenPullRequests_ASameRepositoryHeadIsNotAFork(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{{
+			"number": 12, "title": "chore(main): release 1.2.3", "html_url": "https://git.example/alrayyes/a/pulls/12",
+			"user":       map[string]string{"login": "ryankes"},
+			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+			"head": map[string]any{"sha": "cafef00d", "ref": "release-please--branches--main", "repo_id": 3},
+			"base": map[string]any{"ref": "main", "repo_id": 3},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]string{"state": "success"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	assert.Equal(t, "main", prs[0].BaseBranch)
+	assert.Equal(t, "release-please--branches--main", prs[0].HeadBranch)
+	assert.False(t, prs[0].CrossRepository)
+}
+
 // A pull request carries its head commit SHA (#759), so a bot's rebase can be
 // seen as the head moving even when the pull request is still behind.
 func TestListOpenPullRequests_MapsTheHeadCommitSHA(t *testing.T) {
