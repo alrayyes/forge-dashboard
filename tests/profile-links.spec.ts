@@ -56,7 +56,7 @@ const ISSUES = [
   },
 ];
 
-async function mock(page: Page) {
+async function mock(page: Page, issues: object[] = ISSUES) {
   await page.route('https://avatars.example.com/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PIXEL }),
   );
@@ -69,13 +69,45 @@ async function mock(page: Page) {
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
         pullRequests: PRS,
-        issues: ISSUES,
-        openIssueCount: ISSUES.length,
+        issues,
+        openIssueCount: issues.length,
         repos: [],
         hiddenDrafts: 0,
       }),
     }),
   );
+}
+
+// The issue's dialog, opened from its row, with a body and no comments.
+async function openIssueDialog(page: Page, issues: object[] = ISSUES) {
+  await mock(page, issues);
+  await page.route('**/api/issues/details*', (route: Route) => {
+    const none = { count: 0, logins: [] };
+    const reactions = { thumbsUp: none, thumbsDown: none };
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        description: {
+          text: 'Body.',
+          format: 'markdown',
+          truncated: false,
+          edited: false,
+          reactions,
+        },
+        comments: [],
+        commentCount: 0,
+        commentsTruncated: false,
+      }),
+    });
+  });
+  await page.goto('/issues.html');
+  await page
+    .locator('#issue-rows .row')
+    .getByRole('button', { name: /^#9 / })
+    .click();
+  await expect(page.getByRole('dialog')).toBeVisible();
 }
 
 async function openPulls(page: Page) {
@@ -205,33 +237,7 @@ test.describe('Profile links (#1991)', () => {
   test("the issue dialog's Filed by is one link on the avatar and the name", async ({
     page,
   }) => {
-    await mock(page);
-    await page.route('**/api/issues/details*', (route: Route) => {
-      const none = { count: 0, logins: [] };
-      const reactions = { thumbsUp: none, thumbsDown: none };
-
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          description: {
-            text: 'Body.',
-            format: 'markdown',
-            truncated: false,
-            edited: false,
-            reactions,
-          },
-          comments: [],
-          commentCount: 0,
-          commentsTruncated: false,
-        }),
-      });
-    });
-    await page.goto('/issues.html');
-    await page
-      .locator('#issue-rows .row', { hasText: 'An issue' })
-      .getByRole('button', { name: /^#9 / })
-      .click();
+    await openIssueDialog(page);
     const filedBy = page.getByRole('dialog').locator('.details-author');
     const link = filedBy.getByRole('link', { name: 'claude', exact: true });
     await expect(link).toHaveAttribute('href', 'https://github.com/claude');
@@ -240,6 +246,61 @@ test.describe('Profile links (#1991)', () => {
     await expect(link.locator('img')).toHaveCount(1);
     await expect(filedBy.getByRole('link')).toHaveCount(1);
   });
+
+  test("the issue dialog's Filed by link is at least 24px tall", async ({
+    page,
+  }) => {
+    await openIssueDialog(page);
+    const box = await page
+      .getByRole('dialog')
+      .locator('.details-author')
+      .getByRole('link')
+      .boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(24);
+  });
+
+  test('a deleted account in Filed by is plain text, not a link', async ({
+    page,
+  }) => {
+    await openIssueDialog(page, [
+      { ...ISSUES[0], author: 'ghost', authorAvatarUrl: '', authorUrl: '' },
+    ]);
+    const filedBy = page.getByRole('dialog').locator('.details-author');
+    await expect(filedBy).toContainText('ghost');
+    await expect(filedBy.getByRole('link')).toHaveCount(0);
+  });
+
+  test('an address that is not a web address is never a link in Filed by', async ({
+    page,
+  }) => {
+    await openIssueDialog(page, [
+      { ...ISSUES[0], authorUrl: 'javascript:alert(1)' },
+    ]);
+    const filedBy = page.getByRole('dialog').locator('.details-author');
+    await expect(filedBy).toContainText('claude');
+    await expect(filedBy.getByRole('link')).toHaveCount(0);
+  });
+
+  // The existing issue dialog scans run on data with no profile address, so
+  // they never see the link; these do.
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of [1280, 390]) {
+      test(`the issue dialog with a Filed by link has no accessibility violations in ${theme} mode at ${width}px`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize({ width, height: 800 });
+        await openIssueDialog(page);
+        await expect(
+          page.getByRole('dialog').locator('.details-author').getByRole('link'),
+        ).toBeVisible();
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
 });
 
 async function openDialog(page: Page) {
