@@ -183,6 +183,22 @@ doesn't carry one (the initial "ping", most concretely) falls back to a
 full refresh instead, so every event type still results in _something_
 refreshing either way.
 
+A single push sends several deliveries within a moment: the push itself, the
+pull request update, and a check suite for each CI system. Refreshing the repo
+once per delivery would fetch the same data several times over, so the
+dashboard waits for the repo's deliveries to go quiet and refreshes once. The
+refresh runs 2 seconds after the latest delivery. A repo that never goes quiet,
+a busy CI for example, is still refreshed 5 seconds after its first delivery,
+so the longest a delivery waits is 5 seconds and a lone one waits 2. Two repos
+are held back independently of each other. Only deliveries wait: the periodic
+refresh, the CI-status poll, the refresh button and anything you do on a pull
+request run at once. A delivery that arrives while a refresh of the same repo
+is running is not lost; it causes exactly one more refresh when the running one
+finishes. A delivery with no repository (the "ping") falls back to a full
+refresh straight away. If the dashboard shuts down during the wait, or your account's
+connection is replaced (you save new credentials) or removed, the pending
+refresh is dropped, and the next scheduled refresh picks the change up.
+
 A `pull_request` delivery whose action is `closed` also takes that pull
 request off the board before the refresh runs, merged or not. GitHub can go
 on listing a pull request it just merged as open for a few seconds, and a
@@ -243,7 +259,8 @@ can't administer is tried once and left until the next restart.
   every delivery is logged, each line naming the forge, the event type,
   and the delivery ID — `webhook accepted`, `webhook signature invalid`,
   or `webhook token unknown`, followed by `webhook refresh dispatched`
-  once the triggered refresh actually runs. No `LOG_LEVEL` change is
+  once the triggered refresh is queued, which is up to 5 seconds before it
+  runs (see above). No `LOG_LEVEL` change is
   needed to see them; each logs at its natural level (`INFO` for a
   normal delivery, `WARN` for a rejected one) regardless of what
   `LOG_LEVEL` is set to. A refresh that fails logs `scoped refresh failed`
