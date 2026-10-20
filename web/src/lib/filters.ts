@@ -163,6 +163,8 @@ export interface RepoRef {
   forge: string;
   fullName: string;
   url: string;
+  // The repository's own logo, absent when it has none.
+  logoUrl?: string;
   hasWebhook: boolean;
 }
 

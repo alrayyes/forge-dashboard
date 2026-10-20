@@ -1855,7 +1855,9 @@ paths:
         number. An avatar is the forge's own URL, passed through unchanged
         and never proxied; this app sets no Content-Security-Policy today, so
         the browser loads it directly. A future policy's `img-src` has to
-        allow avatars.githubusercontent.com and the Forgejo host.
+        allow avatars.githubusercontent.com, repository-images.githubusercontent.com
+        (a GitHub repository's logo, see `logoUrl` on a repo in GET
+        /api/dashboard) and the Forgejo host.
 
         The error answers are those of GET /api/pull-requests/checks, with
         the same codes. A forge that can't be read is an error, never an
@@ -5554,6 +5556,22 @@ components:
           format: uri
           description: The repo's own page on its forge, for linking out.
           examples: ["https://github.com/alrayyes/forge-dashboard"]
+        logoUrl:
+          type: string
+          format: uri
+          description: |
+            The repository's own logo, only when it has one: a GitHub
+            repository's custom social preview image, or a Forgejo
+            repository's own avatar. Absent otherwise, and never the
+            generated social card GitHub shows for a repository with none,
+            nor the owner's avatar. Always an https URL, passed through
+            unchanged and never proxied: on GitHub exactly
+            repository-images.githubusercontent.com, on Forgejo the
+            instance's own host. A GitHub custom image is a wide banner,
+            not a square logo.
+            Absent for a repository reached through an unauthenticated,
+            username-only listing, since that listing carries no image.
+          examples: ["https://repository-images.githubusercontent.com/123/abc"]
         ignored:
           type: boolean
           description: |

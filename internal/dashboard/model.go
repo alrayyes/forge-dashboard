@@ -502,6 +502,12 @@ type Repo struct {
 	// forge's own API response, since the instance URL isn't otherwise
 	// tracked per repo.
 	URL string `json:"url"`
+	// LogoURL is the repository's own logo, only when it has one: a GitHub
+	// repository's custom social preview image, or a Forgejo repository's
+	// own avatar. Empty otherwise, never the generated card GitHub shows
+	// for a repository with none and never the owner's avatar. Always an
+	// https URL, passed through unchanged.
+	LogoURL string `json:"logoUrl,omitempty"`
 	// HasWebhook is a live signal from the Source itself — the forge's
 	// own webhook list, matched against this app's expected URL — not
 	// the settings.Store delivery table. False here doesn't mean "no
