@@ -1680,7 +1680,12 @@ type graphqlRepo struct {
 	IsArchived       bool   `json:"isArchived"`
 	IsFork           bool   `json:"isFork"`
 	ViewerPermission string `json:"viewerPermission"`
-	Owner            struct {
+	// UsesCustomOpenGraphImage and OpenGraphImageURL are the repository's
+	// social preview: the URL is always present, a generated card when no
+	// image was uploaded, so only the flag says it is the maintainer's own.
+	UsesCustomOpenGraphImage bool   `json:"usesCustomOpenGraphImage"`
+	OpenGraphImageURL        string `json:"openGraphImageUrl"`
+	Owner                    struct {
 		Login string `json:"login"`
 	} `json:"owner"`
 	PullRequests struct {
@@ -1768,6 +1773,8 @@ query($cursor: String, $since: DateTime) {
         isArchived
         isFork
         viewerPermission
+        usesCustomOpenGraphImage
+        openGraphImageUrl
         owner {
           login
         }
@@ -1893,6 +1900,8 @@ var reposQuery = fmt.Sprintf(reposQueryTemplate, itemsPerRepo, defaultBranchSele
 // each repo in the first place, and there's no viewerPermission to ask
 // an installation token's "viewer" for (#625).
 const appRepoFieldsTemplate = `
+    usesCustomOpenGraphImage
+    openGraphImageUrl
     pullRequests(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes {
         number
@@ -2350,6 +2359,7 @@ func repoFrom(fullName string, r graphqlRepo, probe hookProbe, appAuthenticated 
 		Forge:      dashboard.ForgeGitHub,
 		FullName:   fullName,
 		URL:        r.URL,
+		LogoURL:    repoLogoURL(r),
 		HasWebhook: probe.has,
 	}
 	if appAuthenticated {
@@ -2360,6 +2370,30 @@ func repoFrom(fullName string, r graphqlRepo, probe hookProbe, appAuthenticated 
 	}
 
 	return repo
+}
+
+// logoHost is the one host GitHub serves a custom social preview from (seen
+// on cli/cli, vercel/next.js and sveltejs/svelte). Other githubusercontent.com
+// hosts carry avatars, raw files and user images, none of them a repository
+// logo, and the generated card is on opengraph.githubassets.com: neither is
+// accepted.
+const logoHost = "repository-images.githubusercontent.com"
+
+// repoLogoURL is the repository's own logo, "" unless the maintainer
+// uploaded one. GitHub always answers openGraphImageUrl, a generated card
+// naming the repo when nothing was uploaded, so only usesCustomOpenGraphImage
+// says the image is a deliberate logo. The URL must also be https on
+// exactly that image host: an image from anywhere else is not shown.
+func repoLogoURL(r graphqlRepo) string {
+	if !r.UsesCustomOpenGraphImage {
+		return ""
+	}
+	u, err := url.Parse(r.OpenGraphImageURL)
+	if err != nil || u.Scheme != "https" || u.Hostname() != logoHost {
+		return ""
+	}
+
+	return r.OpenGraphImageURL
 }
 
 // hookProbe is what one poll learned from a repo's hooks listing. refused is

@@ -600,10 +600,14 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 	}
 
 	return dashboard.RepoRef{
-		FullName:          r.FullName,
-		Owner:             owner,
-		Name:              r.Name,
-		URL:               r.HTMLURL,
+		FullName: r.FullName,
+		Owner:    owner,
+		Name:     r.Name,
+		URL:      r.HTMLURL,
+		// avatar_url is empty for a repository that never set one, so empty
+		// means no logo. The owner's avatar is a different field and is not
+		// a fallback.
+		LogoURL:           repoLogoURL(r.AvatarURL),
 		CanManageWebhooks: r.Permissions != nil && r.Permissions.Admin,
 		// Forgejo and Gitea set the permissions object on every repo they
 		// convert, anonymous callers included (all flags false), so a missing
@@ -611,6 +615,18 @@ func repoRef(r *gitea.Repository) dashboard.RepoRef {
 		WebhookLockedByConnection: r.Permissions == nil,
 		DefaultBranch:             r.DefaultBranch,
 	}
+}
+
+// repoLogoURL is the repository's own avatar as its logo: the forge's URL
+// passed through unchanged, and only when it is an absolute https one. The
+// page loads nothing else, so a relative, http or script URL is no logo.
+func repoLogoURL(avatarURL string) string {
+	u, err := url.Parse(avatarURL)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		return ""
+	}
+
+	return avatarURL
 }
 
 func hasPushAccess(r *gitea.Repository) bool {

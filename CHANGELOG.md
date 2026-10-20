@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.233.0](https://github.com/alrayyes/forge-dashboard/compare/v0.232.0...v0.233.0) (2026-10-20)
+
+
+### Features
+
+* **api:** say how many checks passed, run, wait and failed on each pull request ([#2047](https://github.com/alrayyes/forge-dashboard/issues/2047)) ([34c3c62](https://github.com/alrayyes/forge-dashboard/commit/34c3c62ece510113721bd4eb78503b3a5b0a1c7d))
+
 ## [0.232.0](https://github.com/alrayyes/forge-dashboard/compare/v0.231.2...v0.232.0) (2026-10-20)
 
 
