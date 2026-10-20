@@ -101,3 +101,69 @@ func TestAggregator_Refresh_OverridesUnreadable_FallsBackToTheRepoSetting(t *tes
 
 	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
 }
+
+// The cleanup runs in the pass, where the aggregator first sees a pull request
+// gone, so a close and reopen between two dashboard loads can't keep a choice.
+
+func reachableGitHub(prs ...dashboard.PullRequest) fakeSource {
+	return fakeSource{result: dashboard.Result{
+		Health:       dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: prs,
+	}}
+}
+
+func TestAggregator_Refresh_ForgetsTheChoiceOfAPullRequestThatIsGone(t *testing.T) {
+	t.Parallel()
+	src := &fakeBranchUpdaterSource{fakeSource: reachableGitHub(dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2})}
+	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true, "github/alrayyes/a#2": true}}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"github/alrayyes/a#1"}, lister.forgotten)
+}
+
+func TestAggregator_Refresh_ForgetsTheChoiceOfARepoNoLongerTracked(t *testing.T) {
+	t.Parallel()
+	src := &fakeBranchUpdaterSource{fakeSource: reachableGitHub(dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2})}
+	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/old-name#9": true}}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"github/alrayyes/old-name#9"}, lister.forgotten)
+}
+
+func TestAggregator_Refresh_ForgeUnreachable_KeepsEveryChoice(t *testing.T) {
+	t.Parallel()
+	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false},
+	}}}
+	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, lister.forgotten, "an outage returns no pull requests, and that isn't a close")
+}
+
+func TestAggregator_Refresh_ForgetsAChoiceThatNowEqualsItsRepo(t *testing.T) {
+	t.Parallel()
+	src := &fakeBranchUpdaterSource{fakeSource: reachableGitHub(
+		dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1},
+		dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2},
+	)}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled:   map[string]struct{}{"github/alrayyes/a": {}},
+		overrides: map[string]bool{"github/alrayyes/a#1": true, "github/alrayyes/a#2": false},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, []string{"github/alrayyes/a#1"}, lister.forgotten, "only the one equal to the repo's new setting")
+}

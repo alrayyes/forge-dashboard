@@ -127,6 +127,30 @@ func TestPullRequestAutoUpdate_NotAPullRequestNumber_Is400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
+func TestPullRequestAutoUpdate_ThatTheDashboardDoesNotHold_Is404(t *testing.T) {
+	t.Parallel()
+	srvURL, cookie := updateBranchServer(t, true)
+
+	resp := setAutoUpdate(t, srvURL, cookie, 99, false)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestPullRequestAutoUpdate_RepoSwitchedToMatchTheChoice_PinsNothingAnyMore(t *testing.T) {
+	t.Parallel()
+	srvURL, cookie := updateBranchServer(t, false)
+	first := setAutoUpdate(t, srvURL, cookie, 1, true)
+	_ = first.Body.Close()
+
+	enable := postHide(t, srvURL, cookie, "/api/repos/auto-update-branch/enable", map[string]any{"forge": "github", "fullName": "alrayyes/a"})
+	_ = enable.Body.Close()
+
+	got := autoUpdateStates(t, srvURL, cookie)
+	assert.Equal(t, true, got[1]["enabled"])
+	assert.Equal(t, "repo", got[1]["source"], "the choice equals the repo's setting now, so the pull request follows the repo")
+}
+
 func TestPullRequestAutoUpdate_WithoutASession_Is401(t *testing.T) {
 	t.Parallel()
 	srvURL, _ := updateBranchServer(t, true)

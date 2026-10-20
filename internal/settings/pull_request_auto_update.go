@@ -88,10 +88,15 @@ func (s *Store) PullRequestAutoUpdates(ctx context.Context, userID []byte) (map[
 	return choices, nil
 }
 
-// ForgetPullRequestAutoUpdates deletes the choices of pull requests that are no
-// longer open, so the table can't grow without end.
-func (s *Store) ForgetPullRequestAutoUpdates(ctx context.Context, userID []byte, gone []PullRequestRef) error {
-	for _, ref := range gone {
+// ForgetPullRequestAutoUpdates deletes the choices named by their AutoMergeKey,
+// those of pull requests that are gone or that now equal their repo's setting,
+// so the table can't grow without end. A string that isn't a key is skipped.
+func (s *Store) ForgetPullRequestAutoUpdates(ctx context.Context, userID []byte, keys []string) error {
+	for _, key := range keys {
+		ref, ok := ParseAutoMergeKey(key)
+		if !ok {
+			continue
+		}
 		if err := s.ClearPullRequestAutoUpdate(ctx, userID, ref.Forge, ref.Repo, ref.Number); err != nil {
 			return fmt.Errorf("settings: forget pull request auto-update: %w", err)
 		}

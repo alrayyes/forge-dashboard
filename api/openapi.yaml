@@ -1463,7 +1463,9 @@ paths:
         Idempotent. A draft and a release-please pull request are never
         updated automatically, whatever is chosen: `autoUpdate.unavailable`
         in GET /api/dashboard says so. The server forgets the choice once
-        the pull request is no longer open.
+        the pull request is no longer open, its repo is no longer tracked, or
+        the repo's setting changes to match it. A pull request the dashboard
+        doesn't hold is a 404.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -1485,6 +1487,12 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The dashboard doesn't hold that pull request.
           content:
             application/json:
               schema:

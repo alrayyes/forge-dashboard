@@ -304,7 +304,6 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []b
 	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
 	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
 	board.forgetClosedHides(ctx, deps.SettingsStore, userID, snap)
-	board.forgetClosedAutoUpdates(ctx, deps.SettingsStore, userID, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore, viewerID)
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, filter)
@@ -528,35 +527,6 @@ func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.S
 	}
 	for _, h := range gone {
 		delete(b.hidden, settings.AutoMergeKey(h.Forge, h.Repo, h.Number))
-	}
-}
-
-// forgetClosedAutoUpdates is forgetClosedHides for the pull requests' own
-// automatic-update choices: it deletes the choice of a pull request that is no
-// longer open, so the table can't grow without end, and drops it from b.
-func (b *boardSettings) forgetClosedAutoUpdates(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot) {
-	if len(b.autoUpdateChoices) == 0 {
-		return
-	}
-	index := indexSnapshot(snap)
-
-	var gone []settings.PullRequestRef
-	for key := range b.autoUpdateChoices {
-		ref, ok := settings.ParseAutoMergeKey(key)
-		if ok && index.closed(ref.Forge, ref.Repo, ref.Number) {
-			gone = append(gone, ref)
-		}
-	}
-	if len(gone) == 0 {
-		return
-	}
-	if err := store.ForgetPullRequestAutoUpdates(ctx, userID, gone); err != nil {
-		slog.Warn("could not forget pull request auto-update choices that closed", "error", err)
-
-		return
-	}
-	for _, ref := range gone {
-		delete(b.autoUpdateChoices, settings.AutoMergeKey(ref.Forge, ref.Repo, ref.Number))
 	}
 }
 

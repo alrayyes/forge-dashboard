@@ -1,6 +1,8 @@
 package settings_test
 
 import (
+	"database/sql"
+	"path/filepath"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -78,11 +80,34 @@ func TestStore_ForgetPullRequestAutoUpdates_DropsOnlyTheNamedOnes(t *testing.T) 
 	require.NoError(t, store.SetPullRequestAutoUpdate(t.Context(), userID, "github", "alrayyes/a", 7, false))
 	require.NoError(t, store.SetPullRequestAutoUpdate(t.Context(), userID, "github", "alrayyes/a", 8, true))
 
-	require.NoError(t, store.ForgetPullRequestAutoUpdates(t.Context(), userID, []settings.PullRequestRef{{Forge: "github", Repo: "alrayyes/a", Number: 7}}))
+	require.NoError(t, store.ForgetPullRequestAutoUpdates(t.Context(), userID, []string{settings.AutoMergeKey("github", "alrayyes/a", 7), "not a key"}))
 
 	got, err := store.PullRequestAutoUpdates(t.Context(), userID)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]bool{settings.AutoMergeKey("github", "alrayyes/a", 8): true}, got)
+}
+
+func TestStore_Init_OnADatabaseThatPredatesTheTable_KeepsItsRowsAndAddsTheTable(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "settings.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	cipher, err := settings.NewCipher(randomKey(t))
+	require.NoError(t, err)
+	userID := []byte("user-1")
+	old := settings.NewStore(db, cipher)
+	require.NoError(t, old.Init(t.Context()))
+	require.NoError(t, old.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/a"))
+	_, err = db.ExecContext(t.Context(), `DROP TABLE pull_request_auto_update`)
+	require.NoError(t, err)
+
+	upgraded := settings.NewStore(db, cipher)
+	require.NoError(t, upgraded.Init(t.Context()))
+
+	repos, err := upgraded.AutoUpdateBranchRepos(t.Context(), userID)
+	require.NoError(t, err)
+	assert.Contains(t, repos, settings.WebhookDeliveryKey("github", "alrayyes/a"), "the existing rows survive")
+	require.NoError(t, upgraded.SetPullRequestAutoUpdate(t.Context(), userID, "github", "alrayyes/a", 7, false), "the new table exists")
 }
 
 func TestParseAutoMergeKey_ReadsBackWhatAutoMergeKeyBuilt(t *testing.T) {

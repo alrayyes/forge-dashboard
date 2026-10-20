@@ -1,6 +1,10 @@
 package dashboard
 
-import "strconv"
+import (
+	"slices"
+	"strconv"
+	"strings"
+)
 
 // AutoUpdateSource says where a pull request's automatic-update choice comes
 // from. Matches components.schemas.AutoUpdate.source.
@@ -49,7 +53,10 @@ type AutoUpdate struct {
 // every release). The pass uses it too, so what a client shows is what runs.
 func PullRequestAutoUpdate(pr PullRequest, repoEnabled bool, own *bool) AutoUpdate {
 	state := AutoUpdate{Enabled: repoEnabled, Source: AutoUpdateFromRepo}
-	if own != nil {
+	// A choice equal to the repo's setting pins nothing: the repo may have been
+	// switched to match after the choice was made, and the pull request must
+	// follow it again.
+	if own != nil && *own != repoEnabled {
 		state.Enabled = *own
 		state.Source = AutoUpdateFromPullRequest
 	}
@@ -64,6 +71,59 @@ func PullRequestAutoUpdate(pr PullRequest, repoEnabled bool, own *bool) AutoUpda
 	}
 
 	return state
+}
+
+// staleAutoUpdateChoices are the keys of choices the pass can forget: those of a
+// pull request that is gone, and those that now equal their repo's setting.
+// Nothing is gone while its forge is unreachable, since an outage returns no
+// pull requests and that isn't a close. A repo that is no longer tracked has no
+// pull requests in the snapshot either, so its choices go with them.
+func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, overrides map[string]bool) []string {
+	open := make(map[string]struct{}, len(snap.PullRequests))
+	for _, pr := range snap.PullRequests {
+		open[autoUpdateKey(pr.Forge, pr.Repo, pr.Number)] = struct{}{}
+	}
+	reachable := make(map[Forge]bool, len(snap.Forges))
+	for _, f := range snap.Forges {
+		reachable[f.Forge] = f.Reachable
+	}
+
+	var stale []string
+	for key, own := range overrides {
+		forge, repo, ok := splitAutoUpdateKey(key)
+		if !ok {
+			continue
+		}
+		_, repoEnabled := enabledRepos[string(forge)+"/"+repo]
+		_, isOpen := open[key]
+		switch {
+		case !isOpen && reachable[forge]:
+			stale = append(stale, key)
+		case isOpen && own == repoEnabled:
+			stale = append(stale, key)
+		}
+	}
+	slices.Sort(stale)
+
+	return stale
+}
+
+// autoUpdateKey is how a pull request is named in the choices the lister
+// returns: forge/owner/repo#number, settings.AutoMergeKey's form.
+func autoUpdateKey(forge Forge, repo string, number int) string {
+	return string(forge) + "/" + repo + "#" + strconv.Itoa(number)
+}
+
+// splitAutoUpdateKey is autoUpdateKey the other way round, as far as the
+// pass needs: the forge and the "owner/repo".
+func splitAutoUpdateKey(key string) (Forge, string, bool) {
+	forge, rest, ok := strings.Cut(key, "/")
+	if !ok {
+		return "", "", false
+	}
+	repo, _, ok := strings.CutLast(rest, "#")
+
+	return Forge(forge), repo, ok
 }
 
 // autoUpdateWanted is whether the background pass should bring pr up to date:

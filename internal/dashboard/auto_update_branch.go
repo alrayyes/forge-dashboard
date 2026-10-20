@@ -22,6 +22,8 @@ type AutoUpdateBranchLister interface {
 	// true to update that pull request whatever its repo says, false to leave
 	// it alone. A pull request without an entry follows its repo.
 	PullRequestAutoUpdates(ctx context.Context, userID []byte) (map[string]bool, error)
+	// ForgetPullRequestAutoUpdates deletes the choices named by their keys.
+	ForgetPullRequestAutoUpdates(ctx context.Context, userID []byte, keys []string) error
 	// RenovateRebaseLabel reports userID's own configured Renovate rebase
 	// label (Credentials.RenovateRebaseLabelOrDefault) — what a behind
 	// Renovate pull request gets labeled with instead of the generic
@@ -141,6 +143,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		slog.Warn("auto-update-branch: could not load pull request choices", "error", err)
 		overrides = nil
 	}
+	a.forgetStaleAutoUpdateChoices(ctx, snap, enabled, overrides)
 	if len(enabled) == 0 && len(overrides) == 0 {
 		return
 	}
@@ -165,14 +168,26 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		if !pr.Behind || pr.Draft {
 			continue
 		}
+		// autoUpdateWanted also skips a release-please pull request.
 		if !autoUpdateWanted(pr, enabled, overrides) {
-			continue
-		}
-		if isReleasePleasePR(pr) {
 			continue
 		}
 
 		a.updateBehindPR(ctx, pr, renovateLabel, renovateAuthors)
+	}
+}
+
+// forgetStaleAutoUpdateChoices deletes the choices staleAutoUpdateChoices names,
+// here because this is where the aggregator first sees a pull request gone: a
+// close and reopen between two dashboard loads still drops the choice. A
+// failure is logged and leaves the rows for the next pass.
+func (a *Aggregator) forgetStaleAutoUpdateChoices(ctx context.Context, snap Snapshot, enabled map[string]struct{}, overrides map[string]bool) {
+	stale := staleAutoUpdateChoices(snap, enabled, overrides)
+	if len(stale) == 0 {
+		return
+	}
+	if err := a.autoUpdate.lister.ForgetPullRequestAutoUpdates(ctx, a.autoUpdate.userID, stale); err != nil {
+		slog.Warn("auto-update-branch: could not forget stale pull request choices", "error", err)
 	}
 }
 

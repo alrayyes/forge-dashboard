@@ -49,6 +49,13 @@ type fakeAutoUpdateBranchLister struct {
 	authors       []string
 	err           error
 	labelErr      error
+	forgotten     []string // keys the pass asked to forget
+}
+
+func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(_ context.Context, _ []byte, keys []string) error {
+	f.forgotten = append(f.forgotten, keys...)
+
+	return nil
 }
 
 func (f *fakeAutoUpdateBranchLister) PullRequestAutoUpdates(_ context.Context, _ []byte) (map[string]bool, error) {

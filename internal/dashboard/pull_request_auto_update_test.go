@@ -33,6 +33,17 @@ func TestPullRequestAutoUpdate_ItsOwnChoiceWinsBothWays(t *testing.T) {
 	assert.Equal(t, dashboard.AutoUpdate{Enabled: true, Source: dashboard.AutoUpdateFromPullRequest}, optedIn)
 }
 
+func TestPullRequestAutoUpdate_ChoiceThatNowEqualsTheRepo_ReadsAsTheRepo(t *testing.T) {
+	t.Parallel()
+	pr := dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}
+
+	optedInThenRepoSwitchedOn := dashboard.PullRequestAutoUpdate(pr, true, new(true))
+	optedOutThenRepoSwitchedOff := dashboard.PullRequestAutoUpdate(pr, false, new(false))
+
+	assert.Equal(t, dashboard.AutoUpdate{Enabled: true, Source: dashboard.AutoUpdateFromRepo}, optedInThenRepoSwitchedOn)
+	assert.Equal(t, dashboard.AutoUpdate{Enabled: false, Source: dashboard.AutoUpdateFromRepo}, optedOutThenRepoSwitchedOff)
+}
+
 func TestPullRequestAutoUpdate_ADraftIsNeverUpdated_AndSaysWhy(t *testing.T) {
 	t.Parallel()
 	pr := dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Draft: true}

@@ -24,7 +24,13 @@ type pullRequestAutoUpdateRequest struct {
 // handlePullRequestAutoUpdate implements POST /api/pull-requests/auto-update: a
 // pure local write to settings.Store, like hiding a pull request. A choice that
 // equals the repo's own setting is not kept, so the pull request follows the
-// repo again and a later change to the repo's setting reaches it.
+// repo again and a later change to the repo's setting reaches it. A pull
+// request the dashboard doesn't hold is a 404.
+//
+// The read of the repo's setting and the write of the choice are not one
+// transaction. A repo switched in between leaves a choice equal to it, which
+// every reader treats as following the repo, and the next background pass
+// deletes it.
 func handlePullRequestAutoUpdate(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
@@ -40,6 +46,12 @@ func handlePullRequestAutoUpdate(deps Deps) http.HandlerFunc {
 			return
 		}
 		if !validPullRequestTarget(w, req.Forge, req.FullName, req.Number) {
+			return
+		}
+
+		if _, found := deps.Manager.FindPullRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number); !found {
+			writeJSON(w, http.StatusNotFound, errorBody("pull request not found"))
+
 			return
 		}
 
