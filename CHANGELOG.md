@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.242.0](https://github.com/alrayyes/forge-dashboard/compare/v0.241.0...v0.242.0) (2026-10-20)
+
+
+### Features
+
+* **api:** carry the check counts on each default branch ([#2079](https://github.com/alrayyes/forge-dashboard/issues/2079)) ([795725d](https://github.com/alrayyes/forge-dashboard/commit/795725d48956109005a3a794b87502ccd29b9d0c))
+
 ## [0.241.0](https://github.com/alrayyes/forge-dashboard/compare/v0.240.0...v0.241.0) (2026-10-20)
 
 
