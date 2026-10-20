@@ -43,6 +43,7 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 	}
 
 	row.Status = mainBranchStatus(runs)
+	row.Checks = runCounts(runs)
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
 	case row.Status == dashboard.MainBranchFailed:
@@ -184,6 +185,29 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 	default:
 		return dashboard.MainBranchPassed
 	}
+}
+
+// runCounts tallies the runs of the commit into passed, running, waiting and
+// failed. They are already listed for the status, so it costs no request; the
+// jobs inside them would cost one per run. A cancelled run is in none of the
+// four, as for a pull request: nothing broke, and mainBranchStatus reads it
+// the same way.
+func runCounts(runs []*branchRun) dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	for _, r := range runs {
+		switch checkStateFromWorkflowStatus(r.Status) {
+		case dashboard.CheckSuccess, dashboard.CheckSkipped:
+			out.Passed++
+		case dashboard.CheckRunning:
+			out.Running++
+		case dashboard.CheckQueued:
+			out.Waiting++
+		case dashboard.CheckFailure:
+			out.Failed++
+		}
+	}
+
+	return out
 }
 
 // failedRuns is the runs that broke the commit: the ones that failed, or, when

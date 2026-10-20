@@ -52,3 +52,40 @@ func TestContract_PullRequestsCarryCheckCounts(t *testing.T) {
 		}
 	})
 }
+
+// Every default branch says the same four counts a pull request does, always
+// present, so the Branches page draws its pills without a second request.
+func TestContract_MainBranchesCarryCheckCounts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the spec requires checks, of the same schema as a pull request", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+		require.NoError(t, err)
+		branch := doc.Components.Schemas["MainBranch"].Value
+		require.Contains(t, branch.Required, "checks")
+		assert.Equal(t, "#/components/schemas/CheckCounts", branch.Properties["checks"].Ref)
+	})
+	t.Run("every branch in the response has the four counts", func(t *testing.T) {
+		t.Parallel()
+
+		srv, cookie := populatedBoard(t)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+		require.Equal(t, http.StatusOK, got.status, string(got.body))
+		validateAgainstSpec(t, req, got)
+
+		var body struct {
+			Branches []map[string]any `json:"branches"`
+		}
+		require.NoError(t, json.Unmarshal(got.body, &body))
+		require.NotEmpty(t, body.Branches)
+		for _, b := range body.Branches {
+			checks, ok := b["checks"].(map[string]any)
+			require.True(t, ok, "branch %v has no checks object", b["fullName"])
+			for _, name := range []string{"passed", "running", "waiting", "failed"} {
+				assert.IsType(t, float64(0), checks[name], "branch %v, %s", b["fullName"], name)
+			}
+		}
+	})
+}

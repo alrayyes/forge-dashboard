@@ -4036,29 +4036,37 @@ components:
       type: object
       required: [passed, running, waiting, failed]
       description: |
-        How many of a pull request's checks are in each state, so a client can
-        say how far a pipeline is without opening it. The server tallies
-        them from what it already reads to work out `ci`, so they cost no
-        request. Always present, all zero when there are no checks.
+        How many checks are in each state, so a client can say how far a
+        pipeline is without opening it. It is on every pull request and on
+        every default branch, for a passed, a failed and a running pipeline
+        alike. The server tallies them from what it already reads to work out
+        the overall state, so they cost no request. Always present, all zero
+        when there are no checks.
 
         `waiting` is a check that has not started: queued, or pending where the
-        forge doesn't tell queued from running. The counts agree with `ci`: a
-        pull request whose `ci` is `pending` has `failed` at 0, and one whose
-        `ci` is `success` has nothing running, waiting or failed. Two kinds of
-        run are therefore in none of the four. A run held for approval:
-        `awaitingWorkflowApproval` says that. A cancelled run: a push or a
-        concurrency group superseded it, and the overall state does not read it
-        as a failure while others still run. A timed-out or stale check counts
-        as `failed`, a skipped, neutral or bare completed one as `passed`.
+        forge doesn't tell queued from running. A failed pipeline can still have
+        checks running or waiting, and says so. The counts agree with the
+        overall state (`ci` on a pull request, `status` on a branch) where that
+        state has to be read from them: a pull request whose `ci` is `pending`
+        has `failed` at 0, and one whose `ci` is `success` has nothing running,
+        waiting or failed. Two kinds of run are therefore in none of the four. A
+        run held for approval: `awaitingWorkflowApproval` says that. A cancelled
+        run: a push or a concurrency group superseded it, and the overall state
+        does not read it as a failure while others still run. A timed-out or
+        stale check counts as `failed`, a skipped, neutral or bare completed one
+        as `passed`.
 
-        On GitHub the counts come from the same rollup as `ci`; on Forgejo from
+        On GitHub the counts come from the same rollup as the overall state,
+        for a pull request and a branch alike; on Forgejo a pull request counts
         the statuses of the combined commit status, where nothing is ever
-        `running`. Forgejo answers one page of those statuses, and when its
-        total says there are more than the page holds the counts are all zero
-        rather than an undercount. When GitHub's rollup is of an earlier
-        commit than the head (a push still being processed), the counts are
-        zero too. GitHub's unauthenticated fallback has no such counts, so
-        there they are all zero.
+        `running`, and a default branch counts the workflow runs of its newest
+        commit (a job count would cost a request per run), where a running run
+        is `running` and a queued or blocked one `waiting`. Forgejo answers one
+        page of those statuses, and when its total says there are more than the
+        page holds the counts are all zero rather than an undercount. When
+        GitHub's rollup is of an earlier commit than the head (a push still
+        being processed), the counts are zero too. GitHub's unauthenticated
+        fallback has no such counts, so there they are all zero.
       properties:
         passed:
           type: integer
@@ -5673,6 +5681,7 @@ components:
           finishedAt,
           durationSeconds,
           runUrl,
+          checks,
           stale,
           staleSince,
         ]
@@ -5720,6 +5729,8 @@ components:
             Where to see the run on the forge: the failed job's page for a
             failed pipeline, else the run's, else the commit's. Falls back to
             the repository's `url`.
+        checks:
+          $ref: "#/components/schemas/CheckCounts"
         stale:
           type: boolean
           description: |

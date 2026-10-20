@@ -137,6 +137,7 @@ func mainBranchFrom(fullName, repoURL string, ref *graphqlBranchRef) dashboard.M
 		return row
 	}
 	row.Status = dashboard.MainBranchStatusOfCI(rollup.ci())
+	row.Checks = rollup.checkCounts()
 	if rollup.Contexts == nil {
 		return row
 	}
