@@ -114,6 +114,10 @@ type Aggregator struct {
 	// reserve remembers what background full refreshes cost, for the reserve
 	// held back for user actions (reserve.go).
 	reserve reserveLedger
+	// userRefreshes counts the Refresh calls a person (or a sign-in) is waiting
+	// on. A coalesced run executes its leader's closure, so whether a run may
+	// be held at the reserve is decided per call from this, not per closure.
+	userRefreshes atomic.Int32
 	// pendingSched spaces out the polls of pull requests that keep reading the same.
 	pendingSched pendingSchedule
 }
@@ -377,6 +381,12 @@ func (a *Aggregator) Get() Snapshot {
 // unreachable ForgeHealth entry instead, so one broken forge never drops
 // the other's data.
 func (a *Aggregator) Refresh(ctx context.Context) {
+	if !background(ctx) {
+		// Counted before it queues, so a run already in flight that this call
+		// ends up waiting on still treats it as the person's refresh.
+		a.userRefreshes.Add(1)
+		defer a.userRefreshes.Add(-1)
+	}
 	a.refresh.do(func() { a.refreshOnce(apistats.WithKind(ctx, apistats.KindFull)) })
 }
 
@@ -619,7 +629,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 
 			continue
 		}
-		if background(ctx) {
+		if background(ctx) && a.userRefreshes.Load() == 0 {
 			if held := a.budgetHold(earlier, src.Forge(), apistats.KindFull); held {
 				// At the reserve: what is left is for the person clicking.
 				health, _ := healthOf(earlier, src.Forge())
@@ -807,7 +817,9 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 			a.refreshBackground(ctx)
 			timer.Reset(a.NextDelay(interval))
 		case <-a.activity.Woken():
-			a.refreshBackground(ctx)
+			// Someone opened the board after an idle spell: theirs, not the
+			// schedule's, so the reserve is for it.
+			a.Refresh(ctx)
 			if !timer.Stop() {
 				select {
 				case <-timer.C:
