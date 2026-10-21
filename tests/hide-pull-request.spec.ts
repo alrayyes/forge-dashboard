@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // Hide one pull request, with Undo and a Hidden list (#841). The server owns
 // the hiding (POST /api/pull-requests/hide, /unhide, and `hiddenPullRequests`
@@ -126,10 +126,6 @@ async function footerOf(page: Page, title: string) {
 }
 
 test.describe('hiding one pull request (#841)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('the dialog footer offers Hide this pull request and Hide for 7 days', async ({
     page,
   }) => {
@@ -236,10 +232,6 @@ test.describe('hiding one pull request (#841)', () => {
 });
 
 test.describe('the Hidden list (#841)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   const in6Days = () => new Date(Date.now() + 5.2 * 86_400_000).toISOString();
 
   test('opens a list with repo, number, title and when each comes back', async ({
@@ -319,10 +311,6 @@ test.describe('the Hidden list (#841)', () => {
 });
 
 test.describe('hiding is accessible (#841)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
   for (const scheme of ['light', 'dark'] as const) {

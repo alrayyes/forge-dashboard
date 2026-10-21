@@ -62,10 +62,6 @@ const header = (page: Page) => page.locator('#forge-health');
 test.describe('times in the viewer zone (#996)', () => {
   test.use({ locale: 'en-GB', timezoneId: 'Europe/Amsterdam' });
 
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('with no saved zone, the browser zone is used and named', async ({
     page,
   }) => {
@@ -156,10 +152,6 @@ test.describe('times in the viewer zone (#996)', () => {
 
 test.describe('a browser that reports UTC (#996)', () => {
   test.use({ locale: 'en-GB', timezoneId: 'UTC' });
-
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
 
   test('a saved zone overrides it', async ({ page }) => {
     await mockSavedZone(page, 'Europe/Amsterdam');
