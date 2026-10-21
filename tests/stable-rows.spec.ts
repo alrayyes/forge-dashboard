@@ -1,18 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import {
   allowedActionsFor,
   kindFor,
   statusFor,
 } from './allowed-actions-stand-in';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // Live updates land by themselves. A snapshot (poll or SSE push) that adds,
 // removes or moves rows waits only while something would be disturbed (an
@@ -25,15 +18,6 @@ declare global {
   interface Window {
     __push: (data: unknown) => void;
   }
-}
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `stable-rows-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Stable Rows User');
 }
 
 interface MockPR {
@@ -138,13 +122,7 @@ async function openInitial(page: Page, initial: MockPR[]) {
   await expect(page.locator('#pr-rows .row')).toHaveCount(2);
 }
 
-// Most of the file mocks the dashboard, stubs the stream and writes nothing per
-// user, so it starts from the shared session instead of registering a user per
-// test (#1379). The last group saves a choice (pause, a filter, the sort), which
-// the server keeps for the user, so it keeps its own.
 test.describe('stable rows', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   const initial = [makePR(1), makePR(2)];
 
   test.beforeEach(async ({ page }) => {
@@ -604,9 +582,8 @@ test.describe('stable rows', () => {
 test.describe('stable rows: choices the server saves', () => {
   const initial = [makePR(1), makePR(2)];
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
+  test.beforeEach(async ({ page }) => {
     await stubStream(page);
-    await registerAndSignIn(page, request, baseURL);
     await openInitial(page, initial);
   });
 

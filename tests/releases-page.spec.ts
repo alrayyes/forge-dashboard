@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 function makePR(overrides: Record<string, unknown> = {}) {
   return {
@@ -53,10 +52,6 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Releases page (#1107)', () => {
-  // Only reads mocked data and follows a link, so it starts from the shared
-  // session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.

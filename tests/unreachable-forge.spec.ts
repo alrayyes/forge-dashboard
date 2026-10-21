@@ -1,12 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { closeActionsDialog, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+import { test } from './server-fixture';
 
 // #1199: a forge that can't be reached is treated like a spent rate limit
 // (#755): its mutating controls aren't drawn, one banner says so with a

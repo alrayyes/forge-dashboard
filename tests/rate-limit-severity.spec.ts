@@ -1,11 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #806: the banner reads each rate limit's `severity` from the server, and a
 // locked action offers Retry from the refusal's `code`, not from the words in

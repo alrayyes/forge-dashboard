@@ -1005,6 +1005,37 @@
       return pill;
     }
 
+    // The pull-request-closed glyph (a pull request with a cross), so the
+    // Close pull request button reads as an action on the pull request and
+    // not as a bare Close. Decorative: the button's name carries the meaning.
+    function closedPullRequestIcon(): SVGElement {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("width", "14");
+      svg.setAttribute("height", "14");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      const shapes: [string, Record<string, string>][] = [
+        ["circle", { cx: "6", cy: "6", r: "3" }],
+        ["circle", { cx: "18", cy: "18", r: "3" }],
+        ["path", { d: "M6 9v12" }],
+        ["path", { d: "m21 3-6 6" }],
+        ["path", { d: "m21 9-6-6" }],
+        ["path", { d: "M18 11.5V15" }],
+      ];
+      for (const [tag, attrs] of shapes) {
+        const node = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+        svg.appendChild(node);
+      }
+      return svg;
+    }
+
     function reviewIcon(): SVGElement {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "12");
@@ -3423,14 +3454,16 @@
         return wrap;
       }
 
-      // A neutral button on every row (#1223): closing is reversible, so it
-      // is not red, and green read as the affirmative, so an empty pull
-      // request no longer gets it. Merge stays visible-and-locked there (a
+      // An outlined danger button with the pull-request-closed glyph (#2057):
+      // it sits in the corner where a dialog's own Close would, and closing a
+      // pull request can't be undone from the dashboard, so it must not read
+      // as a plain Close. Green read as the affirmative, so an empty pull
+      // request still doesn't get it. Merge stays visible-and-locked there (a
       // past incident: a vanished Merge button with no explanation read as
       // broken), and Close is the only enabled action beside it. The name
-      // says what it closes, so it can't be taken for a Cancel; only the
-      // confirm step carries the warning tone.
+      // says what it closes; only the confirm step carries the warning tone.
       const closeButton = buttonEl("row-action close", "Close pull request");
+      closeButton.prepend(closedPullRequestIcon());
       closeButton.type = "button";
       closeButton.id = `${scope}close-arm-${domSafeId(key)}`;
       closeButton.addEventListener("click", () => {
