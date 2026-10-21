@@ -193,7 +193,7 @@ func TestDashboardStream_AppliesTheIssueSettings(t *testing.T) {
 		assert.InDelta(t, 3, navIssueTotal(board), 0)
 		assert.Equal(t, true, board["hideDependencyDashboard"])
 		assert.Equal(t, true, board["ignoredTitlesSet"])
-	case <-time.After(2 * time.Second):
+	case <-time.After(pollBudget):
 		t.Fatal("no SSE event received after the webhook-triggered refresh")
 	}
 }
