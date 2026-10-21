@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.5](https://github.com/alrayyes/forge-dashboard/compare/v1.7.4...v1.7.5) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dashboard:** hold a refresh by its own cost, not the budget's fall ([#2371](https://github.com/alrayyes/forge-dashboard/issues/2371)) ([b952277](https://github.com/alrayyes/forge-dashboard/commit/b952277ce8ad5ac1b8b2ca0714896d281195fb37))
+
 ## [1.7.4](https://github.com/alrayyes/forge-dashboard/compare/v1.7.3...v1.7.4) (2026-10-21)
 
 
