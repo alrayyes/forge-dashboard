@@ -67,9 +67,9 @@ One pull request per group, in this order. Each group is its own ticket (named i
 
 ## 8. Reserve budget for user actions (#2015)
 
-- [ ] 8.1 Failing tests: a background full refresh or poll that would cross the reserve waits; a scoped webhook refresh runs until the budget is spent; a user Merge / Update branch / rebase / Close / Enable auto-merge / queued action runs; a force refresh runs unless the budget is spent; Forgejo is never held.
-- [ ] 8.2 Add `budgetAllows(kind)` (reserve `10%` of the limit, floor 50) and call it from the background paths only, for both the REST and GraphQL budgets. Verify: the tests pass; `rate_limit_*_test.go` and `refresh_exhausted_forge_test.go` unchanged.
-- [ ] 8.3 Document that the reserve is GitHub-only and how to change it (constant or setting, decided in the PR). Update `docs/rate-limits.md` and `docs/configuration.md`. Verify: re-read both.
+- [x] 8.1 Failing tests: a background full refresh or poll that would cross the reserve waits; a scoped webhook refresh runs until the budget is spent; a user Merge / Update branch / rebase / Close / Enable auto-merge / queued action runs; a force refresh runs unless the budget is spent; Forgejo is never held.
+- [x] 8.2 Add `budgetHold(kind)` (reserve `10%` of the limit, floor 50) and call it from the background paths only, for both the REST and GraphQL budgets. Verify: the tests pass; `rate_limit_*_test.go` and `refresh_exhausted_forge_test.go` unchanged.
+- [x] 8.3 Document that the reserve is GitHub-only and how to change it (constant or setting, decided in the PR). Update `docs/rate-limits.md` and `docs/configuration.md`. Verify: re-read both.
 
 ## 9. Idle mode (#2016)
 

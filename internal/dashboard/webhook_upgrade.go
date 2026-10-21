@@ -112,6 +112,9 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 		if !ok || !healthy[src.Forge()] {
 			continue
 		}
+		if held := a.budgetHold(snap, src.Forge(), apistats.KindHookMaintenance); held {
+			continue
+		}
 		repos := coveredRepos(snap, src.Forge())
 		if len(repos) == 0 {
 			continue
