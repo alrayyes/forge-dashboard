@@ -256,21 +256,6 @@ A request that misses in memory reads the database before it goes out, so a
 restart doesn't lose the ETags. The database copy is keyed the same way as the
 memory one, with no user in it.
 
-Measured on 2026-10-21 against GitHub with a personal access token, one client
-and the request counters from `GET /api/stats/forge-api`: checking the webhook
-of 3 repos twice in a row, with nothing changed between the passes.
-
-| Pass                 | REST | Not modified |
-| -------------------- | ---: | -----------: |
-| First (nothing kept) |    3 |            0 |
-| Second               |    0 |            3 |
-
-The first pass is what every one of those reads cost before the cache existed,
-and what the first read after a start costs without a saved answer. The second
-is what an unchanged read costs now: nothing against the REST limit. The same
-holds for the installation repository list of a GitHub App, which a test pins
-because the measurement used a token.
-
 Forgejo, as probed, doesn't take part. The Forgejo instance we tested
 (16.0.6, built on Gitea 1.22) sends no `ETag` and no `Last-Modified` header on
 its JSON endpoints (pull requests, issues, commit statuses, Actions runs,
@@ -398,12 +383,12 @@ How to read the table:
 
 ### Not measured
 
-| Kind               | Why                                                                                       |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `auto_merge_poll`  | Needs a pull request with auto-merge armed, which would change a real repo.               |
-| `hook_maintenance` | Checking and adding webhooks writes to the repos' settings, so it was not run on purpose. |
-| `user_action`      | A merge, close or branch update changes a real pull request, so none was pressed.         |
-| Forgejo            | The fixture and the account are on GitHub only. Forgejo has no GraphQL.                   |
+| Kind               | Why                                                                                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_merge_poll`  | Needs a pull request with auto-merge armed, which would change a real repo.                                                                  |
+| `hook_maintenance` | Adding and upgrading webhooks writes to the repos' settings, so it was not run on purpose. Checking them is read-only and is measured below. |
+| `user_action`      | A merge, close or branch update changes a real pull request, so none was pressed.                                                            |
+| Forgejo            | The fixture and the account are on GitHub only. Forgejo has no GraphQL.                                                                      |
 
 ### How it was measured, and what it leaves out
 
@@ -423,6 +408,30 @@ counters reset on a start, so the first-refresh row is also what a restart
 costs. The 56 repos are the whole account, so another account with the same
 number of repos but different pull requests and issues will differ, most of
 all in the REST column.
+
+### A repeated webhook check
+
+Measured on 2026-10-21 against GitHub with a personal access token, as a
+throwaway Go test against `github.com` rather than a running server. One
+client, with an empty in-memory cache and no database, checked whether a
+webhook exists on 3 repos of the same account (`forge-dashboard`,
+`forge-dashboard-e2e-fixture` and `dotfiles`) and then did the same again
+straight away, with nothing changed in between. The counters were read from
+`apistats`, the same ones `GET /api/stats/forge-api` serves, and the REST API
+version was whatever the client library sends by default.
+
+| Pass   | REST | Not modified |
+| ------ | ---: | -----------: |
+| First  |    3 |            0 |
+| Second |    0 |            3 |
+
+The second pass went to the network: the client kept the first answers' ETags in
+memory, sent them back as `If-None-Match`, and counted three `304` replies. It
+wasn't served from saved hook-check state. Only the dashboard's own counters
+were read, not GitHub's remaining budget, so this shows three requests answered
+`304` instead of `200`, not what GitHub charged for them. The installation
+repository list of a GitHub App is covered by a unit test against a stubbed
+server and was not measured live.
 
 ## What you can do
 
