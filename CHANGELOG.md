@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.250.1](https://github.com/alrayyes/forge-dashboard/compare/v0.250.0...v0.250.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** link owner/repo references for owners with an underscore or dot ([#2150](https://github.com/alrayyes/forge-dashboard/issues/2150)) ([0689a89](https://github.com/alrayyes/forge-dashboard/commit/0689a89aaf05000d6f7b1cb2e305ca3166c04fdb))
+
 ## [0.250.0](https://github.com/alrayyes/forge-dashboard/compare/v0.249.4...v0.250.0) (2026-10-21)
 
 
