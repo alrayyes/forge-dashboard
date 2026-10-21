@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
@@ -85,13 +86,16 @@ func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) 
 	t.Parallel()
 
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
 
 		return []dashboard.Source{&fakeConfiguredSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
 	})
+	// Long enough that a loaded CPU can't push the second call past it.
+	const cooldown = time.Minute
+	manager.SetForceRefreshCooldown(cooldown)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
 	_ = putResp.Body.Close()
@@ -112,5 +116,5 @@ func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) 
 	retryAfter, err := strconv.Atoi(secondRetryAfter)
 	require.NoError(t, err)
 	assert.Positive(t, retryAfter)
-	assert.LessOrEqual(t, retryAfter, 5)
+	assert.LessOrEqual(t, retryAfter, int(cooldown.Seconds()))
 }

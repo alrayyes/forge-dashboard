@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/alrayyes/forge-dashboard/compare/v1.2.1...v1.3.0) (2026-10-21)
+
+
+### Features
+
+* **dashboard:** batch the CI poll into aliased queries and back off when idle ([#2285](https://github.com/alrayyes/forge-dashboard/issues/2285)) ([76cdda1](https://github.com/alrayyes/forge-dashboard/commit/76cdda1d2f3e2bc91f08c03438cdf393279b8eb3))
+
 ## [1.2.1](https://github.com/alrayyes/forge-dashboard/compare/v1.2.0...v1.2.1) (2026-10-21)
 
 
