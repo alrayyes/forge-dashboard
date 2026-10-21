@@ -98,8 +98,19 @@ func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, set
 // (say, that a read created no webhook credentials). opts adjust the Deps before the mux is built.
 func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store) {
 	tb.Helper()
+	srv, manager, authStore, settingsStore, _, _ := newTestServerWithDatabase(tb, buildSources, autoMerge, firstLoadWait, opts...)
 
-	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(tb.TempDir(), "app.db")))
+	return srv, manager, authStore, settingsStore
+}
+
+// newTestServerWithDatabase is newTestServerWithSettingsStore plus the open
+// database and the path of its file, for a test that runs something against
+// the database the server is serving, like the single-user cleanup.
+func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store, *sql.DB, string) {
+	tb.Helper()
+
+	dbPath := filepath.Join(tb.TempDir(), "app.db")
+	db, err := sql.Open("sqlite", dbdsn.For(dbPath))
 	require.NoError(tb, err)
 	tb.Cleanup(func() { _ = db.Close() })
 
@@ -150,7 +161,7 @@ func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, set
 	srv := httptest.NewServer(mux)
 	tb.Cleanup(srv.Close)
 
-	return srv, manager, authStore, settingsStore
+	return srv, manager, authStore, settingsStore, db, dbPath
 }
 
 func testEncryptionKey(tb testing.TB) string {
@@ -597,9 +608,7 @@ func TestRegisterFinish_TwoCeremoniesFinishingTogether_ExactlyOneWins(t *testing
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	for i, name := range names {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			resp, err := http.Post(srv.URL+"/api/auth/register/finish?username="+name, "application/json", strings.NewReader(attestations[name]))
 			if err != nil {
@@ -607,7 +616,7 @@ func TestRegisterFinish_TwoCeremoniesFinishingTogether_ExactlyOneWins(t *testing
 			}
 			defer func() { _ = resp.Body.Close() }()
 			statuses[i] = resp.StatusCode
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()

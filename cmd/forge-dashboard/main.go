@@ -31,6 +31,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/alrayyes/forge-dashboard/internal/sharing"
+	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
 	_ "modernc.org/sqlite"
 )
@@ -253,6 +254,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	cleanUpForSingleUser(ctx, db)
 
 	githubAppID, githubAppPrivateKey, err := buildGitHubApp()
 	if err != nil {
@@ -490,6 +493,16 @@ func openDatabase() (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// cleanUpForSingleUser keeps the oldest user and deletes the rest, once. It
+// runs before the manager starts, so no refresh loop ever exists for a user the
+// cleanup is about to remove. A failure leaves the database untouched and the
+// next start tries again, so it is logged and startup goes on.
+func cleanUpForSingleUser(ctx context.Context, db *sql.DB) {
+	if _, err := singleuser.Run(ctx, db, envOr("DB_PATH", "/data/forge-dashboard.db"), slog.Default()); err != nil {
+		slog.Error("single-user cleanup failed, nothing was deleted", "error", err)
+	}
 }
 
 // buildAuth wires up the WebAuthn relying party from the environment.
