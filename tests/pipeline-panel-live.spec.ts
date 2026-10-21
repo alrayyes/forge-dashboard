@@ -39,7 +39,7 @@ function pr(ci: string, checks: Counts) {
     status: 'blocked',
     kind: 'regular',
     behind: false,
-    allowedActions: [],
+    allowedActions: [] as { action: string }[],
   };
 }
 
