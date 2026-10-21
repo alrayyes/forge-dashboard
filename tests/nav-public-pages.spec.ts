@@ -1,12 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { navCountsFor } from './nav-counts-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
-// Every signed-in test mocks /api/dashboard and writes nothing per user, so
-// they start from the shared session (#1379). The signed-out one clears it.
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+// Every signed-in test mocks /api/dashboard. The signed-out one clears the
+// session cookie the server fixture sets.
 
 // #1261: the changelog, disclaimer and privacy pages are open to visitors, so
 // the layout never asked them for the nav counts. A signed-in user there saw
@@ -93,7 +91,9 @@ for (const path of ['/changelog.html', '/disclaimer.html', '/privacy.html']) {
 }
 
 test.describe('signed out', () => {
-  test.use({ storageState: { cookies: [], origins: [] } });
+  test.beforeEach(async ({ context }) => {
+    await context.clearCookies();
+  });
 
   test('signed out, the changelog asks for no counts and still renders', async ({
     page,

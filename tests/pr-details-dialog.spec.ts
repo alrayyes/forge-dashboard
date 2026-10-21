@@ -1,12 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// Mocks /api/dashboard and /api/pull-requests/details only, writes no per-user
-// state, so it starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // A valid 1x1 PNG, for an avatar that has to load.
 const PNG_1X1 =
@@ -190,6 +185,130 @@ test.describe('pull request details dialog', () => {
       expect(results.violations).toEqual([]);
     });
   }
+
+  // The header names the repository and the item as two links, and #N in
+  // running text links to the item on the same forge. Each forge keeps its
+  // own address scheme.
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`links the repository, the number and #N references to the forge in ${scheme} mode, with no axe violations`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await mockDashboard(page, [
+        makePR({
+          url: 'https://github.com/alrayyes/forge-dashboard/pull/42',
+        }),
+      ]);
+      await mockDetails(
+        page,
+        details({
+          description: body(
+            'Closes #1859, see other/repo#12 and `#7` or abc#5.',
+          ),
+        }),
+      );
+      await page.goto('/pull-requests.html');
+
+      await trigger(page).click();
+      const header = dialog(page).locator('.details-ref');
+      await expect(
+        header.getByRole('link', { name: /^alrayyes\/forge-dashboard/ }),
+      ).toHaveAttribute('href', 'https://github.com/alrayyes/forge-dashboard');
+      await expect(header.getByRole('link', { name: /^#42/ })).toHaveAttribute(
+        'href',
+        'https://github.com/alrayyes/forge-dashboard/pull/42',
+      );
+      const text = dialog(page).locator('.markdown').first();
+      await expect(text.getByRole('link', { name: '#1859' })).toHaveAttribute(
+        'href',
+        'https://github.com/alrayyes/forge-dashboard/issues/1859',
+      );
+      await expect(
+        text.getByRole('link', { name: 'other/repo#12' }),
+      ).toHaveAttribute('href', 'https://github.com/other/repo/issues/12');
+      await expect(text.getByRole('link')).toHaveCount(2);
+      await expect(text.locator('code')).toHaveText('#7');
+      await expect(text).toContainText('abc#5.');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
+  // The links wrap with a long repository name, stay out of each other's way
+  // and are 44px targets on a phone, with a cue other than colour.
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`keeps the header links usable at 390px in ${scheme} mode, with no axe violations`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 780 });
+      await page.emulateMedia({ colorScheme: scheme });
+      const repo = `some-organisation-with-a-long-name/${'a-very-long-repository-name-'.repeat(2)}end`;
+      await mockDashboard(page, [
+        makePR({
+          repo,
+          url: `https://github.com/${repo}/pull/42`,
+        }),
+      ]);
+      await mockDetails(page, details());
+      await page.goto('/pull-requests.html');
+
+      await trigger(page).click();
+      const d = dialog(page);
+      const links = d.locator('.details-ref').getByRole('link');
+      await expect(links).toHaveCount(2);
+      const boxes = [];
+      for (const link of await links.all()) {
+        const b = await link.boundingBox();
+        expect(b?.height).toBeGreaterThanOrEqual(44);
+        expect(b?.width).toBeGreaterThanOrEqual(44);
+        expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
+        boxes.push(b);
+      }
+      const [first, second] = boxes;
+      const apart =
+        (first?.x ?? 0) + (first?.width ?? 0) <= (second?.x ?? 0) ||
+        (first?.y ?? 0) + (first?.height ?? 0) <= (second?.y ?? 0);
+      expect(apart).toBe(true);
+      await expect(links.first()).toHaveCSS(
+        'text-decoration-line',
+        'underline',
+      );
+      const overflow = await d.evaluate(
+        (el) => el.scrollWidth - el.clientWidth,
+      );
+      expect(overflow).toBe(0);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
+  test('builds the same links from a Forgejo address', async ({ page }) => {
+    await mockDashboard(page, [
+      makePR({
+        forge: 'forgejo',
+        repo: 'me/app',
+        url: 'https://git.example.org/me/app/pulls/42',
+      }),
+    ]);
+    await mockDetails(page, details({ description: body('Fixes #7') }));
+    await page.goto('/pull-requests.html');
+
+    await trigger(page).click();
+    await expect(
+      dialog(page)
+        .locator('.details-ref')
+        .getByRole('link', { name: /^me\/app/ }),
+    ).toHaveAttribute('href', 'https://git.example.org/me/app');
+    await expect(
+      dialog(page).getByRole('link', { name: '#7' }),
+    ).toHaveAttribute('href', 'https://git.example.org/me/app/issues/7');
+  });
 
   test('opens with Enter, Escape closes it and focus returns to the trigger', async ({
     page,

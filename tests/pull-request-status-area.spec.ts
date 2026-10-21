@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1375: one dedicated place on the row for what a pull request is waiting on
 // or blocked by. The server's `status` fills it; an empty pull request offers
@@ -64,9 +63,6 @@ const row = (page: Page, title: string) =>
   });
 
 test.describe('the status area on a pull request row (#1375)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('an empty pull request offers Close and no Merge, and says why in words', async ({
     page,
   }) => {

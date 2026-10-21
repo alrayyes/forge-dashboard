@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1439: the Pull requests, Bots and Releases items show the total and how
 // many pull requests are failing, running and passing, as one pill: a neutral
@@ -59,10 +58,6 @@ const header = (page: Page, href: string) =>
 const tab = (page: Page, href: string) =>
   page.locator(`.bottom-nav a[href="${href}"]`);
 const PRS = '/pull-requests.html';
-
-// Every endpoint is mocked and nothing is saved per user, so the whole file
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('the nav pill shows failing, running and passing (#1439)', () => {
   test('Pull requests shows the total, then failed, passed and running, each with its glyph', async ({

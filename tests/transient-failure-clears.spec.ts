@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import {
   actionsFooter,
+  closeActionsDialog,
   openActionsDialog,
   viaActionsDialog,
 } from './actions-dialog-helper';
@@ -248,14 +249,31 @@ test.describe('a network failure line clears itself (#1206)', () => {
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
-    await failUpdateBranch(page);
+
+    // The action is clicked in the pop-up, and the announcement is spoken
+    // 30 ms later through whichever live region is current then: the pop-up's
+    // while it is open, the page's once it has closed. Closing the pop-up
+    // races that timer, so wait for the words in the pop-up's own region
+    // before closing it, rather than hoping the page's region got them.
+    const dialog = await openActionsDialog(row(page));
+    await actionsFooter(dialog)
+      .getByRole('button', { name: 'Update branch' })
+      .click();
+    await expect(
+      dialog.locator('[role="status"][aria-live="polite"][aria-atomic="true"]'),
+    ).toContainText("Couldn't update the branch");
+    await closeActionsDialog(dialog);
+    await expect(line(page)).toContainText('Failed');
+    await releasePointer(page);
 
     const live = page.locator('#feedback-live');
-    await expect(live).toContainText("Couldn't update the branch");
     const said = await live.textContent();
 
     await page.clock.fastForward(10_500);
     await expect(line(page)).toHaveCount(0);
+    // An announcement is spoken 30 ms after it is made, so run that timer
+    // too, or a sentence added when the line clears would not be heard yet.
+    await page.clock.fastForward(100);
     expect(await live.textContent()).toBe(said);
 
     await page.locator('#activity-toggle').click();
