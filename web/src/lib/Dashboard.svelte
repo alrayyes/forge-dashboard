@@ -8874,7 +8874,6 @@
         >
       </div>
     {/if}
-    {@render closingSegment(false)}
     <!-- Phones (#828): this row stays when the rest of the controls fold
          into the Filters sheet. Everywhere else it just flows. -->
     <div class="filter-bar-top">
@@ -9026,6 +9025,9 @@
         disabled>Clear filters</button
       >
     </div>
+    <!-- Last in the bar, so the pills above it appearing or going moves
+         nothing but this segment and the bar keeps its height. -->
+    {@render closingSegment(false)}
   </div>
 
   <!-- Saved picks this page does not offer (#1620). Always in the page, so a
