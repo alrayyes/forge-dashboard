@@ -46,9 +46,11 @@ refresh tries again.
   The dashboard logs each query's cost at the `info` log level.
 - **A restart.** The dashboard remembers the answers to its REST reads, together
   with the ETag the forge sent, and asks again with `If-None-Match`. GitHub
-  doesn't charge a request that comes back unchanged (`304 Not Modified`). The
-  answers are kept in the database too, so after a restart the first refresh
-  still sends the saved ETags and an unchanged read stays free. The GraphQL
+  documents that a request that comes back unchanged (`304 Not Modified`)
+  doesn't count against the limit; this hasn't been verified here (see
+  [Conditional requests](#conditional-requests)). The answers are kept in the
+  database too, so after a restart the first refresh still sends the saved
+  ETags, and an unchanged read is answered `304` again. The GraphQL
   query isn't cached, so a restart still pays for one of those. The last
   snapshot, the webhook checks and the time each webhook delivery last arrived
   are kept as well. Until the first refresh succeeds the page shows the saved
@@ -232,13 +234,16 @@ action.
 
 Every REST read the dashboard sends to GitHub goes through one cache. The first
 answer is kept with its `ETag`. The next request for the same URL sends it back
-as `If-None-Match`, and if nothing changed GitHub answers `304 Not Modified`,
-which costs nothing against the REST limit. The dashboard counts it under
-`notModified` and serves the kept body, so the rest of the code never sees the
-difference. GitHub documents this in its
+as `If-None-Match`, and if nothing changed GitHub answers `304 Not Modified`.
+The dashboard counts it under `notModified` and serves the kept body, so the
+rest of the code never sees the difference. GitHub documents that such a reply
+doesn't count against the REST limit, in its
 [REST API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests-if-appropriate).
-The same page says a `304` is only free when the request is authorized, so the
-public-repository mode, which sends no credential, may still be charged.
+We haven't verified that: our measurements read only the dashboard's own
+counters, not GitHub's remaining budget
+([details](#a-repeated-webhook-check)). The same page says a `304` is only
+free when the request is authorized, so the public-repository mode, which sends
+no credential, may still be charged.
 
 The cache is keyed by forge, credential label, URL and `Accept` header, never
 by user. GitHub folds the credential into the ETag, so one credential's ETag is
@@ -302,12 +307,12 @@ returns only the requests made with your own credentials.
 
 Each row is one forge, credential, kind and repo, with four counts:
 
-| Count         | What it counts                                                   |
-| ------------- | ---------------------------------------------------------------- |
-| `rest`        | REST requests, each charged against the REST budget.             |
-| `graphql`     | GraphQL requests made.                                           |
-| `graphqlCost` | The points the GraphQL requests were charged (`rateLimit.cost`). |
-| `notModified` | Requests answered `304 Not Modified`, which cost nothing.        |
+| Count         | What it counts                                                        |
+| ------------- | --------------------------------------------------------------------- |
+| `rest`        | REST requests, each charged against the REST budget.                  |
+| `graphql`     | GraphQL requests made.                                                |
+| `graphqlCost` | The points the GraphQL requests were charged (`rateLimit.cost`).      |
+| `notModified` | Requests answered `304 Not Modified`. GitHub documents these as free. |
 
 The kind says why the request was made:
 
@@ -385,12 +390,12 @@ How to read the table:
 
 ### Not measured
 
-| Kind               | Why                                                                                                                                          |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auto_merge_poll`  | Needs a pull request with auto-merge armed, which would change a real repo.                                                                  |
-| `hook_maintenance` | Adding and upgrading webhooks writes to the repos' settings, so it was not run on purpose. Checking them is read-only and is measured below. |
-| `user_action`      | A merge, close or branch update changes a real pull request, so none was pressed.                                                            |
-| Forgejo            | The fixture and the account are on GitHub only. Forgejo has no GraphQL.                                                                      |
+| Kind               | Why                                                                                                                                                                                                                                                             |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_merge_poll`  | Needs a pull request with auto-merge armed, which would change a real repo.                                                                                                                                                                                     |
+| `hook_maintenance` | Adding and upgrading webhooks writes to the repos' settings, so it was not run on purpose. Checking them is read-only. Only a repeat check of 3 repos was counted, [outside a running server](#a-repeated-webhook-check), and what GitHub charged was not read. |
+| `user_action`      | A merge, close or branch update changes a real pull request, so none was pressed.                                                                                                                                                                               |
+| Forgejo            | The fixture and the account are on GitHub only. Forgejo has no GraphQL.                                                                                                                                                                                         |
 
 ### How it was measured, and what it leaves out
 
@@ -411,16 +416,29 @@ costs. The 56 repos are the whole account, so another account with the same
 number of repos but different pull requests and issues will differ, most of
 all in the REST column.
 
-### A repeated webhook check
+## A repeated webhook check
 
 Measured on 2026-10-21 against GitHub with a personal access token, as a
-throwaway Go test against `github.com` rather than a running server. One
+throwaway Go test against `github.com` rather than a running server. The test
+wasn't kept, so the steps and versions follow. One
 client, with an empty in-memory cache and no database, checked whether a
 webhook exists on 3 repos of the same account (`forge-dashboard`,
 `forge-dashboard-e2e-fixture` and `dotfiles`) and then did the same again
 straight away, with nothing changed in between. The counters were read from
 `apistats`, the same ones `GET /api/stats/forge-api` serves, and the REST API
 version was whatever the client library sends by default.
+
+To repeat it, with versions as of that run:
+
+1. Use the `go-github` client at v75.0.0, which sends the REST API version
+   `2022-11-28` (`X-GitHub-Api-Version`).
+2. Wrap its transport in the dashboard's ETag cache (`internal/github`) with an
+   empty in-memory store, and count requests with `internal/apistats`.
+3. Check for a webhook on each of 3 repos, read the counters, then check the
+   same 3 again at once, and read the counters again.
+4. To see what GitHub charges, also read `GET /rate_limit` before and after
+   each pass. GitHub documents that call as not counting against the limit.
+   We didn't do this.
 
 | Pass   | REST | Not modified |
 | ------ | ---: | -----------: |
