@@ -6426,66 +6426,83 @@
     }
     syncQuickPills();
 
-    // ---- auto-merge segment (#1455) ----
+    function closingGroup() {
+      return Filters.closingGroup(sharedState, pullsView);
+    }
+    function closingKey() {
+      return Filters.closingKey(pullsView);
+    }
+
+    // ---- segmented filters: auto-merge (#1455) and closing link ----
+    // Any plus the choices. The pick is saved with the page's other filters;
+    // `get` and `set` say where it lives, `after` what else changes with it.
+    function wireSegment(
+      groupClass: string,
+      attr: string,
+      get: () => string | undefined,
+      set: (value: string) => void,
+      after: () => void,
+    ): () => void {
+      const buttons = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          `.${groupClass} [data-${attr}]`,
+        ),
+      );
+      function sync() {
+        const picked = get() || "any";
+        for (const b of buttons)
+          b.setAttribute("aria-pressed", String(b.dataset[attr] === picked));
+      }
+      for (const b of buttons) {
+        b.addEventListener("click", () => {
+          set(b.dataset[attr] ?? "any");
+          after();
+          updateSharedFilterOptions();
+          Filters.saveState(sharedState);
+          sync();
+          renderBoth();
+        });
+      }
+      sync();
+      return sync;
+    }
+    // The chip's clear: press the segment's Any.
+    function clearSegment(groupClass: string, attr: string) {
+      document
+        .querySelector<HTMLButtonElement>(`.${groupClass} [data-${attr}="any"]`)
+        ?.click();
+    }
+    function setPick(group: Record<string, string>, key: string, v: string) {
+      if (v === "any") delete group[key];
+      else group[key] = v;
+    }
     // On and Off filter on what the forge says; the choice is the pull request
     // board's own (sharedState.pr), so it combines with a quick pill.
-    const amButtons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".am-group [data-am]"),
-    );
-    function closingGroup(): Record<string, string> {
-      return pullsView ? sharedState.pr : sharedState.issue;
-    }
-    function closingKey(): "closes" | "closedBy" {
-      return pullsView ? "closes" : "closedBy";
-    }
-    function syncAutoMerge() {
-      const picked = sharedState.pr.autoMerge || "any";
-      for (const b of amButtons)
-        b.setAttribute("aria-pressed", String(b.dataset.am === picked));
-    }
-    for (const b of amButtons) {
-      b.addEventListener("click", () => {
-        const value = b.dataset.am ?? "any";
-        if (value === "any") delete sharedState.pr.autoMerge;
-        else sharedState.pr.autoMerge = value;
+    const syncAutoMerge = wireSegment(
+      "am-group",
+      "am",
+      () => sharedState.pr.autoMerge,
+      (v) => {
+        setPick(sharedState.pr, "autoMerge", v);
         Filters.touchKey("pr", "autoMerge");
-        prBoard.resetPage();
-        updateSharedFilterOptions();
-        Filters.saveState(sharedState);
-        syncAutoMerge();
-        renderBoth();
-      });
-    }
-    syncAutoMerge();
-
-    // ---- closing-link segment ----
-    // Pull requests: closes an issue or not. Issues: has a closing pull
-    // request or not. A segmented control with an Any segment, as for
-    // Auto-merge; the pick is saved with the page's other filters.
-    const linkButtons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".link-group [data-link]"),
+      },
+      () => prBoard.resetPage(),
     );
-    function syncClosing() {
-      const picked = closingGroup()[closingKey()] || "any";
-      for (const b of linkButtons)
-        b.setAttribute("aria-pressed", String(b.dataset.link === picked));
-    }
-    for (const b of linkButtons) {
-      b.addEventListener("click", () => {
-        const value = b.dataset.link ?? "any";
-        const group = closingGroup();
-        if (value === "any") delete group[closingKey()];
-        else group[closingKey()] = value;
+    // Pull requests: closes an issue or not. Issues: has a closing pull
+    // request or not.
+    const syncClosing = wireSegment(
+      "link-group",
+      "link",
+      () => closingGroup()[closingKey()],
+      (v) => {
+        setPick(closingGroup(), closingKey(), v);
         Filters.touchKey(pullsView ? "pr" : "issue", closingKey());
+      },
+      () => {
         prBoard.resetPage();
         issueBoard.resetPage();
-        updateSharedFilterOptions();
-        Filters.saveState(sharedState);
-        syncClosing();
-        renderBoth();
-      });
-    }
-    syncClosing();
+      },
+    );
 
     // "/" focuses the title search, as on GitHub — only when nothing
     // editable has focus and no modifier is held, so typing a slash into
@@ -6652,10 +6669,7 @@
       if (pullsView && sharedState.pr.autoMerge)
         chips.push({
           label: `Auto-merge ${sharedState.pr.autoMerge}`,
-          clear: () =>
-            document
-              .querySelector<HTMLButtonElement>('.am-group [data-am="any"]')
-              ?.click(),
+          clear: () => clearSegment("am-group", "am"),
         });
       const closing = closingGroup()[closingKey()];
       if (closing)
@@ -6664,10 +6678,7 @@
             pullsView,
             closing === "yes" ? "yes" : "no",
           ),
-          clear: () =>
-            document
-              .querySelector<HTMLButtonElement>('.link-group [data-link="any"]')
-              ?.click(),
+          clear: () => clearSegment("link-group", "link"),
         });
       if (pullsView && draftsOn())
         chips.push({
@@ -8210,7 +8221,7 @@
      Filters sheet, so the two cannot drift apart. -->
 {#snippet closingSegment(sheet: boolean)}
   <div
-    class="link-group"
+    class="segment link-group"
     class:sheet-only={sheet}
     role="group"
     aria-label={view === "issues" ? "Closing pull request" : "Closing issue"}
@@ -8416,7 +8427,7 @@
       {/if}
     </div>
     {#if pullsView}
-      <div class="am-group" role="group" aria-label="Auto-merge">
+      <div class="segment am-group" role="group" aria-label="Auto-merge">
         <span class="am-label" aria-hidden="true">Auto-merge</span>
         <button type="button" data-am="any" aria-pressed="true">Any</button>
         <button
@@ -8489,7 +8500,11 @@
         >
       </div>
       {#if pullsView}
-        <div class="am-group sheet-only" role="group" aria-label="Auto-merge">
+        <div
+          class="segment am-group sheet-only"
+          role="group"
+          aria-label="Auto-merge"
+        >
           <span class="am-label" aria-hidden="true">Auto-merge</span>
           <button type="button" data-am="any" aria-pressed="true">Any</button>
           <button

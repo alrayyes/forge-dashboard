@@ -1411,43 +1411,63 @@ export function filtersAreDefault(
   );
 }
 
-// Shows the auto-merge segment's On and Off only when some pull request in the
-// pool has that state, or it is the one picked, and the whole segment only when
-// something is on offer (#1455). "Any" is always there while the segment is.
+// Shows a segmented control's choices only when something in the pool is that
+// way, or it is the one picked, and the whole segment only when something is on
+// offer. "Any" is always there while the segment is. `attr` names the data
+// attribute on its buttons; `available` says which choices the pool backs.
+function offerSegment(
+  groups: Iterable<HTMLElement>,
+  attr: string,
+  available: Record<string, boolean>,
+  picked: string,
+): void {
+  for (const group of groups) {
+    let allHidden = true;
+    for (const [value, backed] of Object.entries(available)) {
+      const button = group.querySelector<HTMLElement>(
+        `[data-${attr}="${value}"]`,
+      );
+      if (!button) continue;
+      button.hidden = !(backed || picked === value);
+      allHidden &&= button.hidden;
+    }
+    group.hidden = allHidden;
+  }
+}
+
+// The auto-merge segment's On and Off (#1455).
 export function offerAutoMerge(
   groups: Iterable<HTMLElement>,
   pool: FilterableItem[],
   picked: string,
 ): void {
-  const on = pool.some((i) => i.autoMergeEnabled === true);
-  const off = pool.some((i) => i.autoMergeEnabled === false);
-  for (const group of groups) {
-    const onButton = group.querySelector<HTMLElement>('[data-am="on"]');
-    const offButton = group.querySelector<HTMLElement>('[data-am="off"]');
-    if (onButton) onButton.hidden = !(on || picked === 'on');
-    if (offButton) offButton.hidden = !(off || picked === 'off');
-    group.hidden = Boolean(onButton?.hidden && offButton?.hidden);
-  }
+  offerSegment(
+    groups,
+    'am',
+    {
+      on: pool.some((i) => i.autoMergeEnabled === true),
+      off: pool.some((i) => i.autoMergeEnabled === false),
+    },
+    picked,
+  );
 }
 
-// Shows the closing-link segment's two choices only when something in the pool
-// is that way, or it is the one picked, and the whole segment only when
-// something is on offer. "Any" is always there while the segment is.
+// The closing-link segment's Yes and No.
 export function offerClosing(
   groups: Iterable<HTMLElement>,
   pool: FilterableItem[],
   isPR: boolean,
   picked: string,
 ): void {
-  const yes = pool.some((i) => matchesClosing(i, isPR, 'yes'));
-  const no = pool.some((i) => matchesClosing(i, isPR, 'no'));
-  for (const group of groups) {
-    const yesButton = group.querySelector<HTMLElement>('[data-link="yes"]');
-    const noButton = group.querySelector<HTMLElement>('[data-link="no"]');
-    if (yesButton) yesButton.hidden = !(yes || picked === 'yes');
-    if (noButton) noButton.hidden = !(no || picked === 'no');
-    group.hidden = Boolean(yesButton?.hidden && noButton?.hidden);
-  }
+  offerSegment(
+    groups,
+    'link',
+    {
+      yes: pool.some((i) => matchesClosing(i, isPR, 'yes')),
+      no: pool.some((i) => matchesClosing(i, isPR, 'no')),
+    },
+    picked,
+  );
 }
 
 // Title is the one column that's genuinely open-ended free text — the
