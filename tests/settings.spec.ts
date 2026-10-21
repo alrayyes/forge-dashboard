@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { addVirtualAuthenticator } from './webauthn-helper';
 
 test.describe('settings page', () => {
@@ -8,7 +8,6 @@ test.describe('settings page', () => {
     // Registering through an invite used to give the page a virtual
     // authenticator; the Passkeys tests add a passkey with it.
     await addVirtualAuthenticator(page);
-    await landOnPullRequests(page);
   });
 
   // #1135: Lighthouse fails the page when under 60% of its text is 12px or
@@ -199,6 +198,7 @@ test.describe('settings page', () => {
   test('the header settings link reaches the settings page', async ({
     page,
   }) => {
+    await page.goto('/pull-requests.html');
     await page.click('a[href="/settings.html"]');
     await expect(page).toHaveURL(/\/settings\.html$/);
     await expect(page.locator('.settings-header h1')).toHaveText('Settings');

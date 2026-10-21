@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { labelChoices } from './label-filter-helper';
 import { navCountsFor } from './nav-counts-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #827: issues have their own page, /issues.html, with a nav item and a
 // count badge. The pull request page no longer lists them.
@@ -70,7 +70,7 @@ async function mockDashboard(
   pullRequests: unknown[] = [makePR(1), makePR(2)],
 ) {
   // The real stream would push the server's own (empty) snapshot over the
-  // mocked one after a reload.
+  // mocked one. This only installs the routes; the caller loads the page.
   await page.route('**/api/dashboard/stream', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
@@ -93,7 +93,6 @@ async function mockDashboard(
       }),
     }),
   );
-  await page.reload();
 }
 
 const issuesLink = (page: Page) =>
@@ -104,14 +103,11 @@ const issuesLink = (page: Page) =>
     .locator('a[href="/issues.html"]');
 
 test.describe('issues page (#827)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('the nav has an Issues item with a count badge, on both pages', async ({
     page,
   }) => {
     await mockDashboard(page);
+    await page.goto('/pull-requests.html');
 
     await expect(issuesLink(page)).toBeVisible();
     await expect(issuesLink(page).locator('.nav-total')).toHaveText('12');
@@ -129,6 +125,7 @@ test.describe('issues page (#827)', () => {
   test('the mobile navigation has the Issues item too', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page);
+    await page.goto('/pull-requests.html');
 
     const mobile = page.getByRole('navigation', { name: 'Mobile navigation' });
     await expect(mobile.getByRole('link', { name: /Issues/ })).toBeVisible();
@@ -136,6 +133,7 @@ test.describe('issues page (#827)', () => {
 
   test('the pull request page no longer lists issues', async ({ page }) => {
     await mockDashboard(page);
+    await page.goto('/pull-requests.html');
 
     await expect(page.locator('#pr-rows .row')).toHaveCount(2);
     await expect(page.locator('#issue-rows')).toHaveCount(0);
