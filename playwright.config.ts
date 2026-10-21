@@ -137,6 +137,11 @@ const singleUserSpecs = [
   '**/main-branch-release-link.spec.ts',
   '**/ci-status-pulldown-gone.spec.ts',
   '**/main-branch-pill-counts.spec.ts',
+  '**/branch-pipeline-panel-live.spec.ts',
+  '**/in-place-dialogs.spec.ts',
+  '**/issue-dialog.spec.ts',
+  '**/phone-card-action-row.spec.ts',
+  '**/profile-links.spec.ts',
   '**/skipped-pill-counts.spec.ts',
 ];
 
