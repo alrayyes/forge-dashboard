@@ -125,8 +125,12 @@ commit-msg:
 pre-push:
   parallel: true
   jobs:
+    # The web build first, as in CI's go job: the embedded static files hold
+    # the built style.css, which TestStatic_ServerWiring serves. The build
+    # only writes gitignored output, and web/tsconfig.json excludes web/build,
+    # so svelte-check can run beside it.
     - name: test
-      run: scripts/go-docker.sh go test ./...
+      run: bun run build:web && scripts/go-docker.sh go test ./...
 
     # go-lint.md: golangci-lint type-checks whole packages through
     # go/packages, so trimming the file list barely trims the run time — it
