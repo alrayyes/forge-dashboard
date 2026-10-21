@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // A repository's own logo shows beside its name on the pull request rows and
 // on the Repositories page when the forge has one, and nothing otherwise.
@@ -88,9 +87,6 @@ const repoCell = (page: Page, name: string) =>
     .locator('.repo');
 
 test.describe('Repository logo (#2001)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a repository with a logo shows it left of the name on its rows', async ({
     page,
   }) => {

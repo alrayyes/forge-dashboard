@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The Running pill says how far a pipeline is: the word, then a count for each
 // state that has any, each with its own glyph (#2004). The server tallies the
@@ -68,9 +67,6 @@ const segments = (page: Page, title: string) =>
   pill(page, title).locator('.ci-seg:not(.ci-seg-label)');
 
 test.describe('Running pill counts (#2004)', () => {
-  // Writes nothing per user, so it starts from the shared session.
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a running pull request draws a count per state that has any, in order', async ({
     page,
   }) => {
