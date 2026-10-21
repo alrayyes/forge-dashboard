@@ -177,3 +177,64 @@ func TestAggregator_NextDelay_DoesNotStretchWhileAnotherForgeWasNeverReachable(t
 
 	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
 }
+
+func TestAggregator_NextDelay_DoesNotStretchOnASnapshotRestoredAtStart(t *testing.T) {
+	t.Parallel()
+
+	cache := &memSnapshotCache{}
+	src := func() dashboard.Source {
+		return &fakeSource{result: dashboard.Result{
+			Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+			Repos:  []dashboard.Repo{repoWithHook("o/a", true)},
+		}}
+	}
+	first := dashboard.NewAggregator([]dashboard.Source{src()}, dashboard.WithSnapshotCache(cache))
+	first.Refresh(t.Context())
+	require.Equal(t, 80*time.Minute, first.NextDelay(20*time.Minute))
+
+	// The saved hook state is from before the restart. Until a refresh has
+	// reached the forge it says nothing about now.
+	restarted := dashboard.NewAggregator([]dashboard.Source{src()}, dashboard.WithSnapshotCache(cache))
+	require.Len(t, restarted.Get().Repos, 1)
+
+	assert.Equal(t, 20*time.Minute, restarted.NextDelay(20*time.Minute))
+}
+
+func TestAggregator_NextDelay_OnlyTheFailedForgeBlocksCoverageAndItRecovers(t *testing.T) {
+	t.Parallel()
+
+	gh := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:  []dashboard.Repo{repoWithHook("o/a", true)},
+	}}
+	fjRepo := dashboard.Repo{Forge: dashboard.ForgeForgejo, FullName: "o/b", HasWebhook: true}
+	fj := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true},
+		Repos:  []dashboard.Repo{fjRepo},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{gh, fj})
+	agg.Refresh(t.Context())
+	require.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+
+	// Forgejo's fetch fails: GitHub is fully covered, but Forgejo's repo is
+	// carried over, so the short wait holds while it is down.
+	down := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: false}}
+	setResult(fj, down)
+	agg.Refresh(t.Context())
+	require.Len(t, agg.Get().Repos, 2)
+	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+
+	setResult(fj, dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true},
+		Repos:  []dashboard.Repo{fjRepo},
+	})
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+}
+
+func setResult(src *fakeSource, res dashboard.Result) {
+	src.mu.Lock()
+	defer src.mu.Unlock()
+	src.result = res
+}
