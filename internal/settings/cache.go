@@ -260,21 +260,28 @@ func (s *Store) LoadETag(ctx context.Context, forge, credential, url, accept str
 	return etag, body, header, true, nil
 }
 
-// SaveSnapshotRepos replaces everything stored for forge under credential, so
-// a repo that is no longer tracked drops out with the next successful refresh.
-func (s *Store) SaveSnapshotRepos(ctx context.Context, forge dashboard.Forge, credential string, repos []dashboard.CachedRepo) error {
+// SaveSnapshotChanges writes the repos in changed, replacing a stored row of
+// the same name, and deletes the ones named in removed. Every other row stored
+// for forge under credential is left alone, so an unchanged repo costs no write.
+func (s *Store) SaveSnapshotChanges(ctx context.Context, forge dashboard.Forge, credential string, changed []dashboard.CachedRepo, removed []string) error {
+	if len(changed) == 0 && len(removed) == 0 {
+		return nil
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("settings: begin snapshot save: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM snapshot_cache WHERE forge = ? AND credential = ?`, string(forge), credential); err != nil {
-		return fmt.Errorf("settings: clear snapshot cache: %w", err)
+	for _, repo := range removed {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM snapshot_cache WHERE forge = ? AND credential = ? AND repo = ?`, string(forge), credential, repo); err != nil {
+			return fmt.Errorf("settings: remove snapshot repo: %w", err)
+		}
 	}
-	for _, r := range repos {
+	for _, r := range changed {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO snapshot_cache (forge, credential, repo, payload_json, fetched_at) VALUES (?, ?, ?, ?, ?)`,
+			`INSERT INTO snapshot_cache (forge, credential, repo, payload_json, fetched_at) VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT (forge, credential, repo) DO UPDATE SET payload_json = excluded.payload_json, fetched_at = excluded.fetched_at`,
 			string(forge), credential, r.Repo, r.Payload, r.FetchedAt.UTC()); err != nil {
 			return fmt.Errorf("settings: save snapshot repo: %w", err)
 		}

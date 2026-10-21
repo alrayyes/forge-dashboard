@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -29,10 +30,16 @@ func (s *savedRows) LoadSnapshotRepos(context.Context, dashboard.Forge, string) 
 	return append([]dashboard.CachedRepo(nil), s.rows...), nil
 }
 
-func (s *savedRows) SaveSnapshotRepos(_ context.Context, _ dashboard.Forge, _ string, repos []dashboard.CachedRepo) error {
+func (s *savedRows) SaveSnapshotChanges(_ context.Context, _ dashboard.Forge, _ string, changed []dashboard.CachedRepo, removed []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.rows = append([]dashboard.CachedRepo(nil), repos...)
+	var kept []dashboard.CachedRepo
+	for _, r := range s.rows {
+		if !slices.Contains(removed, r.Repo) && !slices.ContainsFunc(changed, func(c dashboard.CachedRepo) bool { return c.Repo == r.Repo }) {
+			kept = append(kept, r)
+		}
+	}
+	s.rows = append(kept, changed...)
 
 	return nil
 }

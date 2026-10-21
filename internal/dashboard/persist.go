@@ -19,8 +19,10 @@ type CachedRepo struct {
 type SnapshotCache interface {
 	// LoadSnapshotRepos returns every repo stored for forge under credential.
 	LoadSnapshotRepos(ctx context.Context, forge Forge, credential string) ([]CachedRepo, error)
-	// SaveSnapshotRepos replaces everything stored for forge under credential.
-	SaveSnapshotRepos(ctx context.Context, forge Forge, credential string, repos []CachedRepo) error
+	// SaveSnapshotChanges writes the repos in changed (replacing any stored row
+	// of the same name) and deletes the ones named in removed, leaving every
+	// other row stored for forge under credential as it is.
+	SaveSnapshotChanges(ctx context.Context, forge Forge, credential string, changed []CachedRepo, removed []string) error
 }
 
 // SeenRecord is when a webhook delivery of one event class last arrived for a repo.
