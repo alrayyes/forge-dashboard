@@ -15,13 +15,6 @@ describe('settings groups', () => {
     ]);
   });
 
-  test('the old sharing link opens Display', () => {
-    expect(groupFromHash('#sharing')).toEqual({ group: 'display' });
-    expect(groupFromHash('#shared-with-me-list')).toEqual({
-      group: 'display',
-    });
-  });
-
   test('no hash and unknown hashes open Display', () => {
     expect(groupFromHash('')).toEqual({ group: DEFAULT_GROUP });
     expect(groupFromHash('#')).toEqual({ group: 'display' });

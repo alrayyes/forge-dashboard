@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #1630: the "Issues" section in Settings. The server half (storing, checking
 // and applying the two settings) is a separate pull request, so this spec
@@ -91,10 +91,6 @@ async function addPattern(page: Page, text: string) {
 }
 
 test.describe('Settings: Issues (#1630)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('has a labelled section with the checkbox, an empty state, and the syntax note', async ({
     page,
   }) => {
