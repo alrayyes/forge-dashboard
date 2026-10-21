@@ -147,3 +147,25 @@ func TestReadMainBranch_ReadsAFinishedRunsJobsOnce(t *testing.T) {
 		"/api/v1/repos/alrayyes/a/actions/runs/2/jobs",
 	}, second, "the finished run's jobs are not read again")
 }
+
+// A rerun finishes again later, so its jobs are read afresh and not served from
+// what was kept for the run's earlier finish.
+func TestReadMainBranch_ARerunInvalidatesTheKeptJobs(t *testing.T) {
+	t.Parallel()
+
+	s := &mainBranchServer{
+		runs: []map[string]any{actionRun(1, "main", "cafef00d", "failure", started, stopped)},
+		jobs: map[string][]map[string]any{"1": jobsOf("success", "failure")},
+	}
+	client := s.start(t)
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	require.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, row.Checks)
+
+	s.runs = []map[string]any{actionRun(1, "main", "cafef00d", "success", started, "2026-10-10T09:09:00Z")}
+	s.jobs = map[string][]map[string]any{"1": jobsOf("success", "success")}
+	row, err = client.ReadMainBranch(t.Context(), repoA)
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 2}, row.Checks)
+}

@@ -283,10 +283,11 @@ type splitServer struct {
 	jobs    map[int][]string
 	failJob map[int]bool
 
-	mu       sync.Mutex
-	reads    []int
-	inflight int
-	peak     int
+	runsLists atomic.Int32
+	mu        sync.Mutex
+	reads     []int
+	inflight  int
+	peak      int
 }
 
 func (s *splitServer) start(t *testing.T) *forgejo.Client {
@@ -313,6 +314,7 @@ func (s *splitServer) start(t *testing.T) *forgejo.Client {
 		writeJSON(t, w, map[string]any{"state": "pending", "statuses": statuses})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		s.runsLists.Add(1)
 		writeJSON(t, w, map[string]any{"workflow_runs": s.runs})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/{id}/jobs", func(w http.ResponseWriter, r *http.Request) {
@@ -439,4 +441,35 @@ func TestListOpenPullRequests_SplitReadsTheRunsJobsAtOnce(t *testing.T) {
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 3}, got)
 	assert.Greater(t, s.peak, 1, "the jobs reads overlapped")
+}
+
+// With nothing pending the split has nothing to tell apart, so the runs are not
+// even listed.
+func TestListOpenPullRequests_SplitMakesNoCallWhenNothingIsPending(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{pending: 0, runs: []map[string]any{splitRun(7, "running", "pull_request")}, jobs: map[int][]string{7: {"running"}}}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{}, got)
+	assert.Empty(t, s.reads)
+	assert.EqualValues(t, 0, s.runsLists.Load(), "the runs list is not read either")
+}
+
+// A jobs read that fails for one run leaves that run's checks queued and still
+// counts the other runs' running jobs.
+func TestListOpenPullRequests_SplitSurvivesAJobsReadFailingMidWay(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "running", "pull_request")},
+		jobs:    map[int][]string{7: {"running", "running"}, 8: {"running"}},
+		failJob: map[int]bool{7: true},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
 }
