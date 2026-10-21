@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.249.0](https://github.com/alrayyes/forge-dashboard/compare/v0.248.0...v0.249.0) (2026-10-21)
+
+
+### Features
+
+* **web:** link a pull request's closing issues to their pop-up on the Issues page ([#2112](https://github.com/alrayyes/forge-dashboard/issues/2112)) ([4f24f53](https://github.com/alrayyes/forge-dashboard/commit/4f24f53f11f2122c600176b471a308ebe4970e17))
+
+
+### Bug Fixes
+
+* **forgejo:** count a skipped status as passed in the pull request check tally ([#2123](https://github.com/alrayyes/forge-dashboard/issues/2123)) ([96ec4b9](https://github.com/alrayyes/forge-dashboard/commit/96ec4b930ae684cef3347dceddb17663ec15de44))
+
 ## [0.248.0](https://github.com/alrayyes/forge-dashboard/compare/v0.247.1...v0.248.0) (2026-10-21)
 
 

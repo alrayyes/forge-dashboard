@@ -1,6 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1135: Lighthouse's SEO audit wants a description on every page, and a
 // search result or link preview reads it. A sentence about the page, not the
@@ -31,16 +30,14 @@ function description(page: Page): Promise<string> {
 
 test.describe('meta descriptions (#1135)', () => {
   for (const path of PUBLIC_PAGES) {
-    test(`${path} describes itself`, async ({ page }) => {
+    test(`${path} describes itself`, async ({ page, context }) => {
+      await context.clearCookies();
       await page.goto(path);
       expect((await description(page)).length).toBeGreaterThan(20);
     });
   }
 
   test.describe('signed in', () => {
-    // Reads only, so it starts from the shared session (#1379).
-    test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
     test('every signed-in page describes itself, each differently', async ({
       page,
     }) => {

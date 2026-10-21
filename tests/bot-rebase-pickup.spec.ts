@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #707: after a Dependabot or Renovate rebase request the row says the
 // request went out, that the bot picks it up in its own time, and when it
@@ -15,10 +14,6 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 // carries `botRequest`, and the page only draws it. These tests play the
 // server by putting that field on the mocked snapshots. The page clears a
 // request when a later snapshot no longer has it.
-
-// Every bot endpoint is mocked and nothing is saved per user, so the whole file
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 interface MockPR {
   forge: string;
