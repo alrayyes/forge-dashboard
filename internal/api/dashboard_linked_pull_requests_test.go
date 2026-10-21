@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"testing"
@@ -18,6 +19,14 @@ type linkedEntry struct {
 	Number  int    `json:"number"`
 	Draft   bool   `json:"draft"`
 	PageURL string `json:"pageUrl"`
+	CI      string `json:"ci"`
+	Checks  struct {
+		Passed  int `json:"passed"`
+		Running int `json:"running"`
+		Waiting int `json:"waiting"`
+		Failed  int `json:"failed"`
+	} `json:"checks"`
+	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
 }
 
 // linkedByIssue reads /api/dashboard and returns each issue's linked pull
@@ -35,10 +44,11 @@ func linkedByIssue(t *testing.T, srvURL string, cookie *http.Cookie) map[string]
 		require.True(t, ok, "%s has no linkedPullRequests array", key)
 		for _, l := range linked {
 			m := l.(map[string]any)
-			list = append(list, linkedEntry{
-				Forge: m["forge"].(string), Repo: m["repo"].(string), Number: int(m["number"].(float64)),
-				Draft: m["draft"].(bool), PageURL: m["pageUrl"].(string),
-			})
+			raw, err := json.Marshal(m)
+			require.NoError(t, err)
+			var entry linkedEntry
+			require.NoError(t, json.Unmarshal(raw, &entry))
+			list = append(list, entry)
 		}
 		out[key] = list
 	}
@@ -71,7 +81,12 @@ func linkedServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 	github := &fakeConfiguredSource{
 		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 2},
 		prs: []dashboard.PullRequest{
-			pr(dashboard.ForgeGitHub, "alrayyes/a", 20, closes("alrayyes/a", 1)),
+			pr(dashboard.ForgeGitHub, "alrayyes/a", 20, func(p *dashboard.PullRequest) {
+				p.CI = dashboard.CIPending
+				p.Checks = dashboard.CheckCounts{Passed: 3, Running: 2, Failed: 1}
+				p.AwaitingWorkflowApproval = true
+				closes("alrayyes/a", 1)(p)
+			}),
 			pr(dashboard.ForgeGitHub, "alrayyes/a", 10, func(p *dashboard.PullRequest) { p.Draft = true; closes("alrayyes/a", 1)(p) }),
 			pr(dashboard.ForgeGitHub, "alrayyes/a", 11, func(p *dashboard.PullRequest) {
 				p.Labels = []dashboard.Label{{Name: "autorelease: pending"}}
@@ -91,7 +106,11 @@ func linkedServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 	forgejo := &fakeConfiguredSource{
 		health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true, RepoCount: 1},
 		prs: []dashboard.PullRequest{
-			pr(dashboard.ForgeForgejo, "Ryan/Hush", 7, closes("ryan/hush", 3)),
+			pr(dashboard.ForgeForgejo, "Ryan/Hush", 7, func(p *dashboard.PullRequest) {
+				p.CI = dashboard.CIFailure
+				p.Checks = dashboard.CheckCounts{Passed: 4, Waiting: 1, Failed: 2}
+				closes("ryan/hush", 3)(p)
+			}),
 		},
 		issues: []dashboard.Issue{issue(dashboard.ForgeForgejo, "Ryan/Hush", 3), issue(dashboard.ForgeForgejo, "Ryan/Hush", 4)},
 		repos:  []dashboard.Repo{{Forge: dashboard.ForgeForgejo, FullName: "Ryan/Hush", URL: "https://git.example.com/Ryan/Hush"}},
@@ -128,8 +147,8 @@ func TestDashboard_IssuesListThePullRequestsThatWillCloseThem(t *testing.T) {
 		got := linkedByIssue(t, srvURL, cookie)["github:alrayyes/a#1"]
 
 		assert.Equal(t, []linkedEntry{
-			{Forge: "github", Repo: "alrayyes/a", Number: 10, Draft: true, PageURL: "/pull-requests.html?pr=github/alrayyes/a/10"},
-			{Forge: "github", Repo: "alrayyes/a", Number: 20, PageURL: "/pull-requests.html?pr=github/alrayyes/a/20"},
+			{Forge: "github", Repo: "alrayyes/a", Number: 10, Draft: true, PageURL: "/pull-requests.html?pr=github/alrayyes/a/10", CI: "success"},
+			{Forge: "github", Repo: "alrayyes/a", Number: 20, PageURL: "/pull-requests.html?pr=github/alrayyes/a/20", CI: "pending", Checks: checkCounts(3, 2, 0, 1), AwaitingWorkflowApproval: true},
 		}, got)
 	})
 	t.Run("github: a release pull request points at the releases page", func(t *testing.T) {
@@ -141,7 +160,7 @@ func TestDashboard_IssuesListThePullRequestsThatWillCloseThem(t *testing.T) {
 	t.Run("forgejo: a lowercased reference finds the mixed-case repo's issue", func(t *testing.T) {
 		got := linkedByIssue(t, srvURL, cookie)
 
-		assert.Equal(t, []linkedEntry{{Forge: "forgejo", Repo: "Ryan/Hush", Number: 7, PageURL: "/pull-requests.html?pr=forgejo/Ryan/Hush/7"}}, got["forgejo:Ryan/Hush#3"])
+		assert.Equal(t, []linkedEntry{{Forge: "forgejo", Repo: "Ryan/Hush", Number: 7, PageURL: "/pull-requests.html?pr=forgejo/Ryan/Hush/7", CI: "failure", Checks: checkCounts(4, 0, 1, 2)}}, got["forgejo:Ryan/Hush#3"])
 		assert.Equal(t, []linkedEntry{}, got["forgejo:Ryan/Hush#4"], "an issue nothing closes lists none, never null")
 	})
 	t.Run("a pull request in a repo whose pull requests are ignored is not listed", func(t *testing.T) {
@@ -151,4 +170,16 @@ func TestDashboard_IssuesListThePullRequestsThatWillCloseThem(t *testing.T) {
 
 		assert.Equal(t, []linkedEntry{}, linkedByIssue(t, srvURL, cookie)["github:alrayyes/a#3"])
 	})
+}
+
+func checkCounts(passed, running, waiting, failed int) (c struct {
+	Passed  int `json:"passed"`
+	Running int `json:"running"`
+	Waiting int `json:"waiting"`
+	Failed  int `json:"failed"`
+},
+) {
+	c.Passed, c.Running, c.Waiting, c.Failed = passed, running, waiting, failed
+
+	return c
 }

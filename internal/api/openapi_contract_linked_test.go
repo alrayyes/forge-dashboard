@@ -28,7 +28,7 @@ func TestContract_IssuesCarryLinkedPullRequests(t *testing.T) {
 		require.Contains(t, issue.Required, "linkedPullRequests")
 		items := issue.Properties["linkedPullRequests"].Value.Items.Value
 
-		assert.ElementsMatch(t, []string{"forge", "repo", "number", "draft", "pageUrl"}, items.Required)
+		assert.ElementsMatch(t, []string{"forge", "repo", "number", "draft", "pageUrl", "ci", "checks", "awaitingWorkflowApproval"}, items.Required)
 	})
 	t.Run("every issue in the response has the array, filled where a pull request closes it", func(t *testing.T) {
 		t.Parallel()

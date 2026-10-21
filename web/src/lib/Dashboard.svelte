@@ -114,6 +114,7 @@
     type LinkedPullRequest,
     linkedPills,
     missingNote,
+    type PillCi,
     parsePullRequestAddress,
   } from "#lib/linked-pull-requests.js";
   import { createSpeaker } from "#lib/live-region.js";
@@ -822,21 +823,33 @@
     };
     // The details header draws the same pill as a plain badge: it was a
     // snapshot at open, so it opens nothing (interactive = false).
-    function ciPill(item: PullRequestItem, interactive = true): HTMLElement {
+    // The word and the counts a pipeline says, shared by the pull request row
+    // and the pill on an issue row, so the two never word it differently.
+    function ciWords(item: PullRequestItem) {
       const status = item.ci;
       const awaiting = item.awaitingWorkflowApproval === true;
       const label = awaiting
         ? "Waiting for workflow approval"
         : CI_LABELS[status] || status;
-      const glyphs = pipelineCheckGlyphs(
-        awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
-      );
       // A pipeline that ran says how far it got (#2004, #2074), running, passed
       // or failed alike: the word, then one count per state that has any, each
       // with its glyph. The server tallies the counts; nothing is drawn without
       // them, which leaves the plain pill.
       const segments =
         SEGMENTED_CI.has(status) && !awaiting ? checkSegments(item.checks) : [];
+      return { status, awaiting, label, segments };
+    }
+    // announce false leaves the words to a name the caller sets, as the pill
+    // on an issue row does: the hidden line would otherwise repeat in its text.
+    function ciPill(
+      item: PullRequestItem,
+      interactive = true,
+      announce = true,
+    ): HTMLElement {
+      const { status, awaiting, label, segments } = ciWords(item);
+      const glyphs = pipelineCheckGlyphs(
+        awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
+      );
       const segmented = segments.length > 0;
       const addMark = (pill: HTMLElement) => {
         if (glyphs.length > 0) glyphs.forEach((g) => pill.appendChild(g));
@@ -869,7 +882,7 @@
       if (status === "none" || !interactive) {
         const badge = el("span", classes);
         fill(badge);
-        if (segmented) {
+        if (segmented && announce) {
           // A badge has no name of its own to carry the words, so a hidden
           // line says them whole, and the sighted word is hidden too or a
           // screen reader would hear Running twice.
@@ -897,6 +910,17 @@
         openPipelineDialog(item);
       });
       return pill;
+    }
+
+    // The pipeline on the pill of the pull request that will close an issue:
+    // the pull request row's own badge, so the word, glyphs and counts are the
+    // same. Nothing for a pull request with no checks, which keeps the plain
+    // pill.
+    function linkedCi(pr: LinkedPullRequest): PillCi | null {
+      const item = pr as unknown as PullRequestItem;
+      const { awaiting, label, segments } = ciWords(item);
+      if (segments.length === 0 && !awaiting) return null;
+      return { badge: ciPill(item, false, false), label, segments };
     }
 
     // A link out to the checks page, where GitHub's own button approves the
@@ -2172,6 +2196,7 @@
           item.repo,
           (item as IssueItem).linkedPullRequests,
           (linked, triggerId) => void openLinkedPullRequest(linked, triggerId),
+          linkedCi,
         );
         if (pills) titleCellEl.appendChild(pills);
       }
