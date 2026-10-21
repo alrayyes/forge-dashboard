@@ -145,7 +145,7 @@ A short "adding a forge" section in `ARCHITECTURE.md` lists these so the next ad
 - [An incremental refresh misses a change the probe can't see (label, review, check)] → spike first; repos without a healthy webhook are always fetched; the safety-net refresh periodically does a full pass (every Nth, default 6, to be fixed when the spike result is known) so a missed change is bounded.
 - [A persisted snapshot shows old data after a long outage] → served stale and marked; replaced on the first successful refresh.
 - [ETag rows grow] → size cap, per-body cap, eviction oldest first, pruning of untracked repos.
-- [Stretched interval hides a webhook that silently stopped] → coverage is recomputed from `hook_checks` and `last_delivery_at`; an overdue delivery drops the repo from "healthy" and the interval returns to `REFRESH_INTERVAL`.
+- [Stretched interval hides a webhook that silently stopped] → coverage is recomputed from the persisted hook checks at each refresh, and a repo whose hook check fails drops out of "healthy", so the interval returns to `REFRESH_INTERVAL` at the next refresh. Delivery lateness is not used, because a quiet repo sends nothing for days. The worst case is one stretched wait before a lost hook is noticed.
 - [Reserve holds back background work on a small budget] → the reserve is a fraction with a floor, and force refresh still runs unless the budget is spent.
 - [Collision with #1876, which rewrites `Manager` and the admin area] → stats and cache keys use credential and repo only; rebase on #1876's changes; do not add a user parameter to any new API.
 - [Batched query exceeds GitHub's node limit] → chunk the aliases; a test with 60 pending PRs asserts the chunk count.
