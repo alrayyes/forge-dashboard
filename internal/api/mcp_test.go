@@ -324,7 +324,7 @@ func TestMCP_GetPullRequestDetails_AListedReleasePullRequestCarriesReleaseNotes(
 		prs, _ := fetchDashboard(t, srvURL, cookie)["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, 2*time.Second, 10*time.Millisecond)
+	}, mcpPollBudget, 10*time.Millisecond)
 
 	result := callDetailsTool(t, srvURL, cookie, map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 7})
 

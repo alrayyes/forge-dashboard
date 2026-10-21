@@ -1,14 +1,11 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // Insights, Settings and Webhooks take their data from the layout's one
 // /api/dashboard read (#1801). While the first refresh runs the server answers
 // with an empty `firstRefreshDone:false` snapshot, so the pages must follow the
 // later answers until one is done. A read that was aborted or hit a 5xx must
 // not freeze a page on its empty state; a 4xx is final.
-
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const PAGES = [
   {
