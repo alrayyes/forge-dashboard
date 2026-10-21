@@ -352,26 +352,6 @@ func TestQueuedActions_AnotherUser_CannotQueueOnTheOwnersBoard(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "that user has no such pull request on their board")
 }
 
-func TestQueuedActions_SharedDashboard_DoesNotRevealTheOwnersQueue(t *testing.T) {
-	t.Parallel()
-	srv, _, owner := queueBoard(t, true, time.Now().Add(time.Hour))
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), owner)
-	_ = resp.Body.Close()
-	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	viewer, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
-	share := doJSON(t, http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, "", owner)
-	_ = share.Body.Close()
-	require.Equal(t, http.StatusNoContent, share.StatusCode)
-
-	board := fetchDashboardWith(t, srv.URL, viewer, "?owner="+testUser)
-
-	require.NotEmpty(t, board["pullRequests"], "the shared board is visible")
-	assert.Empty(t, board["queuedActions"])
-	for _, p := range board["pullRequests"].([]any) {
-		assert.Nil(t, p.(map[string]any)["queued"])
-	}
-}
-
 func TestQueuedActions_SurviveARestart(t *testing.T) {
 	t.Parallel()
 	srv, manager, cookie := queueBoard(t, true, time.Now().Add(time.Hour))

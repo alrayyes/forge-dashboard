@@ -13,7 +13,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
-	"github.com/alrayyes/forge-dashboard/internal/sharing"
 )
 
 //go:embed all:static
@@ -36,7 +35,6 @@ type Deps struct {
 	AuthStore   *auth.Store
 
 	SettingsStore *settings.Store
-	SharingStore  *sharing.Store
 
 	// Database and Dashboard back GET /readyz. Either may be nil, in which
 	// case that check is skipped.
@@ -168,10 +166,6 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestChecks(deps))))
 	mux.Handle("GET /api/pull-requests/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestDetails(deps))))
 	mux.Handle("GET /api/issues/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleIssueDetails(deps))))
-
-	mux.Handle("GET /api/sharing", auth.RequireAuth(deps.AuthStore)(handleSharingGet(deps)))
-	mux.Handle("PUT /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingPut(deps)))
-	mux.Handle("DELETE /api/sharing/{username}", auth.RequireAuth(deps.AuthStore)(handleSharingDelete(deps)))
 
 	mux.Handle("GET /api/admin/users", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListUsers(deps.AuthStore))))
 	mux.Handle("POST /api/admin/users/{username}/revoke", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminRevokeUser(deps))))
