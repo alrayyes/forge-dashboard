@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.249.3](https://github.com/alrayyes/forge-dashboard/compare/v0.249.2...v0.249.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** return focus sensibly when a pull request opened from its address closes ([#2128](https://github.com/alrayyes/forge-dashboard/issues/2128)) ([609824f](https://github.com/alrayyes/forge-dashboard/commit/609824f65833ed87982c6427a7cddf7baf084ad8))
+
+## [0.249.2](https://github.com/alrayyes/forge-dashboard/compare/v0.249.1...v0.249.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** return focus sensibly when an issue opened from its address closes ([#2130](https://github.com/alrayyes/forge-dashboard/issues/2130)) ([9a4d8af](https://github.com/alrayyes/forge-dashboard/commit/9a4d8afac49b8c103dc17447f3da922962555ee8))
+
+## [0.249.1](https://github.com/alrayyes/forge-dashboard/compare/v0.249.0...v0.249.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** pipeline panel and linked pill follow-ups ([#2113](https://github.com/alrayyes/forge-dashboard/issues/2113)) ([d6576bf](https://github.com/alrayyes/forge-dashboard/commit/d6576bf57e228301d292d1bdc21a26643cac129f))
+
+## [0.249.0](https://github.com/alrayyes/forge-dashboard/compare/v0.248.0...v0.249.0) (2026-10-21)
+
+
+### Features
+
+* **web:** link a pull request's closing issues to their pop-up on the Issues page ([#2112](https://github.com/alrayyes/forge-dashboard/issues/2112)) ([4f24f53](https://github.com/alrayyes/forge-dashboard/commit/4f24f53f11f2122c600176b471a308ebe4970e17))
+
+
+### Bug Fixes
+
+* **forgejo:** count a skipped status as passed in the pull request check tally ([#2123](https://github.com/alrayyes/forge-dashboard/issues/2123)) ([96ec4b9](https://github.com/alrayyes/forge-dashboard/commit/96ec4b930ae684cef3347dceddb17663ec15de44))
+
 ## [0.248.0](https://github.com/alrayyes/forge-dashboard/compare/v0.247.1...v0.248.0) (2026-10-21)
 
 

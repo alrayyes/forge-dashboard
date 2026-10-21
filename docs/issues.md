@@ -129,10 +129,12 @@ An issue's pop-up can open from the address. The Issues page opens it when the
 address ends in `?issue=` followed by `forge/owner/name/number`, so
 `/issues.html?issue=github/alrayyes/hush-hush/12` opens the pop-up for that
 issue. The "Closes" links on [pull requests](pull-request-pages.md#issues-a-pull-request-closes)
-use it. Closing the pop-up leaves you on the page, and the address loses
-`?issue=` so a reload doesn't open it again. If the issue is closed, hidden by
-your settings, or in a repo the dashboard doesn't track, no pop-up opens and a
-note over the list says why.
+use it. Closing the pop-up leaves you on the page, with keyboard focus on that
+issue's title in the list. If your filters leave the row out, focus goes to the
+**Filter by title** box instead, so it never falls back to the top of the page.
+The address loses `?issue=` so a reload doesn't open it again. If the issue is
+closed, hidden by your settings, or in a repo the dashboard doesn't track, no
+pop-up opens and a note over the list says why.
 
 ## Issues in Settings
 

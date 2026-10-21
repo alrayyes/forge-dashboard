@@ -222,6 +222,61 @@ test.describe('the pill on an issue row', () => {
     await expect(page.locator('a.linked-pr')).toHaveCount(0);
   });
 
+  test('the non-link pill looks inert and a click on it reaches the issue title', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [], issues: [issue(1, [linked(12)])] });
+    await page.route('**/api/issues/details*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(details),
+      }),
+    );
+    await page.route('**/api/dashboard?owner=alice*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [{ ...issue(1, [linked(12)]), title: 'Alice’s issue' }],
+        }),
+      }),
+    );
+    await page.route('**/api/sharing', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sharedWithMe: [{ username: 'alice', displayName: 'Alice' }],
+        }),
+      }),
+    );
+    await page.goto('/issues.html');
+    await expect(page.locator('a.linked-pr')).toHaveCount(1);
+    await page
+      .locator('#dashboard-owner-select')
+      .selectOption({ label: 'Alice’s dashboard' });
+    const pill = page.locator('span.linked-pr');
+    await expect(pill).toHaveText('#12 open');
+
+    // Not a pointer, no underline on hover, and no hit area of its own.
+    await pill.hover({ force: true });
+    await expect(pill).toHaveCSS('cursor', 'default');
+    await expect(pill).toHaveCSS('text-decoration-line', 'none');
+    await expect(pill).toHaveCSS('pointer-events', 'none');
+
+    // A click where the pill sits lands on the issue's title instead.
+    const box = await pill.boundingBox();
+    if (!box) throw new Error('the pill has no box');
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(
+      page.getByRole('dialog', { name: /^Issue details/ }),
+    ).toBeVisible();
+  });
+
   test('has no accessibility violations in light, dark and at 390 px', async ({
     page,
   }) => {
@@ -330,6 +385,72 @@ test.describe('the address of a pull request', () => {
       dialog(page).getByRole('button', { name: /^(Merge|Close pull request)/ }),
     ).toHaveCount(0);
     expect(asked.some((u) => u.includes('includeHidden=true'))).toBe(true);
+  });
+
+  test("closing the pop-up opened from the address puts focus on that pull request's title", async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [pullRequest(12), pullRequest(13)] });
+
+    await page.goto(address(13));
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(dialog(page)).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: '#13 Pull request 13' }),
+    ).toBeFocused();
+  });
+
+  test('closing a read only pop-up opened from the address puts focus on the title filter, not the page', async ({
+    page,
+  }) => {
+    const draft = pullRequest(14, { draft: true });
+    await mockBoard(page, {
+      shown: [pullRequest(12)],
+      everything: [pullRequest(12), draft],
+    });
+
+    await page.goto(address(14));
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(dialog(page)).toBeHidden();
+    await expect(page.getByLabel('Filter by title')).toBeFocused();
+  });
+
+  test('a pop-up opened from a row still returns focus to that row', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [pullRequest(12), pullRequest(13)] });
+    await page.goto('/pull-requests.html');
+
+    const title = page.getByRole('button', { name: '#13 Pull request 13' });
+    await title.click();
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(title).toBeFocused();
+  });
+
+  test('has no axe violations with the pop-up open from the address, or after it closes', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [pullRequest(12), pullRequest(13)] });
+
+    await page.goto(address(13));
+    await expect(dialog(page)).toBeVisible();
+    const open = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(open.violations).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    const closed = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(closed.violations).toEqual([]);
   });
 
   test('says so, and keeps the address, when the lookup fails', async ({

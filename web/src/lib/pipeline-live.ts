@@ -95,6 +95,20 @@ export function keepOrder(prev: Check[], next: Check[]): Check[] {
   return out;
 }
 
+// A check's key: its name, and for the nth check of a shared name `name#n`.
+// It does not move when other checks come or go, so a redraw can find the
+// control the keyboard was on. Same order as the list given.
+export function checkKeys(checks: Check[]): string[] {
+  const seen = new Map<string, number>();
+
+  return checks.map((check) => {
+    const n = (seen.get(check.name) ?? 0) + 1;
+    seen.set(check.name, n);
+
+    return n === 1 ? check.name : `${check.name}#${n}`;
+  });
+}
+
 // The one polite line for a live redraw, or nothing when no check changed.
 export function announceChange(prev: Check[], next: Check[]): string {
   const before = new Map<string, string[]>();
