@@ -8606,7 +8606,7 @@
 <div class="wrap">
   <!--
     This page's own genuinely-unique content — connected forges, the
-    sharing dropdown, the forge-health panel, the ticking "refreshed"
+    forge-health panel, the ticking "refreshed"
     clock, the manual refresh button — used to be injected into the
     shared layout's <header> landmark (see the script block's own
     comment for why that broke under SSR). It's plain, non-landmark
