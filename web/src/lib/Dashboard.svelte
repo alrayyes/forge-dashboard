@@ -103,6 +103,12 @@
   import { copyButton } from "#lib/copy-details.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
   import {
+    type ClosingIssue,
+    closingPills,
+    missingIssueNote,
+    parseIssueAddress,
+  } from "#lib/closing-issues.js";
+  import {
     type LinkedPullRequest,
     linkedPills,
     missingNote,
@@ -176,6 +182,9 @@
   type PullRequestItem = FilterableItem & {
     number: number;
     url: string;
+    // The issues it will close when it merges, with the address that opens
+    // each on the Issues page, read from the server.
+    closesIssues?: ClosingIssue[];
     // The forge's own avatar URL for the author; empty when it has none.
     authorAvatarUrl?: string;
     // The author's profile page on the forge, built by the server; empty when
@@ -1252,6 +1261,13 @@
       }
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
+      const closing = closingPills(
+        prKey(item),
+        item.repo,
+        item.closesIssues,
+        !currentOwner,
+      );
+      if (closing) attributes.appendChild(closing);
       return { state, attributes };
     }
 
@@ -1720,6 +1736,42 @@
       else setHideStatus(missingNote(wanted));
     }
 
+    // ---- an issue named in the address (?issue=forge/owner/name/number) ----
+    // A pull request's "Closes" pill links here. Once a real snapshot is in,
+    // the pop-up opens on the issue when the board lists it. One that is not
+    // listed (closed, hidden by a setting, a repo not tracked) gets a plain
+    // note, never a blank pop-up.
+    let addressedIssue = !pullsView
+      ? parseIssueAddress(window.location.search)
+      : null;
+
+    function openAddressedIssue(listed: IssueItem[]) {
+      const wanted = addressedIssue;
+      if (!wanted) return;
+      addressedIssue = null;
+      const here = new URL(window.location.href);
+      here.searchParams.delete("issue");
+      history.replaceState(
+        history.state,
+        "",
+        here.pathname + here.search + here.hash,
+      );
+      const found = listed.find(
+        (i) =>
+          i.forge === wanted.forge &&
+          i.number === wanted.number &&
+          i.repo.toLowerCase() === wanted.repo.toLowerCase(),
+      );
+      if (found) {
+        openIssueDialog(found, "");
+        return;
+      }
+      const note = document.getElementById("issue-address-note");
+      if (!note) return;
+      note.textContent = missingIssueNote(wanted);
+      note.hidden = false;
+    }
+
     // The issue header: it is open (the board lists open issues only), and
     // its labels as the pull request header shows them.
     function issueStatus(item: IssueItem): DetailsStatus {
@@ -1784,6 +1836,15 @@
           : (triggerId) => openIssueDialog(item as IssueItem, triggerId),
       );
       row.appendChild(titleCellEl);
+      if (isPR) {
+        const closing = closingPills(
+          prKey(item),
+          item.repo,
+          (item as PullRequestItem).closesIssues,
+          !currentOwner,
+        );
+        if (closing) titleCellEl.appendChild(closing);
+      }
       if (!isPR) {
         row.dataset.issueKey = prKey(item);
         const pills = linkedPills(
@@ -7864,6 +7925,8 @@
       if (botChanged.size > 0) keepFocusAcross(renderPRBoard);
       if (view === "issues") ingestIssues(issues, userAsked);
       else issueBoard.setItems(issues);
+      if (addressedIssue && !firstRefreshPending(data.firstRefreshDone))
+        openAddressedIssue(issues);
     }
 
     // Reused by refresh() below and by the WebMCP tool further down --
@@ -8625,6 +8688,7 @@
           role="status"
           hidden
         ></p>
+        <p class="rule-note" id="issue-address-note" role="status" hidden></p>
         {#if settingsHiddenIssues > 0}
           <p class="rule-note" id="issue-settings-note" role="status">
             {settingsHiddenIssues} hidden by your settings.
