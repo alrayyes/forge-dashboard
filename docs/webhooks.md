@@ -1,11 +1,11 @@
 # Webhooks
 
-Optional. Without one set up, the dashboard still refreshes on its own
-schedule (`REFRESH_INTERVAL`, 20 minutes by default) and the browser tab
-polls it every 30 seconds — a webhook just closes that gap, so a new pull
-request, a closed issue, or a CI status change on a repo you're tracking
-shows up within seconds instead of at the next poll. Nothing about this
-is required for the dashboard to work; skip this page entirely and
+Optional. Without one set up, the dashboard still refreshes on its own schedule
+(`REFRESH_INTERVAL`, 20 minutes by default, longer while every repo has a
+webhook) and the browser tab polls it every 30 seconds — a webhook just closes
+that gap, so a new pull request, a closed issue, or a CI status change on a repo
+you're tracking shows up within seconds instead of at the next poll. Nothing
+about this is required for the dashboard to work; skip this page entirely and
 everything still functions exactly as it did before.
 
 Settings' own Webhooks card shows a "Webhook coverage" summary once

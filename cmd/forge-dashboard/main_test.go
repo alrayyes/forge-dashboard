@@ -163,3 +163,13 @@ func TestConfigureLogging_NoLevelSet_DebugStaysDisabled(t *testing.T) {
 	assert.False(t, slog.Default().Enabled(t.Context(), slog.LevelDebug))
 	assert.True(t, slog.Default().Enabled(t.Context(), slog.LevelInfo))
 }
+
+// An explicit REFRESH_INTERVAL is the lower bound: the stretch while every
+// webhook is healthy only ever lengthens it, even past the two hour cap.
+func TestResolveRefreshInterval_Explicit_IsTheLowerBoundOfTheStretch(t *testing.T) {
+	for _, v := range []string{"1m", "20m", "45m", "2h", "3h"} {
+		got := resolveRefreshInterval(v)
+		assert.GreaterOrEqual(t, dashboard.StretchedInterval(got), got, v)
+	}
+	assert.Equal(t, 3*time.Hour, dashboard.StretchedInterval(resolveRefreshInterval("3h")))
+}

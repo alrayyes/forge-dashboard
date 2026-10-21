@@ -10,35 +10,17 @@
 
   let mode = $state<"login" | "register">("login");
 
-  // #477: self-registration is only ever open on a fresh instance (zero
-  // registered users) — registration-status is what tells this page
-  // that, so the "Register a new passkey instead" button below only
-  // shows once the server has actually confirmed it, not by default.
+  // Self-registration is only ever open on a fresh instance (zero
+  // registered users). registration-status tells this page that, so the
+  // "Register a new passkey instead" button only shows once the server has
+  // confirmed it, not by default.
   let registrationOpen = $state(false);
-
-  // Set from the ?invite=<token>&username=<username> a link generated
-  // through the admin API carries (design.md's own invite-link shape) — an
-  // invite always names its username server-side (an admin picked it
-  // when issuing the invite), so this page never asks the invitee to
-  // type one. Present, this page skips the registration-status check
-  // entirely and goes straight to the invite-scoped register form.
-  let inviteToken = $state<string | null>(null);
-  let inviteUsername = $state<string | null>(null);
 
   // Outside the (app) route group — no session yet, so none of its
   // shared header/nav chrome applies — but the shared Footer component
   // (version string included) is still rendered on this page too, same
   // as before footer.js's own injection was retired.
   onMount(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("invite");
-    if (token) {
-      inviteToken = token;
-      inviteUsername = params.get("username") ?? "";
-      mode = "register";
-      return;
-    }
-
     fetch("/api/auth/registration-status", {
       headers: { Accept: "application/json" },
     })
@@ -123,14 +105,9 @@
 
   async function submitRegister(e: SubmitEvent) {
     e.preventDefault();
-    // An invite already fixes both — see inviteToken's own doc comment —
-    // so there's no typed displayName to send at all in that case; the
-    // server uses the invite's own displayName instead (#477).
-    const username = inviteToken
-      ? (inviteUsername ?? "")
-      : registerUsername.trim();
-    const displayName = inviteToken ? "" : registerDisplayName.trim();
-    if (!username || (!inviteToken && !displayName)) return;
+    const username = registerUsername.trim();
+    const displayName = registerDisplayName.trim();
+    if (!username || !displayName) return;
 
     registerSubmitting = true;
     status = "Follow your browser or device prompt to create a passkey…";
@@ -140,7 +117,6 @@
       const options = await postJSON("/api/auth/register/begin", {
         username,
         displayName,
-        inviteToken: inviteToken ?? "",
       });
       const publicKey = prepareCreationOptions(options);
       const credential = (await navigator.credentials.create({
@@ -196,7 +172,7 @@
   <title>Sign in — Forge Board</title>
   <meta
     name="description"
-    content="Sign in to Forge Board with a passkey, or register one from an invite."
+    content="Sign in to Forge Board with a passkey, or register the first one on a new instance."
   />
   <style>
     .auth-wrap {
@@ -237,11 +213,6 @@
     }
     .field {
       margin-bottom: 14px;
-    }
-    .invite-note {
-      margin: 0 0 14px;
-      font-size: 13px;
-      color: var(--ink-2);
     }
     .field label {
       display: block;
@@ -362,33 +333,26 @@
       </form>
     {:else}
       <form id="register-form" onsubmit={submitRegister}>
-        {#if inviteToken}
-          <p class="invite-note">
-            You've been invited to register as <strong>{inviteUsername}</strong
-            >.
-          </p>
-        {:else}
-          <div class="field">
-            <label for="register-username">Username</label>
-            <input
-              id="register-username"
-              name="username"
-              autocomplete="username"
-              required
-              bind:value={registerUsername}
-            />
-          </div>
-          <div class="field">
-            <label for="register-display-name">Display name</label>
-            <input
-              id="register-display-name"
-              name="displayName"
-              autocomplete="name"
-              required
-              bind:value={registerDisplayName}
-            />
-          </div>
-        {/if}
+        <div class="field">
+          <label for="register-username">Username</label>
+          <input
+            id="register-username"
+            name="username"
+            autocomplete="username"
+            required
+            bind:value={registerUsername}
+          />
+        </div>
+        <div class="field">
+          <label for="register-display-name">Display name</label>
+          <input
+            id="register-display-name"
+            name="displayName"
+            autocomplete="name"
+            required
+            bind:value={registerDisplayName}
+          />
+        </div>
         <div class="auth-actions">
           <button
             type="submit"
@@ -396,14 +360,12 @@
             id="register-submit"
             disabled={registerSubmitting}>Create passkey</button
           >
-          {#if !inviteToken}
-            <button
-              type="button"
-              class="btn btn-secondary"
-              id="show-login"
-              onclick={showLogin}>Back to sign in</button
-            >
-          {/if}
+          <button
+            type="button"
+            class="btn btn-secondary"
+            id="show-login"
+            onclick={showLogin}>Back to sign in</button
+          >
         </div>
       </form>
     {/if}

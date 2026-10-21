@@ -54,7 +54,11 @@ refresh tries again.
   are kept as well. Until the first refresh succeeds the page shows the saved
   snapshot marked stale.
 - **Refreshing often.** Each full refresh spends budget. `REFRESH_INTERVAL` sets
-  how often it runs (see [Configuration](configuration.md)).
+  how often it runs (see [Configuration](configuration.md)). While every tracked
+  repo has a healthy webhook the wait is four times that, up to 2 hours, so 80
+  minutes at the default of 20; with one repo missing a webhook it is
+  `REFRESH_INTERVAL` again. A repo you can't manage webhooks on counts as
+  missing one, so such an account keeps the shorter wait.
 - **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
   refresh rests. After `IDLE_AFTER` (15 minutes by default) with no signed-in
   request and no tab that is visible and in use, the schedule skips its turn
@@ -384,7 +388,8 @@ all in the REST column.
   repo, which is what a push sends, is merged into one refresh that runs 2
   seconds after the last of them (never more than 5 seconds after the first).
   With working webhooks the
-  full refresh is a safety net, so a longer `REFRESH_INTERVAL` is safe. See
+  full refresh is a safety net, and it runs four times less often on its own
+  (80 minutes at the default) while every repo has one. See
   [Webhooks](webhooks.md).
 - **Wait.** The reset time is in the banner and the header. The page recovers by
   itself, with no reload.
