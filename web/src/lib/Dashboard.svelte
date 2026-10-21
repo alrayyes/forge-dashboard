@@ -4880,9 +4880,10 @@
     function offerWhatIsShown() {
       // The Title box may have focus; its suggestions stay as they are then,
       // and are rebuilt for the list that landed otherwise.
+      const typing = document.activeElement?.matches('input[data-col="title"]');
       // A pick the landed list no longer offers is cleared, so the list on
       // screen is filtered again without it.
-      if (updateSharedFilterOptions(true)) renderBoth();
+      if (updateSharedFilterOptions(Boolean(typing))) renderBoth();
     }
 
     // Whether two lists would offer different choices: the fields the Repo,

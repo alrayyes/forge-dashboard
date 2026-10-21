@@ -241,3 +241,17 @@ test('a pick the landed list no longer offers is cleared and the list shows agai
   await expect(page.locator('#shared-author-select')).toHaveValue('');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 });
+
+test('the Title suggestions follow the list that lands', async ({ page }) => {
+  await open(page);
+  await page.evaluate((data) => window.__push(data), snapshot(NEWER));
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+
+  await expect
+    .poll(() =>
+      page
+        .locator('#shared-title-options option')
+        .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value)),
+    )
+    .toEqual(['Pull request 1', 'Pull request 2']);
+});
