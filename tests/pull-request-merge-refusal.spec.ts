@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The merge endpoint answers a refused merge with a structured result
 // (components.schemas.ActionError): a `code` and a short `message`. These
@@ -98,10 +97,6 @@ async function confirmMerge(page: Page) {
   await row.getByRole('button', { name: 'Confirm merge?' }).click();
   return row;
 }
-
-// Every endpoint is mocked and nothing is saved per user, so the whole file
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('a refused merge explains itself from the server code', () => {
   test.beforeEach(async ({ page }) => {

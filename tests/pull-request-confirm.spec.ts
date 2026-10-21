@@ -1,30 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
 import { flushRequests } from './flush-requests-helper';
-import { registerViaInvite } from './register-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The two-step confirm on Merge and Close: an explicit way out, dismissal on
 // an outside click, Escape and a timeout, one armed at a time, and a guard
 // against a double-click confirming.
 // https://github.com/alrayyes/forge-dashboard/issues/764
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-confirm-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'PR Confirm User');
-}
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -106,16 +89,10 @@ async function trackRequests(page: Page) {
   return calls;
 }
 
-// Most of the file only reads a mocked dashboard and writes nothing per user,
-// so it starts from the shared session instead of registering a user each
-// (#1379). The state-outside-the-DOM group types a title filter, which the
-// server saves for the user, so it keeps its own.
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
 test.describe('confirm step: leaving it', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
@@ -281,8 +258,8 @@ test.describe('confirm step: leaving it', () => {
 
 test.describe('confirm step: timeout', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
@@ -387,8 +364,8 @@ test.describe('confirm step: timeout', () => {
 
 test.describe('confirm step: one at a time and the double-click guard', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
@@ -490,12 +467,9 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
 });
 
 test.describe('confirm step: state outside the DOM', () => {
-  test.use({ storageState: { cookies: [], origins: [] } });
-
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+  test.beforeEach(async ({ page }) => {
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
@@ -578,8 +552,8 @@ test.describe('confirm step: state outside the DOM', () => {
 
 test.describe('confirm step: screen readers', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.

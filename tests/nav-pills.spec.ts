@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // Every nav item shows how many items its page lists and how many of them are
 // failing: a neutral total, then a red failed count with a warning glyph,
@@ -62,10 +61,6 @@ const header = (page: Page, href: string) =>
   page.locator(`.app-nav a[href="${href}"]`);
 const tab = (page: Page, href: string) =>
   page.locator(`.bottom-nav a[href="${href}"]`);
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('nav counts: a total and a red failed count (#1315)', () => {
   test('Branches shows the total and a red failed count, and says both in its name', async ({

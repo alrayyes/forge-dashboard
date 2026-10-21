@@ -1,13 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 interface MockLabel {
   name: string;
@@ -98,8 +93,8 @@ function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
 
 test.describe('pull request update-branch button', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
