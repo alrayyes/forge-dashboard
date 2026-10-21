@@ -556,6 +556,32 @@ func (m *Manager) RecordDelivery(userID []byte, forge Forge, fullName, event str
 	}
 }
 
+// RecordCheckDelivery delegates to userID's Aggregator — see
+// Aggregator.RecordCheckDelivery. A no-op if userID has no running Aggregator.
+func (m *Manager) RecordCheckDelivery(userID []byte, forge Forge, fullName, sha string) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if ok {
+		entry.agg.RecordCheckDelivery(forge, fullName, sha)
+	}
+}
+
+// LastCheckDelivery delegates to userID's Aggregator — see
+// Aggregator.LastCheckDelivery. Reports false if userID has no running Aggregator.
+func (m *Manager) LastCheckDelivery(userID []byte, forge Forge, fullName, sha string) (time.Time, bool) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return time.Time{}, false
+	}
+
+	return entry.agg.LastCheckDelivery(forge, fullName, sha)
+}
+
 // LastDelivery delegates to userID's Aggregator — see
 // Aggregator.LastDelivery. Reports false if userID has no running Aggregator.
 func (m *Manager) LastDelivery(userID []byte, forge Forge, fullName string, class EventClass) (time.Time, bool) {

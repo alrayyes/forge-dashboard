@@ -42,6 +42,7 @@ type fakeRepoRefresherSource struct {
 	issues         map[string][]dashboard.Issue
 	fetchCalls     int
 	repoFetchCalls map[string]int
+	repoErr        error
 }
 
 func newFakeRepoRefresherSource() *fakeRepoRefresherSource {
@@ -93,8 +94,18 @@ func (f *fakeRepoRefresherSource) FetchRepo(_ context.Context, _, _, fullName st
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.repoFetchCalls[fullName]++
+	if f.repoErr != nil {
+		return nil, nil, f.repoErr
+	}
 
 	return f.byRepo[fullName], f.issues[fullName], nil
+}
+
+// failRepoFetches makes every following FetchRepo return err.
+func (f *fakeRepoRefresherSource) failRepoFetches(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repoErr = err
 }
 
 func (f *fakeRepoRefresherSource) fetchCallCount() int {

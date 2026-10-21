@@ -97,6 +97,19 @@ type Aggregator struct {
 
 	// seen records the last webhook delivery per repo and event class.
 	seen webhookSeen
+
+	// ciBase is the CI poll's base interval in nanoseconds (RunCIPoll sets it,
+	// WithCIPollInterval presets it); zero polls every pending pull request on
+	// every call.
+	ciBase atomic.Int64
+	// pendingSched spaces out the polls of pull requests that keep reading the same.
+	pendingSched pendingSchedule
+}
+
+// WithCIPollInterval sets the base interval PollCI spaces its polls from,
+// for a caller that drives PollCI itself rather than through RunCIPoll.
+func WithCIPollInterval(d time.Duration) AggregatorOption {
+	return func(a *Aggregator) { a.ciBase.Store(int64(d)) }
 }
 
 // defaultSettleWindow is how long a pull request a merge or close succeeded
@@ -364,9 +377,18 @@ func (a *Aggregator) Refresh(ctx context.Context) {
 // a caller that knows why it refreshed (a webhook delivery's id and pull
 // request number) can have the failure say so (#966).
 func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
+	ran, _ := a.refreshRepo(ctx, forge, owner, name, fullName, attrs...)
+
+	return ran
+}
+
+// refreshRepo is RefreshRepo that also says whether a fetch of its own succeeded
+// and was merged. It is false when the fetch failed, and when the call joined a
+// refresh already in flight instead of making one.
+func (a *Aggregator) refreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) (ran, merged bool) {
 	refresher := a.repoRefresherFor(forge)
 	if refresher == nil {
-		return false
+		return false, false
 	}
 
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
@@ -379,9 +401,10 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 			return
 		}
 		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName))
+		merged = true
 	})
 
-	return true
+	return true, merged
 }
 
 // scopedRefreshContext tags a one-repo fetch with the repo, and with a webhook
@@ -438,10 +461,25 @@ func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, for
 // before the lock was released let the later write drop the earlier one's
 // repo (#966).
 func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue, branch *MainBranch) {
+	a.mergeRepoFrom(ctx, forge, fullName, seq, branch, func(Snapshot) ([]PullRequest, []Issue, bool) {
+		return prs, issues, true
+	})
+}
+
+// mergeRepoFrom is mergeRepo for a caller whose rows depend on the snapshot
+// they replace. rows is given the current snapshot under the same hold of mu
+// that writes the result, and returns false to drop the write.
+func (a *Aggregator) mergeRepoFrom(ctx context.Context, forge Forge, fullName string, seq uint64, branch *MainBranch, rows func(current Snapshot) ([]PullRequest, []Issue, bool)) {
 	a.checkDependabotAcks(ctx)
 
 	a.mu.Lock()
 	current := a.snap
+	prs, issues, ok := rows(current)
+	if !ok {
+		a.mu.Unlock()
+
+		return
+	}
 
 	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
@@ -719,59 +757,6 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// PollCI refreshes every repo that currently has at least one open
-// pull request whose CI is still pending, or that GitHub is going to merge
-// by itself (auto-merge armed) — the only cases a check finishing or a merge
-// could change, and the only ones worth spending an extra scoped fetch on
-// between full Refresh passes. Fills the gap a
-// working webhook would otherwise close: confirmed live, twice
-// independently, that real Forgejo instances silently drop the
-// "status" webhook event from a hook's persisted event list even
-// though the create/edit call reports success (#177) — so without
-// this, a finished check on Forgejo waits out the full Run interval
-// (20 minutes by default) before the dashboard reflects it. Goes
-// through RefreshRepo, not a bespoke fetch — same keyed coalescer, so
-// a repo a webhook delivery (on forges where it does work, e.g.
-// GitHub) already refreshed seconds ago is never refreshed twice for
-// the same reason.
-func (a *Aggregator) PollCI(ctx context.Context) {
-	type repoKey struct {
-		forge    Forge
-		owner    string
-		name     string
-		fullName string
-	}
-	pending := make(map[repoKey]apistats.Kind)
-	for _, pr := range a.Get().PullRequests {
-		if pr.CI != CIPending && !armedOnGitHub(pr) {
-			continue
-		}
-		owner, name, ok := strings.Cut(pr.Repo, "/")
-		if !ok {
-			continue
-		}
-		key := repoKey{forge: pr.Forge, owner: owner, name: name, fullName: pr.Repo}
-		// A pending check is what the poll is for; an armed auto-merge alone is the
-		// other reason.
-		if pr.CI == CIPending || pending[key] == apistats.KindCIPoll {
-			pending[key] = apistats.KindCIPoll
-		} else {
-			pending[key] = apistats.KindAutoMergePoll
-		}
-	}
-	snap := a.Get()
-	for key, kind := range pending {
-		// A forge whose budget is spent can't answer until its reset: the next
-		// full refresh already waits that out (NextRefreshDelay), so polling
-		// every minute meanwhile only repeats the refusal. An armed pull
-		// request can sit for hours, so this is not a brief window.
-		if _, spent := exhaustedHealth(snap, key.forge, a.now()); spent {
-			continue
-		}
-		a.RefreshRepo(apistats.WithKind(ctx, kind), key.forge, key.owner, key.name, key.fullName)
-	}
-}
-
 // armedOnGitHub reports whether pr has GitHub's own auto-merge armed. GitHub
 // merges it by itself once checks pass, so nothing the dashboard does makes it
 // happen and a webhook may never tell the dashboard it did: the repo is polled
@@ -789,6 +774,7 @@ func armedOnGitHub(pr PullRequest) bool {
 // the delay Run computes for its account-wide pass. Meant to run in its own goroutine for the
 // lifetime of the process, alongside Run.
 func (a *Aggregator) RunCIPoll(ctx context.Context, interval time.Duration) {
+	a.ciBase.Store(int64(interval))
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
