@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // Each number appears once (#1325): the nav icons carry the totals and the
 // failed counts (#1315), so the pages start with the list instead of a row of
@@ -150,10 +150,6 @@ test.describe('the banners sit above the filter bar (#1325)', () => {
 });
 
 test.describe('one line says how many are shown (#1325)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('unfiltered it gives the total', async ({ page }) => {
     await serve(page, [makePR(1), makePR(2)]);
     await page.goto('/pull-requests.html');

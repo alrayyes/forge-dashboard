@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // The skeleton shows from the first paint, not once the first answer lands.
 // The server holds GET /api/dashboard for up to 15 s on a cold start, and
@@ -94,10 +94,6 @@ const LISTS = [
 ];
 
 test.describe('first refresh loading from the first paint (#1672)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   for (const list of LISTS) {
     test(`${list.name} shows the loading state while the first answer is held`, async ({
       page,
