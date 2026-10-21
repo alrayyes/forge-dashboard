@@ -20,6 +20,12 @@ type stubSource struct {
 	// other is what the budget also loses on every fetch to calls that are not
 	// the refresh, such as a person's merge. The refresh reports step as its own.
 	other int
+	// rest makes the budget the REST one, and the spend REST points.
+	rest bool
+	// failed makes every fetch an error that still reports the budget.
+	failed bool
+	// unmeasured leaves Result.Spent nil.
+	unmeasured bool
 
 	mu    sync.Mutex
 	calls int
@@ -38,11 +44,21 @@ func (s *stubSource) Fetch(context.Context) Result {
 	health := s.health
 	if s.budget != nil {
 		rl := *s.budget
-		health.RateLimitGraphQL = &rl
+		if s.rest {
+			health.RateLimitREST = &rl
+		} else {
+			health.RateLimitGraphQL = &rl
+		}
+		if s.failed {
+			health.Reachable = false
+		}
 		s.budget.Remaining -= s.step + s.other
 	}
 	spent := &Spend{GraphQL: s.step}
-	if s.budget == nil {
+	if s.rest {
+		spent = &Spend{REST: s.step}
+	}
+	if s.budget == nil || s.unmeasured {
 		spent = nil
 	}
 	s.mu.Unlock()
@@ -174,6 +190,7 @@ func TestReserve_RefreshThatCostNothing_ReplacesAnEarlierCost(t *testing.T) {
 	t.Parallel()
 
 	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	src.rest = true
 	agg := NewAggregator([]Source{src})
 	agg.Refresh(t.Context())
 	src.mu.Lock()
@@ -185,4 +202,56 @@ func TestReserve_RefreshThatCostNothing_ReplacesAnEarlierCost(t *testing.T) {
 
 	// 600 is left and the last refresh cost 0, so there is room above 500.
 	assert.Equal(t, 3, src.count())
+}
+
+// A failed fetch spends next to nothing and says nothing about a good one.
+func TestReserve_FailedFetch_KeepsTheLastGoodCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step, src.failed = 1, true
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	// 599 is left, and the good refresh cost 400: held, as before the failure.
+	assert.Equal(t, 2, src.count())
+}
+
+// A successful GraphQL fetch costs at least a point, so none reported is no
+// measurement.
+func TestReserve_GraphQLFetchWithoutACost_KeepsTheLastCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step = 0
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	assert.Equal(t, 2, src.count())
+}
+
+func TestReserve_UnmeasuredFetch_KeepsTheLastCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.unmeasured = true
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	assert.Equal(t, 2, src.count())
 }

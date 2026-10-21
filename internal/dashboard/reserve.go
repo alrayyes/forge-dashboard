@@ -53,15 +53,19 @@ func (l *reserveLedger) record(k costKey, points int) {
 // noteSpend learns what each Source's full refresh took from its budgets. It
 // takes the Source's own count, not the fall in Remaining between two
 // snapshots, which also holds every call that ran in between. A Source that
-// did not measure leaves the earlier figure alone; one that measured nothing
-// replaces it with zero.
+// did not measure, or failed, leaves the earlier figure alone. A REST count of
+// zero replaces it, since a cached answer is free.
 func (a *Aggregator) noteSpend(results []Result) {
 	for i, r := range results {
-		if r.Spent == nil {
+		if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" {
 			continue
 		}
 		forge := a.sources[i].Forge()
-		a.reserve.record(costKey{forge, true}, r.Spent.GraphQL)
+		// A GraphQL fetch that worked cost at least a point, so none reported
+		// is no measurement. REST can cost nothing: the cache answered.
+		if r.Spent.GraphQL > 0 {
+			a.reserve.record(costKey{forge, true}, r.Spent.GraphQL)
+		}
 		a.reserve.record(costKey{forge, false}, r.Spent.REST)
 	}
 }
