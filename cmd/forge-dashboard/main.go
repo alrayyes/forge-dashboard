@@ -256,6 +256,8 @@ func run() error {
 
 	cleanUpForSingleUser(ctx, db)
 
+	keepGitHubAnswersAcrossRestarts(settingsStore)
+
 	githubAppID, githubAppPrivateKey, err := buildGitHubApp()
 	if err != nil {
 		return fmt.Errorf("github app setup failed: %w", err)
@@ -312,6 +314,14 @@ func newServer(addr string, deps api.Deps) *http.Server {
 	}
 }
 
+// keepGitHubAnswersAcrossRestarts saves the ETags GitHub sent and the webhook
+// checks in store, so the first refresh after a restart asks with
+// If-None-Match instead of paying for every read again.
+func keepGitHubAnswersAcrossRestarts(store *settings.Store) {
+	github.SetETagBacking(store)
+	github.SetHookCheckStore(store)
+}
+
 // newManager is the per-user refresh manager, with the settings store as its
 // list of repos to keep up to date.
 func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) (*dashboard.Manager, error) {
@@ -330,6 +340,9 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 	manager.SetAutoUpdateBranchLister(settingsStore)
 	manager.SetAutoMergeStore(settingsStore)
 	manager.SetQueuedActionStore(settingsStore)
+	// The last snapshot survives a restart, shown as stale until a refresh lands.
+	manager.SetSnapshotCache(settingsStore)
+	manager.SetWebhookSeenStore(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
 	return manager, nil

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // The board header no longer has a "CI status" pulldown: the quick pills say
 // the same thing, and a "No checks" pill covers the one state they lacked.
@@ -91,10 +91,6 @@ async function seed(
 }
 
 test.describe('the CI status pulldown is gone (2084)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   for (const path of ['/pull-requests.html', '/bots.html']) {
     test(`${path} has no CI status pulldown and keeps the CI pills`, async ({
       page,

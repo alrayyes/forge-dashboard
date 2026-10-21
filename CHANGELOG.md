@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.6.0](https://github.com/alrayyes/forge-dashboard/compare/v1.5.0...v1.6.0) (2026-10-21)
+
+
+### Features
+
+* stretch the full refresh interval while every webhook is healthy ([#2308](https://github.com/alrayyes/forge-dashboard/issues/2308)) ([c29c57b](https://github.com/alrayyes/forge-dashboard/commit/c29c57b4c920704bc5e03badcea7bae695bba58b))
+* **web:** remove the invite sign-up form from the login page ([#2309](https://github.com/alrayyes/forge-dashboard/issues/2309)) ([bff4b70](https://github.com/alrayyes/forge-dashboard/commit/bff4b70eaae6a51c83c12441d88d11e27e291ae0))
+
+## [1.5.0](https://github.com/alrayyes/forge-dashboard/compare/v1.4.0...v1.5.0) (2026-10-21)
+
+
+### Features
+
+* **web:** filter pull requests by closing an issue and issues by a closing pull request ([#2281](https://github.com/alrayyes/forge-dashboard/issues/2281)) ([3553422](https://github.com/alrayyes/forge-dashboard/commit/3553422d9eeb6b83fdb62cb69d24b8d0c3fa415a))
+
+## [1.4.0](https://github.com/alrayyes/forge-dashboard/compare/v1.3.0...v1.4.0) (2026-10-21)
+
+
+### Features
+
+* persist ETags, the snapshot and webhook checks across restarts ([#2302](https://github.com/alrayyes/forge-dashboard/issues/2302)) ([5edb901](https://github.com/alrayyes/forge-dashboard/commit/5edb9011c0c500241f8a8d5ae97cc0378a6e6b08))
+
 ## [1.3.0](https://github.com/alrayyes/forge-dashboard/compare/v1.2.1...v1.3.0) (2026-10-21)
 
 

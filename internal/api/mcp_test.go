@@ -16,14 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mcpPollBudget bounds a poll over an MCP tool call that answers once the
-// background refresh has run. One call can itself block for the server's
-// first-load wait (15s) and runs several hundred milliseconds under parallel
-// -race load, so a budget below that fails on the call's latency, not on a
-// missing condition. A satisfied poll returns at once, so a generous bound
-// costs a passing run nothing.
-const mcpPollBudget = 30 * time.Second
-
 // bearerRoundTripper adds an Authorization: Bearer header to every
 // request it makes -- the same personal-API-token auth
 // TestTokenCreated_AuthenticatesAsBearerAgainstARealEndpoint already
@@ -160,7 +152,7 @@ func TestMCP_GetDashboard_ReturnsTheSameAggregatedDataAsTheHTTPEndpoint(t *testi
 		forges, ok = content["forges"].([]any)
 
 		return ok && len(forges) == 1
-	}, mcpPollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture source")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture source")
 
 	forge := forges[0].(map[string]any)
 	assert.Equal(t, "github", forge["forge"])
@@ -189,7 +181,7 @@ func callMainBranchesTool(t *testing.T, srvURL string, cookie *http.Cookie, want
 		branches, _ := got["branches"].([]any)
 
 		return len(branches) == want
-	}, mcpPollBudget, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return content
 }
@@ -324,7 +316,7 @@ func TestMCP_GetPullRequestDetails_AListedReleasePullRequestCarriesReleaseNotes(
 		prs, _ := fetchDashboard(t, srvURL, cookie)["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, mcpPollBudget, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	result := callDetailsTool(t, srvURL, cookie, map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 7})
 

@@ -25,25 +25,11 @@
     autoUpdateControl,
   } from "#lib/auto-update.js";
   import type { CheckCounts } from "#lib/check-counts.js";
-  import {
-    checkGlyphElements,
-    ciPillModel,
-    renderCiPill,
-  } from "#lib/ci-pill.js";
-  import {
-    CHECK_STATE_LABELS,
-    formatCheckDuration,
-    type Check,
-  } from "#lib/pipeline-checks.js";
-  import {
-    announceChange,
-    checkKeys,
-    ciSignature,
-    createLiveChecks,
-    keepOrder,
-    type LiveChecks,
-  } from "#lib/pipeline-live.js";
+  import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
+  import PipelineDialog from "#lib/PipelineDialog.svelte";
+  import { ciSignature } from "#lib/pipeline-live.js";
   import * as Filters from "#lib/filters.js";
+  import { choicesChange, shownList } from "#lib/shown-list.js";
   import {
     type LabelFilterControl,
     joinLabels,
@@ -116,7 +102,6 @@
     type PillCi,
     parsePullRequestAddress,
   } from "#lib/linked-pull-requests.js";
-  import { createSpeaker } from "#lib/live-region.js";
   import {
     comesBack,
     hideFailedMessage,
@@ -387,6 +372,7 @@
 
   // The read-only details dialog (#943); a pull request's title button opens it.
   let detailsDialog = $state<PullRequestDetailsDialog>();
+  let pipelineDialog = $state<PipelineDialog>();
   // The pull request the open dialog shows, by key (#943). Null while it is
   // closed; the footer follows this pull request's row.
   let dialogKey: string | null = null;
@@ -4063,7 +4049,7 @@
       ].some((stateMap) => Object.values(stateMap).some(inFlight));
     }
 
-    // Live updates land by themselves. shownPRs is what the board is
+    // Live updates land by themselves. prShown.items is what the board is
     // showing; latestPRs is the newest snapshot's list that hasn't been
     // applied yet. Each incoming snapshot is compared with what's shown:
     //   - a row whose own content changed (CI, merge status, behind,
@@ -4077,7 +4063,7 @@
     //     asked for applies in full unless one of those holds.
     // The open details dialog is not a hold: the board behind it keeps
     // updating, and the dialog follows its own pull request.
-    let shownPRs: PullRequestItem[] = [];
+    const prShown = shownList<PullRequestItem>();
     let latestPRs: PullRequestItem[] | null = null;
     // The newest snapshot in the server's own order, so a sort change can
     // go back to "Last activity" rather than re-sorting an already
@@ -4095,7 +4081,7 @@
     // applies at once. A row whose own
     // content changed is replaced where it stands, and a snapshot that
     // changes nothing renders nothing.
-    let shownIssues: IssueItem[] = [];
+    const issueShown = shownList<IssueItem>();
     let latestIssues: IssueItem[] | null = null;
     let rawIssues: IssueItem[] = [];
     let latestIssuesAsked = false;
@@ -4612,34 +4598,27 @@
     // happens to leave it out while the row is still on screen (#918).
     function retireFailuresOfRemoved(next: PullRequestItem[]) {
       const keep = new Set(next.map((p) => prKey(p)));
-      for (const p of shownPRs)
+      for (const p of prShown.items)
         if (!keep.has(prKey(p))) feedback.dropFailedFor(prKey(p), "");
     }
-
-    // Whether a list has landed yet, so an empty one on screen is empty and
-    // not just not here yet (#2196).
-    let prListLanded = false;
-    let issueListLanded = false;
 
     // offer: false when the caller offers the choices itself, after this.
     function applyPendingNow(offer = true) {
       const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
       retireFailuresOfRemoved(sorted);
-      const before = shownPRs;
-      shownPRs = sorted;
-      prListLanded = true;
-      if (offer && choicesDiffer(before, shownPRs)) offerWhatIsShown();
-      prBoard.replaceItems(shownPRs);
+      const before = prShown.items;
+      prShown.land(sorted);
+      if (offer) offerWhatIsShown(choicesChange(before, prShown.items));
+      prBoard.replaceItems(prShown.items);
       latestPRs = null;
       latestIsUserAsked = false;
     }
 
     function applyPendingIssuesNow(offer = true) {
-      const before = shownIssues;
-      shownIssues = Filters.sortItems(rawIssues, sharedState.view.sort);
-      issueListLanded = true;
-      if (offer && choicesDiffer(before, shownIssues)) offerWhatIsShown();
-      issueBoard.replaceItems(shownIssues);
+      const before = issueShown.items;
+      issueShown.land(Filters.sortItems(rawIssues, sharedState.view.sort));
+      if (offer) offerWhatIsShown(choicesChange(before, issueShown.items));
+      issueBoard.replaceItems(issueShown.items);
       latestIssues = null;
       latestIssuesAsked = false;
     }
@@ -4684,14 +4663,11 @@
 
     // Returns true when it rendered the board.
     function reconcileIssues(): boolean {
-      const before = shownIssues;
-      const wasLanded = issueListLanded;
+      const before = issueShown.items;
+      const wasLanded = issueShown.landed;
       const rendered = settleIssues();
-      if (
-        (before.length > 0 || wasLanded) &&
-        choicesDiffer(before, shownIssues)
-      )
-        offerWhatIsShown();
+      if (before.length > 0 || wasLanded)
+        offerWhatIsShown(choicesChange(before, issueShown.items));
       return rendered;
     }
 
@@ -4699,7 +4675,7 @@
       if (!latestIssues) {
         return false;
       }
-      const userAsked = latestIssuesAsked || shownIssues.length === 0;
+      const userAsked = latestIssuesAsked || issueShown.items.length === 0;
       // Only what the list would show counts: a change to an issue the
       // filters or the hidden-by-default housekeeping flag keep off screen
       // moves nothing, so it waits for nothing (#1198).
@@ -4712,34 +4688,35 @@
             sharedState.issue,
           ),
         );
-      const diff = Filters.diffItems(onList(shownIssues), onList(latestIssues));
+      const diff = Filters.diffItems(
+        onList(issueShown.items),
+        onList(latestIssues),
+      );
       const structural = diff.added + diff.removed + diff.moved;
 
       if (structural === 0 && diff.changed.length === 0) {
         // Nothing on screen differs, but the rows off screen may. Keep them
         // current so a filter change later shows fresh data, without drawing.
-        shownIssues = latestIssues;
-        issueListLanded = true;
+        issueShown.land(latestIssues);
         latestIssues = null;
         if (!issuesDrawn) {
           issuesDrawn = true;
-          issueBoard.setItems(shownIssues, true);
+          issueBoard.setItems(issueShown.items, true);
 
           return true;
         }
-        issueBoard.replaceItems(shownIssues);
+        issueBoard.replaceItems(issueShown.items);
 
         return false;
       }
       const held = issuesHoldBoard(userAsked);
       if (!held && (structural > 0 || userAsked)) {
         if (!userAsked) announceListUpdate(diff);
-        shownIssues = latestIssues;
-        issueListLanded = true;
+        issueShown.land(latestIssues);
         latestIssues = null;
         latestIssuesAsked = false;
         issuesDrawn = true;
-        keepFocusAcross(() => issueBoard.setItems(shownIssues, true));
+        keepFocusAcross(() => issueBoard.setItems(issueShown.items, true));
 
         return true;
       }
@@ -4747,10 +4724,10 @@
       // stands; structural changes (held here) land when the hold lifts.
       if (diff.changed.length > 0) {
         const fresh = new Map(latestIssues.map((i) => [prKey(i), i]));
-        const changed = shownIssues
+        const changed = issueShown.items
           .filter((i) => diff.changed.includes(prKey(i)))
           .map((i) => fresh.get(prKey(i)) ?? i);
-        shownIssues = shownIssues.map((i) => fresh.get(prKey(i)) ?? i);
+        issueShown.land(issueShown.items.map((i) => fresh.get(prKey(i)) ?? i));
         replaceIssueRows(changed);
       }
       if (structural === 0) latestIssues = null;
@@ -4861,37 +4838,29 @@
     // The Repo, Author and Label choices follow the list on screen, which
     // can trail the newest snapshot while it waits (#1427), so they are
     // offered again when a waiting list lands.
-    function offerWhatIsShown() {
+    function offerWhatIsShown(change: "none" | "titles" | "all" = "all") {
+      if (change === "none") return;
       // The Title box may have focus; its suggestions stay as they are then,
       // and are rebuilt for the list that landed otherwise.
       const typing = document.activeElement?.matches('input[data-col="title"]');
+      // Titles alone changed, and no title filter narrows the other choices,
+      // so only the suggestions are rebuilt.
+      if (change === "titles" && !sharedState.shared.title) {
+        if (!typing) offerTitles();
+        return;
+      }
       // A pick the landed list no longer offers is cleared, so the list on
       // screen is filtered again without it.
       if (updateSharedFilterOptions(Boolean(typing))) renderBoth();
     }
 
-    // Whether two lists would offer different choices: the fields the Repo,
-    // Author, Label, age and Title choices read. A poll that changes nothing
-    // else does not rebuild the dropdowns.
-    function choicesDiffer(a: FilterableItem[], b: FilterableItem[]): boolean {
-      const key = (items: FilterableItem[]) =>
-        items
-          .map(
-            (i) =>
-              `${i.forge}|${i.repo}|${i.author}|${i.title}|${i.createdAt}|${i.updatedAt}|${(i.labels || []).map((l) => l.name).join(",")}`,
-          )
-          .sort()
-          .join("\n");
-      return key(a) !== key(b);
-    }
-
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
-      const before = shownPRs;
-      const wasLanded = prListLanded;
+      const before = prShown.items;
+      const wasLanded = prShown.landed;
       const rendered = settlePRs();
-      if ((before.length > 0 || wasLanded) && choicesDiffer(before, shownPRs))
-        offerWhatIsShown();
+      if (before.length > 0 || wasLanded)
+        offerWhatIsShown(choicesChange(before, prShown.items));
       return rendered;
     }
 
@@ -4920,8 +4889,8 @@
       // merge) lands in full even with the pointer on the list: they just
       // clicked a row, and what they are waiting to see is that row's outcome
       // (gone, merged). Holding it would leave a merged pull request on screen.
-      const userAsked = latestIsUserAsked || shownPRs.length === 0;
-      const diff = Filters.diffItems(shownPRs, latestPRs);
+      const userAsked = latestIsUserAsked || prShown.items.length === 0;
+      const diff = Filters.diffItems(prShown.items, latestPRs);
       const structural = diff.added + diff.removed + diff.moved;
       const held = interactionFreezesBoard() || (updatesPaused() && !userAsked);
 
@@ -4932,7 +4901,7 @@
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         // The open dialog shows its own pull request as it is now; only the
         // list behind it waits.
-        const settled = shownPRs.filter(
+        const settled = prShown.items.filter(
           (p) =>
             (botResolvedKeys.has(prKey(p)) ||
               (prKey(p) === dialogKey && diff.changed.includes(prKey(p)))) &&
@@ -4941,10 +4910,12 @@
         botResolvedKeys.clear();
         if (settled.length > 0) {
           const settledKeys = new Set(settled.map(prKey));
-          shownPRs = shownPRs.map((p) =>
-            settledKeys.has(prKey(p)) ? (fresh.get(prKey(p)) ?? p) : p,
+          prShown.land(
+            prShown.items.map((p) =>
+              settledKeys.has(prKey(p)) ? (fresh.get(prKey(p)) ?? p) : p,
+            ),
           );
-          keepFocusAcross(() => prBoard.setItems(shownPRs, true));
+          keepFocusAcross(() => prBoard.setItems(prShown.items, true));
         }
 
         refreshDialogChrome();
@@ -4954,11 +4925,10 @@
       botResolvedKeys.clear();
       if (userAsked) {
         retireFailuresOfRemoved(latestPRs);
-        shownPRs = latestPRs;
-        prListLanded = true;
+        prShown.land(latestPRs);
         latestPRs = null;
         latestIsUserAsked = false;
-        keepFocusAcross(() => prBoard.setItems(shownPRs));
+        keepFocusAcross(() => prBoard.setItems(prShown.items));
 
         return true;
       }
@@ -4976,15 +4946,14 @@
             ),
           );
         const shownDiff = Filters.diffItems(
-          onList(shownPRs),
+          onList(prShown.items),
           onList(latestPRs),
         );
         retireFailuresOfRemoved(latestPRs);
-        shownPRs = latestPRs;
-        prListLanded = true;
+        prShown.land(latestPRs);
         latestPRs = null;
         markUpdated(diff.changed);
-        keepFocusAcross(() => prBoard.setItems(shownPRs, true));
+        keepFocusAcross(() => prBoard.setItems(prShown.items, true));
         if (view !== "issues") announceListUpdate(shownDiff);
 
         return true;
@@ -4993,9 +4962,9 @@
       // rows added, removed or moved wait for the pointer to leave.
       if (diff.changed.length > 0) {
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
-        shownPRs = shownPRs.map((p) => fresh.get(prKey(p)) ?? p);
+        prShown.land(prShown.items.map((p) => fresh.get(prKey(p)) ?? p));
         markUpdated(diff.changed);
-        keepFocusAcross(() => prBoard.setItems(shownPRs, true));
+        keepFocusAcross(() => prBoard.setItems(prShown.items, true));
       }
       if (structural === 0) latestPRs = null;
 
@@ -5370,172 +5339,21 @@
       }
     }
 
-    // ---- pipeline checks panel ----
-    // The per-check status labels (CHECK_STATE_LABELS) are distinct from
-    // CI_LABELS above, which only ever describes the combined, row-level
-    // CIStatus, never one individual job.
-    const pipelineDialog = document.getElementById(
-      "pipeline-dialog",
-    ) as HTMLDialogElement | null;
-    const pipelineDialogSubtitle = document.getElementById(
-      "pipeline-dialog-subtitle",
-    );
-    const pipelineDialogBody = document.getElementById("pipeline-dialog-body");
-    const pipelineDialogCloseButton = document.getElementById(
-      "pipeline-dialog-close",
-    ) as HTMLButtonElement | null;
+    // ---- pipeline checks dialog ----
+    // The dialog itself is PipelineDialog, shared with the Main branches page.
+    // This file hands it what only the pull request board knows: the control
+    // for a rerun, the pause state, and the pill to give focus back to.
 
-    // Which row's dialog this is — closing it (via Escape, a backdrop
-    // click, or the close button itself) moves focus back to that row's
-    // own CI pill, the same "return focus to what opened
-    // it" contract every other transient UI in this file already honors
-    // (see retryLockedAction moving focus back to a just-re-rendered
-    // locked button). Not a direct element reference: a later render
-    // rebuilds the whole row from scratch (applySnapshot's own 30s poll,
-    // or this very dialog's own "close" handler below), which leaves any
-    // node reference captured at open time stale — refocusing by
-    // pipelineActionCell's own stable id, once the rebuild has happened,
-    // is what actually reaches the live node.
+    // Which row's dialog this is. Closing it (Escape, a backdrop click or the
+    // close button) moves focus back to that row's own CI pill, the same "return
+    // focus to what opened it" contract every other transient UI in this file
+    // honors. Not a direct element reference: a later render rebuilds the whole
+    // row from scratch (applySnapshot's own 30s poll, or the close below),
+    // which leaves any node captured at open time stale, so the pill is found
+    // again by its stable id once the rebuild has happened.
     let pipelineDialogRowKey: string | null = null;
-
-    // Bumped on every open — a slow fetch from an already-closed (or
-    // reopened against a different pull request) dialog is never allowed
-    // to land and overwrite whatever the dialog is showing now.
-    let pipelineRequestToken = 0;
-
-    // The open panel's own live state. It reads its checks again only when a
-    // snapshot says this pull request's CI changed (see pipeline-live.ts), and
-    // never while updates are paused.
-    let pipelineLive: LiveChecks | null = null;
-    // The newest copy of the open panel's pull request, for the reads it makes.
+    // The newest copy of the open dialog's pull request, for the reads it makes.
     let pipelineItem: PullRequestItem | null = null;
-    // What the panel shows now, to keep its order and to tell a real change.
-    let pipelineShown: Check[] = [];
-    // The first read has drawn; a change before that restarts it instead.
-    let pipelineReady = false;
-    const pipelineNote = document.getElementById("pipeline-paused-note");
-    const pipelineAnnounce = document.getElementById("pipeline-live-status");
-    const pipelineSpeaker = createSpeaker((text) => {
-      if (pipelineAnnounce) pipelineAnnounce.textContent = text;
-    });
-
-    function setPipelineNote(text: string) {
-      if (!pipelineNote) return;
-      pipelineNote.textContent = text;
-      pipelineNote.hidden = text === "";
-    }
-
-    function renderPipelineLoading() {
-      if (!pipelineDialogBody) return;
-      pipelineDialogBody.innerHTML = "";
-      pipelineDialogBody.appendChild(
-        el("p", "pipeline-status", "Loading checks…"),
-      );
-    }
-
-    // A required check that failed (or timed out), or a required workflow
-    // held for approval, is what actually blocks the merge — flagged in text,
-    // not colour alone (#1946).
-    function isBlocking(check: Check): boolean {
-      return (
-        check.required === true &&
-        (check.state === "failure" ||
-          check.state === "timed_out" ||
-          check.state === "awaiting_approval")
-      );
-    }
-
-    // One inline glyph per state, so the states differ by shape and not
-    // colour alone (#1473). The shapes live in #lib/check-glyphs.js, which
-    // the Branches page draws from too.
-    const pipelineCheckGlyphs = checkGlyphElements;
-
-    // Each drawn check's key (checkKeys), read by the row to mark its controls.
-    let pipelineKeys = new Map<Check, string>();
-
-    function pipelineCheckRow(check: Check): HTMLElement {
-      const key = pipelineKeys.get(check) ?? check.name;
-      const row = el("li", "pipeline-check");
-      const status = el("span", `pipeline-check-status ${check.state}`);
-      const glyphs = pipelineCheckGlyphs(check.state);
-      if (glyphs.length > 0) glyphs.forEach((g) => status.appendChild(g));
-      else status.appendChild(el("span", "dot"));
-      status.appendChild(
-        document.createTextNode(CHECK_STATE_LABELS[check.state] || check.state),
-      );
-      row.appendChild(status);
-      row.appendChild(el("span", "pipeline-check-name", check.name));
-      if (check.durationSeconds !== undefined) {
-        row.appendChild(
-          el(
-            "span",
-            "pipeline-check-duration",
-            formatCheckDuration(check.durationSeconds),
-          ),
-        );
-      }
-      if (isBlocking(check)) {
-        row.appendChild(el("span", "pipeline-check-flag", "Blocking"));
-      }
-      // A skipped check never ran — its own page on the forge has
-      // nothing to show beyond "this was skipped," which the status
-      // label right above already says. No link rather than one that
-      // leads nowhere useful. Same reasoning for an empty check.url: a
-      // legacy commit status can be set with no target_url at all, and
-      // an empty href resolves to the current page — silently sending
-      // "View run" to the dashboard's own homepage instead of nowhere.
-      if (check.state !== "skipped" && check.url) {
-        const link = document.createElement("a");
-        link.className = "pipeline-check-link";
-        link.href = check.url;
-        link.target = "_blank";
-        link.rel = "noopener";
-        // A held workflow's own page is where GitHub's approve button is.
-        const linkText =
-          check.state === "awaiting_approval"
-            ? "Approve on GitHub"
-            : "View run";
-        link.textContent = linkText;
-        link.setAttribute("aria-label", `${linkText}: ${check.name}`);
-        link.dataset.focusKey = `${key}:link`;
-        row.appendChild(link);
-      }
-      if (check.failedStep) {
-        row.appendChild(
-          el("p", "pipeline-check-step", `Failed step: ${check.failedStep}`),
-        );
-      }
-      // textContent only (el sets it): the log is never parsed as markup.
-      if (check.excerpt) {
-        const excerpt = el("pre", "pipeline-check-excerpt", check.excerpt);
-        excerpt.tabIndex = 0;
-        excerpt.setAttribute("aria-label", `Log excerpt: ${check.name}`);
-        excerpt.dataset.focusKey = `${key}:excerpt`;
-        row.appendChild(excerpt);
-      }
-      return row;
-    }
-
-    function pipelineCheckList(checks: Check[]): HTMLElement {
-      const list = el("ul", "pipeline-check-list");
-      checks.forEach((check) => list.appendChild(pipelineCheckRow(check)));
-      return list;
-    }
-
-    function pipelineGroup(title: string, checks: Check[], id: string) {
-      const group = el("div", "pipeline-group");
-      group.setAttribute("role", "group");
-      group.setAttribute("aria-labelledby", id);
-      const heading = el(
-        "h3",
-        "pipeline-group-title",
-        `${title} (${checks.length})`,
-      );
-      heading.id = id;
-      group.appendChild(heading);
-      group.appendChild(pipelineCheckList(checks));
-      return group;
-    }
 
     // The one request behind every "Rerun failed checks" button: the pipeline
     // dialog's and the details dialog's footer. The forge queues the jobs.
@@ -5566,18 +5384,12 @@
     // "Rerun failed checks" (#698), shown only where the server lists
     // rerun_checks for this pull request and something actually failed. The
     // forge queues the jobs; the next refresh carries their result.
-    function pipelineRerunControl(
-      item: PullRequestItem,
-      checks: Check[],
-    ): HTMLElement | null {
+    function pipelineRerunControl(item: PullRequestItem): HTMLElement | null {
       if (!findAction(item, "rerun_checks")) return null;
-      if (!checks.some((c) => c.state === "failure" || c.state === "timed_out"))
-        return null;
       const wrap = el("div", "pipeline-rerun");
       const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
       button.type = "button";
-      button.dataset.focusKey = "rerun";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       // The failure sentence is the alert; Copy sits beside it, outside, so
@@ -5625,219 +5437,38 @@
       return wrap;
     }
 
-    // `inPlace` is a live redraw: the order the panel already has stands, so a
-    // check's pill changes where it stands.
-    function renderPipelineChecks(
-      checks: Check[],
-      item: PullRequestItem,
-      inPlace = false,
-    ) {
-      if (!pipelineDialogBody) return;
-      // Blocking failures first, once, when the panel opens (a stable sort,
-      // so the forge's own order stands otherwise). What is kept is the order
-      // drawn, so a live redraw leaves every check where it stands.
-      if (!inPlace)
-        checks = [...checks].sort(
-          (a, b) => Number(isBlocking(b)) - Number(isBlocking(a)),
-        );
-      pipelineShown = checks;
-      const keys = checkKeys(checks);
-      pipelineKeys = new Map(checks.map((check, i) => [check, keys[i]]));
-      pipelineDialogBody.innerHTML = "";
-      if (checks.length === 0) {
-        pipelineDialogBody.appendChild(
-          el("p", "pipeline-status", "No CI configured for this pull request."),
-        );
-        return;
-      }
-      const rerun = pipelineRerunControl(item, checks);
-      if (rerun) pipelineDialogBody.appendChild(rerun);
-      // Without a single known `required` value the forge told us nothing
-      // about branch protection: the flat list, as before.
-      if (!checks.some((check) => check.required !== undefined)) {
-        pipelineDialogBody.appendChild(pipelineCheckList(checks));
-        return;
-      }
-      // Blocking failures first within Required; a stable sort keeps the
-      // forge's own order otherwise.
-      const required = checks.filter((check) => check.required === true);
-      const advisory = checks.filter((check) => check.required === false);
-      // Never filed under Advisory on a guess.
-      const unknown = checks.filter((check) => check.required === undefined);
-      if (required.length)
-        pipelineDialogBody.appendChild(
-          pipelineGroup("Required", required, "pipeline-group-required"),
-        );
-      if (advisory.length)
-        pipelineDialogBody.appendChild(
-          pipelineGroup("Advisory", advisory, "pipeline-group-advisory"),
-        );
-      if (unknown.length)
-        pipelineDialogBody.appendChild(
-          pipelineGroup("Status unknown", unknown, "pipeline-group-unknown"),
-        );
-    }
-
-    function renderPipelineError(message: string, onRetry: () => void) {
-      if (!pipelineDialogBody) return;
-      pipelineDialogBody.innerHTML = "";
-      const wrap = el("div", "pipeline-error");
-      wrap.setAttribute("role", "alert");
-      wrap.appendChild(el("p", "", message));
-      const retryButton = buttonEl("row-action", "Retry");
-      retryButton.addEventListener("click", onRetry);
-      wrap.appendChild(retryButton);
-      pipelineDialogBody.appendChild(wrap);
-    }
-
-    // Always fetched fresh — never cached, never part of applySnapshot's
-    // own eager pull, per the checks endpoint's own doc comment: this is
-    // detail a row doesn't show until the panel is actually opened for
-    // it.
-    function loadPipelineChecks(item: PullRequestItem, wantLive = false) {
-      const live = wantLive && pipelineReady;
-      if (!live) pipelineReady = false;
-      const token = ++pipelineRequestToken;
-      if (!live) renderPipelineLoading();
-
-      fetch(
-        `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
-        { headers: { Accept: "application/json" } },
-      )
-        .then((res) => {
-          if (res.status === 401) {
-            window.location.href = "/login.html";
-            throw new Error("session expired");
-          }
-          return res.json().then((body) => {
-            if (!res.ok) {
-              const err: Error & { status?: number } = new Error(
-                body?.error || `backend answered ${res.status}`,
-              );
-              err.status = res.status;
-              throw err;
-            }
-            return body as { checks: Check[] };
-          });
-        })
-        .then((data) => {
-          if (token !== pipelineRequestToken) return;
-          if (live) redrawPipelineLive(data.checks || [], item);
-          else {
-            setPipelineNote("");
-            pipelineLive?.refreshed();
-            renderPipelineChecks(data.checks || [], item);
-            pipelineReady = true;
-          }
-        })
-        .catch((err: Error & { status?: number }) => {
-          if (token !== pipelineRequestToken) return;
-          // A failed live read leaves the checks on screen and says so; the
-          // next change reads again.
-          if (live) {
-            pipelineLive?.failed();
-            setPipelineNote(
-              "Couldn't refresh these checks. They may be out of date.",
-            );
-            return;
-          }
-          const message = `Couldn't load pipeline checks for ${item.repo}#${item.number}: ${err.message}`;
-          renderPipelineError(message, () => loadPipelineChecks(item));
-        });
-    }
-
-    // A live read's answer: nothing is redrawn when nothing changed, and a
-    // redraw keeps the scroll position and the control the keyboard is on.
-    function redrawPipelineLive(next: Check[], item: PullRequestItem) {
-      setPipelineNote("");
-      if (!pipelineDialogBody) return;
-      const ordered = keepOrder(pipelineShown, next);
-      if (JSON.stringify(ordered) === JSON.stringify(pipelineShown)) return;
-      const message = announceChange(pipelineShown, ordered);
-      // The control the keyboard is on is found again by its key, not by its
-      // place: a check that came or went above it moves everything below.
-      const active = document.activeElement as HTMLElement | null;
-      const focusKey = pipelineDialogBody.contains(active)
-        ? active?.dataset.focusKey
-        : undefined;
-      const scroll = pipelineDialogBody.scrollTop;
-      renderPipelineChecks(ordered, item, true);
-      pipelineDialogBody.scrollTop = scroll;
-      if (focusKey) {
-        const again = Array.from(
-          pipelineDialogBody.querySelectorAll<HTMLElement>("[data-focus-key]"),
-        ).find((node) => node.dataset.focusKey === focusKey);
-        (
-          again ??
-          pipelineDialog?.querySelector<HTMLElement>("#pipeline-dialog-close")
-        )?.focus({
-          preventScroll: true,
-        });
-      }
-      if (message) pipelineSpeaker(message);
-    }
-
     function openPipelineDialog(item: PullRequestItem) {
       if (!pipelineDialog) return;
       pipelineDialogRowKey = prKey(item);
       pipelineItem = item;
-      pipelineShown = [];
-      pipelineReady = false;
-      setPipelineNote("");
-      pipelineSpeaker.clear();
-      if (pipelineDialogSubtitle) {
-        pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
-      }
-      pipelineLive = createLiveChecks({
+      pipelineDialog.open({
+        subtitle: `${item.repo}#${item.number}`,
+        // Always fetched fresh, never cached and never part of applySnapshot's
+        // own eager pull: this is detail a row doesn't show until the dialog is
+        // opened for it.
+        checksUrl: `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
         signature: ciSignature(item),
+        emptyText: "No CI configured for this pull request.",
+        errorText: `Couldn't load pipeline checks for ${item.repo}#${item.number}`,
         paused: updatesPaused,
-        reload: () => pipelineItem && loadPipelineChecks(pipelineItem, true),
-        onStale: (stale) =>
-          setPipelineNote(
-            stale
-              ? "Live updates are paused. These checks may be out of date."
-              : "",
-          ),
+        controls: (failed) =>
+          failed && pipelineItem ? pipelineRerunControl(pipelineItem) : null,
+        // renderPRBoard() rebuilds the row from scratch first (the same
+        // poll-driven rebuild every other row action already lives with), so
+        // the refocus has to find the freshly built pill by its stable id.
+        onClose: () => {
+          const rowKey = pipelineDialogRowKey;
+          pipelineDialogRowKey = null;
+          pipelineItem = null;
+          renderPRBoard();
+          if (rowKey) {
+            document
+              .getElementById(`pipeline-trigger-${domSafeId(rowKey)}`)
+              ?.focus();
+          }
+        },
       });
-      loadPipelineChecks(item);
-      pipelineDialog.showModal();
     }
-
-    pipelineDialogCloseButton?.addEventListener("click", () => {
-      pipelineDialog?.close();
-    });
-
-    // Fires for every close path — Escape, the close button, and the
-    // backdrop-click handler just below — so focus returns to the row's
-    // own CI pill no matter which one was used to get
-    // here. renderPRBoard() rebuilds the row from scratch first (the same
-    // poll-driven rebuild every other row action already lives with), so
-    // the refocus below has to find the freshly built node by its stable
-    // id rather than holding a reference captured at open time.
-    pipelineDialog?.addEventListener("close", () => {
-      const rowKey = pipelineDialogRowKey;
-      pipelineDialogRowKey = null;
-      pipelineLive = null;
-      pipelineItem = null;
-      // A read still out must not draw into a closed panel.
-      pipelineRequestToken++;
-      renderPRBoard();
-      if (rowKey) {
-        document
-          .getElementById(`pipeline-trigger-${domSafeId(rowKey)}`)
-          ?.focus();
-      }
-    });
-
-    // <dialog>'s own ::backdrop is a separate, non-clickable pseudo-
-    // element that never receives this event — a click landing on the
-    // <dialog> element itself (rather than something inside it) is what
-    // "clicked outside the panel" actually looks like from here.
-    pipelineDialog?.addEventListener("click", (event) => {
-      if (event.target === pipelineDialog) {
-        pipelineDialog.close();
-      }
-    });
 
     function modalDialogOpen(): boolean {
       return document.querySelector("dialog[open]") !== null;
@@ -5908,9 +5539,9 @@
     // the first list lands the snapshot is all there is; after, an empty list
     // offers nothing (#2196).
     function itemsOnScreen(): FilterableItem[] {
-      const landed = pullsView ? prListLanded : issueListLanded;
+      const landed = pullsView ? prShown.landed : issueShown.landed;
       if (!landed) return pullsView ? allPRs : allIssues;
-      return pullsView ? shownPRs : shownIssues;
+      return pullsView ? prShown.items : issueShown.items;
     }
 
     // Leave-one-out narrowing (#550): each shared select's own options
@@ -5927,7 +5558,11 @@
     // since a repo with nothing else has nothing to show.
     function sharedPoolExcluding(
       excludeKey: Filters.PoolKey,
-      board: "apply" | "applyExceptQuick" | "applyExceptAutoMerge" = "apply",
+      board:
+        | "apply"
+        | "applyExceptQuick"
+        | "applyExceptAutoMerge"
+        | "applyExceptClosing" = "apply",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -5947,9 +5582,13 @@
                 ...sharedState.pr,
                 ...(board === "applyExceptQuick" ? { quick: "" } : {}),
                 ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
+                ...(board === "applyExceptClosing" ? { closes: "" } : {}),
               }
             : undefined
-          : withSettings(sharedState.issue),
+          : {
+              ...withSettings(sharedState.issue),
+              ...(board === "applyExceptClosing" ? { closedBy: "" } : {}),
+            },
       );
     }
 
@@ -6006,6 +5645,15 @@
     // The Label filter's control, mounted once the shared bar exists.
     let labelFilter: LabelFilterControl | null = null;
 
+    function offerTitles() {
+      Filters.populateDatalist(
+        document.getElementById(
+          "shared-title-options",
+        ) as HTMLDataListElement | null,
+        Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
+      );
+    }
+
     function updateSharedFilterOptions(
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
@@ -6027,13 +5675,7 @@
         ),
         sharedState.shared.author,
       );
-      if (!skipTitleSuggestions)
-        Filters.populateDatalist(
-          document.getElementById(
-            "shared-title-options",
-          ) as HTMLDataListElement | null,
-          Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
-        );
+      if (!skipTitleSuggestions) offerTitles();
       // The Label filter holds several labels; the ones this page does not
       // offer are set aside, the rest stay picked.
       const labelChoices = Filters.distinctValues(
@@ -6092,6 +5734,12 @@
           sharedPoolExcluding("", "applyExceptAutoMerge"),
           sharedState.pr.autoMerge ?? "",
         );
+      Filters.offerClosing(
+        document.querySelectorAll<HTMLElement>(".link-group"),
+        sharedPoolExcluding("", "applyExceptClosing"),
+        pullsView,
+        closingGroup()[closingKey()] ?? "",
+      );
       Filters.offerPills(
         document.querySelectorAll<HTMLElement>(".quick-pill"),
         forgePillPool(),
@@ -6131,6 +5779,7 @@
     function syncSharedControlsToState() {
       syncQuickPills();
       syncAutoMerge();
+      syncClosing();
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
         .forEach((c) => {
@@ -6647,7 +6296,7 @@
       Filters.touchKey("view", "paused");
       Filters.saveState(sharedState);
       syncPauseControl();
-      if (!updatesPaused()) pipelineLive?.resume();
+      if (!updatesPaused()) pipelineDialog?.resume();
       if (view === "issues") reconcileIssues();
       else reconcilePRs();
     });
@@ -6783,6 +6432,12 @@
     const amButtons = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".am-group [data-am]"),
     );
+    function closingGroup(): Record<string, string> {
+      return pullsView ? sharedState.pr : sharedState.issue;
+    }
+    function closingKey(): "closes" | "closedBy" {
+      return pullsView ? "closes" : "closedBy";
+    }
     function syncAutoMerge() {
       const picked = sharedState.pr.autoMerge || "any";
       for (const b of amButtons)
@@ -6802,6 +6457,35 @@
       });
     }
     syncAutoMerge();
+
+    // ---- closing-link segment ----
+    // Pull requests: closes an issue or not. Issues: has a closing pull
+    // request or not. A segmented control with an Any segment, as for
+    // Auto-merge; the pick is saved with the page's other filters.
+    const linkButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".link-group [data-link]"),
+    );
+    function syncClosing() {
+      const picked = closingGroup()[closingKey()] || "any";
+      for (const b of linkButtons)
+        b.setAttribute("aria-pressed", String(b.dataset.link === picked));
+    }
+    for (const b of linkButtons) {
+      b.addEventListener("click", () => {
+        const value = b.dataset.link ?? "any";
+        const group = closingGroup();
+        if (value === "any") delete group[closingKey()];
+        else group[closingKey()] = value;
+        Filters.touchKey(pullsView ? "pr" : "issue", closingKey());
+        prBoard.resetPage();
+        issueBoard.resetPage();
+        updateSharedFilterOptions();
+        Filters.saveState(sharedState);
+        syncClosing();
+        renderBoth();
+      });
+    }
+    syncClosing();
 
     // "/" focuses the title search, as on GitHub — only when nothing
     // editable has focus and no modifier is held, so typing a slash into
@@ -6862,6 +6546,8 @@
         Object.keys(sharedState.shared).every((k) => !sharedState.shared[k]) &&
         !sharedState.pr.quick &&
         !sharedState.pr.autoMerge &&
+        !sharedState.pr.closes &&
+        !sharedState.issue.closedBy &&
         // A saved pick this page does not offer is still a filter (#1620).
         Filters.heldPicks().length === 0 &&
         // A field the Settings page replaced is not drawn, so what the
@@ -6982,6 +6668,18 @@
               .querySelector<HTMLButtonElement>('.am-group [data-am="any"]')
               ?.click(),
         });
+      const closing = closingGroup()[closingKey()];
+      if (closing)
+        chips.push({
+          label: Filters.closingChoiceLabel(
+            pullsView,
+            closing === "yes" ? "yes" : "no",
+          ),
+          clear: () =>
+            document
+              .querySelector<HTMLButtonElement>('.link-group [data-link="any"]')
+              ?.click(),
+        });
       if (pullsView && draftsOn())
         chips.push({
           label: "Drafts shown",
@@ -7094,7 +6792,7 @@
       );
       // Each filter is cleared in the group the page keeps it in: the
       // pull-request ones live in sharedState.pr, the rest in shared.
-      const prKeys = ["status", "quick", "autoMerge"];
+      const prKeys = ["status", "quick", "autoMerge", "closes"];
       for (const filter of failing) {
         const group = prKeys.includes(filter) ? "pr" : "shared";
         Filters.touchKey(group, filter);
@@ -7104,6 +6802,7 @@
       if (failing.length > 0) {
         syncQuickPills();
         syncAutoMerge();
+        syncClosing();
         document
           .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
             `${FILTER_CONTROLS}`,
@@ -7154,6 +6853,7 @@
       Filters.touchAll();
       syncQuickPills();
       syncAutoMerge();
+      syncClosing();
 
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
@@ -7958,7 +7658,7 @@
           // The row the server's record is on takes it in place, even
           // while this click holds the board: the record is no news to
           // the user, so it must not read as "1 update available".
-          const shown = shownPRs.find((p) => prKey(p) === queued.prKey);
+          const shown = prShown.items.find((p) => prKey(p) === queued.prKey);
           const shownRecord = shown && kind.requestOf(shown)?.request;
           if (JSON.stringify(shownRecord) !== JSON.stringify(current))
             changed.add(queued.prKey);
@@ -8158,10 +7858,10 @@
     // The open pipeline panel follows its own pull request: when this snapshot
     // shows that one's CI changed, the panel reads its checks again.
     function followOpenPipeline() {
-      if (!pipelineLive || !pipelineDialogRowKey) return;
+      if (!pipelineDialogRowKey) return;
       const now = allPRs.find((p) => prKey(p) === pipelineDialogRowKey);
       if (now) pipelineItem = now;
-      pipelineLive.seen(now ? ciSignature(now) : null);
+      pipelineDialog?.follow(now ? ciSignature(now) : null);
     }
 
     function applySnapshot(
@@ -8517,6 +8217,28 @@
   }
 </script>
 
+<!-- The closing-link segment, once in the filter bar and once in the phone
+     Filters sheet, so the two cannot drift apart. -->
+{#snippet closingSegment(sheet: boolean)}
+  <div
+    class="link-group"
+    class:sheet-only={sheet}
+    role="group"
+    aria-label={view === "issues" ? "Closing pull request" : "Closing issue"}
+  >
+    <span class="am-label" aria-hidden="true"
+      >{view === "issues" ? "Closing PR" : "Closing issue"}</span
+    >
+    <button type="button" data-link="any" aria-pressed="true">Any</button>
+    <button type="button" data-link="yes" aria-pressed="false"
+      >{Filters.closingChoiceLabel(pullsView, "yes")}</button
+    >
+    <button type="button" data-link="no" aria-pressed="false"
+      >{Filters.closingChoiceLabel(pullsView, "no")}</button
+    >
+  </div>
+{/snippet}
+
 <svelte:head>
   <title
     >{view === "issues"
@@ -8806,6 +8528,7 @@
           ></span></button
         >
       {/if}
+      {@render closingSegment(true)}
       <select
         class="group-select"
         id="pr-sort-select"
@@ -8872,6 +8595,9 @@
         disabled>Clear filters</button
       >
     </div>
+    <!-- Last in the bar, so the pills above it appearing or going moves
+         nothing but this segment and the bar keeps its height. -->
+    {@render closingSegment(false)}
   </div>
 
   <!-- Saved picks this page does not offer (#1620). Always in the page, so a
@@ -9071,48 +8797,7 @@
 />
 
 {#if pullsView}
-  <dialog
-    id="pipeline-dialog"
-    class="pipeline-dialog"
-    aria-label="Pipeline checks"
-  >
-    <div class="pipeline-dialog-header">
-      <div>
-        <h2 class="pipeline-dialog-title">Pipeline checks</h2>
-        <p class="pipeline-dialog-subtitle" id="pipeline-dialog-subtitle"></p>
-      </div>
-      <button
-        type="button"
-        class="pipeline-dialog-close"
-        id="pipeline-dialog-close"
-        aria-label="Close pipeline checks"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
-        >
-      </button>
-    </div>
-    <p
-      class="pipeline-paused-note"
-      id="pipeline-paused-note"
-      aria-live="polite"
-      hidden
-    ></p>
-    <p
-      class="sr-only pipeline-live-status"
-      id="pipeline-live-status"
-      aria-live="polite"
-    ></p>
-    <div class="pipeline-dialog-body" id="pipeline-dialog-body"></div>
-  </dialog>
+  <PipelineDialog bind:this={pipelineDialog} />
 {/if}
 
 <!-- #714: the one polite live region for per-pull-request feedback, and

@@ -57,7 +57,7 @@ func readMainBranchesFrom(t *testing.T, srvURL string, cookie *http.Cookie, want
 		body = mainBranchesBody{}
 
 		return got.status == http.StatusOK && json.Unmarshal(got.body, &body) == nil && len(body.Branches) == want
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return body
 }

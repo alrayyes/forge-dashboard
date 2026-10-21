@@ -1,6 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { toggleLabels } from './label-filter-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // A filter save the server turns away used to vanish without a word. The page
 // now says the filter was not saved, once, and does not send it again by
@@ -42,7 +42,6 @@ async function open(page: Page) {
 }
 
 test('a refused filter save is reported on the page', async ({ page }) => {
-  await landOnPullRequests(page);
   await open(page);
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 

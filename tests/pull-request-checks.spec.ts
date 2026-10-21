@@ -651,6 +651,50 @@ test.describe('pull request pipeline checks panel', () => {
     // The 'Rerun queued' panel is scanned in the GitHub test above: same markup.
   });
 
+  for (const theme of ['light', 'dark'] as const) {
+    test(`the panel showing the forge's "no failed job to rerun" reason has no axe-core violations in ${theme} mode`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await mockDashboard(
+        page,
+        'forgejo',
+        makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles', ci: 'failure' }),
+      );
+      await mockChecks(page, {
+        checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      });
+      await page.route('**/api/pull-requests/rerun-checks', (route) =>
+        route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'raw',
+            code: 'conflict',
+            message: 'no failed job to rerun on this pull request',
+          }),
+        }),
+      );
+      await page.goto('/pull-requests.html');
+
+      await page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Open pipeline' })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+      await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+      await expect(
+        dialog.getByText('no failed job to rerun on this pull request'),
+      ).toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
   test('a refused rerun shows the reason in the panel and leaves the button to try again', async ({
     page,
   }) => {

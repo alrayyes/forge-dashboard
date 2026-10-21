@@ -26,7 +26,9 @@ type ownedTable struct {
 
 // owned lists every table holding a user's data. The test that lists
 // sqlite_master fails when a table exists that is neither here, in emptied,
-// nor handled by hand below (users, ceremonies, the marker).
+// nor handled by hand below (users, ceremonies, the marker). The cache tables
+// (http_etags, snapshot_cache, hook_checks, webhook_seen) are keyed by
+// credential and repo, hold no user, and are left alone.
 var owned = []ownedTable{
 	{"sessions", "user_id"},
 	{"api_tokens", "user_id"},

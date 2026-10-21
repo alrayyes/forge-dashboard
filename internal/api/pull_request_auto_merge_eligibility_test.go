@@ -59,7 +59,7 @@ func autoMergeBoard(t *testing.T, prs ...dashboard.PullRequest) (*httptest.Serve
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == len(src.prs)
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie, src
 }

@@ -26,16 +26,17 @@ Last activity (the default, the server's order: most recently updated first,
 whether or not a pull request is ready to merge), Created and Repository. Pause
 and sort are saved with your other filters.
 
-The pipeline panel follows its row. While it is open, a check's pill changes
-where it stands, in the order the panel already shows, when the live stream
-(or, on the Branches page, the page's own read) says that pull request's or
-branch's CI changed. The panel makes one request for each such change and none
-while nothing changes, so a finished pipeline costs no more requests, and a
-rerun that starts reads it again once. It doesn't poll the forge on a timer of
-its own. A change to any check's state is announced politely once ("Checks
-updated: test is now Passed.", or "Checks updated: 2 checks changed." when
-several moved), the same line again when the same thing happens twice, and the
-panel redraws nothing when no check differs. With **Pause live updates** on,
+The pipeline panel is one dialog on the pull request, bot and Main branches
+pages, so what follows holds on all three. It follows its row. While it is open,
+a check's pill changes where it stands, in the order the panel already shows,
+when the live stream (or, on the Branches page, the page's own read) says that
+pull request's or branch's CI changed. The panel makes one request for each such
+change and none while nothing changes, so a finished pipeline costs no more
+requests, and a rerun that starts reads it again once. It doesn't poll the forge
+on a timer of its own. A change to any check's state is announced politely once
+("Checks updated: test is now Passed.", or "Checks updated: 2 checks changed."
+when several moved), the same line again when the same thing happens twice, and
+the panel redraws nothing when no check differs. With **Pause live updates** on,
 the panel makes no request and says "Live updates are paused. These checks may
 be out of date."; turning updates back on reads once if the CI changed
 meanwhile. A redraw keeps keyboard focus on the same check's link or log, even
@@ -70,8 +71,11 @@ behind one waiting for auto-update needs it
 
 ## The first load after a restart
 
-A restarted server holds no state until your first refresh has finished, so its
-first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
+A restarted server starts from the snapshot its last run saved, so the board
+shows those rows at once. Their forge reads as unreachable with a stale time
+until the first refresh succeeds, then the mark clears. The rest of this section
+covers a start with nothing saved, such as a first install or a new database.
+There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
 Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one
 polite "Loading your repositories…" line, not their empty states, and the
 navigation shows a dash where a count would be. After about ten seconds the line
@@ -83,8 +87,9 @@ soon after the refresh ends, not up to 30 seconds later.
 
 ## The first refresh
 
-After a restart the server holds no state, so the first snapshot is empty until
-the first refresh for that user ends. `firstRefreshDone` on the dashboard
+With nothing saved, the first snapshot is empty until the first refresh for that
+user ends. A snapshot restored from the last run already counts as loaded, so
+`firstRefreshDone` is `true` for it. `firstRefreshDone` on the dashboard
 snapshot tells an empty board from one that hasn't loaded: it is `false` from
 process start until the viewer's first refresh has finished, whether it
 succeeded or failed (a failed one shows in the forge health), and `true` from
@@ -177,7 +182,8 @@ The Created and Updated ranges and the forge buttons on Insights follow the same
 rule: a range or a forge appears only when something in the results is in it,
 and a pick that nothing matches any more is cleared. On the pull request page
 the repo, author and label choices and the age choices also follow the board's
-own filters (the quick pills and Auto-merge), so an author with nothing in the
+own filters (the quick pills, Auto-merge and the closing-issue choice; on the
+issue page, the closing-pull-request choice), so an author with nothing in the
 list on screen isn't offered and picking a choice never leaves an empty list.
 The quick pills do too: a pill is offered only when clicking it would show
 something, and the one that is active stays so it can be cleared.

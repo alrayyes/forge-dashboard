@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
 // The issues page holds its list steady during a refresh. A snapshot that
@@ -154,10 +154,6 @@ async function scrollDown(page: Page) {
 }
 
 test.describe('steady issues refresh', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   // #1198: the bar on the issues page counts issue rows only. Pull request
   // changes in the same snapshot don't move anything in the issues list, so
   // they must not raise it, however the list is being held.

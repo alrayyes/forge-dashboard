@@ -67,7 +67,7 @@ func eligibilityBoard(t *testing.T, pr dashboard.PullRequest) (*httptest.Server,
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie, src
 }

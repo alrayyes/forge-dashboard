@@ -22,6 +22,16 @@ func (c *Client) BaseURLForTest() string { return c.baseURL }
 // through, so a test can send a request the Client's own methods never make.
 func (c *Client) ETagTransport() http.RoundTripper { return c.etag }
 
+// NewBackedETagTransport is NewETagTransport with a persistent backing behind
+// its store, which starts empty in memory, the way a restarted process does.
+func NewBackedETagTransport(base http.RoundTripper, credential string, backing ETagBacking) http.RoundTripper {
+	rt := newETagTransport(base, credential)
+	rt.store = newETagStore(maxETagEntries, maxETagTotalBytes)
+	rt.store.backing = backing
+
+	return rt
+}
+
 // NewETagTransport is a caching transport over base for the given credential
 // label. It gets a store of its own, so no entry outlives the test that made
 // it: the shared store is process-wide, and a repeated run (-count=N) would

@@ -59,7 +59,7 @@ func issueSettingsServer(t *testing.T) (*httptest.Server, *http.Cookie) {
 		issues, _ := fetchDashboard(t, srv.URL, cookie)["issues"].([]any)
 
 		return len(issues) == 5
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }
@@ -193,7 +193,7 @@ func TestDashboardStream_AppliesTheIssueSettings(t *testing.T) {
 		assert.InDelta(t, 3, navIssueTotal(board), 0)
 		assert.Equal(t, true, board["hideDependencyDashboard"])
 		assert.Equal(t, true, board["ignoredTitlesSet"])
-	case <-time.After(2 * time.Second):
+	case <-time.After(pollBudget):
 		t.Fatal("no SSE event received after the webhook-triggered refresh")
 	}
 }
@@ -251,7 +251,7 @@ func TestDashboard_IssuesOfAnIgnoredRepo_AreNotCountedAsHiddenBySettings(t *test
 		repos, _ := fetchDashboard(t, srv.URL, cookie)["repos"].([]any)
 
 		return len(repos) == 2
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 	ignore := postRepoIgnoreAction(t, srv.URL, cookie, "alrayyes/ignored", false, true)
 	_ = ignore.Body.Close()
 	require.Equal(t, http.StatusNoContent, ignore.StatusCode)

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 
 const PAGES = [
   { path: '/disclaimer.html', title: 'Disclaimer' },

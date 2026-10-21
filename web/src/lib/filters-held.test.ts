@@ -107,3 +107,32 @@ describe('applyServerState with a held pick', () => {
     expect(state.issue.hideDependencyDashboard).toBe('1');
   });
 });
+
+describe('applyServerState with a closing-link choice', () => {
+  const empty = (): SharedFilterState => ({
+    shared: {},
+    pr: {},
+    issue: {},
+    view: {},
+  });
+
+  test('a saved value other than yes or no reads as Any', () => {
+    const state = empty();
+    applyServerState(state, {
+      pr: { closes: 'maybe' },
+      issue: { closedBy: 'maybe' },
+    });
+    expect(state.pr.closes).toBeUndefined();
+    expect(state.issue.closedBy).toBeUndefined();
+  });
+
+  test('yes and no are kept', () => {
+    const state = empty();
+    applyServerState(state, {
+      pr: { closes: 'yes' },
+      issue: { closedBy: 'no' },
+    });
+    expect(state.pr.closes).toBe('yes');
+    expect(state.issue.closedBy).toBe('no');
+  });
+});

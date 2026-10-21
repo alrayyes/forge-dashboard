@@ -98,7 +98,7 @@ func linkedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }
