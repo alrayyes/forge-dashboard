@@ -165,6 +165,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("DELETE /api/queued-actions/{id}", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCancel(deps)))
 	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestChecks(deps))))
 	mux.Handle("GET /api/pull-requests/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestDetails(deps))))
+	mux.Handle("GET /api/releases/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleReleaseDetails(deps))))
 	mux.Handle("GET /api/issues/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleIssueDetails(deps))))
 
 	mux.Handle("GET /api/admin/users", auth.RequireAuth(deps.AuthStore)(auth.RequireAdmin(handleAdminListUsers(deps.AuthStore))))
