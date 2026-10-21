@@ -20,7 +20,20 @@ export function shownList<T>() {
   };
 }
 
-export type ShownList<T> = ReturnType<typeof shownList<T>>;
+// What the Dashboard does with a settled list: nothing, rebuild only the Title
+// suggestions, or rebuild every choice. A Title box with focus keeps its
+// suggestions as they are, and a title filter makes the other choices depend
+// on titles, so those need the full rebuild.
+export function offerAction(
+  change: 'none' | 'titles' | 'all',
+  titleFilterSet: boolean,
+  titleFocused: boolean,
+): 'skip' | 'suggest' | 'rebuild' {
+  if (change === 'none') return 'skip';
+  if (change === 'titles' && !titleFilterSet)
+    return titleFocused ? 'skip' : 'suggest';
+  return 'rebuild';
+}
 
 // One JSON array per row, so a separator inside a title cannot make two
 // different sets read the same.

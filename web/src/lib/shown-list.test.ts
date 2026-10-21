@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import type { FilterableItem } from './filters';
-import { choicesChange, shownList } from './shown-list';
+import { choicesChange, offerAction, shownList } from './shown-list';
 
 function item(over: Record<string, unknown> = {}): FilterableItem {
   return {
