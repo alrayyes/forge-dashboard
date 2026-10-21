@@ -1237,13 +1237,13 @@
     .status.ok {
       color: var(--good);
     }
-    .share-form {
+    .entry-form {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 14px;
     }
-    .share-form input {
+    .entry-form input {
       flex: 1;
       min-width: 140px;
       font-family: inherit;
@@ -1298,10 +1298,10 @@
       font-size: 14px;
       margin: 18px 0 4px;
     }
-    #issue-settings .share-list li {
+    #issue-settings .entry-list li {
       gap: 12px;
     }
-    #issue-settings .share-list code {
+    #issue-settings .entry-list code {
       overflow-wrap: anywhere;
       min-width: 0;
     }
@@ -1322,12 +1322,12 @@
       color: var(--ink-2);
       border: 1px solid var(--border);
     }
-    #issue-settings .share-list .btn-remove {
+    #issue-settings .entry-list .btn-remove {
       flex-shrink: 0;
     }
     /* Touch targets at phone width: 44px high (#1630). */
     @media (max-width: 760px) {
-      #issue-settings .share-list .btn-remove,
+      #issue-settings .entry-list .btn-remove,
       #issue-settings .pattern-row .btn {
         min-height: 44px;
         min-width: 44px;
@@ -1359,12 +1359,12 @@
     .field input[aria-invalid="true"] {
       border-color: var(--critical);
     }
-    .share-list {
+    .entry-list {
       list-style: none;
       margin: 0;
       padding: 0;
     }
-    .share-list li {
+    .entry-list li {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1372,10 +1372,10 @@
       border-bottom: 1px solid var(--border);
       font-size: 13.5px;
     }
-    .share-list li:last-child {
+    .entry-list li:last-child {
       border-bottom: none;
     }
-    .share-list .btn-remove {
+    .entry-list .btn-remove {
       font-family: inherit;
       font-size: 12px;
       padding: 4px 10px;
@@ -1385,7 +1385,7 @@
       color: var(--ink);
       cursor: pointer;
     }
-    .share-list .btn-remove:hover {
+    .entry-list .btn-remove:hover {
       filter: brightness(1.05);
     }
     .empty-state {
@@ -1835,7 +1835,7 @@
               engine.
             </p>
             <ul
-              class="share-list"
+              class="entry-list"
               id="ignored-titles"
               aria-labelledby="ignored-titles-heading"
             >
@@ -2095,7 +2095,7 @@
           </p>
           <form
             id="passkey-form"
-            class="share-form"
+            class="entry-form"
             onsubmit={submitAddPasskey}
           >
             <label for="passkey-label" class="sr-only"
@@ -2115,7 +2115,7 @@
                 : "Add passkey"}</button
             >
           </form>
-          <ul class="share-list" id="passkey-list">
+          <ul class="entry-list" id="passkey-list">
             {#each passkeys as key (key.id)}
               <li>
                 <span>
@@ -2165,7 +2165,7 @@
           </p>
           <form
             id="token-form"
-            class="share-form"
+            class="entry-form"
             onsubmit={submitGenerateToken}
           >
             <label for="token-label" class="sr-only"
@@ -2227,7 +2227,7 @@
               generating a new one.
             </p>
           </div>
-          <ul class="share-list" id="api-token-list">
+          <ul class="entry-list" id="api-token-list">
             {#each apiTokens as tok (tok.id)}
               <li>
                 <span>
