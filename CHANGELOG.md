@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.249.2](https://github.com/alrayyes/forge-dashboard/compare/v0.249.1...v0.249.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** return focus sensibly when an issue opened from its address closes ([#2130](https://github.com/alrayyes/forge-dashboard/issues/2130)) ([9a4d8af](https://github.com/alrayyes/forge-dashboard/commit/9a4d8afac49b8c103dc17447f3da922962555ee8))
+
 ## [0.249.1](https://github.com/alrayyes/forge-dashboard/compare/v0.249.0...v0.249.1) (2026-10-21)
 
 
