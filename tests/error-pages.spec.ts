@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 
 // #1175, rules/error-pages.md: the dashboard's own 404 and 500 pages, in the
 // app's look, with a way out and nothing about its internals. The build

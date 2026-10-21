@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 
 // #1135: style.css used to be served as written, comments and all, and
 // Lighthouse flagged it as unminified. The build now minifies it into the
