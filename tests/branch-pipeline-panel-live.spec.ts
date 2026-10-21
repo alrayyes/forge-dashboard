@@ -245,3 +245,61 @@ test.describe('main branches pipeline panel updates live', () => {
     }
   }
 });
+
+// The branch panel is the pull request board's dialog, so what a check carries
+// is drawn the same way on both.
+test.describe('main branches pipeline panel draws what a check carries', () => {
+  test('a held check offers Approve on GitHub', async ({ page }) => {
+    await open(
+      page,
+      RUNNING,
+      [
+        {
+          name: 'deploy',
+          state: 'awaiting_approval',
+          url: 'https://example.com/r/9',
+        },
+      ],
+      1,
+    );
+
+    await expect(
+      panel(page).getByRole('link', { name: 'Approve on GitHub: deploy' }),
+    ).toBeVisible();
+  });
+
+  test('required and advisory checks are grouped and a blocking failure is flagged', async ({
+    page,
+  }) => {
+    await open(
+      page,
+      RUNNING,
+      [
+        {
+          name: 'lint',
+          state: 'failure',
+          url: 'https://example.com/r/1',
+          required: false,
+        },
+        {
+          name: 'test',
+          state: 'failure',
+          url: 'https://example.com/r/2',
+          required: true,
+        },
+      ],
+      2,
+    );
+
+    await expect(
+      panel(page).getByRole('heading', { name: 'Required (1)' }),
+    ).toBeVisible();
+    await expect(
+      panel(page).getByRole('heading', { name: 'Advisory (1)' }),
+    ).toBeVisible();
+    await expect(panel(page).getByText('Blocking')).toHaveCount(1);
+    await expect(panel(page).getByRole('listitem').first()).toContainText(
+      'test',
+    );
+  });
+});

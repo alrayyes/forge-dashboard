@@ -454,3 +454,59 @@ test.describe('pipeline panel with live updates paused', () => {
     expect(state.requests).toBe(2);
   });
 });
+
+// A failed Rerun failed checks puts a Copy button beside the failure. A live
+// redraw draws the control again and keeps the keyboard on the same button.
+test.describe('pipeline panel rerun control through a live redraw', () => {
+  test('a focused Copy button keeps focus', async ({ page }) => {
+    const failing = {
+      ...pr('failure', { passed: 0, running: 0, waiting: 0, failed: 1 }),
+      allowedActions: [{ action: 'rerun_checks' }],
+    };
+    const state = await open(
+      page,
+      failing,
+      [
+        {
+          name: 'test',
+          state: 'failure',
+          url: 'https://example.com/r/2',
+          required: true,
+        },
+      ],
+      1,
+    );
+    await page.route('**/api/pull-requests/rerun-checks', (route: Route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'refused' }),
+      }),
+    );
+    await dialog(page)
+      .getByRole('button', { name: 'Rerun failed checks' })
+      .click();
+    const copy = dialog(page).getByRole('button', {
+      name: 'Copy error details',
+    });
+    await copy.focus();
+    await expect(copy).toBeFocused();
+
+    state.checks = [
+      {
+        name: 'test',
+        state: 'failure',
+        url: 'https://example.com/r/2',
+        required: true,
+      },
+      { name: 'extra', state: 'failure', url: 'https://example.com/r/3' },
+    ];
+    await push(page, {
+      ...failing,
+      checks: { passed: 0, running: 0, waiting: 0, failed: 2 },
+    });
+
+    await expect(dialog(page).locator('.pipeline-check')).toHaveCount(2);
+    await expect(copy).toBeFocused();
+  });
+});

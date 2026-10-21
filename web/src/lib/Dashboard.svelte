@@ -101,7 +101,6 @@
     type PillCi,
     parsePullRequestAddress,
   } from "#lib/linked-pull-requests.js";
-  import { createSpeaker } from "#lib/live-region.js";
   import {
     comesBack,
     hideFailedMessage,

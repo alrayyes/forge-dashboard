@@ -75,6 +75,9 @@
   });
 
   export function open(next: PipelineTarget) {
+    // Already open: showModal() would throw, and the dialog is modal, so only
+    // a stray second call gets here.
+    if (dialog.open) return;
     target = next;
     staleNote = "";
     speak.clear();
@@ -205,10 +208,16 @@
   function controls(host: HTMLElement) {
     void checks;
     const node = target?.controls?.(failed) ?? null;
-    const hadFocus = host.contains(document.activeElement);
+    // The button the keyboard was on, by its place among the control's buttons
+    // (Rerun, then a failure's Copy), so it keeps focus when the control is drawn
+    // again.
+    const buttons = () =>
+      Array.from(host.querySelectorAll<HTMLElement>("button"));
+    const was = buttons().indexOf(document.activeElement as HTMLElement);
     host.replaceChildren(...(node ? [node] : []));
-    if (node && hadFocus) {
-      node.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    if (node && was >= 0) {
+      const now = buttons();
+      (now[was] ?? now[0])?.focus({ preventScroll: true });
     }
   }
 </script>
