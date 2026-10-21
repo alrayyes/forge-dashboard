@@ -754,7 +754,7 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	a.activity.drainWake()
 	a.Refresh(ctx)
 
-	timer := time.NewTimer(NextRefreshDelay(a.Get(), interval))
+	timer := time.NewTimer(a.NextDelay(interval))
 	defer timer.Stop()
 
 	for {
@@ -763,12 +763,12 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 			return
 		case <-timer.C:
 			if a.activity.Idle() && !a.automationPending(ctx) {
-				timer.Reset(NextRefreshDelay(a.Get(), interval))
+				timer.Reset(a.NextDelay(interval))
 
 				continue
 			}
 			a.Refresh(ctx)
-			timer.Reset(NextRefreshDelay(a.Get(), interval))
+			timer.Reset(a.NextDelay(interval))
 		case <-a.activity.Woken():
 			a.Refresh(ctx)
 			if !timer.Stop() {
@@ -777,7 +777,7 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 				default:
 				}
 			}
-			timer.Reset(NextRefreshDelay(a.Get(), interval))
+			timer.Reset(a.NextDelay(interval))
 		}
 	}
 }
