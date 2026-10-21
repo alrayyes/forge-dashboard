@@ -132,6 +132,90 @@ test.describe('the pipeline on an issue row pill', () => {
     await expect(page.locator('.linked-pr .ci-pill')).toHaveCount(0);
   });
 
+  test('shows the pipeline on the pills kept behind "N more"', async ({
+    page,
+  }) => {
+    await mockBoard(page, [
+      issue(1, [
+        linked(10),
+        linked(11),
+        linked(12, {
+          ci: 'failure',
+          checks: { passed: 1, running: 0, waiting: 0, failed: 2 },
+        }),
+      ]),
+    ]);
+    await page.goto('/issues.html');
+    await expect(pill(page, 1)).toHaveCount(2);
+
+    await page.getByRole('button', { name: /^1 more/ }).click();
+
+    await expect(pill(page, 1).nth(2)).toHaveText('#12 open Failed 1 2');
+  });
+
+  test('cuts a long cross-repo name short instead of scrolling sideways at 390 px', async ({
+    page,
+  }) => {
+    const longRepo =
+      'some-organisation/a-very-long-repository-name-for-a-phone';
+    await mockBoard(page, [
+      issue(1, [
+        linked(123, {
+          repo: longRepo,
+          ci: 'pending',
+          checks: { passed: 3, running: 2, waiting: 1, failed: 1 },
+        }),
+        linked(124, {
+          repo: longRepo,
+          ci: 'failure',
+          awaitingWorkflowApproval: true,
+        }),
+      ]),
+    ]);
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.setViewportSize({ width: 390, height: 800 });
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto('/issues.html');
+      const first = pill(page, 1).first();
+      await expect(first).toBeVisible();
+
+      // The visible text and the name still carry the whole repo.
+      await expect(first).toContainText(`${longRepo}#123 open Running 3 2 1 1`);
+      await expect(first).toHaveAccessibleName(
+        new RegExp(`^Pull request ${longRepo}#123 open Running`),
+      );
+      // Only the repo is cut: the number, state and pipeline sit inside the pill.
+      const pillBox = await first.boundingBox();
+      for (const part of [
+        first.locator('.linked-pr-number'),
+        first.locator('.ci-pill'),
+      ]) {
+        const inner = await part.boundingBox();
+        expect(inner?.x ?? 0, scheme).toBeGreaterThanOrEqual(pillBox?.x ?? 0);
+        expect(
+          (inner?.x ?? 0) + (inner?.width ?? 0),
+          scheme,
+        ).toBeLessThanOrEqual((pillBox?.x ?? 0) + (pillBox?.width ?? 0) + 1);
+      }
+      await expect(first.locator('.linked-pr-number')).toHaveText('#123');
+      const box = await first.boundingBox();
+      expect(box?.x ?? 0, scheme).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? 0) + (box?.width ?? 0), scheme).toBeLessThanOrEqual(
+        390,
+      );
+      const overflow = await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      );
+      expect(overflow, scheme).toBeLessThanOrEqual(0);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations, scheme).toEqual([]);
+    }
+  });
+
   test('has no accessibility violations in light, dark and at 390 px, and does not scroll sideways', async ({
     page,
   }) => {
