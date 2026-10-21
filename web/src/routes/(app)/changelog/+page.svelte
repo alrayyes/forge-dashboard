@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { createNoteRenderer, withoutHeading } from "#lib/changelog-notes.js";
   import { renderMarkdown } from "#lib/markdown.js";
 
   // One entry per release in CHANGELOG.md, written to /changelog.json at
@@ -29,31 +30,24 @@
   // rendered by the same safe renderer as the pull request dialog: raw HTML
   // stays text, only http(s) and mailto links are links, images are off. A
   // link labelled with a pull request number or a commit hash gets the mono
-  // class. The leading "## [version](compare-link) (date)" line is dropped:
-  // the version and date are already shown above the notes.
+  // class. Each release is rendered once. A release whose renderer failed to
+  // load shows its notes as plain text.
   let rendered = $state<Record<string, string>>({});
-  // Releases whose renderer failed to load show their notes as plain text.
-  let plain = $state<Record<string, string>>({});
-
-  function withoutHeading(body: string | null): string {
-    return (body || "")
-      .split("\n")
-      .filter((line) => !line.startsWith("## "))
-      .join("\n");
-  }
+  let failed = $state<Record<string, boolean>>({});
+  const requestNotes = createNoteRenderer(
+    (text) => renderMarkdown(text, { monoReferences: true }),
+    (version, html) => {
+      if (html === null) {
+        failed[version] = true;
+      } else {
+        rendered[version] = html;
+        failed[version] = false;
+      }
+    },
+  );
 
   $effect(() => {
-    for (const r of shown) {
-      if (r.version in rendered || r.version in plain) continue;
-      const text = withoutHeading(r.notes);
-      renderMarkdown(text, { monoReferences: true })
-        .then((html) => {
-          rendered[r.version] = html;
-        })
-        .catch(() => {
-          plain[r.version] = text;
-        });
-    }
+    requestNotes(shown);
   });
 
   // The changelog's dates are calendar days with no time, read as UTC so a
@@ -246,8 +240,8 @@
           >
         </div>
         <div class="release-notes">
-          {#if r.version in plain}
-            <p class="plain-notes">{plain[r.version]}</p>
+          {#if failed[r.version]}
+            <p class="plain-notes">{withoutHeading(r.notes)}</p>
           {:else}
             <!-- nosemgrep: svelte-at-html -- renderMarkdown() output only: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text -->
             {@html rendered[r.version] ?? ""}

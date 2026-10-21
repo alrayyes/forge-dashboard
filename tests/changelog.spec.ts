@@ -191,6 +191,49 @@ test.describe('release history page', () => {
     }
   });
 
+  const oneRelease = (notes: string) => ({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      releases: [
+        {
+          version: '9.9.9',
+          date: '2026-10-05',
+          url: 'https://example.com',
+          notes,
+        },
+      ],
+    }),
+  });
+
+  // The Markdown renderer is a lazy chunk. If it never arrives, the notes
+  // still read as text instead of an empty card.
+  test('shows the notes as plain text when the renderer chunk is aborted', async ({
+    page,
+  }) => {
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill(oneRelease('### Features\n* **web:** a plain note')),
+    );
+    // Chunk names are hashes; the one holding markdown-it is the one that
+    // names its blockquote tokens.
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes('blockquote_open')) {
+        return route.abort();
+      }
+      return route.fulfill({ response });
+    });
+    const aborted = page.waitForEvent('requestfailed', (r) =>
+      r.url().includes('/_app/immutable/'),
+    );
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+    await aborted;
+
+    const notesBox = page.locator('.release-notes');
+    await expect(notesBox).toContainText('* **web:** a plain note');
+    await expect(notesBox.locator('strong')).toHaveCount(0);
+  });
+
   test('a missing changelog file says so plainly and falls back to nothing', async ({
     page,
   }) => {
