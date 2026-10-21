@@ -4266,7 +4266,7 @@ components:
 
     ClosingIssue:
       type: object
-      required: [repo, number, url]
+      required: [repo, number, url, pageUrl]
       description: One issue a pull request will close when it merges.
       properties:
         repo:
@@ -4279,6 +4279,15 @@ components:
           type: string
           format: uri
           description: The issue's page on its forge.
+        pageUrl:
+          type: string
+          description: |
+            The address on this dashboard that opens the Issues page with this
+            issue's pop-up open: `/issues.html?issue=` and
+            `forge/owner/name/number`, on the pull request's own forge. A
+            relative address. The page says so in a note, with the forge link,
+            when the issue is closed or its repo is not tracked.
+          examples: ["/issues.html?issue=github/alrayyes/hush-hush/12"]
 
     LinkedPullRequest:
       type: object

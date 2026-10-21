@@ -24,7 +24,7 @@ func TestContract_PullRequestsCarryClosesIssues(t *testing.T) {
 		require.Contains(t, pr.Required, "closesIssues")
 		items := pr.Properties["closesIssues"].Value.Items.Value
 
-		assert.ElementsMatch(t, []string{"repo", "number", "url"}, items.Required)
+		assert.ElementsMatch(t, []string{"repo", "number", "url", "pageUrl"}, items.Required)
 	})
 	t.Run("every pull request in the response has the array", func(t *testing.T) {
 		t.Parallel()
