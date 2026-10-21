@@ -15,10 +15,12 @@ import { test } from './server-fixture';
 // here too (#1380).
 //
 // The conflict sentence is not repeated either: Go pins it
-// (TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead),
-// and the locked row it would show (a Retry in place of Merge) is the
-// not-mergeable case in pull-request-merge.spec.ts, which also keeps Merge's
-// permission lock: Merge is not a driver of the shared set.
+// (TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead).
+// No test here sends blocked_by_protection: Go pins its classification, and
+// the only locked row a refused Merge leaves in a browser (a Retry in place
+// of Merge) is asserted by the not-mergeable (409) case in
+// pull-request-merge.spec.ts, which also keeps Merge's permission lock:
+// Merge is not a driver of the shared set.
 
 interface MockPR {
   forge: string;
