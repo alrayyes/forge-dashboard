@@ -38,11 +38,11 @@ charts ignore it.
 
 The title box (`Title or #number`) also takes a ticket number. `1884` or
 `#1884` lists the issues whose number starts with it, one per repo that has it,
-and `18` lists 18, 180, 1884, and so on. A leading `#` means number only. A bare
-number also still matches titles, so `2024` finds an issue with 2024 in its
-title as well. It is the same box as the title search, so it is remembered with
-the other filters and **Clear filters** empties it. The Pull requests page
-matches titles only.
+and `18` lists 18, 180, 1884, and so on. The `#` is optional. The box still
+matches titles too, so `2024` finds an issue with 2024 in its title, and
+`#1884` finds one whose title holds those characters. It is the same box as the
+title search, so it is remembered with the other filters and **Clear filters**
+empties it. The Pull requests page matches titles only.
 
 ## Who filed it
 
