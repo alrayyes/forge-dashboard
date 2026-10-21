@@ -121,6 +121,22 @@ async function closeFromDialog(page: Page) {
 }
 
 async function expectNoViolations(page: Page) {
+  // A scan taken while a colour or opacity transition is mid-way (the dialog
+  // opening, or a scheme switch just applied) reads blended colours and can
+  // report a contrast failure that is not there once it settles. Wait for
+  // every finite animation to finish before the scan (a looping one, like
+  // the pulse dot, never does and draws no text).
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.effect?.getComputedTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();

@@ -94,7 +94,11 @@ async function failUpdateBranch(page: Page) {
 
 test.describe('a network failure line clears itself (#1206)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.clock.install({ time: new Date() });
+    // Paused, so only fastForward moves time. A running clock lets the ten
+    // seconds pass in real time on a loaded host, before the assertion looks.
+    const now = Date.now();
+    await page.clock.install({ time: now });
+    await page.clock.pauseAt(now + 1000);
   });
 
   test('a merge that never reached the server says so in plain words, then clears after ten seconds and the row is read again', async ({
@@ -255,6 +259,8 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await actionsFooter(dialog)
       .getByRole('button', { name: 'Update branch' })
       .click();
+    // The clock is paused, so run the 30 ms announcement timer by hand.
+    await page.clock.runFor(100);
     await expect(
       dialog.locator('[role="status"][aria-live="polite"][aria-atomic="true"]'),
     ).toContainText("Couldn't update the branch");
@@ -287,6 +293,14 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await failUpdateBranch(page);
     await page.clock.fastForward(7_000);
     await expect(line(page)).toHaveCount(1);
+
+    // axe-core schedules its own timers, so it needs a running clock. Focus
+    // inside the line holds its clear timer (WCAG 2.2.1), so resuming the
+    // clock cannot clear the line under the scan.
+    await line(page)
+      .getByRole('button', { name: /Dismiss/ })
+      .focus();
+    await page.clock.resume();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
