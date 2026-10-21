@@ -13,8 +13,9 @@ import (
 )
 
 type memSeenStore struct {
-	mu   sync.Mutex
-	rows map[string]dashboard.SeenRecord
+	mu    sync.Mutex
+	rows  map[string]dashboard.SeenRecord
+	saves int
 }
 
 func (m *memSeenStore) LoadWebhookSeen(_ context.Context, forge dashboard.Forge, credential string) ([]dashboard.SeenRecord, error) {
@@ -37,6 +38,7 @@ func (m *memSeenStore) SaveWebhookSeen(_ context.Context, forge dashboard.Forge,
 		m.rows = map[string]dashboard.SeenRecord{}
 	}
 	m.rows[string(forge)+"|"+credential+"|"+rec.Repo+"|"+string(rec.Class)] = rec
+	m.saves++
 
 	return nil
 }
@@ -63,4 +65,69 @@ func TestAggregator_AfterARestart_RemembersWhenDeliveriesLastArrived(t *testing.
 	assert.True(t, at.Equal(got))
 	_, otherSeen := after.LastDelivery(dashboard.ForgeGitHub, "o/r", dashboard.EventClassOther)
 	assert.False(t, otherSeen, "a class that never arrived stays unseen")
+}
+
+func (m *memSeenStore) saveCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.saves
+}
+
+func TestAggregator_ADeliveryForARepoSeenAMomentAgoIsNotWrittenAgain(t *testing.T) {
+	t.Parallel()
+	store := &memSeenStore{}
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	agg := dashboard.NewAggregator([]dashboard.Source{tokenSource{&flakySource{forge: dashboard.ForgeGitHub}}},
+		dashboard.WithWebhookSeenStore(store), dashboard.WithClock(func() time.Time { return now }))
+
+	agg.RecordDelivery(dashboard.ForgeGitHub, "o/r", "check_run")
+	now = now.Add(5 * time.Second)
+	agg.RecordDelivery(dashboard.ForgeGitHub, "o/r", "check_run")
+
+	assert.Equal(t, 1, store.saveCount())
+	got, _ := agg.LastDelivery(dashboard.ForgeGitHub, "o/r", dashboard.EventClassCheck)
+	assert.True(t, now.Equal(got), "the in-memory time still moves")
+}
+
+func TestAggregator_ADeliveryLongAfterTheLastIsWritten(t *testing.T) {
+	t.Parallel()
+	store := &memSeenStore{}
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	agg := dashboard.NewAggregator([]dashboard.Source{tokenSource{&flakySource{forge: dashboard.ForgeGitHub}}},
+		dashboard.WithWebhookSeenStore(store), dashboard.WithClock(func() time.Time { return now }))
+
+	agg.RecordDelivery(dashboard.ForgeGitHub, "o/r", "check_run")
+	now = now.Add(10 * time.Minute)
+	agg.RecordDelivery(dashboard.ForgeGitHub, "o/r", "check_run")
+
+	assert.Equal(t, 2, store.saveCount())
+}
+
+func TestAggregator_ADeliveryOfAnotherClassIsWritten(t *testing.T) {
+	t.Parallel()
+	store := &memSeenStore{}
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	agg := dashboard.NewAggregator([]dashboard.Source{tokenSource{&flakySource{forge: dashboard.ForgeGitHub}}},
+		dashboard.WithWebhookSeenStore(store), dashboard.WithClock(func() time.Time { return now }))
+
+	agg.RecordDelivery(dashboard.ForgeGitHub, "o/r", "check_run")
+	agg.RecordDelivery(dashboard.ForgeGitHub, "o/r", "pull_request")
+
+	assert.Equal(t, 2, store.saveCount())
+}
+
+func TestAggregator_ASteadyStreamOfDeliveriesStillReachesTheStore(t *testing.T) {
+	t.Parallel()
+	store := &memSeenStore{}
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	agg := dashboard.NewAggregator([]dashboard.Source{tokenSource{&flakySource{forge: dashboard.ForgeGitHub}}},
+		dashboard.WithWebhookSeenStore(store), dashboard.WithClock(func() time.Time { return now }))
+
+	for range 8 {
+		agg.RecordDelivery(dashboard.ForgeGitHub, "o/r", "check_run")
+		now = now.Add(30 * time.Second)
+	}
+
+	assert.Equal(t, 4, store.saveCount(), "one write a minute, never none while deliveries keep coming")
 }
