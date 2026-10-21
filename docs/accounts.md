@@ -31,12 +31,10 @@ request arrived over HTTPS) is what actually gates `/` and
   login page. See [Invites](#invites) for generating, listing, and
   revoking them.
 - **An invite is a single-use, one-hour link.** The admin picks the
-  username and display name up front through `POST /api/admin/invites`; the
-  generated `/login.html?invite=<token>&username=<username>`
-  link is copied out of band (no email system exists here) and handed to
-  the invitee, whose own visit to it shows nothing left to fill in but
-  the passkey prompt. A token that expires or completes one registration
-  can never be used again.
+  username and display name up front through `POST /api/admin/invites`. The
+  login page no longer has a form for it: it shows sign-in only, and the
+  registration button appears only on an instance with no users. A token
+  that expires or completes one registration can never be used again.
 - **Losing every admin passkey with no other admin and no outstanding
   invite is a hard lockout.** There's no email/SMS channel here to build
   a self-service account-recovery flow on top of — the only way back in
