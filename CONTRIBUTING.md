@@ -167,20 +167,22 @@ own and one signed-in owner, so a spec needs no registration of its own:
   carries no route that can wipe the database. Build it yourself with
   `go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard` to run
   `bunx playwright test` by hand.
-- A new spec imports its `test` from `tests/fixtures.ts` and goes at the end of
-  the list in the config.
+- A new spec imports its `test` from `tests/server-fixture.ts` and goes at the
+  end of the list in the config.
 
-Specs import `test` from `tests/fixtures.ts`, not from `@playwright/test`. It
-is Playwright's own `test` with one addition: mocked snapshots whose pull
-requests don't state `allowedActions`, `status` or `kind` get them filled in
-from a table the Go rules generate (`tests/allowed-actions-stand-in.ts` looks
-a mocked pull request up in `tests/generated/allowed-actions.json`). A spec that
-wants to say exactly what the server answered sets `allowedActions` itself, as
-`tests/allowed-actions.spec.ts` does. When `internal/dashboard/allowed_actions.go`,
-`pull_request_status.go` or `bot_pr.go` changes, `go test ./internal/dashboard`
-fails until the table is regenerated with `UPDATE_FIXTURES=1 go test
-./internal/dashboard -run TestAllowedActionsFixture`; commit the result. A mock
-whose raw fields the table has no value for fails loudly: widen the axis in
+Specs import `test` from `tests/server-fixture.ts`, not from `@playwright/test`.
+It is Playwright's own `test`, started against a server of its own and reset
+between tests, with one more addition: mocked snapshots whose pull requests
+don't state `allowedActions`, `status` or `kind` get them filled in from a table
+the Go rules generate (`tests/allowed-actions-stand-in.ts` looks a mocked pull
+request up in `tests/generated/allowed-actions.json`). A spec that wants to say
+exactly what the server answered sets `allowedActions` itself, as
+`tests/allowed-actions.spec.ts` does. When
+`internal/dashboard/allowed_actions.go`, `pull_request_status.go` or `bot_pr.go`
+changes, `go test ./internal/dashboard` fails until the table is regenerated
+with `UPDATE_FIXTURES=1 go test ./internal/dashboard -run
+TestAllowedActionsFixture`; commit the result. A mock whose raw fields the table
+has no value for fails loudly: widen the axis in
 `allowed_actions_fixture_test.go`.
 
 The nav badges work the same way. A mocked `/api/dashboard` takes its `navCounts`
