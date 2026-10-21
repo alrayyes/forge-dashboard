@@ -470,7 +470,7 @@ func (c *Client) noteHooksDenial(repo string, err error) (denied, firstOfAll boo
 	c.hooksMu.Lock()
 	defer c.hooksMu.Unlock()
 
-	if strings.Contains(err.Error(), "Resource not accessible by integration") {
+	if isIntegrationRefusal(err) {
 		firstOfAll = c.hooksDeniedAll.IsZero() || time.Since(c.hooksDeniedAll) >= c.hooksTTL()
 		c.hooksDeniedAll = time.Now()
 
@@ -584,7 +584,7 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 // the credentials themselves were rejected, which isn't a missing permission.
 func (c *Client) appAware(err error) error {
 	if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && c.appAuthenticated &&
-		clientErr.Kind == dashboard.ForgeErrorUnauthorized && strings.Contains(err.Error(), integrationRefusal) {
+		clientErr.Kind == dashboard.ForgeErrorUnauthorized && isIntegrationRefusal(err) {
 		clientErr.PermissionMessage = appPermissionMessage
 	}
 
@@ -2630,6 +2630,12 @@ func (c *Client) CredentialLabel() string { return c.statsCredential }
 
 const integrationRefusal = "Resource not accessible by integration"
 
+// isIntegrationRefusal reports whether err carries GitHub's answer to an App
+// installation that lacks a permission. It is the one place the text is matched.
+func isIntegrationRefusal(err error) bool {
+	return strings.Contains(err.Error(), integrationRefusal)
+}
+
 // appPermissionMessage is the refusal text for a webhook write an App's
 // installation was refused: it names the permission, not a token.
 const appPermissionMessage = "This GitHub App can't write webhooks on this repo. " +
@@ -2645,7 +2651,7 @@ func refusesHooks(err error) bool {
 	}
 
 	return clientErr.Kind == dashboard.ForgeErrorNotFound ||
-		(clientErr.Kind == dashboard.ForgeErrorUnauthorized && strings.Contains(err.Error(), integrationRefusal))
+		(clientErr.Kind == dashboard.ForgeErrorUnauthorized && isIntegrationRefusal(err))
 }
 
 // trackedRepos keeps the repos the dashboard follows: not archived, not a
