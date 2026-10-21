@@ -18,7 +18,7 @@ While every tracked repo has a healthy webhook, the full refresh interval SHALL 
 #### Scenario: Coverage drops
 
 - **WHEN** one repo's webhook turns unhealthy
-- **THEN** the next full refresh is scheduled at `REFRESH_INTERVAL`
+- **THEN** the interval returns to `REFRESH_INTERVAL` at the next refresh; the wait already running is not cut short
 
 ### Requirement: Background work leaves a reserve for user actions
 
