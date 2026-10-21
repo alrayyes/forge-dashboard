@@ -25,6 +25,31 @@ const overdueMultiple = 3
 type pendingSchedule struct {
 	mu      sync.Mutex
 	entries map[string]*pendingEntry
+	// heldSince is, per pull request the webhook is trusted to cover, when its
+	// polls were first held back since it was last read.
+	heldSince map[string]time.Time
+}
+
+// holdOff reports whether key's poll may be left to the webhook at now. It may
+// for at most pendingPollCap (or the base interval, if longer) after the first
+// time it was held back; then it must be read once, which restarts the clock.
+// A delivery therefore cannot silence a pull request for longer than that, a
+// replayed one included.
+func (s *pendingSchedule) holdOff(key string, now time.Time, base time.Duration) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	since, held := s.heldSince[key]
+	if !held {
+		if s.heldSince == nil {
+			s.heldSince = make(map[string]time.Time)
+		}
+		s.heldSince[key] = now
+
+		return true
+	}
+
+	return now.Sub(since) < max(pendingPollCap, base)
 }
 
 type pendingEntry struct {
@@ -57,6 +82,7 @@ func (s *pendingSchedule) polled(key string, now time.Time, base time.Duration, 
 	if s.entries == nil {
 		s.entries = make(map[string]*pendingEntry)
 	}
+	delete(s.heldSince, key)
 	e, ok := s.entries[key]
 	if !ok || changed {
 		e = &pendingEntry{interval: base}
@@ -75,6 +101,11 @@ func (s *pendingSchedule) keepOnly(live map[string]struct{}) {
 	for key := range s.entries {
 		if _, ok := live[key]; !ok {
 			delete(s.entries, key)
+		}
+	}
+	for key := range s.heldSince {
+		if _, ok := live[key]; !ok {
+			delete(s.heldSince, key)
 		}
 	}
 }

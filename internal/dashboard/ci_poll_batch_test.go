@@ -73,7 +73,7 @@ func (b *batchSource) lastBatch() []dashboard.PullRequestRef {
 }
 
 func pendingPR(repo string, number int) dashboard.PullRequest {
-	return dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: repo, Number: number, CI: dashboard.CIPending}
+	return dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: repo, Number: number, CI: dashboard.CIPending, HeadSHA: testSHA}
 }
 
 func TestAggregator_PollCI_BatchesPendingPullRequestsInTwelveReposIntoOneCall(t *testing.T) {
@@ -305,7 +305,11 @@ func TestAggregator_PollCI_ChangedPullRequestResetsItsInterval(t *testing.T) {
 	assert.Equal(t, grown+2, src.batchCount(), "the change reset the interval, so the very next tick polls again")
 }
 
-const hookEventsWithChecks = "check_run"
+const (
+	hookEventsWithChecks = "check_run"
+	testSHA              = "0123456789abcdef0123456789abcdef01234567"
+	otherTestSHA         = "fedcba9876543210fedcba9876543210fedcba98"
+)
 
 func healthyHookSource() *batchSource {
 	const repo = "alrayyes/a"
@@ -323,7 +327,7 @@ func TestAggregator_PollCI_SkipsARepoWhoseCheckDeliveriesAreOnTime(t *testing.T)
 	src := healthyHookSource()
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithCIPollInterval(pollBase))
 	agg.Refresh(t.Context())
-	agg.RecordDelivery(dashboard.ForgeGitHub, "alrayyes/a", "check_run")
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", testSHA)
 
 	agg.PollCI(t.Context())
 
@@ -337,7 +341,7 @@ func TestAggregator_PollCI_PollsARepoWhoseCheckDeliveryIsOverdue(t *testing.T) {
 	src := healthyHookSource()
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithCIPollInterval(pollBase))
 	agg.Refresh(t.Context())
-	agg.RecordDelivery(dashboard.ForgeGitHub, "alrayyes/a", "check_run")
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", testSHA)
 	clock.advance(3*pollBase + time.Second)
 
 	agg.PollCI(t.Context())
@@ -366,7 +370,7 @@ func TestAggregator_PollCI_PollsARepoWithNoConfirmedHook(t *testing.T) {
 	delete(src.hooks, "alrayyes/a")
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithCIPollInterval(pollBase))
 	agg.Refresh(t.Context())
-	agg.RecordDelivery(dashboard.ForgeGitHub, "alrayyes/a", "check_run")
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", testSHA)
 
 	agg.PollCI(t.Context())
 
@@ -380,11 +384,87 @@ func TestAggregator_PollCI_PollsARepoWhoseHookLacksCheckEvents(t *testing.T) {
 	src.hooks["alrayyes/a"] = []string{"pull_request", "issue_comment"}
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithCIPollInterval(pollBase))
 	agg.Refresh(t.Context())
-	agg.RecordDelivery(dashboard.ForgeGitHub, "alrayyes/a", "check_run")
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", testSHA)
 
 	agg.PollCI(t.Context())
 
 	assert.Equal(t, 1, src.batchCount())
+}
+
+func TestAggregator_PollCI_ADeliveryForAnotherPullRequestsCommitDoesNotHideThisOne(t *testing.T) {
+	t.Parallel()
+
+	src := healthyHookSource()
+	other := pendingPR("alrayyes/a", 2)
+	other.HeadSHA = otherTestSHA
+	src.byRepo["alrayyes/a"] = append(src.byRepo["alrayyes/a"], other)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithCIPollInterval(pollBase))
+	agg.Refresh(t.Context())
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", testSHA)
+
+	agg.PollCI(t.Context())
+
+	require.Equal(t, 1, src.batchCount())
+	refs := src.lastBatch()
+	require.Len(t, refs, 1, "the pull request whose own delivery arrived is skipped, the other is not")
+	assert.Equal(t, 2, refs[0].Number)
+}
+
+func TestAggregator_PollCI_PollsAPullRequestWithNoKnownHeadCommit(t *testing.T) {
+	t.Parallel()
+
+	src := healthyHookSource()
+	noSHA := pendingPR("alrayyes/a", 1)
+	noSHA.HeadSHA = ""
+	src.byRepo["alrayyes/a"] = []dashboard.PullRequest{noSHA}
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithCIPollInterval(pollBase))
+	agg.Refresh(t.Context())
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", testSHA)
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 1, src.batchCount())
+}
+
+func TestAggregator_PollCI_DeliveriesCannotHoldOffPollingBeyondTheCap(t *testing.T) {
+	t.Parallel()
+
+	clock := newPollClock()
+	src := healthyHookSource()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithCIPollInterval(pollBase))
+	agg.Refresh(t.Context())
+
+	// A delivery for the commit arrives before every tick, as a replay would.
+	var polledAt []int
+	for minute := range 16 {
+		agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", testSHA)
+		before := src.batchCount()
+		agg.PollCI(t.Context())
+		if src.batchCount() > before {
+			polledAt = append(polledAt, minute)
+		}
+		clock.advance(pollBase)
+	}
+
+	assert.Equal(t, []int{15}, polledAt, "skipped for the 15 minute cap, then read once")
+}
+
+func TestAggregator_PollCI_AnIntervalAboveTheCapIsNotBackedOffFurther(t *testing.T) {
+	t.Parallel()
+
+	const base = 20 * time.Minute
+	clock := newPollClock()
+	src := newBatchSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{pendingPR("alrayyes/a", 1)})
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithCIPollInterval(base))
+	agg.Refresh(t.Context())
+
+	for range 7 {
+		agg.PollCI(t.Context())
+		clock.advance(base)
+	}
+
+	assert.Equal(t, 7, src.batchCount(), "an unchanged pull request is still read every configured interval, not every other one")
 }
 
 func TestAggregator_PollCI_NeverSkipsAForgejoRepo(t *testing.T) {
@@ -392,10 +472,10 @@ func TestAggregator_PollCI_NeverSkipsAForgejoRepo(t *testing.T) {
 
 	src := healthyHookSource()
 	src.forge = dashboard.ForgeForgejo
-	src.byRepo["alrayyes/a"] = []dashboard.PullRequest{{Forge: dashboard.ForgeForgejo, Repo: "alrayyes/a", Number: 1, CI: dashboard.CIPending}}
+	src.byRepo["alrayyes/a"] = []dashboard.PullRequest{{Forge: dashboard.ForgeForgejo, Repo: "alrayyes/a", Number: 1, CI: dashboard.CIPending, HeadSHA: testSHA}}
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithCIPollInterval(pollBase))
 	agg.Refresh(t.Context())
-	agg.RecordDelivery(dashboard.ForgeForgejo, "alrayyes/a", "check_run")
+	agg.RecordCheckDelivery(dashboard.ForgeForgejo, "alrayyes/a", testSHA)
 
 	agg.PollCI(t.Context())
 

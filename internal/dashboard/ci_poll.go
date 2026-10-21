@@ -17,6 +17,7 @@ type pendingItem struct {
 	// ciPending is whether a check is still running, as opposed to the pull
 	// request being polled only because its auto-merge is armed.
 	ciPending   bool
+	headSHA     string
 	fingerprint string
 }
 
@@ -59,7 +60,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		if !a.pendingSched.due(pullRequestKey(it.ref.Forge, it.ref.FullName, it.ref.Number), now, base) {
 			continue
 		}
-		if a.checksArriveByWebhook(it, base) {
+		if a.checksArriveByWebhook(it, now, base) {
 			continue
 		}
 		byForge[it.ref.Forge] = append(byForge[it.ref.Forge], it)
@@ -90,6 +91,7 @@ func pendingItems(snap Snapshot) []pendingItem {
 			ref:         PullRequestRef{Forge: pr.Forge, Owner: owner, Name: name, FullName: pr.Repo, Number: pr.Number},
 			kind:        kind,
 			ciPending:   pr.CI == CIPending,
+			headSHA:     pr.HeadSHA,
 			fingerprint: pollFingerprint(pr),
 		})
 	}
@@ -240,13 +242,16 @@ func (a *Aggregator) pendingRefresherFor(forge Forge) PendingCheckRefresher {
 // checkEventNames are the hook events a GitHub hook gets finished checks from.
 var checkEventNames = []string{"check_run", "check_suite"}
 
-// checksArriveByWebhook reports whether a poll of it can wait for its repo's
-// webhook: the pull request waits on a check, the forge is GitHub (Forgejo's
-// hook drops the status event, #177), the app's hook on the repo is confirmed
-// and subscribes to check events, and a check delivery arrived within the
-// overdue period. A delivery only counts once its signature was verified.
-func (a *Aggregator) checksArriveByWebhook(it pendingItem, base time.Duration) bool {
-	if !it.ciPending || it.ref.Forge != ForgeGitHub || base <= 0 {
+// checksArriveByWebhook reports whether a poll of it can wait for the webhook:
+// the pull request waits on a check, the forge is GitHub (Forgejo's hook drops
+// the status event, #177), the app's hook on the repo is confirmed and
+// subscribes to check events, and a check delivery for this pull request's own
+// head commit arrived within the overdue period. Another pull request's
+// deliveries, or an earlier commit's, say nothing about this one, so they do not
+// count. A delivery only counts once its signature was verified and its body
+// named the commit, and it can hold polling off for pendingPollCap at most.
+func (a *Aggregator) checksArriveByWebhook(it pendingItem, now time.Time, base time.Duration) bool {
+	if !it.ciPending || it.ref.Forge != ForgeGitHub || base <= 0 || it.headSHA == "" {
 		return false
 	}
 	reporter := a.webhookEventsFor(it.ref.Forge)
@@ -257,9 +262,12 @@ func (a *Aggregator) checksArriveByWebhook(it pendingItem, base time.Duration) b
 	if !confirmed || !slices.ContainsFunc(events, func(e string) bool { return slices.Contains(checkEventNames, e) }) {
 		return false
 	}
-	last, seen := a.LastDelivery(it.ref.Forge, it.ref.FullName, EventClassCheck)
+	last, seen := a.LastCheckDelivery(it.ref.Forge, it.ref.FullName, it.headSHA)
+	if !seen || now.Sub(last) > overdueMultiple*base {
+		return false
+	}
 
-	return seen && a.now().Sub(last) <= overdueMultiple*base
+	return a.pendingSched.holdOff(pullRequestKey(it.ref.Forge, it.ref.FullName, it.ref.Number), now, base)
 }
 
 func (a *Aggregator) webhookEventsFor(forge Forge) WebhookEventsReporter {
