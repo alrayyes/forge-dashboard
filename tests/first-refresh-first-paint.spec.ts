@@ -191,7 +191,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     });
     // The page clock is faked so the late timer runs when the test says,
     // not after a guessed real-time pause.
-    await page.clock.install();
+    // install() alone lets the fake clock tick with real time, so on a busy
+    // host the skeleton's show delay can expire before the answer lands. Stop
+    // it, so the page is "warm" by construction and only runFor() moves time.
+    await page.clock.install({ time: 0 });
+    await page.clock.pauseAt(1000);
     const release = await holdFirstAnswer(page, {
       done: true,
       withItems: true,
