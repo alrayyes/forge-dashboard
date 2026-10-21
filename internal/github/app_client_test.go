@@ -748,3 +748,27 @@ func TestClient_EnsureWebhook_TokenClientRefused_AddsNoAppPermissionMessage(t *t
 	assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind)
 	assert.Empty(t, clientErr.PermissionMessage, "only an App has a Webhooks permission to name")
 }
+
+func TestAppClient_EnsureWebhook_BadCredentials_DoesNotBlameThePermission(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct{ listStatus, createStatus int }{
+		"on the lookup": {listStatus: http.StatusUnauthorized, createStatus: http.StatusOK},
+		"on the create": {listStatus: http.StatusOK, createStatus: http.StatusUnauthorized},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := hookWriteServer(t, tc.listStatus, tc.createStatus, "Bad credentials")
+			client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+			require.NoError(t, err)
+
+			err = client.EnsureWebhook(t.Context(), "alrayyes", "repo-one", "https://dash.example/api/webhooks/github/t", "s")
+
+			clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+			require.True(t, ok, "%v", err)
+			assert.Empty(t, clientErr.PermissionMessage, "expired credentials are not a missing permission")
+		})
+	}
+}
