@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.3](https://github.com/alrayyes/forge-dashboard/compare/v1.7.2...v1.7.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* **settings:** make the cache migration atomic and honour hook check age ([#2352](https://github.com/alrayyes/forge-dashboard/issues/2352)) ([960b3b4](https://github.com/alrayyes/forge-dashboard/commit/960b3b47e91e7d9584e01eec61f6c2c049f3fe55))
+* **web:** a poll no longer swallows a click on a Branches CI pill ([#2347](https://github.com/alrayyes/forge-dashboard/issues/2347)) ([67ba5b2](https://github.com/alrayyes/forge-dashboard/commit/67ba5b2aeed44c27ed01062c1d893567bfad4d47))
+
 ## [1.7.2](https://github.com/alrayyes/forge-dashboard/compare/v1.7.1...v1.7.2) (2026-10-21)
 
 
