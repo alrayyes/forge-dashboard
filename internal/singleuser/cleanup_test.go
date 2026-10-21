@@ -211,6 +211,11 @@ func TestRun_EveryTableIsClassified(t *testing.T) {
 	require.NoError(t, err)
 
 	known := map[string]bool{"users": true, "ceremonies": true, "single_user_cleanup": true}
+	// The cache tables are keyed by credential and repo and hold no user, so
+	// the cleanup has nothing to remove from them.
+	for _, table := range []string{"cache_schema", "http_etags", "snapshot_cache", "hook_checks", "webhook_seen"} {
+		known[table] = true
+	}
 	for table := range ownedBy {
 		known[table] = true
 	}

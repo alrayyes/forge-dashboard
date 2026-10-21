@@ -2,6 +2,7 @@ package github
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"maps"
@@ -86,7 +87,7 @@ func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	key := etagKey{forge: "github", credential: t.credential, url: req.URL.String(), accept: req.Header.Get("Accept")}
-	cached, ok := t.store.get(key)
+	cached, ok := t.store.get(req.Context(), key)
 
 	if ok {
 		req = req.Clone(req.Context())
@@ -103,7 +104,7 @@ func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if resp.StatusCode == http.StatusOK {
-		t.maybeCache(key, resp)
+		t.maybeCache(req.Context(), key, resp)
 	}
 
 	return resp, nil
@@ -155,7 +156,7 @@ func (r errReader) Read([]byte) (int, error) { return 0, r.err }
 // maybeCache stores resp's body under key, keyed off its own ETag — never
 // touched again once read, since a caller downstream still needs the
 // original response body intact.
-func (t *etagTransport) maybeCache(key etagKey, resp *http.Response) {
+func (t *etagTransport) maybeCache(ctx context.Context, key etagKey, resp *http.Response) {
 	etag := resp.Header.Get("ETag")
 	if etag == "" {
 		return
@@ -180,5 +181,5 @@ func (t *etagTransport) maybeCache(key etagKey, resp *http.Response) {
 	}
 	_ = original.Close()
 	resp.Body = io.NopCloser(bytes.NewReader(body))
-	t.store.put(key, cachedResponse{etag: etag, body: body, header: resp.Header.Clone()})
+	t.store.put(ctx, key, cachedResponse{etag: etag, body: body, header: resp.Header.Clone()})
 }

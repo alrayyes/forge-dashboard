@@ -98,6 +98,15 @@ type Aggregator struct {
 	// seen records the last webhook delivery per repo and event class.
 	seen webhookSeen
 
+	// snapCache keeps the snapshot across restarts; nil keeps it in memory
+	// only. restored is set when the snapshot started from it, so a page
+	// has something to show without waiting for the first refresh.
+	snapCache SnapshotCache
+	restored  atomic.Bool
+	// seenStore keeps the webhook_seen record across restarts; nil keeps it
+	// in memory only.
+	seenStore WebhookSeenStore
+
 	// ciBase is the CI poll's base interval in nanoseconds (RunCIPoll sets it,
 	// WithCIPollInterval presets it); zero polls every pending pull request on
 	// every call.
@@ -163,6 +172,12 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		opt(a)
 	}
 	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold)
+	if a.snapCache != nil {
+		a.restoreSnapshot(context.Background())
+	}
+	if a.seenStore != nil {
+		a.restoreWebhookSeen(context.Background())
+	}
 
 	return a
 }
@@ -278,6 +293,10 @@ func (a *Aggregator) FirstRefreshDone() bool { return a.firstRefreshed.Load() }
 // max passes, whichever comes first. A snapshot read before that is the empty
 // one, which a page shows as "no pull requests" until the fetch lands (#1194).
 func (a *Aggregator) WaitFirstRefresh(ctx context.Context, limit time.Duration) {
+	if a.restored.Load() {
+		// The saved snapshot, marked stale, is already something to show.
+		return
+	}
 	timer := time.NewTimer(limit)
 	defer timer.Stop()
 	select {
@@ -652,10 +671,16 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 
-	a.notify(snap)
+	a.publish(ctx, snap)
 	a.runAutoUpdateBranch(ctx, snap)
 	a.runAutoMerge(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// publish tells the subscribers about snap and saves it for the next start.
+func (a *Aggregator) publish(ctx context.Context, snap Snapshot) {
+	a.notify(snap)
+	a.saveSnapshot(ctx, snap)
 }
 
 // markFirstRefreshed flips the readiness latch and wakes WaitFirstRefresh.

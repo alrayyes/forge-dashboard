@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"context"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -113,6 +115,41 @@ func (w *webhookSeen) getCommit(key commitKey) (time.Time, bool) {
 	return at, ok
 }
 
+// WithWebhookSeenStore keeps the webhook_seen record in store: the Aggregator
+// starts from what the last run saved and saves each delivery as it arrives.
+func WithWebhookSeenStore(store WebhookSeenStore) AggregatorOption {
+	return func(a *Aggregator) { a.seenStore = store }
+}
+
+// restoreWebhookSeen loads the saved delivery times of every source's forge.
+func (a *Aggregator) restoreWebhookSeen(ctx context.Context) {
+	for _, src := range a.sources {
+		forge := src.Forge()
+		credential := a.credentialFor(forge)
+		recs, err := a.seenStore.LoadWebhookSeen(ctx, forge, credential)
+		if err != nil {
+			slog.Warn("saved webhook deliveries unreadable, starting empty", "forge", forge, "error", err)
+
+			continue
+		}
+		for _, rec := range recs {
+			a.seen.mark(seenKey{forge, credential, rec.Repo, rec.Class}, rec.At)
+		}
+	}
+}
+
+// markSeen records a delivery in memory and in the store.
+func (a *Aggregator) markSeen(forge Forge, credential, fullName string, class EventClass, at time.Time) {
+	a.seen.mark(seenKey{forge, credential, fullName, class}, at)
+	if a.seenStore == nil {
+		return
+	}
+	rec := SeenRecord{Repo: fullName, Class: class, At: at}
+	if err := a.seenStore.SaveWebhookSeen(context.Background(), forge, credential, rec); err != nil {
+		slog.Warn("could not save the webhook delivery", "forge", forge, "repo", fullName, "error", err)
+	}
+}
+
 // credentialFor is the label of the credential the Source driving forge uses,
 // or "" when none names one.
 func (a *Aggregator) credentialFor(forge Forge) string {
@@ -131,7 +168,7 @@ func (a *Aggregator) credentialFor(forge Forge) string {
 // RecordDelivery notes that a webhook delivery of event arrived for
 // forge/fullName, under the class the event belongs to.
 func (a *Aggregator) RecordDelivery(forge Forge, fullName, event string) {
-	a.seen.mark(seenKey{forge, a.credentialFor(forge), fullName, ClassifyEvent(event)}, a.now())
+	a.markSeen(forge, a.credentialFor(forge), fullName, ClassifyEvent(event), a.now())
 }
 
 // RecordCheckDelivery notes that a check delivery arrived for forge/fullName
@@ -140,7 +177,7 @@ func (a *Aggregator) RecordDelivery(forge Forge, fullName, event string) {
 func (a *Aggregator) RecordCheckDelivery(forge Forge, fullName, sha string) {
 	credential := a.credentialFor(forge)
 	now := a.now()
-	a.seen.mark(seenKey{forge, credential, fullName, EventClassCheck}, now)
+	a.markSeen(forge, credential, fullName, EventClassCheck, now)
 	a.seen.markCommit(commitKey{forge, credential, fullName, sha}, now)
 }
 
