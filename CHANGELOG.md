@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.7](https://github.com/alrayyes/forge-dashboard/compare/v1.7.6...v1.7.7) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dashboard:** learn a full refresh's cost reliably and clear up the reserve docs ([#2392](https://github.com/alrayyes/forge-dashboard/issues/2392)) ([c39b170](https://github.com/alrayyes/forge-dashboard/commit/c39b1703891187eb68690607222c81c4aa36ea04))
+
 ## [1.7.6](https://github.com/alrayyes/forge-dashboard/compare/v1.7.5...v1.7.6) (2026-10-21)
 
 
