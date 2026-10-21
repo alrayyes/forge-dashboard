@@ -71,3 +71,41 @@ describe('choicesChange', () => {
     ).not.toBe('none');
   });
 });
+
+describe('choicesChange ordering', () => {
+  test('canonically equivalent titles in either order change nothing', () => {
+    const composed = item({ title: '\u00e9' });
+    const decomposed = item({ title: 'e\u0301' });
+    expect(choicesChange([composed, decomposed], [decomposed, composed])).toBe(
+      'none',
+    );
+  });
+});
+
+describe('offerAction', () => {
+  test('nothing changed offers nothing', () => {
+    expect(offerAction('none', false, false)).toBe('skip');
+    expect(offerAction('none', true, true)).toBe('skip');
+  });
+
+  test('titles only, no title filter, rebuilds just the suggestions', () => {
+    expect(offerAction('titles', false, false)).toBe('suggest');
+  });
+
+  test('titles only with the Title box focused holds the suggestions', () => {
+    expect(offerAction('titles', false, true)).toBe('skip');
+  });
+
+  test('titles only with a title filter set rebuilds every choice', () => {
+    expect(offerAction('titles', true, false)).toBe('rebuild');
+  });
+
+  test('titles only with a filter set and the Title box focused rebuilds', () => {
+    expect(offerAction('titles', true, true)).toBe('rebuild');
+  });
+
+  test('any other change rebuilds every choice', () => {
+    expect(offerAction('all', false, false)).toBe('rebuild');
+    expect(offerAction('all', false, true)).toBe('rebuild');
+  });
+});
