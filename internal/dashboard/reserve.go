@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
@@ -13,6 +14,8 @@ const (
 	// reserveFloor is the least a reserve ever is, so a small budget still
 	// leaves room for a few clicks. It never exceeds half the budget.
 	reserveFloor = 50
+	// costWindow is how many recent full refreshes a forge's cost is read from.
+	costWindow = 3
 )
 
 // reserveOf is how much of rl is kept for user actions.
@@ -20,45 +23,53 @@ func reserveOf(rl RateLimit) int {
 	return min(max(reserveFloor, int(float64(rl.Limit)*reserveFraction)), rl.Limit/2)
 }
 
-// costKey says which of a forge's budgets a full refresh was last seen spending.
+// costKey says which of a forge's budgets a full refresh was seen spending.
 type costKey struct {
 	forge   Forge
 	graphQL bool
 }
 
-// reserveLedger remembers what the last full refresh cost, so a
+// reserveLedger remembers what the last few full refreshes cost, so a
 // refresh is held back when it would cross the reserve, not only when it
-// starts under it.
+// starts under it. It predicts the dearest of them: one refresh the ETag cache
+// answered for nothing, or one that skipped a repo, says little about the next
+// that goes to the forge.
 type reserveLedger struct {
 	mu   sync.Mutex
-	cost map[costKey]int
+	cost map[costKey][]int
 }
 
+// lastCost is the dearest of the recent refreshes, or 0 before any was seen.
 func (l *reserveLedger) lastCost(k costKey) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return l.cost[k]
+	return slices.Max(append([]int{0}, l.cost[k]...))
 }
 
 func (l *reserveLedger) record(k costKey, points int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.cost == nil {
-		l.cost = make(map[costKey]int)
+		l.cost = make(map[costKey][]int)
 	}
-	l.cost[k] = points
+	l.cost[k] = append(l.cost[k], points)
+	if over := len(l.cost[k]) - costWindow; over > 0 {
+		l.cost[k] = l.cost[k][over:]
+	}
 }
 
 // noteSpend learns what each Source's full refresh took from its budgets. It
 // takes the Source's own count, not the fall in Remaining between two
 // snapshots, which also holds every call that ran in between. A Source that
-// did not measure, failed or fetched only some repos leaves the earlier
-// figure alone. A REST count of zero replaces it, since a cached answer is
-// free.
+// did not measure or failed leaves the earlier figures alone. A refresh that
+// skipped some repos still teaches what the others cost, or a repo that never
+// reads would keep the hold from ever learning. A REST count of zero is a
+// sample like any other, since a cached answer is free, but the hold goes by
+// the dearest recent one.
 func (a *Aggregator) noteSpend(results []Result) {
 	for i, r := range results {
-		if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" || len(r.FailedRepos) > 0 {
+		if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" {
 			continue
 		}
 		forge := a.sources[i].Forge()

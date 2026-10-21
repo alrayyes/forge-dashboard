@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/url"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
 
 // Result is what one forge contributes to a Snapshot. Health.Reachable is
@@ -34,12 +36,9 @@ type Result struct {
 	Spent *Spend
 }
 
-// Spend is the points a fetch took from each budget: GraphQL by the cost the
-// API reported, REST by the requests it counted against the limit.
-type Spend struct {
-	GraphQL int
-	REST    int
-}
+// Spend is the points a fetch took from each budget. It is the type the
+// transport tally collects, so a Source passes it on as it is.
+type Spend = apistats.Spent
 
 // FailedRepo is one repo a Source could not fully fetch, and which parts.
 type FailedRepo struct {

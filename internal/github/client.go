@@ -74,7 +74,10 @@ type Client struct {
 	// counter below it. Nil on a client that never makes a request.
 	etag *etagTransport
 	// stats counts this client's calls (SetStats); nil counts nothing.
-	stats           *apistats.Counters
+	stats *apistats.Counters
+	// tallying is set once SetStats put the counting transport in place; only
+	// then does a fetch's Spent mean anything.
+	tallying        bool
 	statsCredential string
 	token           string
 	username        string
@@ -307,9 +310,10 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 func (c *Client) SetStats(counters *apistats.Counters, credential string) {
 	c.stats = counters
 	c.statsCredential = credential
-	if c.etag == nil {
+	if c.etag == nil || counters == nil {
 		return
 	}
+	c.tallying = true
 	c.etag.wrapBase(func(base http.RoundTripper) http.RoundTripper {
 		return apistats.Transport(base, counters, string(dashboard.ForgeGitHub), credential)
 	})
@@ -1138,13 +1142,13 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 // through dashboard.GenericSource's one-call-per-repo model, which is
 // exactly the round-trip count this exists to avoid.
 func (c *Client) Fetch(ctx context.Context) dashboard.Result {
-	if c.stats == nil {
+	if !c.tallying {
 		return c.fetch(ctx)
 	}
 	ctx, tally := apistats.WithTally(ctx)
 	result := c.fetch(ctx)
 	spent := tally.Spent()
-	result.Spent = &dashboard.Spend{GraphQL: spent.GraphQL, REST: spent.REST}
+	result.Spent = &spent
 
 	return result
 }

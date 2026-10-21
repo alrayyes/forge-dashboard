@@ -102,3 +102,14 @@ func TestFetch_WithoutStats_ReportsNoSpend(t *testing.T) {
 
 	assert.Nil(t, client.Fetch(t.Context()).Spent)
 }
+
+// Stats set on a client that has no counting transport to install measure
+// nothing, so a zero Spent would read as a refresh that cost nothing.
+func TestFetch_StatsButNoCountingTransport_ReportsNoSpend(t *testing.T) {
+	t.Parallel()
+
+	client := github.NewUnreachableClient("no credentials")
+	client.SetStats(apistats.New(), "token:abcd")
+
+	assert.Nil(t, client.Fetch(t.Context()).Spent)
+}

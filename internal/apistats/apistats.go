@@ -153,7 +153,8 @@ const (
 type Spent struct {
 	// GraphQL is the sum of the costs the API reported.
 	GraphQL int
-	// REST is the requests that counted against the limit; a 304 does not.
+	// REST is the requests that counted against the limit; a 304 and an App
+	// token mint do not.
 	REST int
 }
 
@@ -257,7 +258,10 @@ func ownTransport() http.RoundTripper {
 func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := t.base.RoundTrip(req)
 
-	// A request that got no answer was still sent, so it counts as a call.
+	// A request that got no answer was still sent, so it counts as a call, and
+	// as one REST point in a Tally. That over-estimates when the request never
+	// left, which is deliberate: a hold that is a little early costs less than
+	// one that lets the budget run into the reserve.
 	var n Count
 	switch {
 	case err == nil && resp.StatusCode == http.StatusNotModified:
@@ -272,9 +276,18 @@ func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		key.Repo = repo
 	}
 	t.counters.Add(key, n)
-	tallyFrom(req.Context()).add(Spent{REST: int(n.REST)})
+	if !isTokenMint(req) {
+		tallyFrom(req.Context()).add(Spent{REST: int(n.REST)})
+	}
 
 	return resp, err //nolint:wrapcheck // a transport passes the error through untouched
+}
+
+// isTokenMint is the App's request for an installation token. It is signed
+// with the App's key, so it draws on no installation budget.
+func isTokenMint(req *http.Request) bool {
+	return req.Method == http.MethodPost && strings.HasPrefix(req.URL.Path, "/app/installations/") &&
+		strings.HasSuffix(req.URL.Path, "/access_tokens")
 }
 
 // repoFromPath reads owner/name out of a REST path like /repos/o/n/pulls or
