@@ -3,11 +3,13 @@ package forgejo_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,4 +224,48 @@ func TestListOpenPullRequests_ShowsARunningCheckAsRunning(t *testing.T) {
 			assert.EqualValues(t, tt.wantReads, jobReads.Load(), "one jobs read per run still going, none when nothing is pending")
 		})
 	}
+}
+
+// A failed runs-list read keeps the pending ones queued, and it still lands in
+// the request log, so a forge refusing the route shows up there and not only
+// at debug level.
+func TestListOpenPullRequests_RecordsAFailedRunsListRequest(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{{
+			"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+			"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
+			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": []map[string]string{{"status": "pending", "context": "test"}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	rec := &fakeRecorder{}
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "", rec).ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	assert.Equal(t, dashboard.CheckCounts{Waiting: 1}, prs[0].Checks)
+	var failed []string
+	for _, e := range rec.all() {
+		if e.Outcome != requestlog.OutcomeSuccess && strings.Contains(e.Endpoint, "/actions/") {
+			failed = append(failed, e.Endpoint)
+		}
+	}
+	assert.Equal(t, []string{"/repos/alrayyes/a/actions/runs"}, failed)
 }

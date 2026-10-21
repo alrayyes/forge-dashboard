@@ -1147,6 +1147,8 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 		HeadSHA:  sha,
 	})
 	if err != nil {
+		// forgejoError records the failed request; the pending checks stay queued.
+		_ = c.forgejoError(ctx, http.MethodGet, runsPath, resp, err)
 		slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "error", err)
 
 		return counts
