@@ -50,10 +50,13 @@ export function pillWord(label: string, segments: CheckSegment[]): string {
 // The counts to draw, in order, with a zero never drawn. Nothing at all for no
 // counts, which leaves the plain pill.
 //
-// Skipped is a subset of passed (the server keeps passed whole, so it still
-// counts every check that needs nothing more), drawn as its own segment beside
-// it. When every passed check was skipped nothing really passed, so the passed
-// segment gives way and the pill reads as skipped alone.
+// Skipped is a subset of passed on the wire (the server keeps passed whole, so
+// it still counts every check that needs nothing more), but the pill draws the
+// two apart: passed is the checks that passed and were not skipped, skipped
+// the ones that were. Drawn whole beside skipped, passed would count a skipped
+// check twice and the segments would add up to more than the checks listed.
+// When every passed check was skipped the passed segment is empty and the pill
+// reads as skipped alone.
 export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
   if (!counts) return [];
   // Skipped is part of passed, so it can never exceed it; a larger figure is
@@ -61,8 +64,12 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
   const skipped = Math.min(counts.skipped ?? 0, counts.passed);
 
   return CHECK_KINDS.flatMap((kind) => {
-    const n = kind === 'skipped' ? skipped : counts[kind];
-    if (kind === 'passed' && skipped > 0 && n === skipped) return [];
+    const n =
+      kind === 'skipped'
+        ? skipped
+        : kind === 'passed'
+          ? counts.passed - skipped
+          : counts[kind];
 
     return n !== undefined && Number.isInteger(n) && n > 0 ? [{ kind, n }] : [];
   });
@@ -74,16 +81,7 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
 // words. The word is the pill's own: Running, Passed or Failed.
 export function pillName(label: string, segments: CheckSegment[]): string {
   const visible = [label, ...segments.map((s) => String(s.n))].join(' ');
-  // Skipped is inside passed, so beside a passed count it reads "of them" and
-  // never as a further count; alone (every pass was skipped) it is plain.
-  const hasPassed = segments.some((s) => s.kind === 'passed');
-  const words = segments
-    .map((s) =>
-      s.kind === 'skipped' && hasPassed
-        ? `${s.n} of them skipped`
-        : `${s.n} ${s.kind}`,
-    )
-    .join(', ');
+  const words = segments.map((s) => `${s.n} ${s.kind}`).join(', ');
 
   return `${visible}: ${words}`;
 }

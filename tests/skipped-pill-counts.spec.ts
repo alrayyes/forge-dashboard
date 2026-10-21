@@ -89,11 +89,13 @@ const kinds = (pill: Locator) =>
   );
 
 test.describe('skipped counts on the pull request pill', () => {
-  test('draws skipped beside passed, which stays whole', async ({ page }) => {
+  test('draws skipped beside the passed ones that were not skipped', async ({
+    page,
+  }) => {
     await openBoard(page, '/pull-requests.html');
 
     const pill = prPill(page, 'Some skipped');
-    await expect(segs(pill)).toHaveText(['8', '2']);
+    await expect(segs(pill)).toHaveText(['6', '2']);
     await expect(kinds(pill)).resolves.toEqual([
       'ci-seg-passed',
       'ci-seg-skipped',
@@ -103,7 +105,7 @@ test.describe('skipped counts on the pull request pill', () => {
     ).toBeVisible();
     await expect(pill).toHaveAttribute(
       'aria-label',
-      'Passed 8 2: 8 passed, 2 of them skipped. Open pipeline',
+      'Passed 6 2: 6 passed, 2 skipped. Open pipeline',
     );
   });
 
@@ -128,7 +130,7 @@ test.describe('skipped counts on the pull request pill', () => {
     await openBoard(page, '/pull-requests.html');
 
     await expect(segs(prPill(page, 'Skipped and failing'))).toHaveText([
-      '4',
+      '3',
       '1',
       '1',
       '2',
@@ -152,7 +154,7 @@ test.describe('skipped counts on the pull request pill', () => {
   test('the bot board draws it the same way', async ({ page }) => {
     await openBoard(page, '/bots.html');
 
-    await expect(segs(prPill(page, 'Bot skipped'))).toHaveText(['6', '2']);
+    await expect(segs(prPill(page, 'Bot skipped'))).toHaveText(['4', '2']);
   });
 });
 
@@ -217,7 +219,7 @@ test.describe('skipped counts on the Main branches pill', () => {
   test('draws the same segments as the pull request pill', async ({ page }) => {
     await openBranches(page);
 
-    await expect(segs(branchPill(page, 'acme/some'))).toHaveText(['8', '2']);
+    await expect(segs(branchPill(page, 'acme/some'))).toHaveText(['6', '2']);
     await expect(
       branchPill(page, 'acme/all').locator('.ci-seg-label'),
     ).toHaveText('Skipped');
@@ -227,7 +229,7 @@ test.describe('skipped counts on the Main branches pill', () => {
       'Skipped 3: 3 skipped. Open pipeline',
     );
     await expect(segs(branchPill(page, 'acme/red'))).toHaveText([
-      '4',
+      '3',
       '1',
       '2',
     ]);
@@ -287,9 +289,9 @@ test.describe('skipped counts on the Issues page pill', () => {
   test('says them in the text and the name', async ({ page }) => {
     await openIssues(page);
 
-    await expect(issuePill(page, 1)).toHaveText('#12 open Passed 8 2');
+    await expect(issuePill(page, 1)).toHaveText('#12 open Passed 6 2');
     await expect(issuePill(page, 1)).toHaveAccessibleName(
-      'Pull request #12 open Passed 8 2: 8 passed, 2 of them skipped, closes this issue',
+      'Pull request #12 open Passed 6 2: 6 passed, 2 skipped, closes this issue',
     );
     await expect(issuePill(page, 2)).toHaveText('#13 open Skipped 3');
     await expect(issuePill(page, 2)).toHaveAccessibleName(

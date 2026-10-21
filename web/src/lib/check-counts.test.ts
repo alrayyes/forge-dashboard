@@ -32,7 +32,23 @@ describe('checkSegments', () => {
 });
 
 describe('checkSegments with skipped', () => {
-  test('draws skipped beside passed, which stays whole', () => {
+  test('does not count a skipped check twice', () => {
+    expect(
+      checkSegments({
+        passed: 30,
+        skipped: 12,
+        running: 1,
+        waiting: 0,
+        failed: 0,
+      }),
+    ).toEqual([
+      { kind: 'passed', n: 18 },
+      { kind: 'skipped', n: 12 },
+      { kind: 'running', n: 1 },
+    ]);
+  });
+
+  test('draws skipped beside the passed ones that were not skipped', () => {
     expect(
       checkSegments({
         passed: 8,
@@ -42,7 +58,7 @@ describe('checkSegments with skipped', () => {
         failed: 0,
       }),
     ).toEqual([
-      { kind: 'passed', n: 8 },
+      { kind: 'passed', n: 6 },
       { kind: 'skipped', n: 2 },
       { kind: 'running', n: 1 },
     ]);
@@ -84,7 +100,7 @@ describe('checkSegments with skipped', () => {
           failed: 0,
         }),
       ),
-    ).toBe('Passed 8 2: 8 passed, 2 of them skipped');
+    ).toBe('Passed 6 2: 6 passed, 2 skipped');
   });
 });
 
