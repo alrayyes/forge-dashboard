@@ -14,6 +14,19 @@ const HINT = 'Shows items with any of the ticked labels.';
 // it is held to a size a cookie carries. The server refuses a save over either.
 export const MAX_LABELS = 20;
 export const MAX_CHARS = 1000;
+// Characters are not what a cookie holds. Browsers keep about 4096 bytes for a
+// whole cookie, name and value (RFC 6265 section 6.1 asks for at least that;
+// Chrome and Firefox stop there), and the saved filters share one cookie. A
+// label in a multibyte script is up to nine characters on the wire for each one
+// typed (three bytes, each as %XX), so the pick is also held to this many
+// characters once written as the cookie writes it, which leaves the rest of
+// the cookie for the other filters.
+export const MAX_ENCODED = 2000;
+
+// The pick as the cookie carries it: quoted in JSON, then percent-encoded.
+export function encodedSize(joined: string): number {
+  return encodeURIComponent(JSON.stringify(joined)).length;
+}
 
 // A label as the pick holds it: lowercase, and with any control character
 // (a line break, a tab) turned into a space, so a name can never split into
@@ -35,6 +48,7 @@ export function parseLabels(saved: string | undefined): string[] {
     if (seen.size >= MAX_LABELS) break;
     const size = [...name].length + (seen.size > 0 ? 1 : 0);
     if (chars + size > MAX_CHARS) continue;
+    if (encodedSize([...seen, name].join(SEPARATOR)) > MAX_ENCODED) continue;
     chars += size;
     seen.add(name);
   }
@@ -245,7 +259,7 @@ export function mountLabelFilter(
       if (box) {
         box.checked = picked.includes(key);
         // At the most, only a ticked box can still be changed.
-        box.disabled = !box.checked && picked.length >= MAX_LABELS;
+        box.disabled = !box.checked && !toggleLabel(picked, key).includes(key);
       }
       const wanted: Node | null = previous
         ? previous.nextElementSibling
@@ -258,7 +272,11 @@ export function mountLabelFilter(
     empty.hidden = offeredNow.length > 0;
     clear.disabled = picked.length === 0;
     const full =
-      picked.length >= MAX_LABELS ? `${HINT} Up to ${MAX_LABELS}.` : HINT;
+      picked.length >= MAX_LABELS
+        ? `${HINT} Up to ${MAX_LABELS}.`
+        : options.querySelector('input:disabled:not(:checked)')
+          ? `${HINT} No room for more.`
+          : HINT;
     if (hint.textContent !== full) hint.textContent = full;
     const summary = labelSummary(picked, offeredNow);
     if (button.textContent !== summary) button.textContent = summary;

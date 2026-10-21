@@ -307,6 +307,7 @@ export function readCookieState(): SharedFilterState {
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
+  trimLabelPick(state);
   return state;
 }
 
@@ -362,6 +363,16 @@ function migrateCiStatus(state: SharedFilterState): void {
 function dropNonStringTitleRule(state: SharedFilterState): void {
   if (typeof state.issue.hideTitleRegex !== 'string')
     delete state.issue.hideTitleRegex;
+}
+
+// A saved Label pick over the limits the server holds it to (a cookie from an
+// earlier build, or a hand-edited one) would make every later save a 400 that
+// drops the other filters with it. It is cut down to what fits as it is read.
+function trimLabelPick(state: SharedFilterState): void {
+  const label = state.shared.label;
+  if (label === undefined) return;
+  if (typeof label !== 'string') delete state.shared.label;
+  else state.shared.label = joinLabels(parseLabels(label));
 }
 
 // A pick the page being shown does not offer (an author who wrote no pull
@@ -587,6 +598,36 @@ const PUT_TIMEOUT_MS = 10_000;
 let putInFlight = false;
 let queuedState: SharedFilterState | null = null;
 
+const REFUSED_NOTICE_ID = 'filter-save-refused';
+const REFUSED_TEXT =
+  "Your filters were not saved on the server, so another device won't see them.";
+
+function showRefusedNotice(): void {
+  if (typeof document?.getElementById !== 'function') return;
+  if (document.getElementById(REFUSED_NOTICE_ID)) return;
+  const note = document.createElement('p');
+  note.id = REFUSED_NOTICE_ID;
+  note.className = 'error-banner';
+  note.setAttribute('role', 'alert');
+  note.textContent = REFUSED_TEXT;
+  const bar = document.querySelector('.filter-bar');
+  if (bar?.parentElement) bar.parentElement.insertBefore(note, bar);
+  else document.body?.prepend(note);
+}
+
+function clearRefusedNotice(): void {
+  if (typeof document?.getElementById !== 'function') return;
+  document.getElementById(REFUSED_NOTICE_ID)?.remove();
+}
+
+let refusedHandler: () => void = showRefusedNotice;
+
+// For tests: what happens when the server refuses a save. Null puts the
+// notice back.
+export function setSaveRefusedHandler(handler: (() => void) | null): void {
+  refusedHandler = handler ?? showRefusedNotice;
+}
+
 function putFilterStateToServer(state: SharedFilterState): void {
   if (putInFlight) {
     queuedState = state;
@@ -610,6 +651,13 @@ function sendFilterState(state: SharedFilterState): void {
     keepalive: true,
     signal: abort.signal,
   })
+    .then((res) => {
+      // A save the server turns away is not sent again (the same body would
+      // get the same answer); the reader is told instead of left to find the
+      // filter gone on another device.
+      if (!res.ok) refusedHandler();
+      else clearRefusedNotice();
+    })
     .catch(() => {
       // Best-effort, the same restraint RecordWebhookDelivery's own
       // server-side "a failure to persist this doesn't fail the request
@@ -852,6 +900,7 @@ export function applyServerState(
   dropUnknownAutoMerge(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
+  trimLabelPick(state);
 }
 
 export function minutesAgo(iso: string): number {
