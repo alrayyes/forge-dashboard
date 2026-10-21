@@ -46,7 +46,7 @@ func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCo
 		require.NoError(t, err)
 		req.AddCookie(sessionCookie)
 		req.Header.Set("Content-Type", "application/json")
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testClient(t).Do(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 		require.Less(t, resp.StatusCode, 300)

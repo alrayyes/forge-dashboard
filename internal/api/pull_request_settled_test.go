@@ -35,7 +35,7 @@ func refreshedNumbers(t *testing.T, srvURL string, cookie *http.Cookie) []float6
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/dashboard/refresh", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var snap map[string]any

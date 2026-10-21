@@ -16,7 +16,7 @@ func TestDashboardRefresh_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Post(srv.URL+"/api/dashboard/refresh", "", nil)
+	resp, err := testClient(t).Post(srv.URL+"/api/dashboard/refresh", "", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -32,7 +32,7 @@ func TestDashboardRefresh_NoBackgroundRefreshYet_Returns404(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/dashboard/refresh", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -60,7 +60,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := testClient(t).Do(putReq)
 	require.NoError(t, err)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
@@ -68,7 +68,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	refreshReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/dashboard/refresh", nil)
 	require.NoError(t, err)
 	refreshReq.AddCookie(sessionCookie)
-	refreshResp, err := http.DefaultClient.Do(refreshReq)
+	refreshResp, err := testClient(t).Do(refreshReq)
 	require.NoError(t, err)
 	defer func() { _ = refreshResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, refreshResp.StatusCode)

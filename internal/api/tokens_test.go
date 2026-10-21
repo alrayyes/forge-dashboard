@@ -28,7 +28,7 @@ func TestTokensGet_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/tokens")
+	resp, err := testClient(t).Get(srv.URL + "/api/tokens")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -44,7 +44,7 @@ func TestTokensGet_NoneYet_ReturnsEmptyArrayNotNull(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -64,7 +64,7 @@ func TestTokensPost_ThenGet_ListsItWithoutTheRawValue(t *testing.T) {
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
-	postResp, err := http.DefaultClient.Do(postReq)
+	postResp, err := testClient(t).Do(postReq)
 	require.NoError(t, err)
 	defer func() { _ = postResp.Body.Close() }()
 
@@ -83,7 +83,7 @@ func TestTokensPost_ThenGet_ListsItWithoutTheRawValue(t *testing.T) {
 	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 	require.NoError(t, err)
 	getReq.AddCookie(sessionCookie)
-	getResp, err := http.DefaultClient.Do(getReq)
+	getResp, err := testClient(t).Do(getReq)
 	require.NoError(t, err)
 	defer func() { _ = getResp.Body.Close() }()
 
@@ -109,7 +109,7 @@ func TestTokensPost_BlankLabel_Returns400(t *testing.T) {
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -130,7 +130,7 @@ func TestTokensPost_ReturnsExpiresAt(t *testing.T) {
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -152,7 +152,7 @@ func TestTokensGet_ListsExpiresAtPerToken(t *testing.T) {
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
-	postResp, err := http.DefaultClient.Do(postReq)
+	postResp, err := testClient(t).Do(postReq)
 	require.NoError(t, err)
 	_ = postResp.Body.Close()
 	require.Equal(t, http.StatusCreated, postResp.StatusCode)
@@ -160,7 +160,7 @@ func TestTokensGet_ListsExpiresAtPerToken(t *testing.T) {
 	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 	require.NoError(t, err)
 	getReq.AddCookie(sessionCookie)
-	getResp, err := http.DefaultClient.Do(getReq)
+	getResp, err := testClient(t).Do(getReq)
 	require.NoError(t, err)
 	defer func() { _ = getResp.Body.Close() }()
 
@@ -182,7 +182,7 @@ func TestTokensPost_ExpiresAtInThePast_Returns400(t *testing.T) {
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -199,7 +199,7 @@ func TestTokensPost_ExpiresAtMissing_Returns400(t *testing.T) {
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -221,7 +221,7 @@ func TestTokensPost_ExpiresAtBeyond366Days_Returns400(t *testing.T) {
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -247,7 +247,7 @@ func TestTokensPost_ExpiresAtExactly366Days_IsAllowed(t *testing.T) {
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -270,7 +270,7 @@ func TestTokenExpired_RejectedLikeAnInvalidToken(t *testing.T) {
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
-	postResp, err := http.DefaultClient.Do(postReq)
+	postResp, err := testClient(t).Do(postReq)
 	require.NoError(t, err)
 	var created struct {
 		Token string `json:"token"`
@@ -278,13 +278,14 @@ func TestTokenExpired_RejectedLikeAnInvalidToken(t *testing.T) {
 	require.NoError(t, json.NewDecoder(postResp.Body).Decode(&created))
 	_ = postResp.Body.Close()
 
+	client := testClient(t)
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 		if err != nil {
 			return false
 		}
 		req.Header.Set("Authorization", "Bearer "+created.Token)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return false
 		}
@@ -304,7 +305,7 @@ func TestTokenCreated_AuthenticatesAsBearerAgainstARealEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
-	postResp, err := http.DefaultClient.Do(postReq)
+	postResp, err := testClient(t).Do(postReq)
 	require.NoError(t, err)
 	defer func() { _ = postResp.Body.Close() }()
 	var created struct {
@@ -318,7 +319,7 @@ func TestTokenCreated_AuthenticatesAsBearerAgainstARealEndpoint(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer "+created.Token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -335,7 +336,7 @@ func TestTokensDelete_StopsItAuthenticating(t *testing.T) {
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
-	postResp, err := http.DefaultClient.Do(postReq)
+	postResp, err := testClient(t).Do(postReq)
 	require.NoError(t, err)
 	defer func() { _ = postResp.Body.Close() }()
 	var created struct {
@@ -347,7 +348,7 @@ func TestTokensDelete_StopsItAuthenticating(t *testing.T) {
 	delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/tokens/"+created.ID, nil)
 	require.NoError(t, err)
 	delReq.AddCookie(sessionCookie)
-	delResp, err := http.DefaultClient.Do(delReq)
+	delResp, err := testClient(t).Do(delReq)
 	require.NoError(t, err)
 	defer func() { _ = delResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, delResp.StatusCode)
@@ -355,7 +356,7 @@ func TestTokensDelete_StopsItAuthenticating(t *testing.T) {
 	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 	require.NoError(t, err)
 	getReq.Header.Set("Authorization", "Bearer "+created.Token)
-	getResp, err := http.DefaultClient.Do(getReq)
+	getResp, err := testClient(t).Do(getReq)
 	require.NoError(t, err)
 	defer func() { _ = getResp.Body.Close() }()
 
@@ -371,7 +372,7 @@ func TestTokensDelete_UnknownID_StillReturns204(t *testing.T) {
 	req, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/tokens/not-a-real-id", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

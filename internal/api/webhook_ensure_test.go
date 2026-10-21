@@ -126,7 +126,7 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := testClient(t).Do(putReq)
 	require.NoError(t, err)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
@@ -142,7 +142,7 @@ func postEnsureWebhook(t *testing.T, srvURL string, sessionCookie *http.Cookie, 
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp
@@ -344,7 +344,7 @@ func TestWebhookEnsure_Unauthenticated_Returns401(t *testing.T) {
 
 	body, err := json.Marshal(map[string]string{"forge": "github", "fullName": "alrayyes/a"})
 	require.NoError(t, err)
-	resp, err := http.Post(srvURL+"/api/webhooks/ensure", "application/json", strings.NewReader(string(body)))
+	resp, err := testClient(t).Post(srvURL+"/api/webhooks/ensure", "application/json", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

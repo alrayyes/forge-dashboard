@@ -50,7 +50,7 @@ func getIssueDetails(t *testing.T, srvURL string, sessionCookie *http.Cookie, fo
 	if sessionCookie != nil {
 		req.AddCookie(sessionCookie)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp
@@ -123,7 +123,7 @@ func TestIssueDetails_MalformedInput_Returns400(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/issues/details?forge=github&fullName=alrayyes/a&number=abc", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	badNumber, err := http.DefaultClient.Do(req)
+	badNumber, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = badNumber.Body.Close() }()
 
