@@ -78,7 +78,7 @@ func rerunBoardFor(t *testing.T, forge dashboard.Forge, rerunErr error, prs ...d
 		got, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(got) == len(prs)
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie, src
 }

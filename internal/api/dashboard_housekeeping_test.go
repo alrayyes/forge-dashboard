@@ -42,7 +42,7 @@ func TestDashboard_FlagsHousekeepingIssuesAndCountsTheRest(t *testing.T) {
 		issues, _ := fetchDashboard(t, srv.URL, cookie)["issues"].([]any)
 
 		return len(issues) == 3
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	got := fetchDashboard(t, srv.URL, cookie)
 	assert.InDelta(t, 2, got["openIssueCount"], 0)

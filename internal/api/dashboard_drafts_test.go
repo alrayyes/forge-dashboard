@@ -52,7 +52,7 @@ func draftsServer(t *testing.T) (srvURL string, sessionCookie *http.Cookie) {
 		prs, _ := fetchDashboardWith(t, srv.URL, sessionCookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == 3
-	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
 
 	return srv.URL, sessionCookie
 }

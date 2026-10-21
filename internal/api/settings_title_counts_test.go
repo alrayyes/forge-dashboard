@@ -52,7 +52,7 @@ func signInWithBoard(t *testing.T, srv *httptest.Server, username, token string,
 		issues, _ := fetchDashboard(t, srv.URL, cookie)["issues"].([]any)
 
 		return len(issues) == want
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return cookie
 }
@@ -68,7 +68,7 @@ func TestSettingsGet_IgnoredTitleCounts_CountsEachPatternsOpenIssuesInOrder(t *t
 	cookie := signInWithBoard(t, srv, "ryan", countsToken, 5)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["^weekly report","STALE","nothing matches"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
-	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, pollBudget, 10*time.Millisecond)
 
 	got := getSettings(t, srv.URL, cookie)
 
@@ -88,7 +88,7 @@ func TestSettingsGet_IgnoredTitleCounts_AnIssueTwoPatternsMatchCountsForBoth(t *
 		got = getSettings(t, srv.URL, cookie).IgnoredTitleCounts
 
 		return got[0] != nil
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	assert.Equal(t, []*int{new(1), new(1)}, got)
 	assert.InDelta(t, 1, fetchDashboard(t, srv.URL, cookie)["settingsHiddenIssueCount"], 0, "one issue hidden, counted by both patterns")
@@ -110,7 +110,7 @@ func TestSettingsGet_IgnoredTitleCounts_LeavesOutIssuesOfIgnoredRepos(t *testing
 		got = getSettings(t, srv.URL, cookie).IgnoredTitleCounts
 
 		return got[0] != nil
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	assert.Equal(t, []*int{new(1)}, got, "the same issues settingsHiddenIssueCount works from")
 }
@@ -155,7 +155,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullUntilTheFirstRefreshFinishes(t *t
 	assert.Equal(t, []*int{nil, nil}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts)
 
 	close(release)
-	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, pollBudget, 10*time.Millisecond)
 	assert.Equal(t, []*int{new(1), new(0)}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts)
 }
 
@@ -185,7 +185,7 @@ func TestSettingsPut_IgnoredTitleCounts_FollowTheListJustSaved(t *testing.T) {
 	_, first := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
 	assert.Equal(t, []any{float64(2)}, first["ignoredTitleCounts"])
 	// The save restarted the refresh; wait for the new snapshot before the next.
-	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, pollBudget, 10*time.Millisecond)
 
 	_, second := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["stale","weekly one","zzz"]}`, cookie)
 	assert.Equal(t, []any{float64(1), float64(1), float64(0)}, second["ignoredTitleCounts"], "counted against the new patterns, not the old")
@@ -210,7 +210,7 @@ func TestSettingsGet_IgnoredTitleCounts_CountOnlyTheViewersOwnIssues(t *testing.
 	assert.Eventually(t, func() bool {
 		return getSettings(t, srv.URL, cookieA).IgnoredTitleCounts[0] != nil &&
 			getSettings(t, srv.URL, cookieB).IgnoredTitleCounts[0] != nil
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	assert.Equal(t, []*int{new(1)}, getSettings(t, srv.URL, cookieA).IgnoredTitleCounts)
 	assert.Equal(t, []*int{new(3)}, getSettings(t, srv.URL, cookieB).IgnoredTitleCounts)
@@ -234,7 +234,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullWhenTheOnlyForgeIsUnreachable(t *
 		forges, _ := fetchDashboard(t, srv.URL, cookie)["forges"].([]any)
 
 		return len(forges) == 1
-	}, 2*time.Second, 10*time.Millisecond, "the first refresh has finished and failed")
+	}, pollBudget, 10*time.Millisecond, "the first refresh has finished and failed")
 
 	assert.Equal(t, []*int{nil}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts)
 }
@@ -246,7 +246,7 @@ func TestSettingsGet_IgnoredTitleCounts_AReachableForgeWithNoMatchesCountsZero(t
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 
-	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, pollBudget, 10*time.Millisecond)
 
 	assert.Equal(t, []*int{new(0)}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts)
 }

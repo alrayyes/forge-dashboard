@@ -1,6 +1,20 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { CHECK_STATE_LABELS, formatCheckDuration } from './pipeline-checks';
+import {
+  blockingFirst,
+  CHECK_STATE_LABELS,
+  type Check,
+  formatCheckDuration,
+  groupChecks,
+  isBlocking,
+} from './pipeline-checks';
+
+const check = (over: Partial<Check>): Check => ({
+  name: 'build',
+  state: 'success',
+  url: '',
+  ...over,
+});
 
 describe('formatCheckDuration', () => {
   test('seconds alone under a minute', () => {
@@ -28,5 +42,66 @@ describe('CHECK_STATE_LABELS', () => {
       'success',
       'timed_out',
     ]);
+  });
+});
+
+describe('isBlocking', () => {
+  test('a required check that failed, timed out or is held blocks', () => {
+    for (const state of ['failure', 'timed_out', 'awaiting_approval']) {
+      expect(isBlocking(check({ required: true, state }))).toBe(true);
+    }
+  });
+
+  test('an advisory, unknown or healthy check does not', () => {
+    expect(isBlocking(check({ required: false, state: 'failure' }))).toBe(
+      false,
+    );
+    expect(isBlocking(check({ state: 'failure' }))).toBe(false);
+    expect(isBlocking(check({ required: true, state: 'success' }))).toBe(false);
+  });
+});
+
+describe('blockingFirst', () => {
+  test('moves blocking checks up and keeps the forge order otherwise', () => {
+    const a = check({ name: 'a' });
+    const b = check({ name: 'b', required: true, state: 'failure' });
+    const c = check({ name: 'c' });
+    const d = check({ name: 'd', required: true, state: 'timed_out' });
+
+    expect(blockingFirst([a, b, c, d]).map((x) => x.name)).toEqual([
+      'b',
+      'd',
+      'a',
+      'c',
+    ]);
+  });
+});
+
+describe('groupChecks', () => {
+  test('one flat list when the forge said nothing about required', () => {
+    const list = [check({ name: 'a' }), check({ name: 'b' })];
+
+    expect(groupChecks(list)).toEqual([{ id: '', title: '', checks: list }]);
+  });
+
+  test('Required, Advisory and Status unknown, each only when it has checks', () => {
+    const req = check({ name: 'r', required: true });
+    const adv = check({ name: 'a', required: false });
+    const unk = check({ name: 'u' });
+
+    expect(groupChecks([unk, adv, req])).toEqual([
+      { id: 'pipeline-group-required', title: 'Required', checks: [req] },
+      { id: 'pipeline-group-advisory', title: 'Advisory', checks: [adv] },
+      {
+        id: 'pipeline-group-unknown',
+        title: 'Status unknown',
+        checks: [unk],
+      },
+    ]);
+    expect(groupChecks([req]).map((g) => g.title)).toEqual(['Required']);
+  });
+
+  test('no checks, no groups', () => {
+    expect(groupChecks([])).toEqual([]);
   });
 });

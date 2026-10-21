@@ -88,7 +88,7 @@ func newTestServerWithRepo(t *testing.T) (srvURL string, sessionCookie *http.Coo
 		snap := fetchDashboard(t, srv.URL, sessionCookie)
 
 		return len(snap["pullRequests"].([]any)) == 1
-	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture PR")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture PR")
 
 	return srv.URL, sessionCookie
 }
