@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/alrayyes/forge-dashboard/compare/v1.6.1...v1.6.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **api:** the release dialog endpoint handles pre-releases, drafts and errors as the spec says ([#2339](https://github.com/alrayyes/forge-dashboard/issues/2339)) ([ca1548e](https://github.com/alrayyes/forge-dashboard/commit/ca1548ed8096e3b5012771fa2272dca06867cd03))
+
 ## [1.6.1](https://github.com/alrayyes/forge-dashboard/compare/v1.6.0...v1.6.1) (2026-10-21)
 
 
