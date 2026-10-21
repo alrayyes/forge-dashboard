@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/alrayyes/forge-dashboard/compare/v1.6.0...v1.6.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a huge REFRESH_INTERVAL from wrapping into a busy loop ([#2337](https://github.com/alrayyes/forge-dashboard/issues/2337)) ([a6aaefc](https://github.com/alrayyes/forge-dashboard/commit/a6aaefca3847a7907f8cb2d04e6752afab4dff3c))
+
 ## [1.6.0](https://github.com/alrayyes/forge-dashboard/compare/v1.5.0...v1.6.0) (2026-10-21)
 
 
