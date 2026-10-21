@@ -1729,6 +1729,18 @@ a.ci-pill:hover {
   /* Failed stays the strongest weight. */
   font-weight: 700;
 }
+/* A pass where every check was skipped did not pass anything, so it drops the
+   green for the muted ink the skipped count already uses. */
+.ci-pill.success.all-skipped,
+.ci-pill.success.all-skipped .ci-seg-label {
+  color: var(--ink-2);
+}
+.ci-pill.success.all-skipped {
+  background: var(--surface-sunken);
+}
+.ci-pill.success.segmented.all-skipped {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
 .ci-seg-passed {
   color: var(--good);
 }

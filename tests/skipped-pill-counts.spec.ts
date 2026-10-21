@@ -125,6 +125,30 @@ test.describe('skipped counts on the pull request pill', () => {
     );
   });
 
+  test('a fully skipped pill is not drawn in the passed colour', async ({
+    page,
+  }) => {
+    await openBoard(page, '/pull-requests.html');
+
+    const colour = (l: Locator) => l.evaluate((e) => getComputedStyle(e).color);
+    const good = await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--good)';
+      document.body.appendChild(probe);
+      const c = getComputedStyle(probe).color;
+      probe.remove();
+      return c;
+    });
+    const all = prPill(page, 'All skipped');
+    await expect(all).toHaveClass(/all-skipped/);
+    expect(await colour(all.locator('.ci-seg-label'))).not.toBe(good);
+    expect(await colour(all)).not.toBe(good);
+    // A pass that ran something keeps its green.
+    expect(
+      await colour(prPill(page, 'Some skipped').locator('.ci-seg-label')),
+    ).toBe(good);
+  });
+
   test('sits between passed and running among the other states', async ({
     page,
   }) => {

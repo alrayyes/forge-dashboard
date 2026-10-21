@@ -46,6 +46,29 @@ describe('ciPillModel', () => {
     expect(m.name).toBe('Passed');
   });
 
+  test('a pass that was only skipped checks is marked all-skipped', () => {
+    const m = ciPillModel({
+      cls: 'success',
+      glyph: 'success',
+      word: 'Passed',
+      counts: { passed: 3, skipped: 3, running: 0, waiting: 0, failed: 0 },
+    });
+
+    expect(m.word).toBe('Skipped');
+    expect(m.classes).toBe('ci-pill success all-skipped segmented');
+  });
+
+  test('a pass with checks that ran is not all-skipped', () => {
+    const m = ciPillModel({
+      cls: 'success',
+      glyph: 'success',
+      word: 'Passed',
+      counts: { passed: 8, skipped: 2, running: 0, waiting: 0, failed: 0 },
+    });
+
+    expect(m.classes).toBe('ci-pill success segmented');
+  });
+
   test('a held pill adds the awaiting class and ignores counts', () => {
     const m = ciPillModel({
       cls: 'failure',
