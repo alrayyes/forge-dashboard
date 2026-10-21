@@ -71,7 +71,7 @@ func connectMCP(t *testing.T, srvURL, token string) *mcp.ClientSession {
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.0"}, nil)
 	transport := &mcp.StreamableClientTransport{
 		Endpoint:   srvURL + "/api/mcp",
-		HTTPClient: &http.Client{Transport: bearerRoundTripper{token: token, base: http.DefaultTransport}},
+		HTTPClient: &http.Client{Transport: bearerRoundTripper{token: token, base: http.DefaultTransport.(*http.Transport).Clone()}},
 	}
 	session, err := client.Connect(t.Context(), transport, nil)
 	require.NoError(t, err)

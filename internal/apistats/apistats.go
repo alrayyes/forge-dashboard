@@ -181,16 +181,28 @@ type countingTransport struct {
 // Transport wraps base so every request through it is counted under forge
 // and credential. Put it below any cache that turns a 304 into a 200, so it
 // sees the 304. With nil counters it returns base untouched; a nil base means
-// http.DefaultTransport.
+// a copy of http.DefaultTransport.
 func Transport(base http.RoundTripper, counters *Counters, forge, credential string) http.RoundTripper {
 	if base == nil {
-		base = http.DefaultTransport
+		base = ownTransport()
 	}
 	if counters == nil {
 		return base
 	}
 
 	return &countingTransport{base: base, counters: counters, forge: forge, credential: credential}
+}
+
+// ownTransport is a copy of the default transport, not the process-wide one:
+// every httptest.Server.Close() calls CloseIdleConnections on
+// http.DefaultTransport, which fails another test's in-flight request with
+// "http: CloseIdleConnections called".
+func ownTransport() http.RoundTripper {
+	if t, ok := http.DefaultTransport.(*http.Transport); ok {
+		return t.Clone()
+	}
+
+	return http.DefaultTransport
 }
 
 func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
