@@ -85,7 +85,7 @@ type dashboardResponse struct {
 	// minutes, so the page can say so once the pull request has left.
 	AutoMerged []autoMergedView `json:"autoMerged"`
 	// QueuedActions is the signed-in user's own queue, waiting and finished
-	// (#756). Empty on a shared dashboard: it is theirs, not the viewer's.
+	// (#756).
 	QueuedActions []dashboard.QueuedAction `json:"queuedActions"`
 	// ReadIntervalSeconds is how often a client should re-read the dashboard
 	// (#809). It lives in the response so a client keeps no interval of its
@@ -275,17 +275,6 @@ func (b boardSettings) waitingQueuedAction(pr dashboard.PullRequest) *dashboard.
 	return nil
 }
 
-// withoutQueue removes the owner's queue from a dashboard shown to someone
-// else: who queued what, and how it went, is not the viewer's to see.
-func (r dashboardResponse) withoutQueue() dashboardResponse {
-	r.QueuedActions = []dashboard.QueuedAction{}
-	for i := range r.PullRequests {
-		r.PullRequests[i].Queued = nil
-	}
-
-	return r
-}
-
 // autoMergedView matches components.schemas.AutoMergedPullRequest.
 type autoMergedView struct {
 	Forge    dashboard.Forge `json:"forge"`
@@ -363,16 +352,12 @@ type boardView struct {
 // A pull request the user hid (#841) is left out unless view.includeHidden,
 // and counted in HiddenPullRequests. Hides come before drafts, so a hidden
 // draft is only in the hidden count.
-//
-// The issue settings (#1630) are the viewer's, not the data owner's: on a
-// shared dashboard the board is the owner's, and what is hidden from it is the
-// viewer's own choice. viewerID is userID on one's own dashboard.
-func buildDashboardResponse(ctx context.Context, deps Deps, userID, viewerID []byte, snap dashboard.Snapshot, view boardView) dashboardResponse {
+func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap dashboard.Snapshot, view boardView) dashboardResponse {
 	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
 	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
 	board.forgetClosedHides(ctx, deps.SettingsStore, userID, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
-	filter := loadIssueFilter(ctx, deps.SettingsStore, viewerID)
+	filter := loadIssueFilter(ctx, deps.SettingsStore, userID)
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
 
 	done := firstRefreshDone(deps.Manager, userID)
@@ -800,59 +785,19 @@ func withRateLimitSeverity(forges []dashboard.ForgeHealth, now time.Time) []dash
 	return out
 }
 
-// errDashboardOwnerNotFound and errDashboardNotShared are
-// resolveDashboardFor's own sentinel errors — every caller (the HTTP
-// handler below, and the MCP get_dashboard tool) maps them to its own
-// transport's "not found"/"forbidden" shape, rather than resolveDashboardFor
-// knowing HTTP status codes or MCP error content itself.
-var (
-	errDashboardOwnerNotFound = errors.New("no user is registered under that username")
-	errDashboardNotShared     = errors.New("that user hasn't shared their dashboard with you")
-)
+// dashboardFor returns the dashboard data u's account currently has. Shared
+// by handleDashboard and the MCP get_dashboard tool (mcp.go) so both read it
+// the same way. Never blocks on either forge: Manager.Get reads whatever
+// that user's background refresh last assembled -- empty, not an error, for a
+// user who hasn't saved any credentials in Settings yet.
+func dashboardFor(ctx context.Context, deps Deps, u *auth.User, view boardView) dashboardResponse {
+	warmUpAggregator(ctx, deps, u.ID, u.Username)
+	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
 
-// resolveDashboardFor returns the dashboard data ownerUsername's account
-// currently has — requester's own by default (ownerUsername empty or
-// equal to requester's own username), or another user's once that user
-// has shared their dashboard with requester (dashboard.SharingStore).
-// Shared by handleDashboard and the MCP get_dashboard tool (mcp.go) so the
-// ownership/sharing rule only lives in one place. Never blocks on either
-// forge: Manager.Get reads whatever that user's background refresh last
-// assembled — empty, not an error, for a user who hasn't saved any
-// credentials in Settings yet.
-func resolveDashboardFor(ctx context.Context, deps Deps, requester *auth.User, ownerUsername string, view boardView) (dashboardResponse, error) {
-	if ownerUsername == "" || ownerUsername == requester.Username {
-		warmUpAggregator(ctx, deps, requester.ID, requester.Username)
-		deps.Manager.WaitFirstRefresh(ctx, requester.ID, deps.firstLoadWait())
-
-		return buildDashboardResponse(ctx, deps, requester.ID, requester.ID, deps.Manager.Get(requester.ID), view), nil
-	}
-
-	owner, err := deps.AuthStore.GetUserByUsername(ctx, ownerUsername)
-	if err != nil {
-		if errors.Is(err, auth.ErrNotFound) {
-			return dashboardResponse{}, errDashboardOwnerNotFound
-		}
-
-		return dashboardResponse{}, fmt.Errorf("look up owner: %w", err)
-	}
-
-	shared, err := deps.SharingStore.IsSharedWith(ctx, owner.ID, requester.ID)
-	if err != nil {
-		return dashboardResponse{}, fmt.Errorf("check sharing: %w", err)
-	}
-	if !shared {
-		return dashboardResponse{}, errDashboardNotShared
-	}
-
-	warmUpAggregator(ctx, deps, owner.ID, owner.Username)
-	deps.Manager.WaitFirstRefresh(ctx, owner.ID, deps.firstLoadWait())
-
-	return buildDashboardResponse(ctx, deps, owner.ID, requester.ID, deps.Manager.Get(owner.ID), view).withoutQueue(), nil
+	return buildDashboardResponse(ctx, deps, u.ID, deps.Manager.Get(u.ID), view)
 }
 
-// handleDashboard answers the requested dashboard: the signed-in user's
-// own by default, or another user's — passed as ?owner=username — when
-// that user has shared their dashboard with the caller.
+// handleDashboard answers the signed-in user's own dashboard.
 func handleDashboard(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())
@@ -865,19 +810,7 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		resp, err := resolveDashboardFor(r.Context(), deps, u, r.URL.Query().Get("owner"), viewOf(r))
-		if err != nil {
-			switch {
-			case errors.Is(err, errDashboardOwnerNotFound):
-				writeJSON(w, http.StatusNotFound, errorBody(err.Error()))
-			case errors.Is(err, errDashboardNotShared):
-				writeJSON(w, http.StatusForbidden, errorBody(err.Error()))
-			default:
-				writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
-			}
-
-			return
-		}
+		resp := dashboardFor(r.Context(), deps, u, viewOf(r))
 		writeJSON(w, http.StatusOK, resp)
 	}
 }
@@ -939,11 +872,6 @@ func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username strin
 // the scheduled REFRESH_INTERVAL. A call inside the per-user cooldown
 // (Manager.ForceRefresh) skips the fetch and says so with Retry-After.
 //
-// Like handleDashboardStream, and unlike handleDashboard: no ?owner=,
-// only ever the signed-in user's own dashboard, so a user with shared
-// access to someone else's dashboard can never spend that owner's own
-// forge rate-limit budget on their own schedule.
-//
 // Passes deps.AppContext to RefreshNow, not r.Context(): coalescer.do
 // only threads the *first* caller's context into the shared fetch — every
 // later caller that arrives while a run is already in flight just waits
@@ -973,7 +901,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 			// a refusal would leave the row stale (#809).
 			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
 		}
-		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, u.ID, deps.Manager.Get(u.ID), viewOf(r)))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, deps.Manager.Get(u.ID), viewOf(r)))
 	}
 }
 
@@ -983,8 +911,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 // triggers Manager.RefreshNow, which is what turns that into a live
 // update instead of something only the next scheduled refresh picks up.
 //
-// Unlike handleDashboard, there's no ?owner= — only ever the signed-in
-// user's own dashboard. The frontend's own poll against GET
+// The frontend's own poll against GET
 // /api/dashboard keeps running unconditionally, connected or not: a
 // browser or proxy that can't hold this connection open just never
 // benefits from it, rather than the dashboard going stale silently.
@@ -1029,7 +956,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		flusher.Flush()
 
 		streamSnapshots(r.Context(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
-			return buildDashboardResponse(r.Context(), deps, u.ID, u.ID, snap, view)
+			return buildDashboardResponse(r.Context(), deps, u.ID, snap, view)
 		})
 	}
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
-	"github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +43,7 @@ var ownedBy = map[string]string{
 }
 
 // emptied are the tables the cleanup empties for everyone, kept user included.
-var emptied = []string{"invites", "shares"}
+var emptied = []string{"invites"}
 
 // seedRow inserts one row owned by the user with this encoded id.
 var seedRow = map[string]string{ //nolint:gosec // G101: SQL fixtures, no credentials
@@ -84,7 +83,6 @@ func newFixture(t *testing.T) *fixture {
 	cipher, err := settings.NewCipher(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("k"), 32)))
 	require.NoError(t, err)
 	require.NoError(t, settings.NewStore(db, cipher).Init(ctx))
-	require.NoError(t, sharing.NewStore(db).Init(ctx))
 
 	buf := &bytes.Buffer{}
 
@@ -109,7 +107,7 @@ func (f *fixture) addUser(t *testing.T, name string, passkey bool) *auth.User {
 }
 
 // giveData puts a row in every per-user table for u, plus a ceremony, an
-// invite and a share.
+// and an invite.
 func (f *fixture) giveData(t *testing.T, u *auth.User) {
 	t.Helper()
 	id := base64.RawURLEncoding.EncodeToString(u.ID)
@@ -120,7 +118,6 @@ func (f *fixture) giveData(t *testing.T, u *auth.User) {
 	require.NoError(t, f.auth.SaveCeremony(t.Context(), u.Username, "login", webauthn.SessionData{Challenge: "c"}, time.Hour))
 	_, _, err := f.auth.CreateInvite(t.Context(), "invitee-"+u.Username, "Invitee", u.ID, time.Hour)
 	require.NoError(t, err)
-	require.NoError(t, sharing.NewStore(f.db).Share(t.Context(), u.ID, f.users[0].ID))
 }
 
 // threeUsers is the multi-user database the upgrade has to fix: the oldest
@@ -242,7 +239,7 @@ func TestRun_ThreeUsers_OnlyTheOldestUsersRowsRemain(t *testing.T) {
 	}
 }
 
-func TestRun_ThreeUsers_ClearsTheirCeremoniesInvitesAndShares(t *testing.T) {
+func TestRun_ThreeUsers_ClearsTheirCeremoniesAndInvites(t *testing.T) {
 	t.Parallel()
 	f := threeUsers(t)
 
@@ -252,7 +249,6 @@ func TestRun_ThreeUsers_ClearsTheirCeremoniesInvitesAndShares(t *testing.T) {
 	assert.Equal(t, 0, f.count(t, `SELECT count(*) FROM ceremonies WHERE username != 'ryan'`))
 	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM ceremonies WHERE username = 'ryan'`))
 	assert.Equal(t, 0, f.count(t, `SELECT count(*) FROM invites`))
-	assert.Equal(t, 0, f.count(t, `SELECT count(*) FROM shares`))
 }
 
 func TestRun_ThreeUsers_WritesTheMarkerRow(t *testing.T) {

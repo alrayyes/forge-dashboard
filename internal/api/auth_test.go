@@ -20,7 +20,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
-	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -130,9 +129,6 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settings
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(tb, settingsStore.Init(tb.Context()))
 
-	sharingStore := sharingpkg.NewStore(db)
-	require.NoError(tb, sharingStore.Init(tb.Context()))
-
 	manager := dashboard.NewManager(testRefreshInterval)
 	if autoMerge {
 		manager.SetAutoMergeStore(settingsStore)
@@ -147,7 +143,6 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settings
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
