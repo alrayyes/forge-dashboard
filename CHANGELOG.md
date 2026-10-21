@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.249.1](https://github.com/alrayyes/forge-dashboard/compare/v0.249.0...v0.249.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** pipeline panel and linked pill follow-ups ([#2113](https://github.com/alrayyes/forge-dashboard/issues/2113)) ([d6576bf](https://github.com/alrayyes/forge-dashboard/commit/d6576bf57e228301d292d1bdc21a26643cac129f))
+
 ## [0.249.0](https://github.com/alrayyes/forge-dashboard/compare/v0.248.0...v0.249.0) (2026-10-21)
 
 
