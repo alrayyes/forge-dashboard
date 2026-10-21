@@ -102,6 +102,9 @@ type Client struct {
 	// (#1311).
 	requiredChecks requiredChecks
 
+	// advisories remembers each repo's open dependency advisories for a while.
+	advisories advisoryCache
+
 	// appAuthenticated is true for a Client built via NewAppClient — an
 	// installation token minted and silently refreshed by the Transport
 	// httpClient itself was built with (#620), not a string this Client
@@ -2567,6 +2570,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	}
 
 	tracked := trackedRepos(repos)
+	advisoriesDone := c.startAdvisories(ctx, tracked)
 	probes := c.checkWebhooks(ctx, tracked)
 	issuesByRepo := c.reconcileIssues(ctx, tracked, since != nil)
 	c.issueState.commit(pollStartedAt, issuesByRepo)
@@ -2579,6 +2583,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		RepoCount:        len(tracked),
 	}}
 	c.withCheckedCommits(ctx, tracked)
+	advisories := <-advisoriesDone
 	var behindChecks []behindCheck
 	var unreported []missingRequiredCheck
 	for _, r := range tracked {
@@ -2599,7 +2604,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 			}
 		}
 		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
-		result.MainBranches = append(result.MainBranches, mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef))
+		result.MainBranches = append(result.MainBranches, withAdvisories(mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef), advisories[fullName]))
 	}
 	c.resolveAmbiguousBehind(ctx, result.PullRequests, behindChecks)
 	c.settleUnreportedRequiredChecks(ctx, result.PullRequests, unreported)

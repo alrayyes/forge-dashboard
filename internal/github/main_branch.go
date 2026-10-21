@@ -476,5 +476,8 @@ func (c *Client) FetchMainBranch(ctx context.Context, owner, name, fullName stri
 	repo.Owner.Login = owner
 	c.withCheckedCommits(ctx, []graphqlRepo{repo})
 
-	return mainBranchFrom(fullName, resp.Repository.URL, resp.Repository.LatestRelease, repo.DefaultBranchRef), nil
+	row := mainBranchFrom(fullName, resp.Repository.URL, resp.Repository.LatestRelease, repo.DefaultBranchRef)
+	row.Advisories = c.advisoriesFor(ctx, owner, name, resp.Repository.URL)
+
+	return row, nil
 }

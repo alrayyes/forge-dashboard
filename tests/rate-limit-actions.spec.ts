@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { severityOf } from './severity-stand-in';
 
 // A rate limit is a "wait until" condition, not a transient fault: the
@@ -82,7 +82,6 @@ test.describe('rate-limited actions (#732)', () => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await landOnPullRequests(page);
   });
 
   test('grouped by repo, the reset time is stated once in the banner, not under each group', async ({
@@ -92,7 +91,7 @@ test.describe('rate-limited actions (#732)', () => {
       makePR({ number: 1 }),
       makePR({ number: 2 }),
     ]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await page.locator('#shared-group-select').selectOption('repo');
 
     await expect(page.locator('#pr-rows .group-rate-limit')).toHaveCount(0);
@@ -116,7 +115,7 @@ test.describe('rate-limited actions (#732)', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = firstRow(page);
     await row.getByRole('button', { name: 'Merge', exact: true }).click();
@@ -144,7 +143,7 @@ test.describe('rate-limited actions (#732)', () => {
         }),
       });
     });
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const row = firstRow(page);
     await row.getByRole('button', { name: 'Merge', exact: true }).click();
@@ -163,7 +162,7 @@ test.describe('rate-limited actions (#732)', () => {
   }) => {
     await page.clock.install({ time: new Date() });
     await mockDashboard(page, exhausted(10 * 60 * 1000));
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     const banner = page.locator('#rate-limit-banner');
     await expect(banner).toBeVisible();

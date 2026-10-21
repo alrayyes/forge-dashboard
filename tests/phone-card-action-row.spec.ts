@@ -1,14 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // On a phone the one control a row draws sits in its own action row: after a
 // hairline divider, full width and 44px tall, so the thumb finds it. The
 // 44px is WCAG 2.5.5 (AAA); 2.5.8 (AA) asks 24px.
 // https://github.com/alrayyes/forge-dashboard/issues/898
-
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 function pr(overrides: Record<string, unknown> = {}) {
   return {

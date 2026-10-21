@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #791: draft pull requests are left out by the API unless asked for. The
 // filter bar carries a quiet "Show drafts" toggle with a muted count of what
@@ -90,7 +90,7 @@ async function setup(page: Page) {
     seen.push(`POST ${route.request().url()}`);
     return answer(route);
   });
-  await page.reload();
+  await page.goto('/pull-requests.html');
   return seen;
 }
 
@@ -99,10 +99,6 @@ const toggle = (page: Page) =>
 const rows = (page: Page) => page.locator('#pr-rows .row');
 
 test.describe('show drafts (#791)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('drafts are left out by default, with a muted hidden count on an off toggle', async ({
     page,
   }) => {
