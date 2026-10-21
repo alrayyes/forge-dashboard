@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #1427: the Branches page offers a status or forge pill only when clicking
 // it would show something, and keeps the one that is active so it can be
@@ -86,10 +86,6 @@ const MIXED = [
 ];
 
 test.describe('Branches pills offer only what would show something (#1427)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('a status and a forge nothing is in are not offered', async ({
     page,
   }) => {

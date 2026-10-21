@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #1620: the Branches filter (status, forge, search) follows the account like
 // the other pages' filters: the cookie paints the first frame, the server copy
@@ -65,7 +65,6 @@ const serverCopy = async (page: Page) =>
 
 test.describe('the Branches filter follows the account (#1620)', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     await mock(page);
     await page.goto('/');
     await expect(rows(page)).toHaveCount(4);

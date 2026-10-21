@@ -38,6 +38,13 @@ bun install
 
 ## Everyday commands
 
+A fresh checkout needs nothing beyond `bun install`: the pre-push hook builds
+the web app itself (`bun run build:web`) before the Go tests, because the
+embedded static files include the built `style.css`. Run the same
+`bun run build:web` by hand before `go test ./...`. The build leaves
+`web/build` behind; `svelte-check` skips it, so there's nothing to delete
+before a push.
+
 Every one of these is what a hook or CI runs — see `lefthook.yml` and
 `.github/workflows/*.yml` for exactly which.
 

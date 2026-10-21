@@ -11,7 +11,10 @@
     "sourceMap": true,
     "strict": true,
     "moduleResolution": "bundler"
-  }
+  },
+  // The adapter's output is generated JS that allowJs/checkJs would otherwise
+  // pull in once `bun run build:web` has run (the Go tests need that build).
+  "exclude": ["build"]
   // Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
   // except #lib, which is a Node subpath import declared in package.json's "imports"
   //
