@@ -151,7 +151,7 @@ func TestDashboard_Drafts(t *testing.T) {
 			require.NoError(t, json.Unmarshal([]byte(data), &snap))
 			assert.Equal(t, []float64{1, 2, 3}, prNumbers(t, snap))
 			assert.InDelta(t, 0, snap["hiddenDrafts"], 0)
-		case <-time.After(2 * time.Second):
+		case <-time.After(pollBudget):
 			t.Fatal("no SSE event received after the refresh")
 		}
 	})

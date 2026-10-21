@@ -187,7 +187,7 @@ func TestGitHubWebhook_ClosedDelivery_APullRequestGitHubStillListsOpenLeavesTheB
 	postGitHubDelivery(t, srvURL, token, secret, pullRequestDelivery("closed", true))
 
 	assert.Eventually(t, func() bool { return !boardLists78(t, srvURL, cookie) }, pollBudget, 20*time.Millisecond,
-		"within 10 seconds of the closed delivery the dashboard must stop listing #78")
+		"within the poll budget of the closed delivery the dashboard must stop listing #78")
 }
 
 // A scoped refresh that fails leaves the snapshot as it was. The delivery

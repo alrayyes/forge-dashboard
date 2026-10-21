@@ -105,7 +105,7 @@ func TestDashboardStream_PushesASnapshotWhenAWebhookTriggersARefresh(t *testing.
 		require.NoError(t, json.Unmarshal([]byte(data), &snap))
 		require.Len(t, snap.Forges, 1)
 		assert.Equal(t, dashboard.ForgeGitHub, snap.Forges[0].Forge)
-	case <-time.After(2 * time.Second):
+	case <-time.After(pollBudget):
 		t.Fatal("no SSE event received after the webhook-triggered refresh")
 	}
 }
