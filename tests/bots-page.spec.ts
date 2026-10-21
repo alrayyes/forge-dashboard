@@ -176,15 +176,14 @@ test.describe('Bots page (#1192)', () => {
     });
   }
 
-  test('has no axe-core violations and no horizontal scroll at desktop and 390px', async ({
+  // The desktop light scan of these rows is the one in the scheme loop above,
+  // so this test scans only the 390px layout.
+  test('has no axe-core violations and no horizontal scroll at 390px', async ({
     page,
   }) => {
     await mockDashboard(page, SNAPSHOT);
     await page.goto('/bots.html');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
-    expect(
-      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
-    ).toEqual([]);
 
     await page.setViewportSize({ width: 390, height: 844 });
     expect(
