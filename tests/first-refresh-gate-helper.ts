@@ -19,6 +19,9 @@ export function createFirstRefreshGate(timeouts: GateTimeouts = GATE_TIMEOUTS) {
   // Per document: dashboard requests started, and answered.
   let started = 0;
   let served = 0;
+  // Bumped per document, so a handler left over from the one before cannot
+  // count its answer against the next.
+  let generation = 0;
 
   async function until(done: () => boolean, ms: number) {
     const end = Date.now() + ms;
@@ -27,14 +30,21 @@ export function createFirstRefreshGate(timeouts: GateTimeouts = GATE_TIMEOUTS) {
 
   return {
     newDocument() {
+      generation++;
       started = 0;
       served = 0;
     },
-    dashboardStarted() {
+    // Runs one dashboard handler and counts it answered when it settles,
+    // thrown or not, so a failing `route.fulfill` cannot stall later list
+    // reads. An answer that settles after a new document began is dropped.
+    async trackDashboard<T>(handler: () => Promise<T>): Promise<T> {
+      const mine = generation;
       started++;
-    },
-    dashboardServed() {
-      served++;
+      try {
+        return await handler();
+      } finally {
+        if (mine === generation) served++;
+      }
     },
     // Every list read asks, so a second read in the same document is gated
     // like the first. A document that never starts a dashboard request (it
