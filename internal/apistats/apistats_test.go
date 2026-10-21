@@ -220,3 +220,35 @@ func TestTransport_ANilBaseDoesNotShareTheDefaultTransportsConnections(t *testin
 
 	assert.True(t, reused, "the second request should reuse the first one's idle connection")
 }
+
+func TestTally_CollectsOnlyThePointsSpentUnderItsContext(t *testing.T) {
+	t.Parallel()
+
+	srv := okServer(t)
+	c := apistats.New()
+	client := countingClient(c, "github", "app:7")
+	ctx, tally := apistats.WithTally(apistats.WithKind(t.Context(), apistats.KindFull))
+	other := apistats.WithKind(t.Context(), apistats.KindUserAction)
+
+	do(ctx, t, client, http.MethodGet, srv.URL+"/repos/o/n/hooks")
+	do(ctx, t, client, http.MethodPost, srv.URL+"/graphql")
+	c.AddCost(ctx, "github", "app:7", 3)
+	do(other, t, client, http.MethodPut, srv.URL+"/repos/o/n/pulls/1/merge")
+	c.AddCost(other, "github", "app:7", 50)
+
+	assert.Equal(t, apistats.Spent{REST: 1, GraphQL: 3}, tally.Spent())
+}
+
+func TestTally_AnAnswerFromTheCacheCostsNothing(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	t.Cleanup(srv.Close)
+	ctx, tally := apistats.WithTally(t.Context())
+
+	do(ctx, t, countingClient(apistats.New(), "github", "app:7"), http.MethodGet, srv.URL+"/repos/o/n/hooks")
+
+	assert.Equal(t, apistats.Spent{}, tally.Spent())
+}
