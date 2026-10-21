@@ -5,12 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+import { test } from './server-fixture';
 
 // #705: Merge is always on an open pull request's row. Clickable when the
 // forge says it can go, locked with a visible reason when it can't, and
@@ -69,8 +64,8 @@ const rowOf = (page: Page) => page.locator('#pr-rows .row').first();
 
 test.describe('Merge states on a pull request row', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server.
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
   });
