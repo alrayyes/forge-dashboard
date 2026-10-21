@@ -772,3 +772,96 @@ func TestAppClient_EnsureWebhook_BadCredentials_DoesNotBlameThePermission(t *tes
 		})
 	}
 }
+
+// patchRefusedServer lists one hook of this app (subscribed to a single event,
+// so an upgrade has something to add) and refuses the PATCH that edits it.
+func patchRefusedServer(t *testing.T) *httptest.Server {
+	t.Helper()
+
+	mux := appTwoRepoMux(t)
+	mux.HandleFunc("/repos/alrayyes/repo-one/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{
+			"id": 7, "active": true, "events": []string{"issues"},
+			"config": map[string]any{"url": "https://dash.example/api/webhooks/github/t"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/repo-one/hooks/7", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestClient_EditRefused_NamesThePermissionOnlyForAnApp(t *testing.T) {
+	t.Parallel()
+
+	const target = "https://dash.example/api/webhooks/github/t"
+	calls := map[string]func(c *github.Client) error{
+		"EnsureWebhook": func(c *github.Client) error {
+			return c.EnsureWebhook(t.Context(), "alrayyes", "repo-one", target, "s")
+		},
+		"UpgradeWebhook": func(c *github.Client) error {
+			_, err := c.UpgradeWebhook(t.Context(), "alrayyes", "repo-one", target, "s")
+			if err != nil {
+				return fmt.Errorf("upgrade: %w", err)
+			}
+
+			return nil
+		},
+	}
+	for callName, call := range calls {
+		t.Run(callName+"/app", func(t *testing.T) {
+			t.Parallel()
+
+			srv := patchRefusedServer(t)
+			client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+			require.NoError(t, err)
+
+			clientErr, ok := errors.AsType[*dashboard.ClientError](call(client))
+
+			require.True(t, ok)
+			assert.Contains(t, clientErr.PermissionMessage, "Webhooks (Read and write)")
+		})
+		t.Run(callName+"/token", func(t *testing.T) {
+			t.Parallel()
+
+			srv := patchRefusedServer(t)
+			client := github.NewClient("pat-value", "", srv.URL)
+
+			clientErr, ok := errors.AsType[*dashboard.ClientError](call(client))
+
+			require.True(t, ok)
+			assert.Empty(t, clientErr.PermissionMessage)
+		})
+	}
+}
+
+func TestAppClient_PullRequestStateRefused_DoesNotNameTheWebhooksPermission(t *testing.T) {
+	t.Parallel()
+
+	mux := appTwoRepoMux(t)
+	mux.HandleFunc("/repos/alrayyes/repo-one/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+
+	calls := map[string]func() error{
+		"close":  func() error { return client.ClosePullRequest(t.Context(), "alrayyes", "repo-one", 5) },
+		"reopen": func() error { return client.ReopenPullRequest(t.Context(), "alrayyes", "repo-one", 5) },
+	}
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			clientErr, ok := errors.AsType[*dashboard.ClientError](call())
+
+			require.True(t, ok)
+			assert.Empty(t, clientErr.PermissionMessage, "the missing permission is Pull requests, not Webhooks")
+		})
+	}
+}

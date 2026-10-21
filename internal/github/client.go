@@ -613,7 +613,7 @@ func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hoo
 	slog.Debug("github request", "method", http.MethodPatch, "url", path)
 	_, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, id, hook)
 	if err != nil {
-		return asClientError(c.restError(ctx, http.MethodPatch, path, err))
+		return c.appAware(asClientError(c.restError(ctx, http.MethodPatch, path, err)))
 	}
 	c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
 
