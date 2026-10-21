@@ -40,7 +40,6 @@ async function selectForge(page: Page, value: string) {
 
 test.describe('dashboard page', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     // The dashboard page also opens a live-updates EventSource against
     // the real, unmocked /api/dashboard/stream — any test that mocks
     // /api/dashboard itself and then reloads can otherwise have a real
@@ -66,6 +65,7 @@ test.describe('dashboard page', () => {
   test('renders the board and answers real data from /api/dashboard', async ({
     page,
   }) => {
+    await landOnPullRequests(page);
     await expect(page.locator('h1')).toHaveText('Forge Board');
     await expect(page.locator('#pr-count')).not.toHaveText('–');
     // Issues have their own page (#827).
@@ -75,6 +75,7 @@ test.describe('dashboard page', () => {
   test('a user with no background refresh running yet still sees the dashboard, with no error banner', async ({
     page,
   }) => {
+    await landOnPullRequests(page);
     // GET /api/dashboard/stream 404s until Settings has been saved once
     // (no Manager Aggregator running yet) — EventSource retries that on
     // its own, silently, and the poll this page also runs keeps the
@@ -90,6 +91,7 @@ test.describe('dashboard page', () => {
   test('the footer shows the running version, fetched from /api/version', async ({
     page,
   }) => {
+    await landOnPullRequests(page);
     // CI builds the e2e binary with no goreleaser ldflags, so this is
     // always "dev" here — a real release build shows "· vX.Y.Z" linked to
     // the changelog page instead (see web/src/lib/Footer.svelte).
@@ -99,6 +101,7 @@ test.describe('dashboard page', () => {
   test('the footer links the repository as GitHub, with the mark, and has no Source link', async ({
     page,
   }) => {
+    await landOnPullRequests(page);
     const footer = page.locator('footer');
     const link = footer.getByRole('link', { name: 'GitHub', exact: true });
     await expect(link).toHaveAttribute(
@@ -122,7 +125,7 @@ test.describe('dashboard page', () => {
         body: JSON.stringify({ version: '1.2.3' }),
       }),
     );
-    await page.reload();
+    await landOnPullRequests(page);
 
     const versionLink = page.locator('#footer-version a', {
       hasText: 'v1.2.3',
@@ -142,7 +145,7 @@ test.describe('dashboard page', () => {
     await page.route('**/api/version', (route) =>
       route.fulfill({ status: 500 }),
     );
-    await page.reload();
+    await landOnPullRequests(page);
 
     await expect(page.locator('#footer-version')).toBeEmpty();
   });
@@ -179,7 +182,7 @@ test.describe('dashboard page', () => {
       }),
     );
 
-    await page.reload();
+    await landOnPullRequests(page);
 
     const forgeHealth = page.locator('#forge-health');
     await expect(forgeHealth).toContainText('Check the token in Settings.');
@@ -229,7 +232,7 @@ test.describe('dashboard page', () => {
       }),
     );
 
-    await page.reload();
+    await landOnPullRequests(page);
 
     const forgeHealth = page.locator('#forge-health');
     await expect(forgeHealth).toContainText('GitHub unreachable');
@@ -263,7 +266,7 @@ test.describe('dashboard page', () => {
       }),
     );
 
-    await page.reload();
+    await landOnPullRequests(page);
 
     const forgeHealth = page.locator('#forge-health');
     await expect(forgeHealth).toContainText(
@@ -298,7 +301,7 @@ test.describe('dashboard page', () => {
       }),
     );
 
-    await page.reload();
+    await landOnPullRequests(page);
 
     await expect(page.locator('#forge-health')).not.toContainText(
       '4922/5000 requests',
@@ -308,6 +311,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('rate-limit-exceeded banner (#361)', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     test('an exhausted budget shows a prominent banner at the top with a live countdown', async ({
       page,
     }) => {
@@ -542,6 +549,7 @@ test.describe('dashboard page', () => {
   });
 
   test('has no axe-core violations at desktop width', async ({ page }) => {
+    await landOnPullRequests(page);
     await expect(page.locator('#pr-count')).not.toHaveText('–');
 
     const results = await new AxeBuilder({ page })
@@ -555,7 +563,7 @@ test.describe('dashboard page', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.reload();
+    await landOnPullRequests(page);
     await expect(page.locator('#pr-count')).not.toHaveText('–');
 
     const results = await new AxeBuilder({ page })
@@ -753,7 +761,7 @@ test.describe('dashboard page', () => {
         }),
       }),
     );
-    await page.reload();
+    await landOnPullRequests(page);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
     await selectForge(page, 'forgejo');
@@ -807,7 +815,7 @@ test.describe('dashboard page', () => {
         }),
       }),
     );
-    await page.reload();
+    await landOnPullRequests(page);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
     // Unfiltered: just the total.
@@ -823,6 +831,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('theme and filters persist across a reload', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
@@ -1114,6 +1126,10 @@ test.describe('dashboard page', () => {
 
   test.describe('grouping', () => {
     test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
+    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1309,6 +1325,10 @@ test.describe('dashboard page', () => {
 
   test.describe('repo and author filters are selects, title is autocomplete', () => {
     test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
+    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1405,6 +1425,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('the repo/author/label filters and group-by stay consistent with the active forge', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
@@ -1765,6 +1789,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('pagination', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     function makePR(n: number): MockItem {
       return {
         forge: 'github',
@@ -1875,6 +1903,10 @@ test.describe('dashboard page', () => {
 
   test.describe('CI status click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
+    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1955,6 +1987,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('CI pill wording for a passed pipeline', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     function mockOnePR(page: Page, overrides: Partial<MockItem>) {
       return page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
@@ -2023,6 +2059,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('merge status and auto-merge pills', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     function pr(overrides = {}) {
       return {
         forge: 'github',
@@ -2274,6 +2314,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('force-refresh button', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     test('clicking it calls the endpoint and updates the dashboard from its response', async ({
       page,
     }) => {
@@ -2408,6 +2452,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('label click-to-filter', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
@@ -2671,6 +2719,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('label colors', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     test('a label chip renders with its real background color and a contrasting text color', async ({
       page,
     }) => {
@@ -2730,6 +2782,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('Dependency Dashboard filter', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     var DEPENDENCY_DASHBOARD_ISSUE = {
       forge: 'github',
       repo: 'alrayyes/forge-dashboard',
@@ -2853,6 +2909,10 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('Clear filters button (#354)', () => {
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
+    });
+
     var PR_ONE = {
       forge: 'github',
       repo: 'alrayyes/forge-dashboard',
