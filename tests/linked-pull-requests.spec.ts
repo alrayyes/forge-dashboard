@@ -222,6 +222,61 @@ test.describe('the pill on an issue row', () => {
     await expect(page.locator('a.linked-pr')).toHaveCount(0);
   });
 
+  test('the non-link pill looks inert and a click on it reaches the issue title', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [], issues: [issue(1, [linked(12)])] });
+    await page.route('**/api/issues/details*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(details),
+      }),
+    );
+    await page.route('**/api/dashboard?owner=alice*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [{ ...issue(1, [linked(12)]), title: 'Alice’s issue' }],
+        }),
+      }),
+    );
+    await page.route('**/api/sharing', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sharedWithMe: [{ username: 'alice', displayName: 'Alice' }],
+        }),
+      }),
+    );
+    await page.goto('/issues.html');
+    await expect(page.locator('a.linked-pr')).toHaveCount(1);
+    await page
+      .locator('#dashboard-owner-select')
+      .selectOption({ label: 'Alice’s dashboard' });
+    const pill = page.locator('span.linked-pr');
+    await expect(pill).toHaveText('#12 open');
+
+    // Not a pointer, no underline on hover, and no hit area of its own.
+    await pill.hover({ force: true });
+    await expect(pill).toHaveCSS('cursor', 'default');
+    await expect(pill).toHaveCSS('text-decoration-line', 'none');
+    await expect(pill).toHaveCSS('pointer-events', 'none');
+
+    // A click where the pill sits lands on the issue's title instead.
+    const box = await pill.boundingBox();
+    if (!box) throw new Error('the pill has no box');
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(
+      page.getByRole('dialog', { name: /^Issue details/ }),
+    ).toBeVisible();
+  });
+
   test('has no accessibility violations in light, dark and at 390 px', async ({
     page,
   }) => {
