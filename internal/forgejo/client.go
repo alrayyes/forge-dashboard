@@ -1162,14 +1162,22 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 		}
 	}
 
-	// The runs' jobs are read side by side, so a commit with several running
-	// runs doesn't stretch every poll by one round trip each.
-	perRun := make([]int, len(going))
+	running := c.countRunningJobs(ctx, owner, name, going)
+	running = min(running, counts.Waiting)
+	counts.Running += running
+	counts.Waiting -= running
+
+	return counts
+}
+
+// countRunningJobs counts the running jobs of runs. The runs' jobs are read side
+// by side, so a commit with several running runs doesn't stretch every poll by
+// one round trip each. A run whose jobs can't be read counts none.
+func (c *Client) countRunningJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun) int {
+	perRun := make([]int, len(runs))
 	var wg sync.WaitGroup
-	for i, run := range going {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for i, run := range runs {
+		wg.Go(func() {
 			jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 			if err != nil {
 				slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
@@ -1181,18 +1189,16 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 					perRun[i]++
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
-	running := 0
-	for _, n := range perRun {
-		running += n
-	}
-	running = min(running, counts.Waiting)
-	counts.Running += running
-	counts.Waiting -= running
 
-	return counts
+	total := 0
+	for _, n := range perRun {
+		total += n
+	}
+
+	return total
 }
 
 // checkCountsOf tallies the statuses the combined-status answer already

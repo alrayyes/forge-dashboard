@@ -319,7 +319,11 @@ func (s *splitServer) start(t *testing.T) *forgejo.Client {
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/{id}/jobs", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(r.PathValue("id"))
-		require.NoError(t, err)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+			return
+		}
 		s.mu.Lock()
 		s.reads = append(s.reads, id)
 		s.inflight++
