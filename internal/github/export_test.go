@@ -23,9 +23,14 @@ func (c *Client) BaseURLForTest() string { return c.baseURL }
 func (c *Client) ETagTransport() http.RoundTripper { return c.etag }
 
 // NewETagTransport is a caching transport over base for the given credential
-// label, backed by the shared store.
+// label. It gets a store of its own, so no entry outlives the test that made
+// it: the shared store is process-wide, and a repeated run (-count=N) would
+// otherwise find the previous run's entry and send a conditional request.
 func NewETagTransport(base http.RoundTripper, credential string) http.RoundTripper {
-	return newETagTransport(base, credential)
+	rt := newETagTransport(base, credential)
+	rt.store = newETagStore(maxETagEntries, maxETagTotalBytes)
+
+	return rt
 }
 
 // ETagStoreBytes returns the byte total the ETag store tracks and the sum of
