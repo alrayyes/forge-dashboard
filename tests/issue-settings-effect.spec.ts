@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #1630: what the two Settings values do to the Issues page and to Insights.
 // The server removes the matching issues and says how many in
@@ -15,15 +9,6 @@ import { registerViaInvite } from './register-helper';
 // pull request, so /api/dashboard is a stand-in shaped
 // like api/openapi.yaml. Filter state is saved per user: the spec has its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1630
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `issue-settings-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Issue Settings');
-}
 
 function issue(number: number, title: string) {
   return {
@@ -87,8 +72,8 @@ const note = (page: Page) => page.locator('#issue-settings-note');
 const rows = (page: Page) => page.locator('#issue-rows > .row');
 
 test.describe('Issues page follows the settings (#1630)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('with nothing set, both fields are drawn and there is no note', async ({
@@ -372,8 +357,8 @@ test.describe('Issues page follows the settings (#1630)', () => {
 });
 
 test.describe('Insights follows the settings (#1630)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('draws its Dependency Dashboard checkbox with the setting off', async ({

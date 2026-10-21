@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // How many open issues each ignored title pattern hides, beside the pattern in
 // Settings. The server owns the matching and sends ignoredTitleCounts in the
@@ -14,15 +8,6 @@ import { registerViaInvite } from './register-helper';
 // for both, shaped like api/openapi.yaml. The server half is a separate pull
 // request.
 // https://github.com/alrayyes/forge-dashboard/issues/1676
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `settings-counts-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Settings Counts');
-}
 
 interface Options {
   ignoredTitles: string[];
@@ -101,8 +86,8 @@ async function addPattern(page: Page, text: string) {
 }
 
 test.describe('Settings: ignored title counts (#1676)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('says how many issues each pattern hides, in words', async ({

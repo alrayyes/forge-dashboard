@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { type APIRequestContext, expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // Settings is five groups, one shown at a time, the choice in the URL hash.
 // https://github.com/alrayyes/forge-dashboard/issues/1680
@@ -47,15 +46,6 @@ const ANCHORS: Record<string, string> = {
   'api-tokens': 'integrations',
 };
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `settings-groups-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Groups Test');
-}
-
 const cardHeading = (page: Page, name: string) =>
   page.getByRole('heading', { level: 2, name, exact: true });
 const groupLink = (page: Page, label: string) =>
@@ -64,8 +54,8 @@ const groupLink = (page: Page, label: string) =>
     .getByRole('link', { name: new RegExp(`^${label}( |$)`) });
 
 test.describe('settings groups', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('opens on Display with no hash, and an unknown hash does the same', async ({

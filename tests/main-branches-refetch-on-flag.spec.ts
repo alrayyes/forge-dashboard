@@ -1,25 +1,10 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
+import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // The Branches page reads its list once and then every 60 seconds, so a first
 // refresh that finishes in between must make it read again at once.
 // https://github.com/alrayyes/forge-dashboard/issues/1729
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `branches-refetch-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Branches Refetch');
-}
 
 function row(fullName: string) {
   return {
@@ -113,8 +98,8 @@ const askForFlag = (page: Page) =>
   page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 
 test.describe('Branches refetches when the first refresh finishes (#1729)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('shows the rows as soon as the flag turns true, without waiting for the poll', async ({

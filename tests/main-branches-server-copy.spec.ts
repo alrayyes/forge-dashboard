@@ -1,11 +1,5 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #1620: the Branches filter (status, forge, search) follows the account like
 // the other pages' filters: the cookie paints the first frame, the server copy
@@ -69,24 +63,10 @@ const serverCopy = async (page: Page) =>
     await (await page.request.get('/api/settings/filter-state')).json(),
   );
 
-async function signUp(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    `mb-server-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    'Branches Server Copy',
-  );
-  await mock(page);
-}
-
 test.describe('the Branches filter follows the account (#1620)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await signUp(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
+    await mock(page);
     await page.goto('/');
     await expect(rows(page)).toHaveCount(4);
   });

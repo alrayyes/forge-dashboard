@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
 import {
   clearLabels,
   labelButton,
@@ -14,7 +8,7 @@ import {
   pickedLabels,
   toggleLabels,
 } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
 import { setTheme } from './theme-helper';
 
@@ -31,21 +25,6 @@ interface MockItem {
   [key: string]: unknown;
 }
 
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `dashboard-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Dashboard Test User',
-  );
-}
-
 // The forge filter is one of the quick filter pills (#678): toggle buttons
 // with aria-pressed, in a role=group. Value '' is the "All" pill.
 function forgeRadio(page: Page, value: string) {
@@ -60,8 +39,8 @@ async function selectForge(page: Page, value: string) {
 }
 
 test.describe('dashboard page', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
     // The dashboard page also opens a live-updates EventSource against
     // the real, unmocked /api/dashboard/stream — any test that mocks
     // /api/dashboard itself and then reloads can otherwise have a real
@@ -3215,8 +3194,8 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     page.locator('.quick-pills').getByRole('button', { name, exact: true });
   const rowTitles = (page: Page) => page.locator('#pr-rows > .row');
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
     await page.route('**/api/dashboard/stream', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
@@ -3449,8 +3428,8 @@ test.describe('repo group headers: host and sync status (#679)', () => {
     },
   ];
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
     await page.route('**/api/dashboard/stream', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
@@ -3569,8 +3548,8 @@ test.describe('time cells say what they are (#1109)', () => {
     updatedAt: new Date(now - 3600_000).toISOString(),
   };
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
     await page.route('**/api/dashboard/stream', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );

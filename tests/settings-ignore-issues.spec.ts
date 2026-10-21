@@ -1,27 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #1630: the "Issues" section in Settings. The server half (storing, checking
 // and applying the two settings) is a separate pull request, so this spec
 // stands in for GET and PUT /api/settings with the shapes api/openapi.yaml
 // describes. The user is the spec's own: Settings saves per account.
 // https://github.com/alrayyes/forge-dashboard/issues/1630
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `settings-ignore-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Settings Ignore');
-}
 
 interface Stored {
   hideDependencyDashboard: boolean;
@@ -106,8 +91,8 @@ async function addPattern(page: Page, text: string) {
 }
 
 test.describe('Settings: Issues (#1630)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('has a labelled section with the checkbox, an empty state, and the syntax note', async ({
