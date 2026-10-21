@@ -1663,14 +1663,19 @@
           });
           // The row returns with the next snapshot; the dialog goes back to
           // its normal state once it is in.
-          return fetch(withDrafts("/api/dashboard/refresh"), {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data) applySnapshot(data, true);
-            });
+          return (
+            fetch(withDrafts("/api/dashboard/refresh"), {
+              method: "POST",
+              headers: { Accept: "application/json" },
+            })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                if (data) applySnapshot(data, true);
+              })
+              // The forge already took the action. A refresh that fails is not
+              // a failed action: the next poll brings the board up to date.
+              .catch(() => {})
+          );
         })
         .then(() => {
           if (dialogClosed !== closed) return;
@@ -3557,14 +3562,19 @@
             announce: inDialog ? CLOSED_STATUS : "Closed.",
           });
           if (inDialog) showClosedInDialog(item);
-          return fetch(withDrafts("/api/dashboard/refresh"), {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data) applySnapshot(data, true);
-            });
+          return (
+            fetch(withDrafts("/api/dashboard/refresh"), {
+              method: "POST",
+              headers: { Accept: "application/json" },
+            })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                if (data) applySnapshot(data, true);
+              })
+              // The forge already took the action. A refresh that fails is not
+              // a failed action: the next poll brings the board up to date.
+              .catch(() => {})
+          );
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(item, err, fkey, "close", (next) => {

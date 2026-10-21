@@ -50,12 +50,17 @@ type Answer = { status: number; body?: unknown };
 
 // The board follows what the forge would say: a close takes the pull request
 // off it, a successful reopen puts it back.
-async function start(page: Page, reopen: Answer = { status: 204 }) {
+async function start(
+  page: Page,
+  reopen: Answer = { status: 204 },
+  { refreshFails = false }: { refreshFails?: boolean } = {},
+) {
   const state = { onBoard: true, posted: [] as string[] };
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   for (const glob of ['**/api/dashboard*', '**/api/dashboard/refresh*'])
-    await page.route(glob, (route: Route) =>
-      route.fulfill({
+    await page.route(glob, (route: Route) => {
+      if (refreshFails && glob.includes('refresh')) return route.abort();
+      return route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
@@ -66,8 +71,8 @@ async function start(page: Page, reopen: Answer = { status: 204 }) {
           repos: [],
           hiddenDrafts: 0,
         }),
-      }),
-    );
+      });
+    });
   await page.route('**/api/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -285,4 +290,41 @@ test('a forge error on reopen shows its reason with Copy and keeps Reopen to try
   await expect(
     actionsFooter(dialog).getByRole('button', { name: 'Reopen pull request' }),
   ).toBeVisible();
+});
+
+test('a page refresh that fails after a good reopen is not shown as a failed reopen', async ({
+  page,
+}) => {
+  const state = await start(page, { status: 204 }, { refreshFails: true });
+  const dialog = await closeFromDialog(page);
+  await actionsFooter(dialog)
+    .getByRole('button', { name: 'Reopen pull request' })
+    .click();
+
+  await expect(
+    actionsFooter(dialog).getByRole('button', {
+      name: 'Close pull request',
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(dialog.locator('.details-closed')).toHaveCount(0);
+  await expect(actionsFeedback(dialog)).not.toContainText(/fail|retry/i);
+  await expect(
+    actionsFooter(dialog).getByRole('button', { name: /Retry|Reopen/ }),
+  ).toHaveCount(0);
+  expect(state.posted).toEqual(['close', 'reopen']);
+});
+
+test('a page refresh that fails after a good close still shows the closed state', async ({
+  page,
+}) => {
+  const state = await start(page, { status: 204 }, { refreshFails: true });
+  const dialog = await closeFromDialog(page);
+
+  await expect(dialog.locator('.details-closed')).toBeVisible();
+  await expect(
+    actionsFooter(dialog).getByRole('button', { name: 'Reopen pull request' }),
+  ).toBeVisible();
+  await expect(actionsFeedback(dialog)).not.toContainText(/fail|retry/i);
+  expect(state.posted).toEqual(['close']);
 });
