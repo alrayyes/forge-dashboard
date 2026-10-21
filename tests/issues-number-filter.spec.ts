@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // The Issues page's title box also takes a ticket number: `1884` or `#1884`.
 // It is the same box and the same saved filter as the title search, so it
@@ -77,7 +77,6 @@ const box = (page: Page) =>
 
 test.describe('filter the Issues page by ticket number (2155)', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     await open(page);
     await expect(rows(page)).toHaveCount(ISSUES.length);
   });
