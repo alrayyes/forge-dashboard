@@ -67,6 +67,7 @@ const commitRetention = 24 * time.Hour
 type webhookSeen struct {
 	mu      sync.Mutex
 	last    map[seenKey]time.Time
+	stored  map[seenKey]time.Time
 	commits map[commitKey]time.Time
 }
 
@@ -78,6 +79,24 @@ func (w *webhookSeen) mark(key seenKey, at time.Time) {
 		w.last = make(map[seenKey]time.Time)
 	}
 	w.last[key] = at
+}
+
+// persistDue reports whether the store should hear of a delivery at at: no
+// time is stored for key yet, or the stored one is seenWriteInterval old. It
+// notes at as stored when it says yes, so the caller must then write it.
+func (w *webhookSeen) persistDue(key seenKey, at time.Time) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.stored == nil {
+		w.stored = make(map[seenKey]time.Time)
+	}
+	if prev, ok := w.stored[key]; ok && at.Sub(prev) < seenWriteInterval {
+		return false
+	}
+	w.stored[key] = at
+
+	return true
 }
 
 func (w *webhookSeen) get(key seenKey) (time.Time, bool) {
@@ -133,15 +152,24 @@ func (a *Aggregator) restoreWebhookSeen(ctx context.Context) {
 			continue
 		}
 		for _, rec := range recs {
-			a.seen.mark(seenKey{forge, credential, rec.Repo, rec.Class}, rec.At)
+			key := seenKey{forge, credential, rec.Repo, rec.Class}
+			a.seen.mark(key, rec.At)
+			a.seen.persistDue(key, rec.At) // what the store holds already
 		}
 	}
 }
 
-// markSeen records a delivery in memory and in the store.
+// seenWriteInterval is how long a stored delivery time is left as it is. A
+// repo's deliveries arrive in bursts, and the store only has to know roughly
+// when the last one came, so a burst costs one write.
+const seenWriteInterval = time.Minute
+
+// markSeen records a delivery in memory, and in the store unless the stored
+// time for this repo and class is under seenWriteInterval old.
 func (a *Aggregator) markSeen(forge Forge, credential, fullName string, class EventClass, at time.Time) {
-	a.seen.mark(seenKey{forge, credential, fullName, class}, at)
-	if a.seenStore == nil {
+	key := seenKey{forge, credential, fullName, class}
+	a.seen.mark(key, at)
+	if a.seenStore == nil || !a.seen.persistDue(key, at) {
 		return
 	}
 	rec := SeenRecord{Repo: fullName, Class: class, At: at}

@@ -15,8 +15,9 @@ import (
 )
 
 type memBacking struct {
-	mu   sync.Mutex
-	rows map[string]memRow
+	mu      sync.Mutex
+	rows    map[string]memRow
+	touches int
 }
 
 type memRow struct {
@@ -46,6 +47,21 @@ func (m *memBacking) SaveETag(_ context.Context, forge, credential, url, accept,
 	m.rows[m.key(forge, credential, url, accept)] = memRow{etag: etag, body: body, header: header}
 
 	return nil
+}
+
+func (m *memBacking) TouchETag(_ context.Context, _, _, _, _ string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.touches++
+
+	return nil
+}
+
+func (m *memBacking) touched() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.touches
 }
 
 func etagServer(t *testing.T) (srv *httptest.Server, conditional *atomic.Int32) {
@@ -102,4 +118,33 @@ func TestETagTransport_AfterARestart_AnotherCredentialSendsNothing(t *testing.T)
 	getVia(t, github.NewBackedETagTransport(nil, "token:y", backing), srv.URL)
 
 	assert.Zero(t, conditional.Load())
+}
+
+// The persisted row of an entry that keeps answering 304 has to count as used,
+// or it is the first evicted. One touch per interval is enough, so the answers
+// that follow cost no write.
+func TestETagTransport_A304MarksThePersistedRowUsedOncePerInterval(t *testing.T) {
+	t.Parallel()
+	srv, _ := etagServer(t)
+	backing := &memBacking{}
+	getVia(t, github.NewBackedETagTransport(nil, "token:x", backing), srv.URL)
+	restarted := github.NewBackedETagTransport(nil, "token:x", backing)
+
+	getVia(t, restarted, srv.URL)
+	getVia(t, restarted, srv.URL)
+	getVia(t, restarted, srv.URL)
+
+	assert.Equal(t, 1, backing.touched())
+}
+
+func TestETagTransport_AFreshAnswerNeedsNoTouch(t *testing.T) {
+	t.Parallel()
+	srv, _ := etagServer(t)
+	backing := &memBacking{}
+	rt := github.NewBackedETagTransport(nil, "token:x", backing)
+
+	getVia(t, rt, srv.URL)
+	getVia(t, rt, srv.URL)
+
+	assert.Zero(t, backing.touched(), "saving it already stamped it")
 }

@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,9 @@ type memSnapshotCache struct {
 	mu      sync.Mutex
 	rows    map[string][]dashboard.CachedRepo
 	loadErr error
+	// written and removed log every repo a save wrote or removed, in order.
+	written []string
+	removed []string
 }
 
 func (m *memSnapshotCache) LoadSnapshotRepos(_ context.Context, forge dashboard.Forge, credential string) ([]dashboard.CachedRepo, error) {
@@ -27,15 +31,33 @@ func (m *memSnapshotCache) LoadSnapshotRepos(_ context.Context, forge dashboard.
 	return append([]dashboard.CachedRepo(nil), m.rows[string(forge)+"|"+credential]...), m.loadErr
 }
 
-func (m *memSnapshotCache) SaveSnapshotRepos(_ context.Context, forge dashboard.Forge, credential string, repos []dashboard.CachedRepo) error {
+func (m *memSnapshotCache) SaveSnapshotChanges(_ context.Context, forge dashboard.Forge, credential string, changed []dashboard.CachedRepo, removed []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.rows == nil {
 		m.rows = map[string][]dashboard.CachedRepo{}
 	}
-	m.rows[string(forge)+"|"+credential] = append([]dashboard.CachedRepo(nil), repos...)
+	key := string(forge) + "|" + credential
+	var kept []dashboard.CachedRepo
+	for _, r := range m.rows[key] {
+		if !slices.Contains(removed, r.Repo) && !slices.ContainsFunc(changed, func(c dashboard.CachedRepo) bool { return c.Repo == r.Repo }) {
+			kept = append(kept, r)
+		}
+	}
+	m.rows[key] = append(kept, changed...)
+	for _, r := range changed {
+		m.written = append(m.written, r.Repo)
+	}
+	m.removed = append(m.removed, removed...)
 
 	return nil
+}
+
+func (m *memSnapshotCache) writes() (written, removed []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return append([]string(nil), m.written...), append([]string(nil), m.removed...)
 }
 
 // savedByAFirstRun returns a cache holding what a run with pull requests 1 and
@@ -164,4 +186,94 @@ type noReposSource struct{ *flakySource }
 
 func (noReposSource) Fetch(context.Context) dashboard.Result {
 	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
+}
+
+// twoRepoSource answers with one pull request in each of o/a and o/b.
+type twoRepoSource struct {
+	forge    dashboard.Forge
+	mu       sync.Mutex
+	titleOfA string
+	dropB    bool
+}
+
+func (s *twoRepoSource) Forge() dashboard.Forge { return s.forge }
+
+func (s *twoRepoSource) Fetch(context.Context) dashboard.Result {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res := dashboard.Result{Health: dashboard.ForgeHealth{Forge: s.forge, Reachable: true}}
+	res.Repos = []dashboard.Repo{{Forge: s.forge, FullName: "o/a"}}
+	res.PullRequests = []dashboard.PullRequest{{Forge: s.forge, Repo: "o/a", Number: 1, Title: s.titleOfA}}
+	if !s.dropB {
+		res.Repos = append(res.Repos, dashboard.Repo{Forge: s.forge, FullName: "o/b"})
+		res.PullRequests = append(res.PullRequests, dashboard.PullRequest{Forge: s.forge, Repo: "o/b", Number: 2})
+	}
+
+	return res
+}
+
+func (s *twoRepoSource) set(titleOfA string, dropB bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.titleOfA, s.dropB = titleOfA, dropB
+}
+
+func TestAggregator_ARefreshThatFindsARepoUnchangedDoesNotRewriteIt(t *testing.T) {
+	t.Parallel()
+	cache := &memSnapshotCache{}
+	src := &twoRepoSource{forge: dashboard.ForgeGitHub, titleOfA: "one"}
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithSnapshotCache(cache))
+	agg.Refresh(t.Context())
+
+	agg.Refresh(t.Context())
+
+	written, _ := cache.writes()
+	assert.ElementsMatch(t, []string{"o/a", "o/b"}, written, "each repo is written once, by the first refresh")
+}
+
+func TestAggregator_ARefreshRewritesOnlyTheRepoThatChanged(t *testing.T) {
+	t.Parallel()
+	cache := &memSnapshotCache{}
+	src := &twoRepoSource{forge: dashboard.ForgeGitHub, titleOfA: "one"}
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithSnapshotCache(cache))
+	agg.Refresh(t.Context())
+
+	src.set("renamed", false)
+	agg.Refresh(t.Context())
+
+	written, _ := cache.writes()
+	assert.Equal(t, []string{"o/a", "o/b", "o/a"}, written)
+}
+
+func TestAggregator_ARefreshRemovesOnlyTheRepoThatWentAway(t *testing.T) {
+	t.Parallel()
+	cache := &memSnapshotCache{}
+	src := &twoRepoSource{forge: dashboard.ForgeGitHub, titleOfA: "one"}
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithSnapshotCache(cache))
+	agg.Refresh(t.Context())
+
+	src.set("one", true)
+	agg.Refresh(t.Context())
+
+	written, removed := cache.writes()
+	assert.ElementsMatch(t, []string{"o/a", "o/b"}, written)
+	assert.Equal(t, []string{"o/b"}, removed)
+	rows, err := cache.LoadSnapshotRepos(t.Context(), dashboard.ForgeGitHub, "")
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "o/a", rows[0].Repo)
+}
+
+func TestAggregator_AfterARestart_AnUnchangedRepoIsNotRewritten(t *testing.T) {
+	t.Parallel()
+	cache := &memSnapshotCache{}
+	first := dashboard.NewAggregator([]dashboard.Source{&twoRepoSource{forge: dashboard.ForgeGitHub, titleOfA: "one"}}, dashboard.WithSnapshotCache(cache))
+	first.Refresh(t.Context())
+	before, _ := cache.writes()
+
+	restarted := dashboard.NewAggregator([]dashboard.Source{&twoRepoSource{forge: dashboard.ForgeGitHub, titleOfA: "one"}}, dashboard.WithSnapshotCache(cache))
+	restarted.Refresh(t.Context())
+
+	after, _ := cache.writes()
+	assert.Len(t, after, len(before), "what the database holds is already right")
 }

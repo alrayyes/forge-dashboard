@@ -100,6 +100,8 @@ func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if ok && resp.StatusCode == http.StatusNotModified {
+		t.store.used(req.Context(), key)
+
 		return t.servedFromCache(resp, cached), nil
 	}
 

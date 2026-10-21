@@ -102,7 +102,11 @@ type Aggregator struct {
 	// only. restored is set when the snapshot started from it, so a page
 	// has something to show without waiting for the first refresh.
 	snapCache SnapshotCache
-	restored  atomic.Bool
+	// saved is the payload stored for each repo, per forge, so a refresh writes
+	// only what differs. savedMu guards it.
+	savedMu  sync.Mutex
+	saved    map[Forge]map[string][]byte
+	restored atomic.Bool
 	// seenStore keeps the webhook_seen record across restarts; nil keeps it
 	// in memory only.
 	seenStore WebhookSeenStore

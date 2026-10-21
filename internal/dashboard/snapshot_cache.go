@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -55,6 +56,7 @@ func (a *Aggregator) restoreSnapshot(ctx context.Context) {
 			StaleSince: &newest,
 		})
 		a.lastGood[forge] = newest
+		a.rememberSaved(forge, rows)
 		if newest.After(snap.GeneratedAt) {
 			snap.GeneratedAt = newest
 		}
@@ -97,8 +99,12 @@ func addSavedRows(snap *Snapshot, forge Forge, rows []CachedRepo) (newest time.T
 }
 
 // saveSnapshot stores the rows of every forge that was read in full this
-// refresh, one row per repo, replacing what was there so a repo no longer
-// tracked drops out. A forge that failed keeps its earlier rows.
+// refresh, one row per repo. Only a repo whose rows differ from what is
+// stored is written, and a repo no longer tracked is removed. A forge that
+// failed keeps its earlier rows.
+//
+// A repo that did not change keeps the fetch time it was stored with, so after
+// a restart its rows read as old as the last change, never newer than they are.
 func (a *Aggregator) saveSnapshot(ctx context.Context, snap Snapshot) {
 	if a.snapCache == nil {
 		return
@@ -108,10 +114,57 @@ func (a *Aggregator) saveSnapshot(ctx context.Context, snap Snapshot) {
 			continue
 		}
 		rows := snapshotRows(snap, h.Forge)
-		if err := a.snapCache.SaveSnapshotRepos(ctx, h.Forge, a.credentialFor(h.Forge), rows); err != nil {
+		changed, removed := a.savedDiff(h.Forge, rows)
+		if len(changed) == 0 && len(removed) == 0 {
+			continue
+		}
+		if err := a.snapCache.SaveSnapshotChanges(ctx, h.Forge, a.credentialFor(h.Forge), changed, removed); err != nil {
 			slog.Warn("could not save the snapshot", "forge", h.Forge, "error", err)
+
+			continue
+		}
+		a.rememberSaved(h.Forge, rows)
+	}
+}
+
+// rememberSaved notes the payload stored for each of forge's repos, replacing
+// what was noted before.
+func (a *Aggregator) rememberSaved(forge Forge, rows []CachedRepo) {
+	a.savedMu.Lock()
+	defer a.savedMu.Unlock()
+
+	if a.saved == nil {
+		a.saved = make(map[Forge]map[string][]byte)
+	}
+	byRepo := make(map[string][]byte, len(rows))
+	for _, r := range rows {
+		byRepo[r.Repo] = r.Payload
+	}
+	a.saved[forge] = byRepo
+}
+
+// savedDiff splits rows into the ones that are new or differ from what is
+// stored for forge, and the names of the stored repos that rows no longer has.
+func (a *Aggregator) savedDiff(forge Forge, rows []CachedRepo) (changed []CachedRepo, removed []string) {
+	a.savedMu.Lock()
+	defer a.savedMu.Unlock()
+
+	stored := a.saved[forge]
+	now := make(map[string]struct{}, len(rows))
+	for _, r := range rows {
+		now[r.Repo] = struct{}{}
+		if old, ok := stored[r.Repo]; !ok || !bytes.Equal(old, r.Payload) {
+			changed = append(changed, r)
 		}
 	}
+	for repo := range stored {
+		if _, ok := now[repo]; !ok {
+			removed = append(removed, repo)
+		}
+	}
+	slices.Sort(removed)
+
+	return changed, removed
 }
 
 // snapshotRows splits one forge's part of snap into a row per repo.

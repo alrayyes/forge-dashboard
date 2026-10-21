@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 )
 
 const (
@@ -17,6 +18,9 @@ const (
 	maxETagTotalBytes = 32 << 20
 	// maxETagEntries bounds the number of entries.
 	maxETagEntries = 5000
+	// etagTouchInterval is how often a row that keeps answering 304 is marked
+	// used in the backing. Marking it on every 304 would write on each poll.
+	etagTouchInterval = 10 * time.Minute
 )
 
 // etagKey names one cached answer. Credential is a label (apistats.Credential*),
@@ -34,11 +38,17 @@ type etagKey struct {
 type ETagBacking interface {
 	LoadETag(ctx context.Context, forge, credential, url, accept string) (etag string, body []byte, header map[string][]string, ok bool, err error)
 	SaveETag(ctx context.Context, forge, credential, url, accept, etag string, body []byte, header map[string][]string) error
+	// TouchETag marks a stored row as just used, so the least recently used
+	// are the ones the backing evicts.
+	TouchETag(ctx context.Context, forge, credential, url, accept string) error
 }
 
 type etagItem struct {
 	key  etagKey
 	resp cachedResponse
+	// touchedAt is when the backing last saw this entry used; zero if it
+	// hasn't since it was loaded from there.
+	touchedAt time.Time
 }
 
 // etagStore holds cached responses for every Client in the process. It evicts
@@ -69,7 +79,7 @@ func (s *etagStore) get(ctx context.Context, k etagKey) (cachedResponse, bool) {
 	}
 	v, ok := s.load(ctx, k)
 	if ok {
-		s.putMemory(k, v)
+		s.putMemory(k, v, time.Time{})
 	}
 
 	return v, ok
@@ -106,8 +116,36 @@ func (s *etagStore) load(ctx context.Context, k etagKey) (cachedResponse, bool) 
 	return cachedResponse{etag: etag, body: body, header: http.Header(header)}, true
 }
 
+// used notes that k just answered a 304. The backing hears of it at most once
+// per etagTouchInterval.
+func (s *etagStore) used(ctx context.Context, k etagKey) {
+	if s.backing == nil {
+		return
+	}
+	s.mu.Lock()
+	el, ok := s.items[k]
+	if !ok {
+		s.mu.Unlock()
+
+		return
+	}
+	item := el.Value.(*etagItem) //nolint:forcetypeassert // only etagItems are stored
+	now := time.Now()
+	if !item.touchedAt.IsZero() && now.Sub(item.touchedAt) < etagTouchInterval {
+		s.mu.Unlock()
+
+		return
+	}
+	item.touchedAt = now
+	s.mu.Unlock()
+
+	if err := s.backing.TouchETag(ctx, k.forge, k.credential, k.url, k.accept); err != nil {
+		slog.Debug("could not mark the persisted ETag used", "forge", k.forge, "error", err)
+	}
+}
+
 func (s *etagStore) put(ctx context.Context, k etagKey, v cachedResponse) {
-	s.putMemory(k, v)
+	s.putMemory(k, v, time.Now())
 	if s.backing == nil {
 		return
 	}
@@ -116,16 +154,17 @@ func (s *etagStore) put(ctx context.Context, k etagKey, v cachedResponse) {
 	}
 }
 
-func (s *etagStore) putMemory(k etagKey, v cachedResponse) {
+func (s *etagStore) putMemory(k etagKey, v cachedResponse, touched time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if el, ok := s.items[k]; ok {
 		item := el.Value.(*etagItem) //nolint:forcetypeassert // only etagItems are stored
 		s.bytes += len(v.body) - len(item.resp.body)
 		item.resp = v
+		item.touchedAt = touched
 		s.order.MoveToFront(el)
 	} else {
-		s.items[k] = s.order.PushFront(&etagItem{key: k, resp: v})
+		s.items[k] = s.order.PushFront(&etagItem{key: k, resp: v, touchedAt: touched})
 		s.bytes += len(v.body)
 	}
 	for s.order.Len() > s.maxEntries || s.bytes > s.maxBytes {

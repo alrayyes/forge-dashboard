@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -93,8 +94,14 @@ func (c Credentials) RenovateRebaseLabelOrDefault() string {
 type Store struct {
 	db     *sql.DB
 	cipher *Cipher
+	// etagMu guards the two fields below and serialises ETag saves, so the
+	// byte total stays in step with the table.
+	etagMu sync.Mutex
 	// etagCap is the byte cap on the cached bodies; zero means the default.
 	etagCap int
+	// etagBytes is the total size of the cached bodies, kept up to date by
+	// every save and eviction instead of measured from the table each time.
+	etagBytes int
 }
 
 // NewStore wraps db, encrypting and decrypting every token field through

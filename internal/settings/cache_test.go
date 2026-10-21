@@ -75,25 +75,28 @@ func TestStore_ETag_PrunesNothingUnderTheCap(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestStore_SnapshotRepos_SaveReplacesTheForgeAndCredentialRows(t *testing.T) {
+func TestStore_SnapshotRepos_SaveChangesTouchesOnlyWhatItIsGiven(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 	at := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
 	ctx := t.Context()
-	require.NoError(t, store.SaveSnapshotRepos(ctx, dashboard.ForgeGitHub, "c1", []dashboard.CachedRepo{
+	require.NoError(t, store.SaveSnapshotChanges(ctx, dashboard.ForgeGitHub, "c1", []dashboard.CachedRepo{
 		{Repo: "o/a", FetchedAt: at, Payload: []byte(`{"a":1}`)},
+		{Repo: "o/b", FetchedAt: at, Payload: []byte(`{"b":1}`)},
 		{Repo: "o/gone", FetchedAt: at, Payload: []byte(`{}`)},
-	}))
-	require.NoError(t, store.SaveSnapshotRepos(ctx, dashboard.ForgeGitHub, "c2", []dashboard.CachedRepo{{Repo: "o/other", FetchedAt: at, Payload: []byte(`{}`)}}))
+	}, nil))
+	require.NoError(t, store.SaveSnapshotChanges(ctx, dashboard.ForgeGitHub, "c2", []dashboard.CachedRepo{{Repo: "o/other", FetchedAt: at, Payload: []byte(`{}`)}}, nil))
 
-	require.NoError(t, store.SaveSnapshotRepos(ctx, dashboard.ForgeGitHub, "c1", []dashboard.CachedRepo{{Repo: "o/a", FetchedAt: at, Payload: []byte(`{"a":2}`)}}))
+	require.NoError(t, store.SaveSnapshotChanges(ctx, dashboard.ForgeGitHub, "c1",
+		[]dashboard.CachedRepo{{Repo: "o/a", FetchedAt: at, Payload: []byte(`{"a":2}`)}}, []string{"o/gone"}))
 
 	got, err := store.LoadSnapshotRepos(ctx, dashboard.ForgeGitHub, "c1")
 	require.NoError(t, err)
-	require.Len(t, got, 1, "a repo no longer tracked is dropped")
+	require.Len(t, got, 2, "o/gone is removed, o/b is left as it was")
 	assert.Equal(t, "o/a", got[0].Repo)
 	assert.JSONEq(t, `{"a":2}`, string(got[0].Payload))
-	assert.True(t, at.Equal(got[0].FetchedAt))
+	assert.Equal(t, "o/b", got[1].Repo)
+	assert.JSONEq(t, `{"b":1}`, string(got[1].Payload))
 	other, err := store.LoadSnapshotRepos(ctx, dashboard.ForgeGitHub, "c2")
 	require.NoError(t, err)
 	assert.Len(t, other, 1, "another credential is untouched")
