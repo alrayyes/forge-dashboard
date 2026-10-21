@@ -273,6 +273,50 @@ func TestAggregator_PollCI_AWholeRequestFailureFallsBackToAPerRepoRefreshOfEvery
 	assert.Equal(t, []int{1, 1}, []int{src.repoFetchCallCount("alrayyes/a"), src.repoFetchCallCount("alrayyes/b")}, "each repo is read once on its own")
 }
 
+// countingAutoMergeStore counts the sweeps the aggregator runs after a merge.
+type countingAutoMergeStore struct {
+	sweeps atomic.Int32
+}
+
+func (s *countingAutoMergeStore) AutoMergeIntents(context.Context, []byte) (map[string]struct{}, error) {
+	s.sweeps.Add(1)
+
+	return nil, nil
+}
+
+func (s *countingAutoMergeStore) CancelAutoMerge(context.Context, []byte, string, string, int) error {
+	return nil
+}
+
+func TestAggregator_PollCI_ABatchOfRepoMergesRunsTheAfterMergeSweepOnce(t *testing.T) {
+	t.Parallel()
+
+	src := newBatchSource()
+	for i := range 5 {
+		repo := fmt.Sprintf("alrayyes/r%d", i)
+		src.setRepo(repo, []dashboard.PullRequest{pendingPR(repo, 1)})
+	}
+	src.answer = func(refs []dashboard.PullRequestRef) dashboard.PendingResult {
+		var out dashboard.PendingResult
+		for _, ref := range refs {
+			pr := pendingPR(ref.FullName, ref.Number)
+			pr.CI = dashboard.CISuccess
+			out.Pulls = append(out.Pulls, pr)
+		}
+
+		return out
+	}
+	store := &countingAutoMergeStore{}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoMerge([]byte("u"), store)
+	agg.Refresh(t.Context())
+	before := store.sweeps.Load()
+
+	agg.PollCI(t.Context())
+
+	assert.EqualValues(t, 1, store.sweeps.Load()-before, "one snapshot, one notification and one sweep, not one per repo")
+}
+
 func TestAggregator_PollCI_APollThatJoinedAWebhookRefreshStillAdvancesTheBackOff(t *testing.T) {
 	t.Parallel()
 

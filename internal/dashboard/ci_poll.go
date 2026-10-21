@@ -289,8 +289,9 @@ func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq ui
 		closed[pullRequestKey(forge, ref.FullName, ref.Number)] = struct{}{}
 	}
 
+	merges := make([]repoRows, 0, len(repos))
 	for repo := range repos {
-		a.mergeRepoFrom(ctx, forge, repo, seq, nil, func(current Snapshot) ([]PullRequest, []Issue, bool) {
+		merges = append(merges, repoRows{fullName: repo, rows: func(current Snapshot) ([]PullRequest, []Issue, bool) {
 			if a.scopedSeq[repoKey{forge, repo}] > seq {
 				return nil, nil, false
 			}
@@ -302,8 +303,9 @@ func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq ui
 			}
 
 			return repoPullRequestsAfter(current, forge, repo, replaced, closed), issues, true
-		})
+		}})
 	}
+	a.mergeReposFrom(ctx, forge, seq, merges)
 }
 
 // repoPullRequestsAfter is the repo's pull requests in snap with the replaced
