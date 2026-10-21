@@ -285,6 +285,8 @@ for (const scheme of ['light', 'dark'] as const) {
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await open(page, path);
+      // The buttons are in the markup before the script wires them.
+      await expect(page.locator('.row').first()).toBeVisible();
       await choice(page, 'yes').click();
       await expect(choice(page, 'yes')).toHaveAttribute('aria-pressed', 'true');
       const results = await new AxeBuilder({ page })
