@@ -242,6 +242,57 @@ test.describe('pull request details dialog', () => {
     });
   }
 
+  // The links wrap with a long repository name, stay out of each other's way
+  // and are 44px targets on a phone, with a cue other than colour.
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`keeps the header links usable at 390px in ${scheme} mode, with no axe violations`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 780 });
+      await page.emulateMedia({ colorScheme: scheme });
+      const repo = `some-organisation-with-a-long-name/${'a-very-long-repository-name-'.repeat(2)}end`;
+      await mockDashboard(page, [
+        makePR({
+          repo,
+          url: `https://github.com/${repo}/pull/42`,
+        }),
+      ]);
+      await mockDetails(page, details());
+      await page.goto('/pull-requests.html');
+
+      await trigger(page).click();
+      const d = dialog(page);
+      const links = d.locator('.details-ref').getByRole('link');
+      await expect(links).toHaveCount(2);
+      const boxes = [];
+      for (const link of await links.all()) {
+        const b = await link.boundingBox();
+        expect(b?.height).toBeGreaterThanOrEqual(44);
+        expect(b?.width).toBeGreaterThanOrEqual(44);
+        expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
+        boxes.push(b);
+      }
+      const [first, second] = boxes;
+      const apart =
+        (first?.x ?? 0) + (first?.width ?? 0) <= (second?.x ?? 0) ||
+        (first?.y ?? 0) + (first?.height ?? 0) <= (second?.y ?? 0);
+      expect(apart).toBe(true);
+      await expect(links.first()).toHaveCSS(
+        'text-decoration-line',
+        'underline',
+      );
+      const overflow = await d.evaluate(
+        (el) => el.scrollWidth - el.clientWidth,
+      );
+      expect(overflow).toBe(0);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
   test('builds the same links from a Forgejo address', async ({ page }) => {
     await mockDashboard(page, [
       makePR({

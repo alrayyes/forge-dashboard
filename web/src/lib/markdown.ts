@@ -63,7 +63,12 @@ function taskLists(state: StateCore): void {
 // https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls
 // The lookbehind keeps `abc#12`, `a/b/c#12` and `&#12` as text, and the
 // lookahead keeps `#12abc` as text.
-const REFERENCE = /(?<![\w/&#.-])([\w.-]+\/[\w.-]+)?#(\d+)(?![\w-])/g;
+// The owner is the characters a forge allows in one, and a repository of only
+// digits is read as a fraction (`1/2#3`), not a repository. A mention
+// (`@user/team#5`) is left to the forge. `and/or#3` still links: telling it
+// from a real repository would take a lookup the page can't make.
+const REFERENCE =
+  /(?<![\w/&#.@-])([A-Za-z0-9][A-Za-z0-9-]*\/(?!\d+#)[\w.-]+)?#(\d+)(?![\w-])/g;
 
 // Turns references into links to the item on the same forge. Only plain
 // text tokens are touched: code spans and blocks are other token types, and

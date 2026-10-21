@@ -149,6 +149,15 @@ describe('ticket references', () => {
     }
   });
 
+  test('read owner/repo#N as a repository, but not a fraction or a mention', async () => {
+    const link = await renderMarkdown('see and/or#3', { repoUrl });
+    expect(link).toContain('href="https://github.com/and/or/issues/3"');
+    for (const src of ['1/2#3', '@user/team#5']) {
+      const html = await renderMarkdown(src, { repoUrl });
+      expect(html).not.toContain('<a ');
+    }
+  });
+
   test('leave a reference that continues into a word as text', async () => {
     const html = await renderMarkdown('#12abc', { repoUrl });
     expect(html).not.toContain('<a ');

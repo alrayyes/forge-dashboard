@@ -795,6 +795,15 @@
     color: var(--accent);
     overflow-wrap: anywhere;
   }
+  /* The header links are small text where colour alone would be the cue. */
+  .ref-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    min-width: 24px;
+    max-width: 100%;
+    text-decoration: underline;
+  }
   .details-skeleton {
     display: flex;
     flex-direction: column;
@@ -1122,6 +1131,10 @@
     }
     .details-retry,
     .details-open-link {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .ref-link {
       min-height: 44px;
       min-width: 44px;
     }
