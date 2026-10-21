@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { createNoteRenderer, withoutHeading } from "#lib/changelog-notes.js";
+  import {
+    createNoteRenderer,
+    createPlainNotes,
+  } from "#lib/changelog-notes.js";
   import { renderMarkdown } from "#lib/markdown.js";
 
   // One entry per release in CHANGELOG.md, written to /changelog.json at
@@ -44,6 +47,12 @@
   $effect(() => {
     requestNotes(shown);
   });
+  // A render that failed is asked for again a few seconds later, for as long
+  // as the page is open.
+  $effect(() => () => requestNotes.stop());
+
+  // The plain-text fallback, stripped once per release.
+  const plainNotes = createPlainNotes();
 
   // The changelog's dates are calendar days with no time, read as UTC so a
   // reader west of Greenwich doesn't see the day before.
@@ -262,7 +271,7 @@
             <!-- nosemgrep: svelte-at-html -- renderMarkdown() output only: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text -->
             {@html rendered[r.version]}
           {:else}
-            <p class="plain-notes">{withoutHeading(r.notes)}</p>
+            <p class="plain-notes">{plainNotes(r)}</p>
           {/if}
         </div>
       </li>
