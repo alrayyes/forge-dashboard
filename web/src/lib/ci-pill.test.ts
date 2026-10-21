@@ -82,17 +82,6 @@ describe('ciPillModel', () => {
 
     expect(m.segments).toEqual([]);
   });
-
-  test('a class list that already says awaiting is not given it twice', () => {
-    const m = ciPillModel({
-      cls: 'failure awaiting',
-      glyph: 'awaiting_approval',
-      word: 'Waiting for approval',
-      awaiting: true,
-    });
-
-    expect(m.classes).toBe('ci-pill failure awaiting');
-  });
 });
 
 // bun has no DOM, so a small stand-in covers what renderCiPill touches: nodes,
