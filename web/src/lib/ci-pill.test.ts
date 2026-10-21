@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { ciPillModel } from './ci-pill';
 
 const counts = { passed: 8, running: 1, waiting: 2, failed: 3 };
@@ -81,5 +81,147 @@ describe('ciPillModel', () => {
     });
 
     expect(m.segments).toEqual([]);
+  });
+
+  test('a class list that already says awaiting is not given it twice', () => {
+    const m = ciPillModel({
+      cls: 'failure awaiting',
+      glyph: 'awaiting_approval',
+      word: 'Waiting for approval',
+      awaiting: true,
+    });
+
+    expect(m.classes).toBe('ci-pill failure awaiting');
+  });
+});
+
+// bun has no DOM, so a small stand-in covers what renderCiPill touches: nodes,
+// attributes, text, and a class lookup. The browser behaviour is the pill
+// specs; this pins which attributes and lines the renderer decides to add.
+class FakeNode {
+  children: FakeNode[] = [];
+  attrs = new Map<string, string>();
+  className = '';
+  id = '';
+  type = '';
+  innerHTML = '';
+  textContent = '';
+  listeners: string[] = [];
+  constructor(readonly tag: string) {}
+  appendChild(n: FakeNode) {
+    this.children.push(n);
+
+    return n;
+  }
+  setAttribute(k: string, v: string) {
+    this.attrs.set(k, v);
+  }
+  addEventListener(name: string) {
+    this.listeners.push(name);
+  }
+  hasClass(c: string) {
+    return this.className.split(' ').includes(c);
+  }
+  find(c: string): FakeNode | undefined {
+    for (const child of this.children) {
+      if (child.hasClass(c)) return child;
+      const deeper = child.find(c);
+      if (deeper) return deeper;
+    }
+
+    return undefined;
+  }
+  querySelector(sel: string) {
+    return this.find(sel.replace('.', '')) ?? null;
+  }
+}
+
+const fakeDocument = {
+  createElement: (tag: string) => new FakeNode(tag),
+  createElementNS: (_ns: string, tag: string) => new FakeNode(tag),
+  createTextNode: (text: string) => {
+    const n = new FakeNode('#text');
+    n.textContent = text;
+
+    return n;
+  },
+};
+
+describe('renderCiPill', () => {
+  const globals = globalThis as Record<string, unknown>;
+  let render: typeof import('./ci-pill').renderCiPill;
+  let glyphs: typeof import('./ci-pill').checkGlyphElements;
+
+  beforeAll(async () => {
+    globals.document = fakeDocument;
+    globals.HTMLButtonElement = FakeNode;
+    const mod = await import('./ci-pill');
+    render = mod.renderCiPill;
+    glyphs = mod.checkGlyphElements;
+  });
+  afterAll(() => {
+    delete globals.document;
+    delete globals.HTMLButtonElement;
+  });
+
+  const failed = () =>
+    ciPillModel({ cls: 'failure', glyph: 'failure', word: 'Failed', counts });
+  const as = (n: unknown) => n as FakeNode;
+
+  test('a badge adds a hidden line saying the name and hides the sighted word', () => {
+    const pill = as(render(failed()));
+
+    expect(pill.tag).toBe('span');
+    expect(as(pill.find('sr-only')).textContent).toBe(failed().name);
+    expect(as(pill.find('ci-seg-label')).attrs.get('aria-hidden')).toBe('true');
+  });
+
+  test('announce false leaves the badge without the hidden line', () => {
+    const pill = as(render(failed(), { announce: false }));
+
+    expect(pill.find('sr-only')).toBeUndefined();
+    expect(as(pill.find('ci-seg-label')).attrs.has('aria-hidden')).toBe(false);
+  });
+
+  test('a button is named by its model and opens the pipeline', () => {
+    const pill = as(render(failed(), { onOpen: () => {}, id: 'p-1' }));
+
+    expect(pill.tag).toBe('button');
+    expect(pill.type).toBe('button');
+    expect(pill.id).toBe('p-1');
+    expect(pill.attrs.get('aria-label')).toBe(
+      `${failed().name}. Open pipeline`,
+    );
+    expect(pill.listeners).toEqual(['click']);
+    expect(pill.find('sr-only')).toBeUndefined();
+  });
+
+  test('a badge never takes the id', () => {
+    expect(as(render(failed(), { id: 'p-1' })).id).toBe('');
+  });
+
+  test('a plain pill draws its glyph and word, or a dot when it has none', () => {
+    const plain = as(
+      render(ciPillModel({ cls: 'success', glyph: 'success', word: 'Passed' })),
+    );
+    const bare = as(
+      render(ciPillModel({ cls: 'none', glyph: '', word: 'No checks' })),
+    );
+
+    expect(plain.children[0].tag).toBe('svg');
+    expect(plain.children.at(-1)?.textContent).toBe('Passed');
+    expect(bare.children[0].hasClass('dot')).toBe(true);
+  });
+
+  test('every count carries its glyph and is hidden from a screen reader', () => {
+    const seg = as(as(render(failed())).find('ci-seg-waiting'));
+
+    expect(seg.attrs.get('aria-hidden')).toBe('true');
+    expect(seg.children[0].attrs.get('data-glyph')).toBeDefined();
+    expect(seg.children.at(-1)?.textContent).toBe('2');
+  });
+
+  test('checkGlyphElements gives nothing for an unknown state', () => {
+    expect(glyphs('nope')).toEqual([]);
   });
 });

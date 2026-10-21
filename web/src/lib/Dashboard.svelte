@@ -24,11 +24,7 @@
     autoUpdateBadge,
     autoUpdateControl,
   } from "#lib/auto-update.js";
-  import {
-    pillWord,
-    type CheckCounts,
-    checkSegments,
-  } from "#lib/check-counts.js";
+  import type { CheckCounts } from "#lib/check-counts.js";
   import {
     checkGlyphElements,
     ciPillModel,
@@ -827,21 +823,23 @@
     // The details header draws the same pill as a plain badge: it was a
     // snapshot at open, so it opens nothing (interactive = false).
     // The word and the counts a pipeline says, shared by the pull request row
-    // and the pill on an issue row, so the two never word it differently.
-    function ciWords(item: PullRequestItem) {
+    // and the pill on an issue row, so the two never word it differently. A
+    // pipeline that ran says how far it got (#2004, #2074), running, passed or
+    // failed alike; the model draws nothing without the server's counts, which
+    // leaves the plain pill.
+    function ciModel(item: PullRequestItem) {
       const status = item.ci;
       const awaiting = item.awaitingWorkflowApproval === true;
-      const baseLabel = awaiting
-        ? "Waiting for workflow approval"
-        : CI_LABELS[status] || status;
-      // A pipeline that ran says how far it got (#2004, #2074), running, passed
-      // or failed alike: the word, then one count per state that has any, each
-      // with its glyph. The server tallies the counts; nothing is drawn without
-      // them, which leaves the plain pill.
-      const segments =
-        SEGMENTED_CI.has(status) && !awaiting ? checkSegments(item.checks) : [];
-      const label = pillWord(baseLabel, segments);
-      return { status, awaiting, label, segments };
+      const model = ciPillModel({
+        cls: status,
+        glyph: awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
+        word: awaiting
+          ? "Waiting for workflow approval"
+          : CI_LABELS[status] || status,
+        awaiting,
+        counts: SEGMENTED_CI.has(status) ? item.checks : undefined,
+      });
+      return { status, awaiting, model };
     }
     // announce false leaves the words to a name the caller sets, as the pill
     // on an issue row does: the hidden line would otherwise repeat in its text.
@@ -850,14 +848,7 @@
       interactive = true,
       announce = true,
     ): HTMLElement {
-      const { status, awaiting, label, segments } = ciWords(item);
-      const model = ciPillModel({
-        cls: status,
-        glyph: awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
-        word: label,
-        awaiting,
-        counts: segments.length > 0 ? item.checks : undefined,
-      });
+      const { status, model } = ciModel(item);
       // No CI, no pipeline to open: a plain badge (#1139). Given a stable id:
       // openPipelineDialog's "close" handler refocuses it by this id once a
       // later render has rebuilt the row.
@@ -875,9 +866,13 @@
     // pill.
     function linkedCi(pr: LinkedPullRequest): PillCi | null {
       const item = pr as unknown as PullRequestItem;
-      const { awaiting, label, segments } = ciWords(item);
-      if (segments.length === 0 && !awaiting) return null;
-      return { badge: ciPill(item, false, false), label, segments };
+      const { awaiting, model } = ciModel(item);
+      if (model.segments.length === 0 && !awaiting) return null;
+      return {
+        badge: ciPill(item, false, false),
+        label: model.word,
+        segments: model.segments,
+      };
     }
 
     // A link out to the checks page, where GitHub's own button approves the

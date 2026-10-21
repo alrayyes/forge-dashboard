@@ -89,7 +89,8 @@
   const rowKey = (b: MainBranch) => `${b.forge}:${b.fullName}`;
 
   // Redrawn when the branch's status or counts change, which the live refresh
-  // brings. A focused pill keeps its focus across the redraw.
+  // brings. A focused pill keeps its focus across the redraw, and so does the panel's
+  // way back to it.
   function drawPill(
     host: HTMLElement,
     b: MainBranch,
@@ -103,10 +104,13 @@
       segmented: SEGMENTED_STATUSES.has(b.status),
     });
     const hadFocus = host.contains(document.activeElement);
+    const old = host.firstElementChild;
     const pill = renderCiPill(model, {
       onOpen: () => openPipeline(b, pill),
     });
     host.replaceChildren(pill);
+    // An open panel gives focus back to the pill that opened it.
+    if (old instanceof HTMLElement) pipeline?.replaceOpener(old, pill);
     if (hadFocus) pill.focus();
   }
 

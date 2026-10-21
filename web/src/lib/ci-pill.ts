@@ -48,7 +48,8 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
     input.segmented === false || awaiting ? [] : checkSegments(input.counts);
   const word = pillWord(input.word, segments);
   const segmented = segments.length > 0;
-  const held = awaiting && !input.cls.includes('awaiting') ? ' awaiting' : '';
+  const held =
+    awaiting && !input.cls.split(' ').includes('awaiting') ? ' awaiting' : '';
   const classes = `ci-pill ${input.cls}${held}${segmented ? ' segmented' : ''}`;
 
   return {

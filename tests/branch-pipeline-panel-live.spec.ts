@@ -175,6 +175,24 @@ test.describe('main branches pipeline panel updates live', () => {
     ).toBeFocused();
   });
 
+  test('closing the panel after the row redrew its pill returns focus to the pill', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    state.row = PASSED;
+    state.checks = DONE;
+    await poll(page);
+    await expect(panel(page).getByRole('listitem').nth(1)).toContainText(
+      'Passed',
+    );
+
+    await panel(page).getByRole('button', { name: /close/i }).click();
+
+    await expect(
+      page.getByRole('button', { name: /^Passed.*open pipeline/i }),
+    ).toBeFocused();
+  });
+
   test('a failed live read says so and the next poll reads again', async ({
     page,
   }) => {
