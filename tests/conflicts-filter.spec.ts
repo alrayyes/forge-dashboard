@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #1215: a Conflicts quick filter lists only the pull requests whose
 // `mergeStatus` is `conflicting`, so they can be fixed in one pass. The page
@@ -58,7 +58,6 @@ const rows = (page: Page) => page.locator('#pr-rows > .row');
 
 test.describe('Conflicts quick filter (#1215)', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -68,7 +67,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
     page,
   }) => {
     await mockDashboard(page, MIXED);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(rows(page)).toHaveCount(4);
 
     await pill(page, 'Conflicts').click();
@@ -96,7 +95,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
     page,
   }) => {
     await mockDashboard(page, MIXED);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await pill(page, 'Conflicts').click();
     // Another pill (the forge ones count as pills too) replaces it.
     await pill(page, 'GitHub').click();
@@ -113,7 +112,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
     page,
   }) => {
     await mockDashboard(page, MIXED);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await pill(page, 'Conflicts').click();
     // The click saves in the background; a reload before it lands would load
     // the older copy (#900).
@@ -136,7 +135,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
     page,
   }) => {
     await mockDashboard(page, MIXED);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await pill(page, 'Conflicts').click();
     await expect(rows(page)).toHaveCount(2);
     // The click saves in the background; wait for it before the data changes.
@@ -172,7 +171,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
       makePR(2),
       makePR(3, { mergeStatus: 'unknown' }),
     ]);
-    await page.reload();
+    await page.goto('/pull-requests.html');
 
     await expect(pill(page, 'Conflicts')).toBeHidden();
     await expect(pill(page, 'All')).toBeVisible();
@@ -180,7 +179,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
 
   test('has no axe-core violations with the pill active', async ({ page }) => {
     await mockDashboard(page, MIXED);
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await pill(page, 'Conflicts').click();
     await expect(rows(page)).toHaveCount(2);
 
