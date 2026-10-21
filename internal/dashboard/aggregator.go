@@ -430,25 +430,16 @@ func (a *Aggregator) refreshBackground(ctx context.Context) {
 // a caller that knows why it refreshed (a webhook delivery's id and pull
 // request number) can have the failure say so (#966).
 func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
-	ran, _ := a.refreshRepo(ctx, forge, owner, name, fullName, attrs...)
-
-	return ran
-}
-
-// refreshRepo is RefreshRepo that also says whether a fetch of its own succeeded
-// and was merged. It is false when the fetch failed, and when the call joined a
-// refresh already in flight instead of making one.
-func (a *Aggregator) refreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) (ran, merged bool) {
 	refresher := a.repoRefresherFor(forge)
 	if refresher == nil {
-		return false, false
+		return false
 	}
 	if kind := apistats.KindFrom(ctx); kind == apistats.KindUnknown || kind == apistats.KindScopedWebhook {
 		if spent := a.budgetHold(a.Get(), forge, apistats.KindScopedWebhook); spent {
 			// A budget with nothing left can't answer. Reporting the refresh
 			// as run keeps the caller from falling back to a full one, which
 			// costs more; the next full refresh picks the change up.
-			return true, false
+			return true
 		}
 	}
 
@@ -462,10 +453,18 @@ func (a *Aggregator) refreshRepo(ctx context.Context, forge Forge, owner, name, 
 			return
 		}
 		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName))
-		merged = true
 	})
 
-	return true, merged
+	return true
+}
+
+// mergedSince reports whether a scoped refresh of forge/fullName has been merged
+// whose fetch began after the sequence number since.
+func (a *Aggregator) mergedSince(forge Forge, fullName string, since uint64) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.scopedSeq[repoKey{forge, fullName}] > since
 }
 
 // scopedRefreshContext tags a one-repo fetch with the repo, and with a webhook
@@ -531,17 +530,50 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 // they replace. rows is given the current snapshot under the same hold of mu
 // that writes the result, and returns false to drop the write.
 func (a *Aggregator) mergeRepoFrom(ctx context.Context, forge Forge, fullName string, seq uint64, branch *MainBranch, rows func(current Snapshot) ([]PullRequest, []Issue, bool)) {
+	a.mergeReposFrom(ctx, forge, seq, []repoRows{{fullName: fullName, branch: branch, rows: rows}})
+}
+
+// repoRows is one repo's share of a merge: its main branch row, if any, and the
+// rows to write in place of its own.
+type repoRows struct {
+	fullName string
+	branch   *MainBranch
+	rows     func(current Snapshot) ([]PullRequest, []Issue, bool)
+}
+
+// mergeReposFrom is mergeRepoFrom for several repos of one forge at once: every
+// repo is merged into the snapshot under one hold of mu, and the subscribers are
+// told and the after-merge sweeps run once for the lot, not once per repo.
+func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64, repos []repoRows) {
 	a.checkDependabotAcks(ctx)
 
 	a.mu.Lock()
-	current := a.snap
-	prs, issues, ok := rows(current)
-	if !ok {
+	merged := a.snap
+	wrote := false
+	for _, r := range repos {
+		prs, issues, ok := r.rows(merged)
+		if !ok {
+			continue
+		}
+		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues)
+		wrote = true
+	}
+	if !wrote {
 		a.mu.Unlock()
 
 		return
 	}
+	a.snap = merged
+	a.mu.Unlock()
 
+	a.notify(merged)
+	a.runAutoUpdateBranch(ctx, merged)
+	a.runAutoMerge(ctx, merged)
+}
+
+// mergedRepo is current with forge/fullName's own entries replaced by prs and
+// issues. The caller holds mu and writes the result back.
+func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue) Snapshot {
 	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
@@ -568,12 +600,8 @@ func (a *Aggregator) mergeRepoFrom(ctx context.Context, forge Forge, fullName st
 	// holds leaves no gap between the two (#976).
 	a.annotateBotRequests(merged.PullRequests)
 	a.scopedSeq[repoKey{forge, fullName}] = seq
-	a.snap = merged
-	a.mu.Unlock()
 
-	a.notify(merged)
-	a.runAutoUpdateBranch(ctx, merged)
-	a.runAutoMerge(ctx, merged)
+	return merged
 }
 
 // withMainBranch is rows with forge/fullName's row replaced by branch, or rows

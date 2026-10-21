@@ -331,6 +331,7 @@ type PendingResult struct {
 // instead of one scoped refresh per repo. Checked by type assertion, like
 // RepoRefresher; a Source without it keeps the per-repo refresh. One ref the
 // forge cannot answer lands in PendingResult.Failed and does not fail the call.
+// A call that fails part way returns the answers it already has beside the error.
 type PendingCheckRefresher interface {
 	RefreshPending(ctx context.Context, refs []PullRequestRef) (PendingResult, error)
 }

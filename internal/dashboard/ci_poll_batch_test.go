@@ -2,8 +2,10 @@ package dashboard_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,8 +24,11 @@ type batchSource struct {
 	// answer builds the reply for a batch; nil echoes the stored pull requests.
 	answer func(refs []dashboard.PullRequestRef) dashboard.PendingResult
 	// err, when set, makes RefreshPending fail as a whole.
-	err   error
-	hooks map[string][]string
+	err error
+	// partial is what a failing call still returns beside err: the chunks that
+	// were answered before it failed.
+	partial dashboard.PendingResult
+	hooks   map[string][]string
 }
 
 func newBatchSource() *batchSource {
@@ -35,7 +40,7 @@ func (b *batchSource) RefreshPending(_ context.Context, refs []dashboard.PullReq
 	b.batches = append(b.batches, refs)
 	b.bmu.Unlock()
 	if b.err != nil {
-		return dashboard.PendingResult{}, b.err
+		return b.partial, b.err
 	}
 	if b.answer != nil {
 		return b.answer(refs), nil
@@ -210,6 +215,146 @@ func TestAggregator_PollCI_OneFailedAliasFallsBackToAPerRepoRefreshAndKeepsTheRe
 			assert.Equal(t, dashboard.CISuccess, pr.CI)
 		}
 	}
+}
+
+func TestAggregator_PollCI_AFailedChunkStillMergesTheChunksAnsweredBeforeIt(t *testing.T) {
+	t.Parallel()
+
+	src := newBatchSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{pendingPR("alrayyes/a", 1)})
+	src.setRepo("alrayyes/b", []dashboard.PullRequest{pendingPR("alrayyes/b", 1)})
+	done := pendingPR("alrayyes/a", 1)
+	done.CI = dashboard.CISuccess
+	src.partial = dashboard.PendingResult{Pulls: []dashboard.PullRequest{done}}
+	src.err = errors.New("second chunk: 502")
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	for _, pr := range agg.Get().PullRequests {
+		if pr.Repo == "alrayyes/a" {
+			assert.Equal(t, dashboard.CISuccess, pr.CI, "the answered chunk was merged, not thrown away")
+		}
+	}
+	assert.Equal(t, 0, src.repoFetchCallCount("alrayyes/a"), "an answered pull request is not read again")
+}
+
+func TestAggregator_PollCI_AFailedChunkFallsBackToAPerRepoRefreshForWhatItDidNotAnswer(t *testing.T) {
+	t.Parallel()
+
+	src := newBatchSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{pendingPR("alrayyes/a", 1)})
+	src.setRepo("alrayyes/b", []dashboard.PullRequest{pendingPR("alrayyes/b", 1)})
+	done := pendingPR("alrayyes/a", 1)
+	done.CI = dashboard.CISuccess
+	src.partial = dashboard.PendingResult{Pulls: []dashboard.PullRequest{done}}
+	src.err = errors.New("second chunk: 502")
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/b"))
+}
+
+func TestAggregator_PollCI_AWholeRequestFailureFallsBackToAPerRepoRefreshOfEveryDueRepo(t *testing.T) {
+	t.Parallel()
+
+	src := newBatchSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{pendingPR("alrayyes/a", 1)})
+	src.setRepo("alrayyes/b", []dashboard.PullRequest{pendingPR("alrayyes/b", 1)})
+	src.err = errors.New("502")
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, []int{1, 1}, []int{src.repoFetchCallCount("alrayyes/a"), src.repoFetchCallCount("alrayyes/b")}, "each repo is read once on its own")
+}
+
+// countingAutoMergeStore counts the sweeps the aggregator runs after a merge.
+type countingAutoMergeStore struct {
+	sweeps atomic.Int32
+}
+
+func (s *countingAutoMergeStore) AutoMergeIntents(context.Context, []byte) (map[string]struct{}, error) {
+	s.sweeps.Add(1)
+
+	return nil, nil
+}
+
+func (s *countingAutoMergeStore) CancelAutoMerge(context.Context, []byte, string, string, int) error {
+	return nil
+}
+
+func TestAggregator_PollCI_ABatchOfRepoMergesRunsTheAfterMergeSweepOnce(t *testing.T) {
+	t.Parallel()
+
+	src := newBatchSource()
+	for i := range 5 {
+		repo := fmt.Sprintf("alrayyes/r%d", i)
+		src.setRepo(repo, []dashboard.PullRequest{pendingPR(repo, 1)})
+	}
+	src.answer = func(refs []dashboard.PullRequestRef) dashboard.PendingResult {
+		var out dashboard.PendingResult
+		for _, ref := range refs {
+			pr := pendingPR(ref.FullName, ref.Number)
+			pr.CI = dashboard.CISuccess
+			out.Pulls = append(out.Pulls, pr)
+		}
+
+		return out
+	}
+	store := &countingAutoMergeStore{}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoMerge([]byte("u"), store)
+	agg.Refresh(t.Context())
+	before := store.sweeps.Load()
+
+	agg.PollCI(t.Context())
+
+	assert.EqualValues(t, 1, store.sweeps.Load()-before, "one snapshot, one notification and one sweep, not one per repo")
+}
+
+func TestAggregator_PollCI_APollThatJoinedAWebhookRefreshStillAdvancesTheBackOff(t *testing.T) {
+	t.Parallel()
+
+	clock := newPollClock()
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{pendingPR("alrayyes/a", 1)})
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+	var fetches atomic.Int32
+	src.onFetchRepo = func(string) {
+		if fetches.Add(1) == 1 {
+			started <- struct{}{}
+			<-release
+		}
+	}
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithCIPollInterval(pollBase))
+	agg.Refresh(t.Context())
+	go agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	<-started
+	polled := make(chan struct{})
+	go func() {
+		agg.PollCI(t.Context())
+		close(polled)
+	}()
+	// Give the poll time to reach the in-flight refresh and wait on it.
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	<-polled
+
+	// The joined poll counts as the first. The second, a minute on, reads the
+	// pull request unchanged and doubles the gap, so the third finds it not due.
+	clock.advance(pollBase)
+	agg.PollCI(t.Context())
+	afterSecond := src.repoFetchCallCount("alrayyes/a")
+	clock.advance(pollBase)
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, afterSecond, src.repoFetchCallCount("alrayyes/a"))
 }
 
 func TestAggregator_PollCI_SpentForgeMakesNoBatchedRequest(t *testing.T) {

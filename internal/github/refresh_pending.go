@@ -18,13 +18,15 @@ const pendingChunkSize = 25
 // pendingChunkSize of them rather than one query per repo. A pull request that
 // has merged or closed since it was last read comes back in Closed, and one
 // whose branch of the query errored (a repo that is gone, an app that no longer
-// reaches it) in Failed, so the caller can fall back for those alone.
+// reaches it) in Failed, so the caller can fall back for those alone. When a
+// later chunk errors, the result holds what the earlier chunks answered along
+// with the error, so the calls already spent are not thrown away.
 func (c *Client) RefreshPending(ctx context.Context, refs []dashboard.PullRequestRef) (dashboard.PendingResult, error) {
 	var result dashboard.PendingResult
 	for start := 0; start < len(refs); start += pendingChunkSize {
 		chunk := refs[start:min(start+pendingChunkSize, len(refs))]
 		if err := c.refreshPendingChunk(ctx, chunk, &result); err != nil {
-			return dashboard.PendingResult{}, err
+			return result, err
 		}
 	}
 

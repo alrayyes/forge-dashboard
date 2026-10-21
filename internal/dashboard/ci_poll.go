@@ -149,9 +149,11 @@ func (a *Aggregator) pollForge(ctx context.Context, forge Forge, due []pendingIt
 }
 
 // pollBatched asks the source about every due pull request at once and merges
-// the answer. A ref the source could not answer is refreshed on its own repo;
-// a failure of the whole request is logged, reads nothing, and is retried at the
-// next tick.
+// the answer. A ref the source could not answer is refreshed on its own repo.
+// So is every ref a failed request left unanswered, all of them when the whole
+// request failed and the later ones when only a later chunk did: the answers
+// that did arrive are kept and merged, and a failure never costs the next tick
+// the same batched request again.
 func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCheckRefresher, due []pendingItem) []polledPR {
 	refs := make([]PullRequestRef, len(due))
 	byKey := make(map[string]pendingItem, len(due))
@@ -164,15 +166,24 @@ func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCh
 	res, err := src.RefreshPending(ctx, refs)
 	if err != nil {
 		slog.Warn("pending check refresh failed", "forge", forge, "pull_requests", len(refs), "error", err)
-
-		return nil
 	}
 	a.mergePendingResult(ctx, forge, seq, res)
 
-	// What the poll read is judged by its own answer, not by the snapshot after
-	// it: a webhook refresh landing meanwhile changes the snapshot, not what this
-	// poll found.
-	var read []polledPR
+	read, failed := judgePending(forge, byKey, res)
+	if err != nil {
+		failed = append(failed, unanswered(due, read, failed)...)
+	}
+
+	return append(read, a.refreshEachRepo(ctx, forge, failed)...)
+}
+
+// judgePending sorts a PendingResult by the pull requests it was asked about:
+// those it read, and those it could not answer.
+//
+// What the poll read is judged by its own answer, not by the snapshot after it:
+// a webhook refresh landing meanwhile changes the snapshot, not what this poll
+// found.
+func judgePending(forge Forge, byKey map[string]pendingItem, res PendingResult) (read []polledPR, failed []pendingItem) {
 	for _, pr := range res.Pulls {
 		if it, ok := byKey[pullRequestKey(forge, pr.Repo, pr.Number)]; ok {
 			read = append(read, polledPR{item: it, changed: pollFingerprint(pr) != it.fingerprint})
@@ -183,15 +194,31 @@ func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCh
 			read = append(read, polledPR{item: it, changed: true})
 		}
 	}
-
-	var failed []pendingItem
 	for _, ref := range res.Failed {
 		if it, ok := byKey[pullRequestKey(forge, ref.FullName, ref.Number)]; ok {
 			failed = append(failed, it)
 		}
 	}
 
-	return append(read, a.refreshEachRepo(ctx, forge, failed)...)
+	return read, failed
+}
+
+// unanswered is the due items that are in neither read nor failed: what a
+// request that failed part way never got to.
+func unanswered(due []pendingItem, read []polledPR, failed []pendingItem) []pendingItem {
+	answered := make(map[string]struct{}, len(read)+len(failed))
+	for _, r := range read {
+		answered[r.item.key()] = struct{}{}
+	}
+	for _, it := range failed {
+		answered[it.key()] = struct{}{}
+	}
+
+	return slices.DeleteFunc(slices.Clone(due), func(it pendingItem) bool {
+		_, done := answered[it.key()]
+
+		return done
+	})
 }
 
 // refreshEachRepo re-reads the repos of items, one scoped refresh per repo
@@ -235,7 +262,11 @@ func (a *Aggregator) refreshRepoOf(ctx context.Context, forge Forge, group []pen
 		}
 		ctx = apistats.WithKind(ctx, kind)
 	}
-	if _, merged := a.refreshRepo(ctx, forge, first.Owner, first.Name, first.FullName); !merged {
+	// A call that joined a refresh already in flight ran no fetch of its own, but
+	// the coalescer guarantees the run it waited for began after this call did, so
+	// a merge newer than this sequence number is a read this poll can count.
+	since := a.fetchSeq.Add(1)
+	if !a.RefreshRepo(ctx, forge, first.Owner, first.Name, first.FullName) || !a.mergedSince(forge, first.FullName, since) {
 		return nil
 	}
 
@@ -274,8 +305,9 @@ func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq ui
 		closed[pullRequestKey(forge, ref.FullName, ref.Number)] = struct{}{}
 	}
 
+	merges := make([]repoRows, 0, len(repos))
 	for repo := range repos {
-		a.mergeRepoFrom(ctx, forge, repo, seq, nil, func(current Snapshot) ([]PullRequest, []Issue, bool) {
+		merges = append(merges, repoRows{fullName: repo, rows: func(current Snapshot) ([]PullRequest, []Issue, bool) {
 			if a.scopedSeq[repoKey{forge, repo}] > seq {
 				return nil, nil, false
 			}
@@ -287,8 +319,9 @@ func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq ui
 			}
 
 			return repoPullRequestsAfter(current, forge, repo, replaced, closed), issues, true
-		})
+		}})
 	}
+	a.mergeReposFrom(ctx, forge, seq, merges)
 }
 
 // repoPullRequestsAfter is the repo's pull requests in snap with the replaced
