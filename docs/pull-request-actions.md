@@ -621,7 +621,7 @@ approval and a cancelled run are in none of the four, because the CI state
 doesn't treat them as failures while others still run. On Forgejo the
 statuses only say pending, so when any are pending the server also reads the
 jobs of the runs on the commit that are running (one call for the runs, one
-per running run, read side by side), and the running jobs show as running. A
+per running run, read side by side), and the jobs in progress show as running. A
 queued or blocked run isn't read, a commit with a pull request run leaves its
 push run out so no job counts twice, and a commit with no pending check makes
 no extra call.
