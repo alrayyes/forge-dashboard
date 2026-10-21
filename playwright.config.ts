@@ -143,6 +143,11 @@ const singleUserSpecs = [
   '**/phone-card-action-row.spec.ts',
   '**/profile-links.spec.ts',
   '**/pr-auto-update.spec.ts',
+  '**/pull-request-reopen.spec.ts',
+  '**/transient-failure-clears.spec.ts',
+  '**/shared-dashboard-read.spec.ts',
+  '**/card-spacing.spec.ts',
+  '**/page-widths.spec.ts',
 ];
 
 export default defineConfig({

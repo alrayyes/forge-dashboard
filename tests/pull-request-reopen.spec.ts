@@ -5,22 +5,19 @@ import {
   actionsFooter,
   openActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // After a Close from the details dialog the dialog stays open on the pull
 // request, says it is closed and offers Reopen as the undo, with no timer. The
 // forge decides whether a reopen is possible, so a refusal is shown in words
 // with no Reopen left. Mocks /api/dashboard, the details endpoint and the
-// close and reopen endpoints only, so it starts from the shared session.
+// close and reopen endpoints only, so it needs no second user.
 //
 // Undo over a confirm step, and a status line over a toast:
 // https://developer.gnome.org/hig/patterns/feedback/dialogs.html
 // https://notes.andymatuschak.org/zXH4ASvHNz488hCNgrBjQJK
 // https://www.w3.org/WAI/ARIA/apg/practices/names-and-descriptions/ and
 // https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Roles/status_role
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
 const now = new Date().toISOString();
 
 const pr = {
