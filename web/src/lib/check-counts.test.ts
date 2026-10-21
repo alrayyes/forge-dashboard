@@ -105,6 +105,18 @@ describe('checkSegments with skipped', () => {
 });
 
 describe('skipped held to passed', () => {
+  test('reads a negative skipped as none', () => {
+    expect(
+      checkSegments({
+        passed: 5,
+        skipped: -2,
+        running: 0,
+        waiting: 0,
+        failed: 0,
+      }),
+    ).toEqual([{ kind: 'passed', n: 5 }]);
+  });
+
   test('never draws more skipped than passed', () => {
     expect(
       checkSegments({

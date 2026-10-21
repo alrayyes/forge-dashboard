@@ -4,10 +4,11 @@ import { test } from './server-fixture';
 
 // Every CI pill shows how many of its passed checks were skipped, with the
 // pipeline dialog's word for it, on the pull request, bot, Main branches and
-// Issues pages alike. Skipped sits inside passed on the wire, so the passed
-// count still adds up to the checks the dialog lists; the pill draws it as a
-// segment of its own, drops the passed segment when nothing really passed, and
-// draws nothing for a run with none skipped. The server tallies the counts;
+// Issues pages alike. Skipped sits inside passed on the wire, so the pill
+// draws passed without the skipped ones (8 passed with 2 skipped reads 6 and
+// 2) and skipped as a segment of its own; the two add up to the wire's passed.
+// It drops the passed segment when every pass was skipped, and draws nothing
+// for a run with none skipped. The server tallies the counts;
 // the page only draws them.
 // https://github.com/alrayyes/forge-dashboard/issues/2145
 

@@ -61,7 +61,7 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
   if (!counts) return [];
   // Skipped is part of passed, so it can never exceed it; a larger figure is
   // a mistake upstream and is held to passed rather than drawn as a contradiction.
-  const skipped = Math.min(counts.skipped ?? 0, counts.passed);
+  const skipped = Math.max(0, Math.min(counts.skipped ?? 0, counts.passed));
 
   return CHECK_KINDS.flatMap((kind) => {
     const n =
