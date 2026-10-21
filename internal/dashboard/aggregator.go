@@ -377,9 +377,18 @@ func (a *Aggregator) Refresh(ctx context.Context) {
 // a caller that knows why it refreshed (a webhook delivery's id and pull
 // request number) can have the failure say so (#966).
 func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
+	ran, _ := a.refreshRepo(ctx, forge, owner, name, fullName, attrs...)
+
+	return ran
+}
+
+// refreshRepo is RefreshRepo that also says whether a fetch of its own succeeded
+// and was merged. It is false when the fetch failed, and when the call joined a
+// refresh already in flight instead of making one.
+func (a *Aggregator) refreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) (ran, merged bool) {
 	refresher := a.repoRefresherFor(forge)
 	if refresher == nil {
-		return false
+		return false, false
 	}
 
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
@@ -392,9 +401,10 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 			return
 		}
 		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName))
+		merged = true
 	})
 
-	return true
+	return true, merged
 }
 
 // scopedRefreshContext tags a one-repo fetch with the repo, and with a webhook
@@ -451,10 +461,25 @@ func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, for
 // before the lock was released let the later write drop the earlier one's
 // repo (#966).
 func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue, branch *MainBranch) {
+	a.mergeRepoFrom(ctx, forge, fullName, seq, branch, func(Snapshot) ([]PullRequest, []Issue, bool) {
+		return prs, issues, true
+	})
+}
+
+// mergeRepoFrom is mergeRepo for a caller whose rows depend on the snapshot
+// they replace. rows is given the current snapshot under the same hold of mu
+// that writes the result, and returns false to drop the write.
+func (a *Aggregator) mergeRepoFrom(ctx context.Context, forge Forge, fullName string, seq uint64, branch *MainBranch, rows func(current Snapshot) ([]PullRequest, []Issue, bool)) {
 	a.checkDependabotAcks(ctx)
 
 	a.mu.Lock()
 	current := a.snap
+	prs, issues, ok := rows(current)
+	if !ok {
+		a.mu.Unlock()
+
+		return
+	}
 
 	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {

@@ -16,9 +16,15 @@ type pendingItem struct {
 	kind apistats.Kind
 	// ciPending is whether a check is still running, as opposed to the pull
 	// request being polled only because its auto-merge is armed.
-	ciPending   bool
+	ciPending bool
+	// armed is whether GitHub is going to merge the pull request by itself.
+	armed       bool
 	headSHA     string
 	fingerprint string
+}
+
+func (it pendingItem) key() string {
+	return pullRequestKey(it.ref.Forge, it.ref.FullName, it.ref.Number)
 }
 
 // PollCI re-reads every open pull request whose CI is still pending, or that
@@ -44,7 +50,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	items := pendingItems(snap)
 	live := make(map[string]struct{}, len(items))
 	for _, it := range items {
-		live[pullRequestKey(it.ref.Forge, it.ref.FullName, it.ref.Number)] = struct{}{}
+		live[it.key()] = struct{}{}
 	}
 	a.pendingSched.keepOnly(live)
 
@@ -57,19 +63,41 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		if _, spent := exhaustedHealth(snap, it.ref.Forge, now); spent {
 			continue
 		}
-		if !a.pendingSched.due(pullRequestKey(it.ref.Forge, it.ref.FullName, it.ref.Number), now, base) {
-			continue
-		}
-		if a.checksArriveByWebhook(it, now, base) {
+		if a.waits(it, now, base) {
 			continue
 		}
 		byForge[it.ref.Forge] = append(byForge[it.ref.Forge], it)
 	}
 
 	for forge, due := range byForge {
-		a.pollForge(ctx, forge, due)
-		a.notePolled(due, now, base)
+		// Only a pull request the poll actually read is scored. One it could not
+		// read (an outage, a refused request) keeps its interval, so a forge
+		// being down does not back every pending pull request off.
+		for _, read := range a.pollForge(ctx, forge, due) {
+			if !read.item.armed {
+				a.pendingSched.polled(read.item.key(), now, base, read.changed)
+			}
+		}
 	}
+}
+
+// waits reports whether it is not due this tick: backed off, or left to its
+// webhook. GitHub merges an armed pull request without the dashboard, so the
+// board only learns of it by reading; it is read every tick, never backed off and
+// never left to the webhook.
+func (a *Aggregator) waits(it pendingItem, now time.Time, base time.Duration) bool {
+	if it.armed {
+		return false
+	}
+
+	return !a.pendingSched.due(it.key(), now, base) || a.checksArriveByWebhook(it, now, base)
+}
+
+// polledPR is how a poll came out for one pull request it read.
+type polledPR struct {
+	item pendingItem
+	// changed is whether what the poll read differs from what it started from.
+	changed bool
 }
 
 // pendingItems lists the pull requests a poll is for.
@@ -91,6 +119,7 @@ func pendingItems(snap Snapshot) []pendingItem {
 			ref:         PullRequestRef{Forge: pr.Forge, Owner: owner, Name: name, FullName: pr.Repo, Number: pr.Number},
 			kind:        kind,
 			ciPending:   pr.CI == CIPending,
+			armed:       armedOnGitHub(pr),
 			headSHA:     pr.HeadSHA,
 			fingerprint: pollFingerprint(pr),
 		})
@@ -99,45 +128,33 @@ func pendingItems(snap Snapshot) []pendingItem {
 	return items
 }
 
-// pollForge refreshes the due pull requests of one forge.
-func (a *Aggregator) pollForge(ctx context.Context, forge Forge, due []pendingItem) {
-	// One request serves both reasons for polling, so it is counted as a CI
-	// poll whenever a check is pending and as an auto-merge poll only if none is.
-	kind := apistats.KindAutoMergePoll
-	if slices.ContainsFunc(due, func(it pendingItem) bool { return it.kind == apistats.KindCIPoll }) {
-		kind = apistats.KindCIPoll
-	}
-
+// pollForge refreshes the due pull requests of one forge and returns how it came
+// out for each one it read. A pull request it could not read is left out.
+func (a *Aggregator) pollForge(ctx context.Context, forge Forge, due []pendingItem) []polledPR {
 	if batch := a.pendingRefresherFor(forge); batch != nil {
-		a.pollBatched(apistats.WithKind(ctx, kind), forge, batch, due)
-
-		return
-	}
-
-	// One scoped refresh per repo, however many of its pull requests are due.
-	repoKind := make(map[string]apistats.Kind)
-	for _, it := range due {
-		if repoKind[it.ref.FullName] != apistats.KindCIPoll {
-			repoKind[it.ref.FullName] = it.kind
+		// One request serves both reasons for polling, so it is counted as a CI
+		// poll whenever a check is pending and as an auto-merge poll only if none is.
+		kind := apistats.KindAutoMergePoll
+		if slices.ContainsFunc(due, func(it pendingItem) bool { return it.kind == apistats.KindCIPoll }) {
+			kind = apistats.KindCIPoll
 		}
+
+		return a.pollBatched(apistats.WithKind(ctx, kind), forge, batch, due)
 	}
-	for _, it := range due {
-		repoKindOf, ok := repoKind[it.ref.FullName]
-		if !ok {
-			continue
-		}
-		delete(repoKind, it.ref.FullName)
-		a.RefreshRepo(apistats.WithKind(ctx, repoKindOf), forge, it.ref.Owner, it.ref.Name, it.ref.FullName)
-	}
+
+	return a.refreshEachRepo(ctx, forge, due)
 }
 
 // pollBatched asks the source about every due pull request at once and merges
 // the answer. A ref the source could not answer is refreshed on its own repo;
-// a failure of the whole request is logged and retried at the next tick.
-func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCheckRefresher, due []pendingItem) {
+// a failure of the whole request is logged, reads nothing, and is retried at the
+// next tick.
+func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCheckRefresher, due []pendingItem) []polledPR {
 	refs := make([]PullRequestRef, len(due))
+	byKey := make(map[string]pendingItem, len(due))
 	for i, it := range due {
 		refs[i] = it.ref
+		byKey[it.key()] = it
 	}
 
 	seq := a.fetchSeq.Add(1)
@@ -145,23 +162,102 @@ func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCh
 	if err != nil {
 		slog.Warn("pending check refresh failed", "forge", forge, "pull_requests", len(refs), "error", err)
 
-		return
+		return nil
 	}
 	a.mergePendingResult(ctx, forge, seq, res)
 
-	fallback := make(map[string]PullRequestRef)
+	// What the poll read is judged by its own answer, not by the snapshot after
+	// it: a webhook refresh landing meanwhile changes the snapshot, not what this
+	// poll found.
+	var read []polledPR
+	for _, pr := range res.Pulls {
+		if it, ok := byKey[pullRequestKey(forge, pr.Repo, pr.Number)]; ok {
+			read = append(read, polledPR{item: it, changed: pollFingerprint(pr) != it.fingerprint})
+		}
+	}
+	for _, ref := range res.Closed {
+		if it, ok := byKey[pullRequestKey(forge, ref.FullName, ref.Number)]; ok {
+			read = append(read, polledPR{item: it, changed: true})
+		}
+	}
+
+	var failed []pendingItem
 	for _, ref := range res.Failed {
-		fallback[ref.FullName] = ref
+		if it, ok := byKey[pullRequestKey(forge, ref.FullName, ref.Number)]; ok {
+			failed = append(failed, it)
+		}
 	}
-	for repo, ref := range fallback {
-		slog.Warn("pending check refresh fell back to the whole repo", "forge", forge, "repo", repo)
-		a.RefreshRepo(ctx, forge, ref.Owner, ref.Name, repo)
+
+	return append(read, a.refreshEachRepo(ctx, forge, failed)...)
+}
+
+// refreshEachRepo re-reads the repos of items, one scoped refresh per repo
+// however many of its pull requests are due, through RefreshRepo, the same keyed
+// coalescer a webhook delivery uses. A pull request counts as read only when its
+// repo's refresh succeeded, and is judged by the snapshot that refresh left: it
+// is still listed and unchanged, or it is not.
+func (a *Aggregator) refreshEachRepo(ctx context.Context, forge Forge, items []pendingItem) []polledPR {
+	var read []polledPR
+	for _, group := range groupByRepo(items) {
+		read = append(read, a.refreshRepoOf(ctx, forge, group)...)
 	}
+
+	return read
+}
+
+// groupByRepo splits items by repo, in the order the repos first appear.
+func groupByRepo(items []pendingItem) [][]pendingItem {
+	index := make(map[string]int)
+	var groups [][]pendingItem
+	for _, it := range items {
+		i, seen := index[it.ref.FullName]
+		if !seen {
+			i = len(groups)
+			index[it.ref.FullName] = i
+			groups = append(groups, nil)
+		}
+		groups[i] = append(groups[i], it)
+	}
+
+	return groups
+}
+
+// refreshRepoOf refreshes the one repo group's pull requests belong to.
+func (a *Aggregator) refreshRepoOf(ctx context.Context, forge Forge, group []pendingItem) []polledPR {
+	first := group[0].ref
+	if apistats.KindFrom(ctx) == apistats.KindUnknown {
+		kind := apistats.KindAutoMergePoll
+		if slices.ContainsFunc(group, func(it pendingItem) bool { return it.kind == apistats.KindCIPoll }) {
+			kind = apistats.KindCIPoll
+		}
+		ctx = apistats.WithKind(ctx, kind)
+	}
+	if _, merged := a.refreshRepo(ctx, forge, first.Owner, first.Name, first.FullName); !merged {
+		return nil
+	}
+
+	after := make(map[string]string)
+	for _, pr := range a.Get().PullRequests {
+		if pr.Forge == forge && pr.Repo == first.FullName {
+			after[pullRequestKey(pr.Forge, pr.Repo, pr.Number)] = pollFingerprint(pr)
+		}
+	}
+	read := make([]polledPR, 0, len(group))
+	for _, it := range group {
+		fingerprint, listed := after[it.key()]
+		read = append(read, polledPR{item: it, changed: !listed || fingerprint != it.fingerprint})
+	}
+
+	return read
 }
 
 // mergePendingResult puts a PendingResult into the snapshot: each answered pull
 // request replaces its old row and each closed one leaves, while the repo's
 // other pull requests, its issues and its main branch stay as they were.
+//
+// The rows are built and written under one hold of the snapshot lock, and a repo
+// that a newer scoped refresh has written since the poll began is left alone: a
+// webhook's fetch is fresher than this poll's answer.
 func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq uint64, res PendingResult) {
 	repos := make(map[string]struct{})
 	replaced := make(map[string]PullRequest)
@@ -176,15 +272,19 @@ func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq ui
 	}
 
 	for repo := range repos {
-		snap := a.Get()
-		prs := repoPullRequestsAfter(snap, forge, repo, replaced, closed)
-		var issues []Issue
-		for _, i := range snap.Issues {
-			if i.Forge == forge && i.Repo == repo {
-				issues = append(issues, i)
+		a.mergeRepoFrom(ctx, forge, repo, seq, nil, func(current Snapshot) ([]PullRequest, []Issue, bool) {
+			if a.scopedSeq[repoKey{forge, repo}] > seq {
+				return nil, nil, false
 			}
-		}
-		a.mergeRepo(ctx, forge, repo, seq, prs, issues, nil)
+			var issues []Issue
+			for _, i := range current.Issues {
+				if i.Forge == forge && i.Repo == repo {
+					issues = append(issues, i)
+				}
+			}
+
+			return repoPullRequestsAfter(current, forge, repo, replaced, closed), issues, true
+		})
 	}
 }
 
@@ -207,19 +307,6 @@ func repoPullRequestsAfter(snap Snapshot, forge Forge, repo string, replaced map
 	}
 
 	return prs
-}
-
-// notePolled tells the schedule how each polled pull request came out, by
-// comparing what the poll was started from with the snapshot now.
-func (a *Aggregator) notePolled(polled []pendingItem, now time.Time, base time.Duration) {
-	after := make(map[string]string)
-	for _, pr := range a.Get().PullRequests {
-		after[pullRequestKey(pr.Forge, pr.Repo, pr.Number)] = pollFingerprint(pr)
-	}
-	for _, it := range polled {
-		key := pullRequestKey(it.ref.Forge, it.ref.FullName, it.ref.Number)
-		a.pendingSched.polled(key, now, base, after[key] != it.fingerprint)
-	}
 }
 
 // pendingRefresherFor is the Source that drives forge when it can answer many

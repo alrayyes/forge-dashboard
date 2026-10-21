@@ -21,7 +21,9 @@ type batchSource struct {
 	batches [][]dashboard.PullRequestRef
 	// answer builds the reply for a batch; nil echoes the stored pull requests.
 	answer func(refs []dashboard.PullRequestRef) dashboard.PendingResult
-	hooks  map[string][]string
+	// err, when set, makes RefreshPending fail as a whole.
+	err   error
+	hooks map[string][]string
 }
 
 func newBatchSource() *batchSource {
@@ -32,6 +34,9 @@ func (b *batchSource) RefreshPending(_ context.Context, refs []dashboard.PullReq
 	b.bmu.Lock()
 	b.batches = append(b.batches, refs)
 	b.bmu.Unlock()
+	if b.err != nil {
+		return dashboard.PendingResult{}, b.err
+	}
 	if b.answer != nil {
 		return b.answer(refs), nil
 	}
