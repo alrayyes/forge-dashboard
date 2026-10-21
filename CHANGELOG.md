@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.251.0](https://github.com/alrayyes/forge-dashboard/compare/v0.250.1...v0.251.0) (2026-10-21)
+
+
+### Features
+
+* keep the dialog open after a Close and offer Reopen as the undo ([#2142](https://github.com/alrayyes/forge-dashboard/issues/2142)) ([13dbe52](https://github.com/alrayyes/forge-dashboard/commit/13dbe52be87e79733840c32ee5e289ef1db2436a))
+
 ## [0.250.1](https://github.com/alrayyes/forge-dashboard/compare/v0.250.0...v0.250.1) (2026-10-21)
 
 
