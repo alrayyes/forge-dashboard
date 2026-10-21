@@ -10,6 +10,23 @@ const singleUserSpecs = [
   '**/timezone.spec.ts',
   '**/webhooks.spec.ts',
   '**/auth-single-user.spec.ts',
+  '**/auto-merge-filter.spec.ts',
+  '**/conflicts-filter.spec.ts',
+  '**/filter-choices-pills.spec.ts',
+  '**/filter-choices-static.spec.ts',
+  '**/filter-every-control.spec.ts',
+  '**/filter-flush-on-leave.spec.ts',
+  '**/filter-held-pick-note.spec.ts',
+  '**/filter-hide-dependency-dashboard-restore.spec.ts',
+  '**/filter-late-copy.spec.ts',
+  '**/filter-mixed-case.spec.ts',
+  '**/filter-newer-wins.spec.ts',
+  '**/filter-options.spec.ts',
+  '**/filter-save-order.spec.ts',
+  '**/mobile-filters.spec.ts',
+  '**/show-drafts.spec.ts',
+  '**/show-row-clears-filters.spec.ts',
+  '**/webhooks-clear-filters.spec.ts',
 ];
 
 export default defineConfig({

@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
 // #828: on a phone the filters take a small part of the screen. Closed, the
@@ -14,15 +8,6 @@ import { settle } from './settle-helper';
 // active filters as removable chips; the rest lives in a bottom sheet (a
 // <dialog>). Filters apply as you change them and the sheet's "Show N
 // results" button says what you'd see, so a refresh can't disturb an edit.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `mobile-filters-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Mobile Filters');
-}
 
 function makePR(number: number, repo: string, author: string, ci = 'success') {
   return {
@@ -102,8 +87,7 @@ for (const size of [
   { width: 360, height: 740 },
 ]) {
   test.describe(`mobile filters at ${size.width}x${size.height} (#828)`, () => {
-    test.beforeEach(async ({ page, request, baseURL }) => {
-      await registerAndSignIn(page, request, baseURL);
+    test.beforeEach(async ({ page }) => {
       await open(page, size);
     });
 
@@ -271,8 +255,7 @@ for (const size of [
 }
 
 test.describe('the desktop filter bar is unchanged (#828)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     await open(page, { width: 1280, height: 800 });
   });
 

@@ -1,28 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
+import { expect, type Page, type Route } from '@playwright/test';
 import { choicesOf } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1427: a filter offers only choices that exist in the results the page can
 // show. On the Issues page a repo whose only issue is Renovate's hidden
 // Dependency Dashboard has nothing to show, so it isn't a choice until the
 // "Hide Dependency Dashboard" box is unticked.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `filter-options-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Filter Options');
-}
 
 function issue(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -78,8 +63,7 @@ const choices = choicesOf;
 
 for (const path of ['/issues.html', '/insights.html']) {
   test.describe(`filter choices on ${path} (#1427)`, () => {
-    test.beforeEach(async ({ page, request, baseURL }) => {
-      await registerAndSignIn(page, request, baseURL);
+    test.beforeEach(async ({ page }) => {
       await open(page, path);
     });
 
@@ -143,8 +127,7 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
     }),
   ];
 
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
     await open(page, '/issues.html', NARROWING);
   });
 

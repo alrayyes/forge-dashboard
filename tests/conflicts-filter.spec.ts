@@ -1,25 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #1215: a Conflicts quick filter lists only the pull requests whose
 // `mergeStatus` is `conflicting`, so they can be fixed in one pass. The page
 // holds no rule of its own: it reads the field the rows already show.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `conflicts-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Conflicts User');
-}
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -72,8 +57,8 @@ const pill = (page: Page, name: string) =>
 const rows = (page: Page) => page.locator('#pr-rows > .row');
 
 test.describe('Conflicts quick filter (#1215)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
