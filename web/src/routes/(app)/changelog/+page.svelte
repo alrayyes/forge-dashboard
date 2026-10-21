@@ -152,6 +152,7 @@
       font-size: 13.5px;
       color: var(--ink-2);
       line-height: 1.55;
+      overflow-wrap: anywhere;
     }
     .release-notes h3 {
       font-size: 11px;
@@ -168,7 +169,6 @@
     }
     .release-notes .plain-notes {
       white-space: pre-wrap;
-      overflow-wrap: anywhere;
     }
     .release-notes code {
       font-size: 12px;

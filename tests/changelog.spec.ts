@@ -314,6 +314,28 @@ test.describe('release history page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  // Rendered Markdown has its own wrapping rule: a long link label is not
+  // plain text and must not widen the card either.
+  test('a long unbroken URL in rendered notes wraps at phone width', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const url = `https://example.com/${'a'.repeat(70)}`;
+    await serveNotes(page, `* see [${url}](${url}) and \`${'b'.repeat(70)}\``);
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+    await expect(page.locator('.release-notes a')).toHaveText(url);
+    await expect(page.locator('.plain-notes')).toHaveCount(0);
+
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    const card = await page.locator('.release').boundingBox();
+    expect(card?.width).toBeLessThanOrEqual(390);
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     test(`ordered lists, code blocks and quotes are styled and pass axe in ${scheme}`, async ({
       page,
