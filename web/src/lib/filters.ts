@@ -931,6 +931,7 @@ export function applyServerState(
       if (!isTouched(group, key)) into[key] = value;
   }
   dropUnknownAutoMerge(state);
+  dropUnknownClosing(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
   trimLabelPick(state);
