@@ -361,11 +361,10 @@ func TestAppClient_Fetch_ReadsWhetherRenovatesRebaseBoxIsTicked(t *testing.T) {
 	assert.Regexp(t, `(?m)^\s+body\s*$`, query, "the App query has to ask for the description")
 }
 
-// appWebhookTestServer is appInstallationTestServer's two repos with a hooks
-// endpoint per repo, answering with the status given (200 means an empty
-// list). An installation token has no viewer, so the hooks call is the only
-// honest answer to "can this connection manage webhooks here".
-func appWebhookTestServer(t *testing.T, hookStatus map[string]int, messages ...string) *httptest.Server {
+// appTwoRepoMux serves everything an App poll needs except the hooks
+// endpoints: token minting, the installation's two repos and an empty GraphQL
+// answer for both.
+func appTwoRepoMux(t *testing.T) *http.ServeMux {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -393,6 +392,18 @@ func appWebhookTestServer(t *testing.T, hookStatus map[string]int, messages ...s
 			"r1":        empty,
 		}})
 	})
+
+	return mux
+}
+
+// appWebhookTestServer is appInstallationTestServer's two repos with a hooks
+// endpoint per repo, answering with the status given (200 means an empty
+// list). An installation token has no viewer, so the hooks call is the only
+// honest answer to "can this connection manage webhooks here".
+func appWebhookTestServer(t *testing.T, hookStatus map[string]int, messages ...string) *httptest.Server {
+	t.Helper()
+
+	mux := appTwoRepoMux(t)
 	for name, status := range hookStatus {
 		mux.HandleFunc("/repos/alrayyes/"+name+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
 			if status == http.StatusOK {
@@ -621,4 +632,143 @@ func TestAppClient_Fetch_FailedHooksCallKeepsThePreviousRefusal(t *testing.T) {
 	require.Len(t, second.Repos, 1)
 	assert.True(t, first.Repos[0].WebhookLockedByConnection)
 	assert.True(t, second.Repos[0].WebhookLockedByConnection, "a 500 says nothing new about the permission")
+}
+
+// TestAppClient_Fetch_OneRepoOwnDenial_LocksOnlyThatRepo pins that a refusal
+// belonging to one repo (its own 404, or a 403 that isn't the App's "not
+// accessible by integration") never stands in for the others, on the poll that
+// sees it or the next one that skips the cached denial.
+func TestAppClient_Fetch_OneRepoOwnDenial_LocksOnlyThatRepo(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		status  int
+		message string
+	}{
+		"repo not found":                    {status: http.StatusNotFound, message: "Not Found"},
+		"forbidden for a reason of its own": {status: http.StatusForbidden, message: "Must have admin rights to Repository."},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := appWebhookTestServer(t, map[string]int{"repo-one": http.StatusOK, "repo-two": tc.status}, tc.message)
+			client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+			require.NoError(t, err)
+			client.SetWebhookPath("/api/webhooks/github/tok123")
+
+			for poll := 1; poll <= 2; poll++ {
+				result := client.Fetch(t.Context())
+
+				for _, r := range result.Repos {
+					if r.FullName == "alrayyes/repo-one" {
+						assert.True(t, r.CanManageWebhooks, "poll %d", poll)
+						assert.False(t, r.WebhookLockedByConnection, "poll %d: another repo's refusal must not lock this one", poll)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll pins
+// the early return that rebuilds every row from the remembered denial: while
+// it stands, a server that would now answer 200 isn't asked.
+func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll(t *testing.T) {
+	t.Parallel()
+
+	var status atomic.Int32
+	status.Store(http.StatusForbidden)
+	mux := appTwoRepoMux(t)
+	for _, name := range []string{"repo-one", "repo-two"} {
+		mux.HandleFunc("/repos/alrayyes/"+name+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
+			if int(status.Load()) == http.StatusOK {
+				writeJSON(t, w, []map[string]any{})
+
+				return
+			}
+			w.WriteHeader(int(status.Load()))
+			writeJSON(t, w, map[string]any{"message": "Resource not accessible by integration"})
+		})
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+
+	first := client.Fetch(t.Context())
+	status.Store(http.StatusOK)
+	second := client.Fetch(t.Context())
+
+	for _, result := range []dashboard.Result{first, second} {
+		require.Len(t, result.Repos, 2)
+		for _, r := range result.Repos {
+			assert.True(t, r.WebhookLockedByConnection, r.FullName)
+			assert.False(t, r.CanManageWebhooks, r.FullName)
+		}
+	}
+}
+
+// hookWriteServer answers the hooks list and the create with the statuses
+// given (200 on the list means an empty array).
+func hookWriteServer(t *testing.T, listStatus, createStatus int, message string) *httptest.Server {
+	t.Helper()
+
+	mux := appTwoRepoMux(t)
+	mux.HandleFunc("/repos/alrayyes/repo-one/hooks", func(w http.ResponseWriter, r *http.Request) {
+		status := listStatus
+		if r.Method == http.MethodPost {
+			status = createStatus
+		}
+		if status == http.StatusOK {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		w.WriteHeader(status)
+		writeJSON(t, w, map[string]any{"message": message})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestClient_EnsureWebhook_TokenClientRefused_AddsNoAppPermissionMessage(t *testing.T) {
+	t.Parallel()
+
+	srv := hookWriteServer(t, http.StatusOK, http.StatusForbidden, "Resource not accessible by integration")
+	client := github.NewClient("pat-value", "", srv.URL)
+
+	err := client.EnsureWebhook(t.Context(), "alrayyes", "repo-one", "https://dash.example/api/webhooks/github/t", "s")
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "%v", err)
+	assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind)
+	assert.Empty(t, clientErr.PermissionMessage, "only an App has a Webhooks permission to name")
+}
+
+func TestAppClient_EnsureWebhook_BadCredentials_DoesNotBlameThePermission(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct{ listStatus, createStatus int }{
+		"on the lookup": {listStatus: http.StatusUnauthorized, createStatus: http.StatusOK},
+		"on the create": {listStatus: http.StatusOK, createStatus: http.StatusUnauthorized},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := hookWriteServer(t, tc.listStatus, tc.createStatus, "Bad credentials")
+			client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+			require.NoError(t, err)
+
+			err = client.EnsureWebhook(t.Context(), "alrayyes", "repo-one", "https://dash.example/api/webhooks/github/t", "s")
+
+			clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+			require.True(t, ok, "%v", err)
+			assert.Empty(t, clientErr.PermissionMessage, "expired credentials are not a missing permission")
+		})
+	}
 }
