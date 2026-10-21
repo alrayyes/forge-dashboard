@@ -45,9 +45,7 @@ async function mockVersion(page: Page) {
 async function expectFooter(page: Page, current: string | undefined) {
   const links = page.locator('footer a');
   await expect(links).toHaveText([...EXPECTED]);
-  await expect(page.locator('footer')).toContainText(
-    'Read-only mirror of both forges',
-  );
+  await expect(page.locator('footer')).not.toContainText('Read-only mirror');
   const marked = page.locator('footer a[aria-current]');
   if (current) {
     await expect(marked).toHaveCount(1);
@@ -111,14 +109,14 @@ test.describe('the footer is the same on every page', () => {
     }) => {
       const response = await page.goto(path);
       expect(response?.status()).toBe(404);
-      await expect(page.locator('footer')).toContainText(
-        'Read-only mirror of both forges',
+      await expect(page.locator('footer')).not.toContainText(
+        'Read-only mirror',
       );
       const slot = (await page.locator('#footer-version').innerText()).trim();
       const text = await page
         .locator('footer')
         .evaluate((el) =>
-          (el as HTMLElement).innerText.replace(/\u00a0/g, ' '),
+          (el as HTMLElement).innerText.replace(/\u00a0/g, ' ').trim(),
         );
       if (/dev build/.test(slot)) {
         await expect(page.locator('footer a')).toHaveText([
@@ -127,7 +125,7 @@ test.describe('the footer is the same on every page', () => {
           'Privacy',
         ]);
         expect(text).toMatch(
-          /Read-only mirror.*GitHub\s+· dev build\s+· Disclaimer\s+· Privacy/s,
+          /^GitHub\s+· dev build\s+· Disclaimer\s+· Privacy$/,
         );
       } else {
         // A release binary: the version is a link to the changelog.
@@ -165,10 +163,10 @@ test.describe('the footer is the same on every page', () => {
     ]);
     const text = await page
       .locator('footer')
-      .evaluate((el) => (el as HTMLElement).innerText.replace(/\u00a0/g, ' '));
-    expect(text).toMatch(
-      /Read-only mirror.*GitHub\s+· dev build\s+· Disclaimer\s+· Privacy/s,
-    );
+      .evaluate((el) =>
+        (el as HTMLElement).innerText.replace(/\u00a0/g, ' ').trim(),
+      );
+    expect(text).toMatch(/^GitHub\s+· dev build\s+· Disclaimer\s+· Privacy$/);
     await expect(page.locator('footer a[aria-current]')).toHaveText(
       'Disclaimer',
     );

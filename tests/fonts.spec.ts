@@ -38,13 +38,12 @@ test.describe('self-hosted fonts (#797)', () => {
     expect([...hosts]).toEqual([new URL(baseURL ?? '').host]);
   });
 
-  test('IBM Plex Sans and Mono load from the app, with font-display swap', async ({
+  test('IBM Plex Sans loads from the app, with font-display swap', async ({
     page,
   }) => {
     await page.goto('/login.html');
     const faces = await loadedFaces(page);
     expect(faces.some((f) => f.startsWith('IBM Plex Sans'))).toBe(true);
-    expect(faces.some((f) => f.startsWith('IBM Plex Mono'))).toBe(true);
 
     const display = await page.evaluate(() =>
       [...document.fonts].map((f) => f.display),
@@ -64,6 +63,16 @@ test.describe('self-hosted fonts on the dashboard (#797)', () => {
     await loadedFaces(page);
 
     expect([...hosts]).toEqual([new URL(baseURL ?? '').host]);
+  });
+
+  // The login page has no monospace text, so the browser never fetches the
+  // Mono face there; the dashboard does render some.
+  test('IBM Plex Mono loads from the app where monospace text shows', async ({
+    page,
+  }) => {
+    await page.goto('/pull-requests.html');
+    const faces = await loadedFaces(page);
+    expect(faces.some((f) => f.startsWith('IBM Plex Mono'))).toBe(true);
   });
 });
 
