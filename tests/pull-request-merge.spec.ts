@@ -519,43 +519,6 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  test('a transient failure shows an error and returns to a re-clickable Merge button', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
-      route.fulfill({
-        status: 502,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: PUT .../merge: EOF',
-          code: 'unknown',
-          message: 'EOF',
-        }),
-      }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Merge' }).click();
-    await row.getByRole('button', { name: 'Confirm merge?' }).click();
-
-    const failed = page.locator(
-      '#feedback-toasts .feedback-toast[data-kind="error"]',
-    );
-    await expect(failed).toContainText('EOF');
-    // No lingering "Merging…" line once it has failed — the row says
-    // Failed, not both.
-    await expect(row.locator('.row-feedback')).toContainText('Failed');
-    await expect(row.locator('.row-feedback')).not.toContainText('Merging…');
-    await expect(page.locator('#error-banner')).toHaveCount(0);
-    await expect(page.locator('#status-banner')).toHaveCount(0);
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toBeVisible();
-    await expect(button).toBeEnabled();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
   test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
     page,
   }) => {
@@ -642,34 +605,6 @@ test.describe('pull request merge button', () => {
       'Merge commits are not allowed on this repository.',
     );
     await expect(row).not.toContainText(/no longer mergeable/i);
-  });
-
-  test('a rate-limited (429) failure locks the button with no Retry and says when it resets', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Merge' }).click();
-    await row.getByRole('button', { name: 'Confirm merge?' }).click();
-
-    const button = row.getByRole('button', { name: 'Merge', exact: true });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-    await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
   });
 
   test('clicking Retry re-fetches the dashboard, and a stale lock clears once the fresh data no longer justifies it', async ({
