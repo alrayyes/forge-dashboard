@@ -21,7 +21,11 @@ func TestSingleUserCleanup_KeptUsersSessionAndTokenStillWork(t *testing.T) {
 	invite := createInviteViaAdmin(t, srv, ownerCookie, testUser, testDisplay)
 	otherCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay, invite)
 
-	_, err := singleuser.Run(t.Context(), db, dbPath, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	// A database from before this version has no marker; the owner here
+	// registered through the new code, which wrote one.
+	_, err := db.ExecContext(t.Context(), `DROP TABLE IF EXISTS single_user_cleanup`)
+	require.NoError(t, err)
+	_, err = singleuser.Run(t.Context(), db, dbPath, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	require.NoError(t, err)
 
 	statuses := map[string]int{}
@@ -39,4 +43,23 @@ func TestSingleUserCleanup_KeptUsersSessionAndTokenStillWork(t *testing.T) {
 		"kept token":      http.StatusOK,
 		"removed session": http.StatusUnauthorized,
 	}, statuses)
+}
+
+// An owner who registered on this version, then invited someone, must not lose
+// the invited user when the server restarts: the cleanup is for databases that
+// were already multi-user before the upgrade.
+func TestSingleUserCleanup_InvitedUserOfAnInstanceRegisteredOnThisVersion_SurvivesARestart(t *testing.T) {
+	t.Parallel()
+	srv, _, _, _, db, dbPath := newTestServerWithDatabase(t, noSources, false, 0)
+	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
+	invite := createInviteViaAdmin(t, srv, ownerCookie, testUser, testDisplay)
+	otherCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay, invite)
+
+	res, err := singleuser.Run(t.Context(), db, dbPath, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	require.NoError(t, err)
+	require.False(t, res.Ran)
+
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/auth/session", "", otherCookie)
+	_ = resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -347,6 +348,14 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, cred weba
 		}
 
 		return ErrRegistrationClosed
+	}
+
+	var username string
+	if err := tx.QueryRowContext(ctx, `SELECT username FROM users WHERE id = ?`, id).Scan(&username); err != nil {
+		return fmt.Errorf("auth: read the first user: %w", err)
+	}
+	if err := singleuser.WriteMarker(ctx, tx, username, 0); err != nil {
+		return fmt.Errorf("auth: record the first registration: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {

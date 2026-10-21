@@ -206,7 +206,7 @@ func deleteOthers(ctx context.Context, db *sql.DB, keeper user, others []user) (
 	if err := deleteLeftovers(ctx, tx, keeper); err != nil {
 		return nil, err
 	}
-	if err := writeMarker(ctx, tx, keeper.username, len(others)); err != nil {
+	if err := WriteMarker(ctx, tx, keeper.username, len(others)); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -257,7 +257,11 @@ func deleteLeftovers(ctx context.Context, tx *sql.Tx, keeper user) error {
 	return nil
 }
 
-func writeMarker(ctx context.Context, tx *sql.Tx, keptUsername string, removedUsers int) error {
+// WriteMarker records that the cleanup is settled for this database. Run calls
+// it after deleting; the first passkey registration on an instance calls it
+// too, because such an instance never held several users from before the
+// upgrade, and a user invited later must survive a restart.
+func WriteMarker(ctx context.Context, tx *sql.Tx, keptUsername string, removedUsers int) error {
 	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS `+markerTable+` (
 		ran_at TIMESTAMP NOT NULL,
 		kept_username TEXT NOT NULL,
