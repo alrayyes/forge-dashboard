@@ -170,14 +170,22 @@ export function linkedPills(
       link.addEventListener('click', () => onOpen(pr, link.id));
     }
     const ci: PillCi | null = renderCi ? renderCi(pr) : null;
-    // The number is its own node so a long cross-repo name can be cut short
-    // with an ellipsis while the state and the pipeline stay whole. The text
-    // and the accessible name still carry the whole name.
+    // A cross-repo repo name is its own node so it alone can be cut short with
+    // an ellipsis: the number, the state and the pipeline stay whole, and two
+    // pills from one long repo stay apart. The text and the accessible name
+    // still carry the whole name.
     const text = linkedPillText(pr, issueRepo);
     const ref = numberOf(pr, issueRepo);
-    const refNode = element('span', 'linked-pr-ref', ref);
-    if (ref.length > `#${pr.number}`.length) refNode.title = ref;
-    link.append(refNode, text.slice(ref.length));
+    const number = `#${pr.number}`;
+    if (text.startsWith(ref) && ref.length > number.length) {
+      const refNode = element('span', 'linked-pr-ref');
+      const repoNode = element('span', 'linked-pr-repo', pr.repo);
+      repoNode.title = pr.repo;
+      refNode.append(repoNode, element('span', 'linked-pr-number', number));
+      link.append(refNode, text.slice(ref.length));
+    } else {
+      link.textContent = text;
+    }
     if (ci) {
       // The badge follows the number, with the space the text reads across.
       link.append(' ', ci.badge);

@@ -184,6 +184,20 @@ test.describe('the pipeline on an issue row pill', () => {
       await expect(first).toHaveAccessibleName(
         new RegExp(`^Pull request ${longRepo}#123 open Running`),
       );
+      // Only the repo is cut: the number, state and pipeline sit inside the pill.
+      const pillBox = await first.boundingBox();
+      for (const part of [
+        first.locator('.linked-pr-number'),
+        first.locator('.ci-pill'),
+      ]) {
+        const inner = await part.boundingBox();
+        expect(inner?.x ?? 0, scheme).toBeGreaterThanOrEqual(pillBox?.x ?? 0);
+        expect(
+          (inner?.x ?? 0) + (inner?.width ?? 0),
+          scheme,
+        ).toBeLessThanOrEqual((pillBox?.x ?? 0) + (pillBox?.width ?? 0) + 1);
+      }
+      await expect(first.locator('.linked-pr-number')).toHaveText('#123');
       const box = await first.boundingBox();
       expect(box?.x ?? 0, scheme).toBeGreaterThanOrEqual(0);
       expect((box?.x ?? 0) + (box?.width ?? 0), scheme).toBeLessThanOrEqual(
