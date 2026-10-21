@@ -1,7 +1,8 @@
 // The CI pills' counts (#2004, #2074): how many of a pull request's or a
 // default branch's checks passed, are running, are waiting and failed. The
-// server tallies them (`checks`); this only orders and words them, the way the
-// menu pills do, and never works a count out itself.
+// server tallies them (`checks`); this orders and words them, the way the menu
+// pills do, and only takes the skipped ones out of passed so they are drawn
+// once. It never tallies a count itself.
 
 export type CheckCounts = {
   passed: number;
@@ -61,7 +62,10 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
   if (!counts) return [];
   // Skipped is part of passed, so it can never exceed it; a larger figure is
   // a mistake upstream and is held to passed rather than drawn as a contradiction.
-  const skipped = Math.max(0, Math.min(counts.skipped ?? 0, counts.passed));
+  const raw = counts.skipped ?? 0;
+  const skipped = Number.isInteger(raw)
+    ? Math.max(0, Math.min(raw, counts.passed))
+    : 0;
 
   return CHECK_KINDS.flatMap((kind) => {
     const n =
