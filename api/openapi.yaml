@@ -4228,10 +4228,10 @@ components:
         were skipped. It never exceeds `passed`: it is inside `passed`, not
         beside it, so `passed` still counts every check that needs nothing more
         and the four states still add up to the checks the pipeline lists. The
-        server always sends it; a client that may talk to an older server
-        reads a missing one as none. A neutral or bare completed check is passed without
-        being skipped. A client that draws the two side by side must subtract
-        `skipped` from `passed` for the passed figure, or a skipped check is
+        server always sends it, which is why it is required; a client that may
+        talk to an older server may read a missing one as zero. A neutral or bare
+        completed check is passed without being skipped. A client that draws the
+        two side by side must subtract `skipped` from `passed` for the passed figure, or a skipped check is
         counted twice, and a pipeline where every passed check was skipped can
         read as skipped.
 

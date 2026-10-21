@@ -16,6 +16,7 @@ import {
   type CheckCounts,
   type CheckSegment,
   checkSegments,
+  onlySkipped,
   pillName,
   pillWord,
 } from './check-counts';
@@ -46,10 +47,12 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
   const awaiting = input.awaiting === true;
   const segments =
     input.segmented === false || awaiting ? [] : checkSegments(input.counts);
-  const word = pillWord(input.word, segments);
+  const word = pillWord(input.cls, input.word, segments);
   const segmented = segments.length > 0;
   const held = awaiting ? ' awaiting' : '';
-  const classes = `ci-pill ${input.cls}${held}${segmented ? ' segmented' : ''}`;
+  // A fully skipped pass keeps its state class but must not read as a pass.
+  const quiet = onlySkipped(input.cls, segments) ? ' all-skipped' : '';
+  const classes = `ci-pill ${input.cls}${held}${quiet}${segmented ? ' segmented' : ''}`;
 
   return {
     classes,
