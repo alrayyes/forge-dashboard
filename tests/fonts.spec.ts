@@ -1,6 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #797: the fonts are served by the app itself. No page waits on, or sends
 // a visitor's address to, a third-party host just to render text.
@@ -24,6 +23,10 @@ async function loadedFaces(page: Page): Promise<string[]> {
 }
 
 test.describe('self-hosted fonts (#797)', () => {
+  test.beforeEach(async ({ context }) => {
+    await context.clearCookies();
+  });
+
   test('the login page requests no other host, for CSS or fonts', async ({
     page,
     baseURL,
@@ -52,9 +55,6 @@ test.describe('self-hosted fonts (#797)', () => {
 });
 
 test.describe('self-hosted fonts on the dashboard (#797)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('the dashboard requests no other host either', async ({
     page,
     baseURL,
@@ -74,6 +74,10 @@ test.describe('self-hosted fonts on the dashboard (#797)', () => {
 // checked: every page shares the one layout, so the others inline the same
 // sheets, but nothing here asserts it.
 test.describe('render-blocking stylesheets (#1069)', () => {
+  test.beforeEach(async ({ context }) => {
+    await context.clearCookies();
+  });
+
   test('the login page blocks first paint on /style.css alone', async ({
     page,
   }) => {

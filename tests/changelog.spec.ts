@@ -2,8 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #813: the page is built from CHANGELOG.md, turned into one same-origin
 // JSON file at build time. It makes no request to GitHub or anyone else.
@@ -29,7 +28,9 @@ async function showAllReleases(page: Page) {
 test.describe('release history page', () => {
   test('reachable without a session, unlike the dashboard itself', async ({
     page,
+    context,
   }) => {
+    await context.clearCookies();
     await page.goto('/changelog.html');
     await expect(page).toHaveURL(/\/changelog\.html$/);
     await expect(page.locator('.changelog-header h1')).toHaveText(
@@ -168,9 +169,6 @@ test.describe('release history page', () => {
   });
 
   test.describe('signed in', () => {
-    // Reads only, so it starts from the shared session (#1379).
-    test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
     // #786: the footer's version is the way in to this page. CI builds a dev
     // binary (plain text, no link), so a released version is mocked.
     test('the footer version links here from other pages, and stays a link marked current on this one', async ({

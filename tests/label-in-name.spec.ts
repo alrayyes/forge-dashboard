@@ -1,6 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1135: WCAG 2.5.3 (Label in Name). Someone who drives the page by voice
 // says the words they see, so an aria-label has to contain them. Lighthouse
@@ -82,9 +81,6 @@ async function mismatches(page: Page): Promise<string[]> {
 }
 
 test.describe('the check itself (#1315)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   // Signing in used to land on the pull request list, which these tests
   // inject their markup into.
   test.beforeEach(async ({ page }) => {
@@ -186,9 +182,6 @@ test.describe('the check itself (#1315)', () => {
 });
 
 test.describe('visible text is part of the accessible name (#1135)', () => {
-  // Reads only, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.route('**/api/dashboard/stream', (route) =>

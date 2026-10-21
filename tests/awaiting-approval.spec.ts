@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1280: a GitHub pull request whose workflow runs are held until someone
 // approves them says so, and links to its checks page to approve there.
@@ -52,9 +51,6 @@ const row = (page: Page, title: string) =>
   page.locator('#pr-rows > .row', { hasText: title });
 
 test.describe('Awaiting workflow approval (#1280)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a held row says so and links to its checks page', async ({ page }) => {
     await open(page);
     const held = row(page, 'Held for approval');

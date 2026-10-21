@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { navCountsFor } from './nav-counts-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The Bots page: Dependabot and Renovate pull requests (the server's
 // `kind: dependency`) with their own overview and count, and none of them on
@@ -73,9 +72,6 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Bots page (#1192)', () => {
-  // Only reads mocked data, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.

@@ -1,14 +1,9 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #724: the Activity list outlives a reload, for the life of the tab. A
 // request still queued comes back from the server's own updateRequest (#982),
 // so only finished entries are stored here.
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 function makePR(number: number) {
   return {

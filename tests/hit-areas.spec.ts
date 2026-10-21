@@ -1,8 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/1753
 //
@@ -419,8 +417,6 @@ async function ready(page: Page, selector: string) {
 // ---- the sweeps ----
 
 test.describe('hit areas on the mocked boards (#1753)', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('pull requests: rows of every kind and state', async ({ page }) => {
     const problems: string[] = [];
     await mockDashboard(page);
@@ -594,8 +590,6 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
 });
 
 test.describe('hit areas on the pages that read the server (#1753)', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('settings: every group', async ({ page }) => {
     const problems: string[] = [];
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
@@ -722,8 +716,6 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
 });
 
 test.describe('hit areas on the admin page (#1753)', () => {
-  test.use({ storageState: ADMIN_STORAGE_STATE });
-
   test('admin', async ({ page }) => {
     const problems: string[] = [];
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
@@ -735,9 +727,8 @@ test.describe('hit areas on the admin page (#1753)', () => {
 });
 
 test.describe('hit areas on the sign-in page (#1753)', () => {
-  test.use({ storageState: { cookies: [], origins: [] } });
-
-  test('login', async ({ page }) => {
+  test('login', async ({ page, context }) => {
+    await context.clearCookies();
     const problems: string[] = [];
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
     await page.goto('/login.html');
@@ -748,8 +739,6 @@ test.describe('hit areas on the sign-in page (#1753)', () => {
 });
 
 test.describe('axe keeps passing with the larger targets (#1753)', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('pull requests at 375 and the details dialog', async ({ page }) => {
     await mockDashboard(page);
     await mockDetails(page);
