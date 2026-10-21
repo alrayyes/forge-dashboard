@@ -976,6 +976,10 @@
     background: var(--surface-sunken);
     border: 1px solid var(--border);
   }
+  .markdown :global(pre:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .markdown :global(code) {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
     font-size: 12.5px;

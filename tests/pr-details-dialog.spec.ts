@@ -755,6 +755,31 @@ test.describe('pull request details dialog', () => {
     }
   });
 
+  test('a code block in the description takes keyboard focus and shows an outline', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await mockDetails(
+      page,
+      details({
+        description: body('```\n' + 'x'.repeat(300) + '\n```'),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const pre = dialog(page).locator('.markdown pre');
+    await expect(pre).toHaveAttribute('tabindex', '0');
+    await pre.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(pre).toBeFocused();
+    const outline = await pre.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return [cs.outlineStyle, cs.outlineWidth];
+    });
+    expect(outline).toEqual(['solid', '2px']);
+  });
+
   test('a failed markdown chunk shows a plain error and Try again recovers once the network is back', async ({
     page,
   }) => {
