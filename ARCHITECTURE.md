@@ -71,7 +71,7 @@ would need the same answer. The reasons, and what it costs, are in
   is — a personal API token (Settings → API tokens),
   `Authorization: Bearer <token>` — not a separate credential system. Its
   tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
-  exactly (it takes no arguments, and an `owner` from an older client is
+  exactly (it takes no arguments, and the old `owner` argument is
   refused), and `get_main_branches`, which mirrors
   `GET /api/main-branches` (default-branch CI status, no forge budget), and
   `get_pull_request_details`, which mirrors `GET /api/pull-requests/details`
