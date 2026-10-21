@@ -127,6 +127,8 @@ func TestReserve_ScheduledRefresh(t *testing.T) {
 		{"runs once the reset has passed", budgetStub(ForgeGitHub, 5000, 500, 0, time.Now().Add(-time.Minute)), 5},
 		// 10% of 100 is 10, so the floor of 50 holds it back at 50.
 		{"a small budget keeps a floor", budgetStub(ForgeGitHub, 100, 50, 0, later), 2},
+		// The floor never exceeds half the budget, or a tiny one is never usable.
+		{"the reserve is at most half the budget", budgetStub(ForgeGitHub, 60, 40, 0, later), 5},
 		{"forgejo reports no budget and is never held", noBudget(budgetStub(ForgeForgejo, 5000, 0, 0, later)), 5},
 	}
 	for _, tt := range tests {

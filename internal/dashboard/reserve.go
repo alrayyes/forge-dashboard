@@ -11,13 +11,13 @@ const (
 	// keyboard: background work stops short of it.
 	reserveFraction = 0.10
 	// reserveFloor is the least a reserve ever is, so a small budget still
-	// leaves room for a few clicks.
+	// leaves room for a few clicks. It never exceeds half the budget.
 	reserveFloor = 50
 )
 
 // reserveOf is how much of rl is kept for user actions.
 func reserveOf(rl RateLimit) int {
-	return max(reserveFloor, int(float64(rl.Limit)*reserveFraction))
+	return min(max(reserveFloor, int(float64(rl.Limit)*reserveFraction)), rl.Limit/2)
 }
 
 // costKey says which budget a kind of background work was last seen spending.
@@ -85,12 +85,13 @@ func budgetOf(h ForgeHealth, graphQL bool) *RateLimit {
 }
 
 // budgetHold reports whether background work of this kind should not call
-// forge now. A scoped webhook refresh is held
-// only when a budget is spent, since it is cheap and is the path that keeps the
-// board current. Every other background kind (full refresh, polls, hook
-// maintenance) waits when it would leave a budget at or under its reserve. A
-// budget the forge does not report has no reserve, so Forgejo is never held.
-// User actions never ask.
+// forge now. A scoped webhook refresh is held only when a budget is spent,
+// since it is cheap and is the path that keeps the board current. Every other
+// background kind (full refresh, polls, hook maintenance) waits when it would
+// leave either budget at or under its reserve, REST work included when only
+// GraphQL is low and the reverse: one check is simpler than tracking which
+// budget each kind spends. A budget the forge does not report has no reserve,
+// so Forgejo is never held. User actions never ask.
 func (a *Aggregator) budgetHold(snap Snapshot, forge Forge, kind apistats.Kind) bool {
 	h, ok := healthOf(snap, forge)
 	if !ok {
