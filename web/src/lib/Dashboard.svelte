@@ -386,6 +386,16 @@
   // The newest snapshot no longer has that pull request (merged, closed,
   // hidden). The list behind the dialog holds still; the dialog says so.
   let dialogGone = false;
+  // The pull request just closed from the open dialog. The dialog stays on it
+  // and offers Reopen as the undo for as long as it is open, with no timer.
+  // `stuck` is a reopen the forge won't do; `reason` says why in words.
+  type ClosedInDialog = {
+    key: string;
+    item: PullRequestItem;
+    phase: "closed" | "reopening" | "stuck";
+    reason: string;
+  };
+  let dialogClosed: ClosedInDialog | null = null;
   // The dialog's hooks into the board, set once the board exists below.
   let escapeDetails: () => boolean = () => false;
   let detailsClosed: () => void = () => {};
@@ -1549,6 +1559,163 @@
       return Array.from(holder.children) as HTMLElement[];
     }
 
+    // ---- the dialog after a Close: Reopen is the undo ----
+    // Undo beats a confirm step for something reversible, and a status line
+    // in the dialog (not a toast) stays put for as long as the dialog is
+    // open, so a keyboard or screen reader user is never racing a timer. The
+    // forge decides whether the reopen is possible, so the call is made and
+    // a refusal (merged meanwhile, branch gone, no permission) is shown in
+    // words with no Reopen left to press.
+    const CLOSED_STATUS = "Closed. Reopen it if that was a mistake.";
+
+    function reopenButtonId(key: string): string {
+      return `${DIALOG_ID_SCOPE}reopen-${domSafeId(key)}`;
+    }
+
+    function closedHeaderState(): HTMLElement {
+      const state = el("div", "details-state");
+      state.setAttribute("role", "group");
+      state.setAttribute("aria-label", "Status");
+      state.appendChild(el("span", "attr-chip", "Closed"));
+      return state;
+    }
+
+    function showClosedInDialog(item: PullRequestItem) {
+      const key = prKey(item);
+      dialogClosed = { key, item, phase: "closed", reason: "" };
+      detailsDialog?.setHeaderState(closedHeaderState());
+      refreshDialogChrome();
+      document.getElementById(reopenButtonId(key))?.focus();
+    }
+
+    function closedChrome(closed: ClosedInDialog): DetailsChrome {
+      const stuck = closed.phase === "stuck";
+      const status = el(
+        "p",
+        "status-area details-closed",
+        stuck ? "Closed. It can't be reopened from here." : CLOSED_STATUS,
+      );
+      const lines = feedbackUI.inlineLines(closed.key);
+      if (stuck) return { status, feedback: lines, option: null, actions: [] };
+      const button = buttonEl(
+        "row-action reopen details-action-primary",
+        closed.phase === "reopening" ? "Reopening…" : "Reopen pull request",
+      );
+      button.type = "button";
+      button.id = reopenButtonId(closed.key);
+      markPending(button, closed.phase === "reopening");
+      button.addEventListener("click", () => {
+        if (closed.phase === "closed") doReopen(closed);
+      });
+
+      return { status, feedback: lines, option: null, actions: [button] };
+    }
+
+    function doReopen(closed: ClosedInDialog) {
+      const { item, key } = closed;
+      closed.phase = "reopening";
+      const fkey = `reopen:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Reopen",
+        kind: "reopen",
+        phase: "working",
+        inline: "Reopening…",
+        message: "Reopening…",
+        announce: "Reopening…",
+        retry: () => {
+          feedback.drop(fkey);
+          closed.phase = "closed";
+          doReopen(closed);
+        },
+      });
+      refreshDialogChrome();
+
+      fetch("/api/pull-requests/reopen", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          if (res.status === 204) return null;
+          return readActionFailure(res).then((err) => {
+            throw err;
+          });
+        })
+        .then(() => {
+          feedback.update(fkey, {
+            phase: "done",
+            message: "Reopened.",
+            toast: true,
+            announce: "Reopened.",
+          });
+          // The row returns with the next snapshot; the dialog goes back to
+          // its normal state once it is in.
+          return fetch(withDrafts("/api/dashboard/refresh"), {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data) applySnapshot(data, true);
+            });
+        })
+        .then(() => {
+          if (dialogClosed !== closed) return;
+          dialogClosed = null;
+          const back =
+            (prBoard.find(key) as PullRequestItem | undefined) ?? item;
+          detailsDialog?.setHeaderState(detailsStatus(back).state);
+          refreshDialogChrome();
+        })
+        .catch((err: ActionRequestError) => {
+          if (dialogClosed !== closed) return;
+          const outcome = interpretActionFailure(err, (resetsAt) =>
+            resetsAt
+              ? rateLimitReasonText(
+                  FORGE_LABELS[item.forge] || item.forge,
+                  resetsAt,
+                )
+              : rateLimitedReason(item.forge),
+          );
+          const details = failureDetails(
+            err,
+            detailsContext(item, fkey, "reopen"),
+          );
+          if (outcome.kind === "failed") {
+            closed.phase = "closed";
+            failAction(
+              fkey,
+              "reopen",
+              outcome.reason,
+              true,
+              outcome.transient,
+              details,
+            );
+          } else {
+            closed.phase = "stuck";
+            const reason =
+              outcome.kind === "settled"
+                ? "It was merged in the meantime, so it can't be reopened."
+                : outcome.reason;
+            failAction(fkey, "reopen", reason, false, false, details);
+          }
+          refreshDialogChrome();
+        });
+    }
+
     function dialogChrome(item: PullRequestItem | undefined): DetailsChrome {
       if (!item) {
         const gone = el(
@@ -1598,7 +1765,10 @@
       idScope = DIALOG_ID_SCOPE;
       let chrome: DetailsChrome;
       try {
-        chrome = dialogChrome(item);
+        chrome =
+          dialogClosed && dialogClosed.key === dialogKey
+            ? closedChrome(dialogClosed)
+            : dialogChrome(item);
       } finally {
         idScope = "";
       }
@@ -1861,6 +2031,7 @@
         delete autoUpdateFailure[dialogKey];
       }
       dialogKey = null;
+      dialogClosed = null;
       if (confirmArm.disarm("dropped")) renderPRBoard();
       // The dialog hands focus back to its row. When that row left the board
       // while it was open, focus would fall to the page: put it on the first
@@ -3377,12 +3548,15 @@
         })
         .then(() => {
           delete closeState[key];
+          // From the dialog the close is announced once, with the way back.
+          const inDialog = dialogKey === key;
           feedback.update(fkey, {
             phase: "done",
             message: "Closed.",
             toast: true,
-            announce: "Closed.",
+            announce: inDialog ? CLOSED_STATUS : "Closed.",
           });
+          if (inDialog) showClosedInDialog(item);
           return fetch(withDrafts("/api/dashboard/refresh"), {
             method: "POST",
             headers: { Accept: "application/json" },

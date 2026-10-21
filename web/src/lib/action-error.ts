@@ -26,6 +26,7 @@ export type ActionCode =
   | 'auto_merge_not_allowed'
   | 'ready_to_merge'
   | 'label_missing'
+  | 'not_reopenable'
   | 'permission'
   | 'rate_limited'
   | 'forge_error'
@@ -78,6 +79,7 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'auto_merge_not_allowed',
   'ready_to_merge',
   'label_missing',
+  'not_reopenable',
   'permission',
   'rate_limited',
   'forge_error',

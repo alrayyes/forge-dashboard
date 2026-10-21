@@ -22,6 +22,7 @@ const kinds: WaitKind[] = [
   'update-branch',
   'merge',
   'close',
+  'reopen',
   'enable-auto-merge',
   'cancel-auto-merge',
 ];
