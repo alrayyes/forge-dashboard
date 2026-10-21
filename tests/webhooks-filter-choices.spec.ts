@@ -1,17 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1427: a filter offers only choices that exist in the results. On the
 // webhooks page that is the forge buttons and the status select: a forge with
 // no tracked repo, or a status no repo has, isn't offered, and what the other
 // filters leave out is left out of the choices too.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // The filters are saved per user now, and these tests share one: keep what one
 // picks from becoming the next test's starting point.

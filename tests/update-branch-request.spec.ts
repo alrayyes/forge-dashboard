@@ -1,6 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #982: the server owns an Update branch the forge accepted. Each pull
 // request in a snapshot carries `updateRequest` (queued, or expired after
@@ -74,10 +73,6 @@ function snapshot(pr: MockPR) {
 const row = (page: Page) => page.locator('#pr-rows .row').first();
 const line = (page: Page) => row(page).locator('.row-feedback');
 const chip = (page: Page) => row(page).locator('.wait-chip-label');
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('update branch request from the server', () => {
   // What the mocked dashboard currently answers with: a test changes it to

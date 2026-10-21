@@ -1,6 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 interface WebMCPTool {
   name: string;
@@ -47,9 +46,6 @@ async function stubModelContext(page: Page) {
 }
 
 test.describe('WebMCP tools', () => {
-  // Read-only: no test writes per-user state, so they share one session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('registers its tools when document.modelContext is present', async ({
     page,
   }) => {
