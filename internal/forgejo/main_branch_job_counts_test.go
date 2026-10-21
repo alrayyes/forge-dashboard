@@ -169,3 +169,23 @@ func TestReadMainBranch_ARerunInvalidatesTheKeptJobs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.CheckCounts{Passed: 2}, row.Checks)
 }
+
+// A run that has just finished can answer an empty job list for a moment. That
+// answer is not kept, or the run would read as one check for good.
+func TestReadMainBranch_DoesNotKeepAnEmptyJobList(t *testing.T) {
+	t.Parallel()
+
+	s := &mainBranchServer{
+		runs: []map[string]any{actionRun(1, "main", "cafef00d", "success", started, stopped)},
+		jobs: map[string][]map[string]any{"1": {}},
+	}
+	client := s.start(t)
+	_, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+
+	s.jobs = map[string][]map[string]any{"1": jobsOf("success", "success", "success")}
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 3}, row.Checks)
+}

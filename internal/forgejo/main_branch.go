@@ -216,7 +216,9 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 			continue
 		}
 		out[run.ID] = jobs
-		if key != "" {
+		// An empty list for a run that just finished may be the forge catching
+		// up, so it is read again rather than kept.
+		if key != "" && len(jobs) > 0 {
 			c.finishedJobsMu.Lock()
 			if len(c.finishedJobs) >= maxFinishedJobs {
 				clear(c.finishedJobs)
