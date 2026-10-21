@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.1](https://github.com/alrayyes/forge-dashboard/compare/v1.7.0...v1.7.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** count skipped checks once in the CI pill ([#2314](https://github.com/alrayyes/forge-dashboard/issues/2314)) ([e5a9690](https://github.com/alrayyes/forge-dashboard/commit/e5a969054ee2e7e457785386c0e03ffe1d4a9b6a))
+
+
+### Performance Improvements
+
+* **dashboard:** the persisted cache writes only what changed and evicts least recently used ([#2348](https://github.com/alrayyes/forge-dashboard/issues/2348)) ([54452af](https://github.com/alrayyes/forge-dashboard/commit/54452afdeb92d5fa3651520591e07dc512e52cd0))
+
 ## [1.7.0](https://github.com/alrayyes/forge-dashboard/compare/v1.6.2...v1.7.0) (2026-10-21)
 
 
