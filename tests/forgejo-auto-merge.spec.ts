@@ -67,14 +67,12 @@ function armed(
   });
 }
 
-test.describe('Forgejo auto-merge on a pull request row', () => {
-  test.beforeEach(async ({ page }) => {
-    // Aborted, so a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
-      route.abort(),
-    );
-  });
+// Aborted, so a real snapshot can't be pushed over the mock.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+});
 
+test.describe('Forgejo auto-merge on a pull request row', () => {
   test('a Forgejo pull request offers Enable auto-merge, which posts for that pull request', async ({
     page,
   }) => {
@@ -400,13 +398,6 @@ const CALLOUT =
   'Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself.';
 
 test.describe('Forgejo auto-merge explained where it is used', () => {
-  test.beforeEach(async ({ page }) => {
-    // Aborted, so a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
-      route.abort(),
-    );
-  });
-
   test('a grouped Forgejo repo says who handles auto-merge and links to Settings', async ({
     page,
   }) => {

@@ -3536,7 +3536,6 @@ test.describe('time cells say what they are (#1109)', () => {
         }),
       }),
     );
-    await page.goto('/pull-requests.html');
   });
 
   for (const [name, path, rows] of [

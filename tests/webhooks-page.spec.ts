@@ -8,6 +8,8 @@ function mockDashboard(
   repos: Record<string, unknown>[],
   forges?: Record<string, unknown>[],
 ) {
+  // Aborted, so a real snapshot can't be pushed over the mock.
+  void page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
