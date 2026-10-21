@@ -67,7 +67,7 @@ func botBoardAs(t *testing.T, author string, fail error) (*httptest.Server, *htt
 		prs, _ := fetchDashboard(t, srv.URL, cookie)["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }

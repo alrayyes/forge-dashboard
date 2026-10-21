@@ -60,7 +60,7 @@ func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCo
 		prs, _ := fetchDashboardWith(t, srv.URL, sessionCookie, "")["pullRequests"].([]any)
 
 		return len(prs) == 3
-	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
 
 	return srv.URL, sessionCookie
 }

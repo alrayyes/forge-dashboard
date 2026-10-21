@@ -161,7 +161,7 @@ func boardServer(t *testing.T, fake *fakeGitHub) (srvURL string, cookie *http.Co
 	srvURL, cookie = newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, githubpkg.NewClient("test-token", "", gh.URL))
 	require.Eventually(t, func() bool {
 		return len(prNumbers(t, fetchDashboardWith(t, srvURL, cookie, ""))) == 1
-	}, 5*time.Second, 10*time.Millisecond, "the first refresh should list #78")
+	}, pollBudget, 10*time.Millisecond, "the first refresh should list #78")
 	token, secret = webhookCredentials(t, srvURL, cookie)
 
 	return srvURL, cookie, token, secret
@@ -186,7 +186,7 @@ func TestGitHubWebhook_ClosedDelivery_APullRequestGitHubStillListsOpenLeavesTheB
 	fake.merge(1)
 	postGitHubDelivery(t, srvURL, token, secret, pullRequestDelivery("closed", true))
 
-	assert.Eventually(t, func() bool { return !boardLists78(t, srvURL, cookie) }, 10*time.Second, 20*time.Millisecond,
+	assert.Eventually(t, func() bool { return !boardLists78(t, srvURL, cookie) }, pollBudget, 20*time.Millisecond,
 		"within 10 seconds of the closed delivery the dashboard must stop listing #78")
 }
 
@@ -205,7 +205,7 @@ func TestGitHubWebhook_ClosedDelivery_AFailedScopedRefreshStillRemovesThePullReq
 	fake.failRepoQuery()
 	postGitHubDelivery(t, srvURL, token, secret, pullRequestDelivery("closed", true))
 
-	require.Eventually(t, func() bool { return !boardLists78(t, srvURL, cookie) }, 10*time.Second, 20*time.Millisecond,
+	require.Eventually(t, func() bool { return !boardLists78(t, srvURL, cookie) }, pollBudget, 20*time.Millisecond,
 		"a failed fetch must not keep a closed pull request on the board")
 	require.Eventually(t, func() bool { return strings.Contains(logs.String(), "scoped refresh failed") }, 5*time.Second, 20*time.Millisecond)
 	logged := logs.String()
@@ -223,12 +223,12 @@ func TestGitHubWebhook_ReopenedDelivery_BringsThePullRequestBack(t *testing.T) {
 
 	fake.merge(1)
 	postGitHubDelivery(t, srvURL, token, secret, pullRequestDelivery("closed", false))
-	require.Eventually(t, func() bool { return !boardLists78(t, srvURL, cookie) }, 10*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return !boardLists78(t, srvURL, cookie) }, pollBudget, 20*time.Millisecond)
 
 	fake.reopen()
 	postGitHubDelivery(t, srvURL, token, secret, pullRequestDelivery("reopened", false))
 
-	assert.Eventually(t, func() bool { return boardLists78(t, srvURL, cookie) }, 10*time.Second, 20*time.Millisecond,
+	assert.Eventually(t, func() bool { return boardLists78(t, srvURL, cookie) }, pollBudget, 20*time.Millisecond,
 		"a reopened pull request is open again")
 }
 

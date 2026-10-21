@@ -3,6 +3,7 @@ package api_test
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
@@ -40,7 +41,7 @@ func TestDashboard_PullRequestsSayWhetherTheirReviewIsRequestedFromMe(t *testing
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
 
 		return len(prs) == 2
-	}, 2e9, 10e6, "the background refresh should have picked up the fixture PRs")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
 
 	snap := fetchDashboardWith(t, srv.URL, cookie, "")
 

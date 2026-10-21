@@ -60,7 +60,7 @@ func scheduledBoard(t *testing.T, src *scheduleCancelSource, prs ...dashboard.Pu
 		got, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
 
 		return len(got) == len(prs)
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }
