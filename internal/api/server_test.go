@@ -182,7 +182,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		snap, status := dashboardReq()
 
 		return status == http.StatusOK && len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
-	}, time.Second, 10*time.Millisecond, "settings should have started a background refresh before simulating a restart")
+	}, pollBudget, 10*time.Millisecond, "settings should have started a background refresh before simulating a restart")
 
 	// Simulate a process restart: Manager.Stop cancels every running
 	// refresh loop and clears its map, the same effect on Manager state a
@@ -204,5 +204,5 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		snap, status := dashboardReq()
 
 		return status == http.StatusOK && !snap.GeneratedAt.IsZero() && len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
-	}, time.Second, 10*time.Millisecond, "a lazily rewarmed dashboard should reflect the previously saved sources again, not stay stuck at the zero-value snapshot")
+	}, pollBudget, 10*time.Millisecond, "a lazily rewarmed dashboard should reflect the previously saved sources again, not stay stuck at the zero-value snapshot")
 }
