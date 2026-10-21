@@ -14,6 +14,9 @@ import (
 type stubSource struct {
 	forge  Forge
 	health ForgeHealth
+	// budget, when set, is reported on every fetch and falls by step after it.
+	budget *RateLimit
+	step   int
 
 	mu    sync.Mutex
 	calls int
@@ -29,13 +32,19 @@ func (s *stubSource) Fetch(context.Context) Result {
 	s.mu.Lock()
 	s.calls++
 	gate := s.gate
+	health := s.health
+	if s.budget != nil {
+		rl := *s.budget
+		health.RateLimitGraphQL = &rl
+		s.budget.Remaining -= s.step
+	}
 	s.mu.Unlock()
 	if gate != nil {
 		s.once.Do(func() { close(s.entered) })
 		<-gate
 	}
 
-	return Result{Health: s.health}
+	return Result{Health: health}
 }
 
 func (s *stubSource) count() int {
@@ -77,4 +86,62 @@ func TestReserve_RefreshJoiningABackgroundRun_AtTheReserve_StillFetches(t *testi
 	wg.Wait()
 
 	assert.Equal(t, 2, hub.count(), "the person's refresh reached GitHub, the scheduled one did not")
+}
+
+func budgetStub(forge Forge, limit, remaining, step int, resets time.Time) *stubSource {
+	return &stubSource{
+		forge:  forge,
+		health: ForgeHealth{Forge: forge, Reachable: true},
+		budget: &RateLimit{Limit: limit, Remaining: remaining, ResetsAt: resets},
+		step:   step,
+	}
+}
+
+// scheduledRefreshes runs two refreshes a person asked for, which teach the
+// aggregator what one costs, and then n scheduled ones, as Run would.
+func scheduledRefreshes(t *testing.T, src *stubSource, n int) {
+	t.Helper()
+
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	agg.Refresh(t.Context())
+	for range n {
+		agg.refreshBackground(t.Context())
+	}
+}
+
+func TestReserve_ScheduledRefresh(t *testing.T) {
+	t.Parallel()
+
+	later := time.Now().Add(time.Hour)
+	tests := []struct {
+		name  string
+		src   *stubSource
+		calls int
+	}{
+		{"at the reserve waits", budgetStub(ForgeGitHub, 5000, 500, 0, later), 2},
+		{"above the reserve runs", budgetStub(ForgeGitHub, 5000, 501, 0, later), 5},
+		// 1000, then 600 after a refresh that cost 400: over the reserve, but
+		// another 400 would leave 200.
+		{"waits when its last cost would cross the reserve", budgetStub(ForgeGitHub, 5000, 1000, 400, later), 2},
+		{"runs once the reset has passed", budgetStub(ForgeGitHub, 5000, 500, 0, time.Now().Add(-time.Minute)), 5},
+		// 10% of 100 is 10, so the floor of 50 holds it back at 50.
+		{"a small budget keeps a floor", budgetStub(ForgeGitHub, 100, 50, 0, later), 2},
+		{"forgejo reports no budget and is never held", noBudget(budgetStub(ForgeForgejo, 5000, 0, 0, later)), 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			scheduledRefreshes(t, tt.src, 3)
+
+			assert.Equal(t, tt.calls, tt.src.count())
+		})
+	}
+}
+
+func noBudget(s *stubSource) *stubSource {
+	s.budget = nil
+
+	return s
 }

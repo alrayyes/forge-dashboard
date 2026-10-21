@@ -67,102 +67,6 @@ func (s *budgetSource) Fetch(ctx context.Context) dashboard.Result {
 // reserved is the reserve of a 5000-point budget.
 const reserved = 500
 
-func runFor(t *testing.T, agg *dashboard.Aggregator) {
-	t.Helper()
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, 10*time.Millisecond)
-		close(done)
-	}()
-	time.Sleep(150 * time.Millisecond)
-	cancel()
-	<-done
-}
-
-func TestReserve_ScheduledFullRefresh_AtTheReserve_WaitsForTheReset(t *testing.T) {
-	t.Parallel()
-
-	for _, which := range []budget{graphQL, rest} {
-		t.Run(string(which), func(t *testing.T) {
-			t.Parallel()
-
-			// The entry refresh sees an empty snapshot and runs; it leaves the
-			// budget at the reserve, so every scheduled one after it waits.
-			src := newBudgetSource(which, reserved, 0)
-			agg := dashboard.NewAggregator([]dashboard.Source{src})
-
-			runFor(t, agg)
-
-			assert.Equal(t, 1, src.fetchCallCount())
-		})
-	}
-}
-
-func TestReserve_ScheduledFullRefresh_AboveTheReserve_Runs(t *testing.T) {
-	t.Parallel()
-
-	for _, which := range []budget{graphQL, rest} {
-		t.Run(string(which), func(t *testing.T) {
-			t.Parallel()
-
-			src := newBudgetSource(which, reserved+1, 0)
-			agg := dashboard.NewAggregator([]dashboard.Source{src})
-
-			runFor(t, agg)
-
-			assert.Greater(t, src.fetchCallCount(), 2)
-		})
-	}
-}
-
-func TestReserve_ScheduledFullRefresh_WaitsWhenItsLastCostWouldCrossTheReserve(t *testing.T) {
-	t.Parallel()
-
-	// 1000, then 600 after one refresh that cost 400: 600 is over the reserve,
-	// but another 400 would take it to 200, under.
-	src := newBudgetSource(graphQL, 1000, 400)
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
-
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, 10*time.Millisecond)
-		close(done)
-	}()
-	require.Eventually(t, func() bool { return src.fetchCallCount() >= 2 }, 5*time.Second, 5*time.Millisecond)
-	time.Sleep(150 * time.Millisecond)
-	cancel()
-	<-done
-
-	assert.Equal(t, 2, src.fetchCallCount(), "the entry refresh and one more, then it waits")
-}
-
-func TestReserve_ScheduledFullRefresh_ResetPassed_Runs(t *testing.T) {
-	t.Parallel()
-
-	src := newBudgetSource(graphQL, reserved, 0)
-	src.resets = time.Now().Add(-time.Minute)
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
-
-	runFor(t, agg)
-
-	assert.Greater(t, src.fetchCallCount(), 2, "the budget has come back")
-}
-
-func TestReserve_SmallBudget_KeepsAFloor(t *testing.T) {
-	t.Parallel()
-
-	// 10% of 100 is 10; the floor of 50 holds it back at 50.
-	src := newBudgetSource(graphQL, 50, 0)
-	src.limit = 100
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
-
-	runFor(t, agg)
-
-	assert.Equal(t, 1, src.fetchCallCount())
-}
-
 func TestReserve_ForceRefresh_AtTheReserve_Runs(t *testing.T) {
 	t.Parallel()
 
@@ -252,38 +156,50 @@ func TestReserve_HookMaintenance_AtTheReserve_Waits(t *testing.T) {
 	assert.Empty(t, src.called())
 }
 
-func TestReserve_Forgejo_IsNeverHeld(t *testing.T) {
+// Merge, Update branch, rebases, Close, Enable auto-merge and queued actions
+// never ask the reserve: only a budget with nothing left holds a queued action.
+// This runs one through the real runner with REST at the reserve.
+func TestReserve_QueuedAction_AtTheReserve_StillRuns(t *testing.T) {
 	t.Parallel()
 
-	src := newBudgetSource(graphQL, 0, 0)
-	src.forge = dashboard.ForgeForgejo
-	src.which = "none"
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	rig := newQueueRig(t, behindPR(5, "alice"))
+	rig.enqueue(t, dashboard.ActionUpdateBranch, 5)
+	rig.clock.advance(33 * time.Minute)
+	rig.src.setHealth(dashboard.ForgeHealth{
+		Forge: dashboard.ForgeGitHub, Reachable: true,
+		RateLimitREST:    &dashboard.RateLimit{Limit: 5000, Remaining: reserved, ResetsAt: queueReset.Add(time.Hour)},
+		RateLimitGraphQL: &dashboard.RateLimit{Limit: 5000, Remaining: reserved, ResetsAt: queueReset.Add(time.Hour)},
+	})
 
-	runFor(t, agg)
+	rig.agg.ProcessQueuedActions(t.Context())
 
-	assert.Greater(t, src.fetchCallCount(), 2, "no reported budget, no reserve")
+	assert.Equal(t, []string{"update o/r#5"}, rig.src.writes())
+	assert.Equal(t, dashboard.QueuedDone, rig.only(t).Status)
 }
 
-// Merge, Update branch, rebases, Close, Enable auto-merge and queued actions
-// never ask the reserve: the only thing that holds a queued action is a budget
-// with nothing left.
-func TestReserve_QueuedAction_AtTheReserve_IsNotHeld(t *testing.T) {
+// Someone opening the board after an idle spell wakes the schedule. That is a
+// person, so the reserve is theirs to use.
+func TestReserve_ActivityWake_AtTheReserve_Refreshes(t *testing.T) {
 	t.Parallel()
 
-	resets := time.Now().Add(time.Hour)
-	for _, which := range []budget{graphQL, rest} {
-		h := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub}
-		rl := &dashboard.RateLimit{Limit: 5000, Remaining: reserved, ResetsAt: resets}
-		if which == graphQL {
-			h.RateLimitGraphQL = rl
-		} else {
-			h.RateLimitREST = rl
-		}
-		snap := dashboard.Snapshot{Forges: []dashboard.ForgeHealth{h}}
+	src := newBudgetSource(graphQL, reserved, 0)
+	clock := &fakeClock{t: queueT0}
+	act := dashboard.NewActivity(time.Minute, clock.now)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		agg.Run(ctx, time.Hour)
+		close(done)
+	}()
+	defer func() {
+		cancel()
+		<-done
+	}()
+	require.Eventually(t, func() bool { return src.fetchCallCount() == 1 }, 5*time.Second, time.Millisecond)
 
-		_, limited := dashboard.RateLimitedUntil(snap, dashboard.ForgeGitHub, time.Now())
+	clock.advance(2 * time.Minute)
+	act.Touch()
 
-		assert.False(t, limited, which)
-	}
+	require.Eventually(t, func() bool { return src.fetchCallCount() == 2 }, 5*time.Second, time.Millisecond)
 }
