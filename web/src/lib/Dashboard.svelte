@@ -27,6 +27,7 @@
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import {
     CHECK_KIND_GLYPH,
+    pillWord,
     type CheckCounts,
     checkSegments,
     pillName,
@@ -828,7 +829,7 @@
     function ciWords(item: PullRequestItem) {
       const status = item.ci;
       const awaiting = item.awaitingWorkflowApproval === true;
-      const label = awaiting
+      const baseLabel = awaiting
         ? "Waiting for workflow approval"
         : CI_LABELS[status] || status;
       // A pipeline that ran says how far it got (#2004, #2074), running, passed
@@ -837,6 +838,7 @@
       // them, which leaves the plain pill.
       const segments =
         SEGMENTED_CI.has(status) && !awaiting ? checkSegments(item.checks) : [];
+      const label = pillWord(baseLabel, segments);
       return { status, awaiting, label, segments };
     }
     // announce false leaves the words to a name the caller sets, as the pill
@@ -3867,6 +3869,9 @@
         readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
       )
         return null;
+      // Waiting for CI: Merge already says so, and updating would only
+      // restart the checks. Hidden rather than locked.
+      if (updateBranch.blocked?.code === "checks_pending") return null;
       if (updateBranch.blocked)
         return lockedActionButton(
           "Update branch",
