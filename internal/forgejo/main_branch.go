@@ -192,7 +192,7 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be
 // read is left out, and counts as one check (see jobCounts). A finished run's
-// jobs are kept (see Client.finishedJobs), so only runs still going cost a
+// jobs are kept (see finishedJobs), so only runs still going cost a
 // request on a repeat poll.
 func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) map[int64][]*gitea.ActionWorkflowJob {
 	out := make(map[int64][]*gitea.ActionWorkflowJob, len(runs))
@@ -200,10 +200,7 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 		key := ""
 		if finished := !run.StoppedAt.IsZero() && isFinished(run.Status); finished {
 			key = fmt.Sprintf("%s/%d/%s", repo.FullName, run.ID, run.StoppedAt.Format(time.RFC3339Nano))
-			c.finishedJobsMu.Lock()
-			cached, ok := c.finishedJobs[key]
-			c.finishedJobsMu.Unlock()
-			if ok {
+			if cached, ok := c.finishedJobs.get(key); ok {
 				out[run.ID] = cached
 
 				continue
@@ -216,26 +213,24 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 			continue
 		}
 		out[run.ID] = jobs
-		if key != "" {
-			c.finishedJobsMu.Lock()
-			if len(c.finishedJobs) >= maxFinishedJobs {
-				clear(c.finishedJobs)
-			}
-			c.finishedJobs[key] = jobs
-			c.finishedJobsMu.Unlock()
+		// An empty list for a run that just finished may be the forge catching
+		// up, so it is read again rather than kept.
+		if key != "" && len(jobs) > 0 {
+			c.finishedJobs.put(key, jobs)
 		}
 	}
 
 	return out
 }
 
-// maxFinishedJobs bounds Client.finishedJobs; past it the cache starts over.
-const maxFinishedJobs = 2000
-
+// isFinished reports whether status is one a run ends in, by the same reading
+// of the forge's words that checkStateFromWorkflowStatus gives the checks.
 func isFinished(status string) bool {
-	switch status {
-	case "success", "failure", "cancelled", "skipped":
+	switch checkStateFromWorkflowStatus(status) {
+	case dashboard.CheckSuccess, dashboard.CheckFailure, dashboard.CheckCancelled, dashboard.CheckSkipped:
 		return true
+	case dashboard.CheckRunning, dashboard.CheckQueued:
+		return false
 	}
 
 	return false

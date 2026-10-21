@@ -88,12 +88,8 @@ type clientState struct {
 	schedule    map[string]cachedSchedule
 	scheduleSeq uint64
 
-	// finishedJobs keeps the job list of a finished run, which never changes,
-	// so a default-branch poll only re-reads the runs still going. Forgejo
-	// sends no ETag to make that read a 304. Keyed by run and finish time, so
-	// a rerun, which finishes again later, is read afresh.
-	finishedJobsMu sync.Mutex
-	finishedJobs   map[string][]*gitea.ActionWorkflowJob
+	// finishedJobs keeps the job list of each finished run (see finishedJobs).
+	finishedJobs *finishedJobs
 }
 
 // cachedReview is one pull request's review state as of updatedAt.
@@ -161,7 +157,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		rawTransport: rawTransport,
 		reviews:      map[string]cachedReview{},
 		schedule:     map[string]cachedSchedule{},
-		finishedJobs: map[string][]*gitea.ActionWorkflowJob{},
+		finishedJobs: newFinishedJobs(maxFinishedJobs),
 	}}
 }
 
@@ -1134,7 +1130,7 @@ func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bo
 
 // splitRunning tells the running checks from the queued ones among counts'
 // pending statuses (#2357). Forgejo says pending for both, so the statuses
-// can't. The commit's Actions jobs can, and only runs still going are read, so
+// can't. The commit's Actions jobs can, and only running runs are read, so
 // a commit with nothing pending costs nothing extra. The running jobs move
 // from waiting to running, never more than were pending, as a pending status
 // can come from an external CI the jobs know nothing about. Any failure keeps
@@ -1147,29 +1143,26 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 		HeadSHA:  sha,
 	})
 	if err != nil {
+		// forgejoError records the failed request; the pending checks stay queued.
+		_ = c.forgejoError(ctx, http.MethodGet, runsPath, resp, err)
 		slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "error", err)
 
 		return counts
 	}
 	c.recordRequest(ctx, http.MethodGet, runsPath, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	running := 0
-	for _, run := range runs.WorkflowRuns {
-		if isFinished(run.Status) {
-			continue
-		}
-		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
-		if err != nil {
-			slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
-
-			continue
-		}
-		for _, j := range jobs {
-			if checkStateFromWorkflowStatus(j.Status) == dashboard.CheckRunning {
-				running++
-			}
+	// A forge that ignores the head_sha filter answers with other commits' runs.
+	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return r.HeadSha != sha })
+	var going []*gitea.ActionWorkflowRun
+	for _, run := range withoutShadowedPushRuns(onCommit) {
+		// Only a run that is running can hold a running job: a queued or
+		// blocked one has none, and a finished one is past it.
+		if checkStateFromWorkflowStatus(run.Status) == dashboard.CheckRunning {
+			going = append(going, run)
 		}
 	}
+
+	running := c.countRunningJobs(ctx, owner, name, going)
 	running = min(running, counts.Waiting)
 	counts.Running += running
 	counts.Waiting -= running
@@ -1177,12 +1170,43 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 	return counts
 }
 
+// countRunningJobs counts the running jobs of runs. The runs' jobs are read side
+// by side, so a commit with several running runs doesn't stretch every poll by
+// one round trip each. A run whose jobs can't be read counts none.
+func (c *Client) countRunningJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun) int {
+	perRun := make([]int, len(runs))
+	var wg sync.WaitGroup
+	for i, run := range runs {
+		wg.Go(func() {
+			jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
+			if err != nil {
+				slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
+
+				return
+			}
+			for _, j := range jobs {
+				if checkStateFromWorkflowStatus(j.Status) == dashboard.CheckRunning {
+					perRun[i]++
+				}
+			}
+		})
+	}
+	wg.Wait()
+
+	total := 0
+	for _, n := range perRun {
+		total += n
+	}
+
+	return total
+}
+
 // checkCountsOf tallies the statuses the combined-status answer already
 // carries, so the counts cost no request. Forgejo says pending for a check
 // that is queued or running alike, so it counts as waiting here; ciStatus
-// then splits the running ones out with splitRunning. A warning counts as passed, the way the combined state
-// treats it, and so does a skipped check: it was not needed, which is no
-// failure and no wait. The SDK has no constant for that state, so it is read
+// then splits the running ones out with splitRunning. A warning counts as
+// passed, the way the combined state treats it, and so does a skipped check:
+// it was not needed, which is no failure and no wait. The SDK has no constant for that state, so it is read
 // by its name.
 func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 	var out dashboard.CheckCounts
@@ -1643,4 +1667,17 @@ func branchRef(b *gitea.PRBranchInfo) string {
 	}
 
 	return b.Ref
+}
+
+// withoutShadowedPushRuns drops the push runs when a pull_request run is there
+// too. Both run the same workflows on the commit, and the pull request's
+// statuses come from the pull_request one, so reading both would count each
+// running job twice. A push run alone is kept: it is all there is.
+func withoutShadowedPushRuns(runs []*gitea.ActionWorkflowRun) []*gitea.ActionWorkflowRun {
+	hasPullRequest := slices.ContainsFunc(runs, func(r *gitea.ActionWorkflowRun) bool { return r.Event == "pull_request" })
+	if !hasPullRequest {
+		return runs
+	}
+
+	return slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool { return r.Event == "push" })
 }
