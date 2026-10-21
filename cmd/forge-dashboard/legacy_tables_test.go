@@ -34,7 +34,7 @@ func TestDropLegacyShares_NoTable_IsANoOp(t *testing.T) {
 }
 
 func TestBuildStores_LeftoverSharesTable_IsDroppedAtStartup(t *testing.T) {
-	t.Setenv("ENCRYPTION_KEY", "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=")
+	t.Setenv("ENCRYPTION_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
 	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "startup.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
