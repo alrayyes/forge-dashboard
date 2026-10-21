@@ -151,7 +151,14 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 	if err != nil {
 		return nil, fmt.Errorf("auth: finish registration: %w", err)
 	}
-	if err := s.store.AddCredential(ctx, u.ID, *cred); err != nil {
+	// The bootstrap registration (the admin row BeginRegistration made on an
+	// instance with no registered user) is first-wins; an invited one is not
+	// decided here.
+	attach := s.store.AddCredential
+	if u.IsAdmin {
+		attach = s.store.AddFirstCredential
+	}
+	if err := attach(ctx, u.ID, *cred); err != nil {
 		return nil, err
 	}
 	if err := s.store.SetCredentialLabel(ctx, u.ID, cred.ID, initialCredentialLabel); err != nil {

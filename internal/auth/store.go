@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -25,6 +26,11 @@ var errCredentialNotFound = errors.New("no such credential")
 // rather than a typed error, since every caller only ever needs to know
 // which kind, not reach anything out of it.
 var ErrNotFound = errors.New("auth: not found")
+
+// ErrRegistrationClosed is returned when a first registration finishes after
+// another user already holds a passkey. An instance has one owner, and the
+// first passkey to land is theirs.
+var ErrRegistrationClosed = errors.New("auth: registration is closed")
 
 // Store persists users, their passkey credentials, in-flight WebAuthn
 // ceremonies, and sessions. It owns no driver of its own — cmd wires up
@@ -300,6 +306,63 @@ func (s *Store) AddCredential(ctx context.Context, userID []byte, cred webauthn.
 	u.Credentials = append(u.Credentials, cred)
 
 	return s.saveCredentials(ctx, u)
+}
+
+// AddFirstCredential attaches the passkey of a registration that began on an
+// instance with no registered user. It is first-wins: the write happens only
+// while no other user holds a passkey, decided by the same statement that
+// writes it, so two ceremonies finishing together cannot both succeed. The
+// loser gets ErrRegistrationClosed and its pending user row is removed.
+func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, cred webauthn.Credential) error {
+	credsJSON, err := json.Marshal([]webauthn.Credential{cred})
+	if err != nil {
+		return fmt.Errorf("auth: encode credentials: %w", err)
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("auth: begin first registration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	id := encodeID(userID)
+	res, err := tx.ExecContext(ctx, `
+		UPDATE users SET credentials_json = ?
+		WHERE id = ? AND credentials_json = '[]'
+		  AND NOT EXISTS (SELECT 1 FROM users WHERE id != ? AND credentials_json != '[]')`,
+		string(credsJSON), id, id,
+	)
+	if err != nil {
+		return fmt.Errorf("auth: save first credential: %w", err)
+	}
+	attached, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("auth: save first credential: %w", err)
+	}
+	if attached == 0 {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ? AND credentials_json = '[]'`, id); err != nil {
+			return fmt.Errorf("auth: remove refused registration: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("auth: remove refused registration: %w", err)
+		}
+
+		return ErrRegistrationClosed
+	}
+
+	var username string
+	if err := tx.QueryRowContext(ctx, `SELECT username FROM users WHERE id = ?`, id).Scan(&username); err != nil {
+		return fmt.Errorf("auth: read the first user: %w", err)
+	}
+	if err := singleuser.WriteMarker(ctx, tx, username, 0); err != nil {
+		return fmt.Errorf("auth: record the first registration: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("auth: commit first registration: %w", err)
+	}
+
+	return nil
 }
 
 // UpdateCredential replaces the stored credential sharing cred's ID —
