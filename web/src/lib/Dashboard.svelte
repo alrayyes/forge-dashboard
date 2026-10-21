@@ -29,7 +29,7 @@
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import { ciSignature } from "#lib/pipeline-live.js";
   import * as Filters from "#lib/filters.js";
-  import { choicesChange, shownList } from "#lib/shown-list.js";
+  import { choicesChange, offerAction, shownList } from "#lib/shown-list.js";
   import {
     type LabelFilterControl,
     joinLabels,
@@ -4839,19 +4839,19 @@
     // can trail the newest snapshot while it waits (#1427), so they are
     // offered again when a waiting list lands.
     function offerWhatIsShown(change: "none" | "titles" | "all" = "all") {
-      if (change === "none") return;
-      // The Title box may have focus; its suggestions stay as they are then,
-      // and are rebuilt for the list that landed otherwise.
-      const typing = document.activeElement?.matches('input[data-col="title"]');
-      // Titles alone changed, and no title filter narrows the other choices,
-      // so only the suggestions are rebuilt.
-      if (change === "titles" && !sharedState.shared.title) {
-        if (!typing) offerTitles();
-        return;
-      }
+      const typing = Boolean(
+        document.activeElement?.matches('input[data-col="title"]'),
+      );
+      const action = offerAction(
+        change,
+        Boolean(sharedState.shared.title),
+        typing,
+      );
+      if (action === "suggest") offerTitles();
       // A pick the landed list no longer offers is cleared, so the list on
       // screen is filtered again without it.
-      if (updateSharedFilterOptions(Boolean(typing))) renderBoth();
+      else if (action === "rebuild" && updateSharedFilterOptions(typing))
+        renderBoth();
     }
 
     // Returns true when it rendered the board.
