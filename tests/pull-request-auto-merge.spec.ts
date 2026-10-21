@@ -283,7 +283,9 @@ test.describe('pull request Enable auto-merge action', () => {
     await page.route(
       '**/api/pull-requests/auto-merge',
       async (route: Route) => {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // Long enough that the Arming chip is still up when the assertion polls
+        // for it, with the load of a server per worker.
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         return route.fulfill({ status: 204 });
       },
     );
