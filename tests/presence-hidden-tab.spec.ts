@@ -1,6 +1,5 @@
 import { expect, type Request } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // A tab says whether it is being looked at, so a forgotten tab does not keep
 // the scheduled refresh running. The server's side (what counts, the bounded
@@ -24,23 +23,14 @@ const show = (
 
 test('a tab reports visible, then hidden, then visible again', async ({
   page,
-  request,
-  baseURL,
 }) => {
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    `presence-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    'Presence',
-  );
   const reports: Report[] = [];
   page.on('request', (req: Request) => {
     if (req.url().endsWith('/api/presence') && req.method() === 'POST')
       reports.push(req.postDataJSON() as Report);
   });
 
-  await page.goto('/pull-requests.html');
+  await landOnPullRequests(page);
   await expect.poll(() => reports.map((r) => r.visible)).toEqual([true]);
   const viewerId = reports[0].viewerId;
 
@@ -56,16 +46,7 @@ test('a tab reports visible, then hidden, then visible again', async ({
 
 test('the nav read the page makes on its own timer is marked as a background read', async ({
   page,
-  request,
-  baseURL,
 }) => {
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    `presence-bg-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    'Presence background',
-  );
   const read = page.waitForRequest(
     (req) => new URL(req.url()).pathname === '/api/dashboard',
   );
