@@ -1136,6 +1136,7 @@ func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bo
 // can come from an external CI the jobs know nothing about. Any failure keeps
 // counts as it was.
 func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, counts dashboard.CheckCounts) dashboard.CheckCounts {
+	sha = strings.ToLower(sha)
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
 	runs, resp, err := c.withContext(ctx).sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
@@ -1152,7 +1153,10 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 	c.recordRequest(ctx, http.MethodGet, runsPath, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	// A forge that ignores the head_sha filter answers with other commits' runs.
-	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return r.HeadSha != sha })
+	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return !sameCommit(r.HeadSha, sha) })
+	if len(onCommit) == 0 && len(runs.WorkflowRuns) > 0 {
+		slog.Debug("split running checks found no run on the commit", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "sha", sha, "runs", len(runs.WorkflowRuns))
+	}
 	// Only a run that is running can hold a running job: a queued or blocked
 	// one has none, and a finished one is past it. This comes before the push
 	// runs are dropped, so a finished pull_request run doesn't hide a push run
@@ -1691,4 +1695,15 @@ func withoutShadowedPushRuns(runs []*gitea.ActionWorkflowRun) []*gitea.ActionWor
 // as pull_request, pull_request_target or pull_request_review.
 func isPullRequestEvent(event string) bool {
 	return strings.HasPrefix(event, "pull_request")
+}
+
+// sameCommit reports whether two shas name one commit, ignoring case and
+// letting an abbreviated sha match the full one. An empty sha matches nothing.
+func sameCommit(a, b string) bool {
+	a, b = strings.ToLower(a), strings.ToLower(b)
+	if a == "" || b == "" {
+		return false
+	}
+
+	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
 }

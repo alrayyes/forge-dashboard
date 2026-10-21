@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"cmp"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -282,6 +283,7 @@ type splitServer struct {
 	runs    []map[string]any
 	jobs    map[int][]string
 	failJob map[int]bool
+	headSHA string // the pull request's head sha as the forge writes it; cafef00d when empty
 
 	runsLists atomic.Int32
 	mu        sync.Mutex
@@ -292,7 +294,7 @@ type splitServer struct {
 
 func (s *splitServer) start(t *testing.T) *forgejo.Client {
 	t.Helper()
-	headSHA := "cafef00d"
+	headSHA := cmp.Or(s.headSHA, "cafef00d")
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
@@ -528,4 +530,26 @@ func TestListOpenPullRequests_SplitSurvivesAJobsReadFailingMidWay(t *testing.T) 
 	got := s.checks(t, s.start(t))
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+}
+
+// The caller's sha may be upper case or abbreviated; the forge's runs carry the
+// full lower-case one, and are still found.
+func TestListOpenPullRequests_SplitMatchesTheShaLooselyWhenTheForgeIgnoresTheFilter(t *testing.T) {
+	t.Parallel()
+
+	for name, headSHA := range map[string]string{"upper case": "CAFEF00D", "abbreviated": "cafef"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s := &splitServer{
+				pending: 2,
+				runs:    []map[string]any{splitRun(7, "running", "pull_request")},
+				jobs:    map[int][]string{7: {"running", "waiting"}},
+				headSHA: headSHA,
+			}
+
+			got := s.checks(t, s.start(t))
+
+			assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 1}, got)
+		})
+	}
 }
