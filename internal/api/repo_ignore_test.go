@@ -21,7 +21,7 @@ func postRepoAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, pat
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp
@@ -38,7 +38,7 @@ func postRepoIgnoreAction(t *testing.T, srvURL string, sessionCookie *http.Cooki
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp
@@ -79,7 +79,7 @@ func newTestServerWithRepo(t *testing.T) (srvURL string, sessionCookie *http.Coo
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := testClient(t).Do(putReq)
 	require.NoError(t, err)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
@@ -98,7 +98,7 @@ func fetchDashboard(t *testing.T, srvURL string, sessionCookie *http.Cookie) map
 	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var body map[string]any
@@ -111,7 +111,7 @@ func TestRepoIgnore_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Post(srv.URL+"/api/repos/ignore", "application/json", strings.NewReader(`{"forge":"github","fullName":"alrayyes/forge-dashboard"}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/repos/ignore", "application/json", strings.NewReader(`{"forge":"github","fullName":"alrayyes/forge-dashboard"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

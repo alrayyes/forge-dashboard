@@ -29,7 +29,7 @@ func TestTimezoneGet_RequiresASession(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/api/settings/timezone")
+	resp, err := testClient(t).Get(srv.URL + "/api/settings/timezone")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

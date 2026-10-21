@@ -103,7 +103,7 @@ func TestDashboard_ReadInterval_HeldReadEndsOnCompletionNotTimeout(t *testing.T)
 			req.AddCookie(cookie)
 
 			var resp *http.Response
-			if resp, err = http.DefaultClient.Do(req); err == nil {
+			if resp, err = testClient(t).Do(req); err == nil {
 				defer func() { _ = resp.Body.Close() }()
 				err = json.NewDecoder(resp.Body).Decode(&a.body)
 			}

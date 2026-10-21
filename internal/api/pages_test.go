@@ -15,7 +15,7 @@ func TestPages_RequireASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Transport: testClient(t).Transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 	for _, path := range []string{
 		"/",
@@ -46,7 +46,7 @@ func TestAdminPage_IsGone(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Transport: testClient(t).Transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 	for _, path := range []string{"/admin.html", "/admin.js"} {
 		t.Run(path, func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestMainBranchesPage_OldAddressRedirectsToTheIndex(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Transport: testClient(t).Transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 
 	resp, err := client.Get(srv.URL + "/main-branches.html")
 	require.NoError(t, err)
