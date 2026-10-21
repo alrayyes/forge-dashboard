@@ -125,29 +125,35 @@ test.describe('skipped counts on the pull request pill', () => {
     );
   });
 
-  test('a fully skipped pill is not drawn in the passed colour', async ({
-    page,
-  }) => {
-    await openBoard(page, '/pull-requests.html');
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`a fully skipped pill is drawn muted, not passed green (${scheme})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await openBoard(page, '/pull-requests.html');
 
-    const colour = (l: Locator) => l.evaluate((e) => getComputedStyle(e).color);
-    const good = await page.evaluate(() => {
-      const probe = document.createElement('span');
-      probe.style.color = 'var(--good)';
-      document.body.appendChild(probe);
-      const c = getComputedStyle(probe).color;
-      probe.remove();
-      return c;
+      const colour = (l: Locator) =>
+        l.evaluate((e) => getComputedStyle(e).color);
+      const token = (name: string) =>
+        page.evaluate((n) => {
+          const probe = document.createElement('span');
+          probe.style.color = `var(${n})`;
+          document.body.appendChild(probe);
+          const c = getComputedStyle(probe).color;
+          probe.remove();
+          return c;
+        }, name);
+      const all = prPill(page, 'All skipped');
+      await expect(all).toHaveClass(/all-skipped/);
+      expect(await colour(all.locator('.ci-seg-label'))).toBe(
+        await token('--ink-2'),
+      );
+      // A pass that ran something keeps its green.
+      expect(
+        await colour(prPill(page, 'Some skipped').locator('.ci-seg-label')),
+      ).toBe(await token('--good'));
     });
-    const all = prPill(page, 'All skipped');
-    await expect(all).toHaveClass(/all-skipped/);
-    expect(await colour(all.locator('.ci-seg-label'))).not.toBe(good);
-    expect(await colour(all)).not.toBe(good);
-    // A pass that ran something keeps its green.
-    expect(
-      await colour(prPill(page, 'Some skipped').locator('.ci-seg-label')),
-    ).toBe(good);
-  });
+  }
 
   test('sits between passed and running among the other states', async ({
     page,
