@@ -1,4 +1,6 @@
+import path from 'node:path';
 import { defineConfig } from '@playwright/test';
+import { unlistedSpecs } from './scripts/unlisted-e2e-specs';
 
 // Specs that run against their own server with one signed-in user and a reset
 // between tests (tests/server-fixture.ts, #1880). A spec lives in exactly one
@@ -161,6 +163,15 @@ const singleUserSpecs = [
   '**/noindex.spec.ts',
   '**/closing-link-filter.spec.ts',
 ];
+
+// A spec missing from the list would be skipped without a word, so fail the
+// run, naming it, instead.
+const unlisted = unlistedSpecs(path.join(__dirname, 'tests'), singleUserSpecs);
+if (unlisted.length > 0) {
+  throw new Error(
+    `playwright.config.ts: add ${unlisted.join(', ')} to singleUserSpecs; a spec outside the list never runs`,
+  );
+}
 
 export default defineConfig({
   testDir: 'tests',
