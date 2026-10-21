@@ -265,3 +265,42 @@ func TestStore_Init_AFailureAfterTheDropLeavesTheOldCacheAndVersion(t *testing.T
 	require.NoError(t, err)
 	assert.Len(t, got, 1, "the drop was rolled back with the failed version write")
 }
+
+func TestStore_PruneUntracked_DropsHookChecksAndSeenRowsForOtherReposOfThatCredential(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	ctx := t.Context()
+	at := time.Now()
+	for _, repo := range []string{"o/keep", "o/gone"} {
+		require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c1", dashboard.HookCheck{Repo: repo, CheckedAt: at}))
+		require.NoError(t, store.SaveWebhookSeen(ctx, dashboard.ForgeGitHub, "c1", dashboard.SeenRecord{Repo: repo, Class: dashboard.EventClassCheck, At: at}))
+	}
+	require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c2", dashboard.HookCheck{Repo: "o/gone", CheckedAt: at}))
+
+	require.NoError(t, store.PruneUntracked(ctx, dashboard.ForgeGitHub, "c1", []string{"o/keep"}))
+
+	checks, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c1")
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, "o/keep", checks[0].Repo)
+	seen, err := store.LoadWebhookSeen(ctx, dashboard.ForgeGitHub, "c1")
+	require.NoError(t, err)
+	require.Len(t, seen, 1)
+	assert.Equal(t, "o/keep", seen[0].Repo)
+	other, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c2")
+	require.NoError(t, err)
+	assert.Len(t, other, 1)
+}
+
+func TestStore_PruneUntracked_WithNoReposLeavesTheRowsAlone(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	ctx := t.Context()
+	require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c1", dashboard.HookCheck{Repo: "o/a", CheckedAt: time.Now()}))
+
+	require.NoError(t, store.PruneUntracked(ctx, dashboard.ForgeGitHub, "c1", nil))
+
+	got, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c1")
+	require.NoError(t, err)
+	assert.Len(t, got, 1, "an empty list is a failed listing as likely as an empty account")
+}
