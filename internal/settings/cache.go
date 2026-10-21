@@ -68,37 +68,68 @@ const cacheTables = `
 `
 
 // initCache creates the cache tables, first emptying them when the database
-// holds them at another schema version.
+// holds them at another schema version. The drop, create and version write
+// share one transaction, so a crash part way leaves the old cache and version
+// as they were and the next start does it all again.
 func (s *Store) initCache(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS cache_schema (version INTEGER NOT NULL)`); err != nil {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("settings: begin cache migration: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS cache_schema (version INTEGER NOT NULL)`); err != nil {
 		return fmt.Errorf("settings: create cache schema table: %w", err)
 	}
 
 	var version int
-	err := s.db.QueryRowContext(ctx, `SELECT version FROM cache_schema LIMIT 1`).Scan(&version)
+	// The cast makes a value that isn't a number read as version 0, so a
+	// damaged row rebuilds the disposable cache instead of failing startup.
+	// Only a real database error (busy, I/O) comes back.
+	err = tx.QueryRowContext(ctx, `SELECT CAST(version AS INTEGER) FROM cache_schema LIMIT 1`).Scan(&version)
 	known := err == nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("settings: read cache schema version: %w", err)
+	}
 	if known && version != cacheSchemaVersion {
 		slog.Warn("cache tables are at another schema version, starting them empty", "found", version, "want", cacheSchemaVersion)
-		for _, table := range []string{"http_etags", "snapshot_cache", "hook_checks", "webhook_seen"} {
-			if _, err := s.db.ExecContext(ctx, `DROP TABLE IF EXISTS `+table); err != nil {
-				return fmt.Errorf("settings: drop old cache table %s: %w", table, err)
-			}
+		if err := dropCacheTables(ctx, tx); err != nil {
+			return err
 		}
 	}
-	if _, err := s.db.ExecContext(ctx, cacheTables); err != nil {
+	if _, err := tx.ExecContext(ctx, cacheTables); err != nil {
 		return fmt.Errorf("settings: create cache tables: %w", err)
 	}
 	if known && version == cacheSchemaVersion {
-		return s.loadETagBytes(ctx)
+		return s.commitCacheAndLoad(ctx, tx)
 	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM cache_schema`); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM cache_schema`); err != nil {
 		return fmt.Errorf("settings: reset cache schema version: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, `INSERT INTO cache_schema (version) VALUES (?)`, cacheSchemaVersion); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO cache_schema (version) VALUES (?)`, cacheSchemaVersion); err != nil {
 		return fmt.Errorf("settings: record cache schema version: %w", err)
 	}
 
+	return s.commitCacheAndLoad(ctx, tx)
+}
+
+// commitCacheAndLoad ends the migration, then totals the cached bodies.
+func (s *Store) commitCacheAndLoad(ctx context.Context, tx *sql.Tx) error {
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("settings: commit cache migration: %w", err)
+	}
+
 	return s.loadETagBytes(ctx)
+}
+
+func dropCacheTables(ctx context.Context, tx *sql.Tx) error {
+	for _, table := range []string{"http_etags", "snapshot_cache", "hook_checks", "webhook_seen"} {
+		if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS `+table); err != nil {
+			return fmt.Errorf("settings: drop old cache table %s: %w", table, err)
+		}
+	}
+
+	return nil
 }
 
 // SetETagCap changes the byte cap on the bodies http_etags keeps.
