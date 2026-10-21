@@ -1,25 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
 // #1224: one page with the CI status of every tracked repo's default branch,
 // read from GET /api/main-branches (api/openapi.yaml: MainBranches).
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `main-branches-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Main Branches');
-}
 
 const minutesAgo = (n: number) =>
   new Date(Date.now() - n * 60_000).toISOString();
@@ -89,13 +74,62 @@ const MIXED = [
 
 async function mock(page: Page, body: unknown | (() => unknown)) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches', (route: Route) =>
-    route.fulfill({
+  // The list waits for the layout's dashboard read to say the server's first
+  // refresh is done. If the list's own answer lands first and the dashboard
+  // read takes longer than the page's show delay, the page draws the rows,
+  // swaps them for a skeleton and draws them again. A click or a measurement
+  // in between hits nodes that are gone a moment later. Under load that is
+  // common, so the list is answered only after the dashboard read of the same
+  // document has been, and the page has had two frames to apply it.
+  let documents = 0;
+  let dashboardReads = 0;
+  let readsAtGate = 0;
+  let gated = 0;
+  page.on('request', (r) => {
+    if (r.isNavigationRequest() && r.frame() === page.mainFrame()) documents++;
+  });
+  await page.route('**/api/dashboard', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        readIntervalSeconds: 60,
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [],
+        issues: [],
+        repos: [],
+        hiddenDrafts: 0,
+        firstRefreshDone: true,
+      }),
+    });
+    dashboardReads++;
+  });
+  await page.route('**/api/main-branches', async (route: Route) => {
+    if (gated !== documents) {
+      gated = documents;
+      // A document that never reads the dashboard (the read can be reused
+      // from the one before) has nothing to wait for.
+      await expect
+        .poll(() => dashboardReads > readsAtGate, { timeout: 1500 })
+        .toBe(true)
+        .catch(() => {});
+      readsAtGate = dashboardReads;
+    }
+    await page
+      .evaluate(
+        () =>
+          new Promise((done) =>
+            requestAnimationFrame(() => requestAnimationFrame(done)),
+          ),
+      )
+      .catch(() => {});
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(typeof body === 'function' ? body() : body),
-    }),
-  );
+    });
+  });
 }
 
 // The jobs behind a row, from GET /api/main-branches/checks. Records each
@@ -144,8 +178,8 @@ const pill = (page: Page, name: RegExp | string) =>
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Main branches page (#1224, #1279)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('the nav links to it, first, in the header and the phone tab bar', async ({

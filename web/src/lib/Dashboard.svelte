@@ -4645,17 +4645,22 @@
         if (!keep.has(prKey(p))) feedback.dropFailedFor(prKey(p), "");
     }
 
-    function applyPendingNow() {
+    // offer: false when the caller offers the choices itself, after this.
+    function applyPendingNow(offer = true) {
       const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
       retireFailuresOfRemoved(sorted);
+      const before = shownPRs;
       shownPRs = sorted;
+      if (offer && choicesDiffer(before, shownPRs)) offerWhatIsShown();
       prBoard.replaceItems(shownPRs);
       latestPRs = null;
       latestIsUserAsked = false;
     }
 
-    function applyPendingIssuesNow() {
+    function applyPendingIssuesNow(offer = true) {
+      const before = shownIssues;
       shownIssues = Filters.sortItems(rawIssues, sharedState.view.sort);
+      if (offer && choicesDiffer(before, shownIssues)) offerWhatIsShown();
       issueBoard.replaceItems(shownIssues);
       latestIssues = null;
       latestIssuesAsked = false;
@@ -4701,6 +4706,14 @@
 
     // Returns true when it rendered the board.
     function reconcileIssues(): boolean {
+      const before = shownIssues;
+      const rendered = settleIssues();
+      if (before.length > 0 && choicesDiffer(before, shownIssues))
+        offerWhatIsShown();
+      return rendered;
+    }
+
+    function settleIssues(): boolean {
       if (!latestIssues) {
         return false;
       }
@@ -4861,8 +4874,43 @@
       }
     }
 
+    // The Repo, Author and Label choices follow the list on screen, which
+    // can trail the newest snapshot while it waits (#1427), so they are
+    // offered again when a waiting list lands.
+    function offerWhatIsShown() {
+      // The Title box may have focus; its suggestions stay as they are then,
+      // and are rebuilt for the list that landed otherwise.
+      const typing = document.activeElement?.matches('input[data-col="title"]');
+      // A pick the landed list no longer offers is cleared, so the list on
+      // screen is filtered again without it.
+      if (updateSharedFilterOptions(Boolean(typing))) renderBoth();
+    }
+
+    // Whether two lists would offer different choices: the fields the Repo,
+    // Author, Label, age and Title choices read. A poll that changes nothing
+    // else does not rebuild the dropdowns.
+    function choicesDiffer(a: FilterableItem[], b: FilterableItem[]): boolean {
+      const key = (items: FilterableItem[]) =>
+        items
+          .map(
+            (i) =>
+              `${i.forge}|${i.repo}|${i.author}|${i.createdAt}|${i.updatedAt}|${(i.labels || []).map((l) => l.name).join(",")}`,
+          )
+          .sort()
+          .join("\n");
+      return key(a) !== key(b);
+    }
+
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
+      const before = shownPRs;
+      const rendered = settlePRs();
+      if (before.length > 0 && choicesDiffer(before, shownPRs))
+        offerWhatIsShown();
+      return rendered;
+    }
+
+    function settlePRs(): boolean {
       if (!latestPRs) {
         return false;
       }
@@ -5872,12 +5920,23 @@
       // already gave the page: a re-render for nothing replaces every row
       // under the reader (#827).
       if (sharedControlsRestored && JSON.stringify(sharedState) !== before) {
+        // The held list lands first, so the choices and the stale-pick check
+        // use it (#1427).
+        applyPendingNow(false);
+        if (view === "issues") applyPendingIssuesNow(false);
         updateSharedFilterOptions(false, true);
         syncSharedControlsToState();
-        applyPendingNow();
         renderBoth();
       }
     });
+
+    // What the choices come from: the list on screen, not the newest snapshot,
+    // which can hold rows the list is still waiting to show (#1427). Before
+    // the first list lands the snapshot is all there is.
+    function itemsOnScreen(): FilterableItem[] {
+      const shown: FilterableItem[] = pullsView ? shownPRs : shownIssues;
+      return shown.length > 0 ? shown : pullsView ? allPRs : allIssues;
+    }
 
     // Leave-one-out narrowing (#550): each shared select's own options
     // come from the combined pool filtered by every *other* active
@@ -5898,7 +5957,7 @@
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
       // here (#1071).
-      const items: FilterableItem[] = pullsView ? allPRs : allIssues;
+      const items = itemsOnScreen();
       // The Issues page hides a bot's housekeeping issue by default, so a
       // repo that has nothing else isn't a choice while it's hidden (#1427).
       const withBoard = pullsView;
@@ -5923,7 +5982,7 @@
     // clears the repo, author, label and age picks that no longer match, so
     // only the title (which stays) and the board's own CI filter narrow it.
     function forgePillPool(): FilterableItem[] {
-      const items: FilterableItem[] = pullsView ? allPRs : allIssues;
+      const items = itemsOnScreen();
       return Filters.optionPool(
         items,
         pullsView,
@@ -5975,7 +6034,7 @@
     function updateSharedFilterOptions(
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
-    ) {
+    ): boolean {
       const staleRepo = Filters.populateRepoSelect(
         document.getElementById(
           "shared-repo-select",
@@ -6041,11 +6100,14 @@
       clearPick(staleAuthor, "shared", "author");
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
-      if (
+      const cleared =
         !holdPicks &&
-        (staleRepo || staleAuthor || staleLabel || staleCreated || staleUpdated)
-      )
-        Filters.saveState(sharedState);
+        (staleRepo ||
+          staleAuthor ||
+          staleLabel ||
+          staleCreated ||
+          staleUpdated);
+      if (cleared) Filters.saveState(sharedState);
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
       // cleared, since the pools are built from what is left.
@@ -6061,6 +6123,7 @@
         sharedPoolExcluding("forge", "applyExceptQuick"),
         Filters.activePill(sharedState),
       );
+      return cleared;
     }
 
     // The same control can sit in the bar or in the Filters sheet (#828), so
