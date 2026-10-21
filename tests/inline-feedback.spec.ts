@@ -1,28 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 import { settle } from './settle-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #714: per-pull-request action feedback lives on the row (an inline
 // status line), in a bottom-right toast stack, and in an Activity panel.
 // The top banner is left for global conditions.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `inline-feedback-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Feedback User');
-}
 
 interface MockUpdateRequest {
   phase: 'queued';
@@ -170,11 +153,7 @@ async function updateBranch(row: Locator) {
   await row.getByRole('button', { name: 'Update branch' }).click();
 }
 
-// These tests mock every endpoint they touch and save nothing per user, so they
-// start from the shared session (#1379).
 test.describe('inline feedback, toasts and the activity panel', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('two pull requests in flight each show their own waiting chip', async ({
     page,
   }) => {
@@ -622,11 +601,9 @@ test.describe('inline feedback, toasts and the activity panel', () => {
   });
 });
 
-// Picking an author filter saves filter state for the user, so this one test
-// keeps its own user (#1379).
 test.describe('inline feedback and a saved filter', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('Show row clears the filter that hides the row, says which, and focuses it (#723)', async ({

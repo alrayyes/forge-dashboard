@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1082: Dependabot reacts to an `@dependabot rebase` comment with a
 // thumbs-up to say it got the command. The server looks for that reaction and
@@ -73,10 +72,6 @@ const line = (page: Page) => row(page).locator('.row-feedback');
 const chip = (page: Page) => row(page).locator('.wait-chip');
 
 test.describe('Dependabot acknowledgment (#1082)', () => {
-  // Every bot endpoint is mocked and nothing is saved per user, so it starts
-  // from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   let current: ReturnType<typeof makePR>;
   let posts = 0;
 

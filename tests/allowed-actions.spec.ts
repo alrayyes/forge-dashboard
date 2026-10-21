@@ -1,7 +1,6 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #805: a row renders the actions the server lists, and holds no copy of the
 // rules. Each case below states `allowedActions` itself, in a way that
@@ -80,10 +79,6 @@ const names = async (row: Locator) => {
     .allInnerTexts();
   return [...onRow, ...inDialog].map((t) => t.trim());
 };
-
-// It mocks the dashboard and writes nothing per user, so it starts from the
-// shared session instead of registering a user per test (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // The row draws one control (#943 step 3): the action the server marks
 // primary, or, with none primary and Merge locked, the greyed Merge with its

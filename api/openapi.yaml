@@ -4170,7 +4170,7 @@ components:
         count as `failed` (a held run first, where both are there), so a failed
         pipeline always has a failed count on GitHub. A branch whose status is
         `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
-        neutral or bare completed one as `passed`.
+        neutral or bare completed one as `passed`, on Forgejo too.
 
         On GitHub the counts come from the same rollup as the overall state,
         for a pull request and a branch alike; on Forgejo a pull request counts
@@ -4266,7 +4266,7 @@ components:
 
     ClosingIssue:
       type: object
-      required: [repo, number, url]
+      required: [repo, number, url, pageUrl]
       description: One issue a pull request will close when it merges.
       properties:
         repo:
@@ -4279,6 +4279,17 @@ components:
           type: string
           format: uri
           description: The issue's page on its forge.
+        pageUrl:
+          type: string
+          description: |
+            The address on this dashboard that opens the Issues page with this
+            issue's pop-up open: `/issues.html?issue=` and
+            `forge/owner/name/number`, on the pull request's own forge. A
+            relative address. When the issue is closed, hidden by the user's
+            settings or in a repo the dashboard does not track, the page opens
+            no pop-up and shows a plain note over the list. The note has no
+            forge link, since the dashboard knows nothing else about the issue.
+          examples: ["/issues.html?issue=github/alrayyes/hush-hush/12"]
 
     LinkedPullRequest:
       type: object
