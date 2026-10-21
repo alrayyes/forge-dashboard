@@ -1638,7 +1638,11 @@
     // footer but the link to the forge: there is no action on an issue. The
     // board's dialog state (dialogKey) stays null, so a poll neither redraws
     // its footer nor reloads it.
-    function openIssueDialog(item: IssueItem, triggerId: string) {
+    function openIssueDialog(
+      item: IssueItem,
+      triggerId: string,
+      fallbackFocusId = "",
+    ) {
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -1652,6 +1656,7 @@
       detailsDialog?.open(
         { ...item, subject: "issue", status: issueStatus(item) },
         triggerId,
+        fallbackFocusId,
       );
     }
 
@@ -1759,7 +1764,13 @@
       );
       const found = findAddressedIssue(listed, wanted);
       if (found) {
-        openIssueDialog(found, "");
+        // No row was clicked, so point focus at the issue's own title; if
+        // the filters hide that row, the title filter box is the way back in.
+        openIssueDialog(
+          found,
+          `details-trigger-${domSafeId(prKey(found as PullRequestItem))}`,
+          "title-filter",
+        );
         return;
       }
       const note = document.getElementById("issue-address-note");
@@ -8385,6 +8396,7 @@
     <div class="filter-bar-top">
       <span class="search-wrap">
         <input
+          id="title-filter"
           class="col-filter"
           data-col="title"
           type="text"
