@@ -4285,8 +4285,10 @@ components:
             The address on this dashboard that opens the Issues page with this
             issue's pop-up open: `/issues.html?issue=` and
             `forge/owner/name/number`, on the pull request's own forge. A
-            relative address. The page says so in a note, with the forge link,
-            when the issue is closed or its repo is not tracked.
+            relative address. When the issue is closed, hidden by the user's
+            settings or in a repo the dashboard does not track, the page opens
+            no pop-up and shows a plain note over the list. The note has no
+            forge link, since the dashboard knows nothing else about the issue.
           examples: ["/issues.html?issue=github/alrayyes/hush-hush/12"]
 
     LinkedPullRequest:
