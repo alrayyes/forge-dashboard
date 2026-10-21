@@ -1202,9 +1202,9 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 // checkCountsOf tallies the statuses the combined-status answer already
 // carries, so the counts cost no request. Forgejo says pending for a check
 // that is queued or running alike, so it counts as waiting here; ciStatus
-// then splits the running ones out with splitRunning. A warning counts as passed, the way the combined state
-// treats it, and so does a skipped check: it was not needed, which is no
-// failure and no wait. The SDK has no constant for that state, so it is read
+// then splits the running ones out with splitRunning. A warning counts as
+// passed, the way the combined state treats it, and so does a skipped check:
+// it was not needed, which is no failure and no wait. The SDK has no constant for that state, so it is read
 // by its name.
 func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 	var out dashboard.CheckCounts
