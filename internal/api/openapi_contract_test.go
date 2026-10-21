@@ -189,13 +189,19 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		},
 		branches: contractBranches(now),
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}
 
 		return []dashboard.Source{src}
 	})
+	// The refresh contract test needs its second call to land inside the
+	// cooldown. The default 5s is measured from the first call's start, so a
+	// loaded CPU (-race, parallel packages) can push the second call past it
+	// and the Retry-After header never appears. Nothing here depends on the
+	// real window.
+	manager.SetForceRefreshCooldown(time.Hour)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
@@ -205,7 +211,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == 4
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }

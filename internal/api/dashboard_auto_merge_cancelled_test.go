@@ -72,7 +72,7 @@ func TestDashboard_ACancelledAutoMergeOnAnEmptyPullRequestSaysWhy(t *testing.T) 
 		// Until the next read the forge still says armed, and the status says
 		// "stopped: nothing left to merge"; then the cancel is the reason.
 		return status != nil && status["message"] == "Auto-merge was cancelled: there is nothing left to merge."
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	assert.Equal(t, "stopped", status["state"])
 	assert.Equal(t, "already_up_to_date", status["code"])

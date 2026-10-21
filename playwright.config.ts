@@ -2,8 +2,8 @@ import { defineConfig } from '@playwright/test';
 
 // Specs that run against their own server with one signed-in user and a reset
 // between tests (tests/server-fixture.ts, #1880). A spec lives in exactly one
-// project: the rest are `legacy`, which share one server and register users
-// through admin invites, until the invites go and every spec has moved.
+// project. Every spec has moved, so `legacy` (one shared server, users made
+// through admin invites) runs nothing; the project and its global setup are still to be removed.
 const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/filter-persistence.spec.ts',
@@ -152,6 +152,13 @@ const singleUserSpecs = [
   '**/shared-dashboard-read.spec.ts',
   '**/card-spacing.spec.ts',
   '**/page-widths.spec.ts',
+  '**/auth.spec.ts',
+  '**/css-bundle.spec.ts',
+  '**/error-pages.spec.ts',
+  '**/font-preload.spec.ts',
+  '**/label-multi-select.spec.ts',
+  '**/legal.spec.ts',
+  '**/noindex.spec.ts',
   '**/closing-link-filter.spec.ts',
 ];
 

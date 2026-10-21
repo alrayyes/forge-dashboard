@@ -15,8 +15,12 @@ import { test } from './server-fixture';
 // here too (#1380).
 //
 // The conflict sentence is not repeated either: Go pins it
-// (TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead),
-// and the locked row it would show is the blocked_by_protection case below.
+// (TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead).
+// No test here sends blocked_by_protection: Go pins its classification, and
+// the only locked row for a not-mergeable refusal in a browser (a Retry in
+// place of Merge) is asserted by the not-mergeable (409) case in
+// pull-request-merge.spec.ts, which also keeps Merge's permission lock:
+// Merge is not a driver of the shared set.
 
 interface MockPR {
   forge: string;
@@ -151,28 +155,6 @@ test.describe('a refused merge explains itself from the server code', () => {
     );
   });
 
-  test('blocked_by_protection: the server reason shows and Merge is locked until a re-check', async ({
-    page,
-  }) => {
-    await mockBoard(page, [makePR()]);
-    await refuse(page, 409, {
-      error: 'x',
-      code: 'blocked_by_protection',
-      message:
-        'Blocked by branch protection: a required review or check is missing.',
-    });
-    await page.goto('/pull-requests.html');
-
-    const row = await confirmMerge(page);
-
-    await expect(row.locator('.row-feedback')).toContainText(
-      'Blocked by branch protection',
-    );
-    // Locked: the only button is a Retry that re-checks, not a second merge.
-    await expect(row.getByRole('button', { name: 'Retry' })).toBeVisible();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
-  });
-
   test('rate_limited: locks Merge with no Retry and says when it resets, from resetsAt', async ({
     page,
   }) => {
@@ -212,6 +194,16 @@ test.describe('a refused merge explains itself from the server code', () => {
     const row = await confirmMerge(page);
 
     await expect(row.locator('.row-feedback')).toContainText('EOF');
+    // The row says Failed, not Failed and a lingering "Merging…".
+    await expect(row.locator('.row-feedback')).toContainText('Failed');
+    await expect(row.locator('.row-feedback')).not.toContainText('Merging…');
+    // An unlocked failure is an error toast, not a page banner.
+    const failed = page.locator(
+      '#feedback-toasts .feedback-toast[data-kind="error"]',
+    );
+    await expect(failed).toContainText('EOF');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
+    await expect(page.locator('#status-banner')).toHaveCount(0);
     const button = row.getByRole('button', { name: 'Merge', exact: true });
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');

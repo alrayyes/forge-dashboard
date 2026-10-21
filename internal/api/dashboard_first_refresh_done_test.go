@@ -102,7 +102,7 @@ func TestDashboard_FirstRefreshDone_TrueOnceTheFirstRefreshSucceeds_AndStaysTrue
 	require.Equal(t, false, firstRefreshDoneOverHTTP(t, url, cookie))
 	close(src.release)
 
-	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, url, cookie) == true }, mcpPollBudget, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, url, cookie) == true }, pollBudget, 10*time.Millisecond)
 	// Later refreshes (the test manager ticks every few milliseconds) keep it.
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, true, firstRefreshDoneOverHTTP(t, url, cookie))
@@ -116,7 +116,7 @@ func TestDashboard_FirstRefreshDone_TrueWhenTheFirstRefreshFails(t *testing.T) {
 	url, cookie, _ := firstRefreshServer(t, src)
 	close(src.release)
 
-	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, url, cookie) == true }, mcpPollBudget, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, url, cookie) == true }, pollBudget, 10*time.Millisecond)
 	body := fetchDashboardWith(t, url, cookie, "")
 	forges, _ := body["forges"].([]any)
 	require.Len(t, forges, 1, "the failure is carried by forge health")
@@ -148,7 +148,7 @@ func TestDashboard_FirstRefreshDone_IsPerViewer(t *testing.T) {
 		require.Equal(t, http.StatusOK, put.StatusCode)
 	}
 
-	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, srv.URL, cookieA) == true }, mcpPollBudget, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, srv.URL, cookieA) == true }, pollBudget, 10*time.Millisecond)
 	assert.Equal(t, false, firstRefreshDoneOverHTTP(t, srv.URL, cookieB), "the other viewer's refresh is still running")
 }
 
@@ -185,7 +185,7 @@ func TestDashboardStream_CarriesFirstRefreshDone(t *testing.T) {
 	select {
 	case data := <-events:
 		assert.Contains(t, data, `"firstRefreshDone":true`)
-	case <-time.After(2 * time.Second):
+	case <-time.After(pollBudget):
 		t.Fatal("no SSE event received")
 	}
 }
@@ -271,6 +271,6 @@ func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEn
 
 	close(src.release)
 
-	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, srv.URL, cookie) == true }, mcpPollBudget, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, srv.URL, cookie) == true }, pollBudget, 10*time.Millisecond)
 	assert.Equal(t, true, firstRefreshDoneOverMCP(t, srv.URL, apiToken))
 }

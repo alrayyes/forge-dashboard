@@ -217,7 +217,7 @@ func TestIssueDetails_CommentersCarryTheirProfileURL(t *testing.T) {
 		issues, _ := fetchDashboard(t, srvURL, sessionCookie)["issues"].([]any)
 
 		return len(issues) == 1
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	resp := getIssueDetails(t, srvURL, sessionCookie, "forgejo", "team/app", 5)
 	defer func() { _ = resp.Body.Close() }()

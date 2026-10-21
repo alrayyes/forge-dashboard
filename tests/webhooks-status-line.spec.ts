@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // The Webhooks page status line (#webhooks-status) is a polite live region.
 // A result is stale once the next action starts or a filter changes, and the
@@ -67,10 +67,6 @@ const disable = (page: Page) =>
   page.getByRole('button', { name: /^Disable auto-update for/ });
 
 test.describe('webhooks: status line', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('the old text is gone as soon as the next action starts', async ({
     page,
   }) => {

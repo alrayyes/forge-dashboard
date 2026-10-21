@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 
 // #1285: an internal tool stays out of search results. The Go tests cover the
 // header on every route and robots.txt; this checks the built pages carry the

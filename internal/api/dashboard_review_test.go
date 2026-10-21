@@ -54,7 +54,7 @@ func TestDashboard_PullRequest_SerializesReviewState(t *testing.T) {
 		prs, ok = snap["pullRequests"].([]any)
 
 		return ok && len(prs) == 2
-	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
 
 	byNumber := map[float64]map[string]any{}
 	for _, p := range prs {

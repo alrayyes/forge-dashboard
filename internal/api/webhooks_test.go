@@ -305,7 +305,7 @@ func TestGitHubWebhook_VerifiedDelivery_MarksRepoAsHavingAWebhookOnTheDashboard(
 		repos := dashboardRepos(t, srvURL, sessionCookie)
 
 		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: false}}, repos)
-	}, time.Second, 10*time.Millisecond, "the tracked repo should start out without a confirmed webhook")
+	}, pollBudget, 10*time.Millisecond, "the tracked repo should start out without a confirmed webhook")
 
 	body := []byte(`{"action":"opened","repository":{"full_name":"alrayyes/tempus-fugit","name":"tempus-fugit","owner":{"login":"alrayyes"}}}`)
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
@@ -320,7 +320,7 @@ func TestGitHubWebhook_VerifiedDelivery_MarksRepoAsHavingAWebhookOnTheDashboard(
 		repos := dashboardRepos(t, srvURL, sessionCookie)
 
 		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: true}}, repos)
-	}, time.Second, 10*time.Millisecond, "a verified delivery for the repo should flip it to having a confirmed webhook")
+	}, pollBudget, 10*time.Millisecond, "a verified delivery for the repo should flip it to having a confirmed webhook")
 }
 
 // staticHasWebhookSource reports one repo with HasWebhook already true
@@ -349,7 +349,7 @@ func TestDashboard_LiveDetectedWebhook_ReportsHasWebhookTrueWithNoDeliveryRecord
 		repos := dashboardRepos(t, srvURL, sessionCookie)
 
 		return assert.ObjectsAreEqual([]dashboardRepoStatus{{Forge: "github", FullName: "alrayyes/tempus-fugit", HasWebhook: true}}, repos)
-	}, time.Second, 10*time.Millisecond, "a live-detected webhook should report as confirmed even with zero deliveries ever recorded")
+	}, pollBudget, 10*time.Millisecond, "a live-detected webhook should report as confirmed even with zero deliveries ever recorded")
 }
 
 func TestGitHubWebhook_MissingSignature_Refused(t *testing.T) {

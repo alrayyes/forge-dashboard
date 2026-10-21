@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"context"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -46,12 +48,26 @@ type seenKey struct {
 	class      EventClass
 }
 
+// commitKey names one commit's check deliveries.
+type commitKey struct {
+	forge      Forge
+	credential string
+	repo       string
+	sha        string
+}
+
+// commitRetention is how long a commit's last check delivery is remembered. It
+// is far longer than any use the CI poll makes of it, so it only bounds memory.
+const commitRetention = 24 * time.Hour
+
 // webhookSeen is the in-memory webhook_seen record: when a delivery of each
 // event class last arrived for a repo, keyed by forge, credential, repo and
-// class. It holds no user id. The zero value is ready to use.
+// class, and when a check delivery last named each commit. It holds no user
+// id. The zero value is ready to use.
 type webhookSeen struct {
-	mu   sync.Mutex
-	last map[seenKey]time.Time
+	mu      sync.Mutex
+	last    map[seenKey]time.Time
+	commits map[commitKey]time.Time
 }
 
 func (w *webhookSeen) mark(key seenKey, at time.Time) {
@@ -73,6 +89,67 @@ func (w *webhookSeen) get(key seenKey) (time.Time, bool) {
 	return at, ok
 }
 
+// markCommit records a check delivery for a commit and forgets the commits not
+// named for commitRetention, so the record cannot grow with every push.
+func (w *webhookSeen) markCommit(key commitKey, at time.Time) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.commits == nil {
+		w.commits = make(map[commitKey]time.Time)
+	}
+	for k, seen := range w.commits {
+		if at.Sub(seen) > commitRetention {
+			delete(w.commits, k)
+		}
+	}
+	w.commits[key] = at
+}
+
+func (w *webhookSeen) getCommit(key commitKey) (time.Time, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	at, ok := w.commits[key]
+
+	return at, ok
+}
+
+// WithWebhookSeenStore keeps the webhook_seen record in store: the Aggregator
+// starts from what the last run saved and saves each delivery as it arrives.
+func WithWebhookSeenStore(store WebhookSeenStore) AggregatorOption {
+	return func(a *Aggregator) { a.seenStore = store }
+}
+
+// restoreWebhookSeen loads the saved delivery times of every source's forge.
+func (a *Aggregator) restoreWebhookSeen(ctx context.Context) {
+	for _, src := range a.sources {
+		forge := src.Forge()
+		credential := a.credentialFor(forge)
+		recs, err := a.seenStore.LoadWebhookSeen(ctx, forge, credential)
+		if err != nil {
+			slog.Warn("saved webhook deliveries unreadable, starting empty", "forge", forge, "error", err)
+
+			continue
+		}
+		for _, rec := range recs {
+			a.seen.mark(seenKey{forge, credential, rec.Repo, rec.Class}, rec.At)
+		}
+	}
+}
+
+// markSeen records a delivery in memory and in the store.
+func (a *Aggregator) markSeen(forge Forge, credential, fullName string, class EventClass, at time.Time) {
+	a.seen.mark(seenKey{forge, credential, fullName, class}, at)
+	if a.seenStore == nil {
+		return
+	}
+	rec := SeenRecord{Repo: fullName, Class: class, At: at}
+	if err := a.seenStore.SaveWebhookSeen(context.Background(), forge, credential, rec); err != nil {
+		slog.Warn("could not save the webhook delivery", "forge", forge, "repo", fullName, "error", err)
+	}
+}
+
 // credentialFor is the label of the credential the Source driving forge uses,
 // or "" when none names one.
 func (a *Aggregator) credentialFor(forge Forge) string {
@@ -91,7 +168,23 @@ func (a *Aggregator) credentialFor(forge Forge) string {
 // RecordDelivery notes that a webhook delivery of event arrived for
 // forge/fullName, under the class the event belongs to.
 func (a *Aggregator) RecordDelivery(forge Forge, fullName, event string) {
-	a.seen.mark(seenKey{forge, a.credentialFor(forge), fullName, ClassifyEvent(event)}, a.now())
+	a.markSeen(forge, a.credentialFor(forge), fullName, ClassifyEvent(event), a.now())
+}
+
+// RecordCheckDelivery notes that a check delivery arrived for forge/fullName
+// that names the commit sha, so both the repo's check class and that commit
+// count as seen. The caller has already tied sha to the signed body.
+func (a *Aggregator) RecordCheckDelivery(forge Forge, fullName, sha string) {
+	credential := a.credentialFor(forge)
+	now := a.now()
+	a.markSeen(forge, credential, fullName, EventClassCheck, now)
+	a.seen.markCommit(commitKey{forge, credential, fullName, sha}, now)
+}
+
+// LastCheckDelivery is when a check delivery last named the commit sha of
+// forge/fullName under the current credential, and whether one ever has.
+func (a *Aggregator) LastCheckDelivery(forge Forge, fullName, sha string) (time.Time, bool) {
+	return a.seen.getCommit(commitKey{forge, a.credentialFor(forge), fullName, sha})
 }
 
 // LastDelivery is when a delivery of class last arrived for forge/fullName

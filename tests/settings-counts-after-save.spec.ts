@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // A save can come back before the server knows any count: the first-ever save,
 // or one before the first refresh finished, answers every ignoredTitleCounts
@@ -99,10 +99,6 @@ async function firstSave(page: Page, pattern: string) {
 }
 
 test.describe('Settings: counting after the first save (#1676)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('says Counting… then the number, without a reload', async ({ page }) => {
     const server = await standIn(page, []);
     await firstSave(page, '^Weekly');

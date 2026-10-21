@@ -65,7 +65,7 @@ func TestPullRequestActions_ASucceededMergeOrCloseLeavesTheBoardAtOnce(t *testin
 			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, &stubbornForge{fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}})
 			require.Eventually(t, func() bool {
 				return len(fetchDashboardWith(t, srvURL, cookie, "")["pullRequests"].([]any)) == 2
-			}, 2*time.Second, 10*time.Millisecond, "the background refresh should list both pull requests")
+			}, pollBudget, 10*time.Millisecond, "the background refresh should list both pull requests")
 
 			resp := act(t, srvURL, cookie)
 			_ = resp.Body.Close()
@@ -83,7 +83,7 @@ func TestPullRequestMerge_ARefusedMergeHidesNothing(t *testing.T) {
 	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 	require.Eventually(t, func() bool {
 		return len(fetchDashboardWith(t, srvURL, cookie, "")["pullRequests"].([]any)) == 2
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	resp := postMergePullRequest(t, srvURL, cookie, "github", "alrayyes/a", 1)
 	_ = resp.Body.Close()

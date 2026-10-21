@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	headSHA  = "0123456789abcdef0123456789abcdef01234567"
+	otherSHA = "fedcba9876543210fedcba9876543210fedcba98"
+)
+
 func TestWebhook_RecordsTheEventClassPerRepo(t *testing.T) {
 	t.Parallel()
 
@@ -24,7 +29,7 @@ func TestWebhook_RecordsTheEventClassPerRepo(t *testing.T) {
 
 	send := func(repo, event string) {
 		t.Helper()
-		body := []byte(`{"action":"created","repository":{"full_name":"alrayyes/` + repo + `","name":"` + repo + `","owner":{"login":"alrayyes"}}}`)
+		body := []byte(`{"action":"created","check_run":{"id":1,"head_sha":"` + headSHA + `"},"repository":{"full_name":"alrayyes/` + repo + `","name":"` + repo + `","owner":{"login":"alrayyes"}}}`)
 		req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 		require.NoError(t, err)
 		req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
@@ -45,4 +50,9 @@ func TestWebhook_RecordsTheEventClassPerRepo(t *testing.T) {
 	require.Eventually(t, func() bool { return seen("checked", dashboard.EventClassCheck) }, time.Second, 5*time.Millisecond, "a check_run delivery marks checks seen")
 	require.Eventually(t, func() bool { return seen("chatty", dashboard.EventClassOther) }, time.Second, 5*time.Millisecond)
 	assert.False(t, seen("chatty", dashboard.EventClassCheck), "a comment delivery must not mark checks seen")
+
+	_, shaSeen := manager.LastCheckDelivery(userID(), dashboard.ForgeGitHub, "alrayyes/checked", headSHA)
+	assert.True(t, shaSeen, "a check delivery marks the commit it is about")
+	_, otherSeen := manager.LastCheckDelivery(userID(), dashboard.ForgeGitHub, "alrayyes/checked", otherSHA)
+	assert.False(t, otherSeen, "and no other commit of the repo")
 }

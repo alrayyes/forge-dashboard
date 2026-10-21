@@ -84,7 +84,7 @@ func newHideServer(t *testing.T) (srvURL string, cookie *http.Cookie, src *hideS
 
 	require.Eventually(t, func() bool {
 		return len(boardNumbers(t, srv.URL, cookie, "")) == 2
-	}, 2*time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture pull requests")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture pull requests")
 
 	return srv.URL, cookie, src
 }
@@ -278,13 +278,13 @@ func TestPullRequestHide_IsForgottenOnceThePullRequestCloses(t *testing.T) {
 
 	// #1 merges. The next snapshot no longer has it, so the record goes.
 	src.set(true, 2)
-	require.Eventually(t, func() bool { return hiddenCount(t, srvURL, cookie) == 0 }, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return hiddenCount(t, srvURL, cookie) == 0 }, pollBudget, 10*time.Millisecond)
 
 	// A reopened #1 is a new pull request to the board: it shows.
 	src.set(true, 1, 2)
 	require.Eventually(t, func() bool {
 		return len(boardNumbers(t, srvURL, cookie, "")) == 2
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 }
 
 func TestPullRequestHide_IsKeptWhileItsForgeIsUnreachable(t *testing.T) {
@@ -298,6 +298,6 @@ func TestPullRequestHide_IsKeptWhileItsForgeIsUnreachable(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	src.set(true, 1, 2)
 
-	require.Eventually(t, func() bool { return len(boardNumbers(t, srvURL, cookie, "?includeHidden=true")) == 2 }, 2*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return len(boardNumbers(t, srvURL, cookie, "?includeHidden=true")) == 2 }, pollBudget, 10*time.Millisecond)
 	assert.Equal(t, 1, hiddenCount(t, srvURL, cookie))
 }

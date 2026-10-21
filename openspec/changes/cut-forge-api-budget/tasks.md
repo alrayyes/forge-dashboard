@@ -51,12 +51,12 @@ One pull request per group, in this order. Each group is its own ticket (named i
 
 ## 6. Persist the cache (#2013)
 
-- [ ] 6.1 Add the `http_etags`, `snapshot_cache` and `hook_checks` tables to `internal/settings` with a schema-version check. Verify: store tests with a temp database for write, read, prune, size cap and eviction.
-- [ ] 6.2 Give `etagTransport` an optional store (read-through, write on 200 with ETag, per-body and total caps). Verify: a test that a second `Client` over the same store sends `If-None-Match` for a URL the first cached.
-- [ ] 6.3 Persist the snapshot after each successful refresh and load it at `Manager` start, marked stale until the first refresh succeeds; reuse the existing stale field and add an API field only spec-first. Verify: a restart test shows the stale snapshot served, then cleared.
-- [ ] 6.4 Persist the webhook-check results (with hook events) and `webhook_seen`. Verify: a test that coverage computed after a restart equals before.
-- [ ] 6.5 Corrupt or old-schema rows → start empty and log. Verify: a test with garbage rows.
-- [ ] 6.6 Update `docs/configuration.md` (where the data lives), `docs/rate-limits.md` (rewrite "A restart"), and #381's note. Verify: before/after of the first refresh after a restart.
+- [x] 6.1 Add the `http_etags`, `snapshot_cache` and `hook_checks` tables to `internal/settings` with a schema-version check. Verify: store tests with a temp database for write, read, prune, size cap and eviction.
+- [x] 6.2 Give `etagTransport` an optional store (read-through, write on 200 with ETag, per-body and total caps). Verify: a test that a second `Client` over the same store sends `If-None-Match` for a URL the first cached.
+- [x] 6.3 Persist the snapshot after each successful refresh and load it at `Manager` start, marked stale until the first refresh succeeds; reuse the existing stale field and add an API field only spec-first. Verify: a restart test shows the stale snapshot served, then cleared.
+- [x] 6.4 Persist the webhook-check results (with hook events) and `webhook_seen`. Verify: a test that coverage computed after a restart equals before.
+- [x] 6.5 Corrupt or old-schema rows → start empty and log. Verify: a test with garbage rows.
+- [x] 6.6 Update `docs/configuration.md` (where the data lives), `docs/rate-limits.md` (rewrite "A restart"), and #381's note. Verify: before/after of the first refresh after a restart.
 
 ## 7. Webhook-aware interval (#2014)
 

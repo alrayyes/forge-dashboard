@@ -102,55 +102,10 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  // #705: a Merge that can't be clicked yet stays on the row, locked,
-  // with its reason — the full state matrix is in
-  // pull-request-merge-states.spec.ts.
-  test('a conflicting pull request shows a locked Merge button, not a clickable one', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(button).toHaveAccessibleDescription(/merge conflict/i);
-  });
-
-  test('a blocked pull request shows a locked Merge button, not a clickable one', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'blocked' }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(button).toHaveAccessibleDescription(/blocked/i);
-  });
-
-  // #385: GitHub's own mergeStateStatus reports CLEAN (mapped to
-  // "mergeable" here) whenever branch protection doesn't mark a given
-  // check as required, even while that check is still running — so a
-  // PR with CI still pending could show a fully clickable Merge button
-  // despite its own checks not having finished.
-  test('a mergeable pull request whose CI is still running shows a locked Merge button', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'mergeable', ci: 'pending' }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(button).toHaveAccessibleDescription(
-      /waiting for ci to finish/i,
-    );
-  });
-
+  // A Merge that can't be clicked yet stays on the row, locked, with its
+  // reason. Which states lock it, and the words for each, are the server's and
+  // are pinned in Go (TestAllowedActions_BlockedMergeReasonPerState); how a
+  // locked Merge renders is pull-request-merge-states.spec.ts.
   test('the Merge button unlocks once CI resolves, without a page reload', async ({
     page,
   }) => {
@@ -184,19 +139,6 @@ test.describe('pull request merge button', () => {
     await expect(unlocked).toBeEnabled();
     await expect(unlocked).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).not.toContainText(/waiting for ci/i);
-  });
-
-  test('a mergeable pull request whose CI already succeeded still shows a Merge button', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'mergeable', ci: 'success' }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
   test('a mergeable pull request whose CI failed offers Merge in the pop-up, not on the row', async ({
@@ -519,43 +461,6 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  test('a transient failure shows an error and returns to a re-clickable Merge button', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
-      route.fulfill({
-        status: 502,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: PUT .../merge: EOF',
-          code: 'unknown',
-          message: 'EOF',
-        }),
-      }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Merge' }).click();
-    await row.getByRole('button', { name: 'Confirm merge?' }).click();
-
-    const failed = page.locator(
-      '#feedback-toasts .feedback-toast[data-kind="error"]',
-    );
-    await expect(failed).toContainText('EOF');
-    // No lingering "Merging…" line once it has failed — the row says
-    // Failed, not both.
-    await expect(row.locator('.row-feedback')).toContainText('Failed');
-    await expect(row.locator('.row-feedback')).not.toContainText('Merging…');
-    await expect(page.locator('#error-banner')).toHaveCount(0);
-    await expect(page.locator('#status-banner')).toHaveCount(0);
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toBeVisible();
-    await expect(button).toBeEnabled();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
   test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
     page,
   }) => {
@@ -642,34 +547,6 @@ test.describe('pull request merge button', () => {
       'Merge commits are not allowed on this repository.',
     );
     await expect(row).not.toContainText(/no longer mergeable/i);
-  });
-
-  test('a rate-limited (429) failure locks the button with no Retry and says when it resets', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Merge' }).click();
-    await row.getByRole('button', { name: 'Confirm merge?' }).click();
-
-    const button = row.getByRole('button', { name: 'Merge', exact: true });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-    await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
   });
 
   test('clicking Retry re-fetches the dashboard, and a stale lock clears once the fresh data no longer justifies it', async ({

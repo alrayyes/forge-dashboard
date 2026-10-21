@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/alrayyes/forge-dashboard/compare/v1.3.0...v1.4.0) (2026-10-21)
+
+
+### Features
+
+* persist ETags, the snapshot and webhook checks across restarts ([#2302](https://github.com/alrayyes/forge-dashboard/issues/2302)) ([5edb901](https://github.com/alrayyes/forge-dashboard/commit/5edb9011c0c500241f8a8d5ae97cc0378a6e6b08))
+
+## [1.3.0](https://github.com/alrayyes/forge-dashboard/compare/v1.2.1...v1.3.0) (2026-10-21)
+
+
+### Features
+
+* **dashboard:** batch the CI poll into aliased queries and back off when idle ([#2285](https://github.com/alrayyes/forge-dashboard/issues/2285)) ([76cdda1](https://github.com/alrayyes/forge-dashboard/commit/76cdda1d2f3e2bc91f08c03438cdf393279b8eb3))
+
 ## [1.2.1](https://github.com/alrayyes/forge-dashboard/compare/v1.2.0...v1.2.1) (2026-10-21)
 
 

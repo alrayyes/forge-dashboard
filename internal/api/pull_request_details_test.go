@@ -121,7 +121,7 @@ func TestPullRequestDetails_AReleasePullRequestCarriesItsReleaseNotes(t *testing
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 7)
 	defer func() { _ = resp.Body.Close() }()
@@ -169,7 +169,7 @@ func TestPullRequestDetails_ListedButNoReleaseNotes(t *testing.T) {
 				prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
 				return len(prs) == 1
-			}, 2*time.Second, 10*time.Millisecond)
+			}, pollBudget, 10*time.Millisecond)
 
 			resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 7)
 			defer func() { _ = resp.Body.Close() }()
@@ -278,7 +278,7 @@ func TestContract_PullRequestDetails(t *testing.T) {
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	for _, number := range []int{7, 8} { // a release pull request, and one the board doesn't list
 		q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {strconv.Itoa(number)}}

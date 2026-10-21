@@ -111,7 +111,7 @@ func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {
 		repoJSON = repos[0].(map[string]any)
 
 		return true
-	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture repo")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture repo")
 
 	return repoJSON
 }

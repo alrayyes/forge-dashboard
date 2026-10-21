@@ -250,9 +250,11 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 	t.Parallel()
 
 	allowedGitHub := map[string]bool{
-		"internal/github/client.go:graphqlDo:NewRequestWithContext": true, // POST
-		"internal/github/client.go:graphqlDo:Do":                    true, // POST
-		"internal/github/client.go:logExcerpt:Do":                   true, // job log download, listed as not conditional
+		"internal/github/client.go:graphqlExec:NewRequestWithContext": true, // POST
+		"internal/github/client.go:graphqlExec:Do":                    true, // POST
+		"internal/github/client.go:logExcerpt:Do":                     true, // job log download, listed as not conditional
+
+		"internal/github/hook_check_persist.go:restoreHookChecks:Do": true, // sync.Once, sends nothing
 	}
 	allowedForgejo := map[string]bool{
 		"internal/forgejo/client.go:rawRequest:NewRequestWithContext": true,
