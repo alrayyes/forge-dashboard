@@ -3,7 +3,7 @@
 ## Purpose
 
 Defines the footer shown on every page that has one — the
-mirror/credentials statement, the source link, the running version, and
+source link, the running version, and
 which self-referential links (Disclaimer, Privacy, Release history) are
 suppressed when already on that page.
 
@@ -11,14 +11,13 @@ suppressed when already on that page.
 
 ### Requirement: Footer content
 
-Every page with a footer SHALL show the mirror/credentials statement, a
-link to the project's source, and the running server's version.
+Every page with a footer SHALL show a link to the project's source, and the
+running server's version.
 
 #### Scenario: Footer present on every page that has one
 
 - **WHEN** any page with a footer loads
-- **THEN** the footer shows "Read-only mirror of both forges · credentials
-  never leave forge-dashboard's backend" and a link to the project source
+- **THEN** the footer shows a link to the project source
 
 ### Requirement: Version display
 
