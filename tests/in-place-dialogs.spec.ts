@@ -218,6 +218,7 @@ test.describe('a closing-issue pill on the Pull requests page', () => {
         await page.goto('/pull-requests.html');
         await closingPill(page, 1).click();
         await expect(issueDialog(page).locator('strong')).toHaveText('issue');
+        expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
         await axeClean(page, `${scheme} at ${width}px`);
       }
     }
@@ -268,6 +269,7 @@ test.describe('a linked pull request pill on the Issues page', () => {
 
     await expect(pullDialog(page)).toBeVisible();
     await expect(pullDialog(page).locator('strong')).toHaveText('pull request');
+    expect(new URL(page.url()).pathname).toBe('/issues.html');
   });
 
   test('says plainly when the pull request is not found anywhere', async ({
@@ -300,9 +302,95 @@ test.describe('a linked pull request pill on the Issues page', () => {
         await expect(pullDialog(page).locator('strong')).toHaveText(
           'pull request',
         );
+        expect(new URL(page.url()).pathname).toBe('/issues.html');
         await axeClean(page, `${scheme} at ${width}px`);
       }
     }
+  });
+});
+
+test.describe('pills inside the pull request dialog', () => {
+  test('stay links to the Issues page, so a second dialog does not stack on the first', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(1, [closing(12)])],
+      issues: [issue(12)],
+    });
+    await page.goto('/pull-requests.html');
+
+    await page.getByRole('button', { name: '#1 Pull request 1' }).click();
+    await expect(pullDialog(page)).toBeVisible();
+
+    const pill = pullDialog(page).locator('.closing-issue');
+    await expect(pill).toHaveCount(1);
+    expect(await pill.evaluate((node) => node.tagName)).toBe('A');
+    await expect(pill).toHaveAttribute('href', closing(12).pageUrl);
+  });
+});
+
+test.describe('pills revealed by "N more", and opened from the keyboard', () => {
+  test('a closing-issue pill opens its dialog on Enter, and Escape returns focus to it', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [
+        pullRequest(1, [closing(12), closing(13), closing(14), closing(15)]),
+      ],
+      issues: [issue(12), issue(13), issue(14), issue(15)],
+    });
+    await page.goto('/pull-requests.html');
+
+    await page
+      .getByRole('button', {
+        name: '2 more issues that this pull request will close',
+      })
+      .click();
+    const revealed = closingPill(page, 1).nth(2);
+    await expect(revealed).toBeFocused();
+    await expect(revealed).toHaveAccessibleName('Closes #14, opens the issue');
+
+    await page.keyboard.press('Enter');
+
+    await expect(issueDialog(page)).toHaveAccessibleName(
+      `Issue details: ${REPO} #14`,
+    );
+    expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
+
+    await page.keyboard.press('Escape');
+
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(revealed).toBeFocused();
+  });
+
+  test('a linked pull request pill opens its dialog on Enter, and Escape returns focus to it', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(12), pullRequest(13), pullRequest(14)],
+      issues: [issue(1, [linked(12), linked(13), linked(14)])],
+    });
+    await page.goto('/issues.html');
+
+    await page
+      .getByRole('button', {
+        name: '1 more pull requests that will close this issue',
+      })
+      .click();
+    const revealed = linkedPill(page, 1).nth(2);
+    await expect(revealed).toBeFocused();
+
+    await page.keyboard.press('Enter');
+
+    await expect(pullDialog(page)).toHaveAccessibleName(
+      `Pull request details: ${REPO} #14`,
+    );
+    expect(new URL(page.url()).pathname).toBe('/issues.html');
+
+    await page.keyboard.press('Escape');
+
+    await expect(pullDialog(page)).toBeHidden();
+    await expect(revealed).toBeFocused();
   });
 });
 

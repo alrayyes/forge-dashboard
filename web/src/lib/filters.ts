@@ -913,10 +913,10 @@ export function minutesAgo(iso: string): number {
 }
 
 // The title box on the Issues page also takes a ticket number: `1884` or
-// `#1884` matches numbers that start with it. A leading # says "number only",
-// as GitHub's own search reads it; a bare number also still matches titles,
-// so a year or a version in a title stays findable. Pull requests match on
-// the title alone.
+// `#1884` matches numbers that start with it. The # is optional and does not
+// change what matches, so a year or a version in a title stays findable and a
+// title that holds `#1884` as typed does too. Pull requests match on the title
+// alone.
 export function matchesTitleTerm(
   item: FilterableItem,
   isPR: boolean,
@@ -926,8 +926,7 @@ export function matchesTitleTerm(
   if (isPR || item.number === undefined) return inTitle;
   const digits = /^#?(\d+)$/.exec(term.trim());
   if (!digits) return inTitle;
-  if (String(item.number).startsWith(digits[1])) return true;
-  return !term.startsWith('#') && inTitle;
+  return String(item.number).startsWith(digits[1]) || inTitle;
 }
 
 // shared carries the fields that apply to both pull requests and

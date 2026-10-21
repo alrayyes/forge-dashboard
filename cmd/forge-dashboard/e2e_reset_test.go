@@ -108,6 +108,38 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	assert.Equal(t, "owner", signedIn.Username)
 }
 
+func TestE2EReset_ForgetsTheTabsThePreviousTestLeftReportingVisible(t *testing.T) {
+	ctx := t.Context()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "e2e.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	authStore := auth.NewStore(db)
+	require.NoError(t, authStore.Init(ctx))
+	cipher, err := settings.NewCipher("MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=")
+	require.NoError(t, err)
+	require.NoError(t, settings.NewStore(db, cipher).Init(ctx))
+	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
+	require.NoError(t, err)
+	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}}))
+
+	manager := dashboard.NewManager(time.Minute)
+	activity := dashboard.NewActivity(time.Minute, nil)
+	manager.SetActivity(activity)
+	activity.Present("left-open-tab", true)
+	require.Equal(t, 1, activity.ViewerCount())
+
+	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Manager: manager}
+	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Post(srv.URL+"/__e2e/reset", "application/json", nil)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	assert.Zero(t, activity.ViewerCount())
+}
+
 // A reset that arrives while the server is writing waits for the write to end
 // instead of failing. The reset's transaction used to start with a read and
 // only then ask for the write lock; when another writer committed in between,

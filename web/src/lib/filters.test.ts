@@ -310,9 +310,11 @@ describe('the title box and ticket numbers', () => {
     expect(hits(issue(2188), '188')).toBe(false);
   });
 
-  test('a # term matches the number only', () => {
+  test('a # term matches the number, or a title that holds it as typed', () => {
     expect(hits(issue(7, 'Roadmap for 2024'), '#2024')).toBe(false);
     expect(hits(issue(2024), '#2024')).toBe(true);
+    expect(hits(issue(7, 'Revert #1884'), '#1884')).toBe(true);
+    expect(hits(issue(1884), ' #1884 ')).toBe(true);
   });
 
   test('a bare number still matches a title that holds it', () => {

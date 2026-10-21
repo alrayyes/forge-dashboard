@@ -1,13 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 
 // The pipeline panel reads its checks again only when a snapshot says its pull
 // request's CI changed: no request while nothing changes, none for a finished
@@ -144,8 +137,6 @@ async function push(page: Page, item: ReturnType<typeof pr>) {
 const dialog = (page: Page) => page.locator('#pipeline-dialog');
 
 test.describe('pipeline panel updates live', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a check finishing changes its pill in place, announced once', async ({
     page,
   }) => {
@@ -406,21 +397,10 @@ test.describe('pipeline panel updates live', () => {
 test.describe('pipeline panel with live updates paused', () => {
   test('makes no request, says so, passes axe, and reads once on resume', async ({
     page,
-    request,
-    baseURL,
   }: {
     page: Page;
-    request: APIRequestContext;
-    baseURL: string | undefined;
   }) => {
     await stubStream(page);
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `live-panel-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Live Panel User',
-    );
     const state = { requests: 0, checks: RUN as unknown[] };
     await page.route('**/api/dashboard', (route: Route) =>
       route.fulfill({
