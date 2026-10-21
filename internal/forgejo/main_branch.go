@@ -44,8 +44,9 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 		return row, nil
 	}
 
-	row.Status = mainBranchStatus(runs)
 	jobs := c.runJobs(ctx, repo, runs)
+	runs = settledRuns(runs, jobs)
+	row.Status = mainBranchStatus(runs)
 	row.Checks = jobCounts(runs, jobs)
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
@@ -188,6 +189,51 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 	default:
 		return dashboard.MainBranchPassed
 	}
+}
+
+// settledRuns is runs with each run the list still calls running, but whose jobs
+// have all finished, read as finished. The runs list is read before the jobs, so
+// a run can end in between; folding the status from the stale list would leave
+// the row running beside counts that show nothing running. The run takes the
+// state its jobs give it: failed if any failed, else cancelled if any was, else
+// passed. A run with no readable jobs, or a job still going, is left as listed.
+func settledRuns(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) []*branchRun {
+	out := make([]*branchRun, len(runs))
+	for i, r := range runs {
+		out[i] = r
+		list := jobs[r.ID]
+		if len(list) == 0 || checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning {
+			continue
+		}
+		var failed, cancelled bool
+		over := true
+		for _, j := range list {
+			switch checkStateFromWorkflowStatus(j.Status) {
+			case dashboard.CheckRunning, dashboard.CheckQueued:
+				over = false
+			case dashboard.CheckFailure:
+				failed = true
+			case dashboard.CheckCancelled:
+				cancelled = true
+			case dashboard.CheckSuccess, dashboard.CheckSkipped:
+			}
+		}
+		if !over {
+			continue
+		}
+		settled := *r
+		switch {
+		case failed:
+			settled.Status = "failure"
+		case cancelled:
+			settled.Status = "cancelled"
+		default:
+			settled.Status = "success"
+		}
+		out[i] = &settled
+	}
+
+	return out
 }
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be

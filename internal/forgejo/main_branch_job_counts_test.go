@@ -216,3 +216,54 @@ func TestReadMainBranch_KeepsTheEmptyJobListOfALongFinishedRun(t *testing.T) {
 	defer s.mu.Unlock()
 	assert.NotContains(t, s.paths, "/api/v1/repos/alrayyes/a/actions/runs/1/jobs")
 }
+
+// The runs list is read before the jobs, so a run can finish in between. The
+// row's status and its counts must come from one reading: a run the list still
+// calls running whose jobs have all finished is finished.
+func TestReadMainBranch_StatusAgreesWithTheCountsWhenARunFinishesMidRead(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a running run whose jobs all passed reads as passed", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{
+			runs: []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+			jobs: map[string][]map[string]any{"1": jobsOf("success", "skipped")},
+		}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.MainBranchPassed, row.Status)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 2, Skipped: 1}, row.Checks)
+	})
+
+	t.Run("a running run whose jobs finished with a failure reads as failed, naming it", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{
+			runs: []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+			jobs: map[string][]map[string]any{"1": jobsOf("success", "failure")},
+		}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.MainBranchFailed, row.Status)
+		assert.Equal(t, []string{"jobfailureb"}, row.FailingJobs)
+	})
+
+	t.Run("a running run with a job still going stays running", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{
+			runs: []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+			jobs: map[string][]map[string]any{"1": jobsOf("success", "running")},
+		}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.MainBranchRunning, row.Status)
+	})
+}
