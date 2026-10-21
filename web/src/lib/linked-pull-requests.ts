@@ -99,27 +99,21 @@ export const linkedPillId = (issueKey: string, pr: LinkedPullRequest) =>
  * rest in place. Null when no pull request will close the issue. With onOpen,
  * each pill is a button that opens that pull request's dialog where the
  * reader is, and hands over the pill's id so focus can return to it. Without
- * it, the pill is a link to the pull request page with its pop-up open. With
- * linkable false, on a dashboard someone shared (a link would open the
- * reader's own board, not theirs), the pill says the same and goes nowhere.
+ * it, the pill is a link to the pull request page with its pop-up open.
  */
 export function linkedPills(
   issueKey: string,
   issueRepo: string,
   list: LinkedPullRequest[] | undefined,
-  linkable = true,
   onOpen?: (pr: LinkedPullRequest, triggerId: string) => void,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
   const wrap = element('span', 'linked-prs');
   const pill = (pr: LinkedPullRequest) => {
-    const opens = linkable && onOpen !== undefined;
     const link = element(
-      linkable ? (opens ? 'button' : 'a') : 'span',
-      ['linked-pr', pr.draft ? 'draft' : '', linkable ? '' : 'inert']
-        .filter(Boolean)
-        .join(' '),
+      onOpen !== undefined ? 'button' : 'a',
+      ['linked-pr', pr.draft ? 'draft' : ''].filter(Boolean).join(' '),
     );
     if (link instanceof HTMLAnchorElement) link.href = pr.pageUrl;
     if (link instanceof HTMLButtonElement && onOpen) {
@@ -128,8 +122,7 @@ export function linkedPills(
       link.addEventListener('click', () => onOpen(pr, link.id));
     }
     link.textContent = linkedPillText(pr, issueRepo);
-    if (linkable)
-      link.setAttribute('aria-label', linkedPillName(pr, issueRepo));
+    link.setAttribute('aria-label', linkedPillName(pr, issueRepo));
     return link;
   };
   wrap.append(...shown.map(pill));

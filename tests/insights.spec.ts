@@ -139,8 +139,8 @@ test.describe('insights page', () => {
       const url = new URL(r.url());
       if (!url.pathname.startsWith('/api/')) return;
       // Only what the Insights page itself asks for. Signing in lands on the
-      // dashboard, which asks /api/sharing as it mounts, and under load that
-      // can land after this listener is attached (#1428).
+      // dashboard, whose reads can land after this listener is attached
+      // (#1428).
       if (new URL(r.frame().url()).pathname !== '/insights.html') return;
       apiPaths.add(url.pathname);
     });

@@ -98,10 +98,6 @@ that names `ignoredTitles` and the entry, counted from 1 in the list as sent,
 and says why, as in `ignoredTitles entry 2 ("("): missing closing )`.
 Nothing is saved then, not the other patterns and not the other settings.
 
-On a dashboard someone shared with you (`?owner=`), the issues are theirs and
-the settings are yours: your own choices decide what you see, and theirs don't
-reach you.
-
 ## Pull requests that close an issue
 
 An issue that an open pull request is set to close shows a small link after its

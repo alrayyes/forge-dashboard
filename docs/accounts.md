@@ -1,6 +1,6 @@
 # Accounts
 
-Signing in, API tokens, sharing a dashboard, and the forge
+Signing in, API tokens, and the forge
 credentials each account saves.
 
 ## Authentication
@@ -96,24 +96,11 @@ one deletes the account outright, along with its passkeys, sessions, tokens and
 saved credentials, and frees the username. Neither works on the admin's own
 account; the backend refuses it with a 400.
 
-## Sharing
-
-From Settings, share your own dashboard with another registered user,
-read-only — they need no GitHub/Forgejo credentials of their own
-configured. Once shared, a selector appears in their dashboard header
-so they can switch between their own dashboard and yours; Settings also
-lists everyone who's shared their dashboard with you, and everyone
-you've shared yours with, with a one-click way to stop.
-
-Enforced server-side (`GET /api/dashboard?owner=<username>` answers 403
-without an active share, not just a hidden frontend control) — see
-`internal/sharing` and `api/openapi.yaml`'s `sharing` tag.
-
 ## Credentials
 
 Set from the Settings page (`/settings.html`, linked from the dashboard
 header) once you're signed in — nothing forge-related is configured by
-the process itself. The page has five groups (Display, Sharing, Connections,
+the process itself. The page has four groups (Display, Connections,
 Behaviour, Integrations and security), one shown at a time; the group is in
 the URL hash, so `/settings.html#connections` opens Connections.
 

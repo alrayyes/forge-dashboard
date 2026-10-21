@@ -1,11 +1,10 @@
-// The five Settings groups and the URL hash that picks one. A hash is either
+// The four Settings groups and the URL hash that picks one. A hash is either
 // a group id ("#behaviour") or the id of a card that older links point at
 // ("#api-tokens"); the second opens the card's group and names the card so
 // the page can scroll it into view.
 
 export type SettingsGroupId =
   | 'display'
-  | 'sharing'
   | 'connections'
   | 'behaviour'
   | 'integrations';
@@ -16,7 +15,6 @@ export const SETTINGS_GROUPS: {
   caption: string;
 }[] = [
   { id: 'display', label: 'Display', caption: 'Theme, time zone' },
-  { id: 'sharing', label: 'Sharing', caption: 'Share your dashboard' },
   { id: 'connections', label: 'Connections', caption: 'GitHub, Forgejo' },
   {
     id: 'behaviour',
@@ -42,7 +40,6 @@ const ANCHOR_GROUPS: Record<string, SettingsGroupId> = {
   'github-token': 'connections',
   'forgejo-token': 'connections',
   'forgejo-url': 'connections',
-  'shared-with-me-list': 'sharing',
   'timezone-select': 'display',
 };
 

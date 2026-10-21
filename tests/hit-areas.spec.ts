@@ -595,7 +595,6 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
     for (const group of [
       'display',
-      'sharing',
       'connections',
       'behaviour',
       'integrations',

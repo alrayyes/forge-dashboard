@@ -167,33 +167,4 @@ test.describe('live stream start (#1569)', () => {
     await page.clock.fastForward(3_600_000);
     await expect.poll(() => streamRequests).toBeGreaterThan(5);
   });
-
-  test("a shared dashboard does not retry the viewer's own stream", async ({
-    page,
-  }) => {
-    let streamRequests = 0;
-    await page.route('**/api/sharing', (route: Route) =>
-      route.fulfill({
-        json: { sharedWithMe: [{ username: 'owner', displayName: 'Owner' }] },
-      }),
-    );
-    await page.route('**/api/dashboard/stream*', (route: Route) => {
-      streamRequests++;
-      return route.fulfill({ status: 404, json: { error: 'none yet' } });
-    });
-    await page.route('**/api/dashboard*', (route: Route) => {
-      if (isStream(route.request().url())) return route.fallback();
-      return route.fulfill({ json: snapshot() });
-    });
-    await page.clock.install();
-    await page.goto('/pull-requests.html');
-    await expect.poll(() => streamRequests).toBe(1);
-    await page.selectOption('#dashboard-owner-select', 'owner');
-    await page.clock.fastForward(5_000);
-    await flush(page);
-    const before = streamRequests;
-    await page.clock.fastForward(120_000);
-    await flush(page);
-    expect(streamRequests).toBe(before);
-  });
 });

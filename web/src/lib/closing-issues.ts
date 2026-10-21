@@ -113,24 +113,20 @@ export const closingPillId = (prKey: string, issue: ClosingIssue) =>
  * button that opens that issue's dialog where the reader is, and hands over
  * the pill's id so focus can return to it. Without it, the pill is a link to
  * the Issues page with that issue's pop-up open (inside a dialog, where a
- * second one would stack). With linkable false, on a dashboard someone shared
- * (a link would open the reader's own board, not theirs), the pill says the
- * same and goes nowhere.
+ * second one would stack).
  */
 export function closingPills(
   prKey: string,
   prRepo: string,
   list: ClosingIssue[] | undefined,
-  linkable = true,
   onOpen?: (issue: ClosingIssue, triggerId: string) => void,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitClosing(list);
   const wrap = element('span', 'linked-prs');
   const pill = (issue: ClosingIssue) => {
-    const opens = linkable && onOpen !== undefined;
     const link = element(
-      linkable ? (opens ? 'button' : 'a') : 'span',
+      onOpen !== undefined ? 'button' : 'a',
       'linked-pr closing-issue',
     );
     if (link instanceof HTMLAnchorElement) link.href = issue.pageUrl;
@@ -140,8 +136,7 @@ export function closingPills(
       link.addEventListener('click', () => onOpen(issue, link.id));
     }
     link.textContent = closingPillText(issue, prRepo);
-    if (linkable)
-      link.setAttribute('aria-label', closingPillName(issue, prRepo));
+    link.setAttribute('aria-label', closingPillName(issue, prRepo));
     return link;
   };
   wrap.append(...shown.map(pill));
