@@ -154,7 +154,6 @@
         ? "Issue"
         : "Pull request",
   );
-  const isRelease = $derived(releaseTarget !== null);
   // What names the thing on its forge: a release's tag, an item's number.
   const refText = $derived(
     releaseTarget
@@ -631,7 +630,7 @@
           </section>
         {/if}
 
-        {#if !isRelease}
+        {#if !releaseTarget}
           <section class="details-section">
             <h3>Comments ({details.commentCount})</h3>
             {#if details.comments.length === 0}
