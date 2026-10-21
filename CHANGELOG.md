@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.250.0](https://github.com/alrayyes/forge-dashboard/compare/v0.249.4...v0.250.0) (2026-10-21)
+
+
+### Features
+
+* **web:** link the repository, the number and #N references in the dialogs to the forge ([#2134](https://github.com/alrayyes/forge-dashboard/issues/2134)) ([229e993](https://github.com/alrayyes/forge-dashboard/commit/229e993483a853bd062d2935be215c7c689c5779))
+
 ## [0.249.4](https://github.com/alrayyes/forge-dashboard/compare/v0.249.3...v0.249.4) (2026-10-21)
 
 
