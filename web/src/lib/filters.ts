@@ -52,6 +52,10 @@ export interface FilterableItem {
   // review it (#695), worked out by the server against the username saved
   // in Settings for its forge.
   reviewRequestedFromMe?: boolean;
+  // The issues a pull request will close, and the pull requests that will
+  // close an issue. Only their presence is read here; the server joins them.
+  closesIssues?: unknown[];
+  linkedPullRequests?: unknown[];
 }
 
 // The pull-request-only quick filter pills (#678). Stored as pr.quick.
@@ -131,6 +135,29 @@ export function matchesAutoMerge(
   if (autoMerge === 'on') return item.autoMergeEnabled === true;
   if (autoMerge === 'off') return item.autoMergeEnabled === false;
   return true;
+}
+
+// The closing-link choice: 'yes' keeps a pull request that closes an issue, or
+// an issue a pull request closes; 'no' keeps the rest. Nothing sent counts as
+// no link.
+export function matchesClosing(
+  item: FilterableItem,
+  isPR: boolean,
+  value: string | undefined,
+): boolean {
+  if (value !== 'yes' && value !== 'no') return true;
+  const linked = ((isPR ? item.closesIssues : item.linkedPullRequests) ?? [])
+    .length;
+  return value === 'yes' ? linked > 0 : linked === 0;
+}
+
+// How each closing-link choice reads, on its button and in the active-filter
+// chip, so the two cannot drift.
+export function closingChoiceLabel(isPR: boolean, value: 'yes' | 'no'): string {
+  if (isPR) return value === 'yes' ? 'Closes an issue' : 'Closes no issue';
+  return value === 'yes'
+    ? 'Has a closing pull request'
+    : 'No closing pull request';
 }
 
 // The pill that's active for a state: a quick filter wins, then a forge,
@@ -307,6 +334,7 @@ export function readCookieState(): SharedFilterState {
   if (parsed.webhooks && typeof parsed.webhooks === 'object')
     state.webhooks = { ...state.webhooks, ...parsed.webhooks };
   dropUnknownAutoMerge(state);
+  dropUnknownClosing(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
   trimLabelPick(state);
@@ -320,6 +348,18 @@ function dropUnknownAutoMerge(state: SharedFilterState): void {
   const value = state.pr.autoMerge;
   if (value !== undefined && value !== 'on' && value !== 'off')
     delete state.pr.autoMerge;
+}
+
+// The same for the closing-link choice, which is only 'yes' or 'no'.
+function dropUnknownClosing(state: SharedFilterState): void {
+  for (const [group, key] of [
+    [state.pr, 'closes'],
+    [state.issue, 'closedBy'],
+  ] as const) {
+    const value = group[key];
+    if (value !== undefined && value !== 'yes' && value !== 'no')
+      delete group[key];
+  }
 }
 
 // The pull request board used to have a CI status pulldown; the quick pills
@@ -900,6 +940,7 @@ export function applyServerState(
       if (!isTouched(group, key)) into[key] = value;
   }
   dropUnknownAutoMerge(state);
+  dropUnknownClosing(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
   trimLabelPick(state);
@@ -972,6 +1013,10 @@ export function failingFilters(
   if (isPR && !matchesQuickFilter(item, extra?.quick)) failing.push('quick');
   if (isPR && !matchesAutoMerge(item, extra?.autoMerge))
     failing.push('autoMerge');
+  if (isPR && !matchesClosing(item, true, extra?.closes))
+    failing.push('closes');
+  if (!isPR && !matchesClosing(item, false, extra?.closedBy))
+    failing.push('closedBy');
   // A bot's housekeeping issue (Renovate's Dependency Dashboard): the
   // server says which ones those are (#980), so this only reads the flag.
   if (!isPR && extra?.hideDependencyDashboard && item.housekeeping)
@@ -1184,6 +1229,8 @@ export const FILTER_NAMES: Record<string, string> = {
   label: 'Label',
   quick: 'quick',
   autoMerge: 'Auto-merge',
+  closes: 'Closing issue',
+  closedBy: 'Closing pull request',
   hideTitleRegex: 'Hide titles matching',
 };
 
@@ -1341,6 +1388,26 @@ export function offerAutoMerge(
     if (onButton) onButton.hidden = !(on || picked === 'on');
     if (offButton) offButton.hidden = !(off || picked === 'off');
     group.hidden = Boolean(onButton?.hidden && offButton?.hidden);
+  }
+}
+
+// Shows the closing-link segment's two choices only when something in the pool
+// is that way, or it is the one picked, and the whole segment only when
+// something is on offer. "Any" is always there while the segment is.
+export function offerClosing(
+  groups: Iterable<HTMLElement>,
+  pool: FilterableItem[],
+  isPR: boolean,
+  picked: string,
+): void {
+  const yes = pool.some((i) => matchesClosing(i, isPR, 'yes'));
+  const no = pool.some((i) => matchesClosing(i, isPR, 'no'));
+  for (const group of groups) {
+    const yesButton = group.querySelector<HTMLElement>('[data-link="yes"]');
+    const noButton = group.querySelector<HTMLElement>('[data-link="no"]');
+    if (yesButton) yesButton.hidden = !(yes || picked === 'yes');
+    if (noButton) noButton.hidden = !(no || picked === 'no');
+    group.hidden = Boolean(yesButton?.hidden && noButton?.hidden);
   }
 }
 

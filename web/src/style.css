@@ -3530,7 +3530,7 @@ footer a.mono:focus-visible {
 }
 /* The auto-merge segment (#1455): Any, On, Off, on the trailing edge of the
    quick pill row, and as a sheet-only copy in the Filters sheet on a phone. */
-.am-group {
+:is(.am-group, .link-group) {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -3539,8 +3539,8 @@ footer a.mono:focus-visible {
   border: 1px solid var(--border-strong);
   border-radius: 999px;
 }
-.am-group[hidden],
-.am-group [hidden] {
+:is(.am-group, .link-group)[hidden],
+:is(.am-group, .link-group) [hidden] {
   display: none;
 }
 .am-label {
@@ -3548,7 +3548,7 @@ footer a.mono:focus-visible {
   font-size: 12px;
   color: var(--ink-2);
 }
-.am-group button {
+:is(.am-group, .link-group) button {
   font-family: inherit;
   font-size: 12px;
   padding: 4px 11px;
@@ -3558,11 +3558,11 @@ footer a.mono:focus-visible {
   color: var(--ink-2);
   cursor: pointer;
 }
-.am-group button[aria-pressed="true"] {
+:is(.am-group, .link-group) button[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-ink);
 }
-.am-group button:focus-visible {
+:is(.am-group, .link-group) button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -3714,7 +3714,7 @@ footer a.mono:focus-visible {
     white-space: nowrap;
   }
   /* The forge control is in the sheet on a phone. */
-  .filter-bar > .am-group {
+  .filter-bar > :is(.am-group, .link-group) {
     display: none;
   }
   .quick-pills .forge-pill {
@@ -3839,12 +3839,12 @@ footer a.mono:focus-visible {
   .filter-sheet .quick-pill {
     min-height: 44px;
   }
-  /* The sheet-only rule above ties with .am-group[hidden] on specificity and
+  /* The sheet-only rule above ties with :is(.am-group, .link-group)[hidden] on specificity and
      comes later, so say hidden again here (#1455). */
-  .filter-sheet .am-group[hidden] {
+  .filter-sheet :is(.am-group, .link-group)[hidden] {
     display: none;
   }
-  .filter-sheet .am-group button {
+  .filter-sheet :is(.am-group, .link-group) button {
     min-height: 44px;
     min-width: 44px;
   }
@@ -4304,7 +4304,7 @@ footer a[aria-current="page"] {
   :is(
     footer a,
     .group-select,
-    .am-group button,
+    :is(.am-group, .link-group) button,
     .release-head h2 a,
     .sort-button,
     .repo-link,
@@ -4357,7 +4357,7 @@ footer a[aria-current="page"] {
       .activity-toggle,
       .updates-pause,
       .quick-pill,
-      .am-group button,
+      :is(.am-group, .link-group) button,
       .clear-filters,
       .col-filter,
       .group-select,
@@ -4391,7 +4391,7 @@ footer a[aria-current="page"] {
       .copy-button,
       .token-copy-button,
       .btn-remove,
-      .am-group button,
+      :is(.am-group, .link-group) button,
       .release-head h2 a,
       label:not(.task):has(> input[type="radio"])
     ) {

@@ -159,6 +159,7 @@ const singleUserSpecs = [
   '**/label-multi-select.spec.ts',
   '**/legal.spec.ts',
   '**/noindex.spec.ts',
+  '**/closing-link-filter.spec.ts',
 ];
 
 export default defineConfig({
