@@ -22,7 +22,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
-	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -188,9 +187,6 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	sharingStore := sharingpkg.NewStore(db)
-	require.NoError(t, sharingStore.Init(t.Context()))
-
 	manager := dashboard.NewManager(time.Hour)
 	manager.SetWebhookDebounceTimer(after)
 	t.Cleanup(manager.Stop)
@@ -203,7 +199,6 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,

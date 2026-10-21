@@ -16,7 +16,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
-	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -381,9 +380,6 @@ func newTestServerWithGitHubAppConfigured(t *testing.T) *httptest.Server {
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	sharingStore := sharingpkg.NewStore(db)
-	require.NoError(t, sharingStore.Init(t.Context()))
-
 	manager := dashboard.NewManager(testRefreshInterval)
 	t.Cleanup(manager.Stop)
 
@@ -395,7 +391,6 @@ func newTestServerWithGitHubAppConfigured(t *testing.T) *httptest.Server {
 		AuthService:         authService,
 		AuthStore:           authStore,
 		SettingsStore:       settingsStore,
-		SharingStore:        sharingStore,
 		Manager:             manager,
 		BuildSources:        noSources,
 		AppContext:          appCtx,

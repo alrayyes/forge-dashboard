@@ -30,7 +30,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
-	"github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
 	_ "modernc.org/sqlite"
@@ -250,7 +249,7 @@ func run() error {
 		return fmt.Errorf("auth setup failed: %w", err)
 	}
 
-	settingsStore, sharingStore, err := buildStores(ctx, db)
+	settingsStore, err := buildStores(ctx, db)
 	if err != nil {
 		return err
 	}
@@ -279,7 +278,6 @@ func run() error {
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		SharingStore:  sharingStore,
 		Manager:       manager,
 		Database:      schemaPinger{db: db},
 		Dashboard:     manager,
@@ -529,20 +527,30 @@ func buildAuth(ctx context.Context, db *sql.DB) (*auth.Service, *auth.Store, err
 	return auth.NewService(wa, store), store, nil
 }
 
-// buildStores opens the settings and sharing stores on db and creates their
-// tables.
-func buildStores(ctx context.Context, db *sql.DB) (*settings.Store, *sharing.Store, error) {
+// buildStores opens the settings store on db and creates its tables. It also
+// drops the table dashboard sharing left behind.
+func buildStores(ctx context.Context, db *sql.DB) (*settings.Store, error) {
 	settingsStore, err := buildSettingsStore(ctx, db)
 	if err != nil {
-		return nil, nil, fmt.Errorf("settings setup failed: %w", err)
+		return nil, fmt.Errorf("settings setup failed: %w", err)
 	}
 
-	sharingStore := sharing.NewStore(db)
-	if err := sharingStore.Init(ctx); err != nil {
-		return nil, nil, fmt.Errorf("sharing setup failed: %w", err)
+	if err := dropLegacyShares(ctx, db); err != nil {
+		return nil, err
 	}
 
-	return settingsStore, sharingStore, nil
+	return settingsStore, nil
+}
+
+// dropLegacyShares removes the shares table an instance created while
+// dashboard sharing existed. Nothing reads it any more. Safe to run on every
+// start: a database without the table is left alone.
+func dropLegacyShares(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS shares`); err != nil {
+		return fmt.Errorf("drop legacy shares table: %w", err)
+	}
+
+	return nil
 }
 
 // buildSettingsStore requires a real ENCRYPTION_KEY — a service about to

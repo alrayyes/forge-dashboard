@@ -113,11 +113,6 @@ func handleAdminDeleteUser(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		if err := deps.SharingStore.DeleteUser(r.Context(), target.ID); err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not delete user's sharing"))
-
-			return
-		}
 		deps.Manager.Remove(target.ID)
 
 		w.WriteHeader(http.StatusNoContent)

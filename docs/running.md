@@ -68,9 +68,9 @@ An instance has one owner. The first start after upgrading from a version that
 allowed several users keeps the oldest user who has a passkey and deletes every
 other user, once. Their sessions, API tokens, passkeys, saved credentials,
 settings, hidden pull requests, queued actions and request-log rows go with
-them. Outstanding invites and shares are cleared for everyone, the kept user
+them. Outstanding invites are cleared for everyone, the kept user
 included, and any leftover rows of users removed earlier are deleted. A
-database with one user has only those invites, shares and leftover rows
+database with one user has only those invites and leftover rows
 cleared, and one with no registered user is left alone. An instance whose owner
 registered on this version is never cleaned up, so a user invited later
 survives a restart.
