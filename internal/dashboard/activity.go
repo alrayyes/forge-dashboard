@@ -139,6 +139,22 @@ func (a *Activity) Present(viewer string, visible bool) {
 	}
 }
 
+// Reset forgets every tab and counts now as use, as a process start does. The
+// e2e build's reset route calls it so one test's open tabs don't hold the
+// dashboard active for the next. Safe on nil.
+func (a *Activity) Reset() {
+	if a == nil {
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	clear(a.viewers)
+	a.lastUsed = a.now()
+	a.drainWake()
+}
+
 // ViewerCount is how many tabs are being tracked, for tests of the cap.
 func (a *Activity) ViewerCount() int {
 	if a == nil {
