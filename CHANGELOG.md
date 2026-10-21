@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/alrayyes/forge-dashboard/compare/v1.4.0...v1.5.0) (2026-10-21)
+
+
+### Features
+
+* **web:** filter pull requests by closing an issue and issues by a closing pull request ([#2281](https://github.com/alrayyes/forge-dashboard/issues/2281)) ([3553422](https://github.com/alrayyes/forge-dashboard/commit/3553422d9eeb6b83fdb62cb69d24b8d0c3fa415a))
+
 ## [1.4.0](https://github.com/alrayyes/forge-dashboard/compare/v1.3.0...v1.4.0) (2026-10-21)
 
 
