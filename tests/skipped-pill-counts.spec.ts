@@ -125,6 +125,36 @@ test.describe('skipped counts on the pull request pill', () => {
     );
   });
 
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`a fully skipped pill is drawn muted, not passed green (${scheme})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await openBoard(page, '/pull-requests.html');
+
+      const colour = (l: Locator) =>
+        l.evaluate((e) => getComputedStyle(e).color);
+      const token = (name: string) =>
+        page.evaluate((n) => {
+          const probe = document.createElement('span');
+          probe.style.color = `var(${n})`;
+          document.body.appendChild(probe);
+          const c = getComputedStyle(probe).color;
+          probe.remove();
+          return c;
+        }, name);
+      const all = prPill(page, 'All skipped');
+      await expect(all).toHaveClass(/all-skipped/);
+      expect(await colour(all.locator('.ci-seg-label'))).toBe(
+        await token('--ink-2'),
+      );
+      // A pass that ran something keeps its green.
+      expect(
+        await colour(prPill(page, 'Some skipped').locator('.ci-seg-label')),
+      ).toBe(await token('--good'));
+    });
+  }
+
   test('sits between passed and running among the other states', async ({
     page,
   }) => {
@@ -287,6 +317,19 @@ const issuePill = (page: Page, number: number) =>
     .locator('.linked-pr');
 
 test.describe('skipped counts on the Issues page pill', () => {
+  test('a fully skipped pill has no ring, like the others there', async ({
+    page,
+  }) => {
+    await openIssues(page);
+
+    for (const n of [1, 2]) {
+      await expect(issuePill(page, n).locator('.ci-pill')).toHaveCSS(
+        'box-shadow',
+        'none',
+      );
+    }
+  });
+
   test('says them in the text and the name', async ({ page }) => {
     await openIssues(page);
 

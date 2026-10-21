@@ -161,18 +161,22 @@ describe('pillWord', () => {
   const only = [{ kind: 'skipped' as const, n: 3 }];
 
   test('says Skipped for a pass that was only skipped checks', () => {
-    expect(pillWord('Passed', only)).toBe('Skipped');
+    expect(pillWord('success', 'Passed', only)).toBe('Skipped');
   });
 
   test('keeps the word beside other segments or on another state', () => {
     expect(
-      pillWord('Passed', [
+      pillWord('success', 'Passed', [
         { kind: 'passed', n: 8 },
         { kind: 'skipped', n: 2 },
       ]),
     ).toBe('Passed');
-    expect(pillWord('Failed', only)).toBe('Failed');
-    expect(pillWord('Running', only)).toBe('Running');
+    expect(pillWord('failure', 'Failed', only)).toBe('Failed');
+    expect(pillWord('pending', 'Running', only)).toBe('Running');
+  });
+
+  test('keys on the passed state, not on the wording of its label', () => {
+    expect(pillWord('success', 'Succeeded', only)).toBe('Skipped');
   });
 });
 
