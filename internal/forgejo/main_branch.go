@@ -196,8 +196,11 @@ func runCounts(runs []*branchRun) dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	for _, r := range runs {
 		switch checkStateFromWorkflowStatus(r.Status) {
-		case dashboard.CheckSuccess, dashboard.CheckSkipped:
+		case dashboard.CheckSuccess:
 			out.Passed++
+		case dashboard.CheckSkipped:
+			out.Passed++
+			out.Skipped++
 		case dashboard.CheckRunning:
 			out.Running++
 		case dashboard.CheckQueued:

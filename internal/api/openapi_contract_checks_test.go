@@ -25,8 +25,8 @@ func TestContract_PullRequestsCarryCheckCounts(t *testing.T) {
 		require.Contains(t, pr.Required, "checks")
 		checks := pr.Properties["checks"].Value
 
-		assert.ElementsMatch(t, []string{"passed", "running", "waiting", "failed"}, checks.Required)
-		for _, name := range []string{"passed", "running", "waiting", "failed"} {
+		assert.ElementsMatch(t, []string{"passed", "running", "waiting", "failed", "skipped"}, checks.Required)
+		for _, name := range []string{"passed", "running", "waiting", "failed", "skipped"} {
 			assert.True(t, checks.Properties[name].Value.Type.Is("integer"), name)
 		}
 	})
@@ -46,7 +46,7 @@ func TestContract_PullRequestsCarryCheckCounts(t *testing.T) {
 		for _, p := range body.PullRequests {
 			checks, ok := p["checks"].(map[string]any)
 			require.True(t, ok, "pull request %v has no checks object", p["number"])
-			for _, name := range []string{"passed", "running", "waiting", "failed"} {
+			for _, name := range []string{"passed", "running", "waiting", "failed", "skipped"} {
 				assert.IsType(t, float64(0), checks[name], "pull request %v, %s", p["number"], name)
 			}
 		}
@@ -83,7 +83,7 @@ func TestContract_MainBranchesCarryCheckCounts(t *testing.T) {
 		for _, b := range body.Branches {
 			checks, ok := b["checks"].(map[string]any)
 			require.True(t, ok, "branch %v has no checks object", b["fullName"])
-			for _, name := range []string{"passed", "running", "waiting", "failed"} {
+			for _, name := range []string{"passed", "running", "waiting", "failed", "skipped"} {
 				assert.IsType(t, float64(0), checks[name], "branch %v, %s", b["fullName"], name)
 			}
 		}
