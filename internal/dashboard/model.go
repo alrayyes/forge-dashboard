@@ -34,7 +34,11 @@ const (
 // of the four: AwaitingWorkflowApproval says that. Always present, all zero
 // when there are no checks. Matches components.schemas.CheckCounts.
 type CheckCounts struct {
-	Passed  int `json:"passed"`
+	Passed int `json:"passed"`
+	// Skipped is how many of the Passed ones were skipped. It is inside Passed,
+	// not beside it, so Passed stays every check that needed nothing more, and
+	// a client that draws a skipped count draws it as detail on the passed one.
+	Skipped int `json:"skipped"`
 	Running int `json:"running"`
 	Waiting int `json:"waiting"`
 	Failed  int `json:"failed"`

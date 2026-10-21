@@ -20,6 +20,7 @@ const SEGMENTS = [
   '.ci-pill.success .ci-seg-label',
   '.ci-pill.failure .ci-seg-label',
   '.ci-seg-passed',
+  '.ci-seg-skipped',
   '.ci-seg-running',
   '.ci-seg-waiting',
   '.ci-seg-failed',

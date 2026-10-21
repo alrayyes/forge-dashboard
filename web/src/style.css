@@ -1702,6 +1702,10 @@ a.ci-pill:hover {
 .ci-seg-passed {
   color: var(--good);
 }
+/* Skipped was not needed, so it reads quieter than a pass. */
+.ci-seg-skipped {
+  color: var(--ink-2);
+}
 .ci-seg-running {
   color: var(--warning);
 }

@@ -8,6 +8,10 @@ export type CheckCounts = {
   running: number;
   waiting: number;
   failed: number;
+  // How many of the passed ones were skipped: inside passed, never beside it.
+  // The server always sends it; optional here only because an older server
+  // does not, which reads as none.
+  skipped?: number;
 };
 
 export type CheckKind = keyof CheckCounts;
@@ -16,6 +20,7 @@ export type CheckKind = keyof CheckCounts;
 // done, what is going, what has not started, then what broke.
 export const CHECK_KINDS: readonly CheckKind[] = [
   'passed',
+  'skipped',
   'running',
   'waiting',
   'failed',
@@ -25,6 +30,7 @@ export const CHECK_KINDS: readonly CheckKind[] = [
 // the same states (check-glyphs.ts), so a state reads the same everywhere.
 export const CHECK_KIND_GLYPH: Record<CheckKind, string> = {
   passed: 'success',
+  skipped: 'skipped',
   running: 'running',
   waiting: 'queued',
   failed: 'failure',
@@ -32,15 +38,33 @@ export const CHECK_KIND_GLYPH: Record<CheckKind, string> = {
 
 export type CheckSegment = { kind: CheckKind; n: number };
 
+// The word a pill leads with. A pass where every passed check was skipped has
+// only the skipped segment, and "Passed" over a lone slash would claim more
+// than happened, so it says Skipped, as the pipeline dialog words the state.
+export function pillWord(label: string, segments: CheckSegment[]): string {
+  const onlySkipped = segments.length === 1 && segments[0].kind === 'skipped';
+
+  return label === 'Passed' && onlySkipped ? 'Skipped' : label;
+}
+
 // The counts to draw, in order, with a zero never drawn. Nothing at all for no
 // counts, which leaves the plain pill.
+//
+// Skipped is a subset of passed (the server keeps passed whole, so it still
+// counts every check that needs nothing more), drawn as its own segment beside
+// it. When every passed check was skipped nothing really passed, so the passed
+// segment gives way and the pill reads as skipped alone.
 export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
   if (!counts) return [];
+  // Skipped is part of passed, so it can never exceed it; a larger figure is
+  // a mistake upstream and is held to passed rather than drawn as a contradiction.
+  const skipped = Math.min(counts.skipped ?? 0, counts.passed);
 
   return CHECK_KINDS.flatMap((kind) => {
-    const n = counts[kind];
+    const n = kind === 'skipped' ? skipped : counts[kind];
+    if (kind === 'passed' && skipped > 0 && n === skipped) return [];
 
-    return Number.isInteger(n) && n > 0 ? [{ kind, n }] : [];
+    return n !== undefined && Number.isInteger(n) && n > 0 ? [{ kind, n }] : [];
   });
 }
 
@@ -50,7 +74,16 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
 // words. The word is the pill's own: Running, Passed or Failed.
 export function pillName(label: string, segments: CheckSegment[]): string {
   const visible = [label, ...segments.map((s) => String(s.n))].join(' ');
-  const words = segments.map((s) => `${s.n} ${s.kind}`).join(', ');
+  // Skipped is inside passed, so beside a passed count it reads "of them" and
+  // never as a further count; alone (every pass was skipped) it is plain.
+  const hasPassed = segments.some((s) => s.kind === 'passed');
+  const words = segments
+    .map((s) =>
+      s.kind === 'skipped' && hasPassed
+        ? `${s.n} of them skipped`
+        : `${s.n} ${s.kind}`,
+    )
+    .join(', ');
 
   return `${visible}: ${words}`;
 }

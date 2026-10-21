@@ -37,7 +37,7 @@ content to reconcile the way the dashboard's own toolbar needed in
 ### New Capabilities
 
 - `app-footer`: the signed-in shell's and login page's shared footer —
-  what it shows (mirror/credentials statement, source link, version),
+  what it shows (source link, version),
   and which self-referential links are suppressed on their own page.
   No existing spec covers this (`openspec list --specs` shows
   `app-navigation`, `dashboard-filtering`, `dashboard-force-refresh`,

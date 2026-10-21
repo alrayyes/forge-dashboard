@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.0](https://github.com/alrayyes/forge-dashboard/compare/v1.0.1...v1.1.0) (2026-10-21)
+
+
+### Features
+
+* **web:** show skipped counts in every CI pill ([#2236](https://github.com/alrayyes/forge-dashboard/issues/2236)) ([bba4876](https://github.com/alrayyes/forge-dashboard/commit/bba48761f8e8999da6b0a20c9062252e4e18e4d3))
+
+
+### Bug Fixes
+
+* hide Update branch while a pull request waits for CI ([#2234](https://github.com/alrayyes/forge-dashboard/issues/2234)) ([40c5b10](https://github.com/alrayyes/forge-dashboard/commit/40c5b101069b12f74d7740ce999d6ff8dd59b0da))
+* stop httptest teardown from cutting in-flight requests on the shared default transport ([#2241](https://github.com/alrayyes/forge-dashboard/issues/2241)) ([0404564](https://github.com/alrayyes/forge-dashboard/commit/0404564171e87e2a99860e8946ebf7d6e7abd8e5)), closes [#2230](https://github.com/alrayyes/forge-dashboard/issues/2230)
+
+## [1.0.1](https://github.com/alrayyes/forge-dashboard/compare/v1.0.0...v1.0.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** drop the mirror statement from the footer so it fits one line ([#2235](https://github.com/alrayyes/forge-dashboard/issues/2235)) ([b9618dd](https://github.com/alrayyes/forge-dashboard/commit/b9618dd304bbb68bd6ed16675843c593067a8dc4))
+
 ## [1.0.0](https://github.com/alrayyes/forge-dashboard/compare/v0.257.0...v1.0.0) (2026-10-21)
 
 

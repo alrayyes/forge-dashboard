@@ -204,6 +204,35 @@ test.describe('the row follows allowedActions (#805)', () => {
     ).toHaveAttribute('aria-disabled', 'true');
   });
 
+  test('an Update branch blocked on CI is drawn nowhere, row or dialog', async ({
+    page,
+  }) => {
+    const row = await open(
+      page,
+      withActions([
+        {
+          action: 'merge',
+          blocked: {
+            code: 'checks_pending',
+            message: 'Waiting for CI to finish',
+          },
+        },
+        { action: 'close' },
+        {
+          action: 'update_branch',
+          blocked: {
+            code: 'checks_pending',
+            message: 'Waiting for CI to finish',
+          },
+        },
+      ]),
+    );
+
+    const drawn = await names(row);
+    expect(drawn.some((t) => t.startsWith('Merge'))).toBe(true);
+    expect(drawn.some((t) => t.startsWith('Update branch'))).toBe(false);
+  });
+
   test('an unblocked Merge is clickable even where the raw fields said blocked', async ({
     page,
   }) => {

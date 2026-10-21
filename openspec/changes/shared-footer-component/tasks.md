@@ -7,7 +7,7 @@
 
 ## 2. Roll it out to every page
 
-- [x] 2.1 In `web/src/routes/(app)/+layout.svelte`: render `<Footer />` once, after `{@render children()}`; remove the `/footer.js` line from its own `onMount` script-injection (keep everything else in that block); verify the built output for every `(app)` page still has the mirror statement, version display, and correct self-link suppression per page.
+- [x] 2.1 In `web/src/routes/(app)/+layout.svelte`: render `<Footer />` once, after `{@render children()}`; remove the `/footer.js` line from its own `onMount` script-injection (keep everything else in that block); verify the built output for every `(app)` page still has the source link, version display, and correct self-link suppression per page.
 - [x] 2.2 In `web/src/routes/login/+page.svelte`: render `<Footer />` directly, remove its own `<footer>` markup and `/footer.js` injection; verify the built login page's footer matches every other page's.
 - [x] 2.3 Delete the duplicated `<footer>...</footer>` markup from each of the 8 `(app)` pages that still has its own copy (dashboard, insights, webhooks, settings, admin, releases, disclaimer, privacy) now that `(app)/+layout.svelte` provides it; verify each page's built output has exactly one `<footer>` element.
 - [x] 2.4 Run the full existing Playwright suite and confirm no regression beyond the footer markup's own location in the DOM (id/class/text content all unchanged).

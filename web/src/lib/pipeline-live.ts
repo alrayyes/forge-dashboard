@@ -16,7 +16,9 @@ export function ciSignature(row: {
 
   return [
     row.ci,
-    c ? `${c.passed}/${c.running}/${c.waiting}/${c.failed}` : '',
+    c
+      ? `${c.passed}/${c.skipped ?? 0}/${c.running}/${c.waiting}/${c.failed}`
+      : '',
     row.runUrl ?? '',
   ].join('|');
 }

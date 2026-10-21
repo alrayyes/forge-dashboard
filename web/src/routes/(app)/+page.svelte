@@ -5,6 +5,7 @@
   import {
     CHECK_KIND_GLYPH,
     checkSegments,
+    pillWord,
     pillName,
   } from "#lib/check-counts.js";
   import { formatTime } from "#lib/time.svelte.js";
@@ -671,12 +672,13 @@
                     ? checkSegments(b.checks)
                     : []}
                   {@const segmented = segments.length > 0}
+                  {@const word = pillWord(STATUS_LABEL[b.status], segments)}
                   <button
                     type="button"
                     class="ci-pill {slot.cls}"
                     class:segmented
                     aria-label="{segmented
-                      ? pillName(STATUS_LABEL[b.status], segments)
+                      ? pillName(word, segments)
                       : STATUS_LABEL[b.status]}. Open pipeline"
                     onclick={(e) => openPipeline(b, e.currentTarget)}
                   >
@@ -684,9 +686,7 @@
                       <!-- How far the pipeline got (#2074): the word, then a
                            count per state that has any, as on the pull request
                            pages. The server tallies them; the name says them. -->
-                      <span class="ci-seg ci-seg-label"
-                        >{STATUS_LABEL[b.status]}</span
-                      >
+                      <span class="ci-seg ci-seg-label">{word}</span>
                       {#each segments as seg (seg.kind)}
                         {" "}<span
                           class="ci-seg ci-seg-{seg.kind}"
