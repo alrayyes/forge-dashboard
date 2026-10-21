@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.253.0](https://github.com/alrayyes/forge-dashboard/compare/v0.252.1...v0.253.0) (2026-10-21)
+
+
+### Features
+
+* **issues:** filter the Issues page by ticket number ([#2174](https://github.com/alrayyes/forge-dashboard/issues/2174)) ([1d4138f](https://github.com/alrayyes/forge-dashboard/commit/1d4138f517f67f438170cffd8425cce3c013e164))
+
 ## [0.252.1](https://github.com/alrayyes/forge-dashboard/compare/v0.252.0...v0.252.1) (2026-10-21)
 
 
