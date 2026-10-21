@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // How many open issues each ignored title pattern hides, beside the pattern in
 // Settings. The server owns the matching and sends ignoredTitleCounts in the
@@ -86,10 +86,6 @@ async function addPattern(page: Page, text: string) {
 }
 
 test.describe('Settings: ignored title counts (#1676)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('says how many issues each pattern hides, in words', async ({
     page,
   }) => {

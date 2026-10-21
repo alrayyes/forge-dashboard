@@ -226,6 +226,46 @@ test('a saved pick only the held list has is kept when the saved copy arrives', 
   await expect(page.locator('#shared-author-select')).toHaveValue('claude');
 });
 
+test('the Issues list lands too when the saved copy meets a paused view', async ({
+  page,
+}) => {
+  const endpoint = '/api/settings/filter-state';
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**${endpoint}`, async (route: Route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await gate;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        shared: { author: 'claude' },
+        pr: {},
+        issue: {},
+        view: { paused: '1' },
+      }),
+    });
+  });
+  await open(page, '/issues.html');
+  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page.evaluate(
+    (data) => window.__push(data),
+    snapshot([], ISSUES_NEWER),
+  );
+  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+
+  release();
+
+  // The held list lands on the Issues page as it does on the pull request
+  // page: claude's issue is only in it, so the pick stays and shows it.
+  await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+  await expect(page.locator('#issue-rows')).toContainText('Issue 2');
+  await expect(page.locator('#shared-author-select')).toHaveValue('claude');
+});
+
 test('a pick the landed list no longer offers is cleared and the list shows again', async ({
   page,
 }) => {

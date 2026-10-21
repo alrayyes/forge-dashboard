@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { choicesOf } from './label-filter-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #1593: "Hide titles matching (regex)" on the Issues page, next to the Hide
 // Dependency Dashboard box. The filter state is saved per user, so this spec
@@ -72,7 +72,6 @@ const choices = choicesOf;
 
 test.describe('hide titles matching a pattern (#1593)', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     await open(page);
   });
 
