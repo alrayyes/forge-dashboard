@@ -334,6 +334,8 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 	manager.SetAutoUpdateBranchLister(settingsStore)
 	manager.SetAutoMergeStore(settingsStore)
 	manager.SetQueuedActionStore(settingsStore)
+	// The last snapshot survives a restart, shown as stale until a refresh lands.
+	manager.SetSnapshotCache(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
 	return manager, nil
