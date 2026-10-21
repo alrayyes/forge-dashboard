@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/alrayyes/forge-dashboard/compare/v1.7.1...v1.7.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dashboard:** batched CI poll keeps partial chunks, advances back-off when joined, notifies once ([#2349](https://github.com/alrayyes/forge-dashboard/issues/2349)) ([f199e13](https://github.com/alrayyes/forge-dashboard/commit/f199e138d38bacba2a977f12975b02ce565c4ccd))
+
 ## [1.7.1](https://github.com/alrayyes/forge-dashboard/compare/v1.7.0...v1.7.1) (2026-10-21)
 
 
