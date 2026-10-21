@@ -1414,6 +1414,21 @@ button.title:focus-visible {
 .linked-pr.draft {
   border-style: dashed;
 }
+/* A pill never grows past its row: the number cuts a long cross-repo name
+   short with an ellipsis, and the state and pipeline after it stay whole. The
+   full name is in the pill's accessible name and in the dialog it opens. */
+.linked-pr {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  max-width: 100%;
+}
+.linked-pr-ref {
+  min-width: 8ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .linked-pr:hover,
 .linked-pr-more:hover {
   text-decoration: underline;
