@@ -672,15 +672,18 @@ func TestAppClient_Fetch_OneRepoOwnDenial_LocksOnlyThatRepo(t *testing.T) {
 }
 
 // TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll pins
-// that every row is rebuilt from the remembered denial: while it stands, a server that would now answer 200 isn't asked.
+// that every row is rebuilt from the remembered denial: while it stands, the
+// server isn't asked again, even though it would now answer 200.
 func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll(t *testing.T) {
 	t.Parallel()
 
 	var status atomic.Int32
 	status.Store(http.StatusForbidden)
+	var hookRequests atomic.Int32
 	mux := appTwoRepoMux(t)
 	for _, name := range []string{"repo-one", "repo-two"} {
 		mux.HandleFunc("/repos/alrayyes/"+name+"/hooks", func(w http.ResponseWriter, _ *http.Request) {
+			hookRequests.Add(1)
 			if int(status.Load()) == http.StatusOK {
 				writeJSON(t, w, []map[string]any{})
 
@@ -697,9 +700,11 @@ func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll(t *te
 	client.SetWebhookPath("/api/webhooks/github/tok123")
 
 	first := client.Fetch(t.Context())
+	afterFirst := hookRequests.Load()
 	status.Store(http.StatusOK)
 	second := client.Fetch(t.Context())
 
+	assert.Equal(t, afterFirst, hookRequests.Load(), "a remembered denial must stop the hook requests")
 	for _, result := range []dashboard.Result{first, second} {
 		require.Len(t, result.Repos, 2)
 		for _, r := range result.Repos {
@@ -710,7 +715,8 @@ func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll(t *te
 }
 
 // hookWriteServer answers the hooks list and the create with the statuses
-// given (200 on the list means an empty array).
+// given (200 on the list means an empty array, 200 on the create a created
+// hook).
 func hookWriteServer(t *testing.T, listStatus, createStatus int, message string) *httptest.Server {
 	t.Helper()
 
@@ -719,6 +725,12 @@ func hookWriteServer(t *testing.T, listStatus, createStatus int, message string)
 		status := listStatus
 		if r.Method == http.MethodPost {
 			status = createStatus
+		}
+		if status == http.StatusOK && r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusCreated)
+			writeJSON(t, w, map[string]any{"id": 9, "active": true})
+
+			return
 		}
 		if status == http.StatusOK {
 			writeJSON(t, w, []map[string]any{})
