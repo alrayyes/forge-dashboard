@@ -28,12 +28,13 @@ import (
 )
 
 const (
-	testRPID    = "localhost"
-	testOrigin  = "http://localhost"
-	testAdmin   = "admin"
-	testUser    = "ryan"
-	testDisplay = "Ryan"
-	testVersion = "0.99.0-test"
+	testRPID      = "localhost"
+	testOrigin    = "http://localhost"
+	testAdmin     = "admin"
+	testUser      = "ryan"
+	testOtherUser = "alex"
+	testDisplay   = "Ryan"
+	testVersion   = "0.99.0-test"
 
 	// Fast enough that require.Eventually in these tests doesn't have to
 	// wait long, slow enough not to burn CPU spinning between assertions.

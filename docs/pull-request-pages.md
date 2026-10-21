@@ -104,9 +104,7 @@ issue".
 
 The server works out which issues those are, and builds the address that opens
 each. In `GET /api/dashboard` each pull request has `closesIssues`, always
-present, and each entry carries the `pageUrl` that opens it. On a dashboard
-someone shared, the link is plain text, since it would open your own board
-instead of theirs.
+present, and each entry carries the `pageUrl` that opens it.
 
 ## Author on a row
 

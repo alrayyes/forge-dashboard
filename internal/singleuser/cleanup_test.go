@@ -106,7 +106,7 @@ func (f *fixture) addUser(t *testing.T, name string, passkey bool) *auth.User {
 	return u
 }
 
-// giveData puts a row in every per-user table for u, plus a ceremony, an
+// giveData puts a row in every per-user table for u, plus a ceremony,
 // and an invite.
 func (f *fixture) giveData(t *testing.T, u *auth.User) {
 	t.Helper()
