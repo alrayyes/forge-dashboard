@@ -16,9 +16,9 @@ import { test } from './server-fixture';
 //
 // The conflict sentence is not repeated either: Go pins it
 // (TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead),
-// and the locked row it would show is the blocked_by_protection case below.
-// Merge's permission lock and its not-mergeable Retry stay in
-// pull-request-merge.spec.ts: Merge is not a driver of the shared set.
+// and the locked row it would show (a Retry in place of Merge) is the
+// not-mergeable case in pull-request-merge.spec.ts, which also keeps Merge's
+// permission lock: Merge is not a driver of the shared set.
 
 interface MockPR {
   forge: string;
