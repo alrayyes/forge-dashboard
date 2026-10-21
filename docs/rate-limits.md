@@ -205,8 +205,10 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
   replay it and keep that pull request out of the poll. That is capped: a
   delivery holds a pull request off for at most 15 minutes (or
   `CI_POLL_INTERVAL` if that is longer) before one poll reads it, and the hold
-  then starts over. The cost is a check colour up to that much late, never a
-  missed merge.
+  then starts over. The hold-off clock starts when the pull request is first
+  due and held, not at its last read, so the gap between two reads is the
+  back-off gap plus the hold-off: about 30 minutes at the 15-minute cap. The
+  cost is a check colour up to that much late, never a missed merge.
 
 For a rough sense of the saving, take 30 pull requests with a running check, on
 12 repos, polled every minute, where nothing changes for ten minutes and there is
