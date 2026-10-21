@@ -117,11 +117,13 @@ commit-msg:
     - name: release type
       run: scripts/check-release-type.sh message {1}
 
-# pre-push never writes. A hook rewriting files under a push leaves the pushed
-# commit and the working tree disagreeing about what was reviewed.
+# pre-push never rewrites tracked files. A hook rewriting them under a push
+# leaves the pushed commit and the working tree disagreeing about what was
+# reviewed. The one write is the test job's web build, which lands in
+# gitignored output (web/build, internal/api/static) and never in the commit.
 #
-# Parallel because of that: nothing here touches a file, so no job can be
-# reading what another is rewriting.
+# Parallel because of that: no job edits a file another one reads, and the
+# build's output is excluded from svelte-check (web/tsconfig.json).
 pre-push:
   parallel: true
   jobs:
