@@ -396,6 +396,39 @@ func TestListOpenPullRequests_SplitDoesNotCountAPushRunBesideAPullRequestRun(t *
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
 }
 
+// A pull_request run that has finished holds no running job, so a push run still
+// going on the same commit is the one that has them.
+func TestListOpenPullRequests_SplitCountsARunningPushRunBesideAFinishedPullRequestRun(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 2,
+		runs:    []map[string]any{splitRun(7, "success", "pull_request"), splitRun(8, "running", "push")},
+		jobs:    map[int][]string{8: {"running", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 1}, got)
+}
+
+// pull_request_target and pull_request_review runs are pull request runs too,
+// the way the default-branch code reads the event.
+func TestListOpenPullRequests_SplitReadsAnyPullRequestEventAsAPullRequestRun(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request_target"), splitRun(8, "running", "push")},
+		jobs:    map[int][]string{7: {"running", "waiting", "waiting"}, 8: {"running", "waiting", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+	assert.Equal(t, []int{7}, s.reads)
+}
+
 // A push run alone still counts: with no pull_request run, it is all there is.
 func TestListOpenPullRequests_SplitCountsAPushRunWhenItIsTheOnlyOne(t *testing.T) {
 	t.Parallel()

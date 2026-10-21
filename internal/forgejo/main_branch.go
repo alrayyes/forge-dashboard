@@ -148,7 +148,7 @@ func (c *Client) branchRuns(ctx context.Context, repo dashboard.RepoRef) ([]*bra
 
 	var runs []*branchRun
 	for _, r := range list.WorkflowRuns {
-		if r.Ref == repo.DefaultBranch && !strings.HasPrefix(r.Event, "pull_request") {
+		if r.Ref == repo.DefaultBranch && !isPullRequestEvent(r.Event) {
 			runs = append(runs, r)
 		}
 	}

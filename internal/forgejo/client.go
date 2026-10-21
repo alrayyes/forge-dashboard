@@ -1153,14 +1153,14 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 
 	// A forge that ignores the head_sha filter answers with other commits' runs.
 	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return r.HeadSha != sha })
-	var going []*gitea.ActionWorkflowRun
-	for _, run := range withoutShadowedPushRuns(onCommit) {
-		// Only a run that is running can hold a running job: a queued or
-		// blocked one has none, and a finished one is past it.
-		if checkStateFromWorkflowStatus(run.Status) == dashboard.CheckRunning {
-			going = append(going, run)
-		}
-	}
+	// Only a run that is running can hold a running job: a queued or blocked
+	// one has none, and a finished one is past it. This comes before the push
+	// runs are dropped, so a finished pull_request run doesn't hide a push run
+	// that is still going.
+	going := slices.DeleteFunc(onCommit, func(r *gitea.ActionWorkflowRun) bool {
+		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning
+	})
+	going = withoutShadowedPushRuns(going)
 
 	running := c.countRunningJobs(ctx, owner, name, going)
 	running = min(running, counts.Waiting)
@@ -1669,15 +1669,23 @@ func branchRef(b *gitea.PRBranchInfo) string {
 	return b.Ref
 }
 
-// withoutShadowedPushRuns drops the push runs when a pull_request run is there
-// too. Both run the same workflows on the commit, and the pull request's
-// statuses come from the pull_request one, so reading both would count each
-// running job twice. A push run alone is kept: it is all there is.
+// withoutShadowedPushRuns drops the push runs when a pull request run is there
+// too, whatever its pull_request* event, as the default-branch code reads it.
+// Both run the same workflows on the commit, and the pull request's statuses
+// come from the pull request one, so reading both would count each running job
+// twice. A push run alone is kept: it is all there is. The caller passes only
+// runs still going, so a finished pull request run shadows nothing.
 func withoutShadowedPushRuns(runs []*gitea.ActionWorkflowRun) []*gitea.ActionWorkflowRun {
-	hasPullRequest := slices.ContainsFunc(runs, func(r *gitea.ActionWorkflowRun) bool { return r.Event == "pull_request" })
+	hasPullRequest := slices.ContainsFunc(runs, func(r *gitea.ActionWorkflowRun) bool { return isPullRequestEvent(r.Event) })
 	if !hasPullRequest {
 		return runs
 	}
 
 	return slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool { return r.Event == "push" })
+}
+
+// isPullRequestEvent reports whether event is one a pull request starts, such
+// as pull_request, pull_request_target or pull_request_review.
+func isPullRequestEvent(event string) bool {
+	return strings.HasPrefix(event, "pull_request")
 }
