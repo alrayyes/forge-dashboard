@@ -127,36 +127,45 @@ func TestResolveCIPollInterval_ExplicitZero_DisablesRatherThanFallingBack(t *tes
 }
 
 func TestResolveIdleAfter_NoEnv_UsesDefault(t *testing.T) {
-	got, err := resolveIdleAfter("")
-	require.NoError(t, err)
+	got := resolveIdleAfter("")
 	assert.Equal(t, dashboard.DefaultIdleAfter, got)
 }
 
 func TestResolveIdleAfter_ValidEnv_Overrides(t *testing.T) {
-	got, err := resolveIdleAfter("5m")
-	require.NoError(t, err)
+	got := resolveIdleAfter("5m")
 	assert.Equal(t, 5*time.Minute, got)
 }
 
 // "0s" turns idle mode off: the refresh runs on its schedule whoever is there.
 func TestResolveIdleAfter_ExplicitZero_DisablesRatherThanFallingBack(t *testing.T) {
-	got, err := resolveIdleAfter("0s")
-	require.NoError(t, err)
+	got := resolveIdleAfter("0s")
 	assert.Equal(t, time.Duration(0), got)
 }
 
-// A setting that cannot be read is a mistake to fix, not one to paper over with
-// a default the operator did not choose.
-func TestResolveIdleAfter_InvalidEnv_FailsWithAMessageThatNamesTheSetting(t *testing.T) {
-	_, err := resolveIdleAfter("soon")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "IDLE_AFTER")
+// Every interval setting follows one policy: a value that cannot be used is
+// logged and replaced by the default, and never stops the process.
+func TestResolveIdleAfter_Bad_FallsBackToDefaultAndLogsTheValue(t *testing.T) {
+	for _, v := range []string{"soon", "-5m"} {
+		t.Run(v, func(t *testing.T) {
+			logs := captureLog(t)
+			assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter(v))
+			assert.Contains(t, logs.String(), "level=ERROR")
+			assert.Contains(t, logs.String(), "IDLE_AFTER")
+			assert.Contains(t, logs.String(), "value="+v)
+		})
+	}
 }
 
-func TestResolveIdleAfter_Negative_Fails(t *testing.T) {
-	_, err := resolveIdleAfter("-5m")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "IDLE_AFTER")
+func TestResolveShutdownDrain_Bad_LogsTheValue(t *testing.T) {
+	for _, v := range []string{"soon", "-1s"} {
+		t.Run(v, func(t *testing.T) {
+			logs := captureLog(t)
+			assert.Equal(t, defaultShutdownDrain, resolveShutdownDrain(v))
+			assert.Contains(t, logs.String(), "level=ERROR")
+			assert.Contains(t, logs.String(), "SHUTDOWN_DRAIN")
+			assert.Contains(t, logs.String(), "value="+v)
+		})
+	}
 }
 
 // TestOpenDatabase_SurvivesConcurrentWriters is a regression test for
