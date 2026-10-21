@@ -715,17 +715,6 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
   });
 });
 
-test.describe('hit areas on the admin page (#1753)', () => {
-  test('admin', async ({ page }) => {
-    const problems: string[] = [];
-    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
-    await page.goto('/admin.html');
-    await page.waitForLoadState('networkidle');
-    await sweepAll(page, '/admin.html', problems);
-    expectNone(problems);
-  });
-});
-
 test.describe('hit areas on the sign-in page (#1753)', () => {
   test('login', async ({ page, context }) => {
     await context.clearCookies();

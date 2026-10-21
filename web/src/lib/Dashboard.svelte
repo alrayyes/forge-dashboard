@@ -142,7 +142,7 @@
   import { createWebMCPTools } from "#lib/webmcp-tools.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
-  // header (brand link, .app-nav, admin-link, logout-button, whoami) —
+  // header (brand link, .app-nav, logout-button, whoami) —
   // its own duplicate copies of that chrome, and the nav.js injection
   // that used to drive them, were removed when it moved here
   // (alrayyes/forge-dashboard#645). Its own genuinely page-specific

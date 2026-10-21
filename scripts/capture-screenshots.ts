@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Regenerates docs/screenshots/<page>-{light,dark}.png for every page in the
 // menu (branches, pull requests, issues, releases, bots, insights, webhooks,
-// settings, admin), the pipeline checks panel, the pull request dialogs
+// settings), the pipeline checks panel, the pull request dialogs
 // (a pull request, a release, a bot, and the phone sheet) and the login page
 // (the footer pages are left out) against a real build of the binary, run by
 // the release workflow's screenshots job — not a Playwright *test*
@@ -489,7 +489,6 @@ const PAGES = [
   { name: 'insights', url: '/insights.html', ready: '.insights-header h1' },
   { name: 'webhooks', url: '/webhooks.html', ready: '#webhooks-rows tr' },
   { name: 'settings', url: '/settings.html', ready: 'h1' },
-  { name: 'admin', url: '/admin.html', ready: 'h1' },
 ];
 
 const THEMES = ['light', 'dark'] as const;
@@ -555,27 +554,6 @@ async function main() {
   await page.fill('#register-display-name', 'Demo User');
   await page.click('#register-submit');
   await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
-
-  // The first registered user is the admin, so this one session covers
-  // the admin page too. Give that page a second registered user and an
-  // unredeemed invite, both with fictional names, so its tables aren't
-  // empty. The invite goes through the admin session's own cookies.
-  const colleague = await page.request.post(`${BASE_URL}/api/admin/invites`, {
-    data: { username: 'demo-colleague', displayName: 'Demo Colleague' },
-  });
-  const { token } = await colleague.json();
-  const colleagueContext = await browser.newContext();
-  const colleaguePage = await colleagueContext.newPage();
-  await addVirtualAuthenticator(colleaguePage);
-  await colleaguePage.goto(
-    `${BASE_URL}/login.html?invite=${encodeURIComponent(token)}&username=demo-colleague`,
-  );
-  await colleaguePage.click('#register-submit');
-  await colleaguePage.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
-  await colleagueContext.close();
-  await page.request.post(`${BASE_URL}/api/admin/invites`, {
-    data: { username: 'demo-guest', displayName: 'Demo Guest' },
-  });
 
   // The live stream is aborted so nothing replaces the fixture after the
   // page loads.
