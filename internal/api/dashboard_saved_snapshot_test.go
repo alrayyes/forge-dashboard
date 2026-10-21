@@ -39,7 +39,7 @@ func (s *savedRows) SaveSnapshotChanges(_ context.Context, _ dashboard.Forge, _ 
 			kept = append(kept, r)
 		}
 	}
-	s.rows = append(kept, changed...)
+	s.rows = slices.Concat(kept, changed)
 
 	return nil
 }
