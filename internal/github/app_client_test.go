@@ -672,8 +672,7 @@ func TestAppClient_Fetch_OneRepoOwnDenial_LocksOnlyThatRepo(t *testing.T) {
 }
 
 // TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll pins
-// the early return that rebuilds every row from the remembered denial: while
-// it stands, a server that would now answer 200 isn't asked.
+// that every row is rebuilt from the remembered denial: while it stands, a server that would now answer 200 isn't asked.
 func TestAppClient_Fetch_CachedAppWideDenial_KeepsRowsRefusedOnTheNextPoll(t *testing.T) {
 	t.Parallel()
 

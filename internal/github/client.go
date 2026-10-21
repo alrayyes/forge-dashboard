@@ -2755,16 +2755,6 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 	}
 	c.restoreHookChecks()
 
-	if c.hooksDenied("") {
-		// An app-wide refusal remembered from an earlier poll stands for
-		// every repo until it expires.
-		for _, r := range repos {
-			result[r.Owner.Login+"/"+r.Name] = hookProbe{refused: c.appAuthenticated}
-		}
-
-		return result
-	}
-
 	var mu sync.Mutex
 	sem := make(chan struct{}, dashboard.DefaultMaxConcurrency)
 	var wg sync.WaitGroup
