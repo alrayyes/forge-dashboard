@@ -249,7 +249,8 @@ for (const d of drivers) {
     // (internal/dashboard/action_refusal_test.go) and the rendering is shared,
     // so the other four get a smoke set that proves each action is wired to it:
     // already merged, rate limited, unknown (the idle failure path) and its
-    // specific lock (#1380).
+    // specific lock where it has one (Dependabot has none: its GitHub App
+    // lock is tested in pull-request-dependabot-action.spec.ts) (#1380).
     const fullSet = d === drivers[0];
 
     async function start(page: Page) {

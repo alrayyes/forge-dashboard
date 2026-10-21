@@ -419,61 +419,6 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     });
   });
 
-  test('a transient failure shows an error and re-enables the button for another try', async ({
-    page,
-  }) => {
-    await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/dependabot-action', (route: Route) =>
-      route.fulfill({
-        status: 502,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: POST .../comments: EOF',
-          message: 'EOF',
-        }),
-      }),
-    );
-    await page.goto('/bots.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    const button = footer.getByRole('button', { name: 'Dependabot: Rebase' });
-    await button.click();
-
-    await expect(page.locator('#feedback-toasts')).toContainText('EOF');
-    await expect(row.locator('.row-feedback')).toContainText('Failed');
-    await expect(page.locator('#error-banner')).toHaveCount(0);
-    await expect(button).toBeVisible();
-    await expect(button).toBeEnabled();
-    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('a permission-denied failure locks the button for good instead of inviting another try', async ({
-    page,
-  }) => {
-    await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/dependabot-action', (route: Route) =>
-      route.fulfill({
-        status: 403,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: POST .../comments: Forbidden',
-          code: 'permission',
-          message: 'Missing permission — check your token in Settings.',
-        }),
-      }),
-    );
-    await page.goto('/bots.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
-
-    const button = footer.getByRole('button', { name: 'Dependabot: Rebase' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/permission/i);
-  });
-
   // Mirrors pull-request-update-branch.spec.ts's own cross-action
   // forge-wide permission test: forgePermissionDenied is keyed by forge,
   // not by action, since a token's write access isn't specific to one
@@ -517,33 +462,6 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     });
     await expect(recreateButton).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText(/permission/i);
-  });
-
-  test('a rate-limited (429) failure locks the button for good', async ({
-    page,
-  }) => {
-    await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/dependabot-action', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-        }),
-      }),
-    );
-    await page.goto('/bots.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
-
-    const button = footer.getByRole('button', { name: 'Dependabot: Rebase' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/rate limit/i);
   });
 
   // A Dependabot PR that's actually out of date is the one case #527's

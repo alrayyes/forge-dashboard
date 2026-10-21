@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { createFirstRefreshGate, twoFrames } from './first-refresh-gate-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
 // #1224: one page with the CI status of every tracked repo's default branch,
@@ -172,10 +172,6 @@ const pill = (page: Page, name: RegExp | string) =>
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('Main branches page (#1224, #1279)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('the nav links to it, first, in the header and the phone tab bar', async ({
     page,
   }) => {
