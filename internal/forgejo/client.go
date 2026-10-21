@@ -1175,8 +1175,8 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 }
 
 // countRunningJobs counts the running jobs of runs. The runs' jobs are read side
-// by side, at most dashboard.DefaultMaxConcurrency at once, so a commit with several running runs doesn't stretch every poll by
-// one round trip each. A run whose jobs can't be read counts none.
+// by side, at most dashboard.DefaultMaxConcurrency at once, so a commit with
+// several running runs doesn't stretch every poll by one round trip each. A run whose jobs can't be read counts none.
 func (c *Client) countRunningJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun) int {
 	perRun := make([]int, len(runs))
 	sem := make(chan struct{}, dashboard.DefaultMaxConcurrency)
@@ -1213,8 +1213,8 @@ func (c *Client) countRunningJobs(ctx context.Context, owner, name string, runs 
 // that is queued or running alike, so it counts as waiting here; ciStatus
 // then splits the running ones out with splitRunning. A warning counts as
 // passed, the way the combined state treats it, and so does a skipped check:
-// it was not needed, which is no failure and no wait. The SDK has no constant for that state, so it is read
-// by its name.
+// it was not needed, which is no failure and no wait. The SDK has no constant
+// for that state, so it is read by its name.
 func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	for _, s := range statuses {
