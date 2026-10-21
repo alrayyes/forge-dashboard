@@ -48,10 +48,15 @@ var version = "dev"
 // in the middle of it (#381).
 const defaultRefreshInterval = 20 * time.Minute
 
+// minRefreshInterval is the shortest REFRESH_INTERVAL accepted. Each refresh
+// spends forge budget, so a value such as 1ms would drain it, not "refresh
+// often". The CI poll covers anything that needs to feel live.
+const minRefreshInterval = time.Minute
+
 // resolveRefreshInterval parses v (REFRESH_INTERVAL's raw value) as a Go
-// duration, falling back to defaultRefreshInterval for an empty, unparseable,
-// zero or negative value (a zero wait would spin the refresh loop, spending
-// the forge budget) — split out from main so the fallback behavior is
+// duration, falling back to defaultRefreshInterval for an empty, unparseable
+// or below-minimum value (a zero or tiny wait would spin the refresh loop,
+// spending the forge budget) — split out from main so the fallback behavior is
 // unit-testable without standing up the rest of the process.
 func resolveRefreshInterval(v string) time.Duration {
 	if v == "" {
@@ -63,8 +68,8 @@ func resolveRefreshInterval(v string) time.Duration {
 
 		return defaultRefreshInterval
 	}
-	if d <= 0 {
-		slog.Error("REFRESH_INTERVAL must be positive, using default", "value", v, "default", defaultRefreshInterval)
+	if d < minRefreshInterval {
+		slog.Error("REFRESH_INTERVAL is below the minimum, using default", "value", v, "minimum", minRefreshInterval, "default", defaultRefreshInterval)
 
 		return defaultRefreshInterval
 	}
@@ -121,9 +126,9 @@ func drainThenShutdown(delay time.Duration, startDrain func(), shutdown func(con
 // open, CI-pending pull request, not every tracked one.
 const defaultCIPollInterval = 1 * time.Minute
 
-// resolveCIPollInterval is resolveRefreshInterval's own counterpart
-// for CI_POLL_INTERVAL — same empty/invalid-falls-back-to-default
-// shape. "0s" is a real, valid zero duration, not an error, so an
+// resolveCIPollInterval is resolveRefreshInterval's counterpart for
+// CI_POLL_INTERVAL: an empty, unparseable or negative value falls back to
+// the default, with a log line for all but empty. "0s" is a real, valid zero duration, not an error, so an
 // operator can pass it to disable the poll entirely
 // (Manager.SetCIPollInterval treats zero as "off").
 func resolveCIPollInterval(v string) time.Duration {
@@ -133,6 +138,11 @@ func resolveCIPollInterval(v string) time.Duration {
 	d, err := time.ParseDuration(v)
 	if err != nil {
 		slog.Error("invalid CI_POLL_INTERVAL, using default", "value", v, "default", defaultCIPollInterval, "error", err)
+
+		return defaultCIPollInterval
+	}
+	if d < 0 {
+		slog.Error("CI_POLL_INTERVAL must not be negative, using default; use 0s to turn the poll off", "value", v, "default", defaultCIPollInterval)
 
 		return defaultCIPollInterval
 	}

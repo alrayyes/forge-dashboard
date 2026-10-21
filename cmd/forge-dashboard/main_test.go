@@ -6,6 +6,7 @@ package main
 // (rules/go-test.md prefers the external test package).
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -46,6 +47,52 @@ func TestResolveRefreshInterval_NonPositive_FallsBackToDefault(t *testing.T) {
 			assert.Equal(t, defaultRefreshInterval, resolveRefreshInterval(v))
 		})
 	}
+}
+
+// captureLog swaps the default logger for one that writes to a buffer, so a
+// test can assert the line an operator would see.
+func captureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	return &buf
+}
+
+// A tiny positive interval would make the refresh loop spin almost as hard as
+// a zero one, so anything under the minimum falls back to the default.
+func TestResolveRefreshInterval_BelowMinimum_FallsBackToDefaultAndLogsTheValue(t *testing.T) {
+	for _, v := range []string{"1ms", "1ns", "59s"} {
+		t.Run(v, func(t *testing.T) {
+			logs := captureLog(t)
+			assert.Equal(t, defaultRefreshInterval, resolveRefreshInterval(v))
+			assert.Contains(t, logs.String(), "level=ERROR")
+			assert.Contains(t, logs.String(), "REFRESH_INTERVAL")
+			assert.Contains(t, logs.String(), "value="+v)
+		})
+	}
+}
+
+func TestResolveRefreshInterval_Minimum_IsAccepted(t *testing.T) {
+	assert.Equal(t, minRefreshInterval, resolveRefreshInterval("1m"))
+}
+
+// A negative poll interval is a typo, not the way to turn the poll off ("0s"
+// is), so it falls back to the default and says so.
+func TestResolveCIPollInterval_Negative_FallsBackToDefaultAndLogsTheValue(t *testing.T) {
+	logs := captureLog(t)
+	assert.Equal(t, defaultCIPollInterval, resolveCIPollInterval("-5m"))
+	assert.Contains(t, logs.String(), "level=ERROR")
+	assert.Contains(t, logs.String(), "CI_POLL_INTERVAL")
+	assert.Contains(t, logs.String(), "value=-5m")
+}
+
+func TestResolveCIPollInterval_ExplicitZero_DoesNotLog(t *testing.T) {
+	logs := captureLog(t)
+	assert.Equal(t, time.Duration(0), resolveCIPollInterval("0s"))
+	assert.Empty(t, logs.String())
 }
 
 // TestResolveCIPollInterval_NoEnv_UsesDefault pins the CI-poll
