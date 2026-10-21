@@ -370,14 +370,8 @@ header,
   border-color: var(--accent);
   color: var(--ink);
 }
-/* Real bug found alongside the pagination one below: an author
-   display:inline-flex always beats the UA's [hidden] { display: none },
-   regardless of specificity — #admin-link is a .theme-toggle, and
-   admin-link.hidden = !session.isAdmin in app.js had no visual effect
-   without this. Every signed-in user was seeing the Admin link,
-   whether or not they actually were one (the backend still refused
-   the page — see admin.js's 403 handling — so this was a confusing
-   UX leak, not a security hole). */
+/* An author display:inline-flex always beats the UA's [hidden] { display:
+   none }, regardless of specificity, so a hidden .theme-toggle needs this. */
 .theme-toggle[hidden] {
   display: none;
 }

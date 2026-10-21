@@ -34,10 +34,9 @@
   // Matches GET /api/auth/session's JSON body — see nav.js's own comment
   // (now retired for every page under this layout) for the shape this
   // was always fetching.
-  type Session = { displayName: string; isAdmin: boolean };
+  type Session = { displayName: string };
 
   let displayName = $state("");
-  let isAdmin = $state(false);
 
   // SvelteKit's own reactive current-URL, replacing nav.js's
   // `a.pathname === window.location.pathname` DOM query (design.md -
@@ -281,7 +280,6 @@
           return;
         }
         displayName = session.displayName;
-        isAdmin = session.isAdmin;
         if (gone) return;
         // From here on every read arms the next one, answered or not.
         polling = true;
@@ -311,7 +309,7 @@
   so footer.js keeps working unmodified: it's a plain DOM-query script with
   no framework coupling, matching the same ids/classes this markup still
   carries. nav.js itself is no longer loaded here — its session fetch,
-  current-page highlight, admin-link visibility and sign-out are all real
+  current-page highlight and sign-out are all real
   Svelte state now (see the script block above and the mobile bottom tab
   bar below); nav.js stays in the tree only for the three unauthenticated
   pages that still load it directly.
@@ -536,35 +534,6 @@
             /></svg
           >
         </a>
-        {#if isAdmin}
-          <a
-            class="theme-toggle"
-            href="/admin.html"
-            id="admin-link"
-            aria-label="Admin"
-            title="Admin"
-            aria-current={isCurrentRoute("/admin") ? "page" : undefined}
-            style="text-decoration:none;"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              ><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle
-                cx="9"
-                cy="7"
-                r="4"
-              /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path
-                d="M16 3.13a4 4 0 0 1 0 7.75"
-              /></svg
-            >
-          </a>
-        {/if}
       </nav>
       <button
         class="theme-toggle"
@@ -598,9 +567,7 @@
   aria-label ("Mobile navigation" vs. the header's "Main") so a Playwright
   locator scoped to `a[aria-label="..."]` can tell the two surfaces apart
   once both exist in the DOM. Reuses the header's own icon SVGs and link
-  labels for a consistent accessible name per destination; Admin is
-  deliberately not one of these four tabs (design.md settled that as
-  header/desktop-only). Shown/hidden purely by CSS (style.css's own
+  labels for a consistent accessible name per destination. Shown/hidden purely by CSS (style.css's own
   breakpoint comment names which one) rather than an {#if isMobile} block,
   so there's no flash-of-missing-nav on first paint and no matchMedia
   listener needed.

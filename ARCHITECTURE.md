@@ -190,11 +190,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
 It covers passkey registration and login gating the
 dashboard, per-user GitHub/Forgejo tokens (every signed-in user
 configures their own forges from the Settings page and sees only their
-own dashboard by default), an admin area for whoever registers first
-(list every registered user, generate and manage the single-use invite
-links every registration after the first requires, revoke a user's
-passkeys and sessions without deleting their account, or remove one
-outright), and dashboard sharing (grant another registered user
+own dashboard by default), and dashboard sharing (grant another registered user
 read-only access to your own dashboard, from Settings).
 
 ## Where to look next
