@@ -256,6 +256,21 @@ A request that misses in memory reads the database before it goes out, so a
 restart doesn't lose the ETags. The database copy is keyed the same way as the
 memory one, with no user in it.
 
+Measured on 2026-10-21 against GitHub with a personal access token, one client
+and the request counters from `GET /api/stats/forge-api`: checking the webhook
+of 3 repos twice in a row, with nothing changed between the passes.
+
+| Pass                 | REST | Not modified |
+| -------------------- | ---: | -----------: |
+| First (nothing kept) |    3 |            0 |
+| Second               |    0 |            3 |
+
+The first pass is what every one of those reads cost before the cache existed,
+and what the first read after a start costs without a saved answer. The second
+is what an unchanged read costs now: nothing against the REST limit. The same
+holds for the installation repository list of a GitHub App, which a test pins
+because the measurement used a token.
+
 Forgejo, as probed, doesn't take part. The Forgejo instance we tested
 (16.0.6, built on Gitea 1.22) sends no `ETag` and no `Last-Modified` header on
 its JSON endpoints (pull requests, issues, commit statuses, Actions runs,
