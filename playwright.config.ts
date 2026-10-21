@@ -1,9 +1,9 @@
+import path from 'node:path';
 import { defineConfig } from '@playwright/test';
+import { unlistedSpecs } from './scripts/unlisted-e2e-specs';
 
-// Specs that run against their own server with one signed-in user and a reset
-// between tests (tests/server-fixture.ts, #1880). A spec lives in exactly one
-// project. Every spec has moved, so `legacy` (one shared server, users made
-// through admin invites) runs nothing; the project and its global setup are still to be removed.
+// Specs run against a server of their own with one signed-in user and a reset
+// between tests (tests/server-fixture.ts). Every spec must be listed here.
 const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/filter-persistence.spec.ts',
@@ -162,33 +162,29 @@ const singleUserSpecs = [
   '**/closing-link-filter.spec.ts',
 ];
 
+// A spec missing from the list would be skipped without a word, so fail the
+// run, naming it, instead.
+const unlisted = unlistedSpecs(path.join(__dirname, 'tests'), singleUserSpecs);
+if (unlisted.length > 0) {
+  throw new Error(
+    `playwright.config.ts: singleUserSpecs and tests/ disagree on ${unlisted.join(', ')}; add a missing spec to the list, drop or rename a stale entry`,
+  );
+}
+
 export default defineConfig({
   testDir: 'tests',
-  use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
-  },
-  projects: [
-    { name: 'single-user', testMatch: singleUserSpecs },
-    { name: 'legacy', testIgnore: singleUserSpecs },
-  ],
+  projects: [{ name: 'single-user', testMatch: singleUserSpecs }],
   // CI runs the suite as shards, each writing a blob report. The final e2e job
   // merges them into the JUnit XML the pages job publishes next to the Go test
   // results (rules/published-reports.md): playwright merge-reports --reporter
   // junit. A blob report also merges into an HTML report if one is ever wanted.
   reporter: process.env.CI ? [['list'], ['blob']] : 'list',
-  // Registers the very first user (who becomes admin) once, before any
-  // test file runs — see the file's own header comment for why this
-  // can't be a per-file beforeAll. It serves the `legacy` project's shared
-  // server; the `single-user` specs start servers of their own.
-  globalSetup: './tests/admin-global-setup.ts',
   // Every test drives a real WebAuthn ceremony through Chrome's CDP virtual
-  // authenticator. The `legacy` project runs against one shared Go binary; each
-  // `single-user` worker starts its own, so those scale with workers. CI runs
-  // one worker. Locally the default worker count stays: measured on #736, the
-  // shared server idles (about 10% of one core, every request but the SSE
-  // stream under 50 ms) and fewer workers didn't make failures go away, so the
-  // failures were test races and a starved browser, not server contention. Use
-  // tests/run-local.sh for a fresh database per run.
+  // authenticator, and each worker starts a Go binary of its own, so the suite
+  // scales with workers. CI runs one worker per shard. Locally the default
+  // worker count stays: a failure that goes away with fewer workers was a test
+  // race or a starved browser, not server contention. Use tests/run-local.sh
+  // for the build.
   workers: process.env.CI ? 1 : undefined,
   retries: process.env.CI ? 1 : 0,
 });

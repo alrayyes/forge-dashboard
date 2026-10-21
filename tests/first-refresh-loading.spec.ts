@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #1672: until the server says this viewer's first refresh has finished
 // (`firstRefreshDone`, contract #1673), the list pages draw a skeleton, not
@@ -112,10 +112,6 @@ const LISTS = [
 ];
 
 test.describe('first refresh loading state (#1672)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   for (const list of LISTS) {
     test(`${list.name} shows a skeleton while loading, then the real empty state`, async ({
       page,

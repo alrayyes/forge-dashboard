@@ -230,7 +230,7 @@ test.describe('the address of an issue', () => {
             shared: { author: 'someone-else' },
           }),
         ),
-        url: baseURL ?? 'http://localhost:8080',
+        url: baseURL,
       },
     ]);
 

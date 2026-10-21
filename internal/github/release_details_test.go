@@ -50,6 +50,31 @@ func TestGetReleaseDetails_ReadsTheReleaseByTagInOneQuery(t *testing.T) {
 	assert.Equal(t, 2, got.Notes.Reactions.ThumbsUp.Count)
 }
 
+func TestGetReleaseDetails_NotPublishedIsNotFound(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]map[string]any{
+		"a draft":               {"tagName": "v2", "isDraft": true, "publishedAt": "2026-10-01T10:00:00Z"},
+		"a pre-release":         {"tagName": "v2", "isPrerelease": true, "publishedAt": "2026-10-01T10:00:00Z"},
+		"a null publishedAt":    {"tagName": "v2", "publishedAt": nil},
+		"a missing publishedAt": {"tagName": "v2"},
+	}
+	for name, release := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := releaseServer(t, release, nil)
+			client := github.NewClient("test-token", "", srv.URL)
+
+			_, err := client.GetReleaseDetails(t.Context(), "a", "b", "v2")
+
+			var ce *dashboard.ClientError
+			require.ErrorAs(t, err, &ce)
+			assert.Equal(t, dashboard.ForgeErrorNotFound, ce.Kind)
+		})
+	}
+}
+
 func TestGetReleaseDetails_NoSuchRelease_IsNotFound(t *testing.T) {
 	t.Parallel()
 

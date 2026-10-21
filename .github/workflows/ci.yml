@@ -344,35 +344,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
       - run: bun run build:web
-      # -tags e2e adds POST /__e2e/reset, which the single-user specs call
-      # between tests; each of their workers starts its own server from this
-      # binary (E2E_BINARY below), besides the one shared server the legacy
-      # specs use (#1880).
+      # -tags e2e adds POST /__e2e/reset, which the specs call between tests;
+      # each worker starts its own server from this binary (E2E_BINARY below).
       - run: go build -tags e2e -o forge-dashboard ./cmd/forge-dashboard
       - name: run this shard's journey tests against a real binary
         env:
-          ADDR: ":8080"
           E2E_BINARY: "${{ github.workspace }}/forge-dashboard"
-          GITHUB_TOKEN: ""
-          FORGEJO_URL: ""
-          FORGEJO_TOKEN: ""
-          # A plain runner, not the distroless image's /data volume, kept
-          # inside the workspace so it's cleaned up with everything else.
-          DB_PATH: "./tmp-e2e-data/forge-dashboard.db"
-          RP_ID: "localhost"
-          RP_ORIGIN: "http://localhost:8080"
-        run: |
-          # Generated fresh each run rather than a fixed value committed to
-          # the workflow: this job's database never outlives the run, and a
-          # hardcoded key here reads as a leaked secret to gitleaks even
-          # though it's a throwaway.
-          ENCRYPTION_KEY="$(openssl rand -base64 32)"
-          export ENCRYPTION_KEY
-          ./forge-dashboard &
-          echo $! > server.pid
-          npx wait-on http://localhost:8080/healthz
-          bunx playwright test --shard=${{ matrix.shard }}/4
-          kill "$(cat server.pid)"
+        run: bunx playwright test --shard=${{ matrix.shard }}/4
       - name: upload this shard's blob report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -391,9 +369,8 @@ jobs:
   # something to duplicate with a second, less precise one. SEO is left out
   # because this is an internal service that stays out of search engines.
   # It runs beside the shards, with its own binary:
-  # scripts/save-admin-session.ts registers the admin the way Playwright's
-  # global setup does, so scripts/lighthouse-session.js can reuse that session
-  # for the signed-in pages.
+  # scripts/save-admin-session.ts registers the owner and saves the session, so
+  # scripts/lighthouse-session.js can reuse it for the signed-in pages.
   lighthouse:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'

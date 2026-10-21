@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
 // #714: per-pull-request action feedback lives on the row (an inline
@@ -602,10 +602,6 @@ test.describe('inline feedback, toasts and the activity panel', () => {
 });
 
 test.describe('inline feedback and a saved filter', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('Show row clears the filter that hides the row, says which, and focuses it (#723)', async ({
     page,
   }) => {

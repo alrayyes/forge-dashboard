@@ -1,5 +1,5 @@
 // Lighthouse CI puppeteerScript: signs the audit browser in by reusing the
-// session cookie Playwright's global setup saved to tests/.auth/admin.json,
+// session cookie scripts/save-admin-session.ts saved to tests/.auth/admin.json,
 // so every page except /login.html is audited as a signed-in user rather
 // than as a redirect to the login page. lhci runs it before each URL.
 const fs = require('node:fs');

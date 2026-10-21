@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.0](https://github.com/alrayyes/forge-dashboard/compare/v1.6.2...v1.7.0) (2026-10-21)
+
+
+### Features
+
+* keep a reserve of the forge budget for user actions ([#2336](https://github.com/alrayyes/forge-dashboard/issues/2336)) ([b529276](https://github.com/alrayyes/forge-dashboard/commit/b52927656c070f6e01c284648a6c8922c71a085a))
+
+## [1.6.2](https://github.com/alrayyes/forge-dashboard/compare/v1.6.1...v1.6.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **api:** the release dialog endpoint handles pre-releases, drafts and errors as the spec says ([#2339](https://github.com/alrayyes/forge-dashboard/issues/2339)) ([ca1548e](https://github.com/alrayyes/forge-dashboard/commit/ca1548ed8096e3b5012771fa2272dca06867cd03))
+
+## [1.6.1](https://github.com/alrayyes/forge-dashboard/compare/v1.6.0...v1.6.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a huge REFRESH_INTERVAL from wrapping into a busy loop ([#2337](https://github.com/alrayyes/forge-dashboard/issues/2337)) ([a6aaefc](https://github.com/alrayyes/forge-dashboard/commit/a6aaefca3847a7907f8cb2d04e6752afab4dff3c))
+
 ## [1.6.0](https://github.com/alrayyes/forge-dashboard/compare/v1.5.0...v1.6.0) (2026-10-21)
 
 

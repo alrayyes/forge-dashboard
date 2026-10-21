@@ -258,7 +258,7 @@
           commentsTruncated: false,
           releaseNotes: release.notes,
         };
-        if (release.name && target === current)
+        if (release.name && mine === token)
           target = { ...current, title: release.name };
       } else {
         loaded = data as Details;

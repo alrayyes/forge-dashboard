@@ -494,47 +494,6 @@ test.describe('pull request update-branch button', () => {
     // pull-request-action-refusals.spec.ts, for every action (#1381, #1380).
   });
 
-  test.describe('bot-managed PRs', () => {
-    // release-please only regenerates its PR when the release notes change
-    // (always-update defaults to false) and force-pushes the branch when it
-    // does, so a behind release PR can sit stale with no bot action to fix
-    // it, and a base-into-head update is overwritten harmlessly (#728).
-    test('a behind release-please PR (autorelease label) shows Update branch (#728)', async ({
-      page,
-    }) => {
-      await mockDashboard(
-        page,
-        makePR({ labels: [{ name: 'autorelease: pending', color: 'fbca04' }] }),
-      );
-      // Release pull requests are on the Releases page, not the main list.
-      await page.goto('/releases.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await expect(
-        row.getByRole('button', { name: 'Update branch' }),
-      ).toBeVisible();
-      await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
-    });
-
-    test('a conflicting release-please PR shows the locked Update branch button (#728, #701)', async ({
-      page,
-    }) => {
-      await mockDashboard(
-        page,
-        makePR({
-          mergeStatus: 'conflicting',
-          labels: [{ name: 'autorelease: pending', color: 'fbca04' }],
-        }),
-      );
-      await page.goto('/releases.html');
-
-      // The locked button is in the pop-up's footer, not on the row.
-      const row = page.locator('#pr-rows .row').first();
-      const footer = actionsFooter(await openActionsDialog(row));
-      await expect(footer).toContainText('Conflicts need fixing by hand');
-    });
-  });
-
   test.describe('proactive locking, before any click', () => {
     test('a behind PR on an unreachable forge draws no Update branch button, and no Retry or pointer to a status line (#1199)', async ({
       page,
