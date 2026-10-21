@@ -64,19 +64,25 @@ export function createNoteRenderer(
   render: (text: string) => Promise<string>,
   done: (version: string, html: string | null) => void,
   retryMs: number = RETRY_MS,
-): ((releases: { version: string; notes: string }[]) => void) & {
+): ((releases: { version: string; notes: string }[]) => Promise<void>) & {
   stop: () => void;
 } {
-  const started = new Set<string>();
+  const started = new Map<string, Promise<void>>();
   let latest: { version: string; notes: string }[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  // Resolves once every release in this call has been rendered or has failed,
+  // so a caller can hold back showing cards until their notes are ready.
   const request = (releases: { version: string; notes: string }[]) => {
     latest = releases;
+    const pending: Promise<void>[] = [];
     for (const r of releases) {
-      if (started.has(r.version)) continue;
-      started.add(r.version);
-      render(withoutHeading(r.notes)).then(
+      const existing = started.get(r.version);
+      if (existing) {
+        pending.push(existing);
+        continue;
+      }
+      const job = render(withoutHeading(r.notes)).then(
         (html) => done(r.version, html),
         () => {
           started.delete(r.version);
@@ -88,7 +94,10 @@ export function createNoteRenderer(
           }, retryMs);
         },
       );
+      started.set(r.version, job);
+      pending.push(job);
     }
+    return Promise.all(pending).then(() => {});
   };
   request.stop = () => {
     stopped = true;
