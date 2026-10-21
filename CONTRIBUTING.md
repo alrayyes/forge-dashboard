@@ -237,11 +237,6 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   `Cipher` is AES-256-GCM encryption keyed off `ENCRYPTION_KEY`, and
   `Store` persists it to SQLite with the tokens encrypted, never in
   plaintext.
-- `internal/sharing` tracks who's granted whom read-only access to their
-  dashboard — `Store` owns nothing about what a dashboard actually is,
-  just the owner/viewer relationship; `internal/api`'s dashboard handler
-  is what turns a granted share into an actual `dashboard.Manager`
-  lookup for the owner's snapshot instead of the caller's own.
 - `internal/api/static` is the frontend, embedded into the binary with
   `//go:embed` — SvelteKit throughout (`web/src/routes`, built with
   `bun run build:web` and merged in by `scripts/sync-web-build.sh`),
@@ -257,14 +252,14 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   reachable without a session (`releases`, `disclaimer`, `privacy`, a
   route check in the layout rather than living outside the group). The
   dashboard is the one page with header-adjacent content nothing else
-  needs (forge health, the dashboard-owner switcher, the refresh
+  needs (forge health, the refresh
   button) — its own plain, non-landmark markup rather than merged into
   the shared `<header>`, since a layout renders that before any child
   page's own script runs at all. `web/src/routes/login` is the one page
   genuinely outside `(app)` — no persistent nav chrome to inherit before
   a session exists. Settings
   (`web/src/routes/(app)/settings`) is where a signed-in user sets
-  their own tokens, theme, and manages sharing. There is no admin page;
+  their own tokens and theme. There is no admin page;
   the user list and invites are API-only.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store, and the

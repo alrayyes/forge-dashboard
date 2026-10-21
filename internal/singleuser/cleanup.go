@@ -44,7 +44,7 @@ var owned = []ownedTable{
 
 // emptied are tables of features that are going away; the cleanup empties
 // them for everyone, the kept user included.
-var emptied = []string{"invites", "shares"}
+var emptied = []string{"invites"}
 
 // Result says what Run did.
 type Result struct {

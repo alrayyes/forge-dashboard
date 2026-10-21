@@ -60,7 +60,4 @@ var mcpPending = []string{
 	"listInvites",
 	"revokeInvite",
 	"refreshDashboard",
-	"getSharing",
-	"shareWith",
-	"unshareWith",
 }

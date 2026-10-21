@@ -2,9 +2,9 @@
 
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
 for readiness,
-`GET /api/dashboard` for the aggregated snapshot of the signed-in user (or,
-with `?owner=<username>`, one shared with them; `?includeHidden=true` lists the
-pull requests the user hid, marked `hidden`, and `hiddenPullRequests` counts
+`GET /api/dashboard` for the aggregated snapshot of the signed-in user
+(`?includeHidden=true` lists the pull requests the user hid, marked
+`hidden`, and `hiddenPullRequests` counts
 them), `POST /api/pull-requests/hide` and `/unhide` to hide one pull request
 (until restored, or for `days`) and bring it back,
 `GET /api/pull-requests/details` for one pull request's description, comments
@@ -20,9 +20,7 @@ the CI status of every default branch, `GET`/`PUT
 — `GET/PUT /api/settings/timezone` for the zone the user wants times shown
 in (an IANA name such as `Europe/Amsterdam`; empty means the browser's own, and
 it exists for browsers that report UTC to every page, such as Firefox with
-fingerprint resistance) — `GET/PUT/DELETE /api/sharing(/{username})` for
-managing who can see
-your dashboard, and `GET /api/admin/users` plus the revoke/delete
+fingerprint resistance) — and `GET /api/admin/users` plus the revoke/delete
 endpoints, alongside `GET/POST /api/admin/invites` and
 `POST /api/admin/invites/{token}/revoke` for generating, listing, and
 revoking registration invites, every one of them refusing anyone but the
