@@ -81,6 +81,11 @@ func (c *Client) adoptHookChecks(checks []dashboard.HookCheck) {
 		c.hookLastSaved = map[string]dashboard.HookCheck{}
 	}
 	for _, check := range checks {
+		if age := time.Since(check.CheckedAt); age > dashboard.HookCheckFreshness || age < -time.Minute {
+			// Too old to believe, or stamped in the future: leave the repo
+			// unknown until the next real check answers.
+			continue
+		}
 		if check.Has {
 			c.ownHookEvents[check.Repo] = slices.Clone(check.Events)
 		}
@@ -106,7 +111,8 @@ func (c *Client) saveHookCheck(fullName string, probe hookProbe) {
 
 	c.hooksMu.Lock()
 	last, known := c.hookLastSaved[fullName]
-	same := known && last.Has == check.Has && last.Refused == check.Refused && slices.Equal(last.Events, check.Events)
+	same := known && last.Has == check.Has && last.Refused == check.Refused && slices.Equal(last.Events, check.Events) &&
+		check.CheckedAt.Sub(last.CheckedAt) < dashboard.HookCheckFreshness/2
 	c.hooksMu.Unlock()
 	if same {
 		return
@@ -123,4 +129,60 @@ func (c *Client) saveHookCheck(fullName string, probe hookProbe) {
 		c.hookLastSaved = map[string]dashboard.HookCheck{}
 	}
 	c.hookLastSaved[fullName] = check
+}
+
+// hookPruneEvery is how often saved checks for repos the credential no longer
+// lists are dropped. A repo that is merely archived, a fork or read-only is
+// still listed, so a permission change doesn't cost it its rows.
+const hookPruneEvery = 12 * time.Hour
+
+// SetHookPruneInterval changes how often saved checks are pruned. Tests use it;
+// the default is twelve hours.
+func (c *Client) SetHookPruneInterval(d time.Duration) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	c.hookPruneInterval = d
+}
+
+// pruneHookChecks forgets the saved checks and deliveries of repos the
+// credential no longer lists at all, so they don't pile up for the life of the
+// database, and the client's own memory of them with it (otherwise a repo that
+// returns unchanged would look already saved). It runs at most once per
+// interval. Only the GitHub client calls it; other forges keep their rows.
+func (c *Client) pruneHookChecks(ctx context.Context, repos []graphqlRepo) {
+	store := c.hookChecks()
+	if store == nil || len(repos) == 0 {
+		return
+	}
+	c.hooksMu.Lock()
+	every := c.hookPruneInterval
+	if every == 0 {
+		every = hookPruneEvery
+	}
+	if !c.hookPrunedAt.IsZero() && time.Since(c.hookPrunedAt) < every {
+		c.hooksMu.Unlock()
+
+		return
+	}
+	c.hookPrunedAt = time.Now()
+	c.hooksMu.Unlock()
+
+	names := make([]string, 0, len(repos))
+	for _, r := range repos {
+		names = append(names, r.Owner.Login+"/"+r.Name)
+	}
+	if err := store.PruneUntracked(ctx, dashboard.ForgeGitHub, c.statsCredential, names); err != nil {
+		slog.Warn("could not prune saved webhook checks", "error", err)
+
+		return
+	}
+
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	for repo := range c.hookLastSaved {
+		if !slices.Contains(names, repo) {
+			delete(c.hookLastSaved, repo)
+			delete(c.ownHookEvents, repo)
+		}
+	}
 }

@@ -107,12 +107,6 @@
     live?.resume();
   }
 
-  // The row redrew its pill while the dialog was open: focus goes back to the
-  // new one on close, not to the button that is gone.
-  export function replaceOpener(old: HTMLElement, next: HTMLElement) {
-    if (target?.opener === old) target.opener = next;
-  }
-
   async function load(row: PipelineTarget, wantAgain = false) {
     // A change before the first read has drawn restarts that read.
     const again = wantAgain && phase === "ready";

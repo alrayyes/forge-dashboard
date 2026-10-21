@@ -52,10 +52,11 @@ type dashboardResponse struct {
 	Forges       []dashboard.ForgeHealth `json:"forges"`
 	PullRequests []pullRequestView       `json:"pullRequests"`
 	Issues       []issueView             `json:"issues"`
-	// FirstRefreshDone is false from process start until this viewer's first
-	// refresh has finished, whether it succeeded or failed, and true from then
-	// on (#1673). Always serialized: the page shows a loading state, not an
-	// empty board, while it is false.
+	// FirstRefreshDone is true once there is something to show for this viewer:
+	// their first refresh since the process started has finished (succeeded or
+	// failed), or the snapshot already lists a forge, for instance one warmed
+	// from the saved cache. It is false only while the page has nothing to
+	// show, so it shows a loading state, not an empty board. Always serialized.
 	FirstRefreshDone bool `json:"firstRefreshDone"`
 	// OpenIssueCount is how many of Issues are real work, without the
 	// housekeeping ones (#980). Issues already leaves out what the viewer's
@@ -89,8 +90,11 @@ type dashboardResponse struct {
 	QueuedActions []dashboard.QueuedAction `json:"queuedActions"`
 	// ReadIntervalSeconds is how often a client should re-read the dashboard
 	// (#809). It lives in the response so a client keeps no interval of its
-	// own. It is short while FirstRefreshDone is false, so the page picks the
-	// data up soon after it is ready, and the normal one from then on.
+	// own. It is short until the first refresh since the process started has
+	// finished, so the page picks fresh data up soon after it is ready, and
+	// the normal one from then on. It follows that real state, not the
+	// serialized FirstRefreshDone, which is also true for a snapshot restored
+	// from the saved cache.
 	ReadIntervalSeconds int `json:"readIntervalSeconds"`
 }
 

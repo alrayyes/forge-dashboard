@@ -48,9 +48,16 @@ type HookCheck struct {
 	CheckedAt time.Time
 }
 
+// HookCheckFreshness is how long a saved webhook check is trusted after a
+// restart. An older one is probed again instead of believed.
+const HookCheckFreshness = 24 * time.Hour
+
 // HookCheckStore keeps the webhook-check results across restarts, keyed by
 // forge, credential label and repo.
 type HookCheckStore interface {
 	LoadHookChecks(ctx context.Context, forge Forge, credential string) ([]HookCheck, error)
 	SaveHookCheck(ctx context.Context, forge Forge, credential string, check HookCheck) error
+	// PruneUntracked deletes the stored hook checks and webhook deliveries of
+	// credential on forge for every repo not in repos.
+	PruneUntracked(ctx context.Context, forge Forge, credential string, repos []string) error
 }
