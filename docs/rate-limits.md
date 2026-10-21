@@ -44,11 +44,15 @@ refresh tries again.
 - **Many tracked repositories.** One GraphQL query returns every repository with
   its open pull requests, issues and CI status, and a bigger answer costs more.
   The dashboard logs each query's cost at the `info` log level.
-- **A restart.** The dashboard remembers the answers to its REST reads in
-  memory, together with the ETag the forge sent, and asks again with
-  `If-None-Match`. GitHub doesn't charge a request that comes back unchanged
-  (`304 Not Modified`). After a restart that memory is empty, so each read is
-  paid in full once. The GraphQL query isn't cached.
+- **A restart.** The dashboard remembers the answers to its REST reads, together
+  with the ETag the forge sent, and asks again with `If-None-Match`. GitHub
+  doesn't charge a request that comes back unchanged (`304 Not Modified`). The
+  answers are kept in the database too, so after a restart the first refresh
+  still sends the saved ETags and an unchanged read stays free. The GraphQL
+  query isn't cached, so a restart still pays for one of those. The last
+  snapshot, the webhook checks and the time each webhook delivery last arrived
+  are kept as well. Until the first refresh succeeds the page shows the saved
+  snapshot marked stale.
 - **Refreshing often.** Each full refresh spends budget. `REFRESH_INTERVAL` sets
   how often it runs (see [Configuration](configuration.md)).
 - **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
@@ -208,11 +212,15 @@ never offered under another. Two clients holding the same credential share
 entries, and a replaced token starts empty. A page size, page number or filter
 is part of the URL, so a different one is a different entry.
 
-The cache lives in memory and is bounded. A body over a megabyte is never kept,
-so that read costs a full response each time. The cache reads no more than that
-megabyte ahead to find out, and the caller still gets the whole body. Across
-all entries the cache holds at most 5000 answers and 32 megabytes, and past
-either limit it drops the least recently used answer first.
+The cache lives in memory and in the database, and both are bounded. A body over
+a megabyte is never kept, so that read costs a full response each time. The
+cache reads no more than that megabyte ahead to find out, and the caller still
+gets the whole body. In memory the cache holds at most 5000 answers and 32
+megabytes, and past either limit it drops the least recently used answer first.
+The database copy holds at most 20 megabytes and drops the oldest answer first.
+A request that misses in memory reads the database before it goes out, so a
+restart doesn't lose the ETags. The database copy is keyed the same way as the
+memory one, with no user in it.
 
 Forgejo, as probed, doesn't take part. The Forgejo instance we tested
 (16.0.6, built on Gitea 1.22) sends no `ETag` and no `Last-Modified` header on
