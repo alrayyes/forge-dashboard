@@ -9,7 +9,7 @@
 A dashboard of open pull requests, issues, and CI status across
 every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login,
-per-user tokens, sharing and an admin role.
+per-user tokens and sharing.
 
 ## Quick start
 
@@ -49,7 +49,6 @@ see [Configuration](docs/configuration.md).
 | **Insights**. Charts of CI state and the busiest repos.                                                        | ![Insights, light mode](docs/screenshots/insights-light.png)                        | ![Insights, dark mode](docs/screenshots/insights-dark.png)                        |
 | **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.                              | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)                        | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)                        |
 | **Settings**. Five groups, one at a time: display, sharing, connections, behaviour, integrations and security. | ![Settings, light mode](docs/screenshots/settings-light.png)                        | ![Settings, dark mode](docs/screenshots/settings-dark.png)                        |
-| **Admin**. Users and invites, for the first registered user.                                                   | ![Admin, light mode](docs/screenshots/admin-light.png)                              | ![Admin, dark mode](docs/screenshots/admin-dark.png)                              |
 | **Login**. Passkey sign-in.                                                                                    | ![Login, light mode](docs/screenshots/login-light.png)                              | ![Login, dark mode](docs/screenshots/login-dark.png)                              |
 
 Fixture data, not a real account's actual repositories. The release
@@ -99,7 +98,7 @@ stale.
   endpoint.
 - [Rate limits](docs/rate-limits.md): why a forge is rate limited, what the
   dashboard does meanwhile, and what to change.
-- [Accounts](docs/accounts.md): passkey login, API tokens, the admin area,
+- [Accounts](docs/accounts.md): passkey login, API tokens,
   sharing a dashboard and the GitHub and Forgejo credentials.
 - [Configuration](docs/configuration.md): every environment variable, how repositories
   are discovered and the GitHub App option.

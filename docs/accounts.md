@@ -1,6 +1,6 @@
 # Accounts
 
-Signing in, API tokens, the admin area, sharing a dashboard, and the forge
+Signing in, API tokens, sharing a dashboard, and the forge
 credentials each account saves.
 
 ## Authentication
@@ -28,11 +28,11 @@ request arrived over HTTPS) is what actually gates `/` and
   server-side, and every registration after that is rejected
   unless it presents a valid invite. New accounts only ever exist because
   the admin decided to add one, regardless of who else can reach the
-  login page. See [Admin area](#admin-area) for generating, listing, and
-  revoking invites.
+  login page. See [Invites](#invites) for generating, listing, and
+  revoking them.
 - **An invite is a single-use, one-hour link.** The admin picks the
-  username and display name up front from the admin area's own Invites
-  card; the generated `/login.html?invite=<token>&username=<username>`
+  username and display name up front through `POST /api/admin/invites`; the
+  generated `/login.html?invite=<token>&username=<username>`
   link is copied out of band (no email system exists here) and handed to
   the invitee, whose own visit to it shows nothing left to fill in but
   the passkey prompt. A token that expires or completes one registration
@@ -72,42 +72,29 @@ bearer credential. Settings lists every live token (label, created date,
 last-used date) with a one-click **Revoke** that stops it authenticating
 immediately.
 
-## Admin area
+## Invites
 
-Whoever registers first gets an Admin link in the dashboard header,
-leading to `/admin.html`: a list of every registered user, with two
-actions per row, and an Invites card for generating and managing the
-links every registration past the first now requires.
+The dashboard has no admin page. The user list and the invites are reachable
+through the API only: `GET /api/admin/users`, with
+`POST .../{username}/revoke` or `DELETE .../{username}` to remove a user,
+and `GET`/`POST /api/admin/invites` with
+`POST /api/admin/invites/{token}/revoke`. All of them refuse anyone but the
+admin, and a signed-in session or an API token reaches them like any other
+endpoint.
 
-- **Revoke** signs a user out everywhere — clears every passkey and every
-  API token they've generated — without touching their account or saved
-  forge credentials. They have to register a new passkey from scratch to
-  get back in, through a fresh invite the same as any other post-bootstrap
-  registration. Useful for a lost device, a compromised passkey manager,
-  or a leaked API token, short of removing the person entirely.
-- **Remove** deletes the account outright — passkeys, sessions, API
-  tokens, and saved forge credentials all go with it, and the username
-  becomes available for a fresh invite. Irreversible.
+An invite is a single-use registration link: send the username and display
+name up front, and the invitee only ever completes the WebAuthn ceremony. The
+link comes back exactly once. Only the token's hash is stored server-side, so
+losing it means creating a new one, the same "show once" handling a personal
+API token gets. Every invite expires after one hour, fixed and not
+configurable: long enough to hand a link off and have the invitee act on it in
+one sitting, short enough that a forgotten invite isn't a standing credential.
 
-Neither action works on the admin's own account (the backend refuses it
-with a 400, and the frontend disables both buttons on that row) — there's
-no recovery path for locking yourself out this way.
-
-### Invites
-
-The Invites card generates a single-use registration link: enter the
-username and display name up front — the invitee only ever completes the
-WebAuthn ceremony — and the generated link is shown exactly once with a
-copy button, right after creation. Only the token's hash is stored
-server-side, so losing it before copying means generating a new one, the
-same "show once" handling a personal API token already gets. A table of
-outstanding invites (username, expiry) lists everything not yet used or
-expired, each with its own **Revoke** to stop a link that shouldn't be
-honoured any more — a revoked invite can never complete a registration.
-Every invite expires after one hour, fixed and not configurable: long
-enough to hand a link off and have the invitee act on it in one sitting,
-short enough that a forgotten, unconsumed invite isn't a standing
-credential.
+Revoking a user signs them out everywhere, clearing every passkey and API
+token, and leaves the account and its saved forge credentials alone. Removing
+one deletes the account outright, along with its passkeys, sessions, tokens and
+saved credentials, and frees the username. Neither works on the admin's own
+account; the backend refuses it with a 400.
 
 ## Sharing
 
