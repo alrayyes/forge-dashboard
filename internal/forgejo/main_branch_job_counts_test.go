@@ -2,6 +2,7 @@ package forgejo_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -172,11 +173,12 @@ func TestReadMainBranch_ARerunInvalidatesTheKeptJobs(t *testing.T) {
 
 // A run that has just finished can answer an empty job list for a moment. That
 // answer is not kept, or the run would read as one check for good.
-func TestReadMainBranch_DoesNotKeepAnEmptyJobList(t *testing.T) {
+func TestReadMainBranch_DoesNotKeepAnEmptyJobListOfAJustFinishedRun(t *testing.T) {
 	t.Parallel()
 
+	justNow := time.Now().UTC().Add(-time.Second).Format(time.RFC3339)
 	s := &mainBranchServer{
-		runs: []map[string]any{actionRun(1, "main", "cafef00d", "success", started, stopped)},
+		runs: []map[string]any{actionRun(1, "main", "cafef00d", "success", started, justNow)},
 		jobs: map[string][]map[string]any{"1": {}},
 	}
 	client := s.start(t)
@@ -188,4 +190,29 @@ func TestReadMainBranch_DoesNotKeepAnEmptyJobList(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.CheckCounts{Passed: 3}, row.Checks)
+}
+
+// A run that finished long ago and still has no jobs never will, so its empty
+// list is kept and the run is not read on every poll for good.
+func TestReadMainBranch_KeepsTheEmptyJobListOfALongFinishedRun(t *testing.T) {
+	t.Parallel()
+
+	s := &mainBranchServer{
+		runs: []map[string]any{actionRun(1, "main", "cafef00d", "success", started, stopped)},
+		jobs: map[string][]map[string]any{"1": {}},
+	}
+	client := s.start(t)
+	_, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	s.mu.Lock()
+	s.paths = nil
+	s.mu.Unlock()
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, row.Checks, "the run counts as one check")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	assert.NotContains(t, s.paths, "/api/v1/repos/alrayyes/a/actions/runs/1/jobs")
 }

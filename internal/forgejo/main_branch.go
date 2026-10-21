@@ -214,14 +214,19 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 		}
 		out[run.ID] = jobs
 		// An empty list for a run that just finished may be the forge catching
-		// up, so it is read again rather than kept.
-		if key != "" && len(jobs) > 0 {
+		// up, so it is read again rather than kept. Once the run is older than
+		// jobsCatchUp the list is final, however short.
+		if key != "" && (len(jobs) > 0 || time.Since(run.StoppedAt) > jobsCatchUp) {
 			c.finishedJobs.put(key, jobs)
 		}
 	}
 
 	return out
 }
+
+// jobsCatchUp is how long after a run finishes the forge may still answer an
+// empty job list for it.
+const jobsCatchUp = 5 * time.Minute
 
 // isFinished reports whether status is one a run ends in, by the same reading
 // of the forge's words that checkStateFromWorkflowStatus gives the checks.
