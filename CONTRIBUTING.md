@@ -228,7 +228,7 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   users/credentials/sessions/invites to SQLite (plus
   `ListUsers`/`RevokeUser`/`DeleteUser` and
   `CreateInvite`/`ConsumeInviteIfValid`/`ListOutstandingInvites`/
-  `RevokeInvite` for the admin area), `Service` drives the WebAuthn
+  `RevokeInvite` for the admin API), `Service` drives the WebAuthn
   ceremonies against `Store` and requires a valid invite for every
   registration past the first, `RequireAuth` is the middleware that
   gates a handler on a valid session, and `RequireAdmin` composes inside
@@ -264,10 +264,8 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   genuinely outside `(app)` — no persistent nav chrome to inherit before
   a session exists. Settings
   (`web/src/routes/(app)/settings`) is where a signed-in user sets
-  their own tokens, theme, and manages sharing; admin
-  (`web/src/routes/(app)/admin`) is the admin's user list, reachable by
-  anyone with a session but functionally gated by every API call it
-  makes 403ing for a non-admin.
+  their own tokens, theme, and manages sharing. There is no admin page;
+  the user list and invites are API-only.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store, and the
   dashboard manager, and serves the API and static files. A session's
