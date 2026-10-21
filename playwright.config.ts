@@ -9,6 +9,7 @@ const singleUserSpecs = [
   '**/filter-persistence.spec.ts',
   '**/first-refresh-first-paint.spec.ts',
   '**/first-refresh-loading.spec.ts',
+  '**/first-refresh-gate-helper.spec.ts',
   '**/timezone.spec.ts',
   '**/webhooks.spec.ts',
   '**/auth-single-user.spec.ts',
