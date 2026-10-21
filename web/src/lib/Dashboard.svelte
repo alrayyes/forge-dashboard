@@ -1626,13 +1626,21 @@
       else detailsDialog.focusClose();
     }
 
-    function openDetailsDialog(item: PullRequestItem, triggerId: string) {
+    function openDetailsDialog(
+      item: PullRequestItem,
+      triggerId: string,
+      fallbackFocusId = "",
+    ) {
       dialogKey = prKey(item);
       dialogGone = false;
       lastChromeSig = "";
       lastChromeItem = undefined;
       dialogUpdatedAt = item.updatedAt;
-      detailsDialog?.open({ ...item, status: detailsStatus(item) }, triggerId);
+      detailsDialog?.open(
+        { ...item, status: detailsStatus(item) },
+        triggerId,
+        fallbackFocusId,
+      );
       refreshDialogChrome();
     }
 
@@ -1682,6 +1690,12 @@
       );
     }
 
+    // No row was clicked, so focus goes back to the pull request's own title,
+    // or to the title filter box when the filters hide that row.
+    function addressFocus(item: PullRequestItem) {
+      return `details-trigger-${domSafeId(prKey(item))}`;
+    }
+
     function openPullRequestReadOnly(item: PullRequestItem) {
       dialogKey = null;
       dialogGone = false;
@@ -1693,7 +1707,11 @@
         option: null,
         actions: [],
       });
-      detailsDialog?.open({ ...item, status: detailsStatus(item) }, "");
+      detailsDialog?.open(
+        { ...item, status: detailsStatus(item) },
+        addressFocus(item),
+        "title-filter",
+      );
     }
 
     async function openAddressedPullRequest(listed: PullRequestItem[]) {
@@ -1714,7 +1732,7 @@
       const onBoard = listed.find((p) => sameAddress(wanted, p));
       if (onBoard) {
         dropFromAddress();
-        openDetailsDialog(onBoard, "");
+        openDetailsDialog(onBoard, addressFocus(onBoard), "title-filter");
         return;
       }
       // The whole board, because nothing narrower can open the pop-up: the
