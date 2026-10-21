@@ -208,7 +208,7 @@ func TestListOpenPullRequests_ShowsARunningCheckAsRunning(t *testing.T) {
 				}
 				assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
 				writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
-					{"id": 7, "status": "running", "commit_sha": "cafef00d"},
+					{"id": 7, "status": "running", "head_sha": "cafef00d"},
 				}})
 			})
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/7/jobs", func(w http.ResponseWriter, _ *http.Request) {
@@ -362,6 +362,38 @@ func TestListOpenPullRequests_SplitReadsOnlyTheJobsOfRunningRuns(t *testing.T) {
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
 	assert.Equal(t, []int{7}, s.reads)
+}
+
+// A push run and a pull_request run on the same commit run the same
+// workflows, and the pull request's statuses come from the pull_request one,
+// so the push run's running jobs aren't counted a second time.
+func TestListOpenPullRequests_SplitDoesNotCountAPushRunBesideAPullRequestRun(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "running", "push")},
+		jobs:    map[int][]string{7: {"running", "waiting", "waiting"}, 8: {"running", "waiting", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+}
+
+// A push run alone still counts: with no pull_request run, it is all there is.
+func TestListOpenPullRequests_SplitCountsAPushRunWhenItIsTheOnlyOne(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 2,
+		runs:    []map[string]any{splitRun(8, "running", "push")},
+		jobs:    map[int][]string{8: {"running", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 1}, got)
 }
 
 // Some Forgejo versions ignore the head_sha filter and answer with the

@@ -1156,7 +1156,7 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 	c.recordRequest(ctx, http.MethodGet, runsPath, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	running := 0
-	for _, run := range runs.WorkflowRuns {
+	for _, run := range withoutShadowedPushRuns(runs.WorkflowRuns) {
 		// Only a run that is running can hold a running job: a queued or
 		// blocked one has none, and a finished one is past it.
 		if checkStateFromWorkflowStatus(run.Status) != dashboard.CheckRunning {
@@ -1651,4 +1651,17 @@ func branchRef(b *gitea.PRBranchInfo) string {
 	}
 
 	return b.Ref
+}
+
+// withoutShadowedPushRuns drops the push runs when a pull_request run is there
+// too. Both run the same workflows on the commit, and the pull request's
+// statuses come from the pull_request one, so reading both would count each
+// running job twice. A push run alone is kept: it is all there is.
+func withoutShadowedPushRuns(runs []*gitea.ActionWorkflowRun) []*gitea.ActionWorkflowRun {
+	hasPullRequest := slices.ContainsFunc(runs, func(r *gitea.ActionWorkflowRun) bool { return r.Event == "pull_request" })
+	if !hasPullRequest {
+		return runs
+	}
+
+	return slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool { return r.Event == "push" })
 }
