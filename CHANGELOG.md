@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/alrayyes/forge-dashboard/compare/v1.1.0...v1.1.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** cut a long cross-repo name short in the closing pull request pill ([#2248](https://github.com/alrayyes/forge-dashboard/issues/2248)) ([6bf88c3](https://github.com/alrayyes/forge-dashboard/commit/6bf88c307811bf617e2df08657daa6fc6b7f7fd5))
+
 ## [1.1.0](https://github.com/alrayyes/forge-dashboard/compare/v1.0.1...v1.1.0) (2026-10-21)
 
 

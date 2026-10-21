@@ -1,27 +1,12 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
+import { expect, type Page, type Route } from '@playwright/test';
 import { choicesOf } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1427: the Repo, Author and Label choices on the Pull requests page offer
 // only what the list being shown has. The board's own filters (a quick pill,
 // the CI pills, Auto-merge) narrow that list, so they narrow these
 // choices too; picking an author must never leave an empty list.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `board-choices-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Board Choices');
-}
 
 function pr(
   number: number,
@@ -91,12 +76,6 @@ const pill = (page: Page, name: string) =>
     .getByRole('button', { name, exact: true });
 
 test.describe('Repo, Author and Label choices follow the board filters (#1427)', () => {
-  // Each test sets a filter, which the server saves per user, so each gets
-  // its own user.
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('offer everything the list has while no board filter is on', async ({
     page,
   }) => {
