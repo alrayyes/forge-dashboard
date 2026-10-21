@@ -15,9 +15,10 @@ import (
 // cacheSchemaVersion is bumped whenever a cache table below changes shape. The
 // tables hold only what a forge can answer again, so a database at another
 // version has them dropped and made empty rather than migrated.
-const cacheSchemaVersion = 1
+const cacheSchemaVersion = 2
 
-// defaultETagCapBytes bounds the bodies http_etags keeps; the oldest rows go first.
+// defaultETagCapBytes bounds the bodies http_etags keeps; the least recently
+// used rows go first.
 const defaultETagCapBytes = 20 << 20
 
 // cacheTables are the tables a restart keeps so the first refresh doesn't pay
@@ -34,8 +35,10 @@ const cacheTables = `
 		body BLOB NOT NULL,
 		header_json TEXT NOT NULL,
 		updated_at TIMESTAMP NOT NULL,
+		last_used_at TIMESTAMP NOT NULL,
 		PRIMARY KEY (forge, credential, url, accept)
 	);
+	CREATE INDEX IF NOT EXISTS http_etags_last_used ON http_etags (last_used_at);
 	CREATE TABLE IF NOT EXISTS snapshot_cache (
 		forge TEXT NOT NULL,
 		credential TEXT NOT NULL,
@@ -86,7 +89,7 @@ func (s *Store) initCache(ctx context.Context) error {
 		return fmt.Errorf("settings: create cache tables: %w", err)
 	}
 	if known && version == cacheSchemaVersion {
-		return nil
+		return s.loadETagBytes(ctx)
 	}
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM cache_schema`); err != nil {
 		return fmt.Errorf("settings: reset cache schema version: %w", err)
@@ -95,11 +98,15 @@ func (s *Store) initCache(ctx context.Context) error {
 		return fmt.Errorf("settings: record cache schema version: %w", err)
 	}
 
-	return nil
+	return s.loadETagBytes(ctx)
 }
 
 // SetETagCap changes the byte cap on the bodies http_etags keeps.
-func (s *Store) SetETagCap(bytes int) { s.etagCap = bytes }
+func (s *Store) SetETagCap(bytes int) {
+	s.etagMu.Lock()
+	defer s.etagMu.Unlock()
+	s.etagCap = bytes
+}
 
 func (s *Store) etagCapBytes() int {
 	if s.etagCap > 0 {
@@ -109,8 +116,24 @@ func (s *Store) etagCapBytes() int {
 	return defaultETagCapBytes
 }
 
+// loadETagBytes totals the bodies once, so every later save and eviction can
+// keep the figure up to date instead of measuring the table again.
+func (s *Store) loadETagBytes(ctx context.Context) error {
+	var total int
+	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(LENGTH(body)), 0) FROM http_etags`).Scan(&total); err != nil {
+		return fmt.Errorf("settings: measure etag cache: %w", err)
+	}
+	s.etagMu.Lock()
+	defer s.etagMu.Unlock()
+	s.etagBytes = total
+
+	return nil
+}
+
 // SaveETag stores the answer a forge gave for url, replacing any earlier one,
-// then evicts the oldest rows while the bodies together pass the cap.
+// then evicts the least recently used rows while the bodies together pass the
+// cap. A body bigger than the cap is never stored, and it drops the earlier
+// answer for url, whose ETag no longer matches what the forge serves.
 func (s *Store) SaveETag(ctx context.Context, forge, credential, url, accept, etag string, body []byte, header map[string][]string) error {
 	headerJSON, err := json.Marshal(header)
 	if err != nil {
@@ -119,66 +142,99 @@ func (s *Store) SaveETag(ctx context.Context, forge, credential, url, accept, et
 	if body == nil {
 		body = []byte{}
 	}
+
+	s.etagMu.Lock()
+	defer s.etagMu.Unlock()
+
+	var old sql.NullInt64
+	err = s.db.QueryRowContext(ctx,
+		`SELECT LENGTH(body) FROM http_etags WHERE forge = ? AND credential = ? AND url = ? AND accept = ?`,
+		forge, credential, url, accept).Scan(&old)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("settings: look up etag: %w", err)
+	}
+
+	if len(body) > s.etagCapBytes() {
+		if !old.Valid {
+			return nil
+		}
+		if _, err := s.db.ExecContext(ctx,
+			`DELETE FROM http_etags WHERE forge = ? AND credential = ? AND url = ? AND accept = ?`,
+			forge, credential, url, accept); err != nil {
+			return fmt.Errorf("settings: drop outdated etag: %w", err)
+		}
+		s.etagBytes -= int(old.Int64)
+
+		return nil
+	}
+
+	now := time.Now().UTC()
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO http_etags (forge, credential, url, accept, etag, body, header_json, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO http_etags (forge, credential, url, accept, etag, body, header_json, updated_at, last_used_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT (forge, credential, url, accept) DO UPDATE SET
-		 etag = excluded.etag, body = excluded.body, header_json = excluded.header_json, updated_at = excluded.updated_at`,
-		forge, credential, url, accept, etag, body, string(headerJSON), time.Now().UTC())
+		 etag = excluded.etag, body = excluded.body, header_json = excluded.header_json,
+		 updated_at = excluded.updated_at, last_used_at = excluded.last_used_at`,
+		forge, credential, url, accept, etag, body, string(headerJSON), now, now)
 	if err != nil {
 		return fmt.Errorf("settings: save etag: %w", err)
 	}
+	s.etagBytes += len(body) - int(old.Int64)
 
 	return s.evictETags(ctx)
 }
 
-func (s *Store) evictETags(ctx context.Context) error {
-	var total int
-	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(LENGTH(body)), 0) FROM http_etags`).Scan(&total); err != nil {
-		return fmt.Errorf("settings: measure etag cache: %w", err)
-	}
-	limit := s.etagCapBytes()
-	if total <= limit {
-		return nil
-	}
-
-	evict, err := s.oldestETagRows(ctx, total, limit)
+// TouchETag marks the answer stored for url as just used, so it is the last
+// to be evicted. A url with no stored answer is left alone.
+func (s *Store) TouchETag(ctx context.Context, forge, credential, url, accept string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE http_etags SET last_used_at = ? WHERE forge = ? AND credential = ? AND url = ? AND accept = ?`,
+		time.Now().UTC(), forge, credential, url, accept)
 	if err != nil {
-		return err
-	}
-	for _, id := range evict {
-		if _, err := s.db.ExecContext(ctx, `DELETE FROM http_etags WHERE rowid = ?`, id); err != nil {
-			return fmt.Errorf("settings: evict etag: %w", err)
-		}
+		return fmt.Errorf("settings: touch etag: %w", err)
 	}
 
 	return nil
 }
 
-// oldestETagRows returns the ids of the oldest rows whose removal brings total
-// down to limit.
-func (s *Store) oldestETagRows(ctx context.Context, total, limit int) ([]int64, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT rowid, LENGTH(body) FROM http_etags ORDER BY updated_at ASC, rowid ASC`)
+// evictETags drops the least recently used rows until the tracked total is
+// within the cap. The caller holds etagMu.
+func (s *Store) evictETags(ctx context.Context) error {
+	limit := s.etagCapBytes()
+	if s.etagBytes <= limit {
+		return nil
+	}
+
+	rows, err := s.db.QueryContext(ctx, `SELECT rowid, LENGTH(body) FROM http_etags ORDER BY last_used_at ASC, rowid ASC`)
 	if err != nil {
-		return nil, fmt.Errorf("settings: list etag cache: %w", err)
+		return fmt.Errorf("settings: list etag cache: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
 	var ids []int64
+	total := s.etagBytes
 	for rows.Next() && total > limit {
 		var id int64
 		var size int
 		if err := rows.Scan(&id, &size); err != nil {
-			return nil, fmt.Errorf("settings: scan etag cache: %w", err)
+			return fmt.Errorf("settings: scan etag cache: %w", err)
 		}
 		ids = append(ids, id)
 		total -= size
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("settings: list etag cache: %w", err)
+		return fmt.Errorf("settings: list etag cache: %w", err)
 	}
+	_ = rows.Close()
 
-	return ids, nil
+	for _, id := range ids {
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM http_etags WHERE rowid = ?`, id); err != nil {
+			return fmt.Errorf("settings: evict etag: %w", err)
+		}
+	}
+	s.etagBytes = total
+
+	return nil
 }
 
 // LoadETag returns the stored answer for url, and whether there is one. A row
