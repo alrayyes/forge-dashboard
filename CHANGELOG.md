@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/alrayyes/forge-dashboard/compare/v1.5.0...v1.6.0) (2026-10-21)
+
+
+### Features
+
+* stretch the full refresh interval while every webhook is healthy ([#2308](https://github.com/alrayyes/forge-dashboard/issues/2308)) ([c29c57b](https://github.com/alrayyes/forge-dashboard/commit/c29c57b4c920704bc5e03badcea7bae695bba58b))
+* **web:** remove the invite sign-up form from the login page ([#2309](https://github.com/alrayyes/forge-dashboard/issues/2309)) ([bff4b70](https://github.com/alrayyes/forge-dashboard/commit/bff4b70eaae6a51c83c12441d88d11e27e291ae0))
+
 ## [1.5.0](https://github.com/alrayyes/forge-dashboard/compare/v1.4.0...v1.5.0) (2026-10-21)
 
 
