@@ -136,6 +136,27 @@ they are. On GitHub, it also asks less:
 
 On every forge, "Refresh now" runs at most once every five seconds.
 
+## A reserve for your own actions
+
+On GitHub the dashboard keeps part of each budget for you. Background work
+(the scheduled full refresh, the CI and auto-merge polls, and webhook
+maintenance) stops once a call would leave the REST or the GraphQL budget at or
+under the reserve: 10% of the budget, and never less than 50 points. A 5000
+point budget keeps 500. For a full refresh, "a call" means the cost of the last
+one, so it also waits when the last refresh would have taken the budget under
+the reserve. It waits for the reset, and the board keeps its last data, marked
+stale, in the meantime.
+
+Your own actions are never held back by it: Merge, Update branch, the bot
+rebases, Close, Enable auto-merge, queued actions, and Refresh now. They stop
+only when the budget is spent, as described above. A refresh that a webhook
+delivery asks for is cheap and is how the board stays current, so it also runs
+inside the reserve and waits only when the budget is spent.
+
+Forgejo reports no budget, so it has no reserve and is never held back. The
+reserve is fixed, not a setting. If background work is using too much, raise
+`REFRESH_INTERVAL` or set up webhooks rather than looking for a knob here.
+
 ## How the CI poll spends the budget
 
 The CI poll covers the open pull requests whose checks are still running and the
