@@ -1,15 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The "Behind the base branch" warning carries its own fix button: the server
 // names the action on `status.action` and the page draws that button inside
 // the status line, with no second copy in the row. The pop-up's footer keeps its own list.
 // https://github.com/alrayyes/forge-dashboard/issues/1943
-
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 function pr(overrides: Record<string, unknown> = {}) {
   return {

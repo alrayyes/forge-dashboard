@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // Every CI pill says how far a pipeline got: the word, then a count for each
 // state that has any, each with its own glyph, for Passed and Failed as well
@@ -90,9 +89,6 @@ const segments = (page: Page, title: string) =>
   pill(page, title).locator('.ci-seg:not(.ci-seg-label)');
 
 test.describe('Passed and Failed pill counts (#2074)', () => {
-  // Writes nothing per user, so it starts from the shared session.
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a passed pull request reads Passed with its count', async ({
     page,
   }) => {
