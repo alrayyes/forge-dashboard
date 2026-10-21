@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	ghsdk "github.com/google/go-github/v75/github"
 )
@@ -18,9 +19,20 @@ import (
 // for every finished check.
 const advisoriesTTL = 15 * time.Minute
 
-// maxAlertPages bounds the pages read for one repo: 100 alerts a page, so a repo
-// past this still reads as a large count rather than costing unbounded calls.
+// advisoriesRetry is how long a failed read waits before it is tried again, so
+// an outage or a spent rate limit costs one call per repo per interval, not one
+// per refresh.
+const advisoriesRetry = 5 * time.Minute
+
+// maxAlertPages bounds the pages read for one repo: 100 alerts a page. A repo
+// with more open alerts than that reads as unknown rather than as a count that
+// stops short of the truth.
 const maxAlertPages = 10
+
+// errAdvisoriesThrottled marks a read GitHub refused for rate limiting. Unlike
+// a 403 for a missing scope it says nothing about the repo, so it never
+// replaces an answer already known.
+var errAdvisoriesThrottled = errors.New("rate limited")
 
 // dependabotAlertLister is the one go-github call the advisory read needs,
 // behind an interface of our own so a test or another SDK can stand in.
@@ -28,7 +40,7 @@ type dependabotAlertLister interface {
 	ListRepoAlerts(ctx context.Context, owner, repo string, opts *ghsdk.ListAlertsOptions) ([]*ghsdk.DependabotAlert, *ghsdk.Response, error)
 }
 
-// advisoryCache remembers each repo's last advisory answer.
+// advisoryCache remembers each repo's last advisory answer and when to ask again.
 type advisoryCache struct {
 	mu      sync.Mutex
 	entries map[string]advisoryEntry
@@ -36,34 +48,33 @@ type advisoryCache struct {
 
 type advisoryEntry struct {
 	value   dashboard.Advisories
-	fetched time.Time
+	expires time.Time
 }
 
-func (c *advisoryCache) get(repo string, fresh bool) (dashboard.Advisories, bool) {
+// get returns the cached answer and whether it is still fresh.
+func (c *advisoryCache) get(repo string) (v dashboard.Advisories, fresh, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, ok := c.entries[repo]
-	if !ok || (fresh && time.Since(e.fetched) >= advisoriesTTL) {
-		return dashboard.Advisories{}, false
-	}
 
-	return e.value, true
+	return e.value, ok && time.Now().Before(e.expires), ok
 }
 
-func (c *advisoryCache) put(repo string, v dashboard.Advisories) {
+func (c *advisoryCache) put(repo string, v dashboard.Advisories, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.entries == nil {
 		c.entries = map[string]advisoryEntry{}
 	}
-	c.entries[repo] = advisoryEntry{value: v, fetched: time.Now()}
+	c.entries[repo] = advisoryEntry{value: v, expires: time.Now().Add(ttl)}
 }
 
 // ReadAdvisories implements dashboard.AdvisoryReader from the repository's open
-// Dependabot alerts (GET /repos/{owner}/{repo}/dependabot/alerts?state=open).
-// GitHub answers 404 where alerts are switched off and 403 where the token
-// lacks the security_events scope (or the Dependabot alerts permission); both
-// are "unknown", never a zero count.
+// Dependabot alerts (GET /repos/{owner}/{repo}/dependabot/alerts?state=open),
+// following the cursor GitHub pages them by. GitHub answers 404 where alerts
+// are switched off and 403 where the token lacks the security_events scope (or
+// the Dependabot alerts permission); both are "unknown", never a zero count. So
+// is a repo with more alerts than maxAlertPages hold. A rate limit is an error.
 func (c *Client) ReadAdvisories(ctx context.Context, owner, name, repoURL string) (dashboard.Advisories, error) {
 	return readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
 }
@@ -76,6 +87,9 @@ func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, na
 	for range maxAlertPages {
 		alerts, resp, err := lister.ListRepoAlerts(ctx, owner, name, opts)
 		if err != nil {
+			if throttled(err) {
+				return dashboard.Advisories{}, fmt.Errorf("list dependabot alerts: %w", errAdvisoriesThrottled)
+			}
 			if refused(err) {
 				return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil
 			}
@@ -89,48 +103,67 @@ func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, na
 				out.Highest = sev
 			}
 		}
-		if resp.NextPage == 0 {
-			break
+		if resp.After == "" {
+			if out.Count > 0 {
+				out.URL = repoURL + "/security/dependabot"
+			}
+
+			return out, nil
 		}
-		opts.ListOptions.Page = resp.NextPage
-	}
-	if out.Count > 0 {
-		out.URL = repoURL + "/security/dependabot"
+		opts.After = resp.After
 	}
 
-	return out, nil
+	return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil
 }
 
-// refused reports GitHub's 403 or 404 for the alerts listing.
-func refused(err error) bool {
-	if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok && errResp.Response != nil {
-		return errResp.Response.StatusCode == http.StatusForbidden || errResp.Response.StatusCode == http.StatusNotFound
-	}
+// throttled reports a primary or secondary rate limit.
+func throttled(err error) bool {
 	if _, ok := errors.AsType[*ghsdk.RateLimitError](err); ok {
 		return true
 	}
+	_, ok := errors.AsType[*ghsdk.AbuseRateLimitError](err)
 
-	return false
+	return ok
+}
+
+// refused reports GitHub's definitive 403 or 404 for the alerts listing: alerts
+// off, or no access. Rate limits are checked before this.
+func refused(err error) bool {
+	errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err)
+	if !ok || errResp.Response == nil {
+		return false
+	}
+
+	return errResp.Response.StatusCode == http.StatusForbidden || errResp.Response.StatusCode == http.StatusNotFound
 }
 
 // advisoriesFor answers a repo's advisories from the cache when fresh, else
-// reads them. A failed read keeps the last answer if there is one and is
-// unknown otherwise, so a flaky call never shows as zero.
+// reads them. A definitive answer (known, or unknown for 403/404) replaces
+// whatever was cached. A failed or rate-limited read keeps the last answer, so
+// it never turns a known count into unknown or zero, and waits advisoriesRetry
+// before asking again. With nothing cached it answers unknown.
 func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string) *dashboard.Advisories {
 	key := owner + "/" + name
-	if v, ok := c.advisories.get(key, true); ok {
-		return &v
+	old, fresh, have := c.advisories.get(key)
+	if fresh {
+		return &old
 	}
+	ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
 	v, err := c.ReadAdvisories(ctx, owner, name, repoURL)
 	if err != nil {
-		slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", key, "error", err)
-		if old, ok := c.advisories.get(key, false); ok {
-			return &old
+		if errors.Is(err, errAdvisoriesThrottled) {
+			slog.Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", key)
+		} else {
+			slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", key, "error", err)
 		}
+		if !have {
+			old = *dashboard.UnknownAdvisories()
+		}
+		c.advisories.put(key, old, advisoriesRetry)
 
-		return dashboard.UnknownAdvisories()
+		return &old
 	}
-	c.advisories.put(key, v)
+	c.advisories.put(key, v, advisoriesTTL)
 
 	return &v
 }

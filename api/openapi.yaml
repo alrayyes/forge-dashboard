@@ -3005,7 +3005,8 @@ paths:
         `ci_poll` (one repository, waiting on a running check),
         `auto_merge_poll` (one repository, waiting on an armed auto-merge),
         `details` (a dialog or check list opened), `hook_maintenance`
-        (checking, adding or upgrading webhooks), `user_action` (a button
+        (checking, adding or upgrading webhooks), `advisories` (reading a
+        repository's open Dependabot alerts), `user_action` (a button
         pressed, a queued action, or something the dashboard does for you such
         as auto-merge) and `unknown` (a request nobody tagged, which is a bug
         to report). A request that names no repository, such as listing an
@@ -4726,8 +4727,8 @@ components:
           description: >-
             Why the requests were made. Open-ended, so a new kind is not a
             breaking change; today `full`, `scoped_webhook`, `ci_poll`,
-            `auto_merge_poll`, `details`, `hook_maintenance`, `user_action`
-            and `unknown`.
+            `auto_merge_poll`, `details`, `hook_maintenance`, `advisories`,
+            `user_action` and `unknown`.
         repo:
           type: string
           maxLength: 200

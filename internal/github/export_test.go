@@ -1,6 +1,22 @@
 package github
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
+
+// ExpireAdvisories ages every cached advisory answer past its TTL and retry delay.
+func (c *Client) ExpireAdvisories() {
+	c.advisories.mu.Lock()
+	defer c.advisories.mu.Unlock()
+	for key, e := range c.advisories.entries {
+		e.expires = time.Now().Add(-time.Second)
+		c.advisories.entries[key] = e
+	}
+}
+
+// BaseURLForTest is the base URL this Client talks to.
+func (c *Client) BaseURLForTest() string { return c.baseURL }
 
 // ETagTransport is the caching transport this Client sends its REST reads
 // through, so a test can send a request the Client's own methods never make.
