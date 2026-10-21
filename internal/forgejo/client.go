@@ -88,12 +88,8 @@ type clientState struct {
 	schedule    map[string]cachedSchedule
 	scheduleSeq uint64
 
-	// finishedJobs keeps the job list of a finished run, which never changes,
-	// so a default-branch poll only re-reads the runs still going. Forgejo
-	// sends no ETag to make that read a 304. Keyed by run and finish time, so
-	// a rerun, which finishes again later, is read afresh.
-	finishedJobsMu sync.Mutex
-	finishedJobs   map[string][]*gitea.ActionWorkflowJob
+	// finishedJobs keeps the job list of each finished run (see finishedJobs).
+	finishedJobs *finishedJobs
 }
 
 // cachedReview is one pull request's review state as of updatedAt.
@@ -161,7 +157,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		rawTransport: rawTransport,
 		reviews:      map[string]cachedReview{},
 		schedule:     map[string]cachedSchedule{},
-		finishedJobs: map[string][]*gitea.ActionWorkflowJob{},
+		finishedJobs: newFinishedJobs(maxFinishedJobs),
 	}}
 }
 
