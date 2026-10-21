@@ -111,6 +111,13 @@ type Aggregator struct {
 	// WithCIPollInterval presets it); zero polls every pending pull request on
 	// every call.
 	ciBase atomic.Int64
+	// reserve remembers what background full refreshes cost, for the reserve
+	// held back for user actions (reserve.go).
+	reserve reserveLedger
+	// userRefreshes counts the Refresh calls a person (or a sign-in) is waiting
+	// on. A coalesced run executes its leader's closure, so whether a run may
+	// be held at the reserve is decided per call from this, not per closure.
+	userRefreshes atomic.Int32
 	// pendingSched spaces out the polls of pull requests that keep reading the same.
 	pendingSched pendingSchedule
 }
@@ -374,7 +381,30 @@ func (a *Aggregator) Get() Snapshot {
 // unreachable ForgeHealth entry instead, so one broken forge never drops
 // the other's data.
 func (a *Aggregator) Refresh(ctx context.Context) {
+	if !background(ctx) {
+		// Counted before it queues, so a run already in flight that this call
+		// ends up waiting on still treats it as the person's refresh.
+		a.userRefreshes.Add(1)
+		defer a.userRefreshes.Add(-1)
+	}
 	a.refresh.do(func() { a.refreshOnce(apistats.WithKind(ctx, apistats.KindFull)) })
+}
+
+// backgroundKey marks a context whose refresh nobody asked for, so it leaves the
+// reserve for user actions alone.
+type backgroundKey struct{}
+
+func background(ctx context.Context) bool {
+	v, _ := ctx.Value(backgroundKey{}).(bool)
+
+	return v
+}
+
+// refreshBackground is Refresh for the schedule: it holds back from a forge
+// whose budget is at its reserve, which Refresh (a force refresh, a sign-in)
+// does not.
+func (a *Aggregator) refreshBackground(ctx context.Context) {
+	a.Refresh(context.WithValue(ctx, backgroundKey{}, true))
 }
 
 // RefreshRepo refreshes just the named repository's pull requests and
@@ -399,6 +429,14 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 	refresher := a.repoRefresherFor(forge)
 	if refresher == nil {
 		return false
+	}
+	if kind := apistats.KindFrom(ctx); kind == apistats.KindUnknown || kind == apistats.KindScopedWebhook {
+		if spent := a.budgetHold(a.Get(), forge, apistats.KindScopedWebhook); spent {
+			// A budget with nothing left can't answer. Reporting the refresh
+			// as run keeps the caller from falling back to a full one, which
+			// costs more; the next full refresh picks the change up.
+			return true
+		}
 	}
 
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
@@ -619,6 +657,15 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 
 			continue
 		}
+		if background(ctx) && a.userRefreshes.Load() == 0 {
+			if held := a.budgetHold(earlier, src.Forge(), apistats.KindFull); held {
+				// At the reserve: what is left is for the person clicking.
+				health, _ := healthOf(earlier, src.Forge())
+				results[i] = carryOver(Result{Health: health}, earlier, src.Forge())
+
+				continue
+			}
+		}
 		wg.Add(1)
 		go func(i int, src Source) {
 			defer wg.Done()
@@ -697,7 +744,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.mu.Unlock()
 	a.markFirstRefreshed()
 
-	logRateLimitTransitions(previous.Forges, snap.Forges)
+	a.noteBudget(previous, snap)
 
 	a.publish(ctx, snap)
 	a.runAutoUpdateBranch(ctx, snap)
@@ -781,7 +828,7 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	// first, not after: one that arrives while the refresh runs is a real
 	// request and still gets its catch-up.
 	a.activity.drainWake()
-	a.Refresh(ctx)
+	a.refreshBackground(ctx)
 
 	timer := time.NewTimer(a.NextDelay(interval))
 	defer timer.Stop()
@@ -796,9 +843,11 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 
 				continue
 			}
-			a.Refresh(ctx)
+			a.refreshBackground(ctx)
 			timer.Reset(a.NextDelay(interval))
 		case <-a.activity.Woken():
+			// Someone opened the board after an idle spell: theirs, not the
+			// schedule's, so the reserve is for it.
 			a.Refresh(ctx)
 			if !timer.Stop() {
 				select {

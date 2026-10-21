@@ -63,6 +63,9 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 		if _, spent := exhaustedHealth(snap, it.ref.Forge, now); spent {
 			continue
 		}
+		if held := a.budgetHold(snap, it.ref.Forge, it.kind); held {
+			continue
+		}
 		if a.waits(it, now, base) {
 			continue
 		}
