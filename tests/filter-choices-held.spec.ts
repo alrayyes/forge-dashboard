@@ -63,7 +63,11 @@ const snapshot = (prs: unknown[], issues: unknown[] = []) => ({
   issues,
 });
 
-async function open(page: Page, path = '/pull-requests.html') {
+async function open(
+  page: Page,
+  path = '/pull-requests.html',
+  initial: unknown[] = SHOWN,
+) {
   await page.addInitScript(() => {
     class StubEventSource {
       onmessage: ((e: { data: string }) => void) | null = null;
@@ -85,7 +89,9 @@ async function open(page: Page, path = '/pull-requests.html') {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(
-        path === '/issues.html' ? snapshot([], ISSUES_SHOWN) : snapshot(SHOWN),
+        path === '/issues.html'
+          ? snapshot([], ISSUES_SHOWN)
+          : snapshot(initial),
       ),
     }),
   );
@@ -94,7 +100,7 @@ async function open(page: Page, path = '/pull-requests.html') {
     page.locator(
       path === '/issues.html' ? '#issue-rows > .row' : '#pr-rows > .row',
     ),
-  ).toHaveCount(1);
+  ).toHaveCount(path === '/issues.html' ? 1 : initial.length);
   await page.waitForFunction(
     () =>
       (window as unknown as { __es?: { onmessage: unknown } }).__es
@@ -218,4 +224,20 @@ test('a saved pick only the held list has is kept when the saved copy arrives', 
   // stays and is not saved as cleared.
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   await expect(page.locator('#shared-author-select')).toHaveValue('claude');
+});
+
+test('a pick the landed list no longer offers is cleared and the list shows again', async ({
+  page,
+}) => {
+  await open(page, '/pull-requests.html', NEWER);
+  await page.locator('#shared-author-select').selectOption('claude');
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Pause live updates' }).click();
+
+  await page.evaluate((data) => window.__push(data), snapshot(SHOWN));
+  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await page.getByRole('button', { name: 'Pause live updates' }).click();
+
+  await expect(page.locator('#shared-author-select')).toHaveValue('');
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 });

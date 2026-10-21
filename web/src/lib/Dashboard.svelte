@@ -4878,8 +4878,11 @@
     // can trail the newest snapshot while it waits (#1427), so they are
     // offered again when a waiting list lands.
     function offerWhatIsShown() {
-      // The Title box may have focus; its suggestions stay as they are.
-      updateSharedFilterOptions(true);
+      // The Title box may have focus; its suggestions stay as they are then,
+      // and are rebuilt for the list that landed otherwise.
+      // A pick the landed list no longer offers is cleared, so the list on
+      // screen is filtered again without it.
+      if (updateSharedFilterOptions(true)) renderBoth();
     }
 
     // Whether two lists would offer different choices: the fields the Repo,
@@ -6030,7 +6033,7 @@
     function updateSharedFilterOptions(
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
-    ) {
+    ): boolean {
       const staleRepo = Filters.populateRepoSelect(
         document.getElementById(
           "shared-repo-select",
@@ -6096,11 +6099,14 @@
       clearPick(staleAuthor, "shared", "author");
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
-      if (
+      const cleared =
         !holdPicks &&
-        (staleRepo || staleAuthor || staleLabel || staleCreated || staleUpdated)
-      )
-        Filters.saveState(sharedState);
+        (staleRepo ||
+          staleAuthor ||
+          staleLabel ||
+          staleCreated ||
+          staleUpdated);
+      if (cleared) Filters.saveState(sharedState);
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
       // cleared, since the pools are built from what is left.
@@ -6116,6 +6122,7 @@
         sharedPoolExcluding("forge", "applyExceptQuick"),
         Filters.activePill(sharedState),
       );
+      return cleared;
     }
 
     // The same control can sit in the bar or in the Filters sheet (#828), so
