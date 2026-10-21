@@ -210,3 +210,12 @@ describe('reference links', () => {
     expect(html).not.toContain('<a href="https://example.org/d" class="mono"');
   });
 });
+
+describe('code blocks', () => {
+  test('take keyboard focus, so a block that scrolls sideways can be read', async () => {
+    for (const src of ['```\ncode\n```\n', '    indented\n']) {
+      const html = await renderMarkdown(src);
+      expect(html).toContain('<pre tabindex="0">');
+    }
+  });
+});
