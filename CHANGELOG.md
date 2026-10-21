@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.249.3](https://github.com/alrayyes/forge-dashboard/compare/v0.249.2...v0.249.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** return focus sensibly when a pull request opened from its address closes ([#2128](https://github.com/alrayyes/forge-dashboard/issues/2128)) ([609824f](https://github.com/alrayyes/forge-dashboard/commit/609824f65833ed87982c6427a7cddf7baf084ad8))
+
 ## [0.249.2](https://github.com/alrayyes/forge-dashboard/compare/v0.249.1...v0.249.2) (2026-10-21)
 
 
