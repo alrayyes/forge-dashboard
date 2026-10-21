@@ -100,25 +100,45 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 /** Pull requests whose hidden pills the reader opened, so a redrawn row keeps them open. */
 const expanded = new Set<string>();
 
+/** A pill's id: stable across redraws, so a closed dialog finds it again. */
+export const closingPillId = (prKey: string, issue: ClosingIssue) =>
+  `closing-pill-${prKey}-${issue.repo}-${issue.number}`.replace(
+    /[^A-Za-z0-9_-]/g,
+    '-',
+  );
+
 /**
  * The pills for one pull request: the first two, then a count that opens the
- * rest in place. Null when it closes nothing. Each pill is a link to the Issues
- * page with that issue's pop-up open. With linkable false, on a dashboard
- * someone shared (a link would open the reader's own board, not theirs), the
- * pill says the same and goes nowhere.
+ * rest in place. Null when it closes nothing. With onOpen, each pill is a
+ * button that opens that issue's dialog where the reader is, and hands over
+ * the pill's id so focus can return to it. Without it, the pill is a link to
+ * the Issues page with that issue's pop-up open (inside a dialog, where a
+ * second one would stack). With linkable false, on a dashboard someone shared
+ * (a link would open the reader's own board, not theirs), the pill says the
+ * same and goes nowhere.
  */
 export function closingPills(
   prKey: string,
   prRepo: string,
   list: ClosingIssue[] | undefined,
   linkable = true,
+  onOpen?: (issue: ClosingIssue, triggerId: string) => void,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitClosing(list);
   const wrap = element('span', 'linked-prs');
   const pill = (issue: ClosingIssue) => {
-    const link = element(linkable ? 'a' : 'span', 'linked-pr closing-issue');
+    const opens = linkable && onOpen !== undefined;
+    const link = element(
+      linkable ? (opens ? 'button' : 'a') : 'span',
+      'linked-pr closing-issue',
+    );
     if (link instanceof HTMLAnchorElement) link.href = issue.pageUrl;
+    if (link instanceof HTMLButtonElement && onOpen) {
+      link.type = 'button';
+      link.id = closingPillId(prKey, issue);
+      link.addEventListener('click', () => onOpen(issue, link.id));
+    }
     link.textContent = closingPillText(issue, prRepo);
     if (linkable)
       link.setAttribute('aria-label', closingPillName(issue, prRepo));

@@ -291,6 +291,13 @@
     // The open pull requests that will close it, joined by the server.
     linkedPullRequests?: LinkedPullRequest[];
   };
+  // What the issue dialog needs of an issue: a listed row, or just the
+  // reference a pull request's pill carries when the board does not list it.
+  type IssueDialogItem = Pick<
+    IssueItem,
+    "forge" | "repo" | "number" | "title" | "url"
+  > &
+    Partial<IssueItem>;
   type Forge = {
     forge: string;
     reachable: boolean;
@@ -1680,7 +1687,7 @@
     // board's dialog state (dialogKey) stays null, so a poll neither redraws
     // its footer nor reloads it.
     function openIssueDialog(
-      item: IssueItem,
+      item: IssueDialogItem,
       triggerId: string,
       fallbackFocusId = "",
     ) {
@@ -1727,7 +1734,11 @@
       return `details-trigger-${domSafeId(prKey(item))}`;
     }
 
-    function openPullRequestReadOnly(item: PullRequestItem) {
+    function openPullRequestReadOnly(
+      item: PullRequestItem,
+      triggerId = addressFocus(item),
+      fallbackFocusId = "title-filter",
+    ) {
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -1740,9 +1751,97 @@
       });
       detailsDialog?.open(
         { ...item, status: detailsStatus(item) },
-        addressFocus(item),
+        triggerId,
+        fallbackFocusId,
+      );
+    }
+
+    type PullRequestLookup =
+      { found: PullRequestItem } | { missing: true } | { failed: true };
+
+    // The whole board, because nothing narrower can open the pop-up: the
+    // details endpoint carries no title, author or status. It reads the
+    // server's cached snapshot, so it costs no forge request, and it only
+    // runs for a pull request the board leaves out.
+    async function lookUpPullRequest(wanted: {
+      forge: string;
+      repo: string;
+      number: number;
+    }): Promise<PullRequestLookup> {
+      const url =
+        "/api/dashboard?includeDrafts=true&includeHidden=true" +
+        (currentOwner ? `&owner=${encodeURIComponent(currentOwner)}` : "");
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+      }).catch(() => null);
+      if (res?.status === 401) {
+        window.location.href = "/login.html";
+        return { failed: true };
+      }
+      const everything: DashboardSnapshot | null = await Promise.resolve(
+        res?.ok ? res.json() : null,
+      ).catch(() => null);
+      if (!everything) return { failed: true };
+      const found = everything.pullRequests?.find((p) =>
+        sameAddress(wanted, p),
+      );
+      return found ? { found } : { missing: true };
+    }
+
+    // ---- a pill that opens the other kind of dialog where the reader is ----
+    // A closing-issue pill on a pull request row opens that issue's dialog on
+    // the Pull requests page, and a linked-pull-request pill on an issue row
+    // opens that pull request's dialog on the Issues page. Neither loads the
+    // other page first, so the reader keeps their filters and place.
+    function openClosingIssue(
+      pr: PullRequestItem,
+      issue: ClosingIssue,
+      triggerId: string,
+    ) {
+      const wanted = {
+        forge: pr.forge,
+        repo: issue.repo,
+        number: issue.number,
+      };
+      // Listed, the dialog has the row's title and filer. Unlisted (closed,
+      // hidden by a setting, a repo not tracked), it has only the reference,
+      // and the dialog says plainly if the forge cannot show the issue.
+      openIssueDialog(
+        findAddressedIssue(allIssues, wanted) ?? {
+          ...wanted,
+          title: `Issue #${issue.number}`,
+          url: issue.url,
+        },
+        triggerId,
         "title-filter",
       );
+    }
+
+    async function openLinkedPullRequest(
+      linked: LinkedPullRequest,
+      triggerId: string,
+    ) {
+      const wanted = {
+        forge: linked.forge,
+        repo: linked.repo,
+        number: linked.number,
+      };
+      const note = document.getElementById("issue-address-note");
+      if (note) note.hidden = true;
+      const listed = allPRs.find((p) => sameAddress(wanted, p));
+      const looked = listed
+        ? { found: listed }
+        : await lookUpPullRequest(wanted);
+      if ("found" in looked) {
+        openPullRequestReadOnly(looked.found, triggerId, "title-filter");
+        return;
+      }
+      if (!note) return;
+      note.textContent =
+        "failed" in looked
+          ? `Could not look up pull request ${wanted.repo} #${wanted.number}. Try again.`
+          : missingNote(wanted);
+      note.hidden = false;
     }
 
     async function openAddressedPullRequest(listed: PullRequestItem[]) {
@@ -1766,34 +1865,15 @@
         openDetailsDialog(onBoard, addressFocus(onBoard), "title-filter");
         return;
       }
-      // The whole board, because nothing narrower can open the pop-up: the
-      // details endpoint carries no title, author or status. It reads the
-      // server's cached snapshot, so it costs no forge request, and it only
-      // runs for a pull request the board leaves out.
-      const url =
-        "/api/dashboard?includeDrafts=true&includeHidden=true" +
-        (currentOwner ? `&owner=${encodeURIComponent(currentOwner)}` : "");
-      const res = await fetch(url, {
-        headers: { Accept: "application/json" },
-      }).catch(() => null);
-      if (res?.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      const everything: DashboardSnapshot | null = await Promise.resolve(
-        res?.ok ? res.json() : null,
-      ).catch(() => null);
-      if (!everything) {
+      const looked = await lookUpPullRequest(wanted);
+      if ("failed" in looked) {
         setHideStatus(
           `Could not look up pull request ${wanted.repo} #${wanted.number}. Reload the page to try again.`,
         );
         return;
       }
       dropFromAddress();
-      const found = everything.pullRequests?.find((p) =>
-        sameAddress(wanted, p),
-      );
-      if (found) openPullRequestReadOnly(found);
+      if ("found" in looked) openPullRequestReadOnly(looked.found);
       else setHideStatus(missingNote(wanted));
     }
 
@@ -1836,7 +1916,7 @@
 
     // The issue header: it is open (the board lists open issues only), and
     // its labels as the pull request header shows them.
-    function issueStatus(item: IssueItem): DetailsStatus {
+    function issueStatus(item: IssueDialogItem): DetailsStatus {
       const state = el("div", "details-state");
       state.setAttribute("role", "group");
       state.setAttribute("aria-label", "Status when opened");
@@ -1904,6 +1984,8 @@
           item.repo,
           (item as PullRequestItem).closesIssues,
           !currentOwner,
+          (issue, triggerId) =>
+            openClosingIssue(item as PullRequestItem, issue, triggerId),
         );
         if (closing) titleCellEl.appendChild(closing);
       }
@@ -1914,6 +1996,7 @@
           item.repo,
           (item as IssueItem).linkedPullRequests,
           !currentOwner,
+          (linked, triggerId) => void openLinkedPullRequest(linked, triggerId),
         );
         if (pills) titleCellEl.appendChild(pills);
       }
