@@ -118,6 +118,7 @@ const singleUserSpecs = [
   '**/settings-ignore-counts.spec.ts',
   '**/settings-ignore-issues.spec.ts',
   '**/settings.spec.ts',
+  '**/filter-save-refused.spec.ts',
 ];
 
 export default defineConfig({
