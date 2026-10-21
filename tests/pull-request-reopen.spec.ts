@@ -238,6 +238,30 @@ test('a reopen the forge refuses says why and leaves no Reopen to press', async 
   await expectNoViolations(page);
 });
 
+test('a reopen of a pull request that was merged meanwhile says so and leaves no Reopen', async ({
+  page,
+}) => {
+  await start(page, {
+    status: 409,
+    body: {
+      error: 'already merged',
+      code: 'already_merged',
+      message: 'This pull request was already merged.',
+    },
+  });
+  const dialog = await closeFromDialog(page);
+  await actionsFooter(dialog)
+    .getByRole('button', { name: 'Reopen pull request' })
+    .click();
+
+  await expect(actionsFeedback(dialog)).toContainText(
+    "It was merged in the meantime, so it can't be reopened.",
+  );
+  await expect(
+    actionsFooter(dialog).getByRole('button', { name: /Reopen/ }),
+  ).toHaveCount(0);
+});
+
 test('a forge error on reopen shows its reason with Copy and keeps Reopen to try again', async ({
   page,
 }) => {

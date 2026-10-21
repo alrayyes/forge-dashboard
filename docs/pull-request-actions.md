@@ -154,9 +154,10 @@ request can leave a branch behind that a reopen can't bring back. Reopen puts
 the pull request back on the board with a refresh and returns the pop-up to its
 normal footer. Closing the pop-up without reopening leaves it off the board, as
 before. The dashboard can't know in advance whether the forge will reopen a pull
-request, so it asks and reads the refusal: one that was merged says "Already
-merged", and one the forge won't reopen, usually because its branch was deleted
-or rewritten, says so in words and drops Reopen, leaving the link to the forge.
+request, so it asks and reads the refusal: one that was merged says "It was
+merged in the meantime, so it can't be reopened.", and one the forge won't
+reopen, usually because its branch was deleted or rewritten, says so in words
+and drops Reopen, leaving the link to the forge.
 A permission or rate-limit refusal reads the same as for any other action, and a
 forge error keeps Reopen with Retry and Copy.
 A permission refusal is re-read too: if the pull request turns out to be
