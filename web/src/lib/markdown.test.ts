@@ -158,6 +158,16 @@ describe('ticket references', () => {
     }
   });
 
+  test('link a Forgejo owner with an underscore or a dot', async () => {
+    for (const [src, owner] of [
+      ['see my_org/repo#3', 'my_org/repo'],
+      ['see a.b/repo#3', 'a.b/repo'],
+    ]) {
+      const html = await renderMarkdown(src, { repoUrl });
+      expect(html).toContain(`href="https://github.com/${owner}/issues/3"`);
+    }
+  });
+
   test('leave a reference that continues into a word as text', async () => {
     const html = await renderMarkdown('#12abc', { repoUrl });
     expect(html).not.toContain('<a ');
