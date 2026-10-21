@@ -28,7 +28,7 @@ One pull request per group, in this order. Each group is its own ticket (named i
 - [ ] 3.2 Implement the GitHub aliased query with chunking and merge the result through the same path `RefreshRepo` uses. Verify: client tests for 1, 12 and 60 pending PRs (chunk count asserted) and for one alias erroring (the others are used, the failed one falls back to a per-repo refresh and is logged) against a fake GraphQL server. Add a test that a spent forge makes no request through this path.
 - [ ] 3.3 Keep the per-repo fallback for a Source without the interface (Forgejo). Verify: the existing `ci_poll_test.go` cases still pass unchanged.
 - [ ] 3.4 Add `pendingSchedule` with the growing interval and the 15-minute cap; reset on state change. Verify: a fake-clock test of the growth and the reset.
-- [ ] 3.5 Record webhook deliveries per repo (`lastDelivery`) and skip a repo whose hook is confirmed with check events while deliveries are on time; poll when overdue. Choose the overdue constant from the stats and say which in the PR. Verify: tests for healthy, overdue, no hook, and Forgejo (never skipped).
+- [ ] 3.5 Record webhook deliveries per repo (the `webhook_seen` records) and skip a repo whose hook is confirmed with check events while deliveries are on time; poll when overdue. Choose the overdue constant from the stats and say which in the PR. Verify: tests for healthy, overdue, no hook, and Forgejo (never skipped).
 - [ ] 3.6 Update `docs/configuration.md` (`CI_POLL_INTERVAL`) and `docs/rate-limits.md`. Verify: before/after `ci_poll` and `auto_merge_poll` numbers in the PR.
 
 ## 4. Incremental full refresh (#2011)
@@ -51,7 +51,7 @@ One pull request per group, in this order. Each group is its own ticket (named i
 
 ## 6. Persist the cache (#2013)
 
-- [x] 6.1 Add the `http_etags`, `snapshot_cache` and `hook_checks` tables to `internal/settings` with a schema-version check. Verify: store tests with a temp database for write, read, prune, size cap and eviction.
+- [x] 6.1 Add the `http_etags`, `snapshot_cache`, `hook_checks` and `webhook_seen` tables to `internal/settings` with a schema-version check. Verify: store tests with a temp database for write, read, prune, size cap and eviction.
 - [x] 6.2 Give `etagTransport` an optional store (read-through, write on 200 with ETag, per-body and total caps). Verify: a test that a second `Client` over the same store sends `If-None-Match` for a URL the first cached.
 - [x] 6.3 Persist the snapshot after each successful refresh and load it at `Manager` start, marked stale until the first refresh succeeds; reuse the existing stale field and add an API field only spec-first. Verify: a restart test shows the stale snapshot served, then cleared.
 - [x] 6.4 Persist the webhook-check results (with hook events) and `webhook_seen`. Verify: a test that coverage computed after a restart equals before.
