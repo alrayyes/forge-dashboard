@@ -119,6 +119,7 @@ const singleUserSpecs = [
   '**/settings-ignore-issues.spec.ts',
   '**/settings.spec.ts',
   '**/filter-save-refused.spec.ts',
+  '**/main-branch-release-link.spec.ts',
 ];
 
 export default defineConfig({

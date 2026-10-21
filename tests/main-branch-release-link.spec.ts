@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
 // A row on the Branches page links to the repository's latest release when the
@@ -85,15 +84,8 @@ const releaseLink = (page: Page, repo: string) =>
   rowOf(page, repo).locator('[data-testid="main-branch-release"]');
 
 test.describe('Branches page latest release link', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    const username = `branch-release-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    await registerViaInvite(
-      page,
-      request,
-      baseURL as string | undefined,
-      username,
-      'Branch Release',
-    );
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('a repository with a release links to it, named by its tag', async ({
