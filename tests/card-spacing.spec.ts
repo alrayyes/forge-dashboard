@@ -1,6 +1,5 @@
 import { expect } from '@playwright/test';
-import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 
 // #1109: the settings cards carried tall empty space under their
 // content, from empty status lines that kept a minimum height and from empty
@@ -8,8 +7,6 @@ import { test } from './fixtures';
 const MAX_TRAILING_GAP = 8;
 
 test.describe('settings cards have no tall empty space (#1109)', () => {
-  test.use({ storageState: ADMIN_STORAGE_STATE });
-
   for (const path of ['/settings.html']) {
     test(`${path}: nothing but the card's own padding trails the content`, async ({
       page,

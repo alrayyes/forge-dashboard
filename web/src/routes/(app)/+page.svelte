@@ -16,6 +16,7 @@
   } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import BranchPipelineDialog from "#lib/BranchPipelineDialog.svelte";
+  import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import {
@@ -104,6 +105,36 @@
       checks: b.checks,
       opener,
     });
+  }
+
+  // The same dialog the Releases page uses, here fed a published release: it
+  // reads the title and notes by tag when it opens.
+  let releaseDialog = $state<PullRequestDetailsDialog>();
+  const releaseTriggerId = (b: MainBranch) =>
+    `release-trigger-${rowKey(b).replace(/[^A-Za-z0-9_-]/g, "-")}`;
+
+  function openRelease(b: MainBranch) {
+    const release = b.latestRelease;
+    const url = release ? releaseHref(release.url) : null;
+    if (!release || !url) return;
+    releaseDialog?.setChrome({
+      status: null,
+      feedback: null,
+      option: null,
+      actions: [],
+    });
+    releaseDialog?.open(
+      {
+        subject: "release",
+        forge: b.forge,
+        repo: b.fullName,
+        number: 0,
+        tag: release.tag,
+        title: release.tag,
+        url,
+      },
+      releaseTriggerId(b),
+    );
   }
 
   async function load(initial = false) {
@@ -396,9 +427,15 @@
       color: var(--ink-2);
       white-space: nowrap;
     }
-    /* The latest release is a link: underlined like the repo name, and 44px
-       tall on a phone. A long tag is cut to one line; the title has it whole. */
+    /* The latest release is a button that opens its dialog, underlined like
+       the repo link beside it, and 44px tall on a phone. A long tag is cut to
+       one line; the title has it whole. */
     .mb-release {
+      appearance: none;
+      background: none;
+      border: 0;
+      padding: 0;
+      cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 5px;
@@ -756,15 +793,18 @@
                   >
                   {#if b.stale}<span class="mb-chip mb-stale">stale</span>{/if}
                   {#if b.latestRelease && releaseHref(b.latestRelease.url)}
-                    <a
+                    {@const release = b.latestRelease}
+                    <!-- A native button, as the CI pill is: it opens the
+                      release dialog, which carries the link to the forge. -->
+                    <button
+                      type="button"
                       class="mb-release"
+                      id={releaseTriggerId(b)}
                       data-testid="main-branch-release"
-                      href={releaseHref(b.latestRelease.url)}
-                      title={b.latestRelease.tag}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label="Latest release {b.latestRelease
-                        .tag} (opens in a new tab)"
+                      title={release.tag}
+                      aria-haspopup="dialog"
+                      aria-label="Latest release {release.tag}, open details"
+                      onclick={() => openRelease(b)}
                       ><svg
                         viewBox="0 0 16 16"
                         class="attr-icon"
@@ -775,8 +815,7 @@
                           cy="5.5"
                           r="1"
                         /></svg
-                      ><span class="mb-release-tag">{b.latestRelease.tag}</span
-                      ></a
+                      ><span class="mb-release-tag">{release.tag}</span></button
                     >
                   {/if}
                 </div>
@@ -804,3 +843,4 @@
 </div>
 
 <BranchPipelineDialog bind:this={pipeline} />
+<PullRequestDetailsDialog bind:this={releaseDialog} />

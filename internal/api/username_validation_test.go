@@ -19,13 +19,13 @@ func TestUsername_ABlankOneIsRefusedByTheServer(t *testing.T) {
 
 	for name, call := range map[string]func() *http.Response{
 		"register begin": func() *http.Response {
-			resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"   ","displayName":"Someone"}`))
+			resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"   ","displayName":"Someone"}`))
 			require.NoError(t, err)
 
 			return resp
 		},
 		"login begin": func() *http.Response {
-			resp, err := http.Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"   "}`))
+			resp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"   "}`))
 			require.NoError(t, err)
 
 			return resp
@@ -51,7 +51,7 @@ func TestUsername_PaddingIsTrimmedBeforeTheLookup(t *testing.T) {
 	srv := newTestServer(t)
 	registerViaRealCeremony(t, srv, testUser, testDisplay)
 
-	resp, err := http.Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"  `+testUser+`  "}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"  `+testUser+`  "}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

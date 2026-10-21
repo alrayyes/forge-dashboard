@@ -16,14 +16,16 @@ moving. A branch with no pipeline is neither, so it gets a quiet outlined "No
 pipeline" note instead. The row also shows the repo, the branch, the short SHA,
 subject and author of the newest commit, how long ago the run finished and how
 long it ran. A GitHub repo with a published release also shows its tag
-(for example `v1.2.3`) as a link beside the forge badge, opening that release's
-notes in a new tab. A screen reader hears it as "Latest release v1.2.3 (opens in
-a new tab)", and on a phone it is 44 pixels tall. It is underlined like the repo
-name, and a tag too long for the row is cut to one line, with the whole tag on
-hover. A repo with no release, or
-only drafts and pre-releases, shows no link, and so does every Forgejo repo for
-now. A branch whose only trouble is a cancelled run (a newer push or a
-person stopped it) reads Cancelled, not Failed, with a stop glyph; a real
+(for example `v1.2.3`) as a button beside the forge badge. It opens the same
+details dialog as the Releases page, showing the release's title and notes, with
+an "Open on GitHub" link to the release itself. The notes are read when the
+dialog opens, not with the page. Escape or Close puts focus back on the tag. A
+screen reader hears it as "Latest release v1.2.3, open details", and on a phone
+it is 44 pixels tall. It is underlined like the repo name, and a tag too long
+for the row is cut to one line, with the whole tag on hover. A repo with no
+release, or only drafts and pre-releases, shows no tag, and so does every
+Forgejo repo for now. A branch whose only trouble is a cancelled run (a newer
+push or a person stopped it) reads Cancelled, not Failed, with a stop glyph; a real
 failure beside a cancelled run is Failed and names only the failed job, and a
 cancelled run beside one still going is Running. A GitHub branch whose newest
 commit has workflow runs held until someone approves them reads "Waiting for
@@ -75,7 +77,8 @@ its default branch, the status of the pipeline on the newest commit (`failed`,
 (short SHA, subject, author), the names of the failed jobs, when the pipeline
 finished and how long it ran, a link to the run, and the repository's latest
 published release (`latestRelease`, its tag and the page of its notes, or
-null). The response also counts
+null). The release's title and notes are a separate read, `GET
+/api/releases/details`, made when the dialog opens. The response also counts
 the rows per status. Every row is returned whatever its status, ordered by
 commit time, latest first (rows with no commit time last, then by repo name), so
 a client filters it and its counts always match what it lists. Status is a

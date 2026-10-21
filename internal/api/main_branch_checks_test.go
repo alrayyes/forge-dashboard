@@ -42,7 +42,7 @@ func getMainBranchChecks(t *testing.T, srvURL string, sessionCookie *http.Cookie
 	if sessionCookie != nil {
 		req.AddCookie(sessionCookie)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp

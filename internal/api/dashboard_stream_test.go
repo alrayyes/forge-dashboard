@@ -17,7 +17,7 @@ func TestDashboardStream_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/dashboard/stream")
+	resp, err := testClient(t).Get(srv.URL + "/api/dashboard/stream")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -33,7 +33,7 @@ func TestDashboardStream_NoBackgroundRefreshYet_Returns404(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -78,7 +78,7 @@ func TestDashboardStream_PushesASnapshotWhenAWebhookTriggersARefresh(t *testing.
 	streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)
 	streamReq.AddCookie(sessionCookie)
-	streamResp, err := http.DefaultClient.Do(streamReq)
+	streamResp, err := testClient(t).Do(streamReq)
 	require.NoError(t, err)
 	defer func() { _ = streamResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, streamResp.StatusCode)
@@ -91,7 +91,7 @@ func TestDashboardStream_PushesASnapshotWhenAWebhookTriggersARefresh(t *testing.
 	webhookReq, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+webhookToken, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	webhookReq.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, webhookSecret))
-	webhookResp, err := http.DefaultClient.Do(webhookReq)
+	webhookResp, err := testClient(t).Do(webhookReq)
 	require.NoError(t, err)
 	defer func() { _ = webhookResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, webhookResp.StatusCode)
@@ -118,7 +118,7 @@ func TestDashboardStream_ClosesWhenTheClientDisconnects(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

@@ -15,7 +15,7 @@ func TestFilterStateGet_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/settings/filter-state")
+	resp, err := testClient(t).Get(srv.URL + "/api/settings/filter-state")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -39,7 +39,7 @@ func TestFilterStatePut_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Post(srv.URL+"/api/settings/filter-state", "application/json", strings.NewReader(`{}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/settings/filter-state", "application/json", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -150,7 +150,7 @@ func doWithBearer(t *testing.T, method, url, body, token string) *http.Response 
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp
@@ -200,7 +200,7 @@ func TestFilterStatePut_LogsHowTheCallerAuthenticatedAndTheUserAgent(t *testing.
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (test browser)")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)

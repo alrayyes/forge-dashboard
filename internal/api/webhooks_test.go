@@ -159,7 +159,19 @@ func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string,
 // holds webhook refreshes back under the test's control.
 func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, sessionCookie, _, _ = newTestServerWithManager(t, source, after)
+
+	return srv, sessionCookie
+}
+
+// newTestServerWithManager is newTestServerWithDebounceTimer that also hands
+// back the Manager and a func answering the registered user's id, for a test
+// that reads state a webhook delivery left in the Aggregator.
+func newTestServerWithManager(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie, manager *dashboard.Manager, userID func() []byte) {
+	t.Helper()
+	var uid atomic.Pointer[[]byte]
+	buildSources := func(id []byte, c settingspkg.Credentials) []dashboard.Source {
+		uid.Store(&id)
 		if c.GitHubToken == "" {
 			return nil
 		}
@@ -187,7 +199,7 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	manager := dashboard.NewManager(time.Hour)
+	manager = dashboard.NewManager(time.Hour)
 	manager.SetWebhookDebounceTimer(after)
 	t.Cleanup(manager.Stop)
 
@@ -212,12 +224,12 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := testClient(t).Do(putReq)
 	require.NoError(t, err)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	return testSrv.URL, sessionCookie
+	return testSrv.URL, sessionCookie, manager, func() []byte { return *uid.Load() }
 }
 
 func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie) (token, secret string) {
@@ -225,7 +237,7 @@ func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie)
 	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/settings", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var got api.SettingsResponse
@@ -247,7 +259,7 @@ func TestGitHubWebhook_ValidSignature_TriggersRefreshAndReturns204(t *testing.T)
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -270,7 +282,7 @@ func dashboardRepos(t *testing.T, srvURL string, sessionCookie *http.Cookie) []d
 	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -299,7 +311,7 @@ func TestGitHubWebhook_VerifiedDelivery_MarksRepoAsHavingAWebhookOnTheDashboard(
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -347,7 +359,7 @@ func TestGitHubWebhook_MissingSignature_Refused(t *testing.T) {
 	token, _ := webhookCredentials(t, srvURL, sessionCookie)
 	before := calls.Load()
 
-	resp, err := http.Post(srvURL+"/api/webhooks/github/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
+	resp, err := testClient(t).Post(srvURL+"/api/webhooks/github/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -367,7 +379,7 @@ func TestGitHubWebhook_WrongSecret_Refused(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, "not-the-real-secret"))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -387,7 +399,7 @@ func TestGitHubWebhook_TamperedBody_Refused(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(sentBody)))
 	require.NoError(t, err)
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(signedBody, secret))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -403,7 +415,7 @@ func TestGitHubWebhook_UnknownToken_Returns404(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/not-a-real-token", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, "whatever"))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -421,7 +433,7 @@ func TestForgejoWebhook_ValidForgejoSignatureHeader_TriggersRefresh(t *testing.T
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/forgejo/"+token, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Forgejo-Signature", hexHMAC(body, secret))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -442,7 +454,7 @@ func TestForgejoWebhook_ValidGiteaSignatureHeaderFallback_TriggersRefresh(t *tes
 	// No X-Forgejo-Signature here — an instance whose webhook was set up
 	// with the legacy "Gitea" type only ever sends this one.
 	req.Header.Set("X-Gitea-Signature", hexHMAC(body, secret))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -457,7 +469,7 @@ func TestForgejoWebhook_MissingSignature_Refused(t *testing.T) {
 	token, _ := webhookCredentials(t, srvURL, sessionCookie)
 	before := calls.Load()
 
-	resp, err := http.Post(srvURL+"/api/webhooks/forgejo/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
+	resp, err := testClient(t).Post(srvURL+"/api/webhooks/forgejo/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -476,7 +488,7 @@ func TestForgejoWebhook_WrongSecret_Refused(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/forgejo/"+token, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Forgejo-Signature", hexHMAC(body, "not-the-real-secret"))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -492,7 +504,7 @@ func TestForgejoWebhook_UnknownToken_Returns404(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/forgejo/not-a-real-token", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Forgejo-Signature", hexHMAC(body, "whatever"))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -517,7 +529,7 @@ func TestGitHubWebhook_PayloadNamesARepo_TriggersOnlyAScopedRefresh(t *testing.T
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -542,7 +554,7 @@ func TestGitHubWebhook_PayloadWithNoRepository_FallsBackToFullRefresh(t *testing
 	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -575,7 +587,7 @@ func TestWebhook_RefreshSurvivesTheTriggeringRequestEnding(t *testing.T) {
 	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
 
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -616,7 +628,7 @@ func TestGitHubWebhook_InvalidSignature_LogsForgeEventAndDeliveryID(t *testing.T
 	req.Header.Set("X-Hub-Signature-256", "sha256=not-the-real-signature")
 	req.Header.Set("X-GitHub-Delivery", "test-delivery-id-123")
 	req.Header.Set("X-GitHub-Event", "issues")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -666,7 +678,7 @@ func TestWebhook_CommentDelivery_TriggersOnlyAScopedRefresh(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set(tc.sigHeader, tc.sigPrefix+hexHMAC(body, secret))
 			req.Header.Set(tc.evHeader, tc.event)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := testClient(t).Do(req)
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
@@ -722,11 +734,12 @@ func TestGitHubWebhook_TenDeliveriesForOneRepo_CauseOneScopedRefresh(t *testing.
 	token, secret := webhookCredentials(t, srvURL, sessionCookie)
 
 	body := []byte(`{"action":"synchronize","repository":{"full_name":"alrayyes/burst","name":"burst","owner":{"login":"alrayyes"}}}`)
+	client := testClient(t)
 	for range 10 {
 		req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 		require.NoError(t, err)
 		req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)
