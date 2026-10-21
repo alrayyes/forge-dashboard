@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.254.2](https://github.com/alrayyes/forge-dashboard/compare/v0.254.1...v0.254.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** keep filter choices true to a renamed or emptied list ([#2201](https://github.com/alrayyes/forge-dashboard/issues/2201)) ([abb6b17](https://github.com/alrayyes/forge-dashboard/commit/abb6b17467ffb7dfcedaa943bbbc2c15089f11e8))
+
 ## [0.254.1](https://github.com/alrayyes/forge-dashboard/compare/v0.254.0...v0.254.1) (2026-10-21)
 
 
