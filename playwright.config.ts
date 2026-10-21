@@ -9,6 +9,7 @@ const singleUserSpecs = [
   '**/filter-persistence.spec.ts',
   '**/first-refresh-first-paint.spec.ts',
   '**/first-refresh-loading.spec.ts',
+  '**/first-refresh-gate-helper.spec.ts',
   '**/timezone.spec.ts',
   '**/webhooks.spec.ts',
   '**/auth-single-user.spec.ts',
@@ -126,6 +127,8 @@ const singleUserSpecs = [
   '**/settings.spec.ts',
   '**/filter-save-refused.spec.ts',
   '**/main-branch-release-link.spec.ts',
+  '**/ci-status-pulldown-gone.spec.ts',
+  '**/main-branch-pill-counts.spec.ts',
 ];
 
 export default defineConfig({

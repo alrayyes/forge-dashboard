@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { createFirstRefreshGate, twoFrames } from './first-refresh-gate-helper';
 import { landOnPullRequests, test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
@@ -72,23 +73,24 @@ const MIXED = [
   row('infra/wiki', 'none', { forge: 'forgejo', branch: 'master' }),
 ];
 
-async function mock(page: Page, body: unknown | (() => unknown)) {
+async function mock(
+  page: Page,
+  body: unknown | (() => unknown),
+  // Answers the list with a 500 for as long as this says so.
+  failing: () => boolean = () => false,
+) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  // The list waits for the layout's dashboard read to say the server's first
-  // refresh is done. If the list's own answer lands first and the dashboard
-  // read takes longer than the page's show delay, the page draws the rows,
-  // swaps them for a skeleton and draws them again. A click or a measurement
-  // in between hits nodes that are gone a moment later. Under load that is
-  // common, so the list is answered only after the dashboard read of the same
-  // document has been, and the page has had two frames to apply it.
-  let documents = 0;
-  let dashboardReads = 0;
-  let readsAtGate = 0;
-  let gated = 0;
+  // The list answer waits for the dashboard read of its document, so the page
+  // never draws rows, swaps them for the first-refresh skeleton and draws
+  // them again under a click (tests/first-refresh-gate-helper.ts).
+  const gate = createFirstRefreshGate();
   page.on('request', (r) => {
-    if (r.isNavigationRequest() && r.frame() === page.mainFrame()) documents++;
+    if (r.isNavigationRequest() && r.frame() === page.mainFrame())
+      gate.newDocument();
   });
-  await page.route('**/api/dashboard', async (route: Route) => {
+  // `*` so a query string still matches; the stream has its own route above.
+  await page.route('**/api/dashboard*', async (route: Route) => {
+    gate.dashboardStarted();
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -100,30 +102,23 @@ async function mock(page: Page, body: unknown | (() => unknown)) {
         issues: [],
         repos: [],
         hiddenDrafts: 0,
+        mockedBySpec: true,
         firstRefreshDone: true,
       }),
     });
-    dashboardReads++;
+    gate.dashboardServed();
   });
   await page.route('**/api/main-branches', async (route: Route) => {
-    if (gated !== documents) {
-      gated = documents;
-      // A document that never reads the dashboard (the read can be reused
-      // from the one before) has nothing to wait for.
-      await expect
-        .poll(() => dashboardReads > readsAtGate, { timeout: 1500 })
-        .toBe(true)
-        .catch(() => {});
-      readsAtGate = dashboardReads;
+    await gate.wait();
+    await twoFrames(page);
+    if (failing()) {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: '{"error":"boom"}',
+      });
+      return;
     }
-    await page
-      .evaluate(
-        () =>
-          new Promise((done) =>
-            requestAnimationFrame(() => requestAnimationFrame(done)),
-          ),
-      )
-      .catch(() => {});
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -596,12 +591,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     releaseSlow();
     await late;
     // Two frames after the late answer, when a draw would have happened.
-    await page.evaluate(
-      () =>
-        new Promise((done) =>
-          requestAnimationFrame(() => requestAnimationFrame(done)),
-        ),
-    );
+    await twoFrames(page);
     await expect(dialog(page)).toContainText('from-the-second-row');
     await expect(dialog(page)).not.toContainText('from-the-first-row');
   });
@@ -765,25 +755,26 @@ test.describe('Main branches page (#1224, #1279)', () => {
     page,
   }) => {
     let fail = true;
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/main-branches', (route: Route) =>
-      fail
-        ? route.fulfill({
-            status: 500,
-            contentType: 'application/json',
-            body: '{"error":"boom"}',
-          })
-        : route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify(snapshot(MIXED)),
-          }),
-    );
+    // Behind the same dashboard gate as every other test.
+    await mock(page, snapshot(MIXED), () => fail);
     await page.goto('/');
     await expect(page.getByRole('alert')).toContainText(/couldn't load/i);
     fail = false;
     await page.getByRole('button', { name: /retry/i }).click();
     await expect(rows(page)).toHaveCount(6);
+  });
+
+  test('a dashboard read with a query string is still answered by the mock', async ({
+    page,
+  }) => {
+    await mock(page, snapshot(MIXED));
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(6);
+    const done = await page.evaluate(async () => {
+      const res = await fetch('/api/dashboard?probe=1');
+      return (await res.json()).mockedBySpec;
+    });
+    expect(done).toBe(true);
   });
 
   test('has no axe violations in light and dark, desktop and 390px, and no horizontal scroll', async ({
