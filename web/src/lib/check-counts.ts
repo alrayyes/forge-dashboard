@@ -39,13 +39,24 @@ export const CHECK_KIND_GLYPH: Record<CheckKind, string> = {
 
 export type CheckSegment = { kind: CheckKind; n: number };
 
+// Whether a pass was only skipped checks: the pill's state is the passed one
+// and the one segment it draws is the skipped one.
+export function onlySkipped(cls: string, segments: CheckSegment[]): boolean {
+  return (
+    cls === 'success' && segments.length === 1 && segments[0].kind === 'skipped'
+  );
+}
+
 // The word a pill leads with. A pass where every passed check was skipped has
 // only the skipped segment, and "Passed" over a lone slash would claim more
 // than happened, so it says Skipped, as the pipeline dialog words the state.
-export function pillWord(label: string, segments: CheckSegment[]): string {
-  const onlySkipped = segments.length === 1 && segments[0].kind === 'skipped';
-
-  return label === 'Passed' && onlySkipped ? 'Skipped' : label;
+// It keys on the pill's status class, so rewording the label cannot turn it off.
+export function pillWord(
+  cls: string,
+  label: string,
+  segments: CheckSegment[],
+): string {
+  return onlySkipped(cls, segments) ? 'Skipped' : label;
 }
 
 // The counts to draw, in order, with a zero never drawn. Nothing at all for no
