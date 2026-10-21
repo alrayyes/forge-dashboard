@@ -4691,6 +4691,13 @@
 
     // Returns true when it rendered the board.
     function reconcileIssues(): boolean {
+      const before = shownIssues;
+      const rendered = settleIssues();
+      if (before.length > 0 && shownIssues !== before) offerWhatIsShown();
+      return rendered;
+    }
+
+    function settleIssues(): boolean {
       if (!latestIssues) {
         return false;
       }
@@ -4851,8 +4858,22 @@
       }
     }
 
+    // The Repo, Author and Label choices follow the list on screen, which
+    // can trail the newest snapshot while it waits (#1427), so they are
+    // offered again when a waiting list lands.
+    function offerWhatIsShown() {
+      updateSharedFilterOptions();
+    }
+
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
+      const before = shownPRs;
+      const rendered = settlePRs();
+      if (before.length > 0 && shownPRs !== before) offerWhatIsShown();
+      return rendered;
+    }
+
+    function settlePRs(): boolean {
       if (!latestPRs) {
         return false;
       }
@@ -5869,6 +5890,14 @@
       }
     });
 
+    // What the choices come from: the list on screen, not the newest snapshot,
+    // which can hold rows the list is still waiting to show (#1427). Before
+    // the first list lands the snapshot is all there is.
+    function itemsOnScreen(): FilterableItem[] {
+      const shown: FilterableItem[] = pullsView ? shownPRs : shownIssues;
+      return shown.length > 0 ? shown : pullsView ? allPRs : allIssues;
+    }
+
     // Leave-one-out narrowing (#550): each shared select's own options
     // come from the combined pool filtered by every *other* active
     // shared facet, not by excludeKey's own current selection — or a
@@ -5888,7 +5917,7 @@
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
       // here (#1071).
-      const items: FilterableItem[] = pullsView ? allPRs : allIssues;
+      const items = itemsOnScreen();
       // The Issues page hides a bot's housekeeping issue by default, so a
       // repo that has nothing else isn't a choice while it's hidden (#1427).
       const withBoard = pullsView;
@@ -5913,7 +5942,7 @@
     // clears the repo, author, label and age picks that no longer match, so
     // only the title (which stays) and the board's own CI filter narrow it.
     function forgePillPool(): FilterableItem[] {
-      const items: FilterableItem[] = pullsView ? allPRs : allIssues;
+      const items = itemsOnScreen();
       return Filters.optionPool(
         items,
         pullsView,
