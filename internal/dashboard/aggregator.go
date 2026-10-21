@@ -780,10 +780,11 @@ func logOneRateLimitTransition(forge Forge, kind string, previous, current *Rate
 
 // Run refreshes immediately, then again roughly every interval, until ctx
 // is canceled — "roughly" because each cycle's actual delay comes from
-// NextRefreshDelay against the snapshot that refresh just produced, so a
-// critically low rate-limit budget pushes the next one out past its own
-// reset instead of firing on schedule into an already-exhausted quota
-// (#381). A plain Timer, not a Ticker, since the delay changes cycle to
+// NextDelay against the snapshot that refresh just produced. NextDelay
+// stretches interval while every tracked repo has a healthy webhook, then
+// pushes the result out past a forge's reset when its rate-limit budget is
+// critically low, instead of firing on schedule into an already-exhausted
+// quota (#381). A plain Timer, not a Ticker, since the delay changes cycle to
 // cycle rather than staying fixed. Meant to run in its own goroutine for
 // the lifetime of the process.
 //
