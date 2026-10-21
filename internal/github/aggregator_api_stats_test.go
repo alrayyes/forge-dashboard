@@ -59,3 +59,46 @@ func TestAggregatorRefresh_LeavesNoCallUnderUnknown(t *testing.T) {
 	assert.Positive(t, kinds[apistats.KindHookMaintenance])
 	assert.Positive(t, kinds[apistats.KindAdvisories])
 }
+
+func TestFetch_ReportsWhatTheFetchItselfSpent(t *testing.T) {
+	t.Parallel()
+
+	repo := map[string]any{
+		"name": "a", "isArchived": false, "isFork": false, "viewerPermission": "WRITE",
+		"owner":        map[string]any{"login": "alrayyes"},
+		"pullRequests": map[string]any{"nodes": []map[string]any{}},
+		"issues":       map[string]any{"nodes": []map[string]any{}},
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": map[string]any{"limit": 5000, "cost": 7, "remaining": 4993, "resetAt": "2026-09-14T16:00:00Z"},
+			"viewer": map[string]any{"repositories": map[string]any{
+				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
+				"nodes":    []map[string]any{repo},
+			}},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetStats(apistats.New(), "token:abcd")
+	client.SetWebhookPath("/api/webhooks/github/tok123")
+
+	result := client.Fetch(t.Context())
+
+	require.NotNil(t, result.Spent)
+	assert.Equal(t, 7, result.Spent.GraphQL)
+	assert.Equal(t, 2, result.Spent.REST, "the hook check and the advisories read")
+}
+
+func TestFetch_WithoutStats_ReportsNoSpend(t *testing.T) {
+	t.Parallel()
+
+	client := github.NewClient("", "", "http://127.0.0.1:1")
+
+	assert.Nil(t, client.Fetch(t.Context()).Spent)
+}

@@ -3178,7 +3178,6 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   const rowTitles = (page: Page) => page.locator('#pr-rows > .row');
 
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     await page.route('**/api/dashboard/stream', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
@@ -3197,7 +3196,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(rowTitles(page)).toHaveCount(LISTED);
   });
 
@@ -3401,7 +3400,6 @@ test.describe('repo group headers: host and sync status (#679)', () => {
   ];
 
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     await page.route('**/api/dashboard/stream', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
@@ -3421,7 +3419,7 @@ test.describe('repo group headers: host and sync status (#679)', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
   });
 
@@ -3521,7 +3519,6 @@ test.describe('time cells say what they are (#1109)', () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     await page.route('**/api/dashboard/stream', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
@@ -3539,7 +3536,6 @@ test.describe('time cells say what they are (#1109)', () => {
         }),
       }),
     );
-    await page.reload();
   });
 
   for (const [name, path, rows] of [

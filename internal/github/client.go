@@ -1138,6 +1138,18 @@ func (c *Client) AddLabel(ctx context.Context, owner, name string, number int, l
 // through dashboard.GenericSource's one-call-per-repo model, which is
 // exactly the round-trip count this exists to avoid.
 func (c *Client) Fetch(ctx context.Context) dashboard.Result {
+	if c.stats == nil {
+		return c.fetch(ctx)
+	}
+	ctx, tally := apistats.WithTally(ctx)
+	result := c.fetch(ctx)
+	spent := tally.Spent()
+	result.Spent = &dashboard.Spend{GraphQL: spent.GraphQL, REST: spent.REST}
+
+	return result
+}
+
+func (c *Client) fetch(ctx context.Context) dashboard.Result {
 	switch {
 	case c.permanentError != "":
 		return dashboard.Result{Health: dashboard.ForgeHealth{

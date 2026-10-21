@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
 
 function mockDashboard(
@@ -8,6 +8,8 @@ function mockDashboard(
   repos: Record<string, unknown>[],
   forges?: Record<string, unknown>[],
 ) {
+  // Aborted, so a real snapshot can't be pushed over the mock.
+  void page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -24,10 +26,6 @@ function mockDashboard(
 }
 
 test.describe('webhooks page', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('shows an empty state with no tracked repos', async ({ page }) => {
     await mockDashboard(page, []);
     await page.goto('/webhooks.html');

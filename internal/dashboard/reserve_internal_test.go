@@ -17,6 +17,17 @@ type stubSource struct {
 	// budget, when set, is reported on every fetch and falls by step after it.
 	budget *RateLimit
 	step   int
+	// other is what the budget also loses on every fetch to calls that are not
+	// the refresh, such as a person's merge. The refresh reports step as its own.
+	other int
+	// rest makes the budget the REST one, and the spend REST points.
+	rest bool
+	// failed makes every fetch an error that still reports the budget.
+	failed bool
+	// unmeasured leaves Result.Spent nil.
+	unmeasured bool
+	// partial makes every fetch name a repo it could not read.
+	partial bool
 
 	mu    sync.Mutex
 	calls int
@@ -35,8 +46,22 @@ func (s *stubSource) Fetch(context.Context) Result {
 	health := s.health
 	if s.budget != nil {
 		rl := *s.budget
-		health.RateLimitGraphQL = &rl
-		s.budget.Remaining -= s.step
+		if s.rest {
+			health.RateLimitREST = &rl
+		} else {
+			health.RateLimitGraphQL = &rl
+		}
+		if s.failed {
+			health.Reachable = false
+		}
+		s.budget.Remaining -= s.step + s.other
+	}
+	spent := &Spend{GraphQL: s.step}
+	if s.rest {
+		spent = &Spend{REST: s.step}
+	}
+	if s.budget == nil || s.unmeasured {
+		spent = nil
 	}
 	s.mu.Unlock()
 	if gate != nil {
@@ -44,7 +69,12 @@ func (s *stubSource) Fetch(context.Context) Result {
 		<-gate
 	}
 
-	return Result{Health: health}
+	res := Result{Health: health, Spent: spent}
+	if s.partial {
+		res.FailedRepos = []FailedRepo{{FullName: "o/n", PullRequests: true}}
+	}
+
+	return res
 }
 
 func (s *stubSource) count() int {
@@ -146,4 +176,106 @@ func noBudget(s *stubSource) *stubSource {
 	s.budget = nil
 
 	return s
+}
+
+// Other calls drew on the budget between two refreshes. Only what the refresh
+// reported spending counts as its cost.
+func TestReserve_OtherCallsBetweenRefreshes_AreNotTheRefreshCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 800, 40, time.Now().Add(time.Hour))
+	src.other = 200
+
+	scheduledRefreshes(t, src, 1)
+
+	// The snapshot left 560. A refresh costing 40 leaves 520, over the reserve
+	// of 500; the 240 the budget fell by would have held it.
+	assert.Equal(t, 3, src.count())
+}
+
+func TestReserve_RefreshThatCostNothing_ReplacesAnEarlierCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	src.rest = true
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step = 0
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	// 600 is left and the last refresh cost 0, so there is room above 500.
+	assert.Equal(t, 3, src.count())
+}
+
+// A failed fetch spends next to nothing and says nothing about a good one.
+func TestReserve_FailedFetch_KeepsTheLastGoodCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step, src.failed = 1, true
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	// 599 is left, and the good refresh cost 400: held, as before the failure.
+	assert.Equal(t, 2, src.count())
+}
+
+// A successful GraphQL fetch costs at least a point, so none reported is no
+// measurement.
+func TestReserve_GraphQLFetchWithoutACost_KeepsTheLastCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step = 0
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	assert.Equal(t, 2, src.count())
+}
+
+func TestReserve_UnmeasuredFetch_KeepsTheLastCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.unmeasured = true
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	assert.Equal(t, 2, src.count())
+}
+
+// A fetch that skipped a repo spent less than a whole one does.
+func TestReserve_PartialFetch_KeepsTheLastCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step, src.partial = 1, true
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	assert.Equal(t, 2, src.count())
 }
