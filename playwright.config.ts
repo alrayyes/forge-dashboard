@@ -147,6 +147,11 @@ const singleUserSpecs = [
   '**/closing-issues.spec.ts',
   '**/linked-pull-requests.spec.ts',
   '**/filter-choices-board.spec.ts',
+  '**/pull-request-reopen.spec.ts',
+  '**/transient-failure-clears.spec.ts',
+  '**/shared-dashboard-read.spec.ts',
+  '**/card-spacing.spec.ts',
+  '**/page-widths.spec.ts',
 ];
 
 export default defineConfig({
