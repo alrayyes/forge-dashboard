@@ -5,12 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// Every test mocks /api/dashboard and writes nothing per user, so they start
-// from the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+import { test } from './server-fixture';
 
 interface MockLabel {
   name: string;
@@ -84,8 +79,8 @@ async function openCloseInDialog(row: Locator) {
 
 test.describe('pull request close button', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });

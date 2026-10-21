@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { navCountsFor } from './nav-counts-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1228: the Issues, Releases and Bots links are in the navigation only
 // while they have something to show. A count of null (not loaded yet) is not
@@ -74,10 +73,6 @@ const tab = (page: Page, href: string) =>
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const LINKS = ['/issues.html', '/releases.html', '/bots.html'];
 const PULLS = '/pull-requests.html';
-
-// Every endpoint is mocked and nothing is saved per user, so the whole file
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('empty pages leave the navigation (#1228)', () => {
   test.beforeEach(async ({ page }) => {
