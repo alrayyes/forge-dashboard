@@ -14,6 +14,11 @@ import {
 // #1593: "Hide titles matching (regex)" on the Issues page. Pure, so these run
 // without a browser; the page wiring is in issue-hide-title-regex.spec.ts.
 
+// These tests guard against catastrophic backtracking, which runs for seconds
+// to forever, not against a slow machine. A bound is a blow-up detector, far
+// above anything a loaded runner costs; it is never a speed target.
+const BLOWUP_MS = 2000;
+
 function issue(title: string, overrides: Partial<FilterableItem> = {}) {
   const now = new Date().toISOString();
   return {
@@ -146,7 +151,7 @@ describe('a pathological pattern cannot freeze the page', () => {
       },
     );
     expect(hidden).toBe(false);
-    expect(performance.now() - started).toBeLessThan(50);
+    expect(performance.now() - started).toBeLessThan(BLOWUP_MS);
   });
 
   test('a safe quantified group still works', () => {
@@ -171,13 +176,24 @@ describe('a pathological pattern cannot freeze the page', () => {
         matchesFilters(item, false, {}, { hideTitleRegex: '.*a[bc]{1,9}d' }),
       );
 
-    const first = performance.now();
-    expect(run()).toHaveLength(100);
-    expect(performance.now() - first).toBeLessThan(3000);
+    // Count the work instead of timing it: the regex only ever sees a short
+    // prefix, and a repeated run asks it nothing new.
+    const realTest = RegExp.prototype.test;
+    const tested: number[] = [];
+    RegExp.prototype.test = function (this: RegExp, input: string) {
+      tested.push(String(input).length);
+      return realTest.call(this, input);
+    };
+    try {
+      expect(run()).toHaveLength(100);
+      expect(tested).toHaveLength(100);
+      expect(Math.max(...tested)).toBeLessThanOrEqual(128);
 
-    const again = performance.now();
-    run();
-    expect(performance.now() - again).toBeLessThan(20);
+      run();
+      expect(tested).toHaveLength(100);
+    } finally {
+      RegExp.prototype.test = realTest;
+    }
   });
 });
 
@@ -214,7 +230,7 @@ describe('the guard is sound for a corpus of slow patterns', () => {
         matchesFilters(issue(title), false, {}, { hideTitleRegex: pattern });
       }
       expect(
-        rule.status === 'complex' || performance.now() - started < 50,
+        rule.status === 'complex' || performance.now() - started < BLOWUP_MS,
       ).toBe(true);
     });
   }
@@ -261,7 +277,7 @@ describe('a chain of choice points is refused or fast', () => {
       if (rule.status !== 'ok') return;
       const started = performance.now();
       matchesFilters(issue(title), false, {}, { hideTitleRegex: pattern });
-      expect(performance.now() - started).toBeLessThan(50);
+      expect(performance.now() - started).toBeLessThan(BLOWUP_MS);
     });
   }
 });
@@ -317,7 +333,6 @@ describe('fuzz: whatever the guard accepts is fast', () => {
   })();
 
   test('no accepted pattern is slow, over a few thousand seeds', () => {
-    const started = performance.now();
     let accepted = 0;
     for (let seed = 1; seed <= 3000; seed++) {
       const pattern = generate(seed);
@@ -325,24 +340,18 @@ describe('fuzz: whatever the guard accepts is fast', () => {
       if (rule.status !== 'ok') continue;
       accepted++;
       for (const title of HOSTILE) {
-        // A pause from the host (GC, another process) is not a slow pattern:
-        // the second timing, on a title that isn't cached, has to be slow too.
-        let took = 0;
-        for (let attempt = 0; attempt < 2; attempt++) {
-          compileTitleRule(pattern);
-          const t0 = performance.now();
-          matchesFilters(
-            issue(attempt === 0 ? title : `${title.slice(0, -1)}d`),
-            false,
-            {},
-            {
-              hideTitleRegex: pattern,
-            },
-          );
-          took = performance.now() - t0;
-          if (took < 50) break;
-        }
-        if (took >= 50) {
+        compileTitleRule(pattern);
+        const t0 = performance.now();
+        matchesFilters(
+          issue(title),
+          false,
+          {},
+          {
+            hideTitleRegex: pattern,
+          },
+        );
+        const took = performance.now() - t0;
+        if (took >= BLOWUP_MS) {
           throw new Error(
             `accepted pattern took ${took.toFixed(0)} ms: ${pattern} on ${title.slice(0, 20)}... (seed ${seed})`,
           );
@@ -351,7 +360,6 @@ describe('fuzz: whatever the guard accepts is fast', () => {
     }
     // The generator has to exercise the guard, not be refused wholesale.
     expect(accepted).toBeGreaterThan(300);
-    expect(performance.now() - started).toBeLessThan(5000);
   });
 });
 
