@@ -137,7 +137,7 @@ const drivers: Driver[] = [
   {
     name: 'Update branch',
     endpoint: '**/api/pull-requests/update-branch',
-    pr: { behind: true },
+    pr: { behind: true, ci: 'success', mergeStatus: 'mergeable' },
     button: 'Update branch',
     act: (row) =>
       viaActionsDialog(row, (footer) =>

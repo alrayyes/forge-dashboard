@@ -406,7 +406,8 @@ func TestReadMainBranch_CarriesTheRunCounts(t *testing.T) {
 		statuses []string
 		want     dashboard.CheckCounts
 	}{
-		{"mixed", []string{"success", "skipped", "running", "waiting", "blocked", "failure"}, dashboard.CheckCounts{Passed: 2, Running: 1, Waiting: 2, Failed: 1}},
+		{"mixed", []string{"success", "skipped", "running", "waiting", "blocked", "failure"}, dashboard.CheckCounts{Passed: 2, Skipped: 1, Running: 1, Waiting: 2, Failed: 1}},
+		{"every run skipped", []string{"skipped", "skipped"}, dashboard.CheckCounts{Passed: 2, Skipped: 2}},
 		{"all passed", []string{"success", "success", "success"}, dashboard.CheckCounts{Passed: 3}},
 		{"cancelled counts in none", []string{"success", "cancelled"}, dashboard.CheckCounts{Passed: 1}},
 	}

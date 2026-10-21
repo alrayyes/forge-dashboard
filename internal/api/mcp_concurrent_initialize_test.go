@@ -29,7 +29,7 @@ func TestMCP_Initialize_ManyParallelSessionsOnOneTokenAllSucceed(t *testing.T) {
 			client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.0"}, nil)
 			transport := &mcp.StreamableClientTransport{
 				Endpoint:   srv.URL + "/api/mcp",
-				HTTPClient: &http.Client{Transport: bearerRoundTripper{token: token, base: http.DefaultTransport}},
+				HTTPClient: &http.Client{Transport: bearerRoundTripper{token: token, base: http.DefaultTransport.(*http.Transport).Clone()}},
 			}
 			session, err := client.Connect(t.Context(), transport, nil)
 			if err == nil {

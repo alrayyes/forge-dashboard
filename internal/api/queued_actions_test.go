@@ -37,10 +37,16 @@ func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, 
 			Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
 		}
 	}
+	// #9 is behind with its checks still running.
+	waiting := func(p dashboard.PullRequest) dashboard.PullRequest {
+		p.CI = dashboard.CIPending
+
+		return p
+	}
 	src := &fakeConfiguredSource{
 		health: health,
 		prs: []dashboard.PullRequest{
-			pr(5, "alice", true), pr(6, "dependabot[bot]", true), pr(7, "renovate[bot]", true), pr(8, "alice", false),
+			pr(5, "alice", true), pr(6, "dependabot[bot]", true), pr(7, "renovate[bot]", true), pr(8, "alice", false), waiting(pr(9, "alice", true)),
 		},
 	}
 	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
@@ -57,7 +63,7 @@ func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, 
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboard(t, srv.URL, cookie)["pullRequests"].([]any)
 
-		return len(prs) == 4
+		return len(prs) == 5
 	}, time.Second, 10*time.Millisecond)
 
 	return srv, manager, cookie
@@ -194,6 +200,31 @@ func TestQueuedActions_PullRequestNotBehind_Answers409AlreadyUpToDate(t *testing
 	assert.Equal(t, "already_up_to_date", got["code"])
 }
 
+func TestQueuedActions_UpdateBranchWhileCIRuns_Answers409ChecksPending(t *testing.T) {
+	t.Parallel()
+	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
+
+	status, got := queueUpdate(t, srv, cookie, 9)
+
+	require.Equal(t, http.StatusConflict, status)
+	assert.Equal(t, "checks_pending", got["code"])
+	assert.Equal(t, "Waiting for CI to finish", got["message"])
+}
+
+func TestUpdateBranch_WhileCIRuns_Answers409ChecksPending(t *testing.T) {
+	t.Parallel()
+	srv, _, cookie := queueBoard(t, false, time.Time{})
+
+	resp := postUpdatePullRequestBranch(t, srv.URL, cookie, "github", "alrayyes/a", 9)
+	defer func() { _ = resp.Body.Close() }()
+	var got map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+
+	require.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Equal(t, "checks_pending", got["code"])
+	assert.Equal(t, "Waiting for CI to finish", got["message"])
+}
+
 func TestQueuedActions_UpdateBranchOnABotPullRequest_IsRefused(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
@@ -218,7 +249,7 @@ func TestQueuedActions_PullRequestNotOnTheBoard_Answers404(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 9), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 99), cookie)
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -364,7 +395,7 @@ func TestContract_QueuedActions(t *testing.T) {
 	check(http.StatusOK, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 5))
 	check(http.StatusBadRequest, http.MethodPost, "/api/queued-actions", queueBody("merge", 5))
 	check(http.StatusConflict, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 8))
-	check(http.StatusNotFound, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 9))
+	check(http.StatusNotFound, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 99))
 	check(http.StatusOK, http.MethodGet, "/api/queued-actions", "")
 	check(http.StatusOK, http.MethodGet, "/api/dashboard", "")
 	var item map[string]any
