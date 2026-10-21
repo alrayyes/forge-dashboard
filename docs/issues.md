@@ -34,6 +34,16 @@ the first 128 characters of a title. This is a safety margin tested by
 fuzzing, not a proof. The rule applies to the Issues board only; Insights
 charts ignore it.
 
+## Finding an issue by its number
+
+The title box (`Title or #number`) also takes a ticket number. `1884` or
+`#1884` lists the issues whose number starts with it, one per repo that has it,
+and `18` lists 18, 180, 1884, and so on. A leading `#` means number only. A bare
+number also still matches titles, so `2024` finds an issue with 2024 in its
+title as well. It is the same box as the title search, so it is remembered with
+the other filters and **Clear filters** empties it. The Pull requests page
+matches titles only.
+
 ## Who filed it
 
 A row shows the avatar of whoever filed the issue to the left of their name,

@@ -109,6 +109,7 @@ const singleUserSpecs = [
   '**/issue-hide-title-regex.spec.ts',
   '**/issue-settings-effect.spec.ts',
   '**/issues-page.spec.ts',
+  '**/issues-number-filter.spec.ts',
   '**/issues-steady.spec.ts',
   '**/main-branches-choices.spec.ts',
   '**/main-branches-refetch-on-flag.spec.ts',

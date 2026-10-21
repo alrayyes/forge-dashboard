@@ -292,3 +292,40 @@ describe('the No checks quick filter', () => {
     ).toBe(true);
   });
 });
+
+// The Issues page's title box also takes a ticket number. Pure, so it runs
+// without a browser; the page wiring is in issues-number-filter.spec.ts.
+// https://github.com/alrayyes/forge-dashboard/issues/2155
+describe('the title box and ticket numbers', () => {
+  const issue = (number: number, title = 'Something') =>
+    choiceItem({ number, title });
+  const hits = (item: FilterableItem, term: string, isPR = false) =>
+    matchesFilters(item, isPR, { title: term }, undefined);
+
+  test('a number with or without # matches numbers that start with it', () => {
+    for (const term of ['1884', '#1884', '18', '#18']) {
+      expect(hits(issue(1884), term)).toBe(true);
+    }
+    expect(hits(issue(188), '1884')).toBe(false);
+    expect(hits(issue(2188), '188')).toBe(false);
+  });
+
+  test('a # term matches the number only', () => {
+    expect(hits(issue(7, 'Roadmap for 2024'), '#2024')).toBe(false);
+    expect(hits(issue(2024), '#2024')).toBe(true);
+  });
+
+  test('a bare number still matches a title that holds it', () => {
+    expect(hits(issue(7, 'Roadmap for 2024'), '2024')).toBe(true);
+  });
+
+  test('a text term matches the title as before', () => {
+    expect(hits(issue(1, 'Dark mode'), 'dark')).toBe(true);
+    expect(hits(issue(1, 'Dark mode'), 'light')).toBe(false);
+  });
+
+  test('a pull request matches on the title alone', () => {
+    expect(hits(issue(1884), '1884', true)).toBe(false);
+    expect(hits(issue(1, 'Fix 1884'), '1884', true)).toBe(true);
+  });
+});
