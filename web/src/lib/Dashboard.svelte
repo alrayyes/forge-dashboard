@@ -1693,6 +1693,10 @@
         openDetailsDialog(onBoard, "");
         return;
       }
+      // The whole board, because nothing narrower can open the pop-up: the
+      // details endpoint carries no title, author or status. It reads the
+      // server's cached snapshot, so it costs no forge request, and it only
+      // runs for a pull request the board leaves out.
       const url =
         "/api/dashboard?includeDrafts=true&includeHidden=true" +
         (currentOwner ? `&owner=${encodeURIComponent(currentOwner)}` : "");
