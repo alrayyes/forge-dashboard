@@ -246,7 +246,11 @@ func (a *Aggregator) refreshRepoOf(ctx context.Context, forge Forge, group []pen
 		}
 		ctx = apistats.WithKind(ctx, kind)
 	}
-	if _, merged := a.refreshRepo(ctx, forge, first.Owner, first.Name, first.FullName); !merged {
+	// A call that joined a refresh already in flight ran no fetch of its own, but
+	// the coalescer guarantees the run it waited for began after this call did, so
+	// a merge newer than this sequence number is a read this poll can count.
+	since := a.fetchSeq.Add(1)
+	if !a.RefreshRepo(ctx, forge, first.Owner, first.Name, first.FullName) || !a.mergedSince(forge, first.FullName, since) {
 		return nil
 	}
 

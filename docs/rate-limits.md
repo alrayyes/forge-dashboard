@@ -157,7 +157,9 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
   puts it back at `CI_POLL_INTERVAL`. If you set `CI_POLL_INTERVAL` above 15
   minutes, that wins, so the poll is never faster than you asked. Only a poll
   that read the pull request counts: a refresh that failed leaves the gap alone
-  and the next tick tries again. A pull request whose
+  and the next tick tries again. A read that joined a webhook refresh already in
+  flight counts, because the refresh it waited for began after the poll did. A
+  pull request whose
   lookup keeps failing (a deleted or transferred one) is read through its repo,
   and backs off like any other that reads the same. A pull request with GitHub's
   auto-merge armed never backs off, because GitHub merges it without telling us

@@ -396,18 +396,9 @@ func (a *Aggregator) Refresh(ctx context.Context) {
 // a caller that knows why it refreshed (a webhook delivery's id and pull
 // request number) can have the failure say so (#966).
 func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
-	ran, _ := a.refreshRepo(ctx, forge, owner, name, fullName, attrs...)
-
-	return ran
-}
-
-// refreshRepo is RefreshRepo that also says whether a fetch of its own succeeded
-// and was merged. It is false when the fetch failed, and when the call joined a
-// refresh already in flight instead of making one.
-func (a *Aggregator) refreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) (ran, merged bool) {
 	refresher := a.repoRefresherFor(forge)
 	if refresher == nil {
-		return false, false
+		return false
 	}
 
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
@@ -420,10 +411,18 @@ func (a *Aggregator) refreshRepo(ctx context.Context, forge Forge, owner, name, 
 			return
 		}
 		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName))
-		merged = true
 	})
 
-	return true, merged
+	return true
+}
+
+// mergedSince reports whether a scoped refresh of forge/fullName has been merged
+// whose fetch began after the sequence number since.
+func (a *Aggregator) mergedSince(forge Forge, fullName string, since uint64) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.scopedSeq[repoKey{forge, fullName}] > since
 }
 
 // scopedRefreshContext tags a one-repo fetch with the repo, and with a webhook

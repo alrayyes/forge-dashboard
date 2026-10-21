@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -270,6 +271,46 @@ func TestAggregator_PollCI_AWholeRequestFailureFallsBackToAPerRepoRefreshOfEvery
 	agg.PollCI(t.Context())
 
 	assert.Equal(t, []int{1, 1}, []int{src.repoFetchCallCount("alrayyes/a"), src.repoFetchCallCount("alrayyes/b")}, "each repo is read once on its own")
+}
+
+func TestAggregator_PollCI_APollThatJoinedAWebhookRefreshStillAdvancesTheBackOff(t *testing.T) {
+	t.Parallel()
+
+	clock := newPollClock()
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", []dashboard.PullRequest{pendingPR("alrayyes/a", 1)})
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+	var fetches atomic.Int32
+	src.onFetchRepo = func(string) {
+		if fetches.Add(1) == 1 {
+			started <- struct{}{}
+			<-release
+		}
+	}
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithCIPollInterval(pollBase))
+	agg.Refresh(t.Context())
+	go agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	<-started
+	polled := make(chan struct{})
+	go func() {
+		agg.PollCI(t.Context())
+		close(polled)
+	}()
+	// Give the poll time to reach the in-flight refresh and wait on it.
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	<-polled
+
+	// The joined poll counts as the first. The second, a minute on, reads the
+	// pull request unchanged and doubles the gap, so the third finds it not due.
+	clock.advance(pollBase)
+	agg.PollCI(t.Context())
+	afterSecond := src.repoFetchCallCount("alrayyes/a")
+	clock.advance(pollBase)
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, afterSecond, src.repoFetchCallCount("alrayyes/a"))
 }
 
 func TestAggregator_PollCI_SpentForgeMakesNoBatchedRequest(t *testing.T) {
