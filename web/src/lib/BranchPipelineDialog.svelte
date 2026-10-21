@@ -25,6 +25,7 @@
   // part of the snapshot. The page calls open() from a row's pill, and follow()
   // with each list it reads: the panel reads again only when its own row's CI
   // changed, so a finished pipeline costs no more requests.
+  import { tick } from "svelte";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { FORGE_LABELS } from "#lib/forges.js";
   import { createSpeaker } from "#lib/live-region.js";
@@ -126,8 +127,20 @@
         staleNote = "";
         if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
         const message = announceChange(checks, ordered);
+        const hadFocus = dialog
+          .querySelector(".pipeline-check-list")
+          ?.contains(document.activeElement);
         checks = ordered;
         if (message) speak(message);
+        // The check the keyboard was on is gone: its node went with it, so
+        // focus goes to the close button instead of the page behind.
+        if (hadFocus) {
+          await tick();
+          if (!dialog.contains(document.activeElement))
+            dialog
+              .querySelector<HTMLElement>(".pipeline-dialog-close")
+              ?.focus();
+        }
         return;
       }
       live?.refreshed();

@@ -160,6 +160,24 @@ test.describe('main branches pipeline panel updates live', () => {
     ).toBeFocused();
   });
 
+  test('a redraw moves focus to the close button when its check is gone', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    await panel(page).getByRole('link', { name: 'View run: test' }).focus();
+
+    state.row = PASSED;
+    state.checks = [
+      { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
+    ];
+    await poll(page);
+
+    await expect(panel(page).getByRole('listitem')).toHaveCount(1);
+    await expect(
+      panel(page).getByRole('button', { name: /close/i }),
+    ).toBeFocused();
+  });
+
   test('a failed live read says so and the next poll reads again', async ({
     page,
   }) => {
