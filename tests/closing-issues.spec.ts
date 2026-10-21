@@ -158,6 +158,44 @@ test.describe('the pill on a pull request row', () => {
     await expect(pills(page, 1).nth(2)).toBeFocused();
   });
 
+  test('is not a link on a dashboard someone shared, where it would open your own', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [closing(12)])] });
+    await page.route('**/api/dashboard?owner=alice*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [
+            { ...pullRequest(1, [closing(12)]), title: 'Alice’s pull request' },
+          ],
+          issues: [],
+        }),
+      }),
+    );
+    await page.route('**/api/sharing', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sharedWithMe: [{ username: 'alice', displayName: 'Alice' }],
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await expect(page.locator('a.closing-issue')).toHaveCount(1);
+
+    await page
+      .locator('#dashboard-owner-select')
+      .selectOption({ label: 'Alice’s dashboard' });
+
+    await expect(page.locator('.closing-issue')).toHaveText('Closes #12');
+    await expect(page.locator('a.closing-issue')).toHaveCount(0);
+  });
+
   test('is also in the pull request pop-up', async ({ page }) => {
     await mockBoard(page, { pullRequests: [pullRequest(1, [closing(12)])] });
     await page.goto('/pull-requests.html');
