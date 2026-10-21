@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 
 // A "Clear filters" control on the Webhooks page, the one the other list pages
 // have. It is always there, and enabled only while a filter differs from its default, resets forge,
@@ -44,20 +38,6 @@ async function open(page: Page) {
   await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
 }
 
-async function signIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    `webhooks-clear-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    'Webhooks Clear',
-  );
-}
-
 const clear = (page: Page) =>
   page.getByRole('button', { name: 'Clear filters' });
 const serverCopy = async (page: Page) => {
@@ -85,10 +65,7 @@ const DEFAULTS = {
 test.describe('webhooks: Clear filters', () => {
   test('is always there, and enabled only while a filter differs from its default', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await signIn(page, request, baseURL);
     await open(page);
     await expect(clear(page)).toBeVisible();
     await expect(clear(page)).toBeDisabled();
@@ -108,10 +85,7 @@ test.describe('webhooks: Clear filters', () => {
 
   test('resets forge, repo, status, sort and direction, and the saved copies follow', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await signIn(page, request, baseURL);
     await open(page);
     await page.locator('input[data-filter="forge"][value="forgejo"]').check();
     await page.locator('#webhooks-repo-filter').fill('infra');
@@ -156,10 +130,7 @@ test.describe('webhooks: Clear filters', () => {
 
   test('in the empty state from an unmatched saved search it is there, reachable by keyboard, and clears it', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await signIn(page, request, baseURL);
     await open(page);
     await page.locator('#webhooks-repo-filter').fill('no-such-repo');
     await expect(page.locator('#webhooks-no-results')).toBeVisible();
@@ -200,12 +171,9 @@ test.describe('webhooks: Clear filters', () => {
     for (const width of [1280, 390]) {
       test(`has no axe violations with the control showing (${scheme}, ${width}px)`, async ({
         page,
-        request,
-        baseURL,
       }) => {
         await page.emulateMedia({ colorScheme: scheme });
         await page.setViewportSize({ width, height: 800 });
-        await signIn(page, request, baseURL);
         await open(page);
         await page.locator('#webhooks-repo-filter').fill('no-such-repo');
         await expect(clear(page)).toBeEnabled();
@@ -218,13 +186,8 @@ test.describe('webhooks: Clear filters', () => {
   }
 });
 
-test('on a phone the button is a 44 px target', async ({
-  page,
-  request,
-  baseURL,
-}) => {
+test('on a phone the button is a 44 px target', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
-  await signIn(page, request, baseURL);
   await open(page);
   await page.locator('#webhooks-status-filter').selectOption('pending');
   const box = await clear(page).boundingBox();
@@ -245,10 +208,7 @@ test('on a phone the button is a 44 px target', async ({
 
 test('each clear is announced once, and the notice goes when a filter changes', async ({
   page,
-  request,
-  baseURL,
 }) => {
-  await signIn(page, request, baseURL);
   await open(page);
   // Record every text the polite live region takes on.
   await page.evaluate(() => {
@@ -285,10 +245,7 @@ test('each clear is announced once, and the notice goes when a filter changes', 
 
 test('a mouse click clears without moving focus to the repo search', async ({
   page,
-  request,
-  baseURL,
 }) => {
-  await signIn(page, request, baseURL);
   await open(page);
   await page.locator('#webhooks-status-filter').selectOption('pending');
   await clear(page).click();

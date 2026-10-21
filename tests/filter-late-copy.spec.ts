@@ -1,7 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { clearLabels, pickedLabels, toggleLabels } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1713: the saved filters come from the cookie, read at once, and from the
 // server copy, fetched a moment later. A filter changed while that copy is
@@ -105,14 +104,7 @@ async function expectCopyApplied(
 }
 
 test.describe('an edit made while the saved copy loads wins over it (#1713)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `filter-late-copy-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Filter Late Copy',
-    );
+  test.beforeEach(async ({ page }) => {
     await stub(page);
     // What another browser saved: the box ticked, a label, an author and
     // title text picked, and a hide-titles pattern.
@@ -279,16 +271,7 @@ test.describe('an edit made while the saved copy loads wins on Webhooks', () => 
 
   test('a changed status stays and is saved, the repo search still takes the copy', async ({
     page,
-    request,
-    baseURL,
   }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `filter-late-copy-webhooks-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Filter Late Copy Webhooks',
-    );
     await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );

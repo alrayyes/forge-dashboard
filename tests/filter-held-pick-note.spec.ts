@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1620: a saved pick the page you are on does not offer is kept for the page
 // that does, so it has to be said out loud, with a way to drop it. The saved
@@ -105,14 +104,7 @@ async function seed(
 }
 
 test.describe('a saved pick the page does not offer is visible (#1620)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `held-pick-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Held Pick',
-    );
+  test.beforeEach(async ({ page }) => {
     await open(page, '/issues.html');
     await expect(issueRows(page)).toHaveCount(3);
     await page.locator('#shared-author-select').selectOption('ryan');
@@ -199,19 +191,9 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
   });
 });
 
-// These seed the saved copy directly, so they register without holding a pick
+// These seed the saved copy directly, so they start without holding a pick
 // first: an earlier page's own save could otherwise land after the seed.
 test.describe('seeded saved picks (#1620)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `held-seeded-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Held Seeded',
-    );
-  });
-
   test('a 300-character value does not push the page sideways', async ({
     page,
   }) => {

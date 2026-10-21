@@ -1,7 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { toggleLabels } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1637: two picks made one after the other each send a PUT. The server keeps
 // whichever lands last, so if the first is slow the older snapshot used to
@@ -45,16 +44,7 @@ async function open(page: Page) {
 
 test('a pick made right after another is the one the server keeps (#1637)', async ({
   page,
-  request,
-  baseURL,
 }) => {
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    `filter-save-order-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    'Filter Save Order',
-  );
   await open(page);
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 

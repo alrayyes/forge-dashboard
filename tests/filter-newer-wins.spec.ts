@@ -1,6 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1760: a filter typed just before a reload used to be overwritten by an older
 // saved copy. The page applied the copy over the cookie, and the save of the
@@ -49,14 +48,7 @@ const serverCopy = async (page: Page) =>
   JSON.stringify(await (await page.request.get(ENDPOINT)).json());
 
 test.describe('the newer saved state wins (#1760)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `filter-newer-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Filter Newer Wins',
-    );
+  test.beforeEach(async ({ page }) => {
     await stub(page);
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
