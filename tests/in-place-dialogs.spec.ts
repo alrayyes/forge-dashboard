@@ -1,15 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The pill on a pull request row that closes an issue, and the pill on an
 // issue row that a pull request will close, open that item's dialog where the
 // reader is. They do not load the other page first. Mocks /api/dashboard and
-// the details endpoints only and writes no per-user state, so it starts from
-// the shared session.
+// the details endpoints only and writes no per-user state.
 // https://github.com/alrayyes/forge-dashboard/issues/2146
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const NOW = new Date();
 const ago = (minutes: number) =>
