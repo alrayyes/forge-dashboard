@@ -1865,9 +1865,17 @@
       // The dialog hands focus back to its row. When that row left the board
       // while it was open, focus would fall to the page: put it on the first
       // row, or the list itself, instead.
+      // Just after the "close" event the closed dialog can still be the
+      // active element for a few frames, until the browser drops focus from
+      // it; that is "lost" too, or the fallback is skipped and focus then
+      // falls to the page.
       setTimeout(() => {
         const active = document.activeElement;
-        if (active && active !== document.body) return;
+        const lost =
+          !active ||
+          active === document.body ||
+          active.closest("dialog:not([open])") !== null;
+        if (!lost) return;
         const first = document.querySelector<HTMLElement>(
           "#pr-rows button.title",
         );
