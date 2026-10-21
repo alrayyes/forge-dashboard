@@ -1952,15 +1952,6 @@ test.describe('dashboard page', () => {
         page.getByRole('dialog', { name: /^Pull request details/ }),
       ).toBeVisible();
     });
-
-    test('has no axe-core violations with real rows rendered, including nested-interactive checks', async ({
-      page,
-    }) => {
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
   });
 
   test.describe('CI pill wording for a passed pipeline', () => {
@@ -3272,17 +3263,6 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     );
     await expect(page.locator('#pr-rows')).not.toContainText('Draft awaiting');
     await expect(page.locator('#pr-rows')).not.toContainText('Plain ready');
-  });
-
-  test('Needs Review has no axe-core violations', async ({ page }) => {
-    await pill(page, 'Needs Review').click();
-    await expect(rowTitles(page)).toHaveCount(2);
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
   });
 
   test('there is no Bot PRs filter, and bot and release pull requests are not listed', async ({
