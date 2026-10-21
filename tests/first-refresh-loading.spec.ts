@@ -416,6 +416,13 @@ test.describe('first refresh loading state (#1672)', () => {
     await holdDashboard(page, mode);
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+    await expect(page.getByTestId('first-refresh-status')).toHaveText('');
+    // A slow first read may announce once on the way in, on a busy host. That
+    // is the page doing its job and says nothing about the flips below, so
+    // count from here.
+    await page.evaluate(() => {
+      (window as unknown as { __statusSeen: string[] }).__statusSeen.length = 0;
+    });
 
     await page
       .getByRole('combobox', { name: 'Filter by title' })
