@@ -31,6 +31,63 @@ describe('checkSegments', () => {
   });
 });
 
+describe('checkSegments with skipped', () => {
+  test('draws skipped beside passed, which stays whole', () => {
+    expect(
+      checkSegments({
+        passed: 8,
+        skipped: 2,
+        running: 1,
+        waiting: 0,
+        failed: 0,
+      }),
+    ).toEqual([
+      { kind: 'passed', n: 8 },
+      { kind: 'skipped', n: 2 },
+      { kind: 'running', n: 1 },
+    ]);
+  });
+
+  test('drops the passed segment when every pass was skipped', () => {
+    expect(
+      checkSegments({
+        passed: 3,
+        skipped: 3,
+        running: 0,
+        waiting: 0,
+        failed: 1,
+      }),
+    ).toEqual([
+      { kind: 'skipped', n: 3 },
+      { kind: 'failed', n: 1 },
+    ]);
+  });
+
+  test('draws no skipped segment for none, or an older answer without it', () => {
+    const base = { passed: 5, running: 0, waiting: 0, failed: 0 };
+
+    expect(checkSegments({ ...base, skipped: 0 })).toEqual([
+      { kind: 'passed', n: 5 },
+    ]);
+    expect(checkSegments(base)).toEqual([{ kind: 'passed', n: 5 }]);
+  });
+
+  test('names the skipped count in words', () => {
+    expect(
+      pillName(
+        'Passed',
+        checkSegments({
+          passed: 8,
+          skipped: 2,
+          running: 0,
+          waiting: 0,
+          failed: 0,
+        }),
+      ),
+    ).toBe('Passed 8 2: 8 passed, 2 skipped');
+  });
+});
+
 describe('pillName', () => {
   test('starts with the visible text and lists each count in words', () => {
     const name = pillName(

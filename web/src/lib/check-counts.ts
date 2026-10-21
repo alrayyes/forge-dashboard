@@ -8,6 +8,9 @@ export type CheckCounts = {
   running: number;
   waiting: number;
   failed: number;
+  // How many of the passed ones were skipped: inside passed, never beside it.
+  // Absent from older answers, which reads as none.
+  skipped?: number;
 };
 
 export type CheckKind = keyof CheckCounts;
@@ -16,6 +19,7 @@ export type CheckKind = keyof CheckCounts;
 // done, what is going, what has not started, then what broke.
 export const CHECK_KINDS: readonly CheckKind[] = [
   'passed',
+  'skipped',
   'running',
   'waiting',
   'failed',
@@ -25,6 +29,7 @@ export const CHECK_KINDS: readonly CheckKind[] = [
 // the same states (check-glyphs.ts), so a state reads the same everywhere.
 export const CHECK_KIND_GLYPH: Record<CheckKind, string> = {
   passed: 'success',
+  skipped: 'skipped',
   running: 'running',
   waiting: 'queued',
   failed: 'failure',
@@ -34,13 +39,20 @@ export type CheckSegment = { kind: CheckKind; n: number };
 
 // The counts to draw, in order, with a zero never drawn. Nothing at all for no
 // counts, which leaves the plain pill.
+//
+// Skipped is a subset of passed (the server keeps passed whole, so it still
+// counts every check that needs nothing more), drawn as its own segment beside
+// it. When every passed check was skipped nothing really passed, so the passed
+// segment gives way and the pill reads as skipped alone.
 export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
   if (!counts) return [];
+  const skipped = counts.skipped ?? 0;
 
   return CHECK_KINDS.flatMap((kind) => {
     const n = counts[kind];
+    if (kind === 'passed' && skipped > 0 && n === skipped) return [];
 
-    return Number.isInteger(n) && n > 0 ? [{ kind, n }] : [];
+    return n !== undefined && Number.isInteger(n) && n > 0 ? [{ kind, n }] : [];
   });
 }
 
