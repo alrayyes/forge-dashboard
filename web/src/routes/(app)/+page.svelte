@@ -517,28 +517,28 @@
       width: auto;
       min-width: 120px;
     }
-    .mb-row :global(.ci-pill) {
+    .mb-row .ci-pill {
       box-sizing: border-box;
       justify-content: center;
       min-height: 32px;
       padding: 6px 14px;
       font-size: 13px;
     }
-    .mb-row :global(.ci-pill .check-glyph) {
+    .mb-row .ci-pill .check-glyph {
       width: 14px;
       height: 14px;
     }
     /* A pill with counts is a capsule of segments that carry their own
        padding, and its slot grows to it, as on the pull request pages. */
-    .mb-row :global(.ci-pill.segmented) {
+    .mb-row .ci-pill.segmented {
       padding: 0;
       justify-content: flex-start;
     }
-    .mb-row :global(.ci-pill.segmented .check-glyph) {
+    .mb-row .ci-pill.segmented .check-glyph {
       width: 12px;
       height: 12px;
     }
-    .mb-row .ci-slot:has(:global(.ci-pill.segmented)) {
+    .mb-row .ci-slot:has(.ci-pill.segmented) {
       width: max-content;
     }
     /* Right edge on the slot's right edge, as tall as the pills beside it, so
@@ -573,7 +573,7 @@
       }
     }
     @media (max-width: 760px) {
-      .mb-row :global(.ci-pill) {
+      .mb-row .ci-pill {
         min-height: 44px;
       }
     }
