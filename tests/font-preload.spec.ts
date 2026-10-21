@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 
 // #1255: Lighthouse blamed the footer's layout shifts on the Plex web fonts
 // arriving after first paint. A preload link in the page head starts those

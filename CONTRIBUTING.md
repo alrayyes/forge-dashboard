@@ -148,10 +148,11 @@ means a test raced the page, so fix the wait rather than adding a retry. A
 test that stays flaky gets `test.fixme`/an annotation naming the reason and a
 linked issue.
 
-Specs live in one of two Playwright projects (`playwright.config.ts`). `legacy`
-is the original: one shared server, users made through admin invites. The
-`single-user` project, listed by name in the config, gives every worker a server
-of its own and one signed-in owner, so a spec needs no registration of its own:
+Every spec runs in the `single-user` Playwright project (`playwright.config.ts`),
+listed by name in the config. (The old `legacy` project, one shared server with
+users made through admin invites, no longer runs any spec.) It gives every worker
+a server of its own and one signed-in owner, so a spec needs no registration of
+its own:
 
 - Import `test` from `tests/server-fixture.ts`. The `server` fixture (once per
   worker) starts the binary on a free port with a temp database and registers
