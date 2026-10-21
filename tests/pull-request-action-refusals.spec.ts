@@ -5,8 +5,7 @@ import {
   openActionsDialog,
   viaActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // Close, Update branch, Enable auto-merge, and the Dependabot and Renovate
 // rebases answer a refused request the way Merge does (#751): a structured
@@ -239,14 +238,8 @@ async function axeClean(page: Page) {
 
 for (const d of drivers) {
   test.describe(`${d.name} explains a refusal from the server code`, () => {
-    test.beforeEach(async ({ page, request, baseURL }) => {
-      await registerViaInvite(
-        page,
-        request,
-        baseURL,
-        `pr-refusal-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-        'PR Refusal User',
-      );
+    test.beforeEach(async ({ page }) => {
+      await landOnPullRequests(page);
       // Bot pull requests are on the Bots page, not the main list (#1192).
       if (d.name === 'Dependabot: Rebase' || d.name === 'Renovate: Rebase')
         await page.goto('/bots.html');
@@ -485,14 +478,8 @@ for (const d of drivers) {
 }
 
 test.describe('Enable auto-merge with a transient refusal', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `pr-refusal-am-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'PR Refusal User',
-    );
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('checks_pending keeps the button clickable: trying again once checks settle can work', async ({

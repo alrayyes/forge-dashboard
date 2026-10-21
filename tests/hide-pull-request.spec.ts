@@ -1,28 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // Hide one pull request, with Undo and a Hidden list (#841). The server owns
 // the hiding (POST /api/pull-requests/hide, /unhide, and `hiddenPullRequests`
 // plus `includeHidden` on the dashboard), so the page is a stand-in server
 // here: it keeps the hidden set and answers the way the real one does.
 // https://github.com/alrayyes/forge-dashboard/issues/841
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `hide-pr-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Hide PR User');
-}
 
 type Hidden = { until: string | null };
 
@@ -141,8 +126,8 @@ async function footerOf(page: Page, title: string) {
 }
 
 test.describe('hiding one pull request (#841)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('the dialog footer offers Hide this pull request and Hide for 7 days', async ({
@@ -251,8 +236,8 @@ test.describe('hiding one pull request (#841)', () => {
 });
 
 test.describe('the Hidden list (#841)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   const in6Days = () => new Date(Date.now() + 5.2 * 86_400_000).toISOString();
@@ -334,8 +319,8 @@ test.describe('the Hidden list (#841)', () => {
 });
 
 test.describe('hiding is accessible (#841)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];

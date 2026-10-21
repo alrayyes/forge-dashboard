@@ -1,26 +1,11 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 import { severityOf } from './severity-stand-in';
 
 // A rate limit is a "wait until" condition, not a transient fault: the
 // forge says when it resets, so the blocked actions are greyed out with
 // that time, carry no Retry button, and come back by themselves.
 // https://github.com/alrayyes/forge-dashboard/issues/732
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `rate-limit-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Rate Limit User');
-}
 
 interface RateLimit {
   limit: number;
@@ -93,11 +78,11 @@ async function expectLockedWithoutRetry(row: Locator, label: string) {
 }
 
 test.describe('rate-limited actions (#732)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
+  test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await registerAndSignIn(page, request, baseURL);
+    await landOnPullRequests(page);
   });
 
   test('grouped by repo, the reset time is stated once in the banner, not under each group', async ({
