@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // The helper the specs use to reach a row's actions in its dialog. Mocks
 // /api/dashboard and the details endpoint only and writes no per-user state,
-// so it starts from the shared session.
+// so it runs on the single-user fixture.
 
 const now = new Date().toISOString();
 
