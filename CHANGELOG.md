@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.254.0](https://github.com/alrayyes/forge-dashboard/compare/v0.253.2...v0.254.0) (2026-10-21)
+
+
+### Features
+
+* **auth:** keep the oldest user on upgrade and let only the first passkey win ([#2187](https://github.com/alrayyes/forge-dashboard/issues/2187)) ([6f1cbb4](https://github.com/alrayyes/forge-dashboard/commit/6f1cbb48ba98945bcbe1c3751baf3b35994df503))
+
 ## [0.253.2](https://github.com/alrayyes/forge-dashboard/compare/v0.253.1...v0.253.2) (2026-10-21)
 
 
