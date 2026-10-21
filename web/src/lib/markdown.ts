@@ -118,6 +118,8 @@ function references(state: StateCore): void {
   }
 }
 
+const MONO_LABEL = /^(#\d+|[0-9a-f]{7,40})$/;
+
 function create(
   MarkdownItCtor: typeof MarkdownIt,
   emoji: (
@@ -130,7 +132,7 @@ function create(
   emoji(md, { shortcuts: {} });
   md.core.ruler.after('inline', 'task-lists', taskLists);
   md.core.ruler.after('linkify', 'references', references);
-  md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
+  md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
     const href = String(tokens[idx].attrGet('href') ?? '');
     // Only absolute http(s) and mailto links are links. A relative or
     // protocol-relative href would resolve against the dashboard's own
@@ -141,6 +143,15 @@ function create(
       const close = tokens.slice(idx + 1).find((t) => t.type === 'link_close');
       if (close) close.tag = 'span';
       return self.renderToken(tokens, idx, options);
+    }
+    // Release notes ask for it: a link labelled `#123` or a commit hash is a
+    // reference, not prose, so it gets the mono class. The label is matched,
+    // never the surrounding text.
+    if (
+      (env as { monoReferences?: boolean } | undefined)?.monoReferences &&
+      MONO_LABEL.test(tokens[idx + 1]?.content ?? '')
+    ) {
+      tokens[idx].attrSet('class', 'mono');
     }
     tokens[idx].attrSet('target', '_blank');
     tokens[idx].attrSet('rel', 'noopener noreferrer');
@@ -164,11 +175,15 @@ function load(): Promise<Renderer> {
 }
 
 // `repoUrl` is the repository the text belongs to; with it, `#12` and
-// `owner/repo#12` link to the item on that forge.
+// `owner/repo#12` link to the item on that forge. `monoReferences` gives a
+// link labelled with a number or a commit hash the `mono` class.
 export async function renderMarkdown(
   text: string,
-  options: { repoUrl?: string | null } = {},
+  options: { repoUrl?: string | null; monoReferences?: boolean } = {},
 ): Promise<string> {
   const repoUrl = options.repoUrl ?? undefined;
-  return (await load()).render(text, { repoUrl });
+  return (await load()).render(text, {
+    repoUrl,
+    monoReferences: options.monoReferences,
+  });
 }
