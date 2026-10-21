@@ -1,24 +1,9 @@
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 
 // Show row on a pull request that the CI pill or auto-merge filter hides
 // has to clear that filter where the page keeps it (the pull-request group),
 // leave the filters that do not hide the row alone, and save the result.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `show-row-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Show Row');
-}
 
 function pr(number: number, ci: string, autoMergeEnabled: boolean) {
   return {
@@ -109,10 +94,6 @@ async function savedCopies(page: Page) {
 }
 
 test.describe('Show row clears the filter that hides the row', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('the Failing CI pill', async ({ page }) => {
     await open(page);
     await queueOnFirst(page);

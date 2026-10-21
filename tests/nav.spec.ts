@@ -1,7 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { STORAGE_STATE_PATH as ADMIN_STORAGE_STATE } from './admin-global-setup';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // Coverage for issue #269: one persistent nav, shared markup, present and
 // consistent on every page rather than a per-page "back to X" link.
@@ -50,10 +48,6 @@ const NO_SESSION_PAGES = [
   '/disclaimer.html',
   '/privacy.html',
 ];
-
-// The tests only read the nav and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('persistent top nav', () => {
   for (const { path, label } of NAV_PAGES) {
@@ -278,21 +272,12 @@ test.describe('mobile bottom tab bar', () => {
 
 test.describe('persistent top nav, first registered user', () => {
   test('there is no Admin icon even for the first registered user, and /admin.html is a 404', async ({
-    browser,
+    page,
   }) => {
-    const adminContext = await browser.newContext({
-      storageState: ADMIN_STORAGE_STATE,
-    });
-    try {
-      const adminPage = await adminContext.newPage();
+    await page.goto('/settings.html');
+    await expect(page.locator('#admin-link')).toHaveCount(0);
 
-      await adminPage.goto('/settings.html');
-      await expect(adminPage.locator('#admin-link')).toHaveCount(0);
-
-      const res = await adminPage.goto('/admin.html');
-      expect(res?.status()).toBe(404);
-    } finally {
-      await adminContext.close();
-    }
+    const res = await page.goto('/admin.html');
+    expect(res?.status()).toBe(404);
   });
 });

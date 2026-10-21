@@ -48,7 +48,7 @@ func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, act
 
 	refusal := dashboard.ClassifyActionRefusalFor(action, actionErr, state)
 	status := clientErrorStatus(actionErr)
-	if refusal.Code == dashboard.ActionAlreadyMerged || refusal.Code == dashboard.ActionAlreadyClosed {
+	if refusal.Code == dashboard.ActionAlreadyMerged || refusal.Code == dashboard.ActionAlreadyClosed || refusal.Code == dashboard.ActionNotReopenable {
 		status = http.StatusConflict
 	}
 	writeRefusal(w, status, refusal, actionErr, "action", string(action), "repo", owner+"/"+name, "number", number)

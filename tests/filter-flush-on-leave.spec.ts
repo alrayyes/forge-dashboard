@@ -1,6 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1620: free text is saved to the server 500 ms after the last keystroke.
 // Leaving the page inside that window used to lose the value from the server
@@ -52,14 +51,7 @@ const cookieCopy = async (page: Page) => {
 };
 
 test.describe('a value typed just before leaving is kept (#1620)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `filter-flush-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Filter Flush',
-    );
+  test.beforeEach(async ({ page }) => {
     await stub(page);
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(2);

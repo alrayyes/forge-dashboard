@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 interface MockLabel {
   name: string;
@@ -76,14 +75,10 @@ async function openFooter(row: Locator) {
   return actionsFooter(await openActionsDialog(row));
 }
 
-// Every endpoint is mocked and nothing is saved per user, so the whole file
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
 test.describe('pull request Renovate rebase button', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await mockSettings(page);

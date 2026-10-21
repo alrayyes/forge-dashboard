@@ -145,6 +145,21 @@ locked" and the reason, in words. That way you don't open every pop-up to find
 the refused one. The note goes when the lock does: a permission lock stands
 until you dismiss the failure line, and a rate-limit lock clears on the next
 refresh.
+A Close from the pop-up doesn't shut it. The pop-up stays on the pull request,
+the header says "Closed", and the footer offers "Reopen pull request" with focus
+on it, so a slip is one press from undone. There is no timer: Reopen stays until
+you close the pop-up, and a screen reader hears "Closed. Reopen it if that was a
+mistake." once. The confirm step before Close stays, because a closed pull
+request can leave a branch behind that a reopen can't bring back. Reopen puts
+the pull request back on the board with a refresh and returns the pop-up to its
+normal footer. Closing the pop-up without reopening leaves it off the board, as
+before. The dashboard can't know in advance whether the forge will reopen a pull
+request, so it asks and reads the refusal: one that was merged says "It was
+merged in the meantime, so it can't be reopened.", and one the forge won't
+reopen, usually because its branch was deleted or rewritten, says so in words
+and drops Reopen, leaving the link to the forge.
+A permission or rate-limit refusal reads the same as for any other action, and a
+forge error keeps Reopen with Retry and Copy.
 A permission refusal is re-read too: if the pull request turns out to be
 merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.

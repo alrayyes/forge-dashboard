@@ -1,33 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 
 // #1455: filter pull requests by CI passing and running (quick pills next to
 // Failing CI) and by whether auto-merge is on (a segment that combines with a
 // pill). A pull request whose forge doesn't report auto-merge is in neither On
 // nor Off.
 // https://github.com/alrayyes/forge-dashboard/issues/1455
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `auto-merge-filter-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Auto Merge Filter',
-  );
-}
 
 function pr(
   number: number,
@@ -99,10 +78,6 @@ const am = (page: Page, value: 'any' | 'on' | 'off') =>
 const titles = (page: Page) => page.locator('#pr-rows > .row .title-text');
 
 test.describe('CI pills and the auto-merge filter (#1455)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('Passing CI and Running CI keep only the pull requests in that CI state', async ({
     page,
   }) => {
@@ -240,7 +215,6 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
 
   test('a saved choice that is not on or off reads as Any', async ({
     page,
-    request,
   }) => {
     await open(page);
     const saved = page.waitForResponse(

@@ -564,6 +564,24 @@ func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// ReopenPullRequest implements dashboard.PullRequestReopener: puts a closed
+// owner/name#number back to open through the same edit call
+// ClosePullRequest uses.
+func (c *Client) ReopenPullRequest(ctx context.Context, owner, name string, number int) error {
+	c = c.withContext(ctx)
+
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
+	open := gitea.StateOpen
+	_, resp, err := c.sdk.EditPullRequest(owner, name, int64(number), gitea.EditPullRequestOption{State: &open})
+	if err != nil {
+		return c.forgejoError(ctx, http.MethodPatch, path, resp, err)
+	}
+	c.recordRequest(ctx, http.MethodPatch, path, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	return nil
+}
+
 // UpdateBranch implements dashboard.BranchUpdater: merges owner/name#number's
 // base branch into its head branch, bringing it up to date. Forgejo's SDK
 // call is synchronous — accepted is always false here — unlike GitHub's

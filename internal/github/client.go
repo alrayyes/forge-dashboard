@@ -754,6 +754,23 @@ func (c *Client) ClosePullRequest(ctx context.Context, owner, name string, numbe
 	return nil
 }
 
+// ReopenPullRequest implements dashboard.PullRequestReopener: puts a closed
+// owner/name#number back to open with the same Edit call ClosePullRequest
+// uses. GitHub refuses with a 422 when the head branch was deleted or
+// force-pushed since the close, and for a merged pull request.
+func (c *Client) ReopenPullRequest(ctx context.Context, owner, name string, number int) error {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("github request", "method", http.MethodPatch, "url", path)
+	state := "open"
+	_, resp, err := c.restClient.PullRequests.Edit(ctx, owner, name, number, &ghsdk.PullRequest{State: &state})
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodPatch, path, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
+
+	return nil
+}
+
 // mergeMethodFor picks a merge method repo actually allows — "merge"
 // first (the previous, implicit default) when it's still enabled and the
 // base branch doesn't require linear history, then "squash", then

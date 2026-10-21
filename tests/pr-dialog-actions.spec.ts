@@ -1,14 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The details dialog's footer carries every action its row offers: the
 // primary one first, Close last, a locked one drawn greyed with its reason as
 // text. Mocks /api/dashboard, the details endpoint and the action endpoints
-// only and writes no per-user state, so it starts from the shared session.
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+// only.
 
 type Entry = {
   action: string;

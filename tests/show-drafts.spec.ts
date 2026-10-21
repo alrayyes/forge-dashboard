@@ -1,26 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #791: draft pull requests are left out by the API unless asked for. The
 // filter bar carries a quiet "Show drafts" toggle with a muted count of what
 // is hidden; the choice persists like the other filters and rides on the
 // dashboard fetch, the refresh POST and the live stream.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `drafts-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Drafts Test User');
-}
 
 interface MockPR {
   forge: string;
@@ -114,8 +99,8 @@ const toggle = (page: Page) =>
 const rows = (page: Page) => page.locator('#pr-rows .row');
 
 test.describe('show drafts (#791)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('drafts are left out by default, with a muted hidden count on an off toggle', async ({

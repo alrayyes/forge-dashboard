@@ -1,6 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // The page's own "Hide Dependency Dashboard" checkbox has to come back the way
 // it was left, from the cookie and, on a browser without the cookie, from the
@@ -95,14 +94,7 @@ for (const [label, path] of [
   ['Insights', '/insights.html'],
 ] as const) {
   test.describe(`${label}: Hide Dependency Dashboard is restored`, () => {
-    test.beforeEach(async ({ page, request, baseURL }) => {
-      await registerViaInvite(
-        page,
-        request,
-        baseURL,
-        `hide-dd-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-        'Hide DD',
-      );
+    test.beforeEach(async ({ page }) => {
       await open(page, path);
       await expect(checkbox(page)).toBeChecked();
       await expectList(page, label, true);

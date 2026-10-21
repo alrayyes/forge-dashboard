@@ -1,26 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 
 // #1427: the Created and Updated ranges and the forge
 // buttons offer only choices that exist in the results, like the repo, author
 // and label selects do.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `static-choices-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Static Choices');
-}
 
 const ago = (hours: number) =>
   new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
@@ -73,10 +58,6 @@ const CREATED = 'select[data-col="created"]';
 const UPDATED = 'select[data-col="updated"]';
 
 test.describe('age choices on the pull request page (#1427)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('offer only the age ranges something falls in', async ({ page }) => {
     await open(page, '/pull-requests.html', [
       pr(1, { ci: 'success', createdAt: ago(48), updatedAt: ago(2) }),
@@ -122,10 +103,6 @@ test.describe('age choices on the pull request page (#1427)', () => {
 });
 
 test.describe('forge buttons on Insights (#1427)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   const forgeLabel = (page: Page, value: string) =>
     page.locator(
       `.filter-bar label:has(input[data-col="forge"][value="${value}"])`,

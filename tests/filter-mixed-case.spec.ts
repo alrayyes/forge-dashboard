@@ -1,7 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { labelButton, pickedLabels, toggleLabels } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1620: an author or label with capitals ("Ryan", "Bug") is saved lowercase,
 // and used to be cleared the moment it was picked because the rebuilt select
@@ -54,14 +53,7 @@ async function open(page: Page, url: string) {
 const issueRows = (page: Page) => page.locator('#issue-rows > .row');
 
 test.describe('a pick with capitals stays picked (#1620)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `filter-mixed-case-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Filter Mixed Case',
-    );
+  test.beforeEach(async ({ page }) => {
     await open(page, '/issues.html');
     await expect(issueRows(page)).toHaveCount(3);
   });

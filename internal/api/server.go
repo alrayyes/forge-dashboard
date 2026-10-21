@@ -157,6 +157,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/pull-requests/auto-update", auth.RequireAuth(deps.AuthStore)(handlePullRequestAutoUpdate(deps)))
 	mux.Handle("POST /api/pull-requests/auto-merge/cancel", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestAutoMergeCancel(deps))))
 	mux.Handle("POST /api/pull-requests/close", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestClose(deps))))
+	mux.Handle("POST /api/pull-requests/reopen", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestReopen(deps))))
 	mux.Handle("POST /api/pull-requests/update-branch", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestUpdateBranch(deps))))
 	mux.Handle("POST /api/pull-requests/rerun-checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestRerunChecks(deps))))
 	mux.Handle("POST /api/pull-requests/dependabot-action", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestDependabotAction(deps))))

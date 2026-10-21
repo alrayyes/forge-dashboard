@@ -44,7 +44,10 @@ const (
 	// ActionNotOpen: a queued action found its pull request gone from the
 	// board when the reset came, merged or closed meanwhile.
 	ActionNotOpen ActionCode = "not_open"
-	ActionUnknown ActionCode = "unknown"
+	// ActionNotReopenable: the forge won't reopen a closed pull request,
+	// usually because its head branch was deleted or rewritten since.
+	ActionNotReopenable ActionCode = "not_reopenable"
+	ActionUnknown       ActionCode = "unknown"
 )
 
 // ActionRefusal is the classified outcome of a refused action. Message is
@@ -128,6 +131,7 @@ type PullRequestAction string
 const (
 	PullRequestActionMerge           PullRequestAction = "merge"
 	PullRequestActionClose           PullRequestAction = "close"
+	PullRequestActionReopen          PullRequestAction = "reopen"
 	PullRequestActionUpdateBranch    PullRequestAction = "update_branch"
 	PullRequestActionAutoMerge       PullRequestAction = "auto_merge"
 	PullRequestActionCancelAutoMerge PullRequestAction = "cancel_auto_merge"
@@ -158,7 +162,7 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	// A pull request already merged or closed comes before a permission
 	// refusal (#904): the forge refuses that call with a 403 as well, and
 	// "check your token" would send the user the wrong way.
-	if r, ok := refusalFromFinishedState(state); ok {
+	if r, ok := refusalFromFinishedState(action, state); ok {
 		return r
 	}
 	if r, ok := refusalFromWorkflowChange(action, actionErr, state); ok {
@@ -168,7 +172,12 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 		return r
 	}
 
-	forgeText := ForgeMessage(actionErr)
+	return classifyByAction(action, actionErr, ForgeMessage(actionErr), state)
+}
+
+// classifyByAction is the part of the classification that depends on which
+// action was refused.
+func classifyByAction(action PullRequestAction, actionErr error, forgeText string, state *PullRequestState) ActionRefusal {
 	switch action {
 	case PullRequestActionMerge:
 		if state != nil {
@@ -184,17 +193,41 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 			// the label: Forgejo takes an existing label's ID.
 			return ActionRefusal{Code: ActionLabelMissing, Message: "The rebase label doesn't exist on this repo. Create it there first."}
 		}
+	case PullRequestActionReopen:
+		if r, ok := classifyReopenRefusal(actionErr); ok {
+			return r
+		}
 	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionRerunChecks:
 	}
 
 	return unknownRefusal(actionErr, forgeText)
 }
 
+// classifyReopenRefusal says a refused Reopen is one the forge won't do. Only
+// an answer from the forge that refuses the request counts (a conflict, or a
+// 4xx such as GitHub's 422 that has no kind of its own). A pull request the
+// forge can't find, an unreachable forge and an error that isn't a forge
+// answer at all fall through to the generic answer, so the dialog keeps its
+// Retry instead of dropping Reopen.
+func classifyReopenRefusal(actionErr error) (ActionRefusal, bool) {
+	clientErr, ok := errors.AsType[*ClientError](actionErr)
+	if !ok {
+		return ActionRefusal{}, false
+	}
+
+	if clientErr.Kind != ForgeErrorConflict && clientErr.Kind != ForgeErrorUnknown {
+		return ActionRefusal{}, false
+	}
+
+	return ActionRefusal{Code: ActionNotReopenable, Message: notReopenableMessage}, true
+}
+
 const (
-	noReasonMessage     = "The forge refused this action and gave no reason."
-	unreachableMessage  = "The forge didn't answer. Try again in a moment."
-	forgeFailedMessage  = "The forge had a server error. Try again in a moment."
-	maxPlainMessageSize = 200
+	notReopenableMessage = "The forge won't reopen this pull request. Usually its branch was deleted or rewritten after it was closed: restore the branch on the forge, then try again."
+	noReasonMessage      = "The forge refused this action and gave no reason."
+	unreachableMessage   = "The forge didn't answer. Try again in a moment."
+	forgeFailedMessage   = "The forge had a server error. Try again in a moment."
+	maxPlainMessageSize  = 200
 )
 
 // unknownRefusal is the answer when no code fits. Its message is shown to a
@@ -371,14 +404,15 @@ func refusalFromFlags(state *PullRequestState) (ActionRefusal, bool) {
 
 // refusalFromFinishedState is the answer for a pull request found already
 // merged or closed, whatever the forge's own refusal said. False when state
-// is nil (no re-read) or the pull request is still open.
-func refusalFromFinishedState(state *PullRequestState) (ActionRefusal, bool) {
+// is nil (no re-read) or the pull request is still open. A Reopen is asked of
+// a closed pull request, so for it only a merge counts.
+func refusalFromFinishedState(action PullRequestAction, state *PullRequestState) (ActionRefusal, bool) {
 	switch {
 	case state == nil:
 		return ActionRefusal{}, false
 	case state.Merged:
 		return ActionRefusal{Code: ActionAlreadyMerged, Message: "This pull request was already merged."}, true
-	case state.Closed:
+	case state.Closed && action != PullRequestActionReopen:
 		return ActionRefusal{Code: ActionAlreadyClosed, Message: "This pull request was closed without merging."}, true
 	}
 

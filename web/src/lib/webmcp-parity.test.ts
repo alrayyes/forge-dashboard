@@ -108,6 +108,7 @@ const PENDING_OPERATIONS = [
   'enablePullRequestAutoMerge',
   'cancelPullRequestAutoMerge',
   'closePullRequest',
+  'reopenPullRequest',
   'rerunPullRequestChecks',
   'hidePullRequest',
   'unhidePullRequest',
