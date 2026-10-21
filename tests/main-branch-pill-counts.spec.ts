@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
 // The pills on the Main branches page say how far a default branch's pipeline
@@ -100,10 +100,6 @@ const segments = (page: Page, repo: string) =>
   pill(page, repo).locator('.ci-seg:not(.ci-seg-label)');
 
 test.describe('Main branches pill counts (#2074)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('a failed branch draws its counts in order, with checks still going', async ({
     page,
   }) => {
