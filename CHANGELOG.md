@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/alrayyes/forge-dashboard/compare/v1.1.2...v1.2.0) (2026-10-21)
+
+
+### Features
+
+* **dashboard:** remember the hook's events and the last delivery per event class ([#2272](https://github.com/alrayyes/forge-dashboard/issues/2272)) ([181e0b7](https://github.com/alrayyes/forge-dashboard/commit/181e0b74e2df3130dc9908d73c26f5f97f3c9805))
+* **web:** open the release dialog from the Main branches tag ([#2273](https://github.com/alrayyes/forge-dashboard/issues/2273)) ([d4c18fb](https://github.com/alrayyes/forge-dashboard/commit/d4c18fb682414ccc5b93b12042cc960c49f79d70))
+
 ## [1.1.2](https://github.com/alrayyes/forge-dashboard/compare/v1.1.1...v1.1.2) (2026-10-21)
 
 
