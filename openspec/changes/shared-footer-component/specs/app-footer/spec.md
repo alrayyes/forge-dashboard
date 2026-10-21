@@ -3,16 +3,16 @@
 ## Purpose
 
 Defines the footer shown on every page that has one — the
-source link, the running version, and
-which self-referential links (Disclaimer, Privacy, Release history) are
-suppressed when already on that page.
+source link, the running version, and which self-referential links
+(Disclaimer, Privacy, Release history) are suppressed when already on that
+page.
 
 ## ADDED Requirements
 
 ### Requirement: Footer content
 
-Every page with a footer SHALL show a link to the project's source, and the
-running server's version.
+Every page with a footer SHALL show a link to the project's source and the running
+server's version.
 
 #### Scenario: Footer present on every page that has one
 
