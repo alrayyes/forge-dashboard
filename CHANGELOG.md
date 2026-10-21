@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/alrayyes/forge-dashboard/compare/v1.0.0...v1.0.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** drop the mirror statement from the footer so it fits one line ([#2235](https://github.com/alrayyes/forge-dashboard/issues/2235)) ([b9618dd](https://github.com/alrayyes/forge-dashboard/commit/b9618dd304bbb68bd6ed16675843c593067a8dc4))
+
 ## [1.0.0](https://github.com/alrayyes/forge-dashboard/compare/v0.257.0...v1.0.0) (2026-10-21)
 
 
