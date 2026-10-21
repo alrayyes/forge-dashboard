@@ -167,7 +167,7 @@ const singleUserSpecs = [
 const unlisted = unlistedSpecs(path.join(__dirname, 'tests'), singleUserSpecs);
 if (unlisted.length > 0) {
   throw new Error(
-    `playwright.config.ts: add ${unlisted.join(', ')} to singleUserSpecs; a spec outside the list never runs`,
+    `playwright.config.ts: singleUserSpecs and tests/ disagree on ${unlisted.join(', ')}; add a missing spec to the list, drop or rename a stale entry`,
   );
 }
 

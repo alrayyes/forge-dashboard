@@ -26,6 +26,13 @@ test('a spec the list does not name is reported', () => {
   expect(unlistedSpecs(dir, ['**/a.spec.ts'])).toEqual(['b.spec.ts']);
 });
 
+test('a listed entry with no spec behind it is reported', () => {
+  const dir = testDir(['a.spec.ts']);
+  expect(unlistedSpecs(dir, ['**/a.spec.ts', '**/renamed.spec.ts'])).toEqual([
+    'renamed.spec.ts',
+  ]);
+});
+
 test('helpers that are not specs are ignored', () => {
   const dir = testDir(['a.spec.ts', 'helper.ts']);
   expect(unlistedSpecs(dir, ['**/a.spec.ts'])).toEqual([]);
