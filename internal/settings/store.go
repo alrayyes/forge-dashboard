@@ -93,6 +93,8 @@ func (c Credentials) RenovateRebaseLabelOrDefault() string {
 type Store struct {
 	db     *sql.DB
 	cipher *Cipher
+	// etagCap is the byte cap on the cached bodies; zero means the default.
+	etagCap int
 }
 
 // NewStore wraps db, encrypting and decrypting every token field through
@@ -158,7 +160,11 @@ func (s *Store) Init(ctx context.Context) error {
 		return fmt.Errorf("settings: create schema: %w", err)
 	}
 
-	return s.addColumnsIfMissing(ctx)
+	if err := s.addColumnsIfMissing(ctx); err != nil {
+		return err
+	}
+
+	return s.initCache(ctx)
 }
 
 // addColumnsIfMissing exists for a database that already had this table
