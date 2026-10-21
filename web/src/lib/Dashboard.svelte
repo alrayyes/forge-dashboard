@@ -29,6 +29,7 @@
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import { ciSignature } from "#lib/pipeline-live.js";
   import * as Filters from "#lib/filters.js";
+  import { choicesChange, shownList } from "#lib/shown-list.js";
   import {
     type LabelFilterControl,
     joinLabels,
@@ -4048,7 +4049,7 @@
       ].some((stateMap) => Object.values(stateMap).some(inFlight));
     }
 
-    // Live updates land by themselves. shownPRs is what the board is
+    // Live updates land by themselves. prShown.items is what the board is
     // showing; latestPRs is the newest snapshot's list that hasn't been
     // applied yet. Each incoming snapshot is compared with what's shown:
     //   - a row whose own content changed (CI, merge status, behind,
@@ -4062,7 +4063,7 @@
     //     asked for applies in full unless one of those holds.
     // The open details dialog is not a hold: the board behind it keeps
     // updating, and the dialog follows its own pull request.
-    let shownPRs: PullRequestItem[] = [];
+    const prShown = shownList<PullRequestItem>();
     let latestPRs: PullRequestItem[] | null = null;
     // The newest snapshot in the server's own order, so a sort change can
     // go back to "Last activity" rather than re-sorting an already
@@ -4080,7 +4081,7 @@
     // applies at once. A row whose own
     // content changed is replaced where it stands, and a snapshot that
     // changes nothing renders nothing.
-    let shownIssues: IssueItem[] = [];
+    const issueShown = shownList<IssueItem>();
     let latestIssues: IssueItem[] | null = null;
     let rawIssues: IssueItem[] = [];
     let latestIssuesAsked = false;
@@ -4597,34 +4598,27 @@
     // happens to leave it out while the row is still on screen (#918).
     function retireFailuresOfRemoved(next: PullRequestItem[]) {
       const keep = new Set(next.map((p) => prKey(p)));
-      for (const p of shownPRs)
+      for (const p of prShown.items)
         if (!keep.has(prKey(p))) feedback.dropFailedFor(prKey(p), "");
     }
-
-    // Whether a list has landed yet, so an empty one on screen is empty and
-    // not just not here yet (#2196).
-    let prListLanded = false;
-    let issueListLanded = false;
 
     // offer: false when the caller offers the choices itself, after this.
     function applyPendingNow(offer = true) {
       const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
       retireFailuresOfRemoved(sorted);
-      const before = shownPRs;
-      shownPRs = sorted;
-      prListLanded = true;
-      if (offer && choicesDiffer(before, shownPRs)) offerWhatIsShown();
-      prBoard.replaceItems(shownPRs);
+      const before = prShown.items;
+      prShown.land(sorted);
+      if (offer) offerWhatIsShown(choicesChange(before, prShown.items));
+      prBoard.replaceItems(prShown.items);
       latestPRs = null;
       latestIsUserAsked = false;
     }
 
     function applyPendingIssuesNow(offer = true) {
-      const before = shownIssues;
-      shownIssues = Filters.sortItems(rawIssues, sharedState.view.sort);
-      issueListLanded = true;
-      if (offer && choicesDiffer(before, shownIssues)) offerWhatIsShown();
-      issueBoard.replaceItems(shownIssues);
+      const before = issueShown.items;
+      issueShown.land(Filters.sortItems(rawIssues, sharedState.view.sort));
+      if (offer) offerWhatIsShown(choicesChange(before, issueShown.items));
+      issueBoard.replaceItems(issueShown.items);
       latestIssues = null;
       latestIssuesAsked = false;
     }
@@ -4669,14 +4663,11 @@
 
     // Returns true when it rendered the board.
     function reconcileIssues(): boolean {
-      const before = shownIssues;
-      const wasLanded = issueListLanded;
+      const before = issueShown.items;
+      const wasLanded = issueShown.landed;
       const rendered = settleIssues();
-      if (
-        (before.length > 0 || wasLanded) &&
-        choicesDiffer(before, shownIssues)
-      )
-        offerWhatIsShown();
+      if (before.length > 0 || wasLanded)
+        offerWhatIsShown(choicesChange(before, issueShown.items));
       return rendered;
     }
 
@@ -4684,7 +4675,7 @@
       if (!latestIssues) {
         return false;
       }
-      const userAsked = latestIssuesAsked || shownIssues.length === 0;
+      const userAsked = latestIssuesAsked || issueShown.items.length === 0;
       // Only what the list would show counts: a change to an issue the
       // filters or the hidden-by-default housekeeping flag keep off screen
       // moves nothing, so it waits for nothing (#1198).
@@ -4697,34 +4688,35 @@
             sharedState.issue,
           ),
         );
-      const diff = Filters.diffItems(onList(shownIssues), onList(latestIssues));
+      const diff = Filters.diffItems(
+        onList(issueShown.items),
+        onList(latestIssues),
+      );
       const structural = diff.added + diff.removed + diff.moved;
 
       if (structural === 0 && diff.changed.length === 0) {
         // Nothing on screen differs, but the rows off screen may. Keep them
         // current so a filter change later shows fresh data, without drawing.
-        shownIssues = latestIssues;
-        issueListLanded = true;
+        issueShown.land(latestIssues);
         latestIssues = null;
         if (!issuesDrawn) {
           issuesDrawn = true;
-          issueBoard.setItems(shownIssues, true);
+          issueBoard.setItems(issueShown.items, true);
 
           return true;
         }
-        issueBoard.replaceItems(shownIssues);
+        issueBoard.replaceItems(issueShown.items);
 
         return false;
       }
       const held = issuesHoldBoard(userAsked);
       if (!held && (structural > 0 || userAsked)) {
         if (!userAsked) announceListUpdate(diff);
-        shownIssues = latestIssues;
-        issueListLanded = true;
+        issueShown.land(latestIssues);
         latestIssues = null;
         latestIssuesAsked = false;
         issuesDrawn = true;
-        keepFocusAcross(() => issueBoard.setItems(shownIssues, true));
+        keepFocusAcross(() => issueBoard.setItems(issueShown.items, true));
 
         return true;
       }
@@ -4732,10 +4724,10 @@
       // stands; structural changes (held here) land when the hold lifts.
       if (diff.changed.length > 0) {
         const fresh = new Map(latestIssues.map((i) => [prKey(i), i]));
-        const changed = shownIssues
+        const changed = issueShown.items
           .filter((i) => diff.changed.includes(prKey(i)))
           .map((i) => fresh.get(prKey(i)) ?? i);
-        shownIssues = shownIssues.map((i) => fresh.get(prKey(i)) ?? i);
+        issueShown.land(issueShown.items.map((i) => fresh.get(prKey(i)) ?? i));
         replaceIssueRows(changed);
       }
       if (structural === 0) latestIssues = null;
@@ -4846,37 +4838,29 @@
     // The Repo, Author and Label choices follow the list on screen, which
     // can trail the newest snapshot while it waits (#1427), so they are
     // offered again when a waiting list lands.
-    function offerWhatIsShown() {
+    function offerWhatIsShown(change: "none" | "titles" | "all" = "all") {
+      if (change === "none") return;
       // The Title box may have focus; its suggestions stay as they are then,
       // and are rebuilt for the list that landed otherwise.
       const typing = document.activeElement?.matches('input[data-col="title"]');
+      // Titles alone changed, and no title filter narrows the other choices,
+      // so only the suggestions are rebuilt.
+      if (change === "titles" && !sharedState.shared.title) {
+        if (!typing) offerTitles();
+        return;
+      }
       // A pick the landed list no longer offers is cleared, so the list on
       // screen is filtered again without it.
       if (updateSharedFilterOptions(Boolean(typing))) renderBoth();
     }
 
-    // Whether two lists would offer different choices: the fields the Repo,
-    // Author, Label, age and Title choices read. A poll that changes nothing
-    // else does not rebuild the dropdowns.
-    function choicesDiffer(a: FilterableItem[], b: FilterableItem[]): boolean {
-      const key = (items: FilterableItem[]) =>
-        items
-          .map(
-            (i) =>
-              `${i.forge}|${i.repo}|${i.author}|${i.title}|${i.createdAt}|${i.updatedAt}|${(i.labels || []).map((l) => l.name).join(",")}`,
-          )
-          .sort()
-          .join("\n");
-      return key(a) !== key(b);
-    }
-
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
-      const before = shownPRs;
-      const wasLanded = prListLanded;
+      const before = prShown.items;
+      const wasLanded = prShown.landed;
       const rendered = settlePRs();
-      if ((before.length > 0 || wasLanded) && choicesDiffer(before, shownPRs))
-        offerWhatIsShown();
+      if (before.length > 0 || wasLanded)
+        offerWhatIsShown(choicesChange(before, prShown.items));
       return rendered;
     }
 
@@ -4905,8 +4889,8 @@
       // merge) lands in full even with the pointer on the list: they just
       // clicked a row, and what they are waiting to see is that row's outcome
       // (gone, merged). Holding it would leave a merged pull request on screen.
-      const userAsked = latestIsUserAsked || shownPRs.length === 0;
-      const diff = Filters.diffItems(shownPRs, latestPRs);
+      const userAsked = latestIsUserAsked || prShown.items.length === 0;
+      const diff = Filters.diffItems(prShown.items, latestPRs);
       const structural = diff.added + diff.removed + diff.moved;
       const held = interactionFreezesBoard() || (updatesPaused() && !userAsked);
 
@@ -4917,7 +4901,7 @@
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         // The open dialog shows its own pull request as it is now; only the
         // list behind it waits.
-        const settled = shownPRs.filter(
+        const settled = prShown.items.filter(
           (p) =>
             (botResolvedKeys.has(prKey(p)) ||
               (prKey(p) === dialogKey && diff.changed.includes(prKey(p)))) &&
@@ -4926,10 +4910,12 @@
         botResolvedKeys.clear();
         if (settled.length > 0) {
           const settledKeys = new Set(settled.map(prKey));
-          shownPRs = shownPRs.map((p) =>
-            settledKeys.has(prKey(p)) ? (fresh.get(prKey(p)) ?? p) : p,
+          prShown.land(
+            prShown.items.map((p) =>
+              settledKeys.has(prKey(p)) ? (fresh.get(prKey(p)) ?? p) : p,
+            ),
           );
-          keepFocusAcross(() => prBoard.setItems(shownPRs, true));
+          keepFocusAcross(() => prBoard.setItems(prShown.items, true));
         }
 
         refreshDialogChrome();
@@ -4939,11 +4925,10 @@
       botResolvedKeys.clear();
       if (userAsked) {
         retireFailuresOfRemoved(latestPRs);
-        shownPRs = latestPRs;
-        prListLanded = true;
+        prShown.land(latestPRs);
         latestPRs = null;
         latestIsUserAsked = false;
-        keepFocusAcross(() => prBoard.setItems(shownPRs));
+        keepFocusAcross(() => prBoard.setItems(prShown.items));
 
         return true;
       }
@@ -4961,15 +4946,14 @@
             ),
           );
         const shownDiff = Filters.diffItems(
-          onList(shownPRs),
+          onList(prShown.items),
           onList(latestPRs),
         );
         retireFailuresOfRemoved(latestPRs);
-        shownPRs = latestPRs;
-        prListLanded = true;
+        prShown.land(latestPRs);
         latestPRs = null;
         markUpdated(diff.changed);
-        keepFocusAcross(() => prBoard.setItems(shownPRs, true));
+        keepFocusAcross(() => prBoard.setItems(prShown.items, true));
         if (view !== "issues") announceListUpdate(shownDiff);
 
         return true;
@@ -4978,9 +4962,9 @@
       // rows added, removed or moved wait for the pointer to leave.
       if (diff.changed.length > 0) {
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
-        shownPRs = shownPRs.map((p) => fresh.get(prKey(p)) ?? p);
+        prShown.land(prShown.items.map((p) => fresh.get(prKey(p)) ?? p));
         markUpdated(diff.changed);
-        keepFocusAcross(() => prBoard.setItems(shownPRs, true));
+        keepFocusAcross(() => prBoard.setItems(prShown.items, true));
       }
       if (structural === 0) latestPRs = null;
 
@@ -5555,9 +5539,9 @@
     // the first list lands the snapshot is all there is; after, an empty list
     // offers nothing (#2196).
     function itemsOnScreen(): FilterableItem[] {
-      const landed = pullsView ? prListLanded : issueListLanded;
+      const landed = pullsView ? prShown.landed : issueShown.landed;
       if (!landed) return pullsView ? allPRs : allIssues;
-      return pullsView ? shownPRs : shownIssues;
+      return pullsView ? prShown.items : issueShown.items;
     }
 
     // Leave-one-out narrowing (#550): each shared select's own options
@@ -5653,6 +5637,15 @@
     // The Label filter's control, mounted once the shared bar exists.
     let labelFilter: LabelFilterControl | null = null;
 
+    function offerTitles() {
+      Filters.populateDatalist(
+        document.getElementById(
+          "shared-title-options",
+        ) as HTMLDataListElement | null,
+        Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
+      );
+    }
+
     function updateSharedFilterOptions(
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
@@ -5674,13 +5667,7 @@
         ),
         sharedState.shared.author,
       );
-      if (!skipTitleSuggestions)
-        Filters.populateDatalist(
-          document.getElementById(
-            "shared-title-options",
-          ) as HTMLDataListElement | null,
-          Filters.distinctValues((item) => item.title, sharedPoolExcluding("")),
-        );
+      if (!skipTitleSuggestions) offerTitles();
       // The Label filter holds several labels; the ones this page does not
       // offer are set aside, the rest stay picked.
       const labelChoices = Filters.distinctValues(
@@ -7605,7 +7592,7 @@
           // The row the server's record is on takes it in place, even
           // while this click holds the board: the record is no news to
           // the user, so it must not read as "1 update available".
-          const shown = shownPRs.find((p) => prKey(p) === queued.prKey);
+          const shown = prShown.items.find((p) => prKey(p) === queued.prKey);
           const shownRecord = shown && kind.requestOf(shown)?.request;
           if (JSON.stringify(shownRecord) !== JSON.stringify(current))
             changed.add(queued.prKey);
