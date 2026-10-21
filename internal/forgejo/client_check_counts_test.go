@@ -42,6 +42,11 @@ func TestListOpenPullRequests_CarriesTheCheckCounts(t *testing.T) {
 			want:     dashboard.CheckCounts{Passed: 2},
 		},
 		{
+			name:     "a skipped status counts as passed",
+			combined: map[string]any{"state": "success", "statuses": statuses("success", "skipped", "skipped")},
+			want:     dashboard.CheckCounts{Passed: 3},
+		},
+		{
 			name:     "no statuses means no checks",
 			combined: map[string]any{"state": "", "statuses": []map[string]string{}},
 			want:     dashboard.CheckCounts{},
