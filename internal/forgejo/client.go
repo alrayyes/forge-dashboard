@@ -1108,6 +1108,9 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 		// One page of the statuses was read: a count of it would undercount.
 		counts = dashboard.CheckCounts{}
 	}
+	if counts.Waiting > 0 {
+		counts = c.splitRunning(ctx, owner, name, sha, counts)
+	}
 
 	return statusFromCombinedState(combined.State), counts, nil
 }
@@ -1127,6 +1130,51 @@ func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bo
 	}
 
 	return total > len(combined.Statuses)
+}
+
+// splitRunning tells the running checks from the queued ones among counts'
+// pending statuses (#2357). Forgejo says pending for both, so the statuses
+// can't. The commit's Actions jobs can, and only runs still going are read, so
+// a commit with nothing pending costs nothing extra. The running jobs move
+// from waiting to running, never more than were pending, as a pending status
+// can come from an external CI the jobs know nothing about. Any failure keeps
+// counts as it was.
+func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, counts dashboard.CheckCounts) dashboard.CheckCounts {
+	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
+	runs, resp, err := c.withContext(ctx).sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
+		PageSize: pageLimit,
+		HeadSHA:  sha,
+	})
+	if err != nil {
+		slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "error", err)
+
+		return counts
+	}
+	c.recordRequest(ctx, http.MethodGet, runsPath, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	running := 0
+	for _, run := range runs.WorkflowRuns {
+		if isFinished(run.Status) {
+			continue
+		}
+		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
+		if err != nil {
+			slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
+
+			continue
+		}
+		for _, j := range jobs {
+			if checkStateFromWorkflowStatus(j.Status) == dashboard.CheckRunning {
+				running++
+			}
+		}
+	}
+	running = min(running, counts.Waiting)
+	counts.Running += running
+	counts.Waiting -= running
+
+	return counts
 }
 
 // checkCountsOf tallies the statuses the combined-status answer already

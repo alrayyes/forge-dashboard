@@ -615,11 +615,14 @@ While a pipeline is running, the pill also says how far it is: the word
 Running, then a count for each state that has any, in the order passed, running,
 waiting, failed, each with its own glyph. A state with no checks is left out. On
 a phone the word goes and the counts stay. The server tallies the counts from
-what it already reads to work out the CI state, so they cost no extra request,
-and a pull request that has none keeps the plain pill. A run held for approval
-and a cancelled run are in none of the four, because the CI state doesn't treat
-them as failures while others still run. On Forgejo nothing counts as running,
-since its statuses only say pending.
+what it already reads to work out the CI state, so on GitHub they cost no extra
+request, and a pull request that has none keeps the plain pill. A run held for
+approval and a cancelled run are in none of the four, because the CI state
+doesn't treat them as failures while others still run. On Forgejo the
+statuses only say pending, so when any are pending the server also reads the
+jobs of the runs on the commit that are still going (one call for the runs, one
+per run), and the running ones show as running. A commit with nothing pending
+costs nothing extra.
 
 On GitHub, the pill stays pending while a check that branch protection or a
 ruleset requires hasn't finished. GitHub's combined status only counts checks
