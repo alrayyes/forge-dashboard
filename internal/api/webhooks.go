@@ -135,6 +135,36 @@ func pullRequestAction(body []byte) (action string, number int, ok bool) {
 	return ev.Action, ev.PullRequest.Number, true
 }
 
+// checkEventKeys is the top-level body key each check event carries. The
+// signature covers the body but not the event header, so a signed body can be
+// replayed under another header; a check event is only believed when its body
+// has the object that event is about. That keeps a replayed delivery from
+// passing for a check one, which would silence the CI poll for the repo.
+var checkEventKeys = map[string]string{
+	"check_run":   "check_run",
+	"check_suite": "check_suite",
+	"status":      "sha",
+}
+
+// eventBackedByBody returns event unchanged unless it names a check event whose
+// body lacks the matching key, in which case it returns "" (an event of no
+// particular class).
+func eventBackedByBody(event string, body []byte) string {
+	key, isCheck := checkEventKeys[event]
+	if !isCheck {
+		return event
+	}
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(body, &keys); err != nil {
+		return ""
+	}
+	if _, ok := keys[key]; !ok {
+		return ""
+	}
+
+	return event
+}
+
 // settleFromDelivery applies what a signed pull_request delivery says about
 // the pull request's state before any fetch can: closed (merged or not) takes
 // it off the board, reopened lets the next fetch bring it back. The fetch that
@@ -222,7 +252,7 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 
 		slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
 		if _, _, fullName, ok := repoFromPayload(body); ok {
-			manager.RecordDelivery(userID, forge, fullName, event)
+			manager.RecordDelivery(userID, forge, fullName, eventBackedByBody(event, body))
 		}
 		settleFromDelivery(manager, userID, forge, body)
 		w.WriteHeader(http.StatusNoContent)

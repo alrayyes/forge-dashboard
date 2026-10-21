@@ -24,7 +24,7 @@ func TestWebhook_RecordsTheEventClassPerRepo(t *testing.T) {
 
 	send := func(repo, event string) {
 		t.Helper()
-		body := []byte(`{"action":"created","repository":{"full_name":"alrayyes/` + repo + `","name":"` + repo + `","owner":{"login":"alrayyes"}}}`)
+		body := []byte(`{"action":"created","check_run":{"id":1},"repository":{"full_name":"alrayyes/` + repo + `","name":"` + repo + `","owner":{"login":"alrayyes"}}}`)
 		req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 		require.NoError(t, err)
 		req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
