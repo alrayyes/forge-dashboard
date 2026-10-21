@@ -116,11 +116,8 @@ function hoursAgo(hours: number) {
 }
 
 test.describe('insights page', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('is reachable from a link in the dashboard header', async ({ page }) => {
+    await landOnPullRequests(page);
     // Scoped to .app-nav (the header's own nav landmark): #645's mobile
     // bottom tab bar links to the same /insights.html href, and this
     // test is specifically about the header link, not the bottom bar.

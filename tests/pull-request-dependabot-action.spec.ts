@@ -5,7 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 interface MockLabel {
   name: string;
@@ -90,7 +90,6 @@ async function reopenFooter(row: Locator) {
 
 test.describe('pull request Dependabot rebase/recreate buttons', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server, and
     // a real snapshot can't be pushed over the mock.
