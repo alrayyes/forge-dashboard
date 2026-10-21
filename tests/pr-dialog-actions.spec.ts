@@ -119,6 +119,30 @@ async function start(
       body: route.request().postDataJSON(),
     });
     const answer = answers[url.pathname] ?? { status: 204 };
+    // The server keeps an accepted branch update on the pull request until
+    // a later fetch shows it caught up, so the next snapshot carries it.
+    // Without it the page reads the refresh as "finished" and says so a
+    // second time, whenever the refresh lands more than 30 ms after the
+    // first line.
+    if (
+      url.pathname === '/api/pull-requests/update-branch' &&
+      answer.status < 300
+    ) {
+      const body = route.request().postDataJSON();
+      const now = Date.now();
+      state.current = state.current.map((pr) =>
+        pr.number === body.number && pr.repo === body.fullName
+          ? {
+              ...pr,
+              updateRequest: {
+                phase: 'queued',
+                requestedAt: new Date(now).toISOString(),
+                expiresAt: new Date(now + 5 * 60_000).toISOString(),
+              },
+            }
+          : pr,
+      );
+    }
     return route.fulfill({
       status: answer.status,
       contentType: 'application/json',
