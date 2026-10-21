@@ -50,11 +50,16 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	out := []ActionAvailability{}
 	// An empty pull request can't become mergeable by waiting, so it offers no
 	// Merge at all, only Close. PullRequestStatus says why (#1375).
+	waitingForCI := false
 	if !pr.Empty {
-		out = append(out, mergeAvailability(pr))
+		merge := mergeAvailability(pr)
+		out = append(out, merge)
+		waitingForCI = merge.Blocked != nil && merge.Blocked.Code == ActionChecksPending
 	}
 	out = append(out, ActionAvailability{Action: ActionClose})
-	if a, ok := updateBranchAvailability(pr, renovateAuthors); ok {
+	// While Merge waits for CI, a branch update would only restart the checks
+	// it is waiting for, so Update isn't offered beside it.
+	if a, ok := updateBranchAvailability(pr, renovateAuthors); ok && !waitingForCI {
 		out = append(out, a)
 	}
 	if autoMergeOffered(pr) {
