@@ -30,19 +30,14 @@
   // rendered by the same safe renderer as the pull request dialog: raw HTML
   // stays text, only http(s) and mailto links are links, images are off. A
   // link labelled with a pull request number or a commit hash gets the mono
-  // class. Each release is rendered once. A release whose renderer failed to
-  // load shows its notes as plain text.
+  // class. Each release is rendered once. Until the renderer's chunk loads, or if
+  // it never does, the card shows the notes as plain text, so it has its height
+  // from the first paint and the swap does not push the cards below.
   let rendered = $state<Record<string, string>>({});
-  let failed = $state<Record<string, boolean>>({});
   const requestNotes = createNoteRenderer(
     (text) => renderMarkdown(text, { monoReferences: true }),
     (version, html) => {
-      if (html === null) {
-        failed[version] = true;
-      } else {
-        rendered[version] = html;
-        failed[version] = false;
-      }
+      if (html !== null) rendered[version] = html;
     },
   );
 
@@ -164,6 +159,7 @@
     }
     .release-notes .plain-notes {
       white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
     .release-notes code {
       font-size: 12px;
@@ -240,11 +236,11 @@
           >
         </div>
         <div class="release-notes">
-          {#if failed[r.version]}
-            <p class="plain-notes">{withoutHeading(r.notes)}</p>
-          {:else}
+          {#if r.version in rendered}
             <!-- nosemgrep: svelte-at-html -- renderMarkdown() output only: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text -->
-            {@html rendered[r.version] ?? ""}
+            {@html rendered[r.version]}
+          {:else}
+            <p class="plain-notes">{withoutHeading(r.notes)}</p>
           {/if}
         </div>
       </li>

@@ -234,6 +234,78 @@ test.describe('release history page', () => {
     await expect(notesBox.locator('strong')).toHaveCount(0);
   });
 
+  // The card shows its text from the first paint, so the Markdown swap does
+  // not push the cards below it. Two releases, the renderer chunk held back:
+  // the second card's position is read before and after the swap.
+  test('the notes swap to Markdown without moving the card below', async ({
+    page,
+  }) => {
+    const notes = '### Features\n* **web:** a note';
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          releases: ['9.9.9', '9.9.8'].map((version) => ({
+            version,
+            date: '2026-10-05',
+            url: 'https://example.com',
+            notes,
+          })),
+        }),
+      }),
+    );
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes('blockquote_open')) await held;
+      return route.fulfill({ response });
+    });
+    await page.goto('/changelog.html');
+    await expect(page.locator('.release')).toHaveCount(2);
+    await expect(page.locator('.release-notes').first()).not.toBeEmpty();
+
+    const second = page.locator('.release').nth(1);
+    const before = (await second.boundingBox())?.y ?? 0;
+    expect(before).toBeGreaterThan(0);
+    release();
+    await expect(page.locator('.release-notes strong').first()).toHaveText(
+      'web:',
+    );
+    const after = (await second.boundingBox())?.y ?? 0;
+    expect(Math.abs(after - before)).toBeLessThan(12);
+  });
+
+  // A long URL in plain text has no break point. It wraps inside the card at
+  // phone width instead of pushing the page sideways.
+  test('a long unbroken URL in the plain notes wraps at phone width', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const url = `https://example.com/${'a'.repeat(70)}`;
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill(oneRelease(`* see ${url}`)),
+    );
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes('blockquote_open')) {
+        return route.abort();
+      }
+      return route.fulfill({ response });
+    });
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+    await expect(page.locator('.plain-notes')).toContainText(url);
+
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+
   test('a missing changelog file says so plainly and falls back to nothing', async ({
     page,
   }) => {
