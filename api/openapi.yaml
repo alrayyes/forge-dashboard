@@ -4556,7 +4556,7 @@ components:
           description: The release's page on the forge.
         publishedAt:
           type: string
-          description: When it was published, RFC 3339. Empty when the forge didn't say.
+          description: When it was published, RFC 3339. Empty when the forge records no publication time, which a draft may lack.
         notes:
           $ref: "#/components/schemas/DetailsBody"
 
