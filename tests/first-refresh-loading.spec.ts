@@ -1,27 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
+import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #1672: until the server says this viewer's first refresh has finished
 // (`firstRefreshDone`, contract #1673), the list pages draw a skeleton, not
 // their empty states, and the nav pills show a dash, not 0.
 // https://github.com/alrayyes/forge-dashboard/issues/1672
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `first-refresh-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'First Refresh');
-}
 
 function makePR(number: number, kind = 'regular') {
   return {
@@ -127,8 +112,8 @@ const LISTS = [
 ];
 
 test.describe('first refresh loading state (#1672)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   for (const list of LISTS) {
