@@ -150,6 +150,47 @@ test.describe('release history page', () => {
     expect(await page.locator('.release-notes [onmouseover]').count()).toBe(0);
   });
 
+  // release-please writes Markdown: a bold scope, inline code, links, lists.
+  // It shows as the matching element, not as the characters that asked for it.
+  test('release notes render as Markdown, safely', async ({ page }) => {
+    const notes = [
+      '### Features',
+      '* **web:** fix the `thing` ([#12](https://example.com/12)) ([6bf88c3](https://example.com/c))',
+      '* a [scheme](javascript:alert(1)) link and <script>window.__ran = 1</script>',
+    ].join('\n');
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          releases: [
+            {
+              version: '9.9.9',
+              date: '2026-10-05',
+              url: 'https://example.com',
+              notes,
+            },
+          ],
+        }),
+      }),
+    );
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+
+    const notesBox = page.locator('.release-notes');
+    await expect(notesBox.locator('strong')).toHaveText('web:');
+    await expect(notesBox.locator('code')).toHaveText('thing');
+    await expect(notesBox).not.toContainText('**');
+    await expect(notesBox.locator('li')).toHaveCount(2);
+    await expect(notesBox.locator('a.mono')).toHaveText(['#12', '6bf88c3']);
+    await expect(notesBox.locator('a[href^="javascript"]')).toHaveCount(0);
+    await expect(notesBox.locator('script')).toHaveCount(0);
+    await expect(notesBox).toContainText('<script>');
+    expect(await page.evaluate(() => '__ran' in window)).toBe(false);
+    for (const a of await notesBox.locator('a').all()) {
+      await expect(a).toHaveAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
   test('a missing changelog file says so plainly and falls back to nothing', async ({
     page,
   }) => {

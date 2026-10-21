@@ -320,6 +320,9 @@ test.describe('Settings: Issues (#1630)', () => {
       ignoredTitles: ['^Weekly report'],
     });
     await page.goto('/settings.html#display');
+    // Settings loaded means the page has hydrated, so the click reaches its
+    // handler instead of landing on server-rendered markup.
+    await expect(save(page)).toBeEnabled();
     await page.locator('.theme-segmented label', { hasText: 'Dark' }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
     expect(server.puts).toEqual([]);
