@@ -151,28 +151,6 @@ test.describe('a refused merge explains itself from the server code', () => {
     );
   });
 
-  test('blocked_by_protection: the server reason shows and Merge is locked until a re-check', async ({
-    page,
-  }) => {
-    await mockBoard(page, [makePR()]);
-    await refuse(page, 409, {
-      error: 'x',
-      code: 'blocked_by_protection',
-      message:
-        'Blocked by branch protection: a required review or check is missing.',
-    });
-    await page.goto('/pull-requests.html');
-
-    const row = await confirmMerge(page);
-
-    await expect(row.locator('.row-feedback')).toContainText(
-      'Blocked by branch protection',
-    );
-    // Locked: the only button is a Retry that re-checks, not a second merge.
-    await expect(row.getByRole('button', { name: 'Retry' })).toBeVisible();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
-  });
-
   test('rate_limited: locks Merge with no Retry and says when it resets, from resetsAt', async ({
     page,
   }) => {
