@@ -4635,17 +4635,22 @@
         if (!keep.has(prKey(p))) feedback.dropFailedFor(prKey(p), "");
     }
 
-    function applyPendingNow() {
+    // offer: false when the caller offers the choices itself, after this.
+    function applyPendingNow(offer = true) {
       const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
       retireFailuresOfRemoved(sorted);
+      const before = shownPRs;
       shownPRs = sorted;
+      if (offer && choicesDiffer(before, shownPRs)) offerWhatIsShown();
       prBoard.replaceItems(shownPRs);
       latestPRs = null;
       latestIsUserAsked = false;
     }
 
-    function applyPendingIssuesNow() {
+    function applyPendingIssuesNow(offer = true) {
+      const before = shownIssues;
       shownIssues = Filters.sortItems(rawIssues, sharedState.view.sort);
+      if (offer && choicesDiffer(before, shownIssues)) offerWhatIsShown();
       issueBoard.replaceItems(shownIssues);
       latestIssues = null;
       latestIssuesAsked = false;
@@ -4693,7 +4698,8 @@
     function reconcileIssues(): boolean {
       const before = shownIssues;
       const rendered = settleIssues();
-      if (before.length > 0 && shownIssues !== before) offerWhatIsShown();
+      if (before.length > 0 && choicesDiffer(before, shownIssues))
+        offerWhatIsShown();
       return rendered;
     }
 
@@ -4862,14 +4868,31 @@
     // can trail the newest snapshot while it waits (#1427), so they are
     // offered again when a waiting list lands.
     function offerWhatIsShown() {
-      updateSharedFilterOptions();
+      // The Title box may have focus; its suggestions stay as they are.
+      updateSharedFilterOptions(true);
+    }
+
+    // Whether two lists would offer different choices: the fields the Repo,
+    // Author, Label, age and Title choices read. A poll that changes nothing
+    // else does not rebuild the dropdowns.
+    function choicesDiffer(a: FilterableItem[], b: FilterableItem[]): boolean {
+      const key = (items: FilterableItem[]) =>
+        items
+          .map(
+            (i) =>
+              `${i.forge}|${i.repo}|${i.author}|${i.createdAt}|${i.updatedAt}|${(i.labels || []).map((l) => l.name).join(",")}`,
+          )
+          .sort()
+          .join("\n");
+      return key(a) !== key(b);
     }
 
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
       const before = shownPRs;
       const rendered = settlePRs();
-      if (before.length > 0 && shownPRs !== before) offerWhatIsShown();
+      if (before.length > 0 && choicesDiffer(before, shownPRs))
+        offerWhatIsShown();
       return rendered;
     }
 
@@ -5883,9 +5906,12 @@
       // already gave the page: a re-render for nothing replaces every row
       // under the reader (#827).
       if (sharedControlsRestored && JSON.stringify(sharedState) !== before) {
+        // The held list lands first, so the choices and the stale-pick check
+        // use it (#1427).
+        applyPendingNow(false);
+        if (view === "issues") applyPendingIssuesNow(false);
         updateSharedFilterOptions(false, true);
         syncSharedControlsToState();
-        applyPendingNow();
         renderBoth();
       }
     });
