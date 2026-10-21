@@ -90,9 +90,9 @@ async function reopenFooter(row: Locator) {
 
 test.describe('pull request Dependabot rebase/recreate buttons', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
-    // a real snapshot can't be pushed over the mock.
+    // The live stream isn't part of these tests. Aborted, so a page never
+    // holds a real stream open against the server, and a real snapshot can't
+    // be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await mockSettings(page);
     // Each test installs its dashboard mock, then loads the Bots page once:
