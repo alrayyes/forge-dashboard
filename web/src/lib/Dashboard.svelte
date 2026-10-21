@@ -38,6 +38,7 @@
   } from "#lib/pipeline-checks.js";
   import {
     announceChange,
+    checkKeys,
     ciSignature,
     createLiveChecks,
     keepOrder,
@@ -5034,7 +5035,11 @@
       });
     }
 
+    // Each drawn check's key (checkKeys), read by the row to mark its controls.
+    let pipelineKeys = new Map<Check, string>();
+
     function pipelineCheckRow(check: Check): HTMLElement {
+      const key = pipelineKeys.get(check) ?? check.name;
       const row = el("li", "pipeline-check");
       const status = el("span", `pipeline-check-status ${check.state}`);
       const glyphs = pipelineCheckGlyphs(check.state);
@@ -5077,6 +5082,7 @@
             : "View run";
         link.textContent = linkText;
         link.setAttribute("aria-label", `${linkText}: ${check.name}`);
+        link.dataset.focusKey = `${key}:link`;
         row.appendChild(link);
       }
       if (check.failedStep) {
@@ -5089,6 +5095,7 @@
         const excerpt = el("pre", "pipeline-check-excerpt", check.excerpt);
         excerpt.tabIndex = 0;
         excerpt.setAttribute("aria-label", `Log excerpt: ${check.name}`);
+        excerpt.dataset.focusKey = `${key}:excerpt`;
         row.appendChild(excerpt);
       }
       return row;
@@ -5155,6 +5162,7 @@
       const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
       button.type = "button";
+      button.dataset.focusKey = "rerun";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       // The failure sentence is the alert; Copy sits beside it, outside, so
@@ -5218,6 +5226,8 @@
           (a, b) => Number(isBlocking(b)) - Number(isBlocking(a)),
         );
       pipelineShown = checks;
+      const keys = checkKeys(checks);
+      pipelineKeys = new Map(checks.map((check, i) => [check, keys[i]]));
       pipelineDialogBody.innerHTML = "";
       if (checks.length === 0) {
         pipelineDialogBody.appendChild(
@@ -5329,15 +5339,26 @@
       const ordered = keepOrder(pipelineShown, next);
       if (JSON.stringify(ordered) === JSON.stringify(pipelineShown)) return;
       const message = announceChange(pipelineShown, ordered);
-      const focusable = () =>
-        Array.from(
-          pipelineDialogBody.querySelectorAll<HTMLElement>("a, button, pre"),
-        );
-      const at = focusable().indexOf(document.activeElement as HTMLElement);
+      // The control the keyboard is on is found again by its key, not by its
+      // place: a check that came or went above it moves everything below.
+      const active = document.activeElement as HTMLElement | null;
+      const focusKey = pipelineDialogBody.contains(active)
+        ? active?.dataset.focusKey
+        : undefined;
       const scroll = pipelineDialogBody.scrollTop;
       renderPipelineChecks(ordered, item, true);
       pipelineDialogBody.scrollTop = scroll;
-      if (at >= 0) focusable()[at]?.focus({ preventScroll: true });
+      if (focusKey) {
+        const again = Array.from(
+          pipelineDialogBody.querySelectorAll<HTMLElement>("[data-focus-key]"),
+        ).find((node) => node.dataset.focusKey === focusKey);
+        (
+          again ??
+          pipelineDialog?.querySelector<HTMLElement>("#pipeline-dialog-close")
+        )?.focus({
+          preventScroll: true,
+        });
+      }
       if (message) pipelineSpeaker(message);
     }
 

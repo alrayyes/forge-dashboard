@@ -35,6 +35,7 @@
   } from "#lib/pipeline-checks.js";
   import {
     announceChange,
+    checkKeys,
     ciSignature,
     createLiveChecks,
     keepOrder,
@@ -160,6 +161,12 @@
     if (event.target === dialog) dialog.close();
   }
 
+  // Each check with its key, so a redraw keeps a node, and the focus on it,
+  // with the check it was drawn for when others come or go.
+  const keyed = $derived(
+    checkKeys(checks).map((key, i) => ({ key, check: checks[i] })),
+  );
+
   const forgeName = $derived(
     target ? (FORGE_LABELS[target.forge] ?? target.forge) : "",
   );
@@ -221,9 +228,9 @@
       <p class="pipeline-status">No jobs were found for this branch.</p>
     {:else}
       <ul class="pipeline-check-list">
-        <!-- Unkeyed: two jobs can share a name with no page, and the list is
-             replaced whole on every load. -->
-        {#each checks as check}
+        <!-- Keyed by name, and the nth of a shared name: two jobs can share a
+             name with no page. -->
+        {#each keyed as { key, check } (key)}
           <li class="pipeline-check">
             <span class="pipeline-check-status {check.state}">
               {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}

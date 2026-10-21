@@ -38,7 +38,9 @@ several moved), the same line again when the same thing happens twice, and the
 panel redraws nothing when no check differs. With **Pause live updates** on,
 the panel makes no request and says "Live updates are paused. These checks may
 be out of date."; turning updates back on reads once if the CI changed
-meanwhile.
+meanwhile. A redraw keeps keyboard focus on the same check's link or log, even
+when checks above it came or went; if that check is gone, focus moves to the
+close button.
 
 Draft pull requests are left out by default. The **Show drafts** toggle in the
 filter bar, off to start with, brings them back, marked "Draft", and its muted

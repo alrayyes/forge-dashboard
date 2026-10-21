@@ -96,6 +96,7 @@ async function open(
   page: Page,
   first: ReturnType<typeof pr>,
   checks: unknown[],
+  count = 2,
 ) {
   const state = { checks, requests: 0, status: 200 };
   await stubStream(page);
@@ -124,7 +125,9 @@ async function open(
     .first()
     .getByRole('button', { name: 'Open pipeline' })
     .click();
-  await expect(page.locator('#pipeline-dialog .pipeline-check')).toHaveCount(2);
+  await expect(page.locator('#pipeline-dialog .pipeline-check')).toHaveCount(
+    count,
+  );
 
   return state;
 }
@@ -267,6 +270,53 @@ test.describe('pipeline panel updates live', () => {
     await expect.poll(spoken).toEqual([line, line]);
     const all = await page.evaluate(() => window.__said);
     expect(all.slice(all.indexOf(line), all.lastIndexOf(line))).toContain('');
+  });
+
+  test('a redraw keeps focus on the same check when an earlier one is gone', async ({
+    page,
+  }) => {
+    const three = [
+      { name: 'lint', state: 'running', url: 'https://example.com/r/0' },
+      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      { name: 'test', state: 'running', url: 'https://example.com/r/2' },
+    ];
+    const state = await open(page, RUNNING, three, 3);
+    const link = dialog(page).getByRole('link', { name: 'View run: test' });
+    await link.focus();
+
+    state.checks = [
+      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      { name: 'test', state: 'success', url: 'https://example.com/r/2' },
+    ];
+    await push(page, PASSED);
+
+    await expect(dialog(page).locator('.pipeline-check')).toHaveCount(2);
+    await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
+      'Passed',
+    );
+    await expect(
+      dialog(page).getByRole('link', { name: 'View run: test' }),
+    ).toBeFocused();
+  });
+
+  test('a redraw moves focus to the close button when its check is gone', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    await dialog(page).getByRole('link', { name: 'View run: test' }).focus();
+
+    state.checks = [
+      { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
+    ];
+    await push(
+      page,
+      pr('failure', { passed: 0, running: 0, waiting: 0, failed: 1 }),
+    );
+
+    await expect(dialog(page).locator('.pipeline-check')).toHaveCount(1);
+    await expect(
+      dialog(page).getByRole('button', { name: /close/i }),
+    ).toBeFocused();
   });
 
   test('a snapshot with the same CI makes no request', async ({ page }) => {
