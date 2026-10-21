@@ -1,0 +1,251 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './fixtures';
+import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+
+// A pull request that will close issues shows a pill for each, and the link
+// opens that issue's pop-up on the Issues page. Mocks /api/dashboard and the
+// details endpoints only and writes no per-user state, so it starts from the
+// shared session.
+test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+
+const NOW = new Date();
+const ago = (minutes: number) =>
+  new Date(NOW.getTime() - minutes * 60_000).toISOString();
+
+const REPO = 'alrayyes/forge-dashboard';
+const address = (number: number, repo = REPO) =>
+  `/issues.html?issue=github/${repo}/${number}`;
+
+const closing = (number: number, repo = REPO) => ({
+  repo,
+  number,
+  url: `https://example.com/${repo}/issues/${number}`,
+  pageUrl: address(number, repo),
+});
+
+const issue = (number: number) => ({
+  forge: 'github',
+  repo: REPO,
+  number,
+  title: `Issue ${number}`,
+  url: `https://example.com/issues/${number}`,
+  author: 'ryankes',
+  labels: [],
+  createdAt: ago(60),
+  updatedAt: ago(5),
+  linkedPullRequests: [],
+});
+
+const pullRequest = (number: number, closesIssues: unknown[]) => ({
+  forge: 'github',
+  repo: REPO,
+  number,
+  title: `Pull request ${number}`,
+  url: `https://example.com/pull/${number}`,
+  author: 'ryankes',
+  draft: false,
+  ci: 'success',
+  labels: [],
+  createdAt: ago(60),
+  updatedAt: ago(5),
+  mergeStatus: 'mergeable',
+  behind: false,
+  kind: 'regular',
+  closesIssues,
+});
+
+const noReactions = {
+  thumbsUp: { count: 0, logins: [] },
+  thumbsDown: { count: 0, logins: [] },
+};
+const details = {
+  description: {
+    text: 'The **issue** text.',
+    format: 'markdown',
+    truncated: false,
+    edited: false,
+    reactions: noReactions,
+  },
+  comments: [],
+  commentCount: 0,
+  commentsTruncated: false,
+  releaseNotes: null,
+};
+
+type Board = { pullRequests?: unknown[]; issues?: unknown[] };
+
+async function mockBoard(page: Page, board: Board) {
+  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: board.pullRequests ?? [],
+        issues: board.issues ?? [],
+      }),
+    }),
+  );
+  for (const endpoint of ['pull-requests', 'issues'])
+    await page.route(`**/api/${endpoint}/details*`, (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(details),
+      }),
+    );
+}
+
+const pills = (page: Page, number: number) =>
+  page
+    .locator('#pr-rows .row', { hasText: `Pull request ${number}` })
+    .locator('.closing-issue');
+const issueDialog = (page: Page) =>
+  page.getByRole('dialog', { name: /^Issue details/ });
+
+test.describe('the pill on a pull request row', () => {
+  test('shows the issue number, links to it, and says what it is to a screen reader', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [closing(12)]), pullRequest(2, [])],
+    });
+    await page.goto('/pull-requests.html');
+
+    await expect(pills(page, 1)).toHaveCount(1);
+    await expect(pills(page, 1)).toHaveText('Closes #12');
+    await expect(pills(page, 1)).toHaveAccessibleName(
+      'Closes #12, opens the issue',
+    );
+    await expect(pills(page, 1)).toHaveAttribute('href', address(12));
+    await expect(pills(page, 2)).toHaveCount(0);
+  });
+
+  test('names the repository when the issue is in another one', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [closing(4, 'alrayyes/other')])],
+    });
+    await page.goto('/pull-requests.html');
+
+    await expect(pills(page, 1)).toHaveText('Closes alrayyes/other#4');
+  });
+
+  test('shows two of several and a count that opens the rest', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await mockBoard(page, {
+      pullRequests: [
+        pullRequest(1, [closing(10), closing(11), closing(12), closing(13)]),
+      ],
+    });
+    await page.goto('/pull-requests.html');
+
+    await expect(pills(page, 1)).toHaveCount(2);
+    const more = page.getByRole('button', { name: /^2 more/ });
+    await expect(more).toHaveAccessibleName(
+      '2 more issues that this pull request will close',
+    );
+
+    await more.click();
+
+    await expect(pills(page, 1)).toHaveCount(4);
+    await expect(pills(page, 1).nth(2)).toBeFocused();
+  });
+
+  test('is also in the pull request pop-up', async ({ page }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [closing(12)])] });
+    await page.goto('/pull-requests.html');
+
+    await page
+      .getByRole('button', { name: /Pull request 1/ })
+      .first()
+      .click();
+
+    const popup = page.getByRole('dialog', { name: /^Pull request details/ });
+    await expect(popup.locator('.closing-issue')).toHaveText('Closes #12');
+  });
+
+  test('has no accessibility violations in light, dark and at 390 px', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [closing(10), closing(11), closing(12)])],
+    });
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      for (const scheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.goto('/pull-requests.html');
+        await expect(pills(page, 1).first()).toBeVisible();
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations, `${scheme} at ${width}px`).toEqual([]);
+      }
+    }
+  });
+});
+
+test.describe('the address of an issue', () => {
+  test('clicking the pill loads the Issues page with that issue open, and Escape stays on the page', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [closing(12)])],
+      issues: [issue(12), issue(13)],
+    });
+    await page.goto('/pull-requests.html');
+
+    await pills(page, 1).click();
+
+    await expect(page).toHaveURL(/\/issues\.html/);
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(issueDialog(page)).toHaveAccessibleName(
+      `Issue details: ${REPO} #12`,
+    );
+    // The address is clean, so a reload does not open it again.
+    expect(new URL(page.url()).search).toBe('');
+
+    await page.keyboard.press('Escape');
+
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(page.locator('#issue-rows .row')).toHaveCount(2);
+  });
+
+  test('opening the address directly does the same', async ({ page }) => {
+    await mockBoard(page, { issues: [issue(12)] });
+
+    await page.goto(address(12));
+
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(issueDialog(page).locator('strong')).toHaveText('issue');
+  });
+
+  test('says plainly when the issue is not on the board', async ({ page }) => {
+    await mockBoard(page, { issues: [issue(12)] });
+
+    await page.goto(address(99));
+
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(page.locator('#issue-address-note')).toHaveText(
+      `Issue ${REPO} #99 is not open any more, is hidden by your settings, or this dashboard does not track it.`,
+    );
+    await expect(page.locator('#issue-rows .row')).toHaveCount(1);
+  });
+
+  test('a malformed address opens nothing', async ({ page }) => {
+    await mockBoard(page, { issues: [issue(12)] });
+
+    await page.goto('/issues.html?issue=github/nonsense');
+
+    await expect(page.locator('#issue-rows .row')).toHaveCount(1);
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(page.locator('#issue-address-note')).toBeHidden();
+  });
+});
