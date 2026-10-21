@@ -150,6 +150,40 @@ func TestRefreshPending_ARequestRejectedWholesaleIsAnError(t *testing.T) {
 	require.Error(t, err)
 }
 
+// errorServer answers every request with 200 and the one query error given.
+func errorServer(t *testing.T, entry map[string]any) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"data": map[string]any{}, "errors": []map[string]any{entry}})
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestRefreshPending_AnErrorOnANonPullRequestAliasFailsTheCall(t *testing.T) {
+	t.Parallel()
+
+	srv := errorServer(t, map[string]any{"message": "boom", "path": []string{"rateLimit"}})
+	c := github.NewClient("test-token", "", srv.URL)
+
+	_, err := c.RefreshPending(t.Context(), pendingRefs(2))
+
+	require.Error(t, err)
+}
+
+func TestRefreshPending_ARateLimitErrorOnAPullRequestAliasFailsTheCall(t *testing.T) {
+	t.Parallel()
+
+	srv := errorServer(t, map[string]any{"message": "slow down", "type": "RATE_LIMITED", "path": []string{"pr0"}})
+	c := github.NewClient("test-token", "", srv.URL)
+
+	_, err := c.RefreshPending(t.Context(), pendingRefs(2))
+
+	require.Error(t, err, "a throttle is the whole request failing, not one pull request")
+}
+
 func TestRefreshPending_NoRefsSendsNothing(t *testing.T) {
 	t.Parallel()
 

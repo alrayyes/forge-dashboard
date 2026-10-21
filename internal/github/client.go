@@ -2280,6 +2280,18 @@ func (e graphqlErrorEntry) alias() string {
 	return alias
 }
 
+// throttled reports whether the error is GitHub limiting the caller. That is
+// the whole request failing however deep its path points, so it is never
+// treated as one branch's failure.
+func (e graphqlErrorEntry) throttled(header http.Header) bool {
+	if graphqlErrorKind(cmp.Or(e.Type, e.Extensions.Type)) == dashboard.ForgeErrorRateLimited {
+		return true
+	}
+	_, ok := rateLimitShortMessage(header, e.Message)
+
+	return ok
+}
+
 // graphqlStatusError records and returns the failure for a GraphQL call the
 // server answered with a non-2xx status.
 func (c *Client) graphqlStatusError(ctx context.Context, resp *http.Response) error {
@@ -2325,21 +2337,29 @@ func (c *Client) graphqlQueryError(ctx context.Context, resp *http.Response, ent
 // query-level failure comes back as 200 with a populated "errors" array
 // instead.
 func (c *Client) graphqlDo(ctx context.Context, query string, variables map[string]any, out any) error {
-	_, err := c.graphqlExec(ctx, query, variables, false, out)
+	_, err := c.graphqlExec(ctx, query, variables, nil, out)
 
 	return err
 }
 
 // graphqlDoPartial is graphqlDo for an aliased query where one branch failing
-// must not fail the rest. An error tied to an alias is returned in failed,
-// keyed by alias, while the other aliases decode into out as usual; an error
-// tied to no alias (rate limiting, a malformed query) is still the whole
-// request failing.
-func (c *Client) graphqlDoPartial(ctx context.Context, query string, variables map[string]any, out any) (map[string]struct{}, error) {
-	return c.graphqlExec(ctx, query, variables, true, out)
+// must not fail the rest. An error tied to one of the requested aliases is
+// returned in failed, keyed by alias, while the other aliases decode into out as
+// usual; an error tied to anything else (the rateLimit field, a malformed
+// query) or a throttle is still the whole request failing.
+func (c *Client) graphqlDoPartial(ctx context.Context, query string, variables map[string]any, aliases []string, out any) (map[string]struct{}, error) {
+	requested := make(map[string]struct{}, len(aliases))
+	for _, alias := range aliases {
+		requested[alias] = struct{}{}
+	}
+
+	return c.graphqlExec(ctx, query, variables, requested, out)
 }
 
-func (c *Client) graphqlExec(ctx context.Context, query string, variables map[string]any, partial bool, out any) (map[string]struct{}, error) {
+// graphqlExec posts the request. partial names the aliases whose errors are
+// reported in the returned set rather than failing the call; nil makes every
+// error fail it.
+func (c *Client) graphqlExec(ctx context.Context, query string, variables map[string]any, partial map[string]struct{}, out any) (map[string]struct{}, error) {
 	body, err := json.Marshal(graphqlRequestBody{Query: query, Variables: variables})
 	if err != nil {
 		return nil, fmt.Errorf("github: encode graphql request: %w", err)
@@ -2385,7 +2405,7 @@ func (c *Client) graphqlExec(ctx context.Context, query string, variables map[st
 	c.countGraphQLCost(ctx, envelope.Data)
 	failed := make(map[string]struct{})
 	for _, entry := range envelope.Errors {
-		if !partial || entry.alias() == "" {
+		if _, requested := partial[entry.alias()]; !requested || entry.throttled(resp.Header) {
 			return nil, c.graphqlQueryError(ctx, resp, entry)
 		}
 		failed[entry.alias()] = struct{}{}

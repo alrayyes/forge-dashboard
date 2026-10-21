@@ -31,21 +31,30 @@ func (c *Client) RefreshPending(ctx context.Context, refs []dashboard.PullReques
 	return result, nil
 }
 
-type pendingAlias struct {
+// pendingAlias is the response key of the i-th pull request in a chunk.
+func pendingAlias(i int) string {
+	return fmt.Sprintf("pr%d", i)
+}
+
+type pendingAnswer struct {
 	PullRequest *graphqlPullRequest `json:"pullRequest"`
 }
 
 func (c *Client) refreshPendingChunk(ctx context.Context, refs []dashboard.PullRequestRef, result *dashboard.PendingResult) error {
 	query, vars := buildPendingQuery(refs)
-	var resp map[string]*pendingAlias
-	failed, err := c.graphqlDoPartial(ctx, query, vars, &resp)
+	var resp map[string]*pendingAnswer
+	aliases := make([]string, len(refs))
+	for i := range refs {
+		aliases[i] = pendingAlias(i)
+	}
+	failed, err := c.graphqlDoPartial(ctx, query, vars, aliases, &resp)
 	if err != nil {
 		return err
 	}
 
 	var open []repoPullRequest
 	for i, ref := range refs {
-		alias := fmt.Sprintf("pr%d", i)
+		alias := aliases[i]
 		answer := resp[alias]
 		if _, bad := failed[alias]; bad || answer == nil || answer.PullRequest == nil {
 			result.Failed = append(result.Failed, ref)
