@@ -70,8 +70,11 @@ behind one waiting for auto-update needs it
 
 ## The first load after a restart
 
-A restarted server holds no state until your first refresh has finished, so its
-first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
+A restarted server starts from the snapshot its last run saved, so the board
+shows those rows at once. Their forge reads as unreachable with a stale time
+until the first refresh succeeds, then the mark clears. The rest of this section
+covers a start with nothing saved, such as a first install or a new database.
+There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
 Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one
 polite "Loading your repositories…" line, not their empty states, and the
 navigation shows a dash where a count would be. After about ten seconds the line
@@ -83,8 +86,9 @@ soon after the refresh ends, not up to 30 seconds later.
 
 ## The first refresh
 
-After a restart the server holds no state, so the first snapshot is empty until
-the first refresh for that user ends. `firstRefreshDone` on the dashboard
+With nothing saved, the first snapshot is empty until the first refresh for that
+user ends. A snapshot restored from the last run already counts as loaded, so
+`firstRefreshDone` is `true` for it. `firstRefreshDone` on the dashboard
 snapshot tells an empty board from one that hasn't loaded: it is `false` from
 process start until the viewer's first refresh has finished, whether it
 succeeded or failed (a failed one shows in the forge health), and `true` from

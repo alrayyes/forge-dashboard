@@ -371,6 +371,10 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
 
 	done := firstRefreshDone(deps.Manager, userID)
+	// A snapshot with forges in it was either refreshed or restored from the
+	// last run, and either way there is something to show instead of a
+	// loading state. The short read interval still follows the real flag.
+	shown := done || len(snap.Forges) > 0
 
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
@@ -379,7 +383,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 		Issues:         issues,
 		OpenIssueCount: openIssues,
 
-		FirstRefreshDone: done,
+		FirstRefreshDone: shown,
 
 		SettingsHiddenIssueCount: settingsHidden,
 		HideDependencyDashboard:  filter.hideHousekeeping,
