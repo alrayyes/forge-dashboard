@@ -2,6 +2,7 @@
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
+  import { ciSignature } from "#lib/pipeline-live.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     branchesAwaitingFlag,
@@ -9,7 +10,7 @@
     firstRefreshLoading,
   } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
-  import BranchPipelineDialog from "#lib/BranchPipelineDialog.svelte";
+  import PipelineDialog from "#lib/PipelineDialog.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
@@ -54,7 +55,9 @@
   let failed = $state(false);
   let loading = $state(true);
   let filter = $state<MainBranchFilter>({ ...DEFAULT_FILTER });
-  let pipeline = $state<BranchPipelineDialog>();
+  let pipeline = $state<PipelineDialog>();
+  // The branch whose dialog is open, to follow its row from each refresh.
+  let openRow: MainBranch | null = null;
 
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
@@ -117,15 +120,23 @@
     if (hadFocus) pill.focus();
   }
 
+  const branchSignature = (b: MainBranch) =>
+    ciSignature({ ci: b.status, checks: b.checks, runUrl: b.runUrl });
+
   function openPipeline(b: MainBranch, opener: HTMLElement) {
+    openRow = b;
     pipeline?.open({
-      forge: b.forge,
-      fullName: b.fullName,
-      branch: b.branch,
+      subtitle: `${b.fullName}${b.branch ? ` · ${b.branch}` : ""}`,
+      checksUrl: `/api/main-branches/checks?forge=${encodeURIComponent(b.forge)}&fullName=${encodeURIComponent(b.fullName)}`,
+      signature: branchSignature(b),
+      emptyText: "No jobs were found for this branch.",
+      errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
       runUrl: b.runUrl,
-      status: b.status,
-      checks: b.checks,
+      forgeName: FORGE_LABELS[b.forge] ?? b.forge,
       opener,
+      onClose: () => {
+        openRow = null;
+      },
     });
   }
 
@@ -168,7 +179,13 @@
       data = (await res.json()) as MainBranches;
       failed = false;
       // An open pipeline panel reads again if its own row's CI changed.
-      pipeline?.follow(data.branches);
+      const row = openRow;
+      const now = row
+        ? data.branches.find(
+            (b) => b.forge === row.forge && b.fullName === row.fullName,
+          )
+        : undefined;
+      if (row) pipeline?.follow(now ? branchSignature(now) : null);
     } catch {
       // A refresh that fails keeps the rows already on screen.
       if (initial || !data) failed = true;
@@ -817,5 +834,5 @@
   {/if}
 </div>
 
-<BranchPipelineDialog bind:this={pipeline} />
+<PipelineDialog bind:this={pipeline} />
 <PullRequestDetailsDialog bind:this={releaseDialog} />

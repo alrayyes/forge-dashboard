@@ -25,24 +25,9 @@
     autoUpdateControl,
   } from "#lib/auto-update.js";
   import type { CheckCounts } from "#lib/check-counts.js";
-  import {
-    checkGlyphElements,
-    ciPillModel,
-    renderCiPill,
-  } from "#lib/ci-pill.js";
-  import {
-    CHECK_STATE_LABELS,
-    formatCheckDuration,
-    type Check,
-  } from "#lib/pipeline-checks.js";
-  import {
-    announceChange,
-    checkKeys,
-    ciSignature,
-    createLiveChecks,
-    keepOrder,
-    type LiveChecks,
-  } from "#lib/pipeline-live.js";
+  import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
+  import PipelineDialog from "#lib/PipelineDialog.svelte";
+  import { ciSignature } from "#lib/pipeline-live.js";
   import * as Filters from "#lib/filters.js";
   import {
     type LabelFilterControl,
@@ -387,6 +372,7 @@
 
   // The read-only details dialog (#943); a pull request's title button opens it.
   let detailsDialog = $state<PullRequestDetailsDialog>();
+  let pipelineDialog = $state<PipelineDialog>();
   // The pull request the open dialog shows, by key (#943). Null while it is
   // closed; the footer follows this pull request's row.
   let dialogKey: string | null = null;
@@ -5370,172 +5356,21 @@
       }
     }
 
-    // ---- pipeline checks panel ----
-    // The per-check status labels (CHECK_STATE_LABELS) are distinct from
-    // CI_LABELS above, which only ever describes the combined, row-level
-    // CIStatus, never one individual job.
-    const pipelineDialog = document.getElementById(
-      "pipeline-dialog",
-    ) as HTMLDialogElement | null;
-    const pipelineDialogSubtitle = document.getElementById(
-      "pipeline-dialog-subtitle",
-    );
-    const pipelineDialogBody = document.getElementById("pipeline-dialog-body");
-    const pipelineDialogCloseButton = document.getElementById(
-      "pipeline-dialog-close",
-    ) as HTMLButtonElement | null;
+    // ---- pipeline checks dialog ----
+    // The dialog itself is PipelineDialog, shared with the Main branches page.
+    // This file hands it what only the pull request board knows: the control
+    // for a rerun, the pause state, and the pill to give focus back to.
 
-    // Which row's dialog this is — closing it (via Escape, a backdrop
-    // click, or the close button itself) moves focus back to that row's
-    // own CI pill, the same "return focus to what opened
-    // it" contract every other transient UI in this file already honors
-    // (see retryLockedAction moving focus back to a just-re-rendered
-    // locked button). Not a direct element reference: a later render
-    // rebuilds the whole row from scratch (applySnapshot's own 30s poll,
-    // or this very dialog's own "close" handler below), which leaves any
-    // node reference captured at open time stale — refocusing by
-    // pipelineActionCell's own stable id, once the rebuild has happened,
-    // is what actually reaches the live node.
+    // Which row's dialog this is. Closing it (Escape, a backdrop click or the
+    // close button) moves focus back to that row's own CI pill, the same "return
+    // focus to what opened it" contract every other transient UI in this file
+    // honors. Not a direct element reference: a later render rebuilds the whole
+    // row from scratch (applySnapshot's own 30s poll, or the close below),
+    // which leaves any node captured at open time stale, so the pill is found
+    // again by its stable id once the rebuild has happened.
     let pipelineDialogRowKey: string | null = null;
-
-    // Bumped on every open — a slow fetch from an already-closed (or
-    // reopened against a different pull request) dialog is never allowed
-    // to land and overwrite whatever the dialog is showing now.
-    let pipelineRequestToken = 0;
-
-    // The open panel's own live state. It reads its checks again only when a
-    // snapshot says this pull request's CI changed (see pipeline-live.ts), and
-    // never while updates are paused.
-    let pipelineLive: LiveChecks | null = null;
-    // The newest copy of the open panel's pull request, for the reads it makes.
+    // The newest copy of the open dialog's pull request, for the reads it makes.
     let pipelineItem: PullRequestItem | null = null;
-    // What the panel shows now, to keep its order and to tell a real change.
-    let pipelineShown: Check[] = [];
-    // The first read has drawn; a change before that restarts it instead.
-    let pipelineReady = false;
-    const pipelineNote = document.getElementById("pipeline-paused-note");
-    const pipelineAnnounce = document.getElementById("pipeline-live-status");
-    const pipelineSpeaker = createSpeaker((text) => {
-      if (pipelineAnnounce) pipelineAnnounce.textContent = text;
-    });
-
-    function setPipelineNote(text: string) {
-      if (!pipelineNote) return;
-      pipelineNote.textContent = text;
-      pipelineNote.hidden = text === "";
-    }
-
-    function renderPipelineLoading() {
-      if (!pipelineDialogBody) return;
-      pipelineDialogBody.innerHTML = "";
-      pipelineDialogBody.appendChild(
-        el("p", "pipeline-status", "Loading checks…"),
-      );
-    }
-
-    // A required check that failed (or timed out), or a required workflow
-    // held for approval, is what actually blocks the merge — flagged in text,
-    // not colour alone (#1946).
-    function isBlocking(check: Check): boolean {
-      return (
-        check.required === true &&
-        (check.state === "failure" ||
-          check.state === "timed_out" ||
-          check.state === "awaiting_approval")
-      );
-    }
-
-    // One inline glyph per state, so the states differ by shape and not
-    // colour alone (#1473). The shapes live in #lib/check-glyphs.js, which
-    // the Branches page draws from too.
-    const pipelineCheckGlyphs = checkGlyphElements;
-
-    // Each drawn check's key (checkKeys), read by the row to mark its controls.
-    let pipelineKeys = new Map<Check, string>();
-
-    function pipelineCheckRow(check: Check): HTMLElement {
-      const key = pipelineKeys.get(check) ?? check.name;
-      const row = el("li", "pipeline-check");
-      const status = el("span", `pipeline-check-status ${check.state}`);
-      const glyphs = pipelineCheckGlyphs(check.state);
-      if (glyphs.length > 0) glyphs.forEach((g) => status.appendChild(g));
-      else status.appendChild(el("span", "dot"));
-      status.appendChild(
-        document.createTextNode(CHECK_STATE_LABELS[check.state] || check.state),
-      );
-      row.appendChild(status);
-      row.appendChild(el("span", "pipeline-check-name", check.name));
-      if (check.durationSeconds !== undefined) {
-        row.appendChild(
-          el(
-            "span",
-            "pipeline-check-duration",
-            formatCheckDuration(check.durationSeconds),
-          ),
-        );
-      }
-      if (isBlocking(check)) {
-        row.appendChild(el("span", "pipeline-check-flag", "Blocking"));
-      }
-      // A skipped check never ran — its own page on the forge has
-      // nothing to show beyond "this was skipped," which the status
-      // label right above already says. No link rather than one that
-      // leads nowhere useful. Same reasoning for an empty check.url: a
-      // legacy commit status can be set with no target_url at all, and
-      // an empty href resolves to the current page — silently sending
-      // "View run" to the dashboard's own homepage instead of nowhere.
-      if (check.state !== "skipped" && check.url) {
-        const link = document.createElement("a");
-        link.className = "pipeline-check-link";
-        link.href = check.url;
-        link.target = "_blank";
-        link.rel = "noopener";
-        // A held workflow's own page is where GitHub's approve button is.
-        const linkText =
-          check.state === "awaiting_approval"
-            ? "Approve on GitHub"
-            : "View run";
-        link.textContent = linkText;
-        link.setAttribute("aria-label", `${linkText}: ${check.name}`);
-        link.dataset.focusKey = `${key}:link`;
-        row.appendChild(link);
-      }
-      if (check.failedStep) {
-        row.appendChild(
-          el("p", "pipeline-check-step", `Failed step: ${check.failedStep}`),
-        );
-      }
-      // textContent only (el sets it): the log is never parsed as markup.
-      if (check.excerpt) {
-        const excerpt = el("pre", "pipeline-check-excerpt", check.excerpt);
-        excerpt.tabIndex = 0;
-        excerpt.setAttribute("aria-label", `Log excerpt: ${check.name}`);
-        excerpt.dataset.focusKey = `${key}:excerpt`;
-        row.appendChild(excerpt);
-      }
-      return row;
-    }
-
-    function pipelineCheckList(checks: Check[]): HTMLElement {
-      const list = el("ul", "pipeline-check-list");
-      checks.forEach((check) => list.appendChild(pipelineCheckRow(check)));
-      return list;
-    }
-
-    function pipelineGroup(title: string, checks: Check[], id: string) {
-      const group = el("div", "pipeline-group");
-      group.setAttribute("role", "group");
-      group.setAttribute("aria-labelledby", id);
-      const heading = el(
-        "h3",
-        "pipeline-group-title",
-        `${title} (${checks.length})`,
-      );
-      heading.id = id;
-      group.appendChild(heading);
-      group.appendChild(pipelineCheckList(checks));
-      return group;
-    }
 
     // The one request behind every "Rerun failed checks" button: the pipeline
     // dialog's and the details dialog's footer. The forge queues the jobs.
@@ -5566,18 +5401,12 @@
     // "Rerun failed checks" (#698), shown only where the server lists
     // rerun_checks for this pull request and something actually failed. The
     // forge queues the jobs; the next refresh carries their result.
-    function pipelineRerunControl(
-      item: PullRequestItem,
-      checks: Check[],
-    ): HTMLElement | null {
+    function pipelineRerunControl(item: PullRequestItem): HTMLElement | null {
       if (!findAction(item, "rerun_checks")) return null;
-      if (!checks.some((c) => c.state === "failure" || c.state === "timed_out"))
-        return null;
       const wrap = el("div", "pipeline-rerun");
       const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
       button.type = "button";
-      button.dataset.focusKey = "rerun";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       // The failure sentence is the alert; Copy sits beside it, outside, so
@@ -5625,219 +5454,38 @@
       return wrap;
     }
 
-    // `inPlace` is a live redraw: the order the panel already has stands, so a
-    // check's pill changes where it stands.
-    function renderPipelineChecks(
-      checks: Check[],
-      item: PullRequestItem,
-      inPlace = false,
-    ) {
-      if (!pipelineDialogBody) return;
-      // Blocking failures first, once, when the panel opens (a stable sort,
-      // so the forge's own order stands otherwise). What is kept is the order
-      // drawn, so a live redraw leaves every check where it stands.
-      if (!inPlace)
-        checks = [...checks].sort(
-          (a, b) => Number(isBlocking(b)) - Number(isBlocking(a)),
-        );
-      pipelineShown = checks;
-      const keys = checkKeys(checks);
-      pipelineKeys = new Map(checks.map((check, i) => [check, keys[i]]));
-      pipelineDialogBody.innerHTML = "";
-      if (checks.length === 0) {
-        pipelineDialogBody.appendChild(
-          el("p", "pipeline-status", "No CI configured for this pull request."),
-        );
-        return;
-      }
-      const rerun = pipelineRerunControl(item, checks);
-      if (rerun) pipelineDialogBody.appendChild(rerun);
-      // Without a single known `required` value the forge told us nothing
-      // about branch protection: the flat list, as before.
-      if (!checks.some((check) => check.required !== undefined)) {
-        pipelineDialogBody.appendChild(pipelineCheckList(checks));
-        return;
-      }
-      // Blocking failures first within Required; a stable sort keeps the
-      // forge's own order otherwise.
-      const required = checks.filter((check) => check.required === true);
-      const advisory = checks.filter((check) => check.required === false);
-      // Never filed under Advisory on a guess.
-      const unknown = checks.filter((check) => check.required === undefined);
-      if (required.length)
-        pipelineDialogBody.appendChild(
-          pipelineGroup("Required", required, "pipeline-group-required"),
-        );
-      if (advisory.length)
-        pipelineDialogBody.appendChild(
-          pipelineGroup("Advisory", advisory, "pipeline-group-advisory"),
-        );
-      if (unknown.length)
-        pipelineDialogBody.appendChild(
-          pipelineGroup("Status unknown", unknown, "pipeline-group-unknown"),
-        );
-    }
-
-    function renderPipelineError(message: string, onRetry: () => void) {
-      if (!pipelineDialogBody) return;
-      pipelineDialogBody.innerHTML = "";
-      const wrap = el("div", "pipeline-error");
-      wrap.setAttribute("role", "alert");
-      wrap.appendChild(el("p", "", message));
-      const retryButton = buttonEl("row-action", "Retry");
-      retryButton.addEventListener("click", onRetry);
-      wrap.appendChild(retryButton);
-      pipelineDialogBody.appendChild(wrap);
-    }
-
-    // Always fetched fresh — never cached, never part of applySnapshot's
-    // own eager pull, per the checks endpoint's own doc comment: this is
-    // detail a row doesn't show until the panel is actually opened for
-    // it.
-    function loadPipelineChecks(item: PullRequestItem, wantLive = false) {
-      const live = wantLive && pipelineReady;
-      if (!live) pipelineReady = false;
-      const token = ++pipelineRequestToken;
-      if (!live) renderPipelineLoading();
-
-      fetch(
-        `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
-        { headers: { Accept: "application/json" } },
-      )
-        .then((res) => {
-          if (res.status === 401) {
-            window.location.href = "/login.html";
-            throw new Error("session expired");
-          }
-          return res.json().then((body) => {
-            if (!res.ok) {
-              const err: Error & { status?: number } = new Error(
-                body?.error || `backend answered ${res.status}`,
-              );
-              err.status = res.status;
-              throw err;
-            }
-            return body as { checks: Check[] };
-          });
-        })
-        .then((data) => {
-          if (token !== pipelineRequestToken) return;
-          if (live) redrawPipelineLive(data.checks || [], item);
-          else {
-            setPipelineNote("");
-            pipelineLive?.refreshed();
-            renderPipelineChecks(data.checks || [], item);
-            pipelineReady = true;
-          }
-        })
-        .catch((err: Error & { status?: number }) => {
-          if (token !== pipelineRequestToken) return;
-          // A failed live read leaves the checks on screen and says so; the
-          // next change reads again.
-          if (live) {
-            pipelineLive?.failed();
-            setPipelineNote(
-              "Couldn't refresh these checks. They may be out of date.",
-            );
-            return;
-          }
-          const message = `Couldn't load pipeline checks for ${item.repo}#${item.number}: ${err.message}`;
-          renderPipelineError(message, () => loadPipelineChecks(item));
-        });
-    }
-
-    // A live read's answer: nothing is redrawn when nothing changed, and a
-    // redraw keeps the scroll position and the control the keyboard is on.
-    function redrawPipelineLive(next: Check[], item: PullRequestItem) {
-      setPipelineNote("");
-      if (!pipelineDialogBody) return;
-      const ordered = keepOrder(pipelineShown, next);
-      if (JSON.stringify(ordered) === JSON.stringify(pipelineShown)) return;
-      const message = announceChange(pipelineShown, ordered);
-      // The control the keyboard is on is found again by its key, not by its
-      // place: a check that came or went above it moves everything below.
-      const active = document.activeElement as HTMLElement | null;
-      const focusKey = pipelineDialogBody.contains(active)
-        ? active?.dataset.focusKey
-        : undefined;
-      const scroll = pipelineDialogBody.scrollTop;
-      renderPipelineChecks(ordered, item, true);
-      pipelineDialogBody.scrollTop = scroll;
-      if (focusKey) {
-        const again = Array.from(
-          pipelineDialogBody.querySelectorAll<HTMLElement>("[data-focus-key]"),
-        ).find((node) => node.dataset.focusKey === focusKey);
-        (
-          again ??
-          pipelineDialog?.querySelector<HTMLElement>("#pipeline-dialog-close")
-        )?.focus({
-          preventScroll: true,
-        });
-      }
-      if (message) pipelineSpeaker(message);
-    }
-
     function openPipelineDialog(item: PullRequestItem) {
       if (!pipelineDialog) return;
       pipelineDialogRowKey = prKey(item);
       pipelineItem = item;
-      pipelineShown = [];
-      pipelineReady = false;
-      setPipelineNote("");
-      pipelineSpeaker.clear();
-      if (pipelineDialogSubtitle) {
-        pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
-      }
-      pipelineLive = createLiveChecks({
+      pipelineDialog.open({
+        subtitle: `${item.repo}#${item.number}`,
+        // Always fetched fresh, never cached and never part of applySnapshot's
+        // own eager pull: this is detail a row doesn't show until the dialog is
+        // opened for it.
+        checksUrl: `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
         signature: ciSignature(item),
+        emptyText: "No CI configured for this pull request.",
+        errorText: `Couldn't load pipeline checks for ${item.repo}#${item.number}`,
         paused: updatesPaused,
-        reload: () => pipelineItem && loadPipelineChecks(pipelineItem, true),
-        onStale: (stale) =>
-          setPipelineNote(
-            stale
-              ? "Live updates are paused. These checks may be out of date."
-              : "",
-          ),
+        controls: (failed) =>
+          failed && pipelineItem ? pipelineRerunControl(pipelineItem) : null,
+        // renderPRBoard() rebuilds the row from scratch first (the same
+        // poll-driven rebuild every other row action already lives with), so
+        // the refocus has to find the freshly built pill by its stable id.
+        onClose: () => {
+          const rowKey = pipelineDialogRowKey;
+          pipelineDialogRowKey = null;
+          pipelineItem = null;
+          renderPRBoard();
+          if (rowKey) {
+            document
+              .getElementById(`pipeline-trigger-${domSafeId(rowKey)}`)
+              ?.focus();
+          }
+        },
       });
-      loadPipelineChecks(item);
-      pipelineDialog.showModal();
     }
-
-    pipelineDialogCloseButton?.addEventListener("click", () => {
-      pipelineDialog?.close();
-    });
-
-    // Fires for every close path — Escape, the close button, and the
-    // backdrop-click handler just below — so focus returns to the row's
-    // own CI pill no matter which one was used to get
-    // here. renderPRBoard() rebuilds the row from scratch first (the same
-    // poll-driven rebuild every other row action already lives with), so
-    // the refocus below has to find the freshly built node by its stable
-    // id rather than holding a reference captured at open time.
-    pipelineDialog?.addEventListener("close", () => {
-      const rowKey = pipelineDialogRowKey;
-      pipelineDialogRowKey = null;
-      pipelineLive = null;
-      pipelineItem = null;
-      // A read still out must not draw into a closed panel.
-      pipelineRequestToken++;
-      renderPRBoard();
-      if (rowKey) {
-        document
-          .getElementById(`pipeline-trigger-${domSafeId(rowKey)}`)
-          ?.focus();
-      }
-    });
-
-    // <dialog>'s own ::backdrop is a separate, non-clickable pseudo-
-    // element that never receives this event — a click landing on the
-    // <dialog> element itself (rather than something inside it) is what
-    // "clicked outside the panel" actually looks like from here.
-    pipelineDialog?.addEventListener("click", (event) => {
-      if (event.target === pipelineDialog) {
-        pipelineDialog.close();
-      }
-    });
 
     function modalDialogOpen(): boolean {
       return document.querySelector("dialog[open]") !== null;
@@ -6647,7 +6295,7 @@
       Filters.touchKey("view", "paused");
       Filters.saveState(sharedState);
       syncPauseControl();
-      if (!updatesPaused()) pipelineLive?.resume();
+      if (!updatesPaused()) pipelineDialog?.resume();
       if (view === "issues") reconcileIssues();
       else reconcilePRs();
     });
@@ -8158,10 +7806,10 @@
     // The open pipeline panel follows its own pull request: when this snapshot
     // shows that one's CI changed, the panel reads its checks again.
     function followOpenPipeline() {
-      if (!pipelineLive || !pipelineDialogRowKey) return;
+      if (!pipelineDialogRowKey) return;
       const now = allPRs.find((p) => prKey(p) === pipelineDialogRowKey);
       if (now) pipelineItem = now;
-      pipelineLive.seen(now ? ciSignature(now) : null);
+      pipelineDialog?.follow(now ? ciSignature(now) : null);
     }
 
     function applySnapshot(
@@ -9071,48 +8719,7 @@
 />
 
 {#if pullsView}
-  <dialog
-    id="pipeline-dialog"
-    class="pipeline-dialog"
-    aria-label="Pipeline checks"
-  >
-    <div class="pipeline-dialog-header">
-      <div>
-        <h2 class="pipeline-dialog-title">Pipeline checks</h2>
-        <p class="pipeline-dialog-subtitle" id="pipeline-dialog-subtitle"></p>
-      </div>
-      <button
-        type="button"
-        class="pipeline-dialog-close"
-        id="pipeline-dialog-close"
-        aria-label="Close pipeline checks"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          ><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
-        >
-      </button>
-    </div>
-    <p
-      class="pipeline-paused-note"
-      id="pipeline-paused-note"
-      aria-live="polite"
-      hidden
-    ></p>
-    <p
-      class="sr-only pipeline-live-status"
-      id="pipeline-live-status"
-      aria-live="polite"
-    ></p>
-    <div class="pipeline-dialog-body" id="pipeline-dialog-body"></div>
-  </dialog>
+  <PipelineDialog bind:this={pipelineDialog} />
 {/if}
 
 <!-- #714: the one polite live region for per-pull-request feedback, and
