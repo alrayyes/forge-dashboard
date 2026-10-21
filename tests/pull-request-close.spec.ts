@@ -119,8 +119,8 @@ test.describe('pull request close button', () => {
     await expect(close).toBeVisible();
   });
 
-  // #1223: no green nudge any more. Close is the same neutral button on an
-  // empty pull request as everywhere else; Merge is locked beside it.
+  // #1223: no green nudge any more. Close is the same outlined danger button
+  // on an empty pull request as everywhere else; Merge is locked beside it.
   test('an empty pull request gets no special colour on Close', async ({
     page,
   }) => {
