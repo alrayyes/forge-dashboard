@@ -184,6 +184,11 @@ setting.
 The issues page filters like the pull request page: forge, repo, title, author,
 label, created and updated, plus Group by. Those filters are shared and saved
 with your other filters, so a filter set on one page is still set on the other.
+A **Closing PR** control adds Any, **Has a closing pull request** and **No
+closing pull request**, to find the issues something is already fixing and the
+ones nothing is. Only this page's list is filtered by it, it is saved and
+restored like the others, and a choice is offered only when some issue is that
+way. On a phone it is in the Filters sheet.
 The pull-request-only controls (the CI quick filters, the quick filters for
 failing, ready, needs-review and conflicting pull requests, Show drafts) are not
 on the issues page. Which choices a page offers, and how filters are remembered,

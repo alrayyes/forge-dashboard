@@ -177,7 +177,8 @@ The Created and Updated ranges and the forge buttons on Insights follow the same
 rule: a range or a forge appears only when something in the results is in it,
 and a pick that nothing matches any more is cleared. On the pull request page
 the repo, author and label choices and the age choices also follow the board's
-own filters (the quick pills and Auto-merge), so an author with nothing in the
+own filters (the quick pills, Auto-merge and the closing-issue choice; on the
+issue page, the closing-pull-request choice), so an author with nothing in the
 list on screen isn't offered and picking a choice never leaves an empty list.
 The quick pills do too: a pill is offered only when clicking it would show
 something, and the one that is active stays so it can be cleared.

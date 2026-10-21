@@ -152,6 +152,7 @@ const singleUserSpecs = [
   '**/shared-dashboard-read.spec.ts',
   '**/card-spacing.spec.ts',
   '**/page-widths.spec.ts',
+  '**/closing-link-filter.spec.ts',
 ];
 
 export default defineConfig({

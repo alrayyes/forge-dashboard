@@ -160,6 +160,13 @@ Off. On shows only pull requests that have auto-merge armed, Off only those
 without. It combines with a pill, so Failing CI with Auto-merge On finds armed
 pull requests whose checks have since failed.
 
+A **Closing issue** control beside it has Any, **Closes an issue** and **Closes
+no issue**. The first keeps the pull requests that will close at least one
+issue when they merge (the ones with a "Closes" pill), the second the rest.
+Like Auto-merge it is saved with your other filters, comes back after a reload,
+is emptied by **Clear filters**, and offers a choice only when something in the
+list is that way. On a phone it is in the Filters sheet with 44px choices.
+
 ## Bots
 
 Dependabot and Renovate pull requests have their own page, `/bots.html`,
