@@ -1,26 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #861: stacked pull requests. Each row in a stack carries a chip with its
 // place and what it waits for, the members sit together in position order,
 // a filter that matches one member keeps the stack and dims the rest, and a
 // phone gets a short chip and a thin rule instead of indentation.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `stacked-prs-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Stacks');
-}
 
 let clock = Date.now();
 function pr(number: number, over: Record<string, unknown>) {
@@ -120,8 +105,8 @@ const rowFor = (page: Page, n: number) =>
   page.locator(`#pr-rows .row[data-pr-key$="#${n}"]`);
 
 test.describe('stacked pull requests (#861)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('a stacked row has a chip with its place and what it waits for; others have none', async ({

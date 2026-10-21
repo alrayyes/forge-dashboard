@@ -1,26 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // On a phone the Webhooks table turns into cards and its header is clipped to
 // 1px. The sort buttons in it must not be tab stops there, and a visible
 // "Sort by" select takes over. The select and the header buttons share one
 // saved sort.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `webhooks-sort-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Sort Test User');
-}
 
 const REPOS = [
   { forge: 'github', fullName: 'alrayyes/bravo', hasWebhook: true },
@@ -57,8 +42,8 @@ async function open(page: Page, width: number) {
 }
 
 test.describe('webhooks sort on a phone', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('Tab never lands on a control that cannot be seen at 390px', async ({

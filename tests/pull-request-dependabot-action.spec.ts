@@ -1,33 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import {
   actionsFooter,
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pr-dependabot-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'PR Dependabot Test User',
-  );
-}
+import { landOnPullRequests, test } from './server-fixture';
 
 interface MockLabel {
   name: string;
@@ -111,8 +89,8 @@ async function reopenFooter(row: Locator) {
 }
 
 test.describe('pull request Dependabot rebase/recreate buttons', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
     // The live stream isn't part of these tests. Aborted, so a shared user's
     // concurrent pages never hold a real stream open against the server, and
     // a real snapshot can't be pushed over the mock.
