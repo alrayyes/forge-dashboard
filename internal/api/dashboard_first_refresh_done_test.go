@@ -185,7 +185,7 @@ func TestDashboardStream_CarriesFirstRefreshDone(t *testing.T) {
 	select {
 	case data := <-events:
 		assert.Contains(t, data, `"firstRefreshDone":true`)
-	case <-time.After(2 * time.Second):
+	case <-time.After(pollBudget):
 		t.Fatal("no SSE event received")
 	}
 }
