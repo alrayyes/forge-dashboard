@@ -120,7 +120,7 @@ func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 			t.Parallel()
 
 			if !tc.signedIn {
-				resp, err := http.Post(srv.URL+tc.path, "application/json", strings.NewReader(tc.body))
+				resp, err := testClient(t).Post(srv.URL+tc.path, "application/json", strings.NewReader(tc.body))
 				require.NoError(t, err)
 				defer func() { _ = resp.Body.Close() }()
 				overField(t, resp, tc.field)

@@ -141,7 +141,7 @@ func TestPullRequestDependabotAction_Unauthenticated_Returns401(t *testing.T) {
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1, "action": "rebase"})
 	require.NoError(t, err)
-	resp, err := http.Post(srvURL+"/api/pull-requests/dependabot-action", "application/json", strings.NewReader(string(body)))
+	resp, err := testClient(t).Post(srvURL+"/api/pull-requests/dependabot-action", "application/json", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

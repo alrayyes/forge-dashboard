@@ -347,7 +347,7 @@ func TestGitHubWebhook_MissingSignature_Refused(t *testing.T) {
 	token, _ := webhookCredentials(t, srvURL, sessionCookie)
 	before := calls.Load()
 
-	resp, err := http.Post(srvURL+"/api/webhooks/github/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
+	resp, err := testClient(t).Post(srvURL+"/api/webhooks/github/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -457,7 +457,7 @@ func TestForgejoWebhook_MissingSignature_Refused(t *testing.T) {
 	token, _ := webhookCredentials(t, srvURL, sessionCookie)
 	before := calls.Load()
 
-	resp, err := http.Post(srvURL+"/api/webhooks/forgejo/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
+	resp, err := testClient(t).Post(srvURL+"/api/webhooks/forgejo/"+token, "application/json", strings.NewReader(`{"action":"opened"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -722,11 +722,12 @@ func TestGitHubWebhook_TenDeliveriesForOneRepo_CauseOneScopedRefresh(t *testing.
 	token, secret := webhookCredentials(t, srvURL, sessionCookie)
 
 	body := []byte(`{"action":"synchronize","repository":{"full_name":"alrayyes/burst","name":"burst","owner":{"login":"alrayyes"}}}`)
+	client := testClient(t)
 	for range 10 {
 		req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
 		require.NoError(t, err)
 		req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
-		resp, err := testClient(t).Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)

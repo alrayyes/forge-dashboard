@@ -192,7 +192,7 @@ func TestPullRequestRerunChecks_Unauthenticated_Returns401(t *testing.T) {
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
 	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
-	resp, err := http.Post(srvURL+"/api/pull-requests/rerun-checks", "application/json", strings.NewReader(`{}`))
+	resp, err := testClient(t).Post(srvURL+"/api/pull-requests/rerun-checks", "application/json", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

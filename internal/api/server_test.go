@@ -117,13 +117,14 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
+	client := testClient(t)
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
 		if err != nil {
 			return false
 		}
 		req.AddCookie(sessionCookie)
-		resp, err := testClient(t).Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return false
 		}
@@ -163,11 +164,12 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
+	client := testClient(t)
 	dashboardReq := func() (dashboard.Snapshot, int) {
 		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
 		require.NoError(t, err)
 		req.AddCookie(sessionCookie)
-		resp, err := testClient(t).Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		var snap dashboard.Snapshot

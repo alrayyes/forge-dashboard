@@ -344,7 +344,7 @@ func TestWebhookEnsure_Unauthenticated_Returns401(t *testing.T) {
 
 	body, err := json.Marshal(map[string]string{"forge": "github", "fullName": "alrayyes/a"})
 	require.NoError(t, err)
-	resp, err := http.Post(srvURL+"/api/webhooks/ensure", "application/json", strings.NewReader(string(body)))
+	resp, err := testClient(t).Post(srvURL+"/api/webhooks/ensure", "application/json", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

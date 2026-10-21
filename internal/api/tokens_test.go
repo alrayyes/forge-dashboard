@@ -278,13 +278,14 @@ func TestTokenExpired_RejectedLikeAnInvalidToken(t *testing.T) {
 	require.NoError(t, json.NewDecoder(postResp.Body).Decode(&created))
 	_ = postResp.Body.Close()
 
+	client := testClient(t)
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 		if err != nil {
 			return false
 		}
 		req.Header.Set("Authorization", "Bearer "+created.Token)
-		resp, err := testClient(t).Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return false
 		}

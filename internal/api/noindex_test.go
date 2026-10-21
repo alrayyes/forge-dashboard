@@ -14,7 +14,7 @@ func TestNoIndex_EveryResponseCarriesTheHeader(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+	client := &http.Client{Transport: testClient(t).Transport, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
 

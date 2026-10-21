@@ -210,7 +210,7 @@ func TestAdminDeleteUser_DeletedUsernameCanRegisterAgain(t *testing.T) {
 	// closed — reclaiming the freed username needs a fresh invite, the
 	// same as any other post-bootstrap registration.
 	secondToken := createInviteViaAdmin(t, srv, adminCookie, testUser, "Someone New")
-	resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"Someone New","inviteToken":"`+secondToken+`"}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"Someone New","inviteToken":"`+secondToken+`"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -321,7 +321,7 @@ func TestAdminInvites_Admin_CreateListRevoke(t *testing.T) {
 	require.NoError(t, json.NewDecoder(afterRevokeResp.Body).Decode(&afterRevoke))
 	assert.Empty(t, afterRevoke, "a revoked invite is no longer outstanding")
 
-	registerResp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`","inviteToken":"`+created.Token+`"}`))
+	registerResp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`","inviteToken":"`+created.Token+`"}`))
 	require.NoError(t, err)
 	defer func() { _ = registerResp.Body.Close() }()
 	assert.Equal(t, http.StatusForbidden, registerResp.StatusCode, "a revoked invite's token can no longer register")

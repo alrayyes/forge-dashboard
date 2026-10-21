@@ -16,7 +16,7 @@ func TestDashboardRefresh_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Post(srv.URL+"/api/dashboard/refresh", "", nil)
+	resp, err := testClient(t).Post(srv.URL+"/api/dashboard/refresh", "", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

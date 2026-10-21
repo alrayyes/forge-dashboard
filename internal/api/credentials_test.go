@@ -118,7 +118,7 @@ func TestAddCredential_SecondPasskey_BothAuthenticateAfterwards(t *testing.T) {
 
 	// The original passkey (from registration) still logs in.
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
-	beginResp, err := http.Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`"}`))
+	beginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`"}`))
 	require.NoError(t, err)
 	defer func() { _ = beginResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, beginResp.StatusCode)
@@ -127,7 +127,7 @@ func TestAddCredential_SecondPasskey_BothAuthenticateAfterwards(t *testing.T) {
 	assertionOptions, err := virtualwebauthn.ParseAssertionOptions(string(optionsJSON))
 	require.NoError(t, err)
 	assertionResponse := virtualwebauthn.CreateAssertionResponse(rp, firstAuthenticator, firstCred, *assertionOptions)
-	loginResp, err := http.Post(srv.URL+"/api/auth/login/finish?username="+testUser, "application/json", strings.NewReader(assertionResponse))
+	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/finish?username="+testUser, "application/json", strings.NewReader(assertionResponse))
 	require.NoError(t, err)
 	defer func() { _ = loginResp.Body.Close() }()
 	assert.Equal(t, http.StatusOK, loginResp.StatusCode, "login/finish body: %s", readAll(t, loginResp))

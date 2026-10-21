@@ -39,7 +39,7 @@ func TestFilterStatePut_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Post(srv.URL+"/api/settings/filter-state", "application/json", strings.NewReader(`{}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/settings/filter-state", "application/json", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
