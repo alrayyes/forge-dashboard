@@ -6,6 +6,7 @@ import {
   type FilterableItem,
   failingFilters,
   MAX_TITLE_REGEX_LENGTH,
+  MAX_TITLE_TESTED,
   matchesFilters,
   optionPool,
   type SharedFilterState,
@@ -187,7 +188,7 @@ describe('a pathological pattern cannot freeze the page', () => {
     try {
       expect(run()).toHaveLength(100);
       expect(tested).toHaveLength(100);
-      expect(Math.max(...tested)).toBeLessThanOrEqual(128);
+      expect(Math.max(...tested)).toBeLessThanOrEqual(MAX_TITLE_TESTED);
 
       run();
       expect(tested).toHaveLength(100);

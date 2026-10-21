@@ -1044,9 +1044,9 @@ export function failingFilters(
 //  3. Only the first MAX_TITLE_TESTED characters of a title are tested.
 //  4. Each distinct title is matched once per pattern.
 // The fuzz test in title-rule.test.ts checks that whatever this accepts
-// finishes inside 50 ms on hostile 128 and 256 character titles.
+// finishes without blowing up on hostile 128 and 256 character titles.
 export const MAX_TITLE_REGEX_LENGTH = 200;
-const MAX_TITLE_TESTED = 128;
+export const MAX_TITLE_TESTED = 128;
 // Calibrated with the fuzz test: at 2048 the slowest accepted pattern out of
 // 250,000 random ones took under 20 ms; at 16384 some took over 80 ms.
 const MAX_COST = 2048;
