@@ -53,6 +53,48 @@ func TestAggregator_RecordDelivery_CheckEventMarksChecksSeenAtTheClockTime(t *te
 	assert.Equal(t, at, got)
 }
 
+func TestAggregator_RecordCheckDelivery_MarksTheCommitAndTheCheckClass(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	agg := dashboard.NewAggregator([]dashboard.Source{newFakeRepoRefresherSource()},
+		dashboard.WithClock(func() time.Time { return at }))
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", "abc123")
+
+	gotSHA, shaSeen := agg.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", "abc123")
+	_, classSeen := agg.LastDelivery(dashboard.ForgeGitHub, "alrayyes/a", dashboard.EventClassCheck)
+
+	assert.True(t, shaSeen)
+	assert.Equal(t, at, gotSHA)
+	assert.True(t, classSeen)
+}
+
+func TestAggregator_RecordCheckDelivery_DoesNotMarkAnotherCommit(t *testing.T) {
+	t.Parallel()
+
+	agg := dashboard.NewAggregator([]dashboard.Source{newFakeRepoRefresherSource()})
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", "abc123")
+
+	_, seen := agg.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", "def456")
+
+	assert.False(t, seen)
+}
+
+func TestAggregator_RecordCheckDelivery_ForgetsCommitsNotSeenForAWhile(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	agg := dashboard.NewAggregator([]dashboard.Source{newFakeRepoRefresherSource()},
+		dashboard.WithClock(func() time.Time { return now }))
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", "old")
+	now = now.Add(25 * time.Hour)
+	agg.RecordCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", "new")
+
+	_, seen := agg.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/a", "old")
+
+	assert.False(t, seen, "the record is bounded, not one entry per commit forever")
+}
+
 func TestAggregator_RecordDelivery_KeepsReposAndForgesApart(t *testing.T) {
 	t.Parallel()
 

@@ -102,55 +102,10 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  // #705: a Merge that can't be clicked yet stays on the row, locked,
-  // with its reason — the full state matrix is in
-  // pull-request-merge-states.spec.ts.
-  test('a conflicting pull request shows a locked Merge button, not a clickable one', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(button).toHaveAccessibleDescription(/merge conflict/i);
-  });
-
-  test('a blocked pull request shows a locked Merge button, not a clickable one', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'blocked' }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(button).toHaveAccessibleDescription(/blocked/i);
-  });
-
-  // #385: GitHub's own mergeStateStatus reports CLEAN (mapped to
-  // "mergeable" here) whenever branch protection doesn't mark a given
-  // check as required, even while that check is still running — so a
-  // PR with CI still pending could show a fully clickable Merge button
-  // despite its own checks not having finished.
-  test('a mergeable pull request whose CI is still running shows a locked Merge button', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'mergeable', ci: 'pending' }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const button = row.getByRole('button', { name: 'Merge' });
-    await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(button).toHaveAccessibleDescription(
-      /waiting for ci to finish/i,
-    );
-  });
-
+  // A Merge that can't be clicked yet stays on the row, locked, with its
+  // reason. Which states lock it, and the words for each, are the server's and
+  // are pinned in Go (TestAllowedActions_BlockedMergeReasonPerState); how a
+  // locked Merge renders is pull-request-merge-states.spec.ts.
   test('the Merge button unlocks once CI resolves, without a page reload', async ({
     page,
   }) => {
@@ -184,19 +139,6 @@ test.describe('pull request merge button', () => {
     await expect(unlocked).toBeEnabled();
     await expect(unlocked).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).not.toContainText(/waiting for ci/i);
-  });
-
-  test('a mergeable pull request whose CI already succeeded still shows a Merge button', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'mergeable', ci: 'success' }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
   test('a mergeable pull request whose CI failed offers Merge in the pop-up, not on the row', async ({

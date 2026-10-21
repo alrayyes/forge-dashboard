@@ -135,6 +135,77 @@ func pullRequestAction(body []byte) (action string, number int, ok bool) {
 	return ev.Action, ev.PullRequest.Number, true
 }
 
+// checkEvent is the shape of the three check events: each names the commit its
+// checks ran against, in a different place.
+type checkEvent struct {
+	CheckRun *struct {
+		HeadSHA string `json:"head_sha"`
+	} `json:"check_run"`
+	CheckSuite *struct {
+		HeadSHA string `json:"head_sha"`
+	} `json:"check_suite"`
+	SHA string `json:"sha"`
+}
+
+// checkCommit returns the commit a check delivery is about, read from the
+// object that event is about, and false when the body is not that event. The
+// signature covers the body but not the event header, so a signed body can be
+// replayed under another header; a check event is only believed when its body
+// names a commit where that event keeps it. A replayed comment, push or
+// pull_request body then cannot pass for a check delivery.
+func checkCommit(event string, body []byte) (string, bool) {
+	var ev checkEvent
+	if err := json.Unmarshal(body, &ev); err != nil {
+		return "", false
+	}
+	var sha string
+	switch event {
+	case "check_run":
+		if ev.CheckRun != nil {
+			sha = ev.CheckRun.HeadSHA
+		}
+	case "check_suite":
+		if ev.CheckSuite != nil {
+			sha = ev.CheckSuite.HeadSHA
+		}
+	case "status":
+		sha = ev.SHA
+	}
+
+	return sha, isCommitSHA(sha)
+}
+
+// isCommitSHA reports whether s looks like a git object id: 7 to 64 hex digits.
+func isCommitSHA(s string) bool {
+	if len(s) < 7 || len(s) > 64 {
+		return false
+	}
+	for _, r := range s {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// recordDelivery notes a verified delivery with the dashboard. A check event
+// whose body backs it up marks its commit; one whose body does not is recorded
+// as an event of no particular class.
+func recordDelivery(manager *dashboard.Manager, userID []byte, forge dashboard.Forge, fullName, event string, body []byte) {
+	if dashboard.ClassifyEvent(event) != dashboard.EventClassCheck {
+		manager.RecordDelivery(userID, forge, fullName, event)
+
+		return
+	}
+	if sha, ok := checkCommit(event, body); ok {
+		manager.RecordCheckDelivery(userID, forge, fullName, sha)
+
+		return
+	}
+	manager.RecordDelivery(userID, forge, fullName, "")
+}
+
 // settleFromDelivery applies what a signed pull_request delivery says about
 // the pull request's state before any fetch can: closed (merged or not) takes
 // it off the board, reopened lets the next fetch bring it back. The fetch that
@@ -222,7 +293,7 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 
 		slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
 		if _, _, fullName, ok := repoFromPayload(body); ok {
-			manager.RecordDelivery(userID, forge, fullName, event)
+			recordDelivery(manager, userID, forge, fullName, event, body)
 		}
 		settleFromDelivery(manager, userID, forge, body)
 		w.WriteHeader(http.StatusNoContent)
