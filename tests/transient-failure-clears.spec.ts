@@ -259,9 +259,9 @@ test.describe('a network failure line clears itself (#1206)', () => {
     await actionsFooter(dialog)
       .getByRole('button', { name: 'Update branch' })
       .click();
-    await expect(dialog.locator('[aria-live="polite"]').first()).toContainText(
-      "Couldn't update the branch",
-    );
+    await expect(
+      dialog.locator('[role="status"][aria-live="polite"][aria-atomic="true"]'),
+    ).toContainText("Couldn't update the branch");
     await closeActionsDialog(dialog);
     await expect(line(page)).toContainText('Failed');
     await releasePointer(page);
@@ -271,6 +271,9 @@ test.describe('a network failure line clears itself (#1206)', () => {
 
     await page.clock.fastForward(10_500);
     await expect(line(page)).toHaveCount(0);
+    // An announcement is spoken 30 ms after it is made, so run that timer
+    // too, or a sentence added when the line clears would not be heard yet.
+    await page.clock.fastForward(100);
     expect(await live.textContent()).toBe(said);
 
     await page.locator('#activity-toggle').click();
