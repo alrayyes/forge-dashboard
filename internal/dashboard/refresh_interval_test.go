@@ -1,6 +1,8 @@
 package dashboard_test
 
 import (
+	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -22,6 +24,8 @@ func TestStretchedInterval(t *testing.T) {
 		{"a value already past the cap is never shortened", 3 * time.Hour, 3 * time.Hour},
 		{"a value at the cap stays", 2 * time.Hour, 2 * time.Hour},
 		{"a short value still stretches four times", time.Minute, 4 * time.Minute},
+		{"a value too large to multiply is kept, not wrapped negative", 1000000 * time.Hour, 1000000 * time.Hour},
+		{"the largest duration is kept", time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,6 +50,47 @@ func refreshedWith(t *testing.T, health dashboard.ForgeHealth, repos ...dashboar
 
 func repoWithHook(name string, has bool) dashboard.Repo {
 	return dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: name, HasWebhook: has}
+}
+
+func runCount(t *testing.T, repos []dashboard.Repo, interval, wait time.Duration) int {
+	t.Helper()
+
+	src := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:  repos,
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		agg.Run(ctx, interval)
+		close(done)
+	}()
+
+	time.Sleep(wait)
+	cancel()
+	<-done
+
+	return src.callCount()
+}
+
+func TestAggregator_Run_WaitsTheStretchedDelayWhileEveryWebhookIsHealthy(t *testing.T) {
+	t.Parallel()
+
+	// Stretched, the wait is 80ms: only Run's refresh on entry fits in 60ms.
+	got := runCount(t, []dashboard.Repo{repoWithHook("alrayyes/a", true)}, 20*time.Millisecond, 60*time.Millisecond)
+
+	assert.Equal(t, 1, got)
+}
+
+func TestAggregator_Run_KeepsTheIntervalWhenAWebhookIsMissing(t *testing.T) {
+	t.Parallel()
+
+	got := runCount(t, []dashboard.Repo{repoWithHook("alrayyes/a", false)}, 20*time.Millisecond, 70*time.Millisecond)
+
+	assert.GreaterOrEqual(t, got, 3)
 }
 
 func TestAggregator_NextDelay_StretchesWhileEveryWebhookIsHealthy(t *testing.T) {
