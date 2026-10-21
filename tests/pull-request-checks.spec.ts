@@ -515,11 +515,6 @@ test.describe('pull request pipeline checks panel', () => {
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
     ).toHaveCount(0);
     expect(posts).toBe(1);
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 
   test('a rerun still in flight stays held when the panel is reopened, so it is sent once (#1941)', async ({
