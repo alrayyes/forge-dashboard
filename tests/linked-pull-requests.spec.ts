@@ -1,14 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // An issue that an open pull request will close shows a pill linking to it,
 // and the link opens that pull request's pop-up on its page. Mocks
-// /api/dashboard and the details endpoints only and writes no per-user state,
-// so it starts from the shared session.
+// /api/dashboard and the details endpoints only and writes no per-user state.
 // https://github.com/alrayyes/forge-dashboard/issues/2082
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const NOW = new Date();
 const ago = (minutes: number) =>
