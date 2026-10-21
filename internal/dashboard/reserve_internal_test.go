@@ -26,6 +26,8 @@ type stubSource struct {
 	failed bool
 	// unmeasured leaves Result.Spent nil.
 	unmeasured bool
+	// partial makes every fetch name a repo it could not read.
+	partial bool
 
 	mu    sync.Mutex
 	calls int
@@ -67,7 +69,12 @@ func (s *stubSource) Fetch(context.Context) Result {
 		<-gate
 	}
 
-	return Result{Health: health, Spent: spent}
+	res := Result{Health: health, Spent: spent}
+	if s.partial {
+		res.FailedRepos = []FailedRepo{{FullName: "o/n", PullRequests: true}}
+	}
+
+	return res
 }
 
 func (s *stubSource) count() int {
@@ -248,6 +255,23 @@ func TestReserve_UnmeasuredFetch_KeepsTheLastCost(t *testing.T) {
 	agg.Refresh(t.Context())
 	src.mu.Lock()
 	src.unmeasured = true
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	assert.Equal(t, 2, src.count())
+}
+
+// A fetch that skipped a repo spent less than a whole one does.
+func TestReserve_PartialFetch_KeepsTheLastCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step, src.partial = 1, true
 	src.mu.Unlock()
 	agg.Refresh(t.Context())
 

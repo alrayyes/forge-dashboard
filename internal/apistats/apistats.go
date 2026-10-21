@@ -174,6 +174,10 @@ func WithTally(ctx context.Context) (context.Context, *Tally) {
 
 // Spent is what the Tally has collected so far.
 func (t *Tally) Spent() Spent {
+	if t == nil {
+		return Spent{}
+	}
+
 	return Spent{GraphQL: int(t.graphQL.Load()), REST: int(t.rest.Load())}
 }
 
