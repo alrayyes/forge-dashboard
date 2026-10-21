@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import Disclosure from "#lib/Disclosure.svelte";
+  import { installationIdPayload } from "#lib/installation-id.js";
   import SettingsNav from "#lib/SettingsNav.svelte";
   import {
     DEFAULT_GROUP,
@@ -415,7 +416,6 @@
 
     const trimmedForgejoUrl = forgejoUrl.trim();
     const trimmedForgejoUsername = forgejoUsername.trim();
-    const trimmedInstallationId = githubAppInstallationId.trim();
 
     saving = true;
     status = "Saving…";
@@ -424,14 +424,7 @@
     const body = {
       githubToken,
       githubUsername: githubUsername.trim(),
-      // A number when it reads as one, otherwise the text itself, so the
-      // server refuses it instead of an unparsable value turning into 0
-      // and silently clearing the setting.
-      githubAppInstallationId: trimmedInstallationId
-        ? Number.isFinite(Number(trimmedInstallationId))
-          ? Number(trimmedInstallationId)
-          : trimmedInstallationId
-        : 0,
+      githubAppInstallationId: installationIdPayload(githubAppInstallationId),
       forgejoUrl: trimmedForgejoUrl,
       forgejoToken,
       forgejoUsername: trimmedForgejoUsername,
