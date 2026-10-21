@@ -1,13 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
-// #1223: Close is a reversible "give up on this pull request", so on the row
-// it is a neutral button, not green (it read as the affirmative) and not red
-// (it isn't destructive). It names the object, "Close pull request", and only
-// the confirm step carries the warning tone.
+// Close pull request is an outlined danger button with a pull-request-closed
+// glyph, so it can't be taken for the dialog's own plain Close (the header X).
+// Only the confirm step carries the warning tone. The look is the same on the
+// row and in the footer, whether or not Close is the primary action.
+// https://github.com/alrayyes/forge-dashboard/issues/2057
 
 function makePR(overrides: Record<string, unknown> = {}) {
   return {
@@ -75,17 +75,49 @@ async function token(page: Page, name: string) {
   }, name);
 }
 
-test.describe('Close is neutral, and says what it closes (#1223)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
+test.describe("Close pull request looks unlike the dialog's own close", () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
 
-  test('on a pull request with nothing to merge it is not green, and looks like any primary action', async ({
+  test('it is an outlined danger button, not filled and not green', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'blocked', ci: 'failure' }),
+    );
+    await page.goto('/pull-requests.html');
+    const close = await closeButton(page);
+    await expect(close).not.toHaveClass(/suggested/);
+    const style = await close.evaluate((node) => {
+      const s = getComputedStyle(node);
+      return { bg: s.backgroundColor, fg: s.color, border: s.borderTopColor };
+    });
+    expect(style.bg).toBe('rgba(0, 0, 0, 0)');
+    expect(style.fg).toBe(await token(page, '--critical'));
+    expect(style.border).toBe(await token(page, '--critical'));
+  });
+
+  test('it carries the pull-request-closed glyph, hidden from assistive tech, and the header X stays the only plain Close', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'blocked', ci: 'failure' }),
+    );
+    await page.goto('/pull-requests.html');
+    const close = await closeButton(page);
+    await expect(close.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+    await expect(close).toHaveAccessibleName('Close pull request');
+    await expect(
+      details(page).getByRole('button', { name: 'Close details' }),
+    ).toHaveCount(1);
+  });
+
+  test('with nothing to merge it keeps the same look when it is the primary action', async ({
     page,
   }) => {
     await mockDashboard(
@@ -93,44 +125,61 @@ test.describe('Close is neutral, and says what it closes (#1223)', () => {
       makePR({ mergeStatus: 'mergeable', empty: true }),
     );
     await page.goto('/pull-requests.html');
-    const empty = await closeButton(page);
-    await expect(empty).not.toHaveClass(/suggested/);
-    const emptyBg = await background(empty);
-    expect(emptyBg).not.toBe(await token(page, '--good-bg'));
-    expect(emptyBg).not.toBe(await token(page, '--critical-bg'));
-
-    // With nothing to merge, Close is the dialog's primary action and takes
-    // the look every primary action has (Merge, here), not a colour of its
-    // own. Where Close is not primary it is the neutral button below.
-    await mockDashboard(
-      page,
-      makePR({
-        mergeStatus: 'mergeable',
-        allowedActions: [
-          { action: 'merge', primary: true },
-          { action: 'close' },
-        ],
-      }),
-    );
-    await page.goto('/pull-requests.html');
-    const primary = actionsFooter(await openActionsDialog(row(page))).getByRole(
-      'button',
-      { name: 'Merge', exact: true },
-    );
-    expect(await background(primary)).toBe(emptyBg);
-  });
-
-  test('it is not red until the confirm step', async ({ page }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'blocked', ci: 'failure' }),
-    );
-    await page.goto('/pull-requests.html');
     const close = await closeButton(page);
-    expect(await background(close)).not.toBe(
-      await token(page, '--critical-bg'),
+    await expect(close).not.toHaveClass(/suggested/);
+    expect(await background(close)).toBe('rgba(0, 0, 0, 0)');
+    expect(await close.evaluate((n) => getComputedStyle(n).color)).toBe(
+      await token(page, '--critical'),
     );
   });
+
+  for (const theme of ['light', 'dark']) {
+    test(`its text is at least 4.5:1 on the footer and its target is 44px on a phone, ${theme}`, async ({
+      page,
+      context,
+      baseURL,
+    }) => {
+      await context.addCookies([
+        { name: 'forge-board-theme', value: theme, url: baseURL ?? '' },
+      ]);
+      await page.setViewportSize({ width: 390, height: 800 });
+      await mockDashboard(
+        page,
+        makePR({ mergeStatus: 'blocked', ci: 'failure' }),
+      );
+      await page.goto('/pull-requests.html');
+      const close = await closeButton(page);
+      const { ratio, height } = await close.evaluate((node) => {
+        const parse = (s: string) =>
+          (s.match(/[\d.]+/g) ?? []).map(Number) as number[];
+        const lum = ([r, g, b]: number[]) => {
+          const f = (v: number) => {
+            const c = v / 255;
+            return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+          };
+          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+        };
+        let backdrop = [255, 255, 255];
+        for (let el = node.parentElement; el; el = el.parentElement) {
+          const c = parse(getComputedStyle(el).backgroundColor);
+          if (c.length >= 3 && (c[3] ?? 1) === 1) {
+            backdrop = c;
+            break;
+          }
+        }
+        const [hi, lo] = [
+          lum(parse(getComputedStyle(node).color)),
+          lum(backdrop),
+        ].sort((x, y) => y - x);
+        return {
+          ratio: (hi + 0.05) / (lo + 0.05),
+          height: node.getBoundingClientRect().height,
+        };
+      });
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+      expect(height).toBeGreaterThanOrEqual(44);
+    });
+  }
 
   test('the button and its confirm name the object, and the confirm carries the warning tone', async ({
     page,

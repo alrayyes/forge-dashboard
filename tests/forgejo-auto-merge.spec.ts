@@ -1,29 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `forgejo-auto-merge-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Forgejo Auto-merge Test User',
-  );
-}
+import { landOnPullRequests, test } from './server-fixture';
 
 type AutoMergeStatus = {
   state: 'waiting' | 'stopped';
@@ -89,12 +67,7 @@ function armed(
   });
 }
 
-// The pull request row tests mock the dashboard and write nothing per user, so
-// they start from the shared session instead of registering a user per test
-// (#1379).
 test.describe('Forgejo auto-merge on a pull request row', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     // Aborted, so a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route: Route) =>
@@ -427,8 +400,8 @@ const CALLOUT =
   'Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself.';
 
 test.describe('Forgejo auto-merge explained where it is used', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('a grouped Forgejo repo says who handles auto-merge and links to Settings', async ({

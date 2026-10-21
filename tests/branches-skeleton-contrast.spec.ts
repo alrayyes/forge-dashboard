@@ -1,13 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The placeholder bars must show against what they sit on at every frame of
 // the shimmer, and without it. Branches sits on the same tokens as the list
 // pages, so its dimmest frame must be as visible as theirs.
 // https://github.com/alrayyes/forge-dashboard/issues/1770
-
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 async function hold(page: Page) {
   await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());

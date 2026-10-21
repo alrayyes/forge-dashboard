@@ -1,12 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The helper the specs use to reach a row's actions in its dialog. Mocks
 // /api/dashboard and the details endpoint only and writes no per-user state,
 // so it starts from the shared session.
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const now = new Date().toISOString();
 

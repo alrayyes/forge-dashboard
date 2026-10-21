@@ -25,8 +25,10 @@
   // part of the snapshot. The page calls open() from a row's pill, and follow()
   // with each list it reads: the panel reads again only when its own row's CI
   // changed, so a finished pipeline costs no more requests.
+  import { tick } from "svelte";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { FORGE_LABELS } from "#lib/forges.js";
+  import { createSpeaker } from "#lib/live-region.js";
   import {
     CHECK_STATE_LABELS,
     formatCheckDuration,
@@ -34,6 +36,7 @@
   } from "#lib/pipeline-checks.js";
   import {
     announceChange,
+    checkKeys,
     ciSignature,
     createLiveChecks,
     keepOrder,
@@ -53,11 +56,14 @@
   let staleNote = $state("");
   // The one polite line a changed check earns.
   let announcement = $state("");
+  const speak = createSpeaker((text) => {
+    announcement = text;
+  });
 
   export function open(next: PipelineTarget) {
     target = next;
     staleNote = "";
-    announcement = "";
+    speak.clear();
     live = createLiveChecks({
       signature: ciSignature({
         ci: next.status,
@@ -121,8 +127,20 @@
         staleNote = "";
         if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
         const message = announceChange(checks, ordered);
+        const hadFocus = dialog
+          .querySelector(".pipeline-check-list")
+          ?.contains(document.activeElement);
         checks = ordered;
-        if (message) announcement = message;
+        if (message) speak(message);
+        // The check the keyboard was on is gone: its node went with it, so
+        // focus goes to the close button instead of the page behind.
+        if (hadFocus) {
+          await tick();
+          if (!dialog.contains(document.activeElement))
+            dialog
+              .querySelector<HTMLElement>(".pipeline-dialog-close")
+              ?.focus();
+        }
         return;
       }
       live?.refreshed();
@@ -145,6 +163,7 @@
   function closed() {
     request++;
     live = null;
+    speak.clear();
     target?.opener?.focus();
     target = null;
   }
@@ -154,6 +173,12 @@
   function outside(event: MouseEvent) {
     if (event.target === dialog) dialog.close();
   }
+
+  // Each check with its key, so a redraw keeps a node, and the focus on it,
+  // with the check it was drawn for when others come or go.
+  const keyed = $derived(
+    checkKeys(checks).map((key, i) => ({ key, check: checks[i] })),
+  );
 
   const forgeName = $derived(
     target ? (FORGE_LABELS[target.forge] ?? target.forge) : "",
@@ -216,9 +241,9 @@
       <p class="pipeline-status">No jobs were found for this branch.</p>
     {:else}
       <ul class="pipeline-check-list">
-        <!-- Unkeyed: two jobs can share a name with no page, and the list is
-             replaced whole on every load. -->
-        {#each checks as check}
+        <!-- Keyed by name, and the nth of a shared name: two jobs can share a
+             name with no page. -->
+        {#each keyed as { key, check } (key)}
           <li class="pipeline-check">
             <span class="pipeline-check-status {check.state}">
               {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}

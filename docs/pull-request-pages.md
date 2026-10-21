@@ -17,9 +17,12 @@ away until you open it.
 The footer of the pop-up has every action a pull request offers, so it can be
 acted on from it. The row itself draws only the main one. The footer lists the
 main action first (the one the server marks primary), then the others, with
-**Close pull request** last, on the right. The buttons have the same states on
-the row and in the footer: locked with the reason, queued, in flight and the
-two-step confirm for Merge and Close. A locked button stays on screen,
+**Close pull request** last, on the right. Close pull request is an outlined red
+button with a pull-request-closed icon, so it doesn't pass for the pop-up's own
+close, which is the X at the top right. Closing can't be undone from the
+dashboard, and the two-step confirm still guards it. The buttons have the same
+states on the row and in the footer: locked with the reason, queued, in flight
+and the two-step confirm for Merge and Close. A locked button stays on screen,
 greyed, with the reason printed as text beside it or in the status block under
 the header, and described to screen readers. A failure shows as a line above
 the footer, with room for several, and leaves the buttons usable. The footer
@@ -41,7 +44,10 @@ pull requests opens it when the address ends in `?pr=` followed by
 [Issues page](issues.md#pull-requests-that-close-an-issue) do, and then drops
 that part of the address. A pull request that isn't on the board because it is a
 draft or you hid it opens read only, without actions in the footer. One that
-isn't open any more gets a note over the list instead.
+isn't open any more gets a note over the list instead. Closing a pop-up opened
+this way leaves you on the page, with keyboard focus on that pull request's
+title in the list. If your filters leave the row out, or it was opened read
+only, focus goes to the title filter box.
 
 The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on
@@ -72,6 +78,22 @@ forge. Emoji codes such as `:robot:` show as the emoji, as the forges
 draw them; they become plain Unicode characters, never images, and code stays
 as written. Emoticons like `:)` aren't touched. The library and its emoji
 table load the first time a pop-up opens.
+
+## Issues a pull request closes
+
+A pull request that will close issues shows a "Closes" link for each, after
+its title on the row and among the attributes in the pop-up. The row shows the
+first two and, when there are more, a link such as "2 more" that shows the rest
+in place. An issue in another repository than the pull request's names its
+repo. Each link opens the [Issues page](issues.md#opening-an-issue-from-its-address)
+with that issue's pop-up open, so no pop-up sits on top of another. Screen
+readers hear "Closes", the number and "opens the issue".
+
+The server works out which issues those are, and builds the address that opens
+each. In `GET /api/dashboard` each pull request has `closesIssues`, always
+present, and each entry carries the `pageUrl` that opens it. On a dashboard
+someone shared, the link is plain text, since it would open your own board
+instead of theirs.
 
 ## Author on a row
 

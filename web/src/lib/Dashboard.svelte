@@ -38,6 +38,7 @@
   } from "#lib/pipeline-checks.js";
   import {
     announceChange,
+    checkKeys,
     ciSignature,
     createLiveChecks,
     keepOrder,
@@ -103,11 +104,19 @@
   import { copyButton } from "#lib/copy-details.js";
   import { mountFeedbackUI } from "#lib/feedback-ui.js";
   import {
+    type ClosingIssue,
+    closingPills,
+    findAddressedIssue,
+    missingIssueNote,
+    parseIssueAddress,
+  } from "#lib/closing-issues.js";
+  import {
     type LinkedPullRequest,
     linkedPills,
     missingNote,
     parsePullRequestAddress,
   } from "#lib/linked-pull-requests.js";
+  import { createSpeaker } from "#lib/live-region.js";
   import {
     comesBack,
     hideFailedMessage,
@@ -176,6 +185,9 @@
   type PullRequestItem = FilterableItem & {
     number: number;
     url: string;
+    // The issues it will close when it merges, with the address that opens
+    // each on the Issues page, read from the server.
+    closesIssues?: ClosingIssue[];
     // The forge's own avatar URL for the author; empty when it has none.
     authorAvatarUrl?: string;
     // The author's profile page on the forge, built by the server; empty when
@@ -993,6 +1005,37 @@
       return pill;
     }
 
+    // The pull-request-closed glyph (a pull request with a cross), so the
+    // Close pull request button reads as an action on the pull request and
+    // not as a bare Close. Decorative: the button's name carries the meaning.
+    function closedPullRequestIcon(): SVGElement {
+      const ns = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(ns, "svg");
+      svg.setAttribute("width", "14");
+      svg.setAttribute("height", "14");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "2");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+      svg.setAttribute("aria-hidden", "true");
+      const shapes: [string, Record<string, string>][] = [
+        ["circle", { cx: "6", cy: "6", r: "3" }],
+        ["circle", { cx: "18", cy: "18", r: "3" }],
+        ["path", { d: "M6 9v12" }],
+        ["path", { d: "m21 3-6 6" }],
+        ["path", { d: "m21 9-6-6" }],
+        ["path", { d: "M18 11.5V15" }],
+      ];
+      for (const [tag, attrs] of shapes) {
+        const node = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+        svg.appendChild(node);
+      }
+      return svg;
+    }
+
     function reviewIcon(): SVGElement {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "12");
@@ -1252,6 +1295,13 @@
       }
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
+      const closing = closingPills(
+        prKey(item),
+        item.repo,
+        item.closesIssues,
+        !currentOwner,
+      );
+      if (closing) attributes.appendChild(closing);
       return { state, attributes };
     }
 
@@ -1607,13 +1657,21 @@
       else detailsDialog.focusClose();
     }
 
-    function openDetailsDialog(item: PullRequestItem, triggerId: string) {
+    function openDetailsDialog(
+      item: PullRequestItem,
+      triggerId: string,
+      fallbackFocusId = "",
+    ) {
       dialogKey = prKey(item);
       dialogGone = false;
       lastChromeSig = "";
       lastChromeItem = undefined;
       dialogUpdatedAt = item.updatedAt;
-      detailsDialog?.open({ ...item, status: detailsStatus(item) }, triggerId);
+      detailsDialog?.open(
+        { ...item, status: detailsStatus(item) },
+        triggerId,
+        fallbackFocusId,
+      );
       refreshDialogChrome();
     }
 
@@ -1621,7 +1679,11 @@
     // footer but the link to the forge: there is no action on an issue. The
     // board's dialog state (dialogKey) stays null, so a poll neither redraws
     // its footer nor reloads it.
-    function openIssueDialog(item: IssueItem, triggerId: string) {
+    function openIssueDialog(
+      item: IssueItem,
+      triggerId: string,
+      fallbackFocusId = "",
+    ) {
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -1635,6 +1697,7 @@
       detailsDialog?.open(
         { ...item, subject: "issue", status: issueStatus(item) },
         triggerId,
+        fallbackFocusId,
       );
     }
 
@@ -1658,6 +1721,12 @@
       );
     }
 
+    // No row was clicked, so focus goes back to the pull request's own title,
+    // or to the title filter box when the filters hide that row.
+    function addressFocus(item: PullRequestItem) {
+      return `details-trigger-${domSafeId(prKey(item))}`;
+    }
+
     function openPullRequestReadOnly(item: PullRequestItem) {
       dialogKey = null;
       dialogGone = false;
@@ -1669,7 +1738,11 @@
         option: null,
         actions: [],
       });
-      detailsDialog?.open({ ...item, status: detailsStatus(item) }, "");
+      detailsDialog?.open(
+        { ...item, status: detailsStatus(item) },
+        addressFocus(item),
+        "title-filter",
+      );
     }
 
     async function openAddressedPullRequest(listed: PullRequestItem[]) {
@@ -1690,9 +1763,13 @@
       const onBoard = listed.find((p) => sameAddress(wanted, p));
       if (onBoard) {
         dropFromAddress();
-        openDetailsDialog(onBoard, "");
+        openDetailsDialog(onBoard, addressFocus(onBoard), "title-filter");
         return;
       }
+      // The whole board, because nothing narrower can open the pop-up: the
+      // details endpoint carries no title, author or status. It reads the
+      // server's cached snapshot, so it costs no forge request, and it only
+      // runs for a pull request the board leaves out.
       const url =
         "/api/dashboard?includeDrafts=true&includeHidden=true" +
         (currentOwner ? `&owner=${encodeURIComponent(currentOwner)}` : "");
@@ -1718,6 +1795,43 @@
       );
       if (found) openPullRequestReadOnly(found);
       else setHideStatus(missingNote(wanted));
+    }
+
+    // ---- an issue named in the address (?issue=forge/owner/name/number) ----
+    // A pull request's "Closes" pill links here. Once a real snapshot is in,
+    // the pop-up opens on the issue when the board lists it. One that is not
+    // listed (closed, hidden by a setting, a repo not tracked) gets a plain
+    // note, never a blank pop-up.
+    let addressedIssue = !pullsView
+      ? parseIssueAddress(window.location.search)
+      : null;
+
+    function openAddressedIssue(listed: IssueItem[]) {
+      const wanted = addressedIssue;
+      if (!wanted) return;
+      addressedIssue = null;
+      const here = new URL(window.location.href);
+      here.searchParams.delete("issue");
+      history.replaceState(
+        history.state,
+        "",
+        here.pathname + here.search + here.hash,
+      );
+      const found = findAddressedIssue(listed, wanted);
+      if (found) {
+        // No row was clicked, so point focus at the issue's own title; if
+        // the filters hide that row, the title filter box is the way back in.
+        openIssueDialog(
+          found,
+          `details-trigger-${domSafeId(prKey(found as PullRequestItem))}`,
+          "title-filter",
+        );
+        return;
+      }
+      const note = document.getElementById("issue-address-note");
+      if (!note) return;
+      note.textContent = missingIssueNote(wanted);
+      note.hidden = false;
     }
 
     // The issue header: it is open (the board lists open issues only), and
@@ -1784,6 +1898,15 @@
           : (triggerId) => openIssueDialog(item as IssueItem, triggerId),
       );
       row.appendChild(titleCellEl);
+      if (isPR) {
+        const closing = closingPills(
+          prKey(item),
+          item.repo,
+          (item as PullRequestItem).closesIssues,
+          !currentOwner,
+        );
+        if (closing) titleCellEl.appendChild(closing);
+      }
       if (!isPR) {
         row.dataset.issueKey = prKey(item);
         const pills = linkedPills(
@@ -3331,14 +3454,16 @@
         return wrap;
       }
 
-      // A neutral button on every row (#1223): closing is reversible, so it
-      // is not red, and green read as the affirmative, so an empty pull
-      // request no longer gets it. Merge stays visible-and-locked there (a
+      // An outlined danger button with the pull-request-closed glyph (#2057):
+      // it sits in the corner where a dialog's own Close would, and closing a
+      // pull request can't be undone from the dashboard, so it must not read
+      // as a plain Close. Green read as the affirmative, so an empty pull
+      // request still doesn't get it. Merge stays visible-and-locked there (a
       // past incident: a vanished Merge button with no explanation read as
       // broken), and Close is the only enabled action beside it. The name
-      // says what it closes, so it can't be taken for a Cancel; only the
-      // confirm step carries the warning tone.
+      // says what it closes; only the confirm step carries the warning tone.
       const closeButton = buttonEl("row-action close", "Close pull request");
+      closeButton.prepend(closedPullRequestIcon());
       closeButton.type = "button";
       closeButton.id = `${scope}close-arm-${domSafeId(key)}`;
       closeButton.addEventListener("click", () => {
@@ -4980,6 +5105,9 @@
     let pipelineReady = false;
     const pipelineNote = document.getElementById("pipeline-paused-note");
     const pipelineAnnounce = document.getElementById("pipeline-live-status");
+    const pipelineSpeaker = createSpeaker((text) => {
+      if (pipelineAnnounce) pipelineAnnounce.textContent = text;
+    });
 
     function setPipelineNote(text: string) {
       if (!pipelineNote) return;
@@ -5026,7 +5154,11 @@
       });
     }
 
+    // Each drawn check's key (checkKeys), read by the row to mark its controls.
+    let pipelineKeys = new Map<Check, string>();
+
     function pipelineCheckRow(check: Check): HTMLElement {
+      const key = pipelineKeys.get(check) ?? check.name;
       const row = el("li", "pipeline-check");
       const status = el("span", `pipeline-check-status ${check.state}`);
       const glyphs = pipelineCheckGlyphs(check.state);
@@ -5069,6 +5201,7 @@
             : "View run";
         link.textContent = linkText;
         link.setAttribute("aria-label", `${linkText}: ${check.name}`);
+        link.dataset.focusKey = `${key}:link`;
         row.appendChild(link);
       }
       if (check.failedStep) {
@@ -5081,6 +5214,7 @@
         const excerpt = el("pre", "pipeline-check-excerpt", check.excerpt);
         excerpt.tabIndex = 0;
         excerpt.setAttribute("aria-label", `Log excerpt: ${check.name}`);
+        excerpt.dataset.focusKey = `${key}:excerpt`;
         row.appendChild(excerpt);
       }
       return row;
@@ -5147,6 +5281,7 @@
       const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
       button.type = "button";
+      button.dataset.focusKey = "rerun";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       // The failure sentence is the alert; Copy sits beside it, outside, so
@@ -5210,6 +5345,8 @@
           (a, b) => Number(isBlocking(b)) - Number(isBlocking(a)),
         );
       pipelineShown = checks;
+      const keys = checkKeys(checks);
+      pipelineKeys = new Map(checks.map((check, i) => [check, keys[i]]));
       pipelineDialogBody.innerHTML = "";
       if (checks.length === 0) {
         pipelineDialogBody.appendChild(
@@ -5321,16 +5458,27 @@
       const ordered = keepOrder(pipelineShown, next);
       if (JSON.stringify(ordered) === JSON.stringify(pipelineShown)) return;
       const message = announceChange(pipelineShown, ordered);
-      const focusable = () =>
-        Array.from(
-          pipelineDialogBody.querySelectorAll<HTMLElement>("a, button, pre"),
-        );
-      const at = focusable().indexOf(document.activeElement as HTMLElement);
+      // The control the keyboard is on is found again by its key, not by its
+      // place: a check that came or went above it moves everything below.
+      const active = document.activeElement as HTMLElement | null;
+      const focusKey = pipelineDialogBody.contains(active)
+        ? active?.dataset.focusKey
+        : undefined;
       const scroll = pipelineDialogBody.scrollTop;
       renderPipelineChecks(ordered, item, true);
       pipelineDialogBody.scrollTop = scroll;
-      if (at >= 0) focusable()[at]?.focus({ preventScroll: true });
-      if (pipelineAnnounce && message) pipelineAnnounce.textContent = message;
+      if (focusKey) {
+        const again = Array.from(
+          pipelineDialogBody.querySelectorAll<HTMLElement>("[data-focus-key]"),
+        ).find((node) => node.dataset.focusKey === focusKey);
+        (
+          again ??
+          pipelineDialog?.querySelector<HTMLElement>("#pipeline-dialog-close")
+        )?.focus({
+          preventScroll: true,
+        });
+      }
+      if (message) pipelineSpeaker(message);
     }
 
     function openPipelineDialog(item: PullRequestItem) {
@@ -5340,7 +5488,7 @@
       pipelineShown = [];
       pipelineReady = false;
       setPipelineNote("");
-      if (pipelineAnnounce) pipelineAnnounce.textContent = "";
+      pipelineSpeaker.clear();
       if (pipelineDialogSubtitle) {
         pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
       }
@@ -7864,6 +8012,8 @@
       if (botChanged.size > 0) keepFocusAcross(renderPRBoard);
       if (view === "issues") ingestIssues(issues, userAsked);
       else issueBoard.setItems(issues);
+      if (addressedIssue && !firstRefreshPending(data.firstRefreshDone))
+        openAddressedIssue(issues);
     }
 
     // Reused by refresh() below and by the WebMCP tool further down --
@@ -8326,6 +8476,7 @@
     <div class="filter-bar-top">
       <span class="search-wrap">
         <input
+          id="title-filter"
           class="col-filter"
           data-col="title"
           type="text"
@@ -8625,6 +8776,7 @@
           role="status"
           hidden
         ></p>
+        <p class="rule-note" id="issue-address-note" role="status" hidden></p>
         {#if settingsHiddenIssues > 0}
           <p class="rule-note" id="issue-settings-note" role="status">
             {settingsHiddenIssues} hidden by your settings.

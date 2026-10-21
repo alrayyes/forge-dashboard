@@ -1418,6 +1418,15 @@ button.title:focus-visible {
 .linked-pr-more:hover {
   text-decoration: underline;
 }
+/* On a dashboard someone shared the pill goes nowhere. It looks it, and takes
+   no click, so one aimed at it reaches the title's overlay underneath. */
+.linked-pr.inert {
+  cursor: default;
+  pointer-events: none;
+}
+.linked-pr.inert:hover {
+  text-decoration: none;
+}
 .linked-pr:focus-visible,
 .linked-pr-more:focus-visible {
   outline: 2px solid var(--accent);
@@ -2049,11 +2058,21 @@ a.ci-pill:hover {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-/* Close (#1223): a neutral secondary button. Closing is reversible, so the
-   danger tone is kept for the confirm step. */
-.row-action.close {
-  background: var(--neutral-bg);
-  color: var(--ink-2);
+/* Close pull request: an outlined danger button with a glyph, so it can't be
+   taken for the dialog's own plain Close. Outlined, not filled, so it stays
+   quiet until hovered. The confirm step keeps the warning tone. The same look
+   on the row, in the footer and when Close is the primary action. */
+.row-action.close,
+.details-actions .row-action.close,
+.details-actions .details-action-primary .row-action.close:not(.cancel) {
+  gap: 6px;
+  background: transparent;
+  color: var(--critical);
+  border-color: var(--critical);
+}
+.row-action.close:hover,
+.details-actions .row-action.close:hover {
+  background: var(--critical-bg);
 }
 /* The row's one control. Beside the status on a wide screen the bar has no box
    of its own; on a phone it is the card's last tier (see the phone rules). */

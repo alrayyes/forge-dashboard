@@ -1107,7 +1107,9 @@ func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bo
 // carries, so the counts cost no request. Forgejo says pending for a check
 // that is queued or running alike, so it counts as waiting and nothing here is
 // ever running. A warning counts as passed, the way the combined state
-// treats it.
+// treats it, and so does a skipped check: it was not needed, which is no
+// failure and no wait. The SDK has no constant for that state, so it is read
+// by its name.
 func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	for _, s := range statuses {
@@ -1115,7 +1117,7 @@ func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 			continue
 		}
 		switch s.State {
-		case gitea.StatusSuccess, gitea.StatusWarning:
+		case gitea.StatusSuccess, gitea.StatusWarning, "skipped":
 			out.Passed++
 		case gitea.StatusPending:
 			out.Waiting++
