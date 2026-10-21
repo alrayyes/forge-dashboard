@@ -252,3 +252,16 @@ func TestTally_AnAnswerFromTheCacheCostsNothing(t *testing.T) {
 
 	assert.Equal(t, apistats.Spent{}, tally.Spent())
 }
+
+// Minting an installation token is signed with the App's key, so it draws on
+// no installation budget and is not part of what a run spent.
+func TestTally_MintingAnInstallationToken_CostsNothing(t *testing.T) {
+	t.Parallel()
+
+	srv := okServer(t)
+	ctx, tally := apistats.WithTally(t.Context())
+
+	do(ctx, t, countingClient(apistats.New(), "github", "app:7"), http.MethodPost, srv.URL+"/app/installations/7/access_tokens")
+
+	assert.Equal(t, apistats.Spent{}, tally.Spent())
+}
