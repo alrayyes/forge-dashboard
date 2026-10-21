@@ -130,7 +130,7 @@ func linkedServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == 5
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv.URL, cookie
 }

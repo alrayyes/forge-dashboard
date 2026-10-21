@@ -41,7 +41,7 @@ func TestDashboard_WithOwnerQuery_IsIgnoredAndTheCallerSeesTheirOwn(t *testing.T
 		forges, _ := fetchDashboardWith(t, srv.URL, otherCookie, "?owner="+testUser)["forges"].([]any)
 
 		return len(forges) == 1
-	}, time.Second, 10*time.Millisecond, "the other user's own forge should appear")
+	}, pollBudget, 10*time.Millisecond, "the other user's own forge should appear")
 	board := fetchDashboardWith(t, srv.URL, otherCookie, "?owner="+testUser)
 
 	forges, _ := board["forges"].([]any)

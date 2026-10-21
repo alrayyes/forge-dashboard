@@ -59,7 +59,7 @@ func issueSettingsServer(t *testing.T) (*httptest.Server, *http.Cookie) {
 		issues, _ := fetchDashboard(t, srv.URL, cookie)["issues"].([]any)
 
 		return len(issues) == 5
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }
@@ -251,7 +251,7 @@ func TestDashboard_IssuesOfAnIgnoredRepo_AreNotCountedAsHiddenBySettings(t *test
 		repos, _ := fetchDashboard(t, srv.URL, cookie)["repos"].([]any)
 
 		return len(repos) == 2
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 	ignore := postRepoIgnoreAction(t, srv.URL, cookie, "alrayyes/ignored", false, true)
 	_ = ignore.Body.Close()
 	require.Equal(t, http.StatusNoContent, ignore.StatusCode)

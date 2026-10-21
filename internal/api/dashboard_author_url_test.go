@@ -45,7 +45,7 @@ func TestDashboard_EachItemCarriesItsAuthorsProfileURL(t *testing.T) {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == 4
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	body := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")
 	prURLs := map[int]string{}

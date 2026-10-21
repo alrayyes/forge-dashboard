@@ -42,7 +42,7 @@ func TestDashboard_StackedPullRequestsSaySoInTheResponse(t *testing.T) {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
 
 		return len(prs) == 3
-	}, 2*time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
 
 	snap := fetchDashboardWith(t, srv.URL, cookie, "")
 

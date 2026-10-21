@@ -81,7 +81,7 @@ func TestDashboard_NavCountsTotalAndFailedPerPage(t *testing.T) {
 		prs, _ := fetchDashboard(t, srv.URL, cookie)["pullRequests"].([]any)
 
 		return len(prs) == 8
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	got := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")
 	prs, _ := got["pullRequests"].([]any)
@@ -120,7 +120,7 @@ func TestDashboard_NavCountsLeaveOutAnIgnoredRepo(t *testing.T) {
 	srvURL, cookie := newTestServerWithRepo(t)
 	require.Eventually(t, func() bool {
 		return navCount(t, fetchDashboard(t, srvURL, cookie), "pullRequests")["total"] == 1.0
-	}, time.Second, 10*time.Millisecond, "counted before it is ignored")
+	}, pollBudget, 10*time.Millisecond, "counted before it is ignored")
 	resp := postRepoIgnoreAction(t, srvURL, cookie, "alrayyes/forge-dashboard", true, false)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
