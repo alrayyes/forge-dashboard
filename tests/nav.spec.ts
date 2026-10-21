@@ -183,15 +183,6 @@ test.describe('persistent top nav', () => {
     await expect(navLink(page, '/')).toHaveAttribute('aria-current', 'page');
   });
 
-  test('the Admin icon stays hidden for a non-admin session, on every page with the nav', async ({
-    page,
-  }) => {
-    for (const { path } of NAV_PAGES) {
-      await page.goto(path);
-      await expect(page.locator('#admin-link')).toBeHidden();
-    }
-  });
-
   // Signed in, as the describe's beforeEach has it: the layout counts here
   // too (#1261), so a link with nothing behind it is left out (#1228), and
   // no link is current since none of these pages is in the nav.
@@ -208,7 +199,6 @@ test.describe('persistent top nav', () => {
           /.*/,
         );
       }
-      await expect(page.locator('#admin-link')).toBeHidden();
     });
   }
 });
@@ -233,9 +223,6 @@ test.describe('mobile bottom tab bar', () => {
           page.locator(`.bottom-nav a[aria-label*="${other.tab}"]`),
         ).toBeVisible();
       }
-      await expect(
-        page.locator('.bottom-nav a[aria-label="Admin"]'),
-      ).toHaveCount(0);
 
       await expect(
         page.locator(`.bottom-nav a[aria-label*="${tab}"]`),
@@ -289,8 +276,8 @@ test.describe('mobile bottom tab bar', () => {
   });
 });
 
-test.describe('persistent top nav, admin session', () => {
-  test('the Admin icon appears for an admin session on a non-dashboard page too, and is marked current on admin.html', async ({
+test.describe('persistent top nav, first registered user', () => {
+  test('there is no Admin icon even for the first registered user, and /admin.html is a 404', async ({
     browser,
   }) => {
     const adminContext = await browser.newContext({
@@ -300,13 +287,10 @@ test.describe('persistent top nav, admin session', () => {
       const adminPage = await adminContext.newPage();
 
       await adminPage.goto('/settings.html');
-      await expect(adminPage.locator('#admin-link')).toBeVisible();
+      await expect(adminPage.locator('#admin-link')).toHaveCount(0);
 
-      await adminPage.goto('/admin.html');
-      await expect(adminPage.locator('#admin-link')).toHaveAttribute(
-        'aria-current',
-        'page',
-      );
+      const res = await adminPage.goto('/admin.html');
+      expect(res?.status()).toBe(404);
     } finally {
       await adminContext.close();
     }
