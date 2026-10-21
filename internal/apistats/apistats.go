@@ -24,6 +24,7 @@ const (
 	KindAutoMergePoll   Kind = "auto_merge_poll"
 	KindDetails         Kind = "details"
 	KindHookMaintenance Kind = "hook_maintenance"
+	KindAdvisories      Kind = "advisories"
 	KindUserAction      Kind = "user_action"
 	// KindUnknown marks a request nobody tagged. A test treats it as a
 	// failure, so a new call path can't go uncounted by accident.

@@ -57,4 +57,5 @@ func TestAggregatorRefresh_LeavesNoCallUnderUnknown(t *testing.T) {
 	assert.Positive(t, kinds[apistats.KindFull])
 	assert.Positive(t, kinds[apistats.KindScopedWebhook])
 	assert.Positive(t, kinds[apistats.KindHookMaintenance])
+	assert.Positive(t, kinds[apistats.KindAdvisories])
 }

@@ -95,6 +95,10 @@ type MainBranch struct {
 	// its forge couldn't be read (#922): when it was last fetched. The API
 	// derives the stale flag from it.
 	StaleSince *time.Time `json:"staleSince"`
+	// Advisories is the repository's open dependency advisories. Nil when no
+	// source reads them for this forge; otherwise a known answer or an unknown
+	// one, and unknown is never shown as a zero count.
+	Advisories *Advisories `json:"advisories,omitempty"`
 }
 
 // MainBranchRelease is a repository's latest release. Matches
