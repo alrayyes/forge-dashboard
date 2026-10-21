@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.253.2](https://github.com/alrayyes/forge-dashboard/compare/v0.253.1...v0.253.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** tidy the ticket number filter ([#2185](https://github.com/alrayyes/forge-dashboard/issues/2185)) ([4a1fce8](https://github.com/alrayyes/forge-dashboard/commit/4a1fce8f516994104bf682304b77d0c61424b7f2))
+
 ## [0.253.1](https://github.com/alrayyes/forge-dashboard/compare/v0.253.0...v0.253.1) (2026-10-21)
 
 
