@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // A pull request's own choice about the dashboard updating its branch for it:
 // the checkbox in the details dialog, the reason when it can't apply, and the
@@ -95,8 +94,6 @@ const row = (page: Page) => page.locator('#pr-rows .row').first();
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('A pull request can have its own automatic branch update', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('the checkbox shows the effective value and where it comes from', async ({
     page,
   }) => {
@@ -229,11 +226,16 @@ test.describe('A pull request can have its own automatic branch update', () => {
 
     await box.click();
 
+    const refusal =
+      /Couldn't change automatic updates for alrayyes\/forge-dashboard#42/;
+    // The visible line, and the live region that announces it to a screen
+    // reader. Both carry the words, so each is scoped to its own element.
     await expect(
-      dialog.getByText(
-        /Couldn't change automatic updates for alrayyes\/forge-dashboard#42/,
-      ),
+      dialog.locator('.row-feedback-text').filter({ hasText: refusal }),
     ).toBeVisible();
+    await expect(
+      dialog.getByRole('status').filter({ hasText: refusal }),
+    ).toBeAttached();
     await expect(box).toBeChecked();
   });
 
@@ -297,7 +299,9 @@ test.describe('A pull request can have its own automatic branch update', () => {
     for (let attempt = 0; attempt < 3; attempt++) {
       await box.click();
       await expect(
-        dialog.getByText(/Couldn't change automatic updates/),
+        dialog
+          .locator('.row-feedback-text')
+          .filter({ hasText: /Couldn't change automatic updates/ }),
       ).toBeVisible();
       await expect(box).toBeChecked();
       await expect(dialog.locator('.auto-update-option')).not.toHaveAttribute(
