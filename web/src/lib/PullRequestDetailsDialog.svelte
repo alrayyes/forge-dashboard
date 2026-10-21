@@ -9,9 +9,12 @@
 
   // The part of a row this dialog needs. An issue row opens the same dialog
   // with subject "issue": its own endpoint and wording, no release notes and
-  // no footer actions.
+  // no footer actions. A published release (from the Main branches page) is
+  // subject "release": found by its tag, with its notes and nothing else.
   export type DetailsTarget = {
-    subject?: "pull-request" | "issue";
+    subject?: "pull-request" | "issue" | "release";
+    // The release's tag; only a release has one.
+    tag?: string;
     forge: string;
     repo: string;
     number: number;
@@ -125,8 +128,13 @@
   const releaseNotes = $derived(details?.releaseNotes ?? null);
   const isBot = $derived(target?.kind === "dependency");
   const subjectName = $derived(
-    target?.subject === "issue" ? "Issue" : "Pull request",
+    target?.subject === "issue"
+      ? "Issue"
+      : target?.subject === "release"
+        ? "Release"
+        : "Pull request",
   );
+  const isRelease = $derived(target?.subject === "release");
 
   // The dialog's own polite live region. The page's one (outside the
   // <dialog>) is ignored by assistive tech while a modal is open, so the
@@ -221,8 +229,11 @@
       html = {};
     }
     try {
+      const where = `forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}`;
       const res = await fetch(
-        `/api/${current.subject === "issue" ? "issues" : "pull-requests"}/details?forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}&number=${current.number}`,
+        current.subject === "release"
+          ? `/api/releases/details?${where}&tag=${encodeURIComponent(current.tag ?? "")}`
+          : `/api/${current.subject === "issue" ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
         { headers: { Accept: "application/json" } },
       );
       if (res.status === 401) {
@@ -235,7 +246,23 @@
           data?.error || `the server answered ${res.status}`,
         );
       }
-      const loaded = data as Details;
+      // A release answers with its title and notes: shown through the
+      // release-notes section, with no description and no conversation.
+      let loaded: Details;
+      if (current.subject === "release") {
+        const release = data as { name: string; notes: Body };
+        loaded = {
+          description: release.notes,
+          comments: [],
+          commentCount: 0,
+          commentsTruncated: false,
+          releaseNotes: release.notes,
+        };
+        if (release.name && target === current)
+          target = { ...current, title: release.name };
+      } else {
+        loaded = data as Details;
+      }
       const rendered: Record<string, string> = {};
       const jobs: Promise<void>[] = [];
       const add = (key: string, text: string) =>
@@ -246,7 +273,8 @@
             },
           ),
         );
-      add("description", loaded.description.text);
+      if (current.subject !== "release")
+        add("description", loaded.description.text);
       if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
       for (const c of loaded.comments) add(c.id, c.text);
       await Promise.all(jobs);
@@ -390,7 +418,7 @@
   bind:this={dialogEl}
   class="details-dialog"
   aria-label={target
-    ? `${subjectName} details: ${target.repo} #${target.number}`
+    ? `${subjectName} details: ${target.repo} ${isRelease ? target.tag : `#${target.number}`}`
     : "Pull request details"}
   onclose={onClose}
   oncancel={onCancel}
@@ -429,12 +457,15 @@
                 href={target.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                >#{target.number}<span class="visually-hidden">
+                >{target.subject === "release"
+                  ? target.tag
+                  : `#${target.number}`}<span class="visually-hidden">
                   (opens in a new tab)</span
                 ></a
               >
             {:else}
-              {target.repo} #{target.number}
+              {target.repo}
+              {target.subject === "release" ? target.tag : `#${target.number}`}
             {/if}
           </span>
         </p>
@@ -534,8 +565,12 @@
         {#if releaseNotes}
           <section class="details-section">
             <h3>Release notes</h3>
-            <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
-            <div class="markdown">{@html html.notes}</div>
+            {#if releaseNotes.text.trim() === ""}
+              <p class="details-note">No release notes.</p>
+            {:else}
+              <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
+              <div class="markdown">{@html html.notes}</div>
+            {/if}
             {#if releaseNotes.truncated}
               <p class="details-note">
                 Cut at 20,000 characters. The rest is on {forgeLabel}.
@@ -570,80 +605,83 @@
           </section>
         {/if}
 
-        <section class="details-section">
-          <h3>Comments ({details.commentCount})</h3>
-          {#if details.comments.length === 0}
-            <p class="details-note">No comments.</p>
-          {:else}
-            <ol class="details-comments">
-              {#each details.comments as c (c.id)}
-                {@const login = c.author?.login ?? "ghost"}
-                <li class="details-comment">
-                  <div class="comment-head">
-                    {#snippet person()}
-                      {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
-                        <img
-                          class="avatar"
-                          src={avatarSrc(c.author?.avatarUrl) ?? undefined}
-                          alt=""
-                          width="32"
-                          height="32"
-                          loading="lazy"
-                          referrerpolicy="no-referrer"
-                          onerror={() => (brokenAvatars[c.id] = true)}
-                        />
-                      {:else}
-                        <span class="avatar" aria-hidden="true"
-                          >{c.author
-                            ? login.charAt(0).toUpperCase()
-                            : "?"}</span
-                        >
-                      {/if}
-                      <span class="comment-login">{login}</span>
-                    {/snippet}
-                    <!-- The avatar and the name are one link to the person's
+        {#if !isRelease}
+          <section class="details-section">
+            <h3>Comments ({details.commentCount})</h3>
+            {#if details.comments.length === 0}
+              <p class="details-note">No comments.</p>
+            {:else}
+              <ol class="details-comments">
+                {#each details.comments as c (c.id)}
+                  {@const login = c.author?.login ?? "ghost"}
+                  <li class="details-comment">
+                    <div class="comment-head">
+                      {#snippet person()}
+                        {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
+                          <img
+                            class="avatar"
+                            src={avatarSrc(c.author?.avatarUrl) ?? undefined}
+                            alt=""
+                            width="32"
+                            height="32"
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                            onerror={() => (brokenAvatars[c.id] = true)}
+                          />
+                        {:else}
+                          <span class="avatar" aria-hidden="true"
+                            >{c.author
+                              ? login.charAt(0).toUpperCase()
+                              : "?"}</span
+                          >
+                        {/if}
+                        <span class="comment-login">{login}</span>
+                      {/snippet}
+                      <!-- The avatar and the name are one link to the person's
                       page on the forge: two links to one place would read as
                       the same link twice. A deleted account, or a forge the
                       board has no address for yet, stays plain text. -->
-                    {#if profileHref(c.author?.url)}
-                      <a
-                        class="comment-person"
-                        href={profileHref(c.author?.url) ?? undefined}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
+                      {#if profileHref(c.author?.url)}
+                        <a
+                          class="comment-person"
+                          href={profileHref(c.author?.url) ?? undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {@render person()}
+                        </a>
+                      {:else}
                         {@render person()}
-                      </a>
-                    {:else}
-                      {@render person()}
+                      {/if}
+                      <span class="comment-time"
+                        >{relativeTime(c.createdAt)}</span
+                      >
+                      {#if c.edited}<span class="comment-edited">edited</span
+                        >{/if}
+                    </div>
+                    <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
+                    <div class="markdown">{@html html[c.id]}</div>
+                    {#if c.truncated}
+                      <p class="details-note">Cut at 20,000 characters.</p>
                     {/if}
-                    <span class="comment-time">{relativeTime(c.createdAt)}</span
-                    >
-                    {#if c.edited}<span class="comment-edited">edited</span
-                      >{/if}
-                  </div>
-                  <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
-                  <div class="markdown">{@html html[c.id]}</div>
-                  {#if c.truncated}
-                    <p class="details-note">Cut at 20,000 characters.</p>
-                  {/if}
-                  {@render reactionPills(c.reactions, c.id)}
-                </li>
-              {/each}
-            </ol>
-            {#if details.commentsTruncated}
-              <p class="details-note">
-                Showing the first {details.comments.length} of {details.commentCount}
-                comments.
-                <a href={target.url} target="_blank" rel="noopener noreferrer"
-                  >Read the rest on {forgeLabel}<span class="visually-hidden">
-                    (opens in a new tab)</span
-                  ></a
-                >
-              </p>
+                    {@render reactionPills(c.reactions, c.id)}
+                  </li>
+                {/each}
+              </ol>
+              {#if details.commentsTruncated}
+                <p class="details-note">
+                  Showing the first {details.comments.length} of {details.commentCount}
+                  comments.
+                  <a href={target.url} target="_blank" rel="noopener noreferrer"
+                    >Read the rest on {forgeLabel}<span class="visually-hidden">
+                      (opens in a new tab)</span
+                    ></a
+                  >
+                </p>
+              {/if}
             {/if}
-          {/if}
-        </section>
+          </section>
+        {/if}
       {/if}
     </div>
   {/if}

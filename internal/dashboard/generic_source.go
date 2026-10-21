@@ -471,6 +471,18 @@ func (s *GenericSource) GetIssueDetails(ctx context.Context, owner, name string,
 	return detailer.GetIssueDetails(ctx, owner, name, number) //nolint:wrapcheck // see above
 }
 
+// GetReleaseDetails implements ReleaseDetailer at the Source level, the same
+// shape as GetIssueDetails.
+func (s *GenericSource) GetReleaseDetails(ctx context.Context, owner, name, tag string) (ReleaseDetails, error) {
+	detailer, ok := s.client.(ReleaseDetailer)
+	if !ok {
+		return ReleaseDetails{}, fmt.Errorf("dashboard: %s's client can't read releases: %w", s.forge, errUnsupportedByClient)
+	}
+
+	// Not wrapped, for the same reason as AddLabel.
+	return detailer.GetReleaseDetails(ctx, owner, name, tag) //nolint:wrapcheck // see above
+}
+
 // RerunFailedChecks implements ChecksRerunner at the Source level, the same
 // shape as AddLabel. internal/forgejo.Client reruns, but this was never
 // forwarded, so Rerun failed checks answered 400 on every Forgejo pull request

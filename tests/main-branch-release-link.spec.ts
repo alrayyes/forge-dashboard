@@ -3,10 +3,12 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
-// A row on the Branches page links to the repository's latest release when the
-// server names one (`latestRelease` on each row of GET /api/main-branches). The
-// page only draws it: nothing is looked up in the browser.
+// A row on the Branches page shows the repository's latest release when the
+// server names one (`latestRelease` on each row of GET /api/main-branches).
+// Clicking it opens the details dialog with that release's title and notes
+// (GET /api/releases/details), read only when the dialog opens.
 // https://github.com/alrayyes/forge-dashboard/issues/2083
+// https://github.com/alrayyes/forge-dashboard/issues/2268
 
 function row(
   fullName: string,
@@ -51,8 +53,33 @@ const BRANCHES = [
   }),
 ];
 
-async function open(page: Page) {
+async function open(
+  page: Page,
+  notes = '## Fixes\n- The page keeps its place.',
+) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/releases/details*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        tag: 'v1.2.3',
+        name: 'Spring cleaning',
+        url: 'https://example.com/acme/shipped/releases/tag/v1.2.3',
+        publishedAt: '2026-10-01T10:00:00Z',
+        notes: {
+          text: notes,
+          format: 'markdown',
+          truncated: false,
+          edited: false,
+          reactions: {
+            thumbsUp: { count: 0, logins: [] },
+            thumbsDown: { count: 0, logins: [] },
+          },
+        },
+      }),
+    }),
+  );
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -84,22 +111,77 @@ const releaseLink = (page: Page, repo: string) =>
   rowOf(page, repo).locator('[data-testid="main-branch-release"]');
 
 test.describe('Branches page latest release link', () => {
-  test('a repository with a release links to it, named by its tag', async ({
+  test('a repository with a release shows a button named by its tag', async ({
     page,
   }) => {
     await open(page);
 
-    const link = releaseLink(page, 'acme/shipped');
-    await expect(link).toHaveText('v1.2.3');
-    await expect(link).toHaveAttribute(
+    const tag = releaseLink(page, 'acme/shipped');
+    await expect(tag).toHaveText('v1.2.3');
+    await expect(tag).toHaveRole('button');
+    await expect(tag).toHaveAccessibleName(
+      'Latest release v1.2.3, open details',
+    );
+  });
+
+  test('clicking the tag opens the release dialog with its title and notes', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await releaseLink(page, 'acme/shipped').click();
+
+    const dialog = page.locator('dialog.details-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: 'Spring cleaning' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: 'Release notes' }),
+    ).toBeVisible();
+    await expect(dialog.getByText('The page keeps its place.')).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: /Comments/ })).toHaveCount(
+      0,
+    );
+    await expect(
+      dialog.getByRole('link', { name: /Open on GitHub/ }),
+    ).toHaveAttribute(
       'href',
       'https://example.com/acme/shipped/releases/tag/v1.2.3',
     );
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', /noopener/);
-    await expect(link).toHaveAccessibleName(
-      'Latest release v1.2.3 (opens in a new tab)',
-    );
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('Escape and Close close it and focus returns to the tag', async ({
+    page,
+  }) => {
+    await open(page);
+    const tag = releaseLink(page, 'acme/shipped');
+    const dialog = page.locator('dialog.details-dialog');
+
+    await tag.click();
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(tag).toBeFocused();
+
+    await tag.click();
+    await dialog.getByRole('button', { name: 'Close details' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(tag).toBeFocused();
+  });
+
+  test('a release with no notes says so', async ({ page }) => {
+    await open(page, '');
+
+    await releaseLink(page, 'acme/shipped').click();
+
+    await expect(
+      page.locator('dialog.details-dialog').getByText('No release notes.'),
+    ).toBeVisible();
   });
 
   test('a repository with no release shows no link', async ({ page }) => {
@@ -108,20 +190,7 @@ test.describe('Branches page latest release link', () => {
     await expect(releaseLink(page, 'acme/unreleased')).toHaveCount(0);
   });
 
-  test('the link is underlined like the repo name, so it reads as a link', async ({
-    page,
-  }) => {
-    await open(page);
-
-    await expect(releaseLink(page, 'acme/shipped')).toHaveCSS(
-      'text-decoration-line',
-      'underline',
-    );
-  });
-
-  test('a release url that is not http(s) renders no link', async ({
-    page,
-  }) => {
+  test('a release url that is not http(s) renders no tag', async ({ page }) => {
     await open(page);
 
     await expect(releaseLink(page, 'acme/unsafe')).toHaveCount(0);
@@ -138,7 +207,7 @@ test.describe('Branches page latest release link', () => {
     const tag = `release-candidate-${'x'.repeat(60)}-2026.10.20`;
     await expect(link).toHaveAttribute('title', tag);
     await expect(link).toHaveAccessibleName(
-      `Latest release ${tag} (opens in a new tab)`,
+      `Latest release ${tag}, open details`,
     );
     const box = await link.boundingBox();
     expect(box?.height).toBeLessThanOrEqual(48);

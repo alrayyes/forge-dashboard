@@ -94,6 +94,9 @@ type Aggregator struct {
 	// activity says whether anyone is using the dashboard, so Run can rest
 	// its scheduled refresh while nobody is. Nil means always in use.
 	activity *Activity
+
+	// seen records the last webhook delivery per repo and event class.
+	seen webhookSeen
 }
 
 // defaultSettleWindow is how long a pull request a merge or close succeeded

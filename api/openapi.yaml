@@ -2155,6 +2155,94 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/releases/details:
+    get:
+      operationId: getReleaseDetails
+      x-mcp-excluded: "Not offered to MCP clients yet: only the Main branches page's release dialog reads it. The pull request one (get_pull_request_details) is the model if that changes."
+      summary: Read a published release's title and notes, on demand
+      description: |
+        What the release dialog on the Main branches page shows for a
+        repository's latest published release: its title, when it was
+        published, its notes and the thumbs reactions on them. Fetched live on
+        every call, never as part of GET /api/main-branches' snapshot, so a
+        release nobody opens costs no budget.
+
+        GitHub answers with one GraphQL query. Only GitHub rows carry a latest
+        release today, so a Forgejo repository is a 400.
+
+        The notes are Markdown exactly as the forge stores them (`format` is
+        always `markdown`). The server neither converts nor sanitises them, so
+        a client must render them with raw HTML disabled. They are cut at
+        20,000 characters (`truncated`), and a reaction names at most its
+        first 10 people while `count` is the full number.
+
+        The error answers are those of GET /api/pull-requests/details, with
+        the same codes. A tag that has no published release is a 404.
+      tags: [dashboard]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Forge"
+        - name: fullName
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '"owner/repo", matching a MainBranch.fullName from GET /api/main-branches.'
+        - name: tag
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Matching a MainBranchRelease.tag from GET /api/main-branches.
+      responses:
+        "200":
+          description: The release's title and notes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseDetails"
+        "400":
+          description: '`tag` was empty, `fullName` wasn''t "owner/repo", no credentials are saved for that forge, or that forge''s client can''t read releases.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The forge rejected the request as unauthorized: the saved token's scope doesn't cover reading this release."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or release doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/queued-actions:
     get:
       operationId: listQueuedActions
@@ -4451,6 +4539,25 @@ components:
             release-please pull request's description is its changelog). Null
             for any other pull request, and for a release pull request this
             app can't identify. Never an empty string.
+
+    ReleaseDetails:
+      type: object
+      required: [tag, name, url, publishedAt, notes]
+      description: What the release dialog shows for a published release.
+      properties:
+        tag:
+          type: string
+        name:
+          type: string
+          description: The release's title. Empty when the forge has none, and then the tag is the title.
+        url:
+          type: string
+          description: The release's page on the forge.
+        publishedAt:
+          type: string
+          description: When it was published, RFC 3339. Empty when the forge didn't say.
+        notes:
+          $ref: "#/components/schemas/DetailsBody"
 
     IssueDetails:
       type: object

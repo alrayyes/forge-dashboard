@@ -87,8 +87,12 @@ type Client struct {
 	// credential can't read hooks); hooksDeniedRepo is per repo (the token
 	// can't administer that one). Both expire after hooksDenialTTL, so a
 	// permission granted later is noticed. Guarded by hooksMu.
-	hooksMu         sync.Mutex
-	hooksDeniedAll  time.Time
+	hooksMu        sync.Mutex
+	hooksDeniedAll time.Time
+	// ownHookEvents is the event list of the app's own hook on each repo the
+	// last check found one on, keyed by full name. A repo with no entry has
+	// no confirmed hook. Guarded by hooksMu.
+	ownHookEvents   map[string][]string
 	hooksDeniedRepo map[string]time.Time
 	// refusedRepo is the last real refusal verdict per repo, so a poll
 	// whose hooks call failed for an unrelated reason doesn't flip it.
@@ -2507,7 +2511,41 @@ func repoLogoURL(r graphqlRepo) string {
 type hookProbe struct {
 	has     bool
 	refused bool
+	// events is the event list of the hook that was found; nil when has is false.
+	events []string
 }
+
+// WebhookEvents returns the events the app's own hook on fullName subscribes
+// to, and whether the last check confirmed such a hook at all. A repo that
+// was never checked, or whose last answer was no hook, is not confirmed.
+func (c *Client) WebhookEvents(fullName string) ([]string, bool) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	events, ok := c.ownHookEvents[fullName]
+
+	return slices.Clone(events), ok
+}
+
+// noteOwnHook remembers what a successful hooks listing found for fullName.
+func (c *Client) noteOwnHook(fullName string, hook *hookProbe) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	if hook == nil || !hook.has {
+		delete(c.ownHookEvents, fullName)
+
+		return
+	}
+	if c.ownHookEvents == nil {
+		c.ownHookEvents = make(map[string][]string)
+	}
+	c.ownHookEvents[fullName] = hook.events
+}
+
+// CredentialLabel implements dashboard.CredentialLabeler: the label this
+// client's calls are counted under. It never carries the token.
+func (c *Client) CredentialLabel() string { return c.statsCredential }
 
 const integrationRefusal = "Resource not accessible by integration"
 
@@ -2661,23 +2699,35 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 
 				return
 			}
-			has, err := c.HasWebhook(ctx, r.Owner.Login, r.Name)
-			if err != nil {
-				c.logHooksFailure(fullName, err)
-				mu.Lock()
-				result[fullName] = hookProbe{refused: c.noteRefused(fullName, refusesHooks(err), true)}
-				mu.Unlock()
-
-				return
-			}
+			probe := c.probeOwnHook(ctx, r.Owner.Login, r.Name)
 			mu.Lock()
-			result[fullName] = hookProbe{has: has, refused: c.noteRefused(fullName, false, false)}
+			result[fullName] = probe
 			mu.Unlock()
 		}(r)
 	}
 	wg.Wait()
 
 	return result
+}
+
+// probeOwnHook lists owner/name's hooks and reports the app's own, with the
+// events it subscribes to. A failed listing keeps what was last known about
+// the events, since it says nothing about them.
+func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe {
+	fullName := owner + "/" + name
+	hook, err := c.findOwnHook(ctx, owner, name, c.webhookPath)
+	if err != nil {
+		c.logHooksFailure(fullName, err)
+
+		return hookProbe{refused: c.noteRefused(fullName, refusesHooks(err), true)}
+	}
+	probe := hookProbe{has: hook != nil, refused: c.noteRefused(fullName, false, false)}
+	if hook != nil {
+		probe.events = hook.Events
+	}
+	c.noteOwnHook(fullName, &probe)
+
+	return probe
 }
 
 // logHooksFailure logs a failed hooks listing at the level its cause calls for
