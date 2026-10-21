@@ -3867,6 +3867,9 @@
         readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
       )
         return null;
+      // Waiting for CI: Merge already says so, and updating would only
+      // restart the checks. Hidden rather than locked.
+      if (updateBranch.blocked?.code === "checks_pending") return null;
       if (updateBranch.blocked)
         return lockedActionButton(
           "Update branch",
