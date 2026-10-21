@@ -193,7 +193,9 @@ func TestReserve_OtherCallsBetweenRefreshes_AreNotTheRefreshCost(t *testing.T) {
 	assert.Equal(t, 3, src.count())
 }
 
-func TestReserve_RefreshThatCostNothing_ReplacesAnEarlierCost(t *testing.T) {
+// A refresh the cache answered costs nothing, which says little about the next
+// one that goes to the forge.
+func TestReserve_OneFreeRefresh_DoesNotLowerTheCost(t *testing.T) {
 	t.Parallel()
 
 	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
@@ -207,8 +209,28 @@ func TestReserve_RefreshThatCostNothing_ReplacesAnEarlierCost(t *testing.T) {
 
 	agg.refreshBackground(t.Context())
 
-	// 600 is left and the last refresh cost 0, so there is room above 500.
-	assert.Equal(t, 3, src.count())
+	// 600 is left and the dearest recent refresh cost 400: held.
+	assert.Equal(t, 2, src.count())
+}
+
+func TestReserve_EnoughFreeRefreshes_LetTheCostFall(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	src.rest = true
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step = 0
+	src.mu.Unlock()
+	for range costWindow {
+		agg.Refresh(t.Context())
+	}
+
+	agg.refreshBackground(t.Context())
+
+	// 600 is left and the last refreshes were all free, so there is room above 500.
+	assert.Equal(t, costWindow+2, src.count())
 }
 
 // A failed fetch spends next to nothing and says nothing about a good one.
@@ -263,8 +285,26 @@ func TestReserve_UnmeasuredFetch_KeepsTheLastCost(t *testing.T) {
 	assert.Equal(t, 2, src.count())
 }
 
-// A fetch that skipped a repo spent less than a whole one does.
-func TestReserve_PartialFetch_KeepsTheLastCost(t *testing.T) {
+// A repo that never reads makes every refresh partial. What the others cost is
+// still what a refresh costs, or the hold would never see it coming.
+func TestReserve_AlwaysPartialFetch_StillLearnsItsCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	src.partial = true
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	// 600 is left, and another 400 would leave 200.
+	assert.Equal(t, 2, src.count())
+}
+
+// A fetch that skipped a repo spent less than a whole one does, so it must not
+// lower what the dearer ones taught.
+func TestReserve_PartialFetch_DoesNotLowerTheCost(t *testing.T) {
 	t.Parallel()
 
 	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
