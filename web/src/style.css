@@ -1722,6 +1722,44 @@ a.ci-pill:hover {
     border-left: 0;
   }
 }
+/* A pill that carries its pull request's pipeline: the number, then the same
+   badge the pull request's row draws, shrunk to sit inside the pill. */
+.linked-pr.with-ci {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.linked-pr .ci-pill {
+  min-height: 0;
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.linked-pr .ci-pill.segmented {
+  box-shadow: none;
+}
+.linked-pr .ci-pill:not(.segmented) {
+  padding: 0 4px;
+}
+/* The long words of a held run wrap rather than widen the pill past a phone. */
+.linked-pr.with-ci:has(.ci-pill.awaiting) {
+  white-space: normal;
+  text-align: left;
+  border-radius: 12px;
+  max-width: 100%;
+}
+/* The word stays on a phone, unlike on a row's own pill: the pill's name starts
+   with the number and state, so a hidden word would leave the visible text
+   out of the name (WCAG 2.5.3). */
+.linked-pr .ci-seg-label {
+  display: inline-flex;
+}
+.linked-pr .ci-seg-label + .ci-seg {
+  border-left: 1px solid var(--border-strong);
+}
+.linked-pr .ci-pill.awaiting {
+  background: transparent;
+  border-radius: 0;
+}
 .approve-link {
   position: relative;
   z-index: 1;

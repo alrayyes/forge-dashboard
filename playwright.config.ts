@@ -18,6 +18,7 @@ const singleUserSpecs = [
   '**/pull-request-dependabot-action.spec.ts',
   '**/rate-limit-actions.spec.ts',
   '**/review-requested-pill.spec.ts',
+  '**/linked-pull-request-pipeline.spec.ts',
   '**/stacked-prs.spec.ts',
   '**/webhooks-page.spec.ts',
   '**/webhooks-phone-sort.spec.ts',
