@@ -106,11 +106,12 @@ Query trimming is a separate step in the same ticket: list every field in `repos
 
 ### D6. Persistence in the existing SQLite database
 
-Three tables created with `CREATE TABLE IF NOT EXISTS` alongside the existing ones in `internal/settings`, none with a user id:
+Four tables created with `CREATE TABLE IF NOT EXISTS` alongside the existing ones in `internal/settings`, none with a user id:
 
 - `http_etags(forge, credential, url, etag, body BLOB, header_json, updated_at)` with primary key `(forge, credential, url)`. `etagTransport` gets an optional store: read-through on start (lazily per key), write on a 200 with an ETag. Cap total size (suggest 20 MB, oldest evicted) and cap per-body size; bodies over the cap are not stored.
 - `snapshot_cache(forge, credential, repo, payload_json, fetched_at)` holding each repo's rows; written after a successful refresh, loaded by `Manager` start so `Get()` returns it with `Stale=true` until the first refresh succeeds. The stale mark already exists for failed repos (`markRepoStale`); reuse that field rather than inventing a second one, and add a snapshot-level flag only if the API needs one (spec first).
 - `hook_checks(forge, credential, repo, has_hook, events_json, refused, checked_at)` for D4. D7 reads the snapshot's live `HasWebhook`, which these checks feed, and does not use delivery times.
+- `webhook_seen(forge, credential, repo, event_class, last_seen_at)` for D4: the last delivery per event class, so the CI poll skip survives a restart.
 
 A schema version check and a tolerant loader: unreadable rows are logged and the cache starts empty (the spec's corrupt-store scenario). Retention: delete rows for repos no longer tracked on each successful full refresh.
 
@@ -120,7 +121,7 @@ Authorization-folded ETags: a rotated installation token makes one miss (already
 
 The `Aggregator.NextDelay` method in `internal/dashboard` replaces the bare timer in `Run`:
 
-- `NextDelay(interval)` = max(`NextRefreshDelay` today, interval) where `interval` is `REFRESH_INTERVAL` when coverage is not full, else `min(stretchFactor * REFRESH_INTERVAL, max(2h, REFRESH_INTERVAL))` with `stretchFactor = 4`, so the default `20m` stretches to 80 minutes and a larger explicit value is never shortened (the previous wording stretched nothing at the default). Coverage is "at least one tracked repo, and every tracked repo has `HasWebhook` true" from the current snapshot (ignored repos stay in it), so it needs D6 first.
+- `NextDelay(interval)` = max(`NextRefreshDelay` today, interval) where `interval` is `REFRESH_INTERVAL` when coverage is not full, else `min(stretchFactor * REFRESH_INTERVAL, max(2h, REFRESH_INTERVAL))` with `stretchFactor = 4`, so the default `20m` stretches to 80 minutes and a larger explicit value is never shortened (the previous wording stretched nothing at the default). Coverage is "at least one tracked repo, and every tracked repo has `HasWebhook` true" from the current snapshot (ignored repos stay in it), so it needs D6 first: the persisted checks seed `HasWebhook` after a restart.
 - Reserve: constant `reserveFraction = 0.10` of the budget (min 50 points), applied to background callers only: full refreshes, polls and hook maintenance. A scoped webhook refresh is held only when the budget is spent, since it is cheap and is the path the plan wants to keep. The check is `remaining - lastCostOfThisKind > reserve`, so a full refresh that would cross the reserve waits, not just one that starts under it. User actions are Merge, Update branch, bot rebases, Close, Enable auto-merge and queued actions; none is gated. The background path asks `budgetAllows(kind)` before a call; user actions never ask. This reuses `RateLimit` from `ForgeHealth`; Forgejo returns nil and so is never held. Document that the reserve is GitHub-only.
 - Idle: `activity` tracker records the time of the last browser or API request (middleware at the composition root, touched by session and token requests, **not** by the SSE keep-alive, which is not a user act; an SSE connection existing is recorded separately and pinned by a test, per #2016's third criterion). `idleAfter = 15 * time.Minute`. While idle, `Run` skips its tick and re-arms; the first activity after idle triggers one `Refresh` (incremental by D5). Webhook-triggered refreshes still run (they are the cheap path).
 - A force refresh calls the immediate path and ignores all three; it is still subject to the existing 5 s `DefaultForceRefreshCooldown`.
