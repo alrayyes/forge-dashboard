@@ -161,7 +161,6 @@
         subject: "release",
         forge: b.forge,
         repo: b.fullName,
-        number: 0,
         tag: release.tag,
         title: release.tag,
         url,

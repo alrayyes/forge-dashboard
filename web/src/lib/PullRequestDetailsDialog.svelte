@@ -11,15 +11,20 @@
   // with subject "issue": its own endpoint and wording, no release notes and
   // no footer actions. A published release (from the Main branches page) is
   // subject "release": found by its tag, with its notes and nothing else.
-  export type DetailsTarget = {
-    subject?: "pull-request" | "issue" | "release";
-    // The release's tag; only a release has one.
-    tag?: string;
+  type TargetBase = {
     forge: string;
     repo: string;
-    number: number;
     title: string;
     url: string;
+    // Drawn from the row the dialog was opened from, as it was then. Nothing
+    // here is fetched.
+    status?: DetailsStatus;
+  };
+
+  // A pull request or an issue: found by its number.
+  export type ItemTarget = TargetBase & {
+    subject?: "pull-request" | "issue";
+    number: number;
     kind?: "release" | "dependency" | "regular";
     // Who filed an issue and the forge's avatar for them, from its row. Only
     // the issue dialog shows them.
@@ -27,10 +32,19 @@
     authorAvatarUrl?: string;
     // The filer's page on the forge, built by the server; empty when none.
     authorUrl?: string;
-    // Drawn from the row the dialog was opened from, as it was then. Nothing
-    // here is fetched.
-    status?: DetailsStatus;
   };
+
+  // A release has a tag and no number, so there is nothing to fake.
+  export type ReleaseTarget = TargetBase & {
+    subject: "release";
+    tag: string;
+  };
+
+  export type DetailsTarget = ItemTarget | ReleaseTarget;
+
+  // The one place that tells the two cases apart.
+  const isReleaseTarget = (t: DetailsTarget): t is ReleaseTarget =>
+    t.subject === "release";
 
   // What the footer area shows, built by the row's own builders in
   // Dashboard.svelte (the same buttons, the same state) and handed over whole:
@@ -126,15 +140,28 @@
     target ? (FORGE_LABELS[target.forge] ?? target.forge) : "",
   );
   const releaseNotes = $derived(details?.releaseNotes ?? null);
-  const isBot = $derived(target?.kind === "dependency");
+  const releaseTarget = $derived(
+    target && isReleaseTarget(target) ? target : null,
+  );
+  const itemTarget = $derived(
+    target && !isReleaseTarget(target) ? target : null,
+  );
+  const isBot = $derived(itemTarget?.kind === "dependency");
   const subjectName = $derived(
-    target?.subject === "issue"
-      ? "Issue"
-      : target?.subject === "release"
-        ? "Release"
+    releaseTarget
+      ? "Release"
+      : itemTarget?.subject === "issue"
+        ? "Issue"
         : "Pull request",
   );
-  const isRelease = $derived(target?.subject === "release");
+  // What names the thing on its forge: a release's tag, an item's number.
+  const refText = $derived(
+    releaseTarget
+      ? releaseTarget.tag
+      : itemTarget
+        ? `#${itemTarget.number}`
+        : "",
+  );
 
   // The dialog's own polite live region. The page's one (outside the
   // <dialog>) is ignored by assistive tech while a modal is open, so the
@@ -231,8 +258,8 @@
     try {
       const where = `forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}`;
       const res = await fetch(
-        current.subject === "release"
-          ? `/api/releases/details?${where}&tag=${encodeURIComponent(current.tag ?? "")}`
+        isReleaseTarget(current)
+          ? `/api/releases/details?${where}&tag=${encodeURIComponent(current.tag)}`
           : `/api/${current.subject === "issue" ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
         { headers: { Accept: "application/json" } },
       );
@@ -249,7 +276,7 @@
       // A release answers with its title and notes: shown through the
       // release-notes section, with no description and no conversation.
       let loaded: Details;
-      if (current.subject === "release") {
+      if (isReleaseTarget(current)) {
         const release = data as { name: string; notes: Body };
         loaded = {
           description: release.notes,
@@ -273,7 +300,7 @@
             },
           ),
         );
-      if (current.subject !== "release")
+      if (!isReleaseTarget(current))
         add("description", loaded.description.text);
       if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
       for (const c of loaded.comments) add(c.id, c.text);
@@ -418,7 +445,7 @@
   bind:this={dialogEl}
   class="details-dialog"
   aria-label={target
-    ? `${subjectName} details: ${target.repo} ${isRelease ? target.tag : `#${target.number}`}`
+    ? `${subjectName} details: ${target.repo} ${refText}`
     : "Pull request details"}
   onclose={onClose}
   oncancel={onCancel}
@@ -457,25 +484,23 @@
                 href={target.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                >{target.subject === "release"
-                  ? target.tag
-                  : `#${target.number}`}<span class="visually-hidden">
+                >{refText}<span class="visually-hidden">
                   (opens in a new tab)</span
                 ></a
               >
             {:else}
               {target.repo}
-              {target.subject === "release" ? target.tag : `#${target.number}`}
+              {refText}
             {/if}
           </span>
         </p>
         <h2 class="details-title">{target.title}</h2>
-        {#if target.subject === "issue" && target.author}
+        {#if itemTarget?.subject === "issue" && itemTarget.author}
           {#snippet filer()}
-            {#if avatarSrc(target?.authorAvatarUrl) && !brokenFilerAvatar}
+            {#if avatarSrc(itemTarget?.authorAvatarUrl) && !brokenFilerAvatar}
               <img
                 class="filer-avatar"
-                src={avatarSrc(target?.authorAvatarUrl) ?? undefined}
+                src={avatarSrc(itemTarget?.authorAvatarUrl) ?? undefined}
                 alt=""
                 width="20"
                 height="20"
@@ -484,17 +509,17 @@
                 onerror={() => (brokenFilerAvatar = true)}
               />
             {/if}
-            <span class="filer-name">{target?.author}</span>
+            <span class="filer-name">{itemTarget?.author}</span>
           {/snippet}
           <p class="details-author">
             <span>Filed by</span>
             <!-- The avatar and the name are one link to the filer's page on
               the forge, as on the row. Without an address, or for a deleted
               account, they are plain text. -->
-            {#if profileHref(target.authorUrl)}
+            {#if profileHref(itemTarget?.authorUrl)}
               <a
                 class="filer-link"
-                href={profileHref(target.authorUrl) ?? undefined}
+                href={profileHref(itemTarget?.authorUrl) ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -605,7 +630,7 @@
           </section>
         {/if}
 
-        {#if !isRelease}
+        {#if !releaseTarget}
           <section class="details-section">
             <h3>Comments ({details.commentCount})</h3>
             {#if details.comments.length === 0}

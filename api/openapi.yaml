@@ -4557,7 +4557,7 @@ components:
           description: The release's page on the forge.
         publishedAt:
           type: string
-          description: When it was published, RFC 3339. Empty when the forge didn't say.
+          description: When it was published, RFC 3339. Always set, since a release with no publish date is a 404 instead.
         notes:
           $ref: "#/components/schemas/DetailsBody"
 

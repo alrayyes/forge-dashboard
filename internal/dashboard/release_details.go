@@ -8,8 +8,10 @@ type ReleaseDetails struct {
 	Tag string `json:"tag"`
 	// Name is the release's title; the forge may leave it empty, and then the
 	// tag is the title.
-	Name        string      `json:"name"`
-	URL         string      `json:"url"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	// PublishedAt is RFC 3339. It is always set: a release with no
+	// publish date is answered as not found instead.
 	PublishedAt string      `json:"publishedAt"`
 	Notes       DetailsBody `json:"notes"`
 }
