@@ -43,29 +43,7 @@ func (a *Aggregator) restoreSnapshot(ctx context.Context) {
 			continue
 		}
 
-		var newest time.Time
-		var repos int
-		for _, row := range rows {
-			var payload cachedRepoRows
-			if err := json.Unmarshal(row.Payload, &payload); err != nil {
-				slog.Warn("saved snapshot row unreadable, skipping it", "forge", forge, "repo", row.Repo, "error", err)
-
-				continue
-			}
-			fetched := row.FetchedAt.UTC()
-			payload.Repo.StaleSince = &fetched
-			if payload.MainBranch != nil {
-				payload.MainBranch.StaleSince = &fetched
-				snap.MainBranches = append(snap.MainBranches, *payload.MainBranch)
-			}
-			snap.Repos = append(snap.Repos, payload.Repo)
-			snap.PullRequests = append(snap.PullRequests, payload.PullRequests...)
-			snap.Issues = append(snap.Issues, payload.Issues...)
-			repos++
-			if fetched.After(newest) {
-				newest = fetched
-			}
-		}
+		newest, repos := addSavedRows(&snap, forge, rows)
 		if repos == 0 {
 			continue
 		}
@@ -89,6 +67,35 @@ func (a *Aggregator) restoreSnapshot(ctx context.Context) {
 	a.restored.Store(true)
 }
 
+// addSavedRows decodes one forge's saved rows into snap, stamping each repo
+// and main branch with when it was fetched. It returns the newest fetch time
+// and how many repos were readable; a row that can't be decoded is skipped.
+func addSavedRows(snap *Snapshot, forge Forge, rows []CachedRepo) (newest time.Time, repos int) {
+	for _, row := range rows {
+		var payload cachedRepoRows
+		if err := json.Unmarshal(row.Payload, &payload); err != nil {
+			slog.Warn("saved snapshot row unreadable, skipping it", "forge", forge, "repo", row.Repo, "error", err)
+
+			continue
+		}
+		fetched := row.FetchedAt.UTC()
+		payload.Repo.StaleSince = &fetched
+		if payload.MainBranch != nil {
+			payload.MainBranch.StaleSince = &fetched
+			snap.MainBranches = append(snap.MainBranches, *payload.MainBranch)
+		}
+		snap.Repos = append(snap.Repos, payload.Repo)
+		snap.PullRequests = append(snap.PullRequests, payload.PullRequests...)
+		snap.Issues = append(snap.Issues, payload.Issues...)
+		repos++
+		if fetched.After(newest) {
+			newest = fetched
+		}
+	}
+
+	return newest, repos
+}
+
 // saveSnapshot stores the rows of every forge that was read in full this
 // refresh, one row per repo, replacing what was there so a repo no longer
 // tracked drops out. A forge that failed keeps its earlier rows.
@@ -109,6 +116,41 @@ func (a *Aggregator) saveSnapshot(ctx context.Context, snap Snapshot) {
 
 // snapshotRows splits one forge's part of snap into a row per repo.
 func snapshotRows(snap Snapshot, forge Forge) []CachedRepo {
+	byRepo, fetchedAt := rowsByRepo(snap, forge)
+
+	out := make([]CachedRepo, 0, len(byRepo))
+	for repo, rows := range byRepo {
+		payload, err := json.Marshal(rows)
+		if err != nil {
+			slog.Warn("could not encode a repo for the snapshot cache", "repo", repo, "error", err)
+
+			continue
+		}
+		at, ok := fetchedAt[repo]
+		if !ok {
+			at = snap.GeneratedAt
+		}
+		out = append(out, CachedRepo{Repo: repo, FetchedAt: at, Payload: payload})
+	}
+	slices.SortFunc(out, func(a, b CachedRepo) int { return strings.Compare(a.Repo, b.Repo) })
+
+	return out
+}
+
+// fetchTime is when r was really fetched: its own stale time when it was
+// carried over, else the snapshot's.
+func fetchTime(r Repo, generated time.Time) time.Time {
+	if r.StaleSince != nil {
+		return *r.StaleSince
+	}
+
+	return generated
+}
+
+// rowsByRepo collects one forge's rows per repo, and when each repo was
+// really fetched: a repo carried over from an earlier refresh keeps its own
+// stale time, any other is as new as the snapshot.
+func rowsByRepo(snap Snapshot, forge Forge) (map[string]*cachedRepoRows, map[string]time.Time) {
 	byRepo := map[string]*cachedRepoRows{}
 	rowsFor := func(repo string) *cachedRepoRows {
 		if r, ok := byRepo[repo]; ok {
@@ -121,14 +163,9 @@ func snapshotRows(snap Snapshot, forge Forge) []CachedRepo {
 	}
 	fetchedAt := map[string]time.Time{}
 	for _, r := range snap.Repos {
-		if r.Forge != forge {
-			continue
-		}
-		rowsFor(r.FullName).Repo = r
-		fetchedAt[r.FullName] = snap.GeneratedAt
-		if r.StaleSince != nil {
-			// Carried over from an earlier refresh: say when it was really fetched.
-			fetchedAt[r.FullName] = *r.StaleSince
+		if r.Forge == forge {
+			rowsFor(r.FullName).Repo = r
+			fetchedAt[r.FullName] = fetchTime(r, snap.GeneratedAt)
 		}
 	}
 	for _, pr := range snap.PullRequests {
@@ -150,21 +187,5 @@ func snapshotRows(snap Snapshot, forge Forge) []CachedRepo {
 		}
 	}
 
-	out := make([]CachedRepo, 0, len(byRepo))
-	for repo, rows := range byRepo {
-		payload, err := json.Marshal(rows)
-		if err != nil {
-			slog.Warn("could not encode a repo for the snapshot cache", "repo", repo, "error", err)
-
-			continue
-		}
-		at, ok := fetchedAt[repo]
-		if !ok {
-			at = snap.GeneratedAt
-		}
-		out = append(out, CachedRepo{Repo: repo, FetchedAt: at, Payload: payload})
-	}
-	slices.SortFunc(out, func(a, b CachedRepo) int { return strings.Compare(a.Repo, b.Repo) })
-
-	return out
+	return byRepo, fetchedAt
 }

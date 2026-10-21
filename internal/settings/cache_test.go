@@ -156,21 +156,29 @@ func openCacheTestDB(t *testing.T) (*sql.DB, *settings.Store) {
 	return db, store
 }
 
+func columnsOf(t *testing.T, db *sql.DB, table string) []string {
+	t.Helper()
+	rows, err := db.QueryContext(t.Context(), `SELECT name FROM pragma_table_info(?)`, table)
+	require.NoError(t, err)
+	defer func() { _ = rows.Close() }()
+
+	var cols []string
+	for rows.Next() {
+		var name string
+		require.NoError(t, rows.Scan(&name))
+		cols = append(cols, name)
+	}
+	require.NoError(t, rows.Err())
+
+	return cols
+}
+
 func TestStore_CacheTables_HaveNoUserIDColumn(t *testing.T) {
 	t.Parallel()
 	db, _ := openCacheTestDB(t)
 
 	for _, table := range []string{"http_etags", "snapshot_cache", "hook_checks", "webhook_seen"} {
-		rows, err := db.QueryContext(t.Context(), `SELECT name FROM pragma_table_info('`+table+`')`)
-		require.NoError(t, err)
-		var cols []string
-		for rows.Next() {
-			var name string
-			require.NoError(t, rows.Scan(&name))
-			cols = append(cols, name)
-		}
-		require.NoError(t, rows.Err())
-		require.NoError(t, rows.Close())
+		cols := columnsOf(t, db, table)
 		assert.Contains(t, cols, "credential", table)
 		assert.Contains(t, cols, "forge", table)
 		assert.NotContains(t, cols, "user_id", table)

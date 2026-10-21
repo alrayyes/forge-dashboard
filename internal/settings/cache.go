@@ -142,26 +142,9 @@ func (s *Store) evictETags(ctx context.Context) error {
 		return nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, `SELECT rowid, LENGTH(body) FROM http_etags ORDER BY updated_at ASC, rowid ASC`)
+	evict, err := s.oldestETagRows(ctx, total, limit)
 	if err != nil {
-		return fmt.Errorf("settings: list etag cache: %w", err)
-	}
-	var evict []int64
-	for rows.Next() && total > limit {
-		var id int64
-		var size int
-		if err := rows.Scan(&id, &size); err != nil {
-			_ = rows.Close()
-
-			return fmt.Errorf("settings: scan etag cache: %w", err)
-		}
-		evict = append(evict, id)
-		total -= size
-	}
-	err = rows.Err()
-	_ = rows.Close()
-	if err != nil {
-		return fmt.Errorf("settings: list etag cache: %w", err)
+		return err
 	}
 	for _, id := range evict {
 		if _, err := s.db.ExecContext(ctx, `DELETE FROM http_etags WHERE rowid = ?`, id); err != nil {
@@ -170,6 +153,32 @@ func (s *Store) evictETags(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// oldestETagRows returns the ids of the oldest rows whose removal brings total
+// down to limit.
+func (s *Store) oldestETagRows(ctx context.Context, total, limit int) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT rowid, LENGTH(body) FROM http_etags ORDER BY updated_at ASC, rowid ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("settings: list etag cache: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var ids []int64
+	for rows.Next() && total > limit {
+		var id int64
+		var size int
+		if err := rows.Scan(&id, &size); err != nil {
+			return nil, fmt.Errorf("settings: scan etag cache: %w", err)
+		}
+		ids = append(ids, id)
+		total -= size
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("settings: list etag cache: %w", err)
+	}
+
+	return ids, nil
 }
 
 // LoadETag returns the stored answer for url, and whether there is one. A row

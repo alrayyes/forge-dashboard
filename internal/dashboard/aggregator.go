@@ -671,11 +671,16 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 
-	a.notify(snap)
-	a.saveSnapshot(ctx, snap)
+	a.publish(ctx, snap)
 	a.runAutoUpdateBranch(ctx, snap)
 	a.runAutoMerge(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// publish tells the subscribers about snap and saves it for the next start.
+func (a *Aggregator) publish(ctx context.Context, snap Snapshot) {
+	a.notify(snap)
+	a.saveSnapshot(ctx, snap)
 }
 
 // markFirstRefreshed flips the readiness latch and wakes WaitFirstRefresh.

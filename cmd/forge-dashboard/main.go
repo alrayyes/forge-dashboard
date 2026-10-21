@@ -256,10 +256,7 @@ func run() error {
 
 	cleanUpForSingleUser(ctx, db)
 
-	// The ETags GitHub sent survive a restart, so the first refresh asks
-	// with If-None-Match instead of paying for every read again.
-	github.SetETagBacking(settingsStore)
-	github.SetHookCheckStore(settingsStore)
+	keepGitHubAnswersAcrossRestarts(settingsStore)
 
 	githubAppID, githubAppPrivateKey, err := buildGitHubApp()
 	if err != nil {
@@ -315,6 +312,14 @@ func newServer(addr string, deps api.Deps) *http.Server {
 		Handler:           withE2EHooks(api.NewMux(deps), deps),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+}
+
+// keepGitHubAnswersAcrossRestarts saves the ETags GitHub sent and the webhook
+// checks in store, so the first refresh after a restart asks with
+// If-None-Match instead of paying for every read again.
+func keepGitHubAnswersAcrossRestarts(store *settings.Store) {
+	github.SetETagBacking(store)
+	github.SetHookCheckStore(store)
 }
 
 // newManager is the per-user refresh manager, with the settings store as its

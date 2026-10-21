@@ -62,25 +62,31 @@ func (c *Client) restoreHookChecks() {
 			return
 		}
 
-		c.hooksMu.Lock()
-		defer c.hooksMu.Unlock()
-		for _, check := range checks {
-			if check.Has {
-				if c.ownHookEvents == nil {
-					c.ownHookEvents = make(map[string][]string)
-				}
-				c.ownHookEvents[check.Repo] = slices.Clone(check.Events)
-			}
-			if c.refusedRepo == nil {
-				c.refusedRepo = map[string]bool{}
-			}
-			c.refusedRepo[check.Repo] = check.Refused
-			if c.hookLastSaved == nil {
-				c.hookLastSaved = map[string]dashboard.HookCheck{}
-			}
-			c.hookLastSaved[check.Repo] = check
-		}
+		c.adoptHookChecks(checks)
 	})
+}
+
+// adoptHookChecks makes the saved answers the client's current knowledge.
+func (c *Client) adoptHookChecks(checks []dashboard.HookCheck) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+
+	if c.ownHookEvents == nil {
+		c.ownHookEvents = make(map[string][]string)
+	}
+	if c.refusedRepo == nil {
+		c.refusedRepo = map[string]bool{}
+	}
+	if c.hookLastSaved == nil {
+		c.hookLastSaved = map[string]dashboard.HookCheck{}
+	}
+	for _, check := range checks {
+		if check.Has {
+			c.ownHookEvents[check.Repo] = slices.Clone(check.Events)
+		}
+		c.refusedRepo[check.Repo] = check.Refused
+		c.hookLastSaved[check.Repo] = check
+	}
 }
 
 // saveHookCheck stores a real answer about fullName when it differs from the
