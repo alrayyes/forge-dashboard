@@ -38,6 +38,7 @@ type mainBranchServer struct {
 	runsCode int
 	jobs     map[string][]map[string]any
 	jobsCode int
+	bareJobs bool // answer the jobs list as a bare array, as the live instance does
 	commit   map[string]any
 
 	mu    sync.Mutex
@@ -62,8 +63,16 @@ func (s *mainBranchServer) start(t *testing.T) *forgejo.Client {
 		writeJSON(t, w, map[string]any{"total_count": len(s.runs), "workflow_runs": s.runs})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/{run}/jobs", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		s.paths = append(s.paths, r.URL.Path)
+		s.mu.Unlock()
 		if s.jobsCode != 0 {
 			w.WriteHeader(s.jobsCode)
+
+			return
+		}
+		if s.bareJobs {
+			writeJSON(t, w, s.jobs[r.PathValue("run")])
 
 			return
 		}
@@ -394,11 +403,11 @@ func TestListRepos_CarriesTheDefaultBranch(t *testing.T) {
 	assert.Equal(t, "trunk", repos[0].DefaultBranch)
 }
 
-// A default branch carries how many of its newest commit's workflow runs
-// passed, are running, are waiting and failed. The runs are already listed to
-// work out the status, so it costs no request; a job count would cost one per
-// run. A cancelled run is in none of the four, as for a pull request.
-func TestReadMainBranch_CarriesTheRunCounts(t *testing.T) {
+// A run whose jobs can't be listed (none served here) counts as one check by
+// its own status, so these are the fallback counts; the job counts are in
+// main_branch_job_counts_test.go. A cancelled run is in none of the four, as
+// for a pull request.
+func TestReadMainBranch_FallsBackToTheRunCounts(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
