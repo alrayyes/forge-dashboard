@@ -114,6 +114,7 @@ const singleUserSpecs = [
   '**/issues-number-filter.spec.ts',
   '**/issues-steady.spec.ts',
   '**/main-branches-choices.spec.ts',
+  '**/main-branches-page.spec.ts',
   '**/main-branches-refetch-on-flag.spec.ts',
   '**/main-branches-server-copy.spec.ts',
   '**/presence-hidden-tab.spec.ts',
