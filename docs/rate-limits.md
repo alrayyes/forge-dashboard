@@ -314,12 +314,12 @@ returns only the requests made with your own credentials.
 
 Each row is one forge, credential, kind and repo, with four counts:
 
-| Count         | What it counts                                                        |
-| ------------- | --------------------------------------------------------------------- |
-| `rest`        | REST requests, each charged against the REST budget.                  |
-| `graphql`     | GraphQL requests made.                                                |
-| `graphqlCost` | The points the GraphQL requests were charged (`rateLimit.cost`).      |
-| `notModified` | Requests answered `304 Not Modified`. GitHub documents these as free. |
+| Count         | What it counts                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `rest`        | REST requests, each charged against the REST budget.                                     |
+| `graphql`     | GraphQL requests made.                                                                   |
+| `graphqlCost` | The points the GraphQL requests were charged (`rateLimit.cost`).                         |
+| `notModified` | Requests answered `304 Not Modified`. GitHub documents these as free; not verified here. |
 
 The kind says why the request was made:
 
