@@ -78,6 +78,12 @@
     dialog.showModal();
   }
 
+  // The row redrew its pill while the panel was open: focus goes back to the
+  // new one on close, not to the button that is gone.
+  export function replaceOpener(old: HTMLElement, next: HTMLElement) {
+    if (target?.opener === old) target.opener = next;
+  }
+
   // The page hands over each list it reads. A row whose CI moved on is what
   // sends the panel back to the forge.
   export function follow(branches: MainBranch[]) {
