@@ -415,3 +415,38 @@ func TestActivity_ExpiredViewersAreDroppedWhateverOtherTabsAreBeating(t *testing
 
 	assert.Equal(t, 1, act.ViewerCount())
 }
+
+func TestActivity_ResetForgetsEveryTab(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	act.Present("tab-one-aaaa", true)
+	act.Present("tab-two-bbbb", true)
+	require.Equal(t, 2, act.ViewerCount())
+
+	act.Reset()
+
+	assert.Zero(t, act.ViewerCount())
+}
+
+func TestActivity_ResetRestartsTheIdlePeriodLikeAFreshProcess(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	clock.advance(20 * time.Minute)
+	require.True(t, act.Idle())
+
+	act.Reset()
+
+	assert.False(t, act.Idle())
+}
+
+func TestActivity_ResetOnNilIsSafe(t *testing.T) {
+	t.Parallel()
+
+	var act *dashboard.Activity
+
+	assert.NotPanics(t, act.Reset)
+}
