@@ -201,3 +201,106 @@ func TestStore_Init_StartsTheCacheEmptyWhenItsSchemaIsOld(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestStore_Init_RebuildsTheCacheWhenItsVersionRowIsDamaged(t *testing.T) {
+	t.Parallel()
+	db, store := openCacheTestDB(t)
+	ctx := t.Context()
+	require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c", dashboard.HookCheck{Repo: "o/a", CheckedAt: time.Now()}))
+	_, err := db.ExecContext(ctx, `DROP TABLE cache_schema`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `CREATE TABLE cache_schema (version TEXT NOT NULL)`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO cache_schema (version) VALUES ('not a number')`)
+	require.NoError(t, err)
+
+	require.NoError(t, store.Init(ctx))
+
+	got, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c")
+	require.NoError(t, err)
+	assert.Empty(t, got, "the disposable cache starts over")
+	var version int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT version FROM cache_schema`).Scan(&version))
+	assert.Positive(t, version)
+}
+
+func TestStore_Init_ReturnsARealDatabaseError(t *testing.T) {
+	t.Parallel()
+	db, store := openCacheTestDB(t)
+	require.NoError(t, db.Close())
+
+	require.Error(t, store.Init(t.Context()))
+}
+
+func TestStore_Init_TreatsAnEmptyVersionTableAsAFreshDatabase(t *testing.T) {
+	t.Parallel()
+	db, store := openCacheTestDB(t)
+	_, err := db.ExecContext(t.Context(), `DELETE FROM cache_schema`)
+	require.NoError(t, err)
+
+	require.NoError(t, store.Init(t.Context()))
+
+	var version int
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT version FROM cache_schema`).Scan(&version))
+	assert.Positive(t, version)
+}
+
+func TestStore_Init_AFailureAfterTheDropLeavesTheOldCacheAndVersion(t *testing.T) {
+	t.Parallel()
+	db, store := openCacheTestDB(t)
+	ctx := t.Context()
+	require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c", dashboard.HookCheck{Repo: "o/a", CheckedAt: time.Now()}))
+	_, err := db.ExecContext(ctx, `UPDATE cache_schema SET version = 0`)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `CREATE TRIGGER block_version_write BEFORE INSERT ON cache_schema
+		BEGIN SELECT RAISE(ABORT, 'injected failure'); END`)
+	require.NoError(t, err)
+
+	require.Error(t, store.Init(ctx))
+
+	var version int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT version FROM cache_schema`).Scan(&version))
+	assert.Equal(t, 0, version, "the version still says the cache is old")
+	got, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c")
+	require.NoError(t, err)
+	assert.Len(t, got, 1, "the drop was rolled back with the failed version write")
+}
+
+func TestStore_PruneUntracked_DropsHookChecksAndSeenRowsForOtherReposOfThatCredential(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	ctx := t.Context()
+	at := time.Now()
+	for _, repo := range []string{"o/keep", "o/gone"} {
+		require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c1", dashboard.HookCheck{Repo: repo, CheckedAt: at}))
+		require.NoError(t, store.SaveWebhookSeen(ctx, dashboard.ForgeGitHub, "c1", dashboard.SeenRecord{Repo: repo, Class: dashboard.EventClassCheck, At: at}))
+	}
+	require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c2", dashboard.HookCheck{Repo: "o/gone", CheckedAt: at}))
+
+	require.NoError(t, store.PruneUntracked(ctx, dashboard.ForgeGitHub, "c1", []string{"o/keep"}))
+
+	checks, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c1")
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, "o/keep", checks[0].Repo)
+	seen, err := store.LoadWebhookSeen(ctx, dashboard.ForgeGitHub, "c1")
+	require.NoError(t, err)
+	require.Len(t, seen, 1)
+	assert.Equal(t, "o/keep", seen[0].Repo)
+	other, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c2")
+	require.NoError(t, err)
+	assert.Len(t, other, 1)
+}
+
+func TestStore_PruneUntracked_WithNoReposLeavesTheRowsAlone(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	ctx := t.Context()
+	require.NoError(t, store.SaveHookCheck(ctx, dashboard.ForgeGitHub, "c1", dashboard.HookCheck{Repo: "o/a", CheckedAt: time.Now()}))
+
+	require.NoError(t, store.PruneUntracked(ctx, dashboard.ForgeGitHub, "c1", nil))
+
+	got, err := store.LoadHookChecks(ctx, dashboard.ForgeGitHub, "c1")
+	require.NoError(t, err)
+	assert.Len(t, got, 1, "an empty list is a failed listing as likely as an empty account")
+}

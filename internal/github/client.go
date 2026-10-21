@@ -103,6 +103,9 @@ type Client struct {
 	hookStore     dashboard.HookCheckStore
 	hookRestore   sync.Once
 	hookLastSaved map[string]dashboard.HookCheck
+	// hookPrunedAt and hookPruneInterval throttle pruneHookChecks.
+	hookPrunedAt      time.Time
+	hookPruneInterval time.Duration
 	// retryWait is how long a repeatable call waits before its one retry
 	// after GitHub's own 5xx; zero means the default.
 	retryWait time.Duration
@@ -2673,6 +2676,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		slog.Warn("github fetch returned no repositories", "forge", dashboard.ForgeGitHub, "appAuthenticated", c.appAuthenticated)
 	}
 
+	c.pruneHookChecks(ctx, repos)
 	tracked := trackedRepos(repos)
 	advisoriesDone := c.startAdvisories(ctx, tracked)
 	probes := c.checkWebhooks(ctx, tracked)
