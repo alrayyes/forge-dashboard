@@ -1593,6 +1593,13 @@ button.ci-pill:hover {
   filter: brightness(0.95);
 }
 
+/* A press lands on the button itself, never on a glyph or count inside it. A
+   poll redraws those in place, and a browser drops the click when the node
+   that was pressed has gone. */
+button.ci-pill > * {
+  pointer-events: none;
+}
+
 /* A link pill underlines on hover rather than dimming: a filter would take
    the failed pill's text from 4.68:1 to about 4.53:1, and the underline
    leaves the colours, and so the contrast, as they are. */

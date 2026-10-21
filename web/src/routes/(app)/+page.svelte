@@ -92,9 +92,14 @@
 
   const rowKey = (b: MainBranch) => `${b.forge}:${b.fullName}`;
 
+  // The row each pill opens the panel for, read when it is clicked, so a pill
+  // redrawn in place opens the row as the latest poll left it.
+  const pillRows = new WeakMap<HTMLElement, MainBranch>();
+
   // Redrawn when the branch's status or counts change, which the live refresh
-  // brings. A focused pill keeps its focus across the redraw, and so does the panel's
-  // way back to it.
+  // brings. The button stays the same node and only its contents change, so a
+  // click that a poll lands in the middle of still arrives, and focus, hover and
+  // the panel's way back to it need no handing over.
   function drawPill(
     host: HTMLElement,
     b: MainBranch,
@@ -107,17 +112,26 @@
       counts: b.checks,
       segmented: SEGMENTED_STATUSES.has(b.status),
     });
-    const hadFocus = host.contains(document.activeElement);
-    const old = host.firstElementChild;
-    const pill = renderCiPill(model, {
-      onOpen: () => openPipeline(b, pill),
+    const fresh = renderCiPill(model, {
+      onOpen: () => {
+        const row = pillRows.get(fresh);
+        if (row) openPipeline(row, fresh);
+      },
     });
-    host.replaceChildren(pill);
-    // An open panel gives focus back to the pill that opened it.
-    if (old instanceof HTMLElement) {
-      untrack(() => pipeline?.replaceOpener(old, pill));
+    const current = host.firstElementChild;
+    if (current instanceof HTMLButtonElement) {
+      pillRows.set(current, b);
+      current.className = fresh.className;
+      current.setAttribute(
+        "aria-label",
+        fresh.getAttribute("aria-label") ?? "",
+      );
+      current.replaceChildren(...fresh.childNodes);
+      return;
     }
-    if (hadFocus) pill.focus();
+    // The first draw: the fresh button stays, and opens its own row.
+    pillRows.set(fresh, b);
+    host.replaceChildren(fresh);
   }
 
   const branchSignature = (b: MainBranch) =>

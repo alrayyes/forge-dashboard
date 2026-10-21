@@ -193,6 +193,75 @@ test.describe('main branches pipeline panel updates live', () => {
     ).toBeFocused();
   });
 
+  test('a poll that changes the row between press and release still opens the panel', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    await panel(page).getByRole('button', { name: /close/i }).click();
+    await expect(panel(page)).toBeHidden();
+
+    const pill = page.getByRole('button', { name: /open pipeline/i }).first();
+    const box = (await pill.boundingBox())!;
+    // On the leading word, which the poll replaces. A count change keeps the
+    // status, so nothing on the page moves out from under the pointer.
+    await page.mouse.move(box.x + 6, box.y + box.height / 2);
+    await page.mouse.down();
+    state.row = branch('running', {
+      passed: 2,
+      running: 1,
+      waiting: 0,
+      failed: 0,
+    });
+    await poll(page);
+    await expect(
+      page.getByRole('button', { name: /open pipeline/i }).first(),
+    ).toContainText('2');
+    await page.mouse.up();
+
+    await expect(panel(page)).toBeVisible();
+  });
+
+  test('a poll redraws the pill in place, whether or not the row changed', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    const handle = await page
+      .getByRole('button', { name: /open pipeline/i })
+      .first()
+      .elementHandle();
+
+    await poll(page);
+    expect(await handle!.evaluate((n) => n.isConnected)).toBe(true);
+
+    state.row = PASSED;
+    state.checks = DONE;
+    await poll(page);
+    await expect(
+      page.getByRole('button', { name: /^Passed.*open pipeline/i }),
+    ).toBeVisible();
+    // The same button now says Passed: it was redrawn in place, not replaced.
+    expect(await handle!.evaluate((n) => n.isConnected)).toBe(true);
+    expect(await handle!.evaluate((n) => n.textContent)).toContain('Passed');
+  });
+
+  test('a pill with keyboard focus keeps it when a poll redraws it', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    await panel(page).getByRole('button', { name: /close/i }).click();
+    const pill = page.getByRole('button', { name: /open pipeline/i }).first();
+    await pill.focus();
+    await expect(pill).toBeFocused();
+
+    state.row = PASSED;
+    state.checks = DONE;
+    await poll(page);
+
+    await expect(
+      page.getByRole('button', { name: /^Passed.*open pipeline/i }),
+    ).toBeFocused();
+  });
+
   test('a failed live read says so and the next poll reads again', async ({
     page,
   }) => {
