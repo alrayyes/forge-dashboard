@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.247.1](https://github.com/alrayyes/forge-dashboard/compare/v0.247.0...v0.247.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** repair or report a saved Label filter over the limits ([#2107](https://github.com/alrayyes/forge-dashboard/issues/2107)) ([5dddb61](https://github.com/alrayyes/forge-dashboard/commit/5dddb618d55cf21620ed6534ffc3008a96d2f270))
+
 ## [0.247.0](https://github.com/alrayyes/forge-dashboard/compare/v0.246.0...v0.247.0) (2026-10-20)
 
 
