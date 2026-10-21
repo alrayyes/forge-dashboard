@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.252.0](https://github.com/alrayyes/forge-dashboard/compare/v0.251.0...v0.252.0) (2026-10-21)
+
+
+### Features
+
+* **web:** open the issue and pull request dialogs in place from their pills ([#2162](https://github.com/alrayyes/forge-dashboard/issues/2162)) ([0241c64](https://github.com/alrayyes/forge-dashboard/commit/0241c644a92ee81dddf8642b13410a0fdbb59e0e))
+
 ## [0.251.0](https://github.com/alrayyes/forge-dashboard/compare/v0.250.1...v0.251.0) (2026-10-21)
 
 
