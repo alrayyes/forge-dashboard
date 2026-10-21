@@ -6538,24 +6538,13 @@
       renderBoth();
     });
 
-    // #354: true once nothing in sharedState differs from Filters' own
-    // defaultState() — shared is empty, no quick pill, no title pattern, and
-    // hideDependencyDashboard is back at its default-checked '1'.
+    // #354: Clear filters is disabled once nothing this page offers is picked.
     function filtersAreDefault(): boolean {
-      return (
-        Object.keys(sharedState.shared).every((k) => !sharedState.shared[k]) &&
-        !sharedState.pr.quick &&
-        !sharedState.pr.autoMerge &&
-        !sharedState.pr.closes &&
-        !sharedState.issue.closedBy &&
-        // A saved pick this page does not offer is still a filter (#1620).
-        Filters.heldPicks().length === 0 &&
-        // A field the Settings page replaced is not drawn, so what the
-        // page saved in it is not something to clear (#1630).
-        (settingsHideDependencyDashboard ||
-          sharedState.issue.hideDependencyDashboard === "1") &&
-        (settingsIgnoreTitles || !sharedState.issue.hideTitleRegex)
-      );
+      return Filters.filtersAreDefault(sharedState, {
+        pullsView,
+        settingsHideDependencyDashboard,
+        settingsIgnoreTitles,
+      });
     }
 
     // Called from each board's own render() (itself called on every

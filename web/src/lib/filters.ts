@@ -1372,6 +1372,45 @@ export function offerPills(
   }
 }
 
+// Which page's closing-link pick counts: a pull request's `closes` or an
+// issue's `closedBy`. One place, so the segment and Clear filters agree.
+export function closingKey(pullsView: boolean): 'closes' | 'closedBy' {
+  return pullsView ? 'closes' : 'closedBy';
+}
+
+export function closingGroup(
+  state: SharedFilterState,
+  pullsView: boolean,
+): Record<string, string> {
+  return pullsView ? state.pr : state.issue;
+}
+
+// True once nothing this page offers differs from the defaults: shared is
+// empty, no quick pill, no title pattern, and hideDependencyDashboard is back
+// at its default-checked '1'. The closing pick counts only on its own page.
+export function filtersAreDefault(
+  state: SharedFilterState,
+  page: {
+    pullsView: boolean;
+    settingsHideDependencyDashboard: boolean;
+    settingsIgnoreTitles: boolean;
+  },
+): boolean {
+  return (
+    Object.keys(state.shared).every((k) => !state.shared[k]) &&
+    !state.pr.quick &&
+    !state.pr.autoMerge &&
+    !closingGroup(state, page.pullsView)[closingKey(page.pullsView)] &&
+    // A saved pick this page does not offer is still a filter (#1620).
+    heldPicks().length === 0 &&
+    // A field the Settings page replaced is not drawn, so what the page saved
+    // in it is not something to clear (#1630).
+    (page.settingsHideDependencyDashboard ||
+      state.issue.hideDependencyDashboard === '1') &&
+    (page.settingsIgnoreTitles || !state.issue.hideTitleRegex)
+  );
+}
+
 // Shows the auto-merge segment's On and Off only when some pull request in the
 // pool has that state, or it is the one picked, and the whole segment only when
 // something is on offer (#1455). "Any" is always there while the segment is.
