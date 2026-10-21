@@ -45,3 +45,21 @@ func TestFinishedJobs_PuttingAKeyAgainDoesNotAgeOutAnotherEntry(t *testing.T) {
 	assert.True(t, hasA)
 	assert.True(t, hasB)
 }
+
+// A key that is read again and again stays, and the one nobody read goes first.
+func TestFinishedJobs_PastTheCapTheLeastRecentlyReadEntryGoesFirst(t *testing.T) {
+	t.Parallel()
+
+	cache := newFinishedJobs(2)
+	cache.put("a", someJobs())
+	cache.put("b", someJobs())
+	_, _ = cache.get("a")
+	cache.put("c", someJobs())
+
+	_, hasA := cache.get("a")
+	_, hasB := cache.get("b")
+	_, hasC := cache.get("c")
+	assert.True(t, hasA, "a was read last, so it stays")
+	assert.False(t, hasB, "b was read least recently")
+	assert.True(t, hasC)
+}

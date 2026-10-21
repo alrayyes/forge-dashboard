@@ -273,7 +273,9 @@ Forgejo reports no request budget of its own to spend, so each read costs a
 round trip and nothing more. Check again when you upgrade Forgejo; if it starts
 sending ETags, add a cache for it the way GitHub's works. Until then the
 default-branch pill keeps a finished run's job list in memory (a finished run
-never changes) and reads the jobs of runs still going on each poll.
+never changes) and reads the jobs of runs still going on each poll. A run that
+finished with no jobs is read again for five minutes, in case the forge is still
+catching up, then kept empty too.
 
 Each row below is one source file with its number of REST `GET` call sites. A
 test reads this table and fails when a file's count differs from the source, so

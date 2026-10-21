@@ -621,10 +621,11 @@ approval and a cancelled run are in none of the four, because the CI state
 doesn't treat them as failures while others still run. On Forgejo the
 statuses only say pending, so when any are pending the server also reads the
 jobs of the runs on the commit that are running (one call for the runs, one
-for each of them, read side by side), and the jobs in progress show as
-running. A queued or blocked run isn't read, a commit with a pull request run
-leaves its push run out so no job counts twice, and a commit with no pending
-check makes no extra call.
+for each of them, read side by side, at most eight at once), and the jobs in
+progress show as running. A queued or blocked run isn't read, a running pull
+request run (any `pull_request` event) leaves the running push run out so no job
+counts twice, and a commit with no pending check makes no extra call. Runs are
+matched to the commit ignoring the case of its SHA.
 
 On GitHub, the pill stays pending while a check that branch protection or a
 ruleset requires hasn't finished. GitHub's combined status only counts checks

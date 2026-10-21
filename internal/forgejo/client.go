@@ -1136,6 +1136,7 @@ func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bo
 // can come from an external CI the jobs know nothing about. Any failure keeps
 // counts as it was.
 func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, counts dashboard.CheckCounts) dashboard.CheckCounts {
+	sha = strings.ToLower(sha)
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
 	runs, resp, err := c.withContext(ctx).sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
@@ -1152,15 +1153,18 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 	c.recordRequest(ctx, http.MethodGet, runsPath, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	// A forge that ignores the head_sha filter answers with other commits' runs.
-	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return r.HeadSha != sha })
-	var going []*gitea.ActionWorkflowRun
-	for _, run := range withoutShadowedPushRuns(onCommit) {
-		// Only a run that is running can hold a running job: a queued or
-		// blocked one has none, and a finished one is past it.
-		if checkStateFromWorkflowStatus(run.Status) == dashboard.CheckRunning {
-			going = append(going, run)
-		}
+	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return !sameCommit(r.HeadSha, sha) })
+	if len(onCommit) == 0 && len(runs.WorkflowRuns) > 0 {
+		slog.Debug("split running checks found no run on the commit", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "sha", sha, "runs", len(runs.WorkflowRuns))
 	}
+	// Only a run that is running can hold a running job: a queued or blocked
+	// one has none, and a finished one is past it. This comes before the push
+	// runs are dropped, so a finished pull_request run doesn't hide a push run
+	// that is still going.
+	going := slices.DeleteFunc(onCommit, func(r *gitea.ActionWorkflowRun) bool {
+		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning
+	})
+	going = withoutShadowedPushRuns(going)
 
 	running := c.countRunningJobs(ctx, owner, name, going)
 	running = min(running, counts.Waiting)
@@ -1171,13 +1175,16 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 }
 
 // countRunningJobs counts the running jobs of runs. The runs' jobs are read side
-// by side, so a commit with several running runs doesn't stretch every poll by
+// by side, at most dashboard.DefaultMaxConcurrency at once, so a commit with several running runs doesn't stretch every poll by
 // one round trip each. A run whose jobs can't be read counts none.
 func (c *Client) countRunningJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun) int {
 	perRun := make([]int, len(runs))
+	sem := make(chan struct{}, dashboard.DefaultMaxConcurrency)
 	var wg sync.WaitGroup
 	for i, run := range runs {
 		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 			if err != nil {
 				slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
@@ -1669,15 +1676,34 @@ func branchRef(b *gitea.PRBranchInfo) string {
 	return b.Ref
 }
 
-// withoutShadowedPushRuns drops the push runs when a pull_request run is there
-// too. Both run the same workflows on the commit, and the pull request's
-// statuses come from the pull_request one, so reading both would count each
-// running job twice. A push run alone is kept: it is all there is.
+// withoutShadowedPushRuns drops the push runs when a pull request run is there
+// too, whatever its pull_request* event, as the default-branch code reads it.
+// Both run the same workflows on the commit, and the pull request's statuses
+// come from the pull request one, so reading both would count each running job
+// twice. A push run alone is kept: it is all there is. The caller passes only
+// runs still going, so a finished pull request run shadows nothing.
 func withoutShadowedPushRuns(runs []*gitea.ActionWorkflowRun) []*gitea.ActionWorkflowRun {
-	hasPullRequest := slices.ContainsFunc(runs, func(r *gitea.ActionWorkflowRun) bool { return r.Event == "pull_request" })
+	hasPullRequest := slices.ContainsFunc(runs, func(r *gitea.ActionWorkflowRun) bool { return isPullRequestEvent(r.Event) })
 	if !hasPullRequest {
 		return runs
 	}
 
 	return slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool { return r.Event == "push" })
+}
+
+// isPullRequestEvent reports whether event is one a pull request starts, such
+// as pull_request, pull_request_target or pull_request_review.
+func isPullRequestEvent(event string) bool {
+	return strings.HasPrefix(event, "pull_request")
+}
+
+// sameCommit reports whether two shas name one commit, ignoring case and
+// letting an abbreviated sha match the full one. An empty sha matches nothing.
+func sameCommit(a, b string) bool {
+	a, b = strings.ToLower(a), strings.ToLower(b)
+	if a == "" || b == "" {
+		return false
+	}
+
+	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
 }
