@@ -7,6 +7,8 @@ import { defineConfig } from '@playwright/test';
 const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/filter-persistence.spec.ts',
+  '**/first-refresh-first-paint.spec.ts',
+  '**/first-refresh-loading.spec.ts',
   '**/timezone.spec.ts',
   '**/webhooks.spec.ts',
   '**/auth-single-user.spec.ts',
