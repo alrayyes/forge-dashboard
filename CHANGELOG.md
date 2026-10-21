@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/alrayyes/forge-dashboard/compare/v1.2.0...v1.2.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** render the changelog notes as Markdown ([#2277](https://github.com/alrayyes/forge-dashboard/issues/2277)) ([4b9a9b4](https://github.com/alrayyes/forge-dashboard/commit/4b9a9b410b92bfac5799e0fde96179dff247ac59))
+
 ## [1.2.0](https://github.com/alrayyes/forge-dashboard/compare/v1.1.2...v1.2.0) (2026-10-21)
 
 
