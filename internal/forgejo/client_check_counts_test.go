@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"cmp"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -282,6 +283,7 @@ type splitServer struct {
 	runs    []map[string]any
 	jobs    map[int][]string
 	failJob map[int]bool
+	headSHA string // the pull request's head sha as the forge writes it; cafef00d when empty
 
 	runsLists atomic.Int32
 	mu        sync.Mutex
@@ -292,6 +294,7 @@ type splitServer struct {
 
 func (s *splitServer) start(t *testing.T) *forgejo.Client {
 	t.Helper()
+	headSHA := cmp.Or(s.headSHA, "cafef00d")
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
@@ -303,10 +306,10 @@ func (s *splitServer) start(t *testing.T) *forgejo.Client {
 			"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
 			"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
 			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
-			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+			"head": map[string]string{"sha": headSHA}, "base": map[string]string{"sha": "abc"},
 		}})
 	})
-	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/"+headSHA+"/status", func(w http.ResponseWriter, _ *http.Request) {
 		statuses := make([]map[string]string, 0, s.pending)
 		for range s.pending {
 			statuses = append(statuses, map[string]string{"status": "pending", "context": "ci"})
@@ -396,6 +399,39 @@ func TestListOpenPullRequests_SplitDoesNotCountAPushRunBesideAPullRequestRun(t *
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
 }
 
+// A pull_request run that has finished holds no running job, so a push run still
+// going on the same commit is the one that has them.
+func TestListOpenPullRequests_SplitCountsARunningPushRunBesideAFinishedPullRequestRun(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 2,
+		runs:    []map[string]any{splitRun(7, "success", "pull_request"), splitRun(8, "running", "push")},
+		jobs:    map[int][]string{8: {"running", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 1}, got)
+}
+
+// pull_request_target and pull_request_review runs are pull request runs too,
+// the way the default-branch code reads the event.
+func TestListOpenPullRequests_SplitReadsAnyPullRequestEventAsAPullRequestRun(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request_target"), splitRun(8, "running", "push")},
+		jobs:    map[int][]string{7: {"running", "waiting", "waiting"}, 8: {"running", "waiting", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+	assert.Equal(t, []int{7}, s.reads)
+}
+
 // A push run alone still counts: with no pull_request run, it is all there is.
 func TestListOpenPullRequests_SplitCountsAPushRunWhenItIsTheOnlyOne(t *testing.T) {
 	t.Parallel()
@@ -447,6 +483,24 @@ func TestListOpenPullRequests_SplitReadsTheRunsJobsAtOnce(t *testing.T) {
 	assert.Greater(t, s.peak, 1, "the jobs reads overlapped")
 }
 
+// A commit with more running runs than the concurrency limit never has more
+// than the limit of jobs reads in flight.
+func TestListOpenPullRequests_SplitBoundsTheJobsReadsInFlight(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{pending: 20, jobs: map[int][]string{}}
+	for id := 1; id <= dashboard.DefaultMaxConcurrency*2; id++ {
+		s.runs = append(s.runs, splitRun(id, "running", "pull_request"))
+		s.jobs[id] = []string{"running"}
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: dashboard.DefaultMaxConcurrency * 2, Waiting: 4}, got)
+	assert.LessOrEqual(t, s.peak, dashboard.DefaultMaxConcurrency)
+	assert.Greater(t, s.peak, 1, "the reads still overlap")
+}
+
 // With nothing pending the split has nothing to tell apart, so the runs are not
 // even listed.
 func TestListOpenPullRequests_SplitMakesNoCallWhenNothingIsPending(t *testing.T) {
@@ -476,4 +530,26 @@ func TestListOpenPullRequests_SplitSurvivesAJobsReadFailingMidWay(t *testing.T) 
 	got := s.checks(t, s.start(t))
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+}
+
+// The caller's sha may be upper case or abbreviated; the forge's runs carry the
+// full lower-case one, and are still found.
+func TestListOpenPullRequests_SplitMatchesTheShaLooselyWhenTheForgeIgnoresTheFilter(t *testing.T) {
+	t.Parallel()
+
+	for name, headSHA := range map[string]string{"upper case": "CAFEF00D", "abbreviated": "cafef"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s := &splitServer{
+				pending: 2,
+				runs:    []map[string]any{splitRun(7, "running", "pull_request")},
+				jobs:    map[int][]string{7: {"running", "waiting"}},
+				headSHA: headSHA,
+			}
+
+			got := s.checks(t, s.start(t))
+
+			assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 1}, got)
+		})
+	}
 }

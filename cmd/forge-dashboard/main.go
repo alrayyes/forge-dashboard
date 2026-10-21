@@ -49,8 +49,9 @@ var version = "dev"
 const defaultRefreshInterval = 20 * time.Minute
 
 // resolveRefreshInterval parses v (REFRESH_INTERVAL's raw value) as a Go
-// duration, falling back to defaultRefreshInterval for an empty or
-// unparseable value — split out from main so the fallback behavior is
+// duration, falling back to defaultRefreshInterval for an empty, unparseable,
+// zero or negative value (a zero wait would spin the refresh loop, spending
+// the forge budget) — split out from main so the fallback behavior is
 // unit-testable without standing up the rest of the process.
 func resolveRefreshInterval(v string) time.Duration {
 	if v == "" {
@@ -59,6 +60,11 @@ func resolveRefreshInterval(v string) time.Duration {
 	d, err := time.ParseDuration(v)
 	if err != nil {
 		slog.Error("invalid REFRESH_INTERVAL, using default", "value", v, "default", defaultRefreshInterval, "error", err)
+
+		return defaultRefreshInterval
+	}
+	if d <= 0 {
+		slog.Error("REFRESH_INTERVAL must be positive, using default", "value", v, "default", defaultRefreshInterval)
 
 		return defaultRefreshInterval
 	}
