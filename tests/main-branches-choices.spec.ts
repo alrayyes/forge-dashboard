@@ -7,8 +7,8 @@ import { test } from './server-fixture';
 // cleared. The counts on the pills stay what they were.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
 
-// The pills are saved with the account (#1620), so a test that clicks one on
-// the shared session would hand it to the next. Each test registers its own.
+// The pills are saved with the account (#1620). The server fixture resets the
+// database before each test, so a pill one test clicks isn't there for the next.
 
 const minutesAgo = (n: number) =>
   new Date(Date.now() - n * 60_000).toISOString();
