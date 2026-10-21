@@ -126,7 +126,7 @@ func TestServer_UnknownAPIPath_IsJSONNotThePage(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/does-not-exist")
+	resp, err := testClient(t).Get(srv.URL + "/api/does-not-exist")
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 

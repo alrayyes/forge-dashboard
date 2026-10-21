@@ -77,7 +77,7 @@ func newHideServer(t *testing.T) (srvURL string, cookie *http.Cookie, src *hideS
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -99,7 +99,7 @@ func postHide(t *testing.T, srvURL string, cookie *http.Cookie, path string, bod
 		req.AddCookie(cookie)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp

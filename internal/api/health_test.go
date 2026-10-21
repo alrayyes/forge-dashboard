@@ -22,7 +22,7 @@ func TestVersion_NoSessionNeeded_AnswersTheRunningVersion(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/version")
+	resp, err := testClient(t).Get(srv.URL + "/api/version")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -55,7 +55,7 @@ func getBody(t *testing.T, url string) (int, string) {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	b, err := io.ReadAll(resp.Body)

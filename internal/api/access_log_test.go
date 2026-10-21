@@ -36,7 +36,7 @@ func TestAccessLog_UnauthenticatedRequest_LogsMethodPathStatusDuration(t *testin
 	logs := withCapturedLogs(t, slog.LevelInfo)
 	srv := newTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/api/version")
+	resp, err := testClient(t).Get(srv.URL + "/api/version")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -57,7 +57,7 @@ func TestAccessLog_RejectedRequest_StillLogsAtWarn(t *testing.T) {
 	// No session cookie, no bearer token — RequireAuth rejects this
 	// before the handler underneath ever runs. The middleware wraps
 	// *outside* auth specifically so this still gets logged.
-	resp, err := http.Get(srv.URL + "/api/auth/session")
+	resp, err := testClient(t).Get(srv.URL + "/api/auth/session")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -76,7 +76,7 @@ func TestAccessLog_AuthenticatedRequest_IncludesUsername(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -94,7 +94,7 @@ func TestAccessLog_NeverLogsAuthorizationHeaderOrQueryString(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/version?token=leak-me-not", nil)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer super-secret-value")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -108,7 +108,7 @@ func TestAccessLog_Healthz_SuppressedAtDefaultInfoLevel(t *testing.T) {
 	logs := withCapturedLogs(t, slog.LevelInfo)
 	srv := newTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/healthz")
+	resp, err := testClient(t).Get(srv.URL + "/healthz")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -120,7 +120,7 @@ func TestAccessLog_Healthz_StillLoggedAtDebug(t *testing.T) {
 	logs := withCapturedLogs(t, slog.LevelDebug)
 	srv := newTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/healthz")
+	resp, err := testClient(t).Get(srv.URL + "/healthz")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -137,7 +137,7 @@ func TestAccessLog_Readyz_SuppressedAtDefaultInfoLevel(t *testing.T) {
 	logs := withCapturedLogs(t, slog.LevelInfo)
 	srv := newTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/readyz")
+	resp, err := testClient(t).Get(srv.URL + "/readyz")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -149,7 +149,7 @@ func TestAccessLog_Readyz_StillLoggedAtDebug(t *testing.T) {
 	logs := withCapturedLogs(t, slog.LevelDebug)
 	srv := newTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/readyz")
+	resp, err := testClient(t).Get(srv.URL + "/readyz")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -188,7 +188,7 @@ func TestAccessLog_5xxStatus_LogsAtError(t *testing.T) {
 	require.NoError(t, err)
 	// #nosec G124 -- a request Cookie header being simulated here, not a response Set-Cookie; Secure/HttpOnly/SameSite are response-only attributes gosec cannot tell don't apply.
 	req.AddCookie(&http.Cookie{Name: authpkg.CookieName, Value: token})
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)

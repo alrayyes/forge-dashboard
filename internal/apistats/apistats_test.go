@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"strconv"
 	"testing"
 
@@ -196,4 +197,26 @@ func TestCredentialLabels_CarryNoSecret(t *testing.T) {
 	label := apistats.TokenCredential("ghp_secret")
 	assert.Equal(t, label, apistats.TokenCredential("ghp_secret"), "one token, one label")
 	assert.NotEqual(t, apistats.TokenCredential("a"), apistats.TokenCredential("b"))
+}
+
+// httptest.Server.Close() calls CloseIdleConnections on http.DefaultTransport.
+// A nil base must not share that transport, or one test's teardown cuts
+// another's connection.
+func TestTransport_ANilBaseDoesNotShareTheDefaultTransportsConnections(t *testing.T) {
+	t.Parallel()
+
+	srv := okServer(t)
+	client := &http.Client{Transport: apistats.Transport(nil, apistats.New(), "forgejo", "token:ab12")}
+	ctx := apistats.WithKind(t.Context(), apistats.KindFull)
+
+	do(ctx, t, client, http.MethodGet, srv.URL)
+
+	// What httptest.Server.Close() does to the process-wide transport.
+	http.DefaultTransport.(interface{ CloseIdleConnections() }).CloseIdleConnections()
+
+	var reused bool
+	trace := &httptrace.ClientTrace{GotConn: func(info httptrace.GotConnInfo) { reused = info.Reused }}
+	do(httptrace.WithClientTrace(ctx, trace), t, client, http.MethodGet, srv.URL)
+
+	assert.True(t, reused, "the second request should reuse the first one's idle connection")
 }
