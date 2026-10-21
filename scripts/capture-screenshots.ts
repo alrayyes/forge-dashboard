@@ -483,7 +483,7 @@ const PAGES = [
     url: '/pull-requests.html',
     ready: '#pr-rows .row',
   },
-  { name: 'issues', url: '/issues.html', ready: 'a[href*="issues/145"]' },
+  { name: 'issues', url: '/issues.html', ready: '#issue-rows .row' },
   { name: 'releases', url: '/releases.html', ready: '#pr-rows .row' },
   { name: 'bots', url: '/bots.html', ready: '#pr-rows .row' },
   { name: 'insights', url: '/insights.html', ready: '.insights-header h1' },
