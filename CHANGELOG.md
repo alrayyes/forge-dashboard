@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.249.4](https://github.com/alrayyes/forge-dashboard/compare/v0.249.3...v0.249.4) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** make Close pull request an outlined danger button with a glyph ([#2137](https://github.com/alrayyes/forge-dashboard/issues/2137)) ([56d9092](https://github.com/alrayyes/forge-dashboard/commit/56d9092c940fbb0ab64c26de5c592cb46ba46a83))
+
 ## [0.249.3](https://github.com/alrayyes/forge-dashboard/compare/v0.249.2...v0.249.3) (2026-10-21)
 
 
