@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // An issue row shows the avatar of whoever filed it left of their name when
 // the forge supplied one, and the plain name when it did not, as a pull
@@ -67,9 +66,6 @@ const author = (page: Page, title: string) =>
   page.locator('#issue-rows > .row', { hasText: title }).locator('.author');
 
 test.describe('Issue row author avatar (#2000)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('shows the forge avatar next to the name', async ({ page }) => {
     await open(page);
     const cell = author(page, 'With avatar');
