@@ -238,6 +238,76 @@ A few things to know when you read the numbers:
 - `budgets` repeats the limits each forge last reported, the same figures as
   `forges` on `GET /api/dashboard`.
 
+## Baseline: what each kind of refresh costs today
+
+This is the reference to compare a change against: what each kind of request
+cost before the dashboard was made cheaper. Read it as a fixture baseline, not
+as a 30 or more repo account. No account of that size was available, so the
+numbers come from the account that owns the project's end-to-end fixture
+repository (`alrayyes/forge-dashboard-e2e-fixture`, 18 open pull requests when
+measured). That account is not only the fixture, though. The dashboard tracked
+**56 repositories** for it, with 27 open pull requests across 3 of them and 89
+open issues.
+
+Measured on 2026-10-21 against GitHub with a personal access token, on a
+freshly started server (version 0.254.0) with an empty database and default
+settings (`REFRESH_INTERVAL` 20 minutes, `CI_POLL_INTERVAL` 1 minute). The
+readings are `GET /api/stats/forge-api` snapshots, taken in order, about three
+minutes apart from first to last. Each row is the difference between the two
+snapshots around it, summed over every repo.
+
+| Kind             | What was done                                | REST | GraphQL requests | GraphQL cost | Not modified |
+| ---------------- | -------------------------------------------- | ---: | ---------------: | -----------: | -----------: |
+| `full`           | First refresh after the server started       |   28 |                5 |          606 |            0 |
+| `full`           | Forced refresh (Refresh now), straight after |    0 |                5 |          606 |            0 |
+| `scoped_webhook` | One signed `pull_request` delivery           |    0 |                4 |            0 |            0 |
+| `details`        | Opening one pull request and its checks      |    5 |                1 |            0 |            0 |
+| `ci_poll`        | All polls over the run (about 3 min)         |    2 |                8 |            0 |            4 |
+
+How to read the table:
+
+- The 28 REST requests of the first refresh are one on each of 22 repos and 6
+  on the fixture repo. The forced refresh that followed made none, so they are
+  a cost of the first refresh after a start, not of every refresh. The
+  counters don't say what each request read.
+- A full refresh on GitHub is the same 5 GraphQL requests and 606 points each
+  time at 56 repos. The 606 points were charged by 3 of the 5 requests (202
+  each); the other two reported none.
+- `ci_poll` is a total, not a per-poll figure. The pending check on the
+  fixture repo was polled on the one-minute interval for the whole run, and
+  the counters don't separate one poll from the next.
+- `scoped_webhook` and `ci_poll` recorded a GraphQL cost of 0 although they
+  made GraphQL requests. The cost column counts only what the reply reported
+  as `rateLimit.cost`.
+
+### Not measured
+
+| Kind               | Why                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `auto_merge_poll`  | Needs a pull request with auto-merge armed, which would change a real repo.               |
+| `hook_maintenance` | Checking and adding webhooks writes to the repos' settings, so it was not run on purpose. |
+| `user_action`      | A merge, close or branch update changes a real pull request, so none was pressed.         |
+| Forgejo            | The fixture and the account are on GitHub only. Forgejo has no GraphQL.                   |
+
+### How it was measured, and what it leaves out
+
+1. Build the binary and start it with a throwaway database and a port of its
+   own.
+2. Register the owner with a passkey (the browser's virtual authenticator),
+   save a GitHub token in Settings, and wait for the first refresh. That is
+   the first-refresh row.
+3. Press Refresh now once. That is the forced-refresh row.
+4. Open one pull request and its checks, post one signed
+   `pull_request` delivery to the webhook endpoint, and wait out two CI poll
+   intervals.
+5. Read `GET /api/stats/forge-api` after each step.
+
+This was a few minutes of use, not an hour, and one start, not several. The
+counters reset on a start, so the first-refresh row is also what a restart
+costs. The 56 repos are the whole account, so another account with the same
+number of repos but different pull requests and issues will differ, most of
+all in the REST column.
+
 ## What you can do
 
 - **Connect a GitHub App installation** instead of a token, or give the token
