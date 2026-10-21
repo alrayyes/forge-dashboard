@@ -23,7 +23,7 @@ func TestRequestBody_OverTheCapIsRefusedWith413(t *testing.T) {
 			return doJSON(t, http.MethodPut, srv.URL+"/api/settings", huge, cookie)
 		},
 		"login begin (public)": func() *http.Response {
-			resp, err := http.Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(huge))
+			resp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(huge))
 			require.NoError(t, err)
 
 			return resp
@@ -58,7 +58,7 @@ func TestRequestBody_WebhookRoutesKeepTheirOwnCap(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Post(srv.URL+"/api/webhooks/github/some-token", "application/json", strings.NewReader(strings.Repeat("a", 2<<20)))
+	resp, err := testClient(t).Post(srv.URL+"/api/webhooks/github/some-token", "application/json", strings.NewReader(strings.Repeat("a", 2<<20)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

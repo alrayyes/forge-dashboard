@@ -14,7 +14,7 @@ func TestNoIndex_EveryResponseCarriesTheHeader(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+	client := &http.Client{Transport: testClient(t).Transport, CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
 
@@ -47,7 +47,7 @@ func TestNoIndex_RobotsTxtAllowsCrawling(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/robots.txt") //nolint:noctx // test against a local server
+	resp, err := testClient(t).Get(srv.URL + "/robots.txt") //nolint:noctx // test against a local server
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

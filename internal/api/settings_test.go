@@ -30,7 +30,7 @@ func doJSON(tb testing.TB, method, url, body string, cookie *http.Cookie) *http.
 		req.AddCookie(cookie)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(tb).Do(req)
 	require.NoError(tb, err)
 
 	return resp
@@ -40,7 +40,7 @@ func TestSettingsGet_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/settings")
+	resp, err := testClient(t).Get(srv.URL + "/api/settings")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -122,7 +122,7 @@ func TestThemeGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *t
 	streamReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)
 	streamReq.AddCookie(sessionCookie)
-	streamResp, err := http.DefaultClient.Do(streamReq)
+	streamResp, err := testClient(t).Do(streamReq)
 	require.NoError(t, err)
 	defer func() { _ = streamResp.Body.Close() }()
 

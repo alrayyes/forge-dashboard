@@ -13,7 +13,7 @@ func TestAutoUpdateBranchEnable_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Post(srv.URL+"/api/repos/auto-update-branch/enable", "application/json", strings.NewReader(`{"forge":"github","fullName":"alrayyes/forge-dashboard"}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/repos/auto-update-branch/enable", "application/json", strings.NewReader(`{"forge":"github","fullName":"alrayyes/forge-dashboard"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

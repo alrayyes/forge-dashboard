@@ -168,7 +168,7 @@ func TestDashboardStream_CarriesFirstRefreshDone(t *testing.T) {
 	streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)
 	streamReq.AddCookie(sessionCookie)
-	streamResp, err := http.DefaultClient.Do(streamReq)
+	streamResp, err := testClient(t).Do(streamReq)
 	require.NoError(t, err)
 	defer func() { _ = streamResp.Body.Close() }()
 	events := make(chan string, 4)
@@ -178,7 +178,7 @@ func TestDashboardStream_CarriesFirstRefreshDone(t *testing.T) {
 	webhookReq, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+webhookToken, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	webhookReq.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, webhookSecret))
-	webhookResp, err := http.DefaultClient.Do(webhookReq)
+	webhookResp, err := testClient(t).Do(webhookReq)
 	require.NoError(t, err)
 	_ = webhookResp.Body.Close()
 

@@ -48,7 +48,7 @@ func postReopenPullRequest(t *testing.T, srvURL string, sessionCookie *http.Cook
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp
@@ -127,7 +127,7 @@ func TestPullRequestReopen_Unauthenticated_Returns401(t *testing.T) {
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)
-	resp, err := http.Post(srvURL+"/api/pull-requests/reopen", "application/json", strings.NewReader(string(body)))
+	resp, err := testClient(t).Post(srvURL+"/api/pull-requests/reopen", "application/json", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
