@@ -16,7 +16,13 @@ const (
 // maxStretchedInterval, and never less than interval itself. With the default
 // 20 minutes that is 80.
 func StretchedInterval(interval time.Duration) time.Duration {
-	return min(stretchFactor*interval, max(maxStretchedInterval, interval))
+	// Past the cap there is nothing to stretch, and multiplying could wrap
+	// negative and turn the timer into a busy loop.
+	if interval >= maxStretchedInterval {
+		return interval
+	}
+
+	return min(stretchFactor*interval, maxStretchedInterval)
 }
 
 // webhooksCover reports whether every tracked repo in snap has a healthy
