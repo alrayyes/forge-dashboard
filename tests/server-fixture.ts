@@ -246,8 +246,9 @@ export const test = base.extend<
 
 // The server fixture signs the page in and clears everything without loading
 // a page, so a spec starts on a blank tab. This loads the pull request list
-// against the real server. A spec that mocks the API should not call it first:
-// install the routes, then load the page once, so nothing loads unmocked.
+// against the real server. A spec that mocks the API should not call it: it
+// installs its routes first, then calls page.goto once, so nothing loads
+// unmocked.
 export async function landOnPullRequests(page: Page) {
   await page.goto('/pull-requests.html');
 }
