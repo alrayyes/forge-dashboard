@@ -17,8 +17,8 @@ regexes = [
   # gitleaks also flags as a second match on the same line).
   '''MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=''',
   '''0123456789abcdef0123456789abcdef''',
-  # A throwaway ENCRYPTION_KEY (base64 of 32 digit characters) that
-  # legacy_tables_test.go set for a test using an in-memory store. The test
-  # now uses an all-zero key, but the old literal is still in history.
+  # A throwaway ENCRYPTION_KEY (base64 of 32 digit characters) that the e2e
+  # reset tests in cmd/forge-dashboard/e2e_reset_test.go build a cipher
+  # from. Still in use there, and in history.
   '''MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=''',
 ]
