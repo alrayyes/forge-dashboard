@@ -261,7 +261,7 @@ snapshots around it, summed over every repo.
 | `full`           | First refresh after the server started       |   28 |                5 |          606 |            0 |
 | `full`           | Forced refresh (Refresh now), straight after |    0 |                5 |          606 |            0 |
 | `scoped_webhook` | One signed `pull_request` delivery           |    0 |                4 |            0 |            0 |
-| `details`        | Opening one pull request's dialog and checks |    5 |                1 |            0 |            0 |
+| `details`        | Opening one pull request and its checks      |    5 |                1 |            0 |            0 |
 | `ci_poll`        | All polls over the run (about 3 min)         |    2 |                8 |            0 |            4 |
 
 How to read the table:
@@ -297,7 +297,7 @@ How to read the table:
    save a GitHub token in Settings, and wait for the first refresh. That is
    the first-refresh row.
 3. Press Refresh now once. That is the forced-refresh row.
-4. Open one pull request's dialog and its checks, post one signed
+4. Open one pull request and its checks, post one signed
    `pull_request` delivery to the webhook endpoint, and wait out two CI poll
    intervals.
 5. Read `GET /api/stats/forge-api` after each step.
