@@ -87,6 +87,53 @@ func TestClassifyActionRefusalFor_Reopen_NoReRead_SaysNotReopenable(t *testing.T
 	assert.Equal(t, dashboard.ActionNotReopenable, got.Code)
 }
 
+func TestClassifyActionRefusalFor_Reopen_Unreachable_KeepsUnknown(t *testing.T) {
+	t.Parallel()
+
+	err := &dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("dial tcp: refused")}
+
+	for name, state := range map[string]*dashboard.PullRequestState{
+		"no re-read":   nil,
+		"still closed": {Closed: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionReopen, err, state)
+
+			assert.Equal(t, dashboard.ActionUnknown, got.Code)
+		})
+	}
+}
+
+func TestClassifyActionRefusalFor_Reopen_Unreachable_SaysTheForgeDidntAnswer(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionReopen,
+		&dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("dial tcp: refused")}, nil)
+
+	assert.Contains(t, got.Message, "didn't answer")
+}
+
+func TestClassifyActionRefusalFor_Reopen_NotAClientError_KeepsUnknown(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionReopen, errors.New("boom"),
+		&dashboard.PullRequestState{Closed: true})
+
+	assert.Equal(t, dashboard.ActionUnknown, got.Code)
+}
+
+func TestClassifyActionRefusalFor_Reopen_Conflict_SaysNotReopenable(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionReopen,
+		&dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errors.New("head branch is gone")},
+		&dashboard.PullRequestState{Closed: true})
+
+	assert.Equal(t, dashboard.ActionNotReopenable, got.Code)
+}
+
 func TestClassifyActionRefusalFor_Reopen_PermissionStillWins(t *testing.T) {
 	t.Parallel()
 

@@ -203,11 +203,19 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 	return unknownRefusal(actionErr, forgeText)
 }
 
-// classifyReopenRefusal says a refused Reopen is one the forge won't do. A pull
-// request the forge can't find is not that, so it falls through to the
-// generic answer.
+// classifyReopenRefusal says a refused Reopen is one the forge won't do. Only
+// an answer from the forge that refuses the request counts (a conflict, or a
+// 4xx such as GitHub's 422 that has no kind of its own). A pull request the
+// forge can't find, an unreachable forge and an error that isn't a forge
+// answer at all fall through to the generic answer, so the dialog keeps its
+// Retry instead of dropping Reopen.
 func classifyReopenRefusal(actionErr error) (ActionRefusal, bool) {
-	if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Kind == ForgeErrorNotFound {
+	clientErr, ok := errors.AsType[*ClientError](actionErr)
+	if !ok {
+		return ActionRefusal{}, false
+	}
+
+	if clientErr.Kind != ForgeErrorConflict && clientErr.Kind != ForgeErrorUnknown {
 		return ActionRefusal{}, false
 	}
 
