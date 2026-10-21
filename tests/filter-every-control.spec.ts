@@ -1,7 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { pickedLabels, toggleLabels } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { test } from './server-fixture';
 
 // #1620, acceptance criterion 1: a list, from a test, of which filter controls
 // are remembered. For every control on Pull requests, Issues, Releases and Bots
@@ -371,16 +370,7 @@ for (const board of ALL) {
     for (const control of CONTROLS.filter((c) => c.boards.includes(board))) {
       test(`${control.name} survives leaving and coming back`, async ({
         page,
-        request,
-        baseURL,
       }) => {
-        await registerViaInvite(
-          page,
-          request,
-          baseURL,
-          `every-control-${board}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-          'Every Control',
-        );
         await open(page, board);
         const b = BOARDS[board];
         const stored = perBoard(control.stored, board);
@@ -448,18 +438,7 @@ test.describe('deliberately not remembered', () => {
     const b = BOARDS[board];
     const prefix = board === 'issues' ? 'issue' : 'pr';
 
-    test(`${board}: page size and current page`, async ({
-      page,
-      request,
-      baseURL,
-    }) => {
-      await registerViaInvite(
-        page,
-        request,
-        baseURL,
-        `every-control-size-${board}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-        'Every Control Size',
-      );
+    test(`${board}: page size and current page`, async ({ page }) => {
       await open(page, board);
       await expect(page.locator(`#${prefix}-pagination`)).toBeVisible();
       await page.locator(`#${prefix}-page-size`).selectOption('10');
@@ -488,18 +467,7 @@ test.describe('deliberately not remembered', () => {
       }
     });
 
-    test(`${board}: the open Filters sheet on a phone`, async ({
-      page,
-      request,
-      baseURL,
-    }) => {
-      await registerViaInvite(
-        page,
-        request,
-        baseURL,
-        `every-control-sheet-${board}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-        'Every Control Sheet',
-      );
+    test(`${board}: the open Filters sheet on a phone`, async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 800 });
       await open(page, board);
       await page.locator('#filters-button').click();
@@ -512,18 +480,7 @@ test.describe('deliberately not remembered', () => {
   }
 
   for (const board of PR_BOARDS) {
-    test(`${board}: the hidden pull requests panel`, async ({
-      page,
-      request,
-      baseURL,
-    }) => {
-      await registerViaInvite(
-        page,
-        request,
-        baseURL,
-        `every-control-hidden-${board}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-        'Every Control Hidden',
-      );
+    test(`${board}: the hidden pull requests panel`, async ({ page }) => {
       await open(page, board);
       const toggle = page.locator('#hidden-prs-toggle');
       await toggle.click();
@@ -652,16 +609,7 @@ test.describe('webhooks: every remembered control', () => {
   for (const control of WEBHOOK_CONTROLS) {
     test(`${control.name} survives leaving and coming back`, async ({
       page,
-      request,
-      baseURL,
     }) => {
-      await registerViaInvite(
-        page,
-        request,
-        baseURL,
-        `every-control-webhooks-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-        'Every Control Webhooks',
-      );
       await openWebhooks(page);
       await control.set(page);
       await control.show(page);
@@ -708,18 +656,7 @@ test.describe('webhooks: every remembered control', () => {
     });
   }
 
-  test('page size and current page are not remembered', async ({
-    page,
-    request,
-    baseURL,
-  }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `every-control-webhooks-size-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Every Control Webhooks Size',
-    );
+  test('page size and current page are not remembered', async ({ page }) => {
     await openWebhooks(page);
     await page.locator('#webhooks-page-size').selectOption('10');
     await page

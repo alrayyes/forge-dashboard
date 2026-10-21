@@ -1,26 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 
 // #1427: a quick pill is offered only when clicking it would show something,
 // like every other filter choice. The one that is active stays, so it can be
 // seen and cleared.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `pill-choices-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Pill Choices');
-}
 
 function pr(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -94,10 +79,6 @@ const pill = (page: Page, name: string) =>
     .getByRole('button', { name, exact: true });
 
 test.describe('quick pills offer only what would show something (#1427)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
-  });
-
   test('only the pills some pull request matches are offered', async ({
     page,
   }) => {
