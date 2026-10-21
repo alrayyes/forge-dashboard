@@ -38,6 +38,16 @@ func TestResolveRefreshInterval_InvalidEnv_FallsBackToDefault(t *testing.T) {
 	assert.Equal(t, defaultRefreshInterval, got)
 }
 
+// A zero or negative interval would give the refresh loop no wait at all, so
+// both fall back to the default, same as an unparseable value.
+func TestResolveRefreshInterval_NonPositive_FallsBackToDefault(t *testing.T) {
+	for _, v := range []string{"0s", "0", "-5m", "-1ns"} {
+		t.Run(v, func(t *testing.T) {
+			assert.Equal(t, defaultRefreshInterval, resolveRefreshInterval(v))
+		})
+	}
+}
+
 // TestResolveCIPollInterval_NoEnv_UsesDefault pins the CI-poll
 // fallback's own default (#177): real Forgejo instances (confirmed
 // live, twice independently, against two separate instances) silently
