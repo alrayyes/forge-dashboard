@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/alrayyes/forge-dashboard/compare/v1.1.1...v1.1.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* let pre-push build the web app and svelte-check skip its output ([#2253](https://github.com/alrayyes/forge-dashboard/issues/2253)) ([729136e](https://github.com/alrayyes/forge-dashboard/commit/729136e92c5212806d620ebd49332c563849ce62))
+
 ## [1.1.1](https://github.com/alrayyes/forge-dashboard/compare/v1.1.0...v1.1.1) (2026-10-21)
 
 
