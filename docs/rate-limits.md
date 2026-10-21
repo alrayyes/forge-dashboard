@@ -144,22 +144,40 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
   a poll waits twice as long before the next one: `CI_POLL_INTERVAL`, then double,
   up to 15 minutes. Any change in its checks, merge state or auto-merge setting
   puts it back at `CI_POLL_INTERVAL`. If you set `CI_POLL_INTERVAL` above 15
-  minutes, that wins, so the poll is never faster than you asked.
-- **No poll while the webhook is working.** A GitHub repo is left out of the poll
-  when its webhook is confirmed to deliver check events (`check_run` or
-  `check_suite`) and one such delivery arrived within three poll intervals. The
-  delivery has to carry a valid signature, and its body has to be a check event
-  and not just a check header on some other body. Once deliveries go quiet for
-  longer than that, polling starts again by itself. This applies only to pull
-  requests waiting on a check, never to an armed auto-merge, because the merge
-  itself isn't a check delivery. Forgejo is never skipped: its webhook can't
-  subscribe to the event CI status rides on.
+  minutes, that wins, so the poll is never faster than you asked. Only a poll
+  that read the pull request counts: a failed request, or a refresh that failed,
+  leaves the gap alone and the next tick tries again. A pull request whose
+  lookup keeps failing (a deleted or transferred one) is read through its repo,
+  and backs off like any other that reads the same. A pull request with GitHub's
+  auto-merge armed never backs off, because GitHub merges it without telling us
+  and the board should notice within one interval.
+- **No poll while the webhook is working.** A pull request is left out of the poll
+  when its repo's webhook is confirmed to deliver check events (`check_run` or
+  `check_suite`) and a delivery for that pull request's own head commit arrived
+  within three poll intervals. A delivery for another pull request, or for
+  another commit, doesn't count, so one busy pull request can't hide a quiet
+  one. The delivery has to carry a valid signature, and its body has to name the
+  commit (`check_run.head_sha`, `check_suite.head_sha` or a status event's
+  `sha`). A check header on some other body counts as nothing. Once deliveries go
+  quiet for longer than that, polling starts again by itself. This applies only
+  to pull requests waiting on a check, never to an armed auto-merge, because the
+  merge itself isn't a check delivery. Forgejo is never skipped: its webhook
+  can't subscribe to the event CI status rides on.
+- **What a replay can still do.** The event type travels in an unsigned header,
+  but the body is signed, so a forged delivery is rejected. Someone who captured
+  a genuine signed check delivery for a pull request's current head commit could
+  replay it and keep that pull request out of the poll. That is capped: a
+  delivery holds a pull request off for at most 15 minutes (or
+  `CI_POLL_INTERVAL` if that is longer) before one poll reads it, and the hold
+  then starts over. The cost is a check colour up to that much late, never a
+  missed merge.
 
 For a rough sense of the saving, take 30 pull requests with a running check, on
 12 repos, polled every minute, where nothing changes for ten minutes and there is
-no working check webhook. Before, that was 12 queries a minute, 120 in ten
-minutes. Now it is 2 queries per poll (30 pull requests in chunks of 25) and 4
-polls in those ten minutes (at minutes 0, 1, 3 and 7), so 8 queries. The
+no working check webhook. Before, that was 12 queries a minute for 10 minutes,
+12 × 10 = 120. Now each poll is 2 queries (30 pull requests in chunks of 25), and
+the gaps double from one minute, so the polls fall at minutes 0, 1, 3 and 7:
+4 polls × 2 queries = 8. The
 behind-or-not lookup some pull requests need is one more request per query, where
 it used to be one per repo. With a working check webhook the figure is 0. These
 are counts worked out from how the poll is scheduled and checked by tests, not a
