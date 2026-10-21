@@ -25,6 +25,46 @@ async function showAllReleases(page: Page) {
   while (await more.isVisible()) await more.click();
 }
 
+// One release with the given notes, served in place of changelog.json.
+const oneRelease = (notes: string) => ({
+  contentType: 'application/json',
+  body: JSON.stringify({
+    releases: [
+      {
+        version: '9.9.9',
+        date: '2026-10-05',
+        url: 'https://example.com',
+        notes,
+      },
+    ],
+  }),
+});
+async function serveNotes(page: Page, notes: string) {
+  await page.route('**/changelog.json', (route) =>
+    route.fulfill(oneRelease(notes)),
+  );
+}
+
+// The Markdown renderer is a lazy chunk with a hashed name, so it is found by
+// the markdown-it token name it carries. This is the one place that knows it.
+const RENDERER_MARKER = 'blockquote_open';
+// Aborts the renderer chunk, or holds it until the returned function is called.
+async function interceptRendererChunk(page: Page, mode: 'abort' | 'hold') {
+  let release: () => void = () => {};
+  const held = new Promise<void>((r) => {
+    release = r;
+  });
+  await page.route('**/_app/immutable/**/*.js', async (route) => {
+    const response = await route.fetch();
+    if ((await response.text()).includes(RENDERER_MARKER)) {
+      if (mode === 'abort') return route.abort();
+      await held;
+    }
+    return route.fulfill({ response });
+  });
+  return release;
+}
+
 test.describe('release history page', () => {
   test('reachable without a session, unlike the dashboard itself', async ({
     page,
@@ -120,21 +160,7 @@ test.describe('release history page', () => {
       '* a [quote](https://example.com/a"onmouseover="alert(2)) link',
       '* a [fine](https://example.com/ok) link',
     ].join('\n');
-    await page.route('**/changelog.json', (route) =>
-      route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({
-          releases: [
-            {
-              version: '9.9.9',
-              date: '2026-10-05',
-              url: 'https://example.com',
-              notes,
-            },
-          ],
-        }),
-      }),
-    );
+    await serveNotes(page, notes);
     await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
@@ -158,21 +184,7 @@ test.describe('release history page', () => {
       '* **web:** fix the `thing` ([#12](https://example.com/12)) ([6bf88c3](https://example.com/c))',
       '* a [scheme](javascript:alert(1)) link and <script>window.__ran = 1</script>',
     ].join('\n');
-    await page.route('**/changelog.json', (route) =>
-      route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({
-          releases: [
-            {
-              version: '9.9.9',
-              date: '2026-10-05',
-              url: 'https://example.com',
-              notes,
-            },
-          ],
-        }),
-      }),
-    );
+    await serveNotes(page, notes);
     await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
@@ -191,37 +203,13 @@ test.describe('release history page', () => {
     }
   });
 
-  const oneRelease = (notes: string) => ({
-    contentType: 'application/json',
-    body: JSON.stringify({
-      releases: [
-        {
-          version: '9.9.9',
-          date: '2026-10-05',
-          url: 'https://example.com',
-          notes,
-        },
-      ],
-    }),
-  });
-
   // The Markdown renderer is a lazy chunk. If it never arrives, the notes
   // still read as text instead of an empty card.
   test('shows the notes as plain text when the renderer chunk is aborted', async ({
     page,
   }) => {
-    await page.route('**/changelog.json', (route) =>
-      route.fulfill(oneRelease('### Features\n* **web:** a plain note')),
-    );
-    // Chunk names are hashes; the one holding markdown-it is the one that
-    // names its blockquote tokens.
-    await page.route('**/_app/immutable/**/*.js', async (route) => {
-      const response = await route.fetch();
-      if ((await response.text()).includes('blockquote_open')) {
-        return route.abort();
-      }
-      return route.fulfill({ response });
-    });
+    await serveNotes(page, '### Features\n* **web:** a plain note');
+    await interceptRendererChunk(page, 'abort');
     const aborted = page.waitForEvent('requestfailed', (r) =>
       r.url().includes('/_app/immutable/'),
     );
@@ -234,8 +222,8 @@ test.describe('release history page', () => {
     await expect(notesBox.locator('strong')).toHaveCount(0);
   });
 
-  // The card shows its text from the first paint, so the Markdown swap does
-  // not push the cards below it. Two releases, the renderer chunk held back:
+  // The card shows its text from the first paint, so the Markdown swap of a
+  // short note does not push the cards below it. Two releases, the renderer chunk held back:
   // the second card's position is read before and after the swap.
   test('the notes swap to Markdown without moving the card below', async ({
     page,
@@ -254,15 +242,7 @@ test.describe('release history page', () => {
         }),
       }),
     );
-    let release: () => void = () => {};
-    const held = new Promise<void>((r) => {
-      release = r;
-    });
-    await page.route('**/_app/immutable/**/*.js', async (route) => {
-      const response = await route.fetch();
-      if ((await response.text()).includes('blockquote_open')) await held;
-      return route.fulfill({ response });
-    });
+    const release = await interceptRendererChunk(page, 'hold');
     await page.goto('/changelog.html');
     await expect(page.locator('.release')).toHaveCount(2);
     await expect(page.locator('.release-notes').first()).not.toBeEmpty();
@@ -278,6 +258,42 @@ test.describe('release history page', () => {
     expect(Math.abs(after - before)).toBeLessThan(12);
   });
 
+  // A real release is several sections of bullets with scopes and reference
+  // links. The raw text of those is longer than what they render to, so the
+  // swap does shift the cards below by a few lines; this pins that the notes
+  // are readable before it, complete after it, and that the card keeps its
+  // place in the list.
+  test('a multi-section release reads as text first and renders in full after the swap', async ({
+    page,
+  }) => {
+    const bullet = (n: number) =>
+      `* **web:** change number ${n} to the \`thing\` so a long enough line wraps ([#${n}](https://example.com/${n})) ([6bf88c${n}](https://example.com/c${n}))`;
+    await serveNotes(
+      page,
+      [
+        '### Features',
+        ...[1, 2, 3, 4].map(bullet),
+        '',
+        '### Bug Fixes',
+        ...[5, 6, 7].map(bullet),
+        '',
+        '### Performance Improvements',
+        bullet(8),
+      ].join('\n'),
+    );
+    const release = await interceptRendererChunk(page, 'hold');
+    await page.goto('/changelog.html');
+    await expect(page.locator('.plain-notes')).toContainText('change number 8');
+    release();
+    await expect(page.locator('.release-notes li')).toHaveCount(8);
+    await expect(page.locator('.release-notes h3')).toHaveText([
+      'Features',
+      'Bug Fixes',
+      'Performance Improvements',
+    ]);
+    await expect(page.locator('.plain-notes')).toHaveCount(0);
+  });
+
   // A long URL in plain text has no break point. It wraps inside the card at
   // phone width instead of pushing the page sideways.
   test('a long unbroken URL in the plain notes wraps at phone width', async ({
@@ -285,16 +301,8 @@ test.describe('release history page', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const url = `https://example.com/${'a'.repeat(70)}`;
-    await page.route('**/changelog.json', (route) =>
-      route.fulfill(oneRelease(`* see ${url}`)),
-    );
-    await page.route('**/_app/immutable/**/*.js', async (route) => {
-      const response = await route.fetch();
-      if ((await response.text()).includes('blockquote_open')) {
-        return route.abort();
-      }
-      return route.fulfill({ response });
-    });
+    await serveNotes(page, `* see ${url}`);
+    await interceptRendererChunk(page, 'abort');
     await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
     await expect(page.locator('.plain-notes')).toContainText(url);
@@ -306,26 +314,45 @@ test.describe('release history page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  // Rendered Markdown has its own wrapping rule: a long link label is not
+  // plain text and must not widen the card either.
+  test('a long unbroken URL in rendered notes wraps at phone width', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const url = `https://example.com/${'a'.repeat(70)}`;
+    await serveNotes(page, `* see [${url}](${url}) and \`${'b'.repeat(70)}\``);
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+    await expect(page.locator('.release-notes a')).toHaveText(url);
+    await expect(page.locator('.plain-notes')).toHaveCount(0);
+
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    const card = await page.locator('.release').boundingBox();
+    expect(card?.width).toBeLessThanOrEqual(390);
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     test(`ordered lists, code blocks and quotes are styled and pass axe in ${scheme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
-      await page.route('**/changelog.json', (route) =>
-        route.fulfill(
-          oneRelease(
-            [
-              '1. first',
-              '2. second',
-              '',
-              '```',
-              `const wide = '${'x'.repeat(200)}';`,
-              '```',
-              '',
-              '> quoted note',
-            ].join('\n'),
-          ),
-        ),
+      await serveNotes(
+        page,
+        [
+          '1. first',
+          '2. second',
+          '',
+          '```',
+          `const wide = '${'x'.repeat(200)}';`,
+          '```',
+          '',
+          '> quoted note',
+        ].join('\n'),
       );
       await page.goto('/changelog.html');
       await waitForReleasesToSettle(page);

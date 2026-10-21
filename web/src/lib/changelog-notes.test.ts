@@ -1,6 +1,10 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { createNoteRenderer, withoutHeading } from './changelog-notes';
+import {
+  createNoteRenderer,
+  createPlainNotes,
+  withoutHeading,
+} from './changelog-notes';
 
 const release = (version: string) => ({
   version,
@@ -20,8 +24,44 @@ describe('withoutHeading', () => {
   });
 
   test('keeps a "## " line inside a fenced code block', () => {
-    const notes = '## 1.0.0\n```md\n## not a heading\n```\n## 0.9.0\ntext';
+    const notes = '## 1.0.0\n```md\n## not a heading\n```\ntext';
     expect(withoutHeading(notes)).toBe('```md\n## not a heading\n```\ntext');
+  });
+
+  test('a fence closes only on a fence at least as long as the opener', () => {
+    const notes = '## 1.0.0\n````md\n```\n## inside\n````\ntext';
+    expect(withoutHeading(notes)).toBe('````md\n```\n## inside\n````\ntext');
+  });
+
+  test('a fence with text after it does not close the block', () => {
+    const notes = '## 1.0.0\n```\n``` not a close\n## inside\n```\ntext';
+    expect(withoutHeading(notes)).toBe(
+      '```\n``` not a close\n## inside\n```\ntext',
+    );
+  });
+
+  test('drops only the leading heading, not a "## " line in prose', () => {
+    const notes = '## 1.0.0\n\nintro\n## later heading\n* a';
+    expect(withoutHeading(notes)).toBe('\nintro\n## later heading\n* a');
+  });
+});
+
+describe('createPlainNotes', () => {
+  test('strips the heading once per release however often it is asked', () => {
+    const calls: string[] = [];
+    const plain = createPlainNotes((body) => {
+      calls.push(body);
+      return body.toUpperCase();
+    });
+    const a = { version: '1.0.0', notes: 'a' };
+    const b = { version: '0.9.0', notes: 'b' };
+    expect([plain(a), plain(b), plain(a), plain(b)]).toEqual([
+      'A',
+      'B',
+      'A',
+      'B',
+    ]);
+    expect(calls).toEqual(['a', 'b']);
   });
 });
 
@@ -85,5 +125,45 @@ describe('createNoteRenderer', () => {
     request([release('1.0.0')]);
     await flush();
     expect(got).toEqual([null, '<p>ok</p>']);
+  });
+
+  test('a failed render is asked again after the retry delay, without a new ask', async () => {
+    const got: (string | null)[] = [];
+    let attempts = 0;
+    const request = createNoteRenderer(
+      async () => {
+        attempts++;
+        if (attempts === 1) throw new Error('chunk failed');
+        return '<p>ok</p>';
+      },
+      (_version, html) => {
+        got.push(html);
+      },
+      5,
+    );
+    request([release('1.0.0')]);
+    await flush();
+    expect(got).toEqual([null]);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(got).toEqual([null, '<p>ok</p>']);
+    expect(attempts).toBe(2);
+    request.stop();
+  });
+
+  test('stop() cancels a pending retry', async () => {
+    let attempts = 0;
+    const request = createNoteRenderer(
+      async () => {
+        attempts++;
+        throw new Error('chunk failed');
+      },
+      () => {},
+      5,
+    );
+    request([release('1.0.0')]);
+    await flush();
+    request.stop();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(attempts).toBe(1);
   });
 });
