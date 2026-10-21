@@ -38,8 +38,13 @@ func webhooksCover(snap Snapshot) bool {
 	if len(snap.Repos) == 0 {
 		return false
 	}
+	// A forge that was never reachable has no repos to check, so its silence
+	// would otherwise read as coverage.
 	failed := map[Forge]bool{}
 	for _, h := range snap.Forges {
+		if !h.Reachable {
+			return false
+		}
 		if h.StaleSince != nil {
 			failed[h.Forge] = true
 		}

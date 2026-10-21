@@ -161,3 +161,19 @@ func TestAggregator_NextDelay_DoesNotStretchOnCarriedOverRepos(t *testing.T) {
 
 	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
 }
+
+func TestAggregator_NextDelay_DoesNotStretchWhileAnotherForgeWasNeverReachable(t *testing.T) {
+	t.Parallel()
+
+	gh := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:  []dashboard.Repo{repoWithHook("o/a", true)},
+	}}
+	fj := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: false},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{gh, fj})
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+}
