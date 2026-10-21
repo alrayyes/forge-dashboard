@@ -1,26 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
-import { type APIRequestContext, expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `settings-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Settings Test User',
-  );
-}
+import { expect, type Page } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
+import { addVirtualAuthenticator } from './webauthn-helper';
 
 test.describe('settings page', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    // Registering through an invite used to give the page a virtual
+    // authenticator; the Passkeys tests add a passkey with it.
+    await addVirtualAuthenticator(page);
+    await landOnPullRequests(page);
   });
 
   // #1135: Lighthouse fails the page when under 60% of its text is 12px or

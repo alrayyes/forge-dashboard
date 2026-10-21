@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 
 // A save can come back before the server knows any count: the first-ever save,
 // or one before the first refresh finished, answers every ignoredTitleCounts
@@ -14,21 +8,6 @@ import { registerViaInvite } from './register-helper';
 // a few times, two seconds apart, taking only the counts. Mocked GET and PUT;
 // the page clock stands in for the waiting.
 // https://github.com/alrayyes/forge-dashboard/issues/1676
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `settings-counting-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Settings Counting',
-  );
-}
 
 async function standIn(page: Page, titles: string[]) {
   const state = {
@@ -120,8 +99,8 @@ async function firstSave(page: Page, pattern: string) {
 }
 
 test.describe('Settings: counting after the first save (#1676)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('says Counting… then the number, without a reload', async ({ page }) => {

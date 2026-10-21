@@ -56,6 +56,21 @@ const singleUserSpecs = [
   '**/mono-figures.spec.ts',
   '**/nav-branches-pills.spec.ts',
   '**/nav-count-reads.spec.ts',
+  '**/dashboard.spec.ts',
+  '**/insights-hide-title-regex.spec.ts',
+  '**/insights.spec.ts',
+  '**/issue-hide-title-regex.spec.ts',
+  '**/issue-settings-effect.spec.ts',
+  '**/issues-page.spec.ts',
+  '**/issues-steady.spec.ts',
+  '**/main-branches-choices.spec.ts',
+  '**/main-branches-refetch-on-flag.spec.ts',
+  '**/main-branches-server-copy.spec.ts',
+  '**/settings-counts-after-save.spec.ts',
+  '**/settings-groups.spec.ts',
+  '**/settings-ignore-counts.spec.ts',
+  '**/settings-ignore-issues.spec.ts',
+  '**/settings.spec.ts',
 ];
 
 export default defineConfig({
