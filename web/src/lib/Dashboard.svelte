@@ -105,6 +105,7 @@
   import {
     type ClosingIssue,
     closingPills,
+    findAddressedIssue,
     missingIssueNote,
     parseIssueAddress,
   } from "#lib/closing-issues.js";
@@ -1756,12 +1757,7 @@
         "",
         here.pathname + here.search + here.hash,
       );
-      const found = listed.find(
-        (i) =>
-          i.forge === wanted.forge &&
-          i.number === wanted.number &&
-          i.repo.toLowerCase() === wanted.repo.toLowerCase(),
-      );
+      const found = findAddressedIssue(listed, wanted);
       if (found) {
         openIssueDialog(found, "");
         return;

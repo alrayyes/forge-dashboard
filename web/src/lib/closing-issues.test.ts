@@ -4,6 +4,7 @@ import {
   type ClosingIssue,
   closingPillName,
   closingPillText,
+  findAddressedIssue,
   missingIssueNote,
   parseIssueAddress,
   splitClosing,
@@ -69,11 +70,53 @@ describe('parseIssueAddress', () => {
     '?issue=github/alrayyes/app',
     '?issue=gitlab/alrayyes/app/12',
     '?issue=github/alrayyes/app/x',
+    '?issue=github/alrayyes/app/12abc',
+    '?issue=github/alrayyes/app/-1',
+    '?issue=github/alrayyes/app/1.5',
+    '?issue=github/alrayyes/app/12/extra',
+    '?issue=github/alrayyes/app/sub/12',
+    '?issue=evil/alrayyes/app/12',
+    '?issue=GitHub/alrayyes/app/12',
     '?issue=github/alrayyes/app/0',
     '?issue=github//app/12',
     '?pr=github/alrayyes/app/12',
   ])('opens nothing for %p', (search) => {
     expect(parseIssueAddress(search)).toBeNull();
+  });
+});
+
+describe('findAddressedIssue', () => {
+  const listed = [
+    { forge: 'forgejo', repo: 'Ryan/Hush', number: 3 },
+    { forge: 'github', repo: 'alrayyes/app', number: 3 },
+    { forge: 'github', repo: 'alrayyes/app', number: 12 },
+  ];
+
+  test('matches the repo ignoring case, as Forgejo lowercases closing references', () => {
+    expect(
+      findAddressedIssue(listed, {
+        forge: 'forgejo',
+        repo: 'ryan/hush',
+        number: 3,
+      }),
+    ).toBe(listed[0]);
+  });
+
+  test('needs the same forge and number', () => {
+    expect(
+      findAddressedIssue(listed, {
+        forge: 'github',
+        repo: 'ryan/hush',
+        number: 3,
+      }),
+    ).toBeUndefined();
+    expect(
+      findAddressedIssue(listed, {
+        forge: 'github',
+        repo: 'alrayyes/app',
+        number: 99,
+      }),
+    ).toBeUndefined();
   });
 });
 

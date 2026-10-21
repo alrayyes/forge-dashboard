@@ -63,6 +63,21 @@ export function parseIssueAddress(search: string): IssueAddress | null {
 }
 
 /**
+ * The listed issue an address names, or undefined. The repo matches ignoring
+ * case: Forgejo's closing references are lowercased, the issue's repo is not.
+ */
+export function findAddressedIssue<
+  T extends { forge: string; repo: string; number: number },
+>(listed: T[], wanted: IssueAddress): T | undefined {
+  return listed.find(
+    (i) =>
+      i.forge === wanted.forge &&
+      i.number === wanted.number &&
+      sameRepo(i.repo, wanted.repo),
+  );
+}
+
+/**
  * The plain note for an address whose issue is not on the board: it was
  * closed since the link was made, the dashboard does not track its repo, or
  * the settings hide it.
