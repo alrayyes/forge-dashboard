@@ -5,13 +5,8 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #756: while a forge is rate limited (read-only, #755), a behind pull
 // request can queue Update branch (or a bot rebase) to run at the reset. The

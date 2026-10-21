@@ -1,8 +1,7 @@
 import { expect, type Route } from '@playwright/test';
-import { test } from './fixtures';
 import { flushRequests } from './flush-requests-helper';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #809: the page used to hard-code a 30s poll and a 5s force-refresh lock,
 // mirroring the server's config. The server now says how often to read
@@ -19,10 +18,6 @@ function snapshot(extra: Record<string, unknown> = {}) {
     ...extra,
   };
 }
-
-// Every endpoint is mocked and nothing is saved per user, so the whole file
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('refresh follows the server (#809)', () => {
   test.beforeEach(async ({ page }) => {
