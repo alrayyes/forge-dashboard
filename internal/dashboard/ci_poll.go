@@ -169,43 +169,56 @@ func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCh
 	}
 	a.mergePendingResult(ctx, forge, seq, res)
 
-	// What the poll read is judged by its own answer, not by the snapshot after
-	// it: a webhook refresh landing meanwhile changes the snapshot, not what this
-	// poll found.
-	var read []polledPR
-	answered := make(map[string]struct{}, len(due))
+	read, failed := judgePending(forge, byKey, res)
+	if err != nil {
+		failed = append(failed, unanswered(due, read, failed)...)
+	}
+
+	return append(read, a.refreshEachRepo(ctx, forge, failed)...)
+}
+
+// judgePending sorts a PendingResult by the pull requests it was asked about:
+// those it read, and those it could not answer.
+//
+// What the poll read is judged by its own answer, not by the snapshot after it:
+// a webhook refresh landing meanwhile changes the snapshot, not what this poll
+// found.
+func judgePending(forge Forge, byKey map[string]pendingItem, res PendingResult) (read []polledPR, failed []pendingItem) {
 	for _, pr := range res.Pulls {
-		key := pullRequestKey(forge, pr.Repo, pr.Number)
-		if it, ok := byKey[key]; ok {
-			answered[key] = struct{}{}
+		if it, ok := byKey[pullRequestKey(forge, pr.Repo, pr.Number)]; ok {
 			read = append(read, polledPR{item: it, changed: pollFingerprint(pr) != it.fingerprint})
 		}
 	}
 	for _, ref := range res.Closed {
-		key := pullRequestKey(forge, ref.FullName, ref.Number)
-		if it, ok := byKey[key]; ok {
-			answered[key] = struct{}{}
+		if it, ok := byKey[pullRequestKey(forge, ref.FullName, ref.Number)]; ok {
 			read = append(read, polledPR{item: it, changed: true})
 		}
 	}
-
-	var failed []pendingItem
 	for _, ref := range res.Failed {
-		key := pullRequestKey(forge, ref.FullName, ref.Number)
-		if it, ok := byKey[key]; ok {
-			answered[key] = struct{}{}
+		if it, ok := byKey[pullRequestKey(forge, ref.FullName, ref.Number)]; ok {
 			failed = append(failed, it)
 		}
 	}
-	if err != nil {
-		for _, it := range due {
-			if _, done := answered[it.key()]; !done {
-				failed = append(failed, it)
-			}
-		}
+
+	return read, failed
+}
+
+// unanswered is the due items that are in neither read nor failed: what a
+// request that failed part way never got to.
+func unanswered(due []pendingItem, read []polledPR, failed []pendingItem) []pendingItem {
+	answered := make(map[string]struct{}, len(read)+len(failed))
+	for _, r := range read {
+		answered[r.item.key()] = struct{}{}
+	}
+	for _, it := range failed {
+		answered[it.key()] = struct{}{}
 	}
 
-	return append(read, a.refreshEachRepo(ctx, forge, failed)...)
+	return slices.DeleteFunc(slices.Clone(due), func(it pendingItem) bool {
+		_, done := answered[it.key()]
+
+		return done
+	})
 }
 
 // refreshEachRepo re-reads the repos of items, one scoped refresh per repo
