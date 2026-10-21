@@ -4716,7 +4716,6 @@
       const before = shownIssues;
       const wasLanded = issueListLanded;
       const rendered = settleIssues();
-      issueListLanded = true;
       if (
         (before.length > 0 || wasLanded) &&
         choicesDiffer(before, shownIssues)
@@ -4749,6 +4748,7 @@
         // Nothing on screen differs, but the rows off screen may. Keep them
         // current so a filter change later shows fresh data, without drawing.
         shownIssues = latestIssues;
+        issueListLanded = true;
         latestIssues = null;
         if (!issuesDrawn) {
           issuesDrawn = true;
@@ -4764,6 +4764,7 @@
       if (!held && (structural > 0 || userAsked)) {
         if (!userAsked) announceListUpdate(diff);
         shownIssues = latestIssues;
+        issueListLanded = true;
         latestIssues = null;
         latestIssuesAsked = false;
         issuesDrawn = true;
@@ -4918,7 +4919,6 @@
       const before = shownPRs;
       const wasLanded = prListLanded;
       const rendered = settlePRs();
-      prListLanded = true;
       if ((before.length > 0 || wasLanded) && choicesDiffer(before, shownPRs))
         offerWhatIsShown();
       return rendered;
@@ -4984,6 +4984,7 @@
       if (userAsked) {
         retireFailuresOfRemoved(latestPRs);
         shownPRs = latestPRs;
+        prListLanded = true;
         latestPRs = null;
         latestIsUserAsked = false;
         keepFocusAcross(() => prBoard.setItems(shownPRs));
@@ -5009,6 +5010,7 @@
         );
         retireFailuresOfRemoved(latestPRs);
         shownPRs = latestPRs;
+        prListLanded = true;
         latestPRs = null;
         markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(shownPRs, true));

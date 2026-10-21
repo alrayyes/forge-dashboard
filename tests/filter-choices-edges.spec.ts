@@ -46,7 +46,11 @@ const snapshot = (prs: unknown[]) => ({
   issues: [],
 });
 
-async function open(page: Page, initial: unknown[] = ONE) {
+async function open(
+  page: Page,
+  initial: unknown[] = ONE,
+  gate?: Promise<void>,
+) {
   await page.addInitScript(() => {
     class StubEventSource {
       onmessage: ((e: { data: string }) => void) | null = null;
@@ -63,14 +67,16 @@ async function open(page: Page, initial: unknown[] = ONE) {
         data: JSON.stringify(data),
       });
   });
-  await page.route('**/api/dashboard', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/dashboard', async (route: Route) => {
+    await gate;
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(snapshot(initial)),
-    }),
-  );
+    });
+  });
   await page.goto('/pull-requests.html');
+  if (gate) return;
   await expect(page.locator('#pr-rows > .row')).toHaveCount(initial.length);
   await page.waitForFunction(
     () =>
@@ -166,9 +172,16 @@ test('a pick the sort-landed list lacks is cleared once, and the rows agree', as
   await expect(page.locator('#pr-rows .row').first()).toContainText(
     'Pull request 1',
   );
-  // Let any second offer run, then count.
-  await page.waitForTimeout(300);
-  expect(await page.evaluate(() => window.__titleRebuilds)).toBe(1);
+  // Let the observer deliver and any second offer run, then count.
+  const rebuilds = await page.evaluate(
+    () =>
+      new Promise<number>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => resolve(window.__titleRebuilds)),
+        ),
+      ),
+  );
+  expect(rebuilds).toBe(1);
 });
 
 test('a saved pick the first list lacks is set aside and the list shows', async ({
@@ -192,4 +205,32 @@ test('a saved pick the first list lacks is set aside and the list shows', async 
   await expect(page.locator('#shared-author-select')).toHaveValue('');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   expect(await choices(page, 'shared-author-select')).toEqual(['alrayyes']);
+});
+
+test('a first snapshot held by the open Filters sheet still offers its choices', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await open(page, TWO, gate);
+  // Closing the sheet lifts a hold that has nothing waiting; opening it again
+  // holds the list for the snapshot that is still on its way.
+  await page.locator('#filters-button').click();
+  await expect(page.locator('#filter-sheet')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#filter-sheet')).not.toBeVisible();
+  await page.locator('#filters-button').click();
+  await expect(page.locator('#filter-sheet')).toBeVisible();
+
+  release();
+
+  // The sheet holds the list, so nothing is drawn yet, and nothing has
+  // landed for the choices to follow: they come from the snapshot.
+  await expect
+    .poll(() => choices(page, 'shared-author-select'))
+    .toEqual(['alrayyes', 'claude']);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
 });
