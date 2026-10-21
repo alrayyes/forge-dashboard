@@ -6,7 +6,7 @@ import (
 )
 
 // testClient returns an HTTP client with a transport of its own. Tests use it
-// instead of http.DefaultClient or http.Get because every
+// instead of the package-level default client because every
 // httptest.Server.Close() calls CloseIdleConnections on http.DefaultTransport,
 // which fails another parallel test's in-flight request.
 func testClient(tb testing.TB) *http.Client {
