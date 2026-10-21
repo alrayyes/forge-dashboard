@@ -1144,7 +1144,7 @@ func (c *Client) Fetch(ctx context.Context) dashboard.Result {
 	ctx, tally := apistats.WithTally(ctx)
 	result := c.fetch(ctx)
 	spent := tally.Spent()
-	result.Spent = &dashboard.Spend{GraphQL: spent.GraphQL, REST: spent.REST}
+	result.Spent = &spent
 
 	return result
 }
