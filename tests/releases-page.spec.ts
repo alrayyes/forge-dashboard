@@ -125,6 +125,8 @@ test.describe('Releases page (#1107)', () => {
     await expect(row).toContainText(
       "release-please won't update this pull request",
     );
+    // The Update branch button already says it, so no Out of date chip.
+    await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
   });
 
   test('says nothing is waiting to ship when no release pull request is open', async ({
