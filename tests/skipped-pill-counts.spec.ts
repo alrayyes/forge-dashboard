@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // Every CI pill shows how many of its passed checks were skipped, with the
 // pipeline dialog's word for it, on the pull request, bot, Main branches and
@@ -214,10 +214,6 @@ const branchPill = (page: Page, repo: string) =>
     .locator('.ci-pill');
 
 test.describe('skipped counts on the Main branches pill', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('draws the same segments as the pull request pill', async ({ page }) => {
     await openBranches(page);
 

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // Settings is four groups, one shown at a time, the choice in the URL hash.
 // https://github.com/alrayyes/forge-dashboard/issues/1680
@@ -48,10 +48,6 @@ const groupLink = (page: Page, label: string) =>
     .getByRole('link', { name: new RegExp(`^${label}( |$)`) });
 
 test.describe('settings groups', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('opens on Display with no hash, and an unknown hash does the same', async ({
     page,
   }) => {
