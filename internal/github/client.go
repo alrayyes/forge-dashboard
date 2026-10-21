@@ -98,6 +98,11 @@ type Client struct {
 	// whose hooks call failed for an unrelated reason doesn't flip it.
 	refusedRepo    map[string]bool
 	hooksDenialTTL time.Duration
+	// hookStore keeps the webhook check results across restarts; see
+	// hook_check_persist.go. Guarded by hooksMu apart from the Once.
+	hookStore     dashboard.HookCheckStore
+	hookRestore   sync.Once
+	hookLastSaved map[string]dashboard.HookCheck
 	// retryWait is how long a repeatable call waits before its one retry
 	// after GitHub's own 5xx; zero means the default.
 	retryWait time.Duration
@@ -2576,6 +2581,7 @@ type hookProbe struct {
 // to, and whether the last check confirmed such a hook at all. A repo that
 // was never checked, or whose last answer was no hook, is not confirmed.
 func (c *Client) WebhookEvents(fullName string) ([]string, bool) {
+	c.restoreHookChecks()
 	c.hooksMu.Lock()
 	defer c.hooksMu.Unlock()
 
@@ -2722,6 +2728,7 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 	if c.webhookPath == "" {
 		return result
 	}
+	c.restoreHookChecks()
 
 	if c.hooksDenied("") {
 		// An app-wide refusal remembered from an earlier poll stands for
@@ -2776,13 +2783,21 @@ func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe
 	if err != nil {
 		c.logHooksFailure(fullName, err)
 
-		return hookProbe{refused: c.noteRefused(fullName, refusesHooks(err), true)}
+		probe := hookProbe{refused: c.noteRefused(fullName, refusesHooks(err), true)}
+		if refusesHooks(err) {
+			// Only a real refusal is an answer worth keeping; any other
+			// failure says nothing.
+			c.saveHookCheck(fullName, probe)
+		}
+
+		return probe
 	}
 	probe := hookProbe{has: hook != nil, refused: c.noteRefused(fullName, false, false)}
 	if hook != nil {
 		probe.events = hook.Events
 	}
 	c.noteOwnHook(fullName, &probe)
+	c.saveHookCheck(fullName, probe)
 
 	return probe
 }

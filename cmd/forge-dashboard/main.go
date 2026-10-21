@@ -259,6 +259,7 @@ func run() error {
 	// The ETags GitHub sent survive a restart, so the first refresh asks
 	// with If-None-Match instead of paying for every read again.
 	github.SetETagBacking(settingsStore)
+	github.SetHookCheckStore(settingsStore)
 
 	githubAppID, githubAppPrivateKey, err := buildGitHubApp()
 	if err != nil {
