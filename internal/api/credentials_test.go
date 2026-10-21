@@ -29,7 +29,7 @@ func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCoo
 	beginReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/credentials/begin", nil)
 	require.NoError(t, err)
 	beginReq.AddCookie(sessionCookie)
-	beginResp, err := http.DefaultClient.Do(beginReq)
+	beginResp, err := testClient(t).Do(beginReq)
 	require.NoError(t, err)
 	defer func() { _ = beginResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, beginResp.StatusCode)
@@ -51,7 +51,7 @@ func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCoo
 	require.NoError(t, err)
 	finishReq.AddCookie(sessionCookie)
 	finishReq.Header.Set("Content-Type", "application/json")
-	finishResp, err := http.DefaultClient.Do(finishReq)
+	finishResp, err := testClient(t).Do(finishReq)
 	require.NoError(t, err)
 
 	authenticator.AddCredential(cred)
@@ -63,7 +63,7 @@ func TestCredentialsGet_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/auth/credentials")
+	resp, err := testClient(t).Get(srv.URL + "/api/auth/credentials")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -79,7 +79,7 @@ func TestCredentialsGet_AfterRegistration_ListsTheInitialPasskey(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -109,7 +109,7 @@ func TestAddCredential_SecondPasskey_BothAuthenticateAfterwards(t *testing.T) {
 	listReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
 	require.NoError(t, err)
 	listReq.AddCookie(sessionCookie)
-	listResp, err := http.DefaultClient.Do(listReq)
+	listResp, err := testClient(t).Do(listReq)
 	require.NoError(t, err)
 	defer func() { _ = listResp.Body.Close() }()
 	var creds []api.CredentialInfo
@@ -142,7 +142,7 @@ func TestAddCredential_BlankLabel_Returns400(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/credentials/begin", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -163,7 +163,7 @@ func TestAddCredential_BlankLabel_Returns400(t *testing.T) {
 	)
 	require.NoError(t, err)
 	finishReq.AddCookie(sessionCookie)
-	finishResp, err := http.DefaultClient.Do(finishReq)
+	finishResp, err := testClient(t).Do(finishReq)
 	require.NoError(t, err)
 	defer func() { _ = finishResp.Body.Close() }()
 
@@ -184,7 +184,7 @@ func TestCredentialsDelete_WithAnotherRemaining_RemovesIt(t *testing.T) {
 	delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/auth/credentials/"+created.ID, nil)
 	require.NoError(t, err)
 	delReq.AddCookie(sessionCookie)
-	delResp, err := http.DefaultClient.Do(delReq)
+	delResp, err := testClient(t).Do(delReq)
 	require.NoError(t, err)
 	defer func() { _ = delResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, delResp.StatusCode)
@@ -192,7 +192,7 @@ func TestCredentialsDelete_WithAnotherRemaining_RemovesIt(t *testing.T) {
 	listReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
 	require.NoError(t, err)
 	listReq.AddCookie(sessionCookie)
-	listResp, err := http.DefaultClient.Do(listReq)
+	listResp, err := testClient(t).Do(listReq)
 	require.NoError(t, err)
 	defer func() { _ = listResp.Body.Close() }()
 	var creds []api.CredentialInfo
@@ -211,7 +211,7 @@ func TestCredentialsDelete_LastOne_Returns400(t *testing.T) {
 	listReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
 	require.NoError(t, err)
 	listReq.AddCookie(sessionCookie)
-	listResp, err := http.DefaultClient.Do(listReq)
+	listResp, err := testClient(t).Do(listReq)
 	require.NoError(t, err)
 	var creds []api.CredentialInfo
 	require.NoError(t, json.NewDecoder(listResp.Body).Decode(&creds))
@@ -221,7 +221,7 @@ func TestCredentialsDelete_LastOne_Returns400(t *testing.T) {
 	delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/auth/credentials/"+creds[0].ID, nil)
 	require.NoError(t, err)
 	delReq.AddCookie(sessionCookie)
-	delResp, err := http.DefaultClient.Do(delReq)
+	delResp, err := testClient(t).Do(delReq)
 	require.NoError(t, err)
 	defer func() { _ = delResp.Body.Close() }()
 
@@ -231,7 +231,7 @@ func TestCredentialsDelete_LastOne_Returns400(t *testing.T) {
 	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
 	require.NoError(t, err)
 	getReq.AddCookie(sessionCookie)
-	getResp, err := http.DefaultClient.Do(getReq)
+	getResp, err := testClient(t).Do(getReq)
 	require.NoError(t, err)
 	defer func() { _ = getResp.Body.Close() }()
 	var stillThere []api.CredentialInfo
@@ -248,7 +248,7 @@ func TestCredentialsDelete_UnknownID_StillReturns204(t *testing.T) {
 	req, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/auth/credentials/not-a-real-id", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

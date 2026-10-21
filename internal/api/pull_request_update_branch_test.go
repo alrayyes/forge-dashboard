@@ -56,7 +56,7 @@ func postUpdatePullRequestBranch(t *testing.T, srvURL string, sessionCookie *htt
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp

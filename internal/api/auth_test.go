@@ -249,7 +249,7 @@ func createInviteViaAdmin(t *testing.T, srv *httptest.Server, adminCookie *http.
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(adminCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	raw := readAll(t, resp)
@@ -282,14 +282,14 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 		require.NoError(t, err)
 		req.AddCookie(sessionCookie)
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testClient(t).Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
 	t.Run("the dashboard refuses a request with no session at all", func(t *testing.T) {
-		resp, err := http.Get(srv.URL + "/api/dashboard")
+		resp, err := testClient(t).Get(srv.URL + "/api/dashboard")
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -334,7 +334,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 		require.NoError(t, err)
 		req.AddCookie(loginCookie)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testClient(t).Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -350,7 +350,7 @@ func TestPasskeyRegistration_FirstUserBecomesAdmin(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -370,7 +370,7 @@ func TestPasskeyRegistration_SecondUserIsNotAdmin(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -387,7 +387,7 @@ func TestLogout_ClearsTheSession(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/logout", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -395,7 +395,7 @@ func TestLogout_ClearsTheSession(t *testing.T) {
 	req2, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
 	require.NoError(t, err)
 	req2.AddCookie(sessionCookie)
-	resp2, err := http.DefaultClient.Do(req2)
+	resp2, err := testClient(t).Do(req2)
 	require.NoError(t, err)
 	defer func() { _ = resp2.Body.Close() }()
 	assert.Equal(t, http.StatusUnauthorized, resp2.StatusCode)
@@ -489,7 +489,7 @@ func TestRegisterBegin_AfterBootstrap_WithExpiredOrConsumedOrMismatchedInvite_Is
 		delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/admin/users/already-consumed", nil)
 		require.NoError(t, err)
 		delReq.AddCookie(adminCookie)
-		delResp, err := http.DefaultClient.Do(delReq)
+		delResp, err := testClient(t).Do(delReq)
 		require.NoError(t, err)
 		_ = delResp.Body.Close()
 		require.Equal(t, http.StatusNoContent, delResp.StatusCode)
@@ -539,7 +539,7 @@ func TestRegistrationStatus_NoUsersYet_IsOpen(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	resp, err := http.Get(srv.URL + "/api/auth/registration-status")
+	resp, err := testClient(t).Get(srv.URL + "/api/auth/registration-status")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -556,7 +556,7 @@ func TestRegistrationStatus_AfterOneUserRegisters_IsClosed(t *testing.T) {
 	srv := newTestServer(t)
 	registerViaRealCeremony(t, srv, testUser, testDisplay)
 
-	resp, err := http.Get(srv.URL + "/api/auth/registration-status")
+	resp, err := testClient(t).Get(srv.URL + "/api/auth/registration-status")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

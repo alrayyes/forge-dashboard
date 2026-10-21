@@ -47,7 +47,7 @@ func TestNoIndex_RobotsTxtAllowsCrawling(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/robots.txt") //nolint:noctx // test against a local server
+	resp, err := testClient(t).Get(srv.URL + "/robots.txt") //nolint:noctx // test against a local server
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

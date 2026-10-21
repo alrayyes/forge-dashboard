@@ -20,7 +20,7 @@ import (
 // request it makes -- the same personal-API-token auth
 // TestTokenCreated_AuthenticatesAsBearerAgainstARealEndpoint already
 // proves against a plain /api/* handler, here driving an MCP client
-// instead of http.DefaultClient directly.
+// instead of a bare request.
 type bearerRoundTripper struct {
 	token string
 	base  http.RoundTripper
@@ -49,7 +49,7 @@ func createAPIToken(t *testing.T, srvURL string, sessionCookie *http.Cookie) str
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -132,7 +132,7 @@ func TestMCP_GetDashboard_ReturnsTheSameAggregatedDataAsTheHTTPEndpoint(t *testi
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := testClient(t).Do(putReq)
 	require.NoError(t, err)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)

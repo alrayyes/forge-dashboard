@@ -43,7 +43,7 @@ func TestMCP_GetVersion_ReturnsTheSamePayloadAsTheHTTPEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
-	resp, err := http.Get(srv.URL + "/api/version")
+	resp, err := testClient(t).Get(srv.URL + "/api/version")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var httpBody map[string]any
@@ -59,7 +59,7 @@ func TestMCP_GetVersion_NeedsAValidAPIToken(t *testing.T) {
 	srv := newTestServer(t)
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/mcp", nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

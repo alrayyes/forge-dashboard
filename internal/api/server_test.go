@@ -31,7 +31,7 @@ func TestHealthz_AnswersOK(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/healthz")
+	resp, err := testClient(t).Get(srv.URL + "/healthz")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -46,7 +46,7 @@ func TestDashboard_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := http.Get(srv.URL + "/api/dashboard")
+	resp, err := testClient(t).Get(srv.URL + "/api/dashboard")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -62,7 +62,7 @@ func TestDashboard_WithASessionButNoSettingsSaved_SerializesEmptyArraysNotNull(t
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -112,7 +112,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := testClient(t).Do(putReq)
 	require.NoError(t, err)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
@@ -123,7 +123,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 			return false
 		}
 		req.AddCookie(sessionCookie)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testClient(t).Do(req)
 		if err != nil {
 			return false
 		}
@@ -158,7 +158,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := http.DefaultClient.Do(putReq)
+	putResp, err := testClient(t).Do(putReq)
 	require.NoError(t, err)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
@@ -167,7 +167,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
 		require.NoError(t, err)
 		req.AddCookie(sessionCookie)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := testClient(t).Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		var snap dashboard.Snapshot

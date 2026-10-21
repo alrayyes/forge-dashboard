@@ -44,7 +44,7 @@ func postRenovateRebase(t *testing.T, srvURL string, sessionCookie *http.Cookie,
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 
 	return resp
@@ -57,7 +57,7 @@ func putRenovateRebaseLabel(t *testing.T, srvURL string, sessionCookie *http.Coo
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

@@ -82,7 +82,7 @@ func postAction(t *testing.T, srvURL string, cookie *http.Cookie, ep actionEndpo
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var body actionErrorBody
