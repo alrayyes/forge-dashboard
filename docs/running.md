@@ -61,3 +61,31 @@ Settings page.
 The published image is `ghcr.io/alrayyes/forge-dashboard`, built and
 pushed on every release by `.goreleaser.yml`'s `dockers:` block — tagged
 by version and `:latest`, `linux/amd64` and `linux/arm64`.
+
+## Before you upgrade
+
+An instance has one owner. The first start after upgrading from a version that
+allowed several users keeps the oldest user who has a passkey and deletes every
+other user, once. Their sessions, API tokens, passkeys, saved credentials,
+settings, hidden pull requests, queued actions and request-log rows go with
+them. Outstanding invites and shares are cleared for everyone, the kept user
+included, and any leftover rows of users removed earlier are deleted. A
+database with one user has only those invites, shares and leftover rows
+cleared, and one with no registered user is left alone. An instance whose owner
+registered on this version is never cleaned up, so a user invited later
+survives a restart.
+
+Copy the database before you upgrade. Copy `DB_PATH` together with its `-wal`
+and `-shm` files, with the server stopped, so the copy is complete.
+
+The server also copies the database itself before it deletes other users, next
+to the original, as `<DB_PATH>.before-single-user-<UTC timestamp>`. Only the
+owner can read the copy, because it holds every secret the database does. If it
+cannot be written, nothing is deleted, the log says so, and the next start
+tries again. Delete the backup once you are satisfied; the server never does.
+
+The log has one `single-user cleanup: removed user` warning per deleted user and
+a summary line. A table named `single_user_cleanup` records that this step is
+settled, so later starts leave the database alone. Whoever finishes the first
+passkey registration on an empty instance becomes its owner, so register yours
+as soon as a new instance is up.

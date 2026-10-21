@@ -7,6 +7,8 @@ import { defineConfig } from '@playwright/test';
 const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/filter-persistence.spec.ts',
+  '**/first-refresh-first-paint.spec.ts',
+  '**/first-refresh-loading.spec.ts',
   '**/timezone.spec.ts',
   '**/webhooks.spec.ts',
   '**/auth-single-user.spec.ts',
@@ -121,6 +123,8 @@ const singleUserSpecs = [
   '**/settings-ignore-counts.spec.ts',
   '**/settings-ignore-issues.spec.ts',
   '**/settings.spec.ts',
+  '**/filter-save-refused.spec.ts',
+  '**/main-branch-release-link.spec.ts',
 ];
 
 export default defineConfig({

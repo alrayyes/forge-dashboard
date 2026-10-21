@@ -1,27 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
+import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // The skeleton shows from the first paint, not once the first answer lands.
 // The server holds GET /api/dashboard for up to 15 s on a cold start, and
 // until then the page used to be blank.
 // https://github.com/alrayyes/forge-dashboard/issues/1672
-
-async function signIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `first-paint-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'First Paint');
-}
 
 function pr(number: number) {
   return {
@@ -109,8 +94,8 @@ const LISTS = [
 ];
 
 test.describe('first refresh loading from the first paint (#1672)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await signIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   for (const list of LISTS) {
