@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.254.1](https://github.com/alrayyes/forge-dashboard/compare/v0.254.0...v0.254.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** offer only the repos, authors and labels the list on screen has ([#2179](https://github.com/alrayyes/forge-dashboard/issues/2179)) ([e3f8e75](https://github.com/alrayyes/forge-dashboard/commit/e3f8e75108816eb44e2961072c63c2abacbc97c1))
+
 ## [0.254.0](https://github.com/alrayyes/forge-dashboard/compare/v0.253.2...v0.254.0) (2026-10-21)
 
 
