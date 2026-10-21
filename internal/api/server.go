@@ -211,11 +211,6 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /insights.js", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /webhooks.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /webhooks.js", requireAuthPage(deps.AuthStore, privateFiles))
-	// admin.html/js only need a session at this layer — a non-admin who
-	// navigates here directly gets bounced by the page's own JS once
-	// /api/admin/users answers 403, same as any other API call it makes.
-	mux.Handle("GET /admin.html", requireAuthPage(deps.AuthStore, privateFiles))
-	mux.Handle("GET /admin.js", requireAuthPage(deps.AuthStore, privateFiles))
 	// Release pull requests, with their own actions (#1107). This was the
 	// changelog's address until #1108, which redirected it; the redirect is
 	// gone now that the name means this page.

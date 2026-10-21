@@ -593,20 +593,6 @@ test.describe('dashboard page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
-  test('a non-admin user never sees the Admin link, not just in the DOM but actually rendered', async ({
-    page,
-  }) => {
-    // Real bug: admin-link.hidden = !session.isAdmin set the hidden
-    // attribute correctly, but .theme-toggle's display:inline-flex beat
-    // the browser's default [hidden] { display: none } regardless of
-    // specificity, so the link stayed visually visible for every user.
-    // toBeHidden() checks actual rendered visibility, not just the
-    // attribute — an assertion on the attribute alone would have missed
-    // this. The global setup registers "admin" first, so this
-    // freshly-registered user is never the admin.
-    await expect(page.locator('#admin-link')).toBeHidden();
-  });
-
   test('a long title with several label chips wraps as a block instead of collapsing to single-word lines', async ({
     page,
   }) => {

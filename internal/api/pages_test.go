@@ -26,7 +26,6 @@ func TestPages_RequireASession(t *testing.T) {
 		"/pull-requests.html",
 		"/settings.html",
 		"/webhooks.html",
-		"/admin.html",
 	} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
@@ -37,6 +36,27 @@ func TestPages_RequireASession(t *testing.T) {
 
 			assert.Equal(t, http.StatusFound, resp.StatusCode)
 			assert.Equal(t, "/login.html", resp.Header.Get("Location"))
+		})
+	}
+}
+
+// The Admin page held the user list and the invites, which are gone, so its
+// address is an ordinary 404 now instead of a page behind a login.
+func TestAdminPage_IsGone(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	for _, path := range []string{"/admin.html", "/admin.js"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			resp, err := client.Get(srv.URL + path)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		})
 	}
 }

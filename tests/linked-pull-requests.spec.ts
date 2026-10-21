@@ -285,7 +285,11 @@ test.describe('the address of a pull request', () => {
     context,
     baseURL,
   }) => {
-    await mockBoard(page, { shown: [pullRequest(12)] });
+    // The page clears a saved author pick it does not offer, so the board
+    // has to offer "someone-else": through a second pull request they wrote.
+    await mockBoard(page, {
+      shown: [pullRequest(12), pullRequest(13, { author: 'someone-else' })],
+    });
     await context.addCookies([
       {
         name: 'forge-board-filters',
@@ -301,7 +305,10 @@ test.describe('the address of a pull request', () => {
 
     await page.goto(address(12));
 
-    await expect(page.locator('#pr-rows .row')).toHaveCount(0);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(
+      page.locator('#pr-rows .row', { hasText: 'Pull request 12' }),
+    ).toHaveCount(0);
     await expect(dialog(page)).toBeVisible();
     await context.clearCookies({ name: 'forge-board-filters' });
   });
