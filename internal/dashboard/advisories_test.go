@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
 func TestMainBranch_OmitsAdvisoriesWhenNoSourceReadsThem(t *testing.T) {

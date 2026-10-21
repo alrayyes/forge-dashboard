@@ -9,9 +9,8 @@ import (
 	"sync"
 	"time"
 
-	ghsdk "github.com/google/go-github/v75/github"
-
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	ghsdk "github.com/google/go-github/v75/github"
 )
 
 // advisoriesTTL is how long a repo's advisory answer is reused. Alerts change
