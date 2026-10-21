@@ -164,9 +164,31 @@
     .release-notes code {
       font-size: 12px;
     }
-    .release-notes ul {
+    .release-notes ul,
+    .release-notes ol {
       margin: 0 0 4px;
       padding-left: 20px;
+    }
+    .release-notes pre {
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      overflow-x: auto;
+      background: var(--surface-sunken);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .release-notes pre:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .release-notes pre code {
+      font-size: 12px;
+    }
+    .release-notes blockquote {
+      margin: 0 0 8px;
+      padding: 0 0 0 12px;
+      border-left: 3px solid var(--border-strong);
+      color: var(--ink-3);
     }
     .release-notes li {
       margin-bottom: 3px;

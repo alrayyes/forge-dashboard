@@ -306,6 +306,66 @@ test.describe('release history page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`ordered lists, code blocks and quotes are styled and pass axe in ${scheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.route('**/changelog.json', (route) =>
+        route.fulfill(
+          oneRelease(
+            [
+              '1. first',
+              '2. second',
+              '',
+              '```',
+              `const wide = '${'x'.repeat(200)}';`,
+              '```',
+              '',
+              '> quoted note',
+            ].join('\n'),
+          ),
+        ),
+      );
+      await page.goto('/changelog.html');
+      await waitForReleasesToSettle(page);
+
+      const notesBox = page.locator('.release-notes');
+      await expect(notesBox.locator('ol li')).toHaveCount(2);
+      const spacing = async (sel: string, prop: string) =>
+        page
+          .locator(sel)
+          .first()
+          .evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+      expect(await spacing('.release-notes ol', 'padding-left')).toBe('20px');
+      expect(await spacing('.release-notes pre', 'margin-bottom')).toBe('8px');
+      expect(await spacing('.release-notes blockquote', 'margin-bottom')).toBe(
+        '8px',
+      );
+      // Colours come from tokens, so they differ from the card's own and
+      // follow the scheme.
+      expect(await spacing('.release-notes pre', 'background-color')).not.toBe(
+        await spacing('.release', 'background-color'),
+      );
+      expect(await spacing('.release-notes pre', 'border-top-width')).toBe(
+        '1px',
+      );
+      expect(
+        await spacing('.release-notes blockquote', 'border-left-width'),
+      ).toBe('3px');
+      expect(await spacing('.release-notes blockquote', 'color')).not.toBe(
+        await spacing('.release-notes li', 'color'),
+      );
+      // A scrolling code block takes keyboard focus, so it can be read.
+      await expect(notesBox.locator('pre')).toHaveAttribute('tabindex', '0');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
   test('a missing changelog file says so plainly and falls back to nothing', async ({
     page,
   }) => {
