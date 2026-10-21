@@ -223,10 +223,14 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 	return out
 }
 
+// isFinished reports whether status is one a run ends in, by the same reading
+// of the forge's words that checkStateFromWorkflowStatus gives the checks.
 func isFinished(status string) bool {
-	switch status {
-	case "success", "failure", "cancelled", "skipped":
+	switch checkStateFromWorkflowStatus(status) {
+	case dashboard.CheckSuccess, dashboard.CheckFailure, dashboard.CheckCancelled, dashboard.CheckSkipped:
 		return true
+	case dashboard.CheckRunning, dashboard.CheckQueued:
+		return false
 	}
 
 	return false
