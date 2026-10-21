@@ -74,7 +74,7 @@ const pill = (page: Page, name: string) =>
     .getByRole('group', { name: 'Quick filters' })
     .getByRole('button', { name, exact: true });
 const am = (page: Page, value: 'any' | 'on' | 'off') =>
-  page.locator(`.filter-bar > .am-group [data-am="${value}"]`);
+  page.locator(`.filter-bar > .am-group:not(.link-group) [data-am="${value}"]`);
 const titles = (page: Page) => page.locator('#pr-rows > .row .title-text');
 
 test.describe('CI pills and the auto-merge filter (#1455)', () => {
@@ -141,7 +141,9 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
 
     current = [pr(2, 'Unknown', 'success')];
     await page.reload();
-    await expect(page.locator('.filter-bar > .am-group')).toBeHidden();
+    await expect(
+      page.locator('.filter-bar > .am-group:not(.link-group)'),
+    ).toBeHidden();
   });
 
   test('the choice survives a reload, stays offered when nothing matches it, and Clear filters resets it', async ({
@@ -175,11 +177,13 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     await open(page);
 
     await expect(pill(page, 'Passing CI')).toBeVisible();
-    await expect(page.locator('.filter-bar > .am-group')).toBeHidden();
+    await expect(
+      page.locator('.filter-bar > .am-group:not(.link-group)'),
+    ).toBeHidden();
 
     await page.getByRole('button', { name: /^Filters/ }).click();
     const sheet = page.locator('dialog#filter-sheet');
-    await sheet.locator('.am-group [data-am="off"]').click();
+    await sheet.locator('.am-group:not(.link-group) [data-am="off"]').click();
 
     await page.keyboard.press('Escape');
     await expect(titles(page)).toHaveCount(2);
@@ -195,7 +199,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
 
     for (const value of ['any', 'on', 'off']) {
       const box = await sheet
-        .locator(`.am-group [data-am="${value}"]`)
+        .locator(`.am-group:not(.link-group) [data-am="${value}"]`)
         .boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
       expect(box?.width).toBeGreaterThanOrEqual(44);
@@ -210,7 +214,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     current = [pr(1, 'Unknown', 'success')];
     await page.reload();
     await page.getByRole('button', { name: /^Filters/ }).click();
-    await expect(sheet.locator('.am-group')).toBeHidden();
+    await expect(sheet.locator('.am-group:not(.link-group)')).toBeHidden();
   });
 
   test('a saved choice that is not on or off reads as Any', async ({
