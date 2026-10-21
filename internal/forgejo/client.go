@@ -1135,8 +1135,11 @@ func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 			continue
 		}
 		switch s.State {
-		case gitea.StatusSuccess, gitea.StatusWarning, "skipped":
+		case gitea.StatusSuccess, gitea.StatusWarning:
 			out.Passed++
+		case "skipped":
+			out.Passed++
+			out.Skipped++
 		case gitea.StatusPending:
 			out.Waiting++
 		case gitea.StatusFailure, gitea.StatusError:

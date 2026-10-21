@@ -1502,8 +1502,11 @@ func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 	}
 	for _, c := range r.Contexts.CheckRunCountsByState {
 		switch c.State {
-		case "SUCCESS", "NEUTRAL", "SKIPPED", "COMPLETED":
+		case "SUCCESS", "NEUTRAL", "COMPLETED":
 			out.Passed += c.Count
+		case "SKIPPED":
+			out.Passed += c.Count
+			out.Skipped += c.Count
 		case "IN_PROGRESS":
 			out.Running += c.Count
 		case "QUEUED", "PENDING", "WAITING", "REQUESTED":
