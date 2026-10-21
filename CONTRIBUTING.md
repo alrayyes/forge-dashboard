@@ -134,13 +134,11 @@ admin rights on a repo to run on a schedule isn't worth the exposure.
 
 ### Running the Playwright suite locally
 
-`./tests/run-local.sh` builds the binary, starts it on a throwaway SQLite
-database and a random key, runs the suite, and removes everything after.
-The first-user setup (`tests/admin-global-setup.ts`) only works on an empty
-database, so a fresh one per run is the point: don't point the suite at a
-database you've used before. Extra arguments go to Playwright
-(`./tests/run-local.sh tests/auth.spec.ts --workers=2`), and `PORT=8081`
-moves it off 8080 when a dev server is already running there.
+`./tests/run-local.sh` builds the binary and runs the suite. Every worker
+starts a server of its own from it, on a free port and a throwaway SQLite
+database, so nothing needs cleaning up and a dev server on 8080 can keep
+running. Extra arguments go to Playwright
+(`./tests/run-local.sh tests/auth.spec.ts --workers=2`).
 
 A run takes about two minutes on 16 cores. Locally it uses the default worker
 count; CI uses one worker and one retry. A red run that passes alone usually
@@ -149,10 +147,9 @@ test that stays flaky gets `test.fixme`/an annotation naming the reason and a
 linked issue.
 
 Every spec runs in the `single-user` Playwright project (`playwright.config.ts`),
-listed by name in the config. (The old `legacy` project, one shared server with
-users made through admin invites, no longer runs any spec.) It gives every worker
-a server of its own and one signed-in owner, so a spec needs no registration of
-its own:
+listed by name in the config. A spec missing from the list fails the run, naming
+it, rather than being skipped. The project gives every worker a server of its
+own and one signed-in owner, so a spec needs no registration of its own:
 
 - Import `test` from `tests/server-fixture.ts`. The `server` fixture (once per
   worker) starts the binary on a free port with a temp database and registers
@@ -170,9 +167,8 @@ its own:
   carries no route that can wipe the database. Build it yourself with
   `go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard` to run
   `bunx playwright test` by hand.
-- Move a spec across by changing its `test` import, deleting its registration
-  helper in favour of `landOnPullRequests(page)` and adding it to the list in the
-  config. A new spec starts here.
+- A new spec imports its `test` from `tests/fixtures.ts` and goes at the end of
+  the list in the config.
 
 Specs import `test` from `tests/fixtures.ts`, not from `@playwright/test`. It
 is Playwright's own `test` with one addition: mocked snapshots whose pull
