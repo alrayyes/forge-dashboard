@@ -146,9 +146,11 @@ func (a *Aggregator) pollForge(ctx context.Context, forge Forge, due []pendingIt
 }
 
 // pollBatched asks the source about every due pull request at once and merges
-// the answer. A ref the source could not answer is refreshed on its own repo;
-// a failure of the whole request is logged, reads nothing, and is retried at the
-// next tick.
+// the answer. A ref the source could not answer is refreshed on its own repo.
+// So is every ref a failed request left unanswered, all of them when the whole
+// request failed and the later ones when only a later chunk did: the answers
+// that did arrive are kept and merged, and a failure never costs the next tick
+// the same batched request again.
 func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCheckRefresher, due []pendingItem) []polledPR {
 	refs := make([]PullRequestRef, len(due))
 	byKey := make(map[string]pendingItem, len(due))
@@ -161,8 +163,6 @@ func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCh
 	res, err := src.RefreshPending(ctx, refs)
 	if err != nil {
 		slog.Warn("pending check refresh failed", "forge", forge, "pull_requests", len(refs), "error", err)
-
-		return nil
 	}
 	a.mergePendingResult(ctx, forge, seq, res)
 
@@ -170,21 +170,35 @@ func (a *Aggregator) pollBatched(ctx context.Context, forge Forge, src PendingCh
 	// it: a webhook refresh landing meanwhile changes the snapshot, not what this
 	// poll found.
 	var read []polledPR
+	answered := make(map[string]struct{}, len(due))
 	for _, pr := range res.Pulls {
-		if it, ok := byKey[pullRequestKey(forge, pr.Repo, pr.Number)]; ok {
+		key := pullRequestKey(forge, pr.Repo, pr.Number)
+		if it, ok := byKey[key]; ok {
+			answered[key] = struct{}{}
 			read = append(read, polledPR{item: it, changed: pollFingerprint(pr) != it.fingerprint})
 		}
 	}
 	for _, ref := range res.Closed {
-		if it, ok := byKey[pullRequestKey(forge, ref.FullName, ref.Number)]; ok {
+		key := pullRequestKey(forge, ref.FullName, ref.Number)
+		if it, ok := byKey[key]; ok {
+			answered[key] = struct{}{}
 			read = append(read, polledPR{item: it, changed: true})
 		}
 	}
 
 	var failed []pendingItem
 	for _, ref := range res.Failed {
-		if it, ok := byKey[pullRequestKey(forge, ref.FullName, ref.Number)]; ok {
+		key := pullRequestKey(forge, ref.FullName, ref.Number)
+		if it, ok := byKey[key]; ok {
+			answered[key] = struct{}{}
 			failed = append(failed, it)
+		}
+	}
+	if err != nil {
+		for _, it := range due {
+			if _, done := answered[it.key()]; !done {
+				failed = append(failed, it)
+			}
 		}
 	}
 

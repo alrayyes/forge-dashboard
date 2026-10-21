@@ -146,15 +146,18 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
   It used to send one query per repo. The reply for a pull request that has since
   merged or closed takes it off the board, and a repo GitHub can't answer for (a
   deleted one, or an installation that lost access) is read on its own while the
-  rest of the query still counts. Forgejo has no GraphQL and keeps one scoped
-  refresh per repo.
+  rest of the query still counts. If a query fails part way (only the later
+  chunks of a large batch), the answers already received are kept, and the pull
+  requests it did not answer are read through their repos, as they are when the
+  whole query fails. Forgejo has no GraphQL and keeps one scoped refresh per
+  repo.
 - **Longer gaps while nothing changes.** A pull request that reads the same after
   a poll waits twice as long before the next one: `CI_POLL_INTERVAL`, then double,
   up to 15 minutes. Any change in its checks, merge state or auto-merge setting
   puts it back at `CI_POLL_INTERVAL`. If you set `CI_POLL_INTERVAL` above 15
   minutes, that wins, so the poll is never faster than you asked. Only a poll
-  that read the pull request counts: a failed request, or a refresh that failed,
-  leaves the gap alone and the next tick tries again. A pull request whose
+  that read the pull request counts: a refresh that failed leaves the gap alone
+  and the next tick tries again. A pull request whose
   lookup keeps failing (a deleted or transferred one) is read through its repo,
   and backs off like any other that reads the same. A pull request with GitHub's
   auto-merge armed never backs off, because GitHub merges it without telling us

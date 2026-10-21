@@ -40,6 +40,7 @@ func TestAggregator_PollCI_AWholeCallFailureIsNotScoredAsUnchanged(t *testing.T)
 	src.err = errors.New("outage")
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithCIPollInterval(pollBase))
 	agg.Refresh(t.Context())
+	src.failRepoFetches(errors.New("outage"))
 
 	got := polledMinutes(t, agg, clock, src.batchCount, 4)
 
