@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4](https://github.com/alrayyes/forge-dashboard/compare/v1.7.3...v1.7.4) (2026-10-21)
+
+
+### Bug Fixes
+
+* **forgejo:** count the jobs of a default branch commit's runs ([#2362](https://github.com/alrayyes/forge-dashboard/issues/2362)) ([b9605da](https://github.com/alrayyes/forge-dashboard/commit/b9605dace2ec3df8fd3f2613046e8810e69c8c47))
+
 ## [1.7.3](https://github.com/alrayyes/forge-dashboard/compare/v1.7.2...v1.7.3) (2026-10-21)
 
 
