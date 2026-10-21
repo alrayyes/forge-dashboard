@@ -98,8 +98,11 @@ cheaply:
   to spend on this.
 - **Forgejo**: the refresh lists the Actions runs of each repo's default
   branch (one call per repo, plus one for the commit, plus one for the jobs of
-  a failed run). Forgejo has no rate limit by default. Its latest release would
-  be one more read per repo, so a Forgejo row has none for now.
+  each run). The pill counts those jobs, not the runs, so three runs holding
+  eleven jobs read as eleven checks. Forgejo sends no ETag, so a finished run's
+  jobs are kept in memory instead and read once; only runs still going are
+  read again on each poll. Forgejo has no rate limit by default. Its latest
+  release would be one more read per repo, so a Forgejo row has none for now.
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget
