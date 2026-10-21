@@ -677,6 +677,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 		}(i, src)
 	}
 	wg.Wait()
+	a.noteSpend(results)
 
 	return results
 }
@@ -748,7 +749,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.mu.Unlock()
 	a.markFirstRefreshed()
 
-	a.noteBudget(previous, snap)
+	logRateLimitTransitions(previous.Forges, snap.Forges)
 
 	a.publish(ctx, snap)
 	a.runAutoUpdateBranch(ctx, snap)

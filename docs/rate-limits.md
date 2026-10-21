@@ -144,8 +144,10 @@ maintenance) stops once a call would leave the REST or the GraphQL budget at or
 under the reserve: 10% of the budget, never less than 50 points and never more
 than half of it. A 5000 point budget keeps 500. A low budget of either kind
 holds all of that background work, even work that only uses the other. For a
-full refresh, "a call" means the cost of the last one, so it also waits when the
-last refresh would have taken the budget under the reserve. It waits for the
+full refresh, "a call" means what the last one spent, counted from its own
+requests, not from how far the budget fell since the one before (your own
+actions and the polls drain it too). It also waits when the last refresh would
+have taken the budget under the reserve. It waits for the
 reset, and the board keeps its last data, marked stale, in the meantime.
 
 Your own actions are never held back by it: Merge, Update branch, the bot

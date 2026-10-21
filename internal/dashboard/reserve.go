@@ -20,14 +20,13 @@ func reserveOf(rl RateLimit) int {
 	return min(max(reserveFloor, int(float64(rl.Limit)*reserveFraction)), rl.Limit/2)
 }
 
-// costKey says which budget a kind of background work was last seen spending.
+// costKey says which of a forge's budgets a full refresh was last seen spending.
 type costKey struct {
 	forge   Forge
 	graphQL bool
-	kind    apistats.Kind
 }
 
-// reserveLedger remembers what the last background full refresh cost, so a
+// reserveLedger remembers what the last full refresh cost, so a
 // refresh is held back when it would cross the reserve, not only when it
 // starts under it.
 type reserveLedger struct {
@@ -51,28 +50,19 @@ func (l *reserveLedger) record(k costKey, points int) {
 	l.cost[k] = points
 }
 
-// noteBudget logs the budget changes a refresh brought and learns its cost.
-func (a *Aggregator) noteBudget(before, after Snapshot) {
-	a.recordFullCost(before, after)
-	logRateLimitTransitions(before.Forges, after.Forges)
-}
-
-// recordFullCost notes what a full refresh took from each of forge's budgets,
-// read as how far Remaining fell within one reset window. A window that rolled
-// over, or a budget that rose, says nothing about the cost and is ignored.
-func (a *Aggregator) recordFullCost(before, after Snapshot) {
-	for _, h := range after.Forges {
-		prev, ok := healthOf(before, h.Forge)
-		if !ok {
+// noteSpend learns what each Source's full refresh took from its budgets. It
+// takes the Source's own count, not the fall in Remaining between two
+// snapshots, which also holds every call that ran in between. A Source that
+// did not measure leaves the earlier figure alone; one that measured nothing
+// replaces it with zero.
+func (a *Aggregator) noteSpend(results []Result) {
+	for i, r := range results {
+		if r.Spent == nil {
 			continue
 		}
-		for _, graphQL := range []bool{true, false} {
-			was, now := budgetOf(prev, graphQL), budgetOf(h, graphQL)
-			if was == nil || now == nil || !was.ResetsAt.Equal(now.ResetsAt) || now.Remaining >= was.Remaining {
-				continue
-			}
-			a.reserve.record(costKey{h.Forge, graphQL, apistats.KindFull}, was.Remaining-now.Remaining)
-		}
+		forge := a.sources[i].Forge()
+		a.reserve.record(costKey{forge, true}, r.Spent.GraphQL)
+		a.reserve.record(costKey{forge, false}, r.Spent.REST)
 	}
 }
 
@@ -105,7 +95,9 @@ func (a *Aggregator) budgetHold(snap Snapshot, forge Forge, kind apistats.Kind) 
 		}
 		left := rl.Remaining
 		if kind != apistats.KindScopedWebhook {
-			left -= a.reserve.lastCost(costKey{forge, graphQL, kind})
+			if kind == apistats.KindFull {
+				left -= a.reserve.lastCost(costKey{forge, graphQL})
+			}
 			if left > reserveOf(*rl) {
 				continue
 			}

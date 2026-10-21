@@ -17,6 +17,9 @@ type stubSource struct {
 	// budget, when set, is reported on every fetch and falls by step after it.
 	budget *RateLimit
 	step   int
+	// other is what the budget also loses on every fetch to calls that are not
+	// the refresh, such as a person's merge. The refresh reports step as its own.
+	other int
 
 	mu    sync.Mutex
 	calls int
@@ -36,7 +39,11 @@ func (s *stubSource) Fetch(context.Context) Result {
 	if s.budget != nil {
 		rl := *s.budget
 		health.RateLimitGraphQL = &rl
-		s.budget.Remaining -= s.step
+		s.budget.Remaining -= s.step + s.other
+	}
+	spent := &Spend{GraphQL: s.step}
+	if s.budget == nil {
+		spent = nil
 	}
 	s.mu.Unlock()
 	if gate != nil {
@@ -44,7 +51,7 @@ func (s *stubSource) Fetch(context.Context) Result {
 		<-gate
 	}
 
-	return Result{Health: health}
+	return Result{Health: health, Spent: spent}
 }
 
 func (s *stubSource) count() int {
@@ -146,4 +153,36 @@ func noBudget(s *stubSource) *stubSource {
 	s.budget = nil
 
 	return s
+}
+
+// Other calls drew on the budget between two refreshes. Only what the refresh
+// reported spending counts as its cost.
+func TestReserve_OtherCallsBetweenRefreshes_AreNotTheRefreshCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 800, 40, time.Now().Add(time.Hour))
+	src.other = 200
+
+	scheduledRefreshes(t, src, 1)
+
+	// The snapshot left 560. A refresh costing 40 leaves 520, over the reserve
+	// of 500; the 240 the budget fell by would have held it.
+	assert.Equal(t, 3, src.count())
+}
+
+func TestReserve_RefreshThatCostNothing_ReplacesAnEarlierCost(t *testing.T) {
+	t.Parallel()
+
+	src := budgetStub(ForgeGitHub, 5000, 1000, 400, time.Now().Add(time.Hour))
+	agg := NewAggregator([]Source{src})
+	agg.Refresh(t.Context())
+	src.mu.Lock()
+	src.step = 0
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	agg.refreshBackground(t.Context())
+
+	// 600 is left and the last refresh cost 0, so there is room above 500.
+	assert.Equal(t, 3, src.count())
 }
