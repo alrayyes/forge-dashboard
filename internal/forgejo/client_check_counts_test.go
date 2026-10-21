@@ -292,6 +292,7 @@ type splitServer struct {
 
 func (s *splitServer) start(t *testing.T) *forgejo.Client {
 	t.Helper()
+	headSHA := "cafef00d"
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
@@ -303,10 +304,10 @@ func (s *splitServer) start(t *testing.T) *forgejo.Client {
 			"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
 			"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
 			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
-			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+			"head": map[string]string{"sha": headSHA}, "base": map[string]string{"sha": "abc"},
 		}})
 	})
-	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/"+headSHA+"/status", func(w http.ResponseWriter, _ *http.Request) {
 		statuses := make([]map[string]string, 0, s.pending)
 		for range s.pending {
 			statuses = append(statuses, map[string]string{"status": "pending", "context": "ci"})
@@ -478,6 +479,24 @@ func TestListOpenPullRequests_SplitReadsTheRunsJobsAtOnce(t *testing.T) {
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 3}, got)
 	assert.Greater(t, s.peak, 1, "the jobs reads overlapped")
+}
+
+// A commit with more running runs than the concurrency limit never has more
+// than the limit of jobs reads in flight.
+func TestListOpenPullRequests_SplitBoundsTheJobsReadsInFlight(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{pending: 20, jobs: map[int][]string{}}
+	for id := 1; id <= dashboard.DefaultMaxConcurrency*2; id++ {
+		s.runs = append(s.runs, splitRun(id, "running", "pull_request"))
+		s.jobs[id] = []string{"running"}
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: dashboard.DefaultMaxConcurrency * 2, Waiting: 4}, got)
+	assert.LessOrEqual(t, s.peak, dashboard.DefaultMaxConcurrency)
+	assert.Greater(t, s.peak, 1, "the reads still overlap")
 }
 
 // With nothing pending the split has nothing to tell apart, so the runs are not

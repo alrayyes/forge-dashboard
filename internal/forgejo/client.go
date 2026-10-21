@@ -1171,13 +1171,16 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 }
 
 // countRunningJobs counts the running jobs of runs. The runs' jobs are read side
-// by side, so a commit with several running runs doesn't stretch every poll by
+// by side, at most dashboard.DefaultMaxConcurrency at once, so a commit with several running runs doesn't stretch every poll by
 // one round trip each. A run whose jobs can't be read counts none.
 func (c *Client) countRunningJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun) int {
 	perRun := make([]int, len(runs))
+	sem := make(chan struct{}, dashboard.DefaultMaxConcurrency)
 	var wg sync.WaitGroup
 	for i, run := range runs {
 		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 			if err != nil {
 				slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
