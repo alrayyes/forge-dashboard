@@ -103,6 +103,7 @@
   let actionsHost = $state<HTMLElement>();
   let target = $state<DetailsTarget | null>(null);
   let returnFocusId = "";
+  let returnFocusFallbackId = "";
   let phase = $state<"loading" | "error" | "ready">("loading");
   let errorMessage = $state("");
   let details = $state<Details | null>(null);
@@ -173,9 +174,17 @@
     actionsHost?.replaceChildren(...chrome.actions);
   }
 
-  export function open(item: DetailsTarget, triggerId: string) {
+  // `fallbackFocusId` is where focus goes on close when the trigger is no
+  // longer on the page (its row is filtered out). It is looked up on close,
+  // not here, since the row can come and go while the dialog is open.
+  export function open(
+    item: DetailsTarget,
+    triggerId: string,
+    fallbackFocusId = "",
+  ) {
     target = item;
     returnFocusId = triggerId;
+    returnFocusFallbackId = fallbackFocusId;
     brokenAvatars = {};
     brokenFilerAvatar = false;
     load();
@@ -279,9 +288,14 @@
     if (liveHost) liveHost.textContent = "";
     token++;
     const id = returnFocusId;
+    const fallbackId = returnFocusFallbackId;
     returnFocusId = "";
+    returnFocusFallbackId = "";
     onClosed?.();
-    if (id) document.getElementById(id)?.focus();
+    const back =
+      (id ? document.getElementById(id) : null) ??
+      (fallbackId ? document.getElementById(fallbackId) : null);
+    back?.focus();
   }
 
   // A click that lands on the <dialog> itself, not on something inside it,
