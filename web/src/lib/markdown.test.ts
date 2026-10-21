@@ -193,3 +193,20 @@ describe('repoUrlOf', () => {
     }
   });
 });
+
+// The changelog page marks a link whose label is a pull request number or a
+// commit hash, so digits line up and a hash reads as one.
+describe('reference links', () => {
+  test('get the mono class only when asked, and only by their label', async () => {
+    const src =
+      '* **web:** fix ([#12](https://example.org/12)) ([6bf88c3](https://example.org/c)) see [docs](https://example.org/d)\n';
+    const plain = await renderMarkdown(src);
+    expect(plain).not.toContain('class="mono"');
+
+    const html = await renderMarkdown(src, { monoReferences: true });
+    expect(html).toContain('<strong>web:</strong>');
+    expect(html).toContain('<a href="https://example.org/12" class="mono"');
+    expect(html).toContain('<a href="https://example.org/c" class="mono"');
+    expect(html).not.toContain('<a href="https://example.org/d" class="mono"');
+  });
+});
