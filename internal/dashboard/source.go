@@ -303,3 +303,41 @@ func WebhookTargetsPath(rawURL, path string) bool {
 
 	return u.Path == path
 }
+
+// PullRequestRef names one pull request on a forge, enough to look it up
+// without its repo's other contents.
+type PullRequestRef struct {
+	Forge    Forge
+	Owner    string
+	Name     string
+	FullName string
+	Number   int
+}
+
+// PendingResult is what a PendingCheckRefresher learned about the pull requests
+// it was asked about. Every ref lands in exactly one of the three lists.
+type PendingResult struct {
+	// Pulls are the pull requests that are still open, as they are now.
+	Pulls []PullRequest
+	// Closed are refs that merged or closed since they were last read.
+	Closed []PullRequestRef
+	// Failed are refs the forge could not answer (a repo that is gone, an
+	// uninstalled one). The caller refreshes their repos one by one instead.
+	Failed []PullRequestRef
+}
+
+// PendingCheckRefresher is implemented by a Source that can re-read the CI and
+// auto-merge state of many pull requests across many repos in one request,
+// instead of one scoped refresh per repo. Checked by type assertion, like
+// RepoRefresher; a Source without it keeps the per-repo refresh. One ref the
+// forge cannot answer lands in PendingResult.Failed and does not fail the call.
+type PendingCheckRefresher interface {
+	RefreshPending(ctx context.Context, refs []PullRequestRef) (PendingResult, error)
+}
+
+// WebhookEventsReporter is implemented by a Source that knows which events the
+// app's own hook on a repo subscribes to. confirmed is false when no check has
+// found such a hook.
+type WebhookEventsReporter interface {
+	WebhookEvents(fullName string) (events []string, confirmed bool)
+}
