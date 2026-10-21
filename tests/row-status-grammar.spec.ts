@@ -5,8 +5,7 @@ import {
   kindFor,
   statusFor,
 } from './allowed-actions-stand-in';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1563 slice 1: a row draws three kinds of thing as three tiers. State
 // (running) and outcome (failed, passed) share one fixed CI slot, so a run
@@ -120,9 +119,6 @@ const everything = () =>
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
 test.describe('row status grammar (#1563)', () => {
-  // Reads mocked data only, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a run turns into its result in the same box', async ({ page }) => {
     await open(page, [makePR(1)]);
     const row = firstRow(page);

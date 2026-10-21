@@ -1,13 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // A title cut with an ellipsis carries the whole title as hover text, on the
-// visible text and only while it is cut. Mocks /api/dashboard only and writes
-// no per-user state, so it starts from the shared session.
+// visible text and only while it is cut. Mocks /api/dashboard only.
 // https://github.com/alrayyes/forge-dashboard/issues/1695
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const NOW = new Date();
 const ago = (minutes: number) =>

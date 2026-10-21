@@ -1,11 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and the stream and write nothing per user, so
-// they start from the shared session instead of registering a user each.
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // #1569: the stream answers 404 until the user's background refresh runs, and
 // EventSource never retries a non-200. The page opens it after the first poll,

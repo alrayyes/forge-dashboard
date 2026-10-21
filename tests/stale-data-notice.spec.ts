@@ -1,11 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+import { test } from './server-fixture';
 
 // #933: a forge that failed its last refresh keeps its rows (backend #922) and
 // says when they are from, in plain text next to the forge.

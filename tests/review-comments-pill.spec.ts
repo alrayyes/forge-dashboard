@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1335: every pull request row says how many review comments it has and how
 // many review threads are still open. The server counts them (`reviewComments`,
@@ -94,9 +93,6 @@ const shown = (page: Page, title: string) =>
   pill(page, title).locator('.review-pill-text');
 
 test.describe('the review comments pill (#1335)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('draws nothing at zero comments, and nothing when the server sends no count', async ({
     page,
   }) => {

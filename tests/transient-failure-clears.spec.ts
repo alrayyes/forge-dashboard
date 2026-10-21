@@ -5,8 +5,7 @@ import {
   openActionsDialog,
   viaActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1206: a row's failure line for a network failure clears itself after ten
 // seconds, pauses while it is hovered or focused, and the row is read again
@@ -93,9 +92,6 @@ async function failUpdateBranch(page: Page) {
 }
 
 test.describe('a network failure line clears itself (#1206)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     await page.clock.install({ time: new Date() });
   });

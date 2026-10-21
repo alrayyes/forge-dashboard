@@ -1,17 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // A pull request row opens its dialog from the title button, stretched over
 // the whole row; the Details pill is gone. Mocks /api/dashboard and the
-// details endpoint only and writes no per-user state, so it starts from the
-// shared session. Two tests are the exception: one re-sorts the list and
-// one clicks a label chip, and the server saves both for the user. On the
-// shared user they changed what every later spec saw, so they have a user of
-// their own.
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+// details endpoint only.
 
 const NOW = new Date();
 const ago = (minutes: number) =>
@@ -265,18 +258,7 @@ test.describe('on the other pages and on a phone', () => {
 });
 
 test.describe('a pull request row opens its dialog: saved choices', () => {
-  // Not the shared session: the server saves a re-sort and a label filter for
-  // the user.
-  test.use({ storageState: { cookies: [], origins: [] } });
-
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerViaInvite(
-      page,
-      request,
-      baseURL,
-      `row-opens-dialog-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-      'Row Opens Dialog',
-    );
+  test.beforeEach(async ({ page }) => {
     await mockDashboard(page, [makePR(42), makePR(43)]);
     await mockDetails(page);
     await page.goto('/pull-requests.html');
