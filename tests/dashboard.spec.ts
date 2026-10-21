@@ -2395,7 +2395,11 @@ test.describe('dashboard page', () => {
         if (new URL(r.url()).pathname.startsWith('/api/sharing'))
           sharingRequests.push(r.url());
       });
+      const firstRead = page.waitForResponse(
+        (r) => new URL(r.url()).pathname === '/api/dashboard',
+      );
       await page.reload();
+      await firstRead;
 
       await expect(page.locator('#force-refresh-button')).toBeVisible();
       await expect(page.locator('#dashboard-owner-select')).toHaveCount(0);
