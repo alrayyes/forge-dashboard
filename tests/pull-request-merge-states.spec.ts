@@ -133,6 +133,27 @@ test.describe('Merge states on a pull request row', () => {
     ).toBeVisible();
   });
 
+  // The page prints the reason it is given, whatever the state. These render
+  // the two other locked states once each, with CI not pending.
+  for (const [mergeStatus, reason] of [
+    ['conflicting', /merge conflict/i],
+    ['blocked', /blocked/i],
+  ] as const) {
+    test(`a ${mergeStatus} pull request shows a locked Merge with the reason in its description`, async ({
+      page,
+    }) => {
+      await mockDashboard(page, makePR({ mergeStatus, ci: 'success' }));
+      await page.goto('/pull-requests.html');
+
+      const merge = rowOf(page).getByRole('button', {
+        name: 'Merge',
+        exact: true,
+      });
+      await expect(merge).toHaveAttribute('aria-disabled', 'true');
+      await expect(merge).toHaveAccessibleDescription(reason);
+    });
+  }
+
   test('ready: Merge is clickable with no reason shown, and Close is in the dialog beside the Hide items', async ({
     page,
   }) => {
