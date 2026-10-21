@@ -59,7 +59,7 @@ func TestDashboard_ACancelledAutoMergeOnAnEmptyPullRequestSaysWhy(t *testing.T) 
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	require.Eventually(t, func() bool { return src.disables.Load() == 1 }, 2*time.Second, 10*time.Millisecond, "the app cancelled it")
+	require.Eventually(t, func() bool { return src.disables.Load() == 1 }, pollBudget, 10*time.Millisecond, "the app cancelled it")
 
 	var status map[string]any
 	require.Eventually(t, func() bool {
