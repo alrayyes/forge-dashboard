@@ -110,31 +110,31 @@ link goes with the next refresh. In `GET /api/dashboard` each issue has
 `linkedPullRequests`, ordered by repo and number, and always present.
 
 A row shows the first two and, when there are more, a link such as "2 more"
-that shows the rest in place. Each link opens the page that lists that pull
-request, with its pop-up open: the Pull requests page, or Releases or Bots for
-a release or a dependency update. The address is `?pr=` followed by
-`forge/owner/name/number`, so typing
-`/pull-requests.html?pr=github/alrayyes/hush-hush/12` opens the same pop-up.
-Closing the pop-up leaves you on the page, and the address loses `?pr=` so a
-reload doesn't open it again. The filter bar doesn't matter: the pop-up opens
-even when your filters leave the row out. A draft while **Show drafts** is off,
-or a pull request you hid, opens read only, without the actions, since it has
-no row to act from. A pull request that isn't open any more, or whose repo the
-dashboard doesn't track, opens nothing, and the page says so in a note over the
-list.
+that shows the rest in place. Each pill is a button that opens that pull
+request's pop-up on the Issues page, where you are, so your filters and place in
+the list stay as they were. Closing the pop-up with Escape puts keyboard focus
+back on the pill. The address stays as it is. A pull request has its own page
+too, and `/pull-requests.html?pr=github/alrayyes/hush-hush/12` (or Releases or
+Bots for a release or a dependency update) still opens the same pop-up from a
+link or a bookmark, then drops `?pr=` so a reload doesn't open it again. A
+draft while **Show drafts** is off, or a pull request you hid, opens read only,
+without the actions, since it has no row to act from. A pull request that isn't
+open any more, or whose repo the dashboard doesn't track, opens nothing, and
+the page says so in a note over the list.
 
 ## Opening an issue from its address
 
 An issue's pop-up can open from the address. The Issues page opens it when the
 address ends in `?issue=` followed by `forge/owner/name/number`, so
 `/issues.html?issue=github/alrayyes/hush-hush/12` opens the pop-up for that
-issue. The "Closes" links on [pull requests](pull-request-pages.md#issues-a-pull-request-closes)
-use it. Closing the pop-up leaves you on the page, with keyboard focus on that
-issue's title in the list. If your filters leave the row out, focus goes to the
-**Filter by title** box instead, so it never falls back to the top of the page.
-The address loses `?issue=` so a reload doesn't open it again. If the issue is
-closed, hidden by your settings, or in a repo the dashboard doesn't track, no
-pop-up opens and a note over the list says why.
+issue. The "Closes" pills on [pull
+requests](pull-request-pages.md#issues-a-pull-request-closes) open the same
+pop-up in place instead. Closing the pop-up leaves you on the page, with
+keyboard focus on that issue's title in the list. If your filters leave the row
+out, focus goes to the **Filter by title** box instead, so it never falls back
+to the top of the page. The address loses `?issue=` so a reload doesn't open it
+again. If the issue is closed, hidden by your settings, or in a repo the
+dashboard doesn't track, no pop-up opens and a note over the list says why.
 
 ## Issues in Settings
 

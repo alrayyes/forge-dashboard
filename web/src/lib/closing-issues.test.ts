@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type ClosingIssue,
+  closingPillId,
   closingPillName,
   closingPillText,
   findAddressedIssue,
@@ -129,5 +130,16 @@ describe('missingIssueNote', () => {
     });
     expect(note).toContain('alrayyes/app #12');
     expect(note).toContain('not open any more');
+  });
+});
+
+describe('closingPillId', () => {
+  test('is a safe id that differs per issue and per pull request', () => {
+    const id = closingPillId('github/alrayyes/app/1', issue());
+    expect(id).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(id).not.toBe(
+      closingPillId('github/alrayyes/app/1', issue({ number: 13 })),
+    );
+    expect(id).not.toBe(closingPillId('github/alrayyes/app/2', issue()));
   });
 });

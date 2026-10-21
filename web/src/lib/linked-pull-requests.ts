@@ -87,30 +87,46 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 /** Issues whose hidden pills the reader opened, so a redrawn row keeps them open. */
 const expanded = new Set<string>();
 
+/** A pill's id: stable across redraws, so a closed dialog finds it again. */
+export const linkedPillId = (issueKey: string, pr: LinkedPullRequest) =>
+  `linked-pill-${issueKey}-${pr.forge}-${pr.repo}-${pr.number}`.replace(
+    /[^A-Za-z0-9_-]/g,
+    '-',
+  );
+
 /**
  * The pills for one issue row: the first two, then a count that opens the
- * rest in place. Null when no pull request will close the issue. Each pill is
- * a link to the pull request page with its pop-up open. With linkable false,
- * on a dashboard someone shared (a link would open the reader's own board, not
- * theirs), the pill says the same and goes nowhere.
+ * rest in place. Null when no pull request will close the issue. With onOpen,
+ * each pill is a button that opens that pull request's dialog where the
+ * reader is, and hands over the pill's id so focus can return to it. Without
+ * it, the pill is a link to the pull request page with its pop-up open. With
+ * linkable false, on a dashboard someone shared (a link would open the
+ * reader's own board, not theirs), the pill says the same and goes nowhere.
  */
 export function linkedPills(
   issueKey: string,
   issueRepo: string,
   list: LinkedPullRequest[] | undefined,
   linkable = true,
+  onOpen?: (pr: LinkedPullRequest, triggerId: string) => void,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
   const wrap = element('span', 'linked-prs');
   const pill = (pr: LinkedPullRequest) => {
+    const opens = linkable && onOpen !== undefined;
     const link = element(
-      linkable ? 'a' : 'span',
+      linkable ? (opens ? 'button' : 'a') : 'span',
       ['linked-pr', pr.draft ? 'draft' : '', linkable ? '' : 'inert']
         .filter(Boolean)
         .join(' '),
     );
     if (link instanceof HTMLAnchorElement) link.href = pr.pageUrl;
+    if (link instanceof HTMLButtonElement && onOpen) {
+      link.type = 'button';
+      link.id = linkedPillId(issueKey, pr);
+      link.addEventListener('click', () => onOpen(pr, link.id));
+    }
     link.textContent = linkedPillText(pr, issueRepo);
     if (linkable)
       link.setAttribute('aria-label', linkedPillName(pr, issueRepo));
