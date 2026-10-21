@@ -8,7 +8,7 @@ Decide when background refreshes run, so they cost less when webhooks work, neve
 
 ### Requirement: The full refresh interval stretches when webhooks are healthy
 
-While every tracked repo has a healthy webhook, the full refresh interval SHALL stretch to four times `REFRESH_INTERVAL`, up to 2 hours (never below `REFRESH_INTERVAL`). When any tracked repo loses a healthy webhook, it SHALL return to `REFRESH_INTERVAL`. An explicitly set `REFRESH_INTERVAL` SHALL be the lower bound.
+While every tracked repo has a healthy webhook and every forge's last fetch worked, the full refresh interval SHALL stretch to four times `REFRESH_INTERVAL`, up to 2 hours (never below `REFRESH_INTERVAL`). When any tracked repo loses a healthy webhook, it SHALL return to `REFRESH_INTERVAL`. An explicitly set `REFRESH_INTERVAL` SHALL be the lower bound.
 
 #### Scenario: Full coverage
 
@@ -19,6 +19,11 @@ While every tracked repo has a healthy webhook, the full refresh interval SHALL 
 
 - **WHEN** one repo's webhook turns unhealthy
 - **THEN** the interval returns to `REFRESH_INTERVAL` at the next refresh; the wait already running is not cut short
+
+#### Scenario: Forge fetch fails
+
+- **WHEN** any forge's last fetch failed, or a repo could not be fully fetched, or the snapshot is the one restored at start and no refresh has reached the forge yet
+- **THEN** the interval is `REFRESH_INTERVAL`, even if every repo of the other forges has a healthy webhook, until the forge answers again
 
 ### Requirement: Background work leaves a reserve for user actions
 
