@@ -286,6 +286,33 @@ func TestRun_ThreeUsers_LeavesABackupThatStillHoldsAllThreeUsers(t *testing.T) {
 	assert.Equal(t, 3, n)
 }
 
+func TestRun_ThreeUsers_BackupIsReadableByTheOwnerOnly(t *testing.T) {
+	t.Parallel()
+	f := threeUsers(t)
+
+	res, err := f.run(t)
+	require.NoError(t, err)
+
+	info, err := os.Stat(res.BackupPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+func TestRun_TwoCleanupsInTheSameSecond_BothLeaveTheirOwnBackup(t *testing.T) {
+	t.Parallel()
+	f := threeUsers(t)
+	first, err := f.run(t)
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(t.Context(), `DROP TABLE single_user_cleanup`)
+	require.NoError(t, err)
+	f.addUser(t, "al", true)
+
+	second, err := f.run(t)
+
+	require.NoError(t, err)
+	assert.NotEqual(t, first.BackupPath, second.BackupPath)
+}
+
 func TestRun_ThreeUsers_LogsOneWarningPerRemovedUserAndNoSecrets(t *testing.T) {
 	t.Parallel()
 	f := threeUsers(t)

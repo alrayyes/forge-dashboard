@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 )
 
@@ -94,9 +95,9 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, log *slog.Logger) (Resu
 
 	res := Result{Kept: keeper.username, Removed: len(others)}
 	if len(others) > 0 {
-		res.BackupPath = fmt.Sprintf("%s.before-single-user-%s", dbPath, time.Now().UTC().Format("20060102T150405Z"))
-		if _, err := db.ExecContext(ctx, `VACUUM INTO ?`, res.BackupPath); err != nil {
-			return Result{}, fmt.Errorf("single-user cleanup: back up the database: %w", err)
+		res.BackupPath, err = backUp(ctx, db, dbPath)
+		if err != nil {
+			return Result{}, err
 		}
 	}
 
@@ -118,6 +119,29 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, log *slog.Logger) (Resu
 	res.Ran = true
 
 	return res, nil
+}
+
+// backUp copies the database next to the original. The copy holds every
+// secret the database does, so the file is created 0600 before SQLite writes
+// to it (VACUUM INTO accepts an existing empty file), never wider. O_EXCL makes
+// a name clash fail instead of overwriting an earlier backup, and the name
+// carries nanoseconds so two starts in one second do not clash.
+func backUp(ctx context.Context, db *sql.DB, dbPath string) (string, error) {
+	path := fmt.Sprintf("%s.before-single-user-%s", dbPath, time.Now().UTC().Format("20060102T150405.000000000Z"))
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // path is the configured database path plus a fixed suffix
+	if err != nil {
+		return "", fmt.Errorf("single-user cleanup: create the backup: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("single-user cleanup: create the backup: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `VACUUM INTO ?`, path); err != nil {
+		_ = os.Remove(path)
+
+		return "", fmt.Errorf("single-user cleanup: back up the database: %w", err)
+	}
+
+	return path, nil
 }
 
 func markerExists(ctx context.Context, db *sql.DB) (bool, error) {
