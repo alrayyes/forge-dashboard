@@ -2570,9 +2570,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	}
 
 	tracked := trackedRepos(repos)
-	// Advisories are read alongside the webhook and issue reads, not after them.
-	advisoriesDone := make(chan map[string]*dashboard.Advisories, 1)
-	go func() { advisoriesDone <- c.advisoriesForAll(ctx, tracked) }()
+	advisoriesDone := c.startAdvisories(ctx, tracked)
 	probes := c.checkWebhooks(ctx, tracked)
 	issuesByRepo := c.reconcileIssues(ctx, tracked, since != nil)
 	c.issueState.commit(pollStartedAt, issuesByRepo)
@@ -2606,9 +2604,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 			}
 		}
 		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
-		row := mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef)
-		row.Advisories = advisories[fullName]
-		result.MainBranches = append(result.MainBranches, row)
+		result.MainBranches = append(result.MainBranches, withAdvisories(mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef), advisories[fullName]))
 	}
 	c.resolveAmbiguousBehind(ctx, result.PullRequests, behindChecks)
 	c.settleUnreportedRequiredChecks(ctx, result.PullRequests, unreported)

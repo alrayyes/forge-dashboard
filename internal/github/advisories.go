@@ -87,14 +87,7 @@ func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, na
 	for range maxAlertPages {
 		alerts, resp, err := lister.ListRepoAlerts(ctx, owner, name, opts)
 		if err != nil {
-			if throttled(err) {
-				return dashboard.Advisories{}, fmt.Errorf("list dependabot alerts: %w", errAdvisoriesThrottled)
-			}
-			if refused(err) {
-				return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil
-			}
-
-			return dashboard.Advisories{}, fmt.Errorf("list dependabot alerts: %w", err)
+			return alertsFailure(err)
 		}
 		for _, a := range alerts {
 			out.Count++
@@ -114,6 +107,28 @@ func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, na
 	}
 
 	return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil
+}
+
+// alertsFailure maps a failed alerts listing: a definitive refusal is an
+// unknown answer, anything else an error.
+func alertsFailure(err error) (dashboard.Advisories, error) {
+	switch {
+	case throttled(err):
+		return dashboard.Advisories{}, fmt.Errorf("list dependabot alerts: %w", errAdvisoriesThrottled)
+	case refused(err):
+		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil
+	default:
+		return dashboard.Advisories{}, fmt.Errorf("list dependabot alerts: %w", err)
+	}
+}
+
+// startAdvisories reads every tracked repo's advisories in the background, so
+// the poll's other reads run alongside them. The answer arrives on the channel.
+func (c *Client) startAdvisories(ctx context.Context, repos []graphqlRepo) <-chan map[string]*dashboard.Advisories {
+	done := make(chan map[string]*dashboard.Advisories, 1)
+	go func() { done <- c.advisoriesForAll(ctx, repos) }()
+
+	return done
 }
 
 // throttled reports a primary or secondary rate limit.
@@ -190,4 +205,11 @@ func (c *Client) advisoriesForAll(ctx context.Context, repos []graphqlRepo) map[
 	wg.Wait()
 
 	return result
+}
+
+// withAdvisories is row with its advisories set.
+func withAdvisories(row dashboard.MainBranch, a *dashboard.Advisories) dashboard.MainBranch {
+	row.Advisories = a
+
+	return row
 }
