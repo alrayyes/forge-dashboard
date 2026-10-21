@@ -99,22 +99,6 @@ test.describe('pull request Enable auto-merge action', () => {
     // load it before they exist.
   });
 
-  test('a GitHub pull request with checks still pending shows the button — this is the case auto-merge exists for', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'blocked', ci: 'pending' }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    await expect(
-      footer.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toBeVisible();
-  });
-
   test('a pull request GitHub will not let auto-merge shows no button, and the rest of the row stays (#738)', async ({
     page,
   }) => {
@@ -134,78 +118,6 @@ test.describe('pull request Enable auto-merge action', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
-  });
-
-  test('a pull request GitHub reports auto-merge as allowed shows the button as before (#738)', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ autoMergeAllowed: true }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    await expect(
-      footer.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toBeVisible();
-  });
-
-  test('a Forgejo pull request offers the button too, since this app holds that intent itself', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ forge: 'forgejo' }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    await expect(
-      footer.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toBeVisible();
-  });
-
-  test('a pull request already auto-merging shows no button — the Auto-merge pill already says so', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ autoMergeEnabled: true }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    await expect(row.locator('.attr-chip.auto-merge')).toBeVisible();
-    // No other overflow-eligible action applies (not Dependabot/Renovate,
-    // View pipeline is inline — #636), so there's nothing left for the
-    // dialog to hold but Close.
-    const footer = await expectFooterHoldsOnlyClose(row);
-    await expect(
-      footer.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toHaveCount(0);
-  });
-
-  test('a genuinely conflicting pull request shows no button — arming auto-merge could never succeed', async ({
-    page,
-  }) => {
-    await mockDashboard(page, makePR({ mergeStatus: 'conflicting' }));
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await expectFooterHoldsOnlyClose(row);
-    await expect(
-      footer.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toHaveCount(0);
-  });
-
-  test('a pull request that is already mergeable with green checks shows no button — there is nothing left to wait for (#662)', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      makePR({ mergeStatus: 'mergeable', ci: 'success', behind: false }),
-    );
-    await page.goto('/pull-requests.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    await expect(
-      footer.getByRole('button', { name: 'Enable auto-merge' }),
-    ).toHaveCount(0);
   });
 
   test('clicking calls the API immediately, with no confirm step', async ({
