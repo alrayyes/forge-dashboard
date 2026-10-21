@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.248.0](https://github.com/alrayyes/forge-dashboard/compare/v0.247.1...v0.248.0) (2026-10-21)
+
+
+### Features
+
+* **web:** remove the Admin page, its nav link and its routes ([#2111](https://github.com/alrayyes/forge-dashboard/issues/2111)) ([bb45730](https://github.com/alrayyes/forge-dashboard/commit/bb457302670966537f8dc765df8f59940fbdd483))
+
 ## [0.247.1](https://github.com/alrayyes/forge-dashboard/compare/v0.247.0...v0.247.1) (2026-10-21)
 
 
