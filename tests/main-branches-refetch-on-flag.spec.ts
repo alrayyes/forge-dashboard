@@ -1,6 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // The Branches page reads its list once and then every 60 seconds, so a first
 // refresh that finishes in between must make it read again at once.
@@ -98,10 +98,6 @@ const askForFlag = (page: Page) =>
   page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 
 test.describe('Branches refetches when the first refresh finishes (#1729)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('shows the rows as soon as the flag turns true, without waiting for the poll', async ({
     page,
   }) => {
