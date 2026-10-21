@@ -41,7 +41,10 @@ pull requests opens it when the address ends in `?pr=` followed by
 [Issues page](issues.md#pull-requests-that-close-an-issue) do, and then drops
 that part of the address. A pull request that isn't on the board because it is a
 draft or you hid it opens read only, without actions in the footer. One that
-isn't open any more gets a note over the list instead.
+isn't open any more gets a note over the list instead. Closing a pop-up opened
+this way leaves you on the page, with keyboard focus on that pull request's
+title in the list. If your filters leave the row out, or it was opened read
+only, focus goes to the title filter box.
 
 The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on

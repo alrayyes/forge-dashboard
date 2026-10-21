@@ -81,8 +81,9 @@ async function open(
   page: Page,
   first: ReturnType<typeof branch>,
   checks: unknown[],
+  count = 2,
 ) {
-  const state = { row: first, checks, requests: 0 };
+  const state = { row: first, checks, requests: 0, status: 200 };
   await page.clock.install();
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/main-branches', (route: Route) =>
@@ -95,9 +96,13 @@ async function open(
   await page.route('**/api/main-branches/checks*', (route: Route) => {
     state.requests++;
     return route.fulfill({
-      status: 200,
+      status: state.status,
       contentType: 'application/json',
-      body: JSON.stringify({ checks: state.checks }),
+      body: JSON.stringify(
+        state.status === 200
+          ? { checks: state.checks }
+          : { error: 'forge unreachable' },
+      ),
     });
   });
   await page.goto('/');
@@ -105,7 +110,7 @@ async function open(
     .getByRole('button', { name: /open pipeline/i })
     .first()
     .click();
-  await expect(panel(page).getByRole('listitem')).toHaveCount(2);
+  await expect(panel(page).getByRole('listitem')).toHaveCount(count);
 
   return state;
 }
@@ -132,6 +137,68 @@ test.describe('main branches pipeline panel updates live', () => {
     await expect(
       panel(page).getByText('Checks updated: test is now Passed.'),
     ).toBeAttached();
+  });
+
+  test('a redraw keeps focus on the same check when an earlier one is gone', async ({
+    page,
+  }) => {
+    const three = [
+      { name: 'lint', state: 'running', url: 'https://example.com/r/0' },
+      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      { name: 'test', state: 'running', url: 'https://example.com/r/2' },
+    ];
+    const state = await open(page, RUNNING, three, 3);
+    await panel(page).getByRole('link', { name: 'View run: test' }).focus();
+
+    state.row = PASSED;
+    state.checks = DONE;
+    await poll(page);
+
+    await expect(panel(page).getByRole('listitem')).toHaveCount(2);
+    await expect(
+      panel(page).getByRole('link', { name: 'View run: test' }),
+    ).toBeFocused();
+  });
+
+  test('a redraw moves focus to the close button when its check is gone', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    await panel(page).getByRole('link', { name: 'View run: test' }).focus();
+
+    state.row = PASSED;
+    state.checks = [
+      { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
+    ];
+    await poll(page);
+
+    await expect(panel(page).getByRole('listitem')).toHaveCount(1);
+    await expect(
+      panel(page).getByRole('button', { name: /close/i }),
+    ).toBeFocused();
+  });
+
+  test('a failed live read says so and the next poll reads again', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    state.status = 500;
+    state.row = PASSED;
+    await poll(page);
+    await expect(
+      panel(page).getByText(
+        "Couldn't refresh these checks. They may be out of date.",
+      ),
+    ).toBeVisible();
+    expect(state.requests).toBe(2);
+
+    state.status = 200;
+    state.checks = DONE;
+    await poll(page);
+    await expect(panel(page).getByRole('listitem').nth(1)).toContainText(
+      'Passed',
+    );
+    expect(state.requests).toBe(3);
   });
 
   test('a poll that finds the same CI makes no request', async ({ page }) => {

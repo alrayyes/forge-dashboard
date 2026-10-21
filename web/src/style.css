@@ -1418,6 +1418,15 @@ button.title:focus-visible {
 .linked-pr-more:hover {
   text-decoration: underline;
 }
+/* On a dashboard someone shared the pill goes nowhere. It looks it, and takes
+   no click, so one aimed at it reaches the title's overlay underneath. */
+.linked-pr.inert {
+  cursor: default;
+  pointer-events: none;
+}
+.linked-pr.inert:hover {
+  text-decoration: none;
+}
 .linked-pr:focus-visible,
 .linked-pr-more:focus-visible {
   outline: 2px solid var(--accent);

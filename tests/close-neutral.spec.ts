@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1223: Close is a reversible "give up on this pull request", so on the row
 // it is a neutral button, not green (it read as the affirmative) and not red
@@ -76,9 +75,6 @@ async function token(page: Page, name: string) {
 }
 
 test.describe('Close is neutral, and says what it closes (#1223)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.

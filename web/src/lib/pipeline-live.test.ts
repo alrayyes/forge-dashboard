@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   announceChange,
+  checkKeys,
   ciSignature,
   createLiveChecks,
   keepOrder,
@@ -164,5 +165,25 @@ describe('announceChange', () => {
         [c('a', 'success'), c('b', 'failure'), c('c', 'running')],
       ),
     ).toBe('Checks updated: 2 checks changed.');
+  });
+});
+
+describe('checkKeys', () => {
+  const c = (name: string) => ({ name, state: 'running', url: '' });
+
+  test('is the name for a name that stands alone', () => {
+    expect(checkKeys([c('build'), c('test')])).toEqual(['build', 'test']);
+  });
+
+  test('counts the nth check of a shared name', () => {
+    expect(checkKeys([c('job'), c('x'), c('job')])).toEqual([
+      'job',
+      'x',
+      'job#2',
+    ]);
+  });
+
+  test('does not depend on where in the list a check stands', () => {
+    expect(checkKeys([c('x'), c('job')])[1]).toBe(checkKeys([c('job')])[0]);
   });
 });

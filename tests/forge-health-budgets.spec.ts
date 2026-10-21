@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #1433: GitHub has two independent budgets. The text under the forge pill
 // shows each one, labelled, so it never describes a different budget from the
@@ -36,9 +35,6 @@ const budgets = (page: Page) =>
   page.locator('#forge-health .forge-health-budget');
 
 test.describe('the budget text under the forge pill (#1433)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a spent GraphQL budget shows next to a healthy REST one, each labelled', async ({
     page,
   }) => {
