@@ -202,6 +202,48 @@ func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	assert.Len(t, got.Credentials, 1)
 }
 
+func TestStore_AddFirstCredential_NobodyRegisteredYet_AttachesThePasskey(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", true)
+	require.NoError(t, err)
+
+	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	got, err := store.GetUserByID(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Len(t, got.Credentials, 1)
+}
+
+func TestStore_AddFirstCredential_AnotherUserHoldsAPasskey_ReturnsErrRegistrationClosed(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	winner, err := store.CreateUser(t.Context(), "winner", "Winner", true)
+	require.NoError(t, err)
+	loser, err := store.CreateUser(t.Context(), "loser", "Loser", true)
+	require.NoError(t, err)
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	err = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+
+	assert.ErrorIs(t, err, auth.ErrRegistrationClosed)
+}
+
+func TestStore_AddFirstCredential_Refused_RemovesThePendingUser(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	winner, err := store.CreateUser(t.Context(), "winner", "Winner", true)
+	require.NoError(t, err)
+	loser, err := store.CreateUser(t.Context(), "loser", "Loser", true)
+	require.NoError(t, err)
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	_ = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+
+	_, err = store.GetUserByID(t.Context(), loser.ID)
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
 func TestStore_HasAnyRegisteredUser_NoUsersYet_ReportsFalse(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
