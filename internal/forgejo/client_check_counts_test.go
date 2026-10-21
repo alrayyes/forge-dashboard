@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
@@ -282,8 +283,10 @@ type splitServer struct {
 	jobs    map[int][]string
 	failJob map[int]bool
 
-	mu    sync.Mutex
-	reads []int
+	mu       sync.Mutex
+	reads    []int
+	inflight int
+	peak     int
 }
 
 func (s *splitServer) start(t *testing.T) *forgejo.Client {
@@ -317,6 +320,12 @@ func (s *splitServer) start(t *testing.T) *forgejo.Client {
 		require.NoError(t, err)
 		s.mu.Lock()
 		s.reads = append(s.reads, id)
+		s.inflight++
+		s.peak = max(s.peak, s.inflight)
+		s.mu.Unlock()
+		time.Sleep(50 * time.Millisecond)
+		s.mu.Lock()
+		s.inflight--
 		s.mu.Unlock()
 		if s.failJob[id] {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -413,4 +422,21 @@ func TestListOpenPullRequests_SplitIgnoresARunOnAnotherCommit(t *testing.T) {
 
 	assert.Equal(t, dashboard.CheckCounts{Waiting: 2}, got)
 	assert.Equal(t, []int{7}, s.reads)
+}
+
+// A pull request's running runs are read side by side, not one after another,
+// so a commit with several of them doesn't stretch every poll.
+func TestListOpenPullRequests_SplitReadsTheRunsJobsAtOnce(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "running", "pull_request"), splitRun(9, "running", "pull_request")},
+		jobs:    map[int][]string{7: {"running"}, 8: {"running"}, 9: {"running"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 3}, got)
+	assert.Greater(t, s.peak, 1, "the jobs reads overlapped")
 }

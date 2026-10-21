@@ -1155,28 +1155,42 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 	}
 	c.recordRequest(ctx, http.MethodGet, runsPath, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	running := 0
-	for _, run := range withoutShadowedPushRuns(runs.WorkflowRuns) {
+	// A forge that ignores the head_sha filter answers with other commits' runs.
+	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return r.HeadSha != sha })
+	var going []*gitea.ActionWorkflowRun
+	for _, run := range withoutShadowedPushRuns(onCommit) {
 		// Only a run that is running can hold a running job: a queued or
 		// blocked one has none, and a finished one is past it.
-		if checkStateFromWorkflowStatus(run.Status) != dashboard.CheckRunning {
-			continue
+		if checkStateFromWorkflowStatus(run.Status) == dashboard.CheckRunning {
+			going = append(going, run)
 		}
-		// A forge that ignores the head_sha filter answers with other commits' runs.
-		if run.HeadSha != sha {
-			continue
-		}
-		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
-		if err != nil {
-			slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
+	}
 
-			continue
-		}
-		for _, j := range jobs {
-			if checkStateFromWorkflowStatus(j.Status) == dashboard.CheckRunning {
-				running++
+	// The runs' jobs are read side by side, so a commit with several running
+	// runs doesn't stretch every poll by one round trip each.
+	perRun := make([]int, len(going))
+	var wg sync.WaitGroup
+	for i, run := range going {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
+			if err != nil {
+				slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
+
+				return
 			}
-		}
+			for _, j := range jobs {
+				if checkStateFromWorkflowStatus(j.Status) == dashboard.CheckRunning {
+					perRun[i]++
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	running := 0
+	for _, n := range perRun {
+		running += n
 	}
 	running = min(running, counts.Waiting)
 	counts.Running += running
