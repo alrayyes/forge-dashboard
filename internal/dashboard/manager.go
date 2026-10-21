@@ -56,6 +56,8 @@ type Manager struct {
 	forceRefreshCooldown time.Duration
 	// snapshotCache is nil until SetSnapshotCache is called.
 	snapshotCache SnapshotCache
+	// seenStore is nil until SetWebhookSeenStore is called.
+	seenStore WebhookSeenStore
 }
 
 // defaultFirstRefreshGrace is how long readiness waits for a first refresh. A
@@ -115,6 +117,15 @@ func (m *Manager) SetSnapshotCache(cache SnapshotCache) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.snapshotCache = cache
+}
+
+// SetWebhookSeenStore keeps when each webhook delivery last arrived in store
+// across restarts, for every Aggregator this Manager builds from here on. Call
+// once, before the first Ensure.
+func (m *Manager) SetWebhookSeenStore(store WebhookSeenStore) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.seenStore = store
 }
 
 // SetAutoMergeStore turns on the Forgejo auto-merge hook for every Aggregator
@@ -243,6 +254,9 @@ func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, so
 	}
 	if m.snapshotCache != nil {
 		opts = append(opts, WithSnapshotCache(m.snapshotCache))
+	}
+	if m.seenStore != nil {
+		opts = append(opts, WithWebhookSeenStore(m.seenStore))
 	}
 	agg := NewAggregator(sources, opts...)
 	if m.autoUpdateBranchLister != nil {

@@ -103,6 +103,9 @@ type Aggregator struct {
 	// has something to show without waiting for the first refresh.
 	snapCache SnapshotCache
 	restored  atomic.Bool
+	// seenStore keeps the webhook_seen record across restarts; nil keeps it
+	// in memory only.
+	seenStore WebhookSeenStore
 
 	// ciBase is the CI poll's base interval in nanoseconds (RunCIPoll sets it,
 	// WithCIPollInterval presets it); zero polls every pending pull request on
@@ -171,6 +174,9 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold)
 	if a.snapCache != nil {
 		a.restoreSnapshot(context.Background())
+	}
+	if a.seenStore != nil {
+		a.restoreWebhookSeen(context.Background())
 	}
 
 	return a
