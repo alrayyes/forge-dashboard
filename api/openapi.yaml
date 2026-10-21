@@ -4170,7 +4170,7 @@ components:
         count as `failed` (a held run first, where both are there), so a failed
         pipeline always has a failed count on GitHub. A branch whose status is
         `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
-        neutral or bare completed one as `passed`.
+        neutral or bare completed one as `passed`, on Forgejo too.
 
         On GitHub the counts come from the same rollup as the overall state,
         for a pull request and a branch alike; on Forgejo a pull request counts
