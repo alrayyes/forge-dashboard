@@ -28,13 +28,29 @@ func StretchedInterval(interval time.Duration) time.Duration {
 // webhooksCover reports whether every tracked repo in snap has a healthy
 // webhook, so deliveries are what keeps the board current and the full refresh
 // is only a safety net. No repos at all is not coverage: there is nothing to
-// rely on yet.
+// rely on yet. Neither are the repos of a forge whose last fetch failed: they
+// are the earlier ones, carried over with the hook state they had then.
+//
+// Only the live hook check counts, not the recorded deliveries the Webhooks
+// page ORs in. A delivery that arrived once does not show the hook is still
+// there, and the wait should not stretch on that.
 func webhooksCover(snap Snapshot) bool {
 	if len(snap.Repos) == 0 {
 		return false
 	}
+	// A forge that was never reachable has no repos to check, so its silence
+	// would otherwise read as coverage.
+	failed := map[Forge]bool{}
+	for _, h := range snap.Forges {
+		if !h.Reachable {
+			return false
+		}
+		if h.StaleSince != nil {
+			failed[h.Forge] = true
+		}
+	}
 	for _, repo := range snap.Repos {
-		if !repo.HasWebhook {
+		if !repo.HasWebhook || failed[repo.Forge] {
 			return false
 		}
 	}

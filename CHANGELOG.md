@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.7](https://github.com/alrayyes/forge-dashboard/compare/v1.7.6...v1.7.7) (2026-10-21)
+
+
+### Bug Fixes
+
+* **dashboard:** learn a full refresh's cost reliably and clear up the reserve docs ([#2392](https://github.com/alrayyes/forge-dashboard/issues/2392)) ([c39b170](https://github.com/alrayyes/forge-dashboard/commit/c39b1703891187eb68690607222c81c4aa36ea04))
+
+## [1.7.6](https://github.com/alrayyes/forge-dashboard/compare/v1.7.5...v1.7.6) (2026-10-21)
+
+
+### Bug Fixes
+
+* **config:** fall back to the default for a zero or negative REFRESH_INTERVAL ([#2385](https://github.com/alrayyes/forge-dashboard/issues/2385)) ([d410f01](https://github.com/alrayyes/forge-dashboard/commit/d410f014768abd726205f9c2115bfd5e2f742933))
+* **github:** name the App's Webhooks permission when a hook edit is refused ([#2386](https://github.com/alrayyes/forge-dashboard/issues/2386)) ([db00765](https://github.com/alrayyes/forge-dashboard/commit/db007653d5222804104f44f51f3876199c91dc28))
+
 ## [1.7.5](https://github.com/alrayyes/forge-dashboard/compare/v1.7.4...v1.7.5) (2026-10-21)
 
 

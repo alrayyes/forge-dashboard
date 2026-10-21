@@ -148,10 +148,14 @@ than half of it. A 5000 point budget keeps 500. A low budget of either kind
 holds all of that background work, even work that only uses the other. For a
 full refresh, "a call" means what the last one spent, counted from its own
 requests, not from how far the budget fell since the one before (your own
-actions and the polls drain it too). A failed or partial refresh, or one
-that reports no GraphQL cost, leaves the figure alone. It also waits when the
-last refresh would have taken the budget under the reserve. It waits for the
-reset, and the board keeps its last data, marked stale, in the meantime.
+actions and the polls drain it too). A failed refresh, or one
+that reports no GraphQL cost, leaves the figure alone. A refresh that couldn't
+read some repos still counts for the ones it read, so a repo that never reads
+doesn't switch the hold off. The figure is the dearest of the last three
+refreshes, so one that the cache answered for nothing doesn't lower it. A
+background full refresh waits when one costing that much would take the budget
+under the reserve. It waits for the reset, and the board keeps its last data,
+marked stale, in the meantime.
 
 Your own actions are never held back by it: Merge, Update branch, the bot
 rebases, Close, Enable auto-merge, queued actions, Refresh now, and the refresh
