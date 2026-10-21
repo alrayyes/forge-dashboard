@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 type AutoMergeStatus = {
   state: 'waiting' | 'stopped';
@@ -401,14 +401,17 @@ const CALLOUT =
 
 test.describe('Forgejo auto-merge explained where it is used', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
+    // Aborted, so a real snapshot can't be pushed over the mock.
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
+      route.abort(),
+    );
   });
 
   test('a grouped Forgejo repo says who handles auto-merge and links to Settings', async ({
     page,
   }) => {
     await mockDashboard(page, snapshot(makePR()));
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
 
     const callout = page.locator('#pr-rows .group-callout');
@@ -425,7 +428,7 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
 
     await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(1);
@@ -434,7 +437,7 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
 
   test('the callout has no axe-core violations', async ({ page }) => {
     await mockDashboard(page, snapshot(makePR()));
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
     await expect(page.locator('#pr-rows .group-callout')).toBeVisible();
 

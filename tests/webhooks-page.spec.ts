@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
 
 function mockDashboard(
@@ -24,10 +24,6 @@ function mockDashboard(
 }
 
 test.describe('webhooks page', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('shows an empty state with no tracked repos', async ({ page }) => {
     await mockDashboard(page, []);
     await page.goto('/webhooks.html');

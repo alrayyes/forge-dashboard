@@ -63,10 +63,6 @@ const snapshot = () =>
   });
 
 test.describe('a behind release-please pull request (#1104)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
-  });
-
   test('offers Update branch, and Merge says why it is waiting', async ({
     page,
   }) => {

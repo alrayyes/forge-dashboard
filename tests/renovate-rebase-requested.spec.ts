@@ -78,10 +78,6 @@ const open = async (page: Page) => {
 };
 
 test.describe('Renovate: Rebase while its box is ticked (#1349)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/pull-requests.html');
-  });
-
   test('the button is disabled and says a rebase is already requested', async ({
     page,
   }) => {
