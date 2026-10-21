@@ -80,7 +80,7 @@ cannot be written, nothing is deleted, the log says so, and the next start
 tries again. Delete the backup once you are satisfied; the server never does.
 
 The log has one `single-user cleanup: removed user` warning per deleted user and
-a summary line. A table named `single_user_cleanup` records that the cleanup ran,
+a summary line. A table named `single_user_cleanup` records that this step ran,
 so later starts leave the database alone. Whoever finishes the first passkey
 registration on an empty instance becomes its owner, so register yours as soon
 as a new instance is up.
