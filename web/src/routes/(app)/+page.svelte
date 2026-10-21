@@ -1,13 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
-  import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
-  import {
-    CHECK_KIND_GLYPH,
-    checkSegments,
-    pillWord,
-    pillName,
-  } from "#lib/check-counts.js";
+  import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     branchesAwaitingFlag,
@@ -93,6 +87,28 @@
   ];
 
   const rowKey = (b: MainBranch) => `${b.forge}:${b.fullName}`;
+
+  // Redrawn when the branch's status or counts change, which the live refresh
+  // brings. A focused pill keeps its focus across the redraw.
+  function drawPill(
+    host: HTMLElement,
+    b: MainBranch,
+    slot: { cls: string; glyphs: string },
+  ) {
+    const model = ciPillModel({
+      cls: slot.cls,
+      glyph: slot.glyphs,
+      word: STATUS_LABEL[b.status],
+      counts: b.checks,
+      segmented: SEGMENTED_STATUSES.has(b.status),
+    });
+    const hadFocus = host.contains(document.activeElement);
+    const pill = renderCiPill(model, {
+      onOpen: () => openPipeline(b, pill),
+    });
+    host.replaceChildren(pill);
+    if (hadFocus) pill.focus();
+  }
 
   function openPipeline(b: MainBranch, opener: HTMLElement) {
     pipeline?.open({
@@ -488,32 +504,35 @@
     /* The pill is the row's one way to the pipeline, so it is a real control:
        a taller pill with a larger label, 32px on a desktop and 44px on a
        phone, in the same colours as the pull request board's. */
+    .mb-row .ci-host {
+      display: contents;
+    }
     .mb-row .ci-slot {
       width: auto;
       min-width: 120px;
     }
-    .mb-row .ci-pill {
+    .mb-row :global(.ci-pill) {
       box-sizing: border-box;
       justify-content: center;
       min-height: 32px;
       padding: 6px 14px;
       font-size: 13px;
     }
-    .mb-row .ci-pill .check-glyph {
+    .mb-row :global(.ci-pill .check-glyph) {
       width: 14px;
       height: 14px;
     }
     /* A pill with counts is a capsule of segments that carry their own
        padding, and its slot grows to it, as on the pull request pages. */
-    .mb-row .ci-pill.segmented {
+    .mb-row :global(.ci-pill.segmented) {
       padding: 0;
       justify-content: flex-start;
     }
-    .mb-row .ci-pill.segmented .check-glyph {
+    .mb-row :global(.ci-pill.segmented .check-glyph) {
       width: 12px;
       height: 12px;
     }
-    .mb-row .ci-slot:has(.ci-pill.segmented) {
+    .mb-row .ci-slot:has(:global(.ci-pill.segmented)) {
       width: max-content;
     }
     /* Right edge on the slot's right edge, as tall as the pills beside it, so
@@ -548,7 +567,7 @@
       }
     }
     @media (max-width: 760px) {
-      .mb-row .ci-pill {
+      .mb-row :global(.ci-pill) {
         min-height: 44px;
       }
     }
@@ -665,63 +684,13 @@
               <div class="ci-slot mb-status" data-status={b.status}>
                 {#if CI_SLOT[b.status]}
                   {@const slot = CI_SLOT[b.status]!}
-                  <!-- A native button, as on the pull request pages: it opens
-                       the pipeline panel, which carries the link to the run.
-                       The visible word leads the name (WCAG 2.5.3). -->
-                  {@const segments = SEGMENTED_STATUSES.has(b.status)
-                    ? checkSegments(b.checks)
-                    : []}
-                  {@const segmented = segments.length > 0}
-                  {@const word = pillWord(STATUS_LABEL[b.status], segments)}
-                  <button
-                    type="button"
-                    class="ci-pill {slot.cls}"
-                    class:segmented
-                    aria-label="{segmented
-                      ? pillName(word, segments)
-                      : STATUS_LABEL[b.status]}. Open pipeline"
-                    onclick={(e) => openPipeline(b, e.currentTarget)}
-                  >
-                    {#if segmented}
-                      <!-- How far the pipeline got (#2074): the word, then a
-                           count per state that has any, as on the pull request
-                           pages. The server tallies them; the name says them. -->
-                      <span class="ci-seg ci-seg-label">{word}</span>
-                      {#each segments as seg (seg.kind)}
-                        {" "}<span
-                          class="ci-seg ci-seg-{seg.kind}"
-                          aria-hidden="true"
-                        >
-                          {#each CHECK_GLYPHS[CHECK_KIND_GLYPH[seg.kind]] as g (g.name)}
-                            <svg
-                              viewBox="0 0 16 16"
-                              class="check-glyph check-glyph-{g.name}"
-                              data-glyph={g.name}
-                              aria-hidden="true"
-                              focusable="false"
-                            >
-                              <!-- nosemgrep: svelte-at-html -- g.body comes only from the static CHECK_GLYPHS constant in #lib/check-glyphs, never from forge data -->
-                              {@html g.body}
-                            </svg>
-                          {/each}{seg.n}</span
-                        >
-                      {/each}
-                    {:else}
-                      {#each CHECK_GLYPHS[slot.glyphs] as g (g.name)}
-                        <svg
-                          viewBox="0 0 16 16"
-                          class="check-glyph check-glyph-{g.name}"
-                          data-glyph={g.name}
-                          aria-hidden="true"
-                          focusable="false"
-                        >
-                          <!-- nosemgrep: svelte-at-html -- g.body comes only from the static CHECK_GLYPHS constant in #lib/check-glyphs, never from forge data -->
-                          {@html g.body}
-                        </svg>
-                      {/each}
-                      {STATUS_LABEL[b.status]}
-                    {/if}
-                  </button>
+                  <!-- The pull request pages' own pill, drawn by the same code
+                       (#lib/ci-pill): a native button that opens the pipeline
+                       panel, the visible word leading the name (WCAG 2.5.3). -->
+                  <span
+                    class="ci-host"
+                    {@attach (host) => drawPill(host, b, slot)}
+                  ></span>
                 {:else}
                   <span class="attr-chip mb-nopipe">
                     <svg
