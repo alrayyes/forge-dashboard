@@ -17,6 +17,8 @@ import { test } from './server-fixture';
 // The conflict sentence is not repeated either: Go pins it
 // (TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead),
 // and the locked row it would show is the blocked_by_protection case below.
+// Merge's permission lock and its not-mergeable Retry stay in
+// pull-request-merge.spec.ts: Merge is not a driver of the shared set.
 
 interface MockPR {
   forge: string;
@@ -190,6 +192,16 @@ test.describe('a refused merge explains itself from the server code', () => {
     const row = await confirmMerge(page);
 
     await expect(row.locator('.row-feedback')).toContainText('EOF');
+    // The row says Failed, not Failed and a lingering "Merging…".
+    await expect(row.locator('.row-feedback')).toContainText('Failed');
+    await expect(row.locator('.row-feedback')).not.toContainText('Merging…');
+    // An unlocked failure is an error toast, not a page banner.
+    const failed = page.locator(
+      '#feedback-toasts .feedback-toast[data-kind="error"]',
+    );
+    await expect(failed).toContainText('EOF');
+    await expect(page.locator('#error-banner')).toHaveCount(0);
+    await expect(page.locator('#status-banner')).toHaveCount(0);
     const button = row.getByRole('button', { name: 'Merge', exact: true });
     await expect(button).toBeEnabled();
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');

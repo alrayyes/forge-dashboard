@@ -217,12 +217,18 @@ function refuse(
   );
 }
 
-// One scan per distinct state (rules/a11y.md), not one per action: the drivers
-// render the same toast and row feedback, so the Close set's scans cover them.
-// The locked button sits in different markup per driver (a menu item, a row
-// button, a bot row), so every driver with a lock of its own scans it once
-// (#1381). The Retry variant of the lock is a state of its own, and only
-// Update branch has it.
+// One scan per distinct state (rules/a11y.md), not one per action: the five
+// drivers render the same toast and row feedback, so the first driver's scan
+// covers the others for those. The locked button sits in different markup per
+// driver (a menu item, a row button, a bot row), so every driver scans that
+// state once (#1381).
+// The one driver whose specific lock keeps a Retry button: that variant is a
+// state of its own. The disabled-button variant is the rate-limited state,
+// already scanned for every driver.
+function firstRetryLockDriver(d: Driver): boolean {
+  return d === drivers.find((x) => x.specific && x.retryOnLock);
+}
+
 async function axeClean(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -242,7 +248,9 @@ for (const d of drivers) {
     // The whole set runs for one action: the classification is Go's
     // (internal/dashboard/action_refusal_test.go) and the rendering is shared,
     // so the other four get a smoke set that proves each action is wired to it:
-    // already merged, plus the lock only that action has (#1380).
+    // already merged, rate limited, unknown (the idle failure path) and its
+    // specific lock where it has one (Dependabot has none: its GitHub App
+    // lock is tested in pull-request-dependabot-action.spec.ts) (#1380).
     const fullSet = d === drivers[0];
 
     async function start(page: Page) {
@@ -329,34 +337,32 @@ for (const d of drivers) {
       });
     }
 
-    if (fullSet) {
-      test('rate_limited: locks with no Retry and says when it resets, from resetsAt', async ({
-        page,
-      }) => {
-        await start(page);
-        await refuse(page, d, 429, {
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
-          resetsAt: new Date(Date.now() + 20 * 60000).toISOString(),
-        });
-        await page.reload();
-        const row = page.locator('#pr-rows .row').first();
-
-        await d.act(row);
-
-        const button = await d.find(row);
-        await expect(button).toHaveAttribute('aria-disabled', 'true');
-        await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
-        await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
-        await expect(button).toHaveAccessibleDescription(/in \d+ min/);
-        await expect(
-          page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
-        ).toBeVisible();
-        await axeClean(page);
+    test('rate_limited: locks with no Retry and says when it resets, from resetsAt', async ({
+      page,
+    }) => {
+      await start(page);
+      await refuse(page, d, 429, {
+        error: 'github: rate limit exceeded',
+        code: 'rate_limited',
+        message:
+          "The forge's API rate limit is reached. Try again once it resets.",
+        resetsAt: new Date(Date.now() + 20 * 60000).toISOString(),
       });
-    }
+      await page.reload();
+      const row = page.locator('#pr-rows .row').first();
+
+      await d.act(row);
+
+      const button = await d.find(row);
+      await expect(button).toHaveAttribute('aria-disabled', 'true');
+      await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+      await expect(button).toHaveAccessibleDescription(/rate limit reached/i);
+      await expect(button).toHaveAccessibleDescription(/in \d+ min/);
+      await expect(
+        page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
+      ).toBeVisible();
+      await axeClean(page);
+    });
 
     if (fullSet) {
       test('permission: locks with no Retry and points to Settings', async ({
@@ -380,36 +386,34 @@ for (const d of drivers) {
       });
     }
 
-    if (fullSet) {
-      test('unknown: shows the forge text and keeps the action clickable', async ({
-        page,
-      }) => {
-        await start(page);
-        await refuse(page, d, 502, {
-          error: 'x: EOF',
-          code: 'unknown',
-          message: 'EOF',
-        });
-        await page.reload();
-        const row = page.locator('#pr-rows .row').first();
-
-        await d.act(row);
-
-        await expect(row.locator('.row-feedback')).toContainText('EOF');
-        const button = await d.find(row);
-        await expect(button).toBeEnabled();
-        await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-        await expect(page.locator('#feedback-toasts')).toContainText('EOF');
-        // An unlocked failure is an error toast, not a page banner (the update
-        // branch spec asserted this before its 502 test moved here, #1380).
-        await expect(
-          page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
-        ).toBeVisible();
-        await expect(page.locator('#error-banner')).toHaveCount(0);
-        await expect(page.locator('#status-banner')).toHaveCount(0);
-        if (fullSet) await axeClean(page);
+    test('unknown: shows the forge text and keeps the action clickable', async ({
+      page,
+    }) => {
+      await start(page);
+      await refuse(page, d, 502, {
+        error: 'x: EOF',
+        code: 'unknown',
+        message: 'EOF',
       });
-    }
+      await page.reload();
+      const row = page.locator('#pr-rows .row').first();
+
+      await d.act(row);
+
+      await expect(row.locator('.row-feedback')).toContainText('EOF');
+      const button = await d.find(row);
+      await expect(button).toBeEnabled();
+      await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+      await expect(page.locator('#feedback-toasts')).toContainText('EOF');
+      // An unlocked failure is an error toast, not a page banner (the update
+      // branch spec asserted this before its 502 test moved here, #1380).
+      await expect(
+        page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
+      ).toBeVisible();
+      await expect(page.locator('#error-banner')).toHaveCount(0);
+      await expect(page.locator('#status-banner')).toHaveCount(0);
+      if (fullSet) await axeClean(page);
+    });
 
     if (fullSet) {
       test('a refusal with no code is treated as unknown and never says only "failed"', async ({
@@ -467,7 +471,8 @@ for (const d of drivers) {
           await expect(button).toHaveAttribute('aria-disabled', 'true');
           await expect(button).toHaveAccessibleDescription(specific.message);
         }
-        await axeClean(page);
+        // Only the Retry variant is a state the other scans don't reach.
+        if (firstRetryLockDriver(d)) await axeClean(page);
       });
     }
   });

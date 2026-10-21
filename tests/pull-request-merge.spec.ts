@@ -519,6 +519,61 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
+  test('a permission-denied failure locks the button with no Retry and points to Settings', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/merge', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: PUT .../merge: Forbidden',
+          code: 'permission',
+          message: 'Missing permission — check your token in Settings.',
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Merge' }).click();
+    await row.getByRole('button', { name: 'Confirm merge?' }).click();
+
+    // The 403 also proactively locks Close for this forge (write
+    // permission is account-wide), and neither offers a Retry.
+    const button = row.getByRole('button', { name: 'Merge', exact: true });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
+    await expect(button).toHaveAccessibleDescription(/token in Settings/);
+  });
+
+  test('a not-mergeable (409) failure locks the button with a refresh-and-recheck reason', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await page.route('**/api/pull-requests/merge', (route) =>
+      route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'github: PUT .../merge: Pull Request is not mergeable',
+          code: 'not_mergeable',
+          message: 'No longer mergeable. Refresh to see the current state.',
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Merge' }).click();
+    await row.getByRole('button', { name: 'Confirm merge?' }).click();
+
+    const button = row.getByRole('button', { name: 'Retry' });
+    await expect(button).toBeVisible();
+    await expect(row).toContainText(/no longer mergeable/i);
+  });
+
   test('a 409 caused by a disallowed merge method shows the real forge message, not a generic "no longer mergeable" guess', async ({
     page,
   }) => {
