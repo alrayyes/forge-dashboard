@@ -42,6 +42,7 @@ const singleUserSpecs = [
   '**/nav.spec.ts',
   '**/nav-telemetry-pills.spec.ts',
   '**/pipeline-check-states.spec.ts',
+  '**/pipeline-panel-live.spec.ts',
   '**/pr-details-dialog.spec.ts',
   '**/pr-details-task-lists.spec.ts',
   '**/pr-dialog-actions.spec.ts',
