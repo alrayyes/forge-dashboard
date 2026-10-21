@@ -21,6 +21,7 @@ export type WaitKind =
   | 'update-branch'
   | 'merge'
   | 'close'
+  | 'reopen'
   | 'enable-auto-merge'
   | 'cancel-auto-merge';
 
@@ -78,6 +79,7 @@ const SUBJECT: Record<WaitKind, (bot: string) => string> = {
   'update-branch': () => 'The branch update',
   merge: () => 'The merge',
   close: () => 'The close',
+  reopen: () => 'The reopen',
   'enable-auto-merge': () => 'Arming auto-merge',
   'cancel-auto-merge': () => 'Disarming auto-merge',
 };
@@ -152,6 +154,16 @@ export function waitChip(input: WaitInput): Chip {
         detail: 'With the forge',
         tooltip:
           'The close request is with the forge. The row leaves the list once it shows as closed.',
+        showAgo: false,
+        countdown: false,
+      };
+    case 'reopen':
+      return {
+        ...base,
+        label: 'Reopening',
+        detail: 'With the forge',
+        tooltip:
+          'The reopen request is with the forge. The row returns to the list once it shows as open.',
         showAgo: false,
         countdown: false,
       };
@@ -278,6 +290,8 @@ export function requestedAnnouncement(kind: WaitKind, bot?: string): string {
       return 'Merging…';
     case 'close':
       return 'Closing…';
+    case 'reopen':
+      return 'Reopening…';
     case 'enable-auto-merge':
       return 'Enabling auto-merge…';
     case 'cancel-auto-merge':

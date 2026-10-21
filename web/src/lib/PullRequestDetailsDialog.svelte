@@ -155,6 +155,14 @@
     return actionsHost;
   }
 
+  // Swaps the state drawn in the header (the CI slot and merge state) for
+  // another the page built, e.g. Closed after a close and the row's own again
+  // after a reopen. The attributes below the title stay as they were.
+  export function setHeaderState(state: HTMLElement) {
+    if (target?.status)
+      target = { ...target, status: { ...target.status, state } };
+  }
+
   // The close button in the header: where focus goes when the control it was
   // on has gone and nothing else in the footer is left.
   export function focusClose() {
