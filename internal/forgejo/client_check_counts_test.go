@@ -3,11 +3,16 @@ package forgejo_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -204,7 +209,7 @@ func TestListOpenPullRequests_ShowsARunningCheckAsRunning(t *testing.T) {
 				}
 				assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
 				writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
-					{"id": 7, "status": "running", "commit_sha": "cafef00d"},
+					{"id": 7, "status": "running", "head_sha": "cafef00d"},
 				}})
 			})
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/7/jobs", func(w http.ResponseWriter, _ *http.Request) {
@@ -222,4 +227,253 @@ func TestListOpenPullRequests_ShowsARunningCheckAsRunning(t *testing.T) {
 			assert.EqualValues(t, tt.wantReads, jobReads.Load(), "one jobs read per run still going, none when nothing is pending")
 		})
 	}
+}
+
+// A failed runs-list read keeps the pending ones queued, and it still lands in
+// the request log, so a forge refusing the route shows up there and not only
+// at debug level.
+func TestListOpenPullRequests_RecordsAFailedRunsListRequest(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{{
+			"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+			"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
+			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": []map[string]string{{"status": "pending", "context": "test"}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	rec := &fakeRecorder{}
+
+	prs, err := forgejo.NewClient(srv.URL, "test-token", "", rec).ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+	assert.Equal(t, dashboard.CheckCounts{Waiting: 1}, prs[0].Checks)
+	var failed []string
+	for _, e := range rec.all() {
+		if e.Outcome != requestlog.OutcomeSuccess && strings.Contains(e.Endpoint, "/actions/") {
+			failed = append(failed, e.Endpoint)
+		}
+	}
+	assert.Equal(t, []string{"/repos/alrayyes/a/actions/runs"}, failed)
+}
+
+// splitServer stands in for a Forgejo with one open pull request whose head
+// commit has the given pending statuses and Actions runs. jobs maps a run id to
+// the status of each of its jobs, and reads records the run ids whose jobs were
+// asked for.
+type splitServer struct {
+	pending int
+	runs    []map[string]any
+	jobs    map[int][]string
+	failJob map[int]bool
+
+	runsLists atomic.Int32
+	mu        sync.Mutex
+	reads     []int
+	inflight  int
+	peak      int
+}
+
+func (s *splitServer) start(t *testing.T) *forgejo.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{{
+			"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+			"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
+			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		statuses := make([]map[string]string, 0, s.pending)
+		for range s.pending {
+			statuses = append(statuses, map[string]string{"status": "pending", "context": "ci"})
+		}
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": statuses})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		s.runsLists.Add(1)
+		writeJSON(t, w, map[string]any{"workflow_runs": s.runs})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/{id}/jobs", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+
+			return
+		}
+		s.mu.Lock()
+		s.reads = append(s.reads, id)
+		s.inflight++
+		s.peak = max(s.peak, s.inflight)
+		s.mu.Unlock()
+		time.Sleep(50 * time.Millisecond)
+		s.mu.Lock()
+		s.inflight--
+		s.mu.Unlock()
+		if s.failJob[id] {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+		jobs := make([]map[string]any, 0, len(s.jobs[id]))
+		for _, st := range s.jobs[id] {
+			jobs = append(jobs, map[string]any{"name": "job", "status": st})
+		}
+		writeJSON(t, w, jobs)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func (s *splitServer) checks(t *testing.T, client *forgejo.Client) dashboard.CheckCounts {
+	t.Helper()
+	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+
+	return prs[0].Checks
+}
+
+func splitRun(id int, status, event string) map[string]any {
+	return map[string]any{"id": id, "status": status, "event": event, "head_sha": "cafef00d"}
+}
+
+// A queued or blocked run can't hold a running job, so its jobs aren't read.
+func TestListOpenPullRequests_SplitReadsOnlyTheJobsOfRunningRuns(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "waiting", "pull_request"), splitRun(9, "blocked", "pull_request")},
+		jobs:    map[int][]string{7: {"running"}, 8: {"waiting"}, 9: {"blocked"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+	assert.Equal(t, []int{7}, s.reads)
+}
+
+// A push run and a pull_request run on the same commit run the same
+// workflows, and the pull request's statuses come from the pull_request one,
+// so the push run's running jobs aren't counted a second time.
+func TestListOpenPullRequests_SplitDoesNotCountAPushRunBesideAPullRequestRun(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "running", "push")},
+		jobs:    map[int][]string{7: {"running", "waiting", "waiting"}, 8: {"running", "waiting", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+}
+
+// A push run alone still counts: with no pull_request run, it is all there is.
+func TestListOpenPullRequests_SplitCountsAPushRunWhenItIsTheOnlyOne(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 2,
+		runs:    []map[string]any{splitRun(8, "running", "push")},
+		jobs:    map[int][]string{8: {"running", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 1}, got)
+}
+
+// Some Forgejo versions ignore the head_sha filter and answer with the
+// repository's latest runs, so a run on another commit is not this commit's.
+func TestListOpenPullRequests_SplitIgnoresARunOnAnotherCommit(t *testing.T) {
+	t.Parallel()
+
+	other := splitRun(9, "running", "pull_request")
+	other["head_sha"] = "deadbeef"
+	s := &splitServer{
+		pending: 2,
+		runs:    []map[string]any{other, splitRun(7, "running", "pull_request")},
+		jobs:    map[int][]string{9: {"running", "running"}, 7: {"waiting", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Waiting: 2}, got)
+	assert.Equal(t, []int{7}, s.reads)
+}
+
+// A pull request's running runs are read side by side, not one after another,
+// so a commit with several of them doesn't stretch every poll.
+func TestListOpenPullRequests_SplitReadsTheRunsJobsAtOnce(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "running", "pull_request"), splitRun(9, "running", "pull_request")},
+		jobs:    map[int][]string{7: {"running"}, 8: {"running"}, 9: {"running"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 3}, got)
+	assert.Greater(t, s.peak, 1, "the jobs reads overlapped")
+}
+
+// With nothing pending the split has nothing to tell apart, so the runs are not
+// even listed.
+func TestListOpenPullRequests_SplitMakesNoCallWhenNothingIsPending(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{pending: 0, runs: []map[string]any{splitRun(7, "running", "pull_request")}, jobs: map[int][]string{7: {"running"}}}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{}, got)
+	assert.Empty(t, s.reads)
+	assert.EqualValues(t, 0, s.runsLists.Load(), "the runs list is not read either")
+}
+
+// A jobs read that fails for one run leaves that run's checks queued and still
+// counts the other runs' running jobs.
+func TestListOpenPullRequests_SplitSurvivesAJobsReadFailingMidWay(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "running", "pull_request")},
+		jobs:    map[int][]string{7: {"running", "running"}, 8: {"running"}},
+		failJob: map[int]bool{7: true},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
 }
