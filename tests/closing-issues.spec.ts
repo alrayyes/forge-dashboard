@@ -265,6 +265,88 @@ test.describe('the address of an issue', () => {
     await expect(issueDialog(page).locator('strong')).toHaveText('issue');
   });
 
+  test("closing the pop-up opened from the address puts focus on that issue's title", async ({
+    page,
+  }) => {
+    await mockBoard(page, { issues: [issue(12), issue(13)] });
+
+    await page.goto(address(12));
+    await expect(issueDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: '#12 Issue 12' }),
+    ).toBeFocused();
+  });
+
+  test('closing it when the filters leave the row out puts focus on the first filter, not the page', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await mockBoard(page, {
+      issues: [issue(12), { ...issue(13), author: 'someone-else' }],
+    });
+    await context.addCookies([
+      {
+        name: 'forge-board-filters',
+        value: encodeURIComponent(
+          JSON.stringify({
+            rev: 2_000_000_000,
+            shared: { author: 'someone-else' },
+          }),
+        ),
+        url: baseURL ?? 'http://localhost:8080',
+      },
+    ]);
+
+    await page.goto(address(12));
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(
+      page.locator('#issue-rows .row', { hasText: 'Issue 12' }),
+    ).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(page.getByLabel('Filter by title')).toBeFocused();
+    await context.clearCookies({ name: 'forge-board-filters' });
+  });
+
+  test('a pop-up opened from a row still returns focus to that row', async ({
+    page,
+  }) => {
+    await mockBoard(page, { issues: [issue(12), issue(13)] });
+    await page.goto('/issues.html');
+
+    const title = page.getByRole('button', { name: '#13 Issue 13' });
+    await title.click();
+    await expect(issueDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(title).toBeFocused();
+  });
+
+  test('has no axe violations with the pop-up open from the address, or after it closes', async ({
+    page,
+  }) => {
+    await mockBoard(page, { issues: [issue(12)] });
+
+    await page.goto(address(12));
+    await expect(issueDialog(page)).toBeVisible();
+    const open = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(open.violations).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(issueDialog(page)).toBeHidden();
+    const closed = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(closed.violations).toEqual([]);
+  });
+
   test('says plainly when the issue is not on the board', async ({ page }) => {
     await mockBoard(page, { issues: [issue(12)] });
 
