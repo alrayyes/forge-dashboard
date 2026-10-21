@@ -37,7 +37,8 @@ type CheckCounts struct {
 	Passed int `json:"passed"`
 	// Skipped is how many of the Passed ones were skipped. It is inside Passed,
 	// not beside it, so Passed stays every check that needed nothing more, and
-	// a client that draws a skipped count draws it as detail on the passed one.
+	// a client that draws the two side by side must subtract Skipped from
+	// Passed, or a skipped check is counted twice.
 	Skipped int `json:"skipped"`
 	Running int `json:"running"`
 	Waiting int `json:"waiting"`
