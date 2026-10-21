@@ -17,9 +17,12 @@ away until you open it.
 The footer of the pop-up has every action a pull request offers, so it can be
 acted on from it. The row itself draws only the main one. The footer lists the
 main action first (the one the server marks primary), then the others, with
-**Close pull request** last, on the right. The buttons have the same states on
-the row and in the footer: locked with the reason, queued, in flight and the
-two-step confirm for Merge and Close. A locked button stays on screen,
+**Close pull request** last, on the right. Close pull request is an outlined red
+button with a pull-request-closed icon, so it doesn't pass for the pop-up's own
+close, which is the X at the top right. Closing can't be undone from the
+dashboard, and the two-step confirm still guards it. The buttons have the same
+states on the row and in the footer: locked with the reason, queued, in flight
+and the two-step confirm for Merge and Close. A locked button stays on screen,
 greyed, with the reason printed as text beside it or in the status block under
 the header, and described to screen readers. A failure shows as a line above
 the footer, with room for several, and leaves the buttons usable. The footer
