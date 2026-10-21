@@ -5,7 +5,7 @@ import {
   openActionsDialog,
   viaActionsDialog,
 } from './actions-dialog-helper';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // Close, Update branch, Enable auto-merge, and the Dependabot and Renovate
 // rebases answer a refused request the way Merge does (#751): a structured
@@ -238,12 +238,11 @@ async function axeClean(page: Page) {
 
 for (const d of drivers) {
   test.describe(`${d.name} explains a refusal from the server code`, () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-      // Bot pull requests are on the Bots page, not the main list (#1192).
-      if (d.name === 'Dependabot: Rebase' || d.name === 'Renovate: Rebase')
-        await page.goto('/bots.html');
-    });
+    // Bot pull requests are on the Bots page, not the main list (#1192).
+    const landing =
+      d.name === 'Dependabot: Rebase' || d.name === 'Renovate: Rebase'
+        ? '/bots.html'
+        : '/pull-requests.html';
 
     // The whole set runs for one action: the classification is Go's
     // (internal/dashboard/action_refusal_test.go) and the rendering is shared,
@@ -268,7 +267,7 @@ for (const d of drivers) {
         code: 'already_merged',
         message: 'This pull request was already merged.',
       });
-      await page.reload();
+      await page.goto(landing);
       const row = page.locator('#pr-rows .row').first();
 
       await d.act(row);
@@ -294,7 +293,7 @@ for (const d of drivers) {
           code: 'already_closed',
           message: 'This pull request was closed without merging.',
         });
-        await page.reload();
+        await page.goto(landing);
         const row = page.locator('#pr-rows .row').first();
 
         await d.act(row);
@@ -314,7 +313,7 @@ for (const d of drivers) {
           code: 'unknown',
           message: 'EOF',
         });
-        await page.reload();
+        await page.goto(landing);
         const row = page.locator('#pr-rows .row').first();
         await d.act(row);
         await expect(row.locator('.row-feedback')).toContainText('EOF');
@@ -348,7 +347,7 @@ for (const d of drivers) {
           "The forge's API rate limit is reached. Try again once it resets.",
         resetsAt: new Date(Date.now() + 20 * 60000).toISOString(),
       });
-      await page.reload();
+      await page.goto(landing);
       const row = page.locator('#pr-rows .row').first();
 
       await d.act(row);
@@ -374,7 +373,7 @@ for (const d of drivers) {
           code: 'permission',
           message: 'Missing permission — check your token in Settings.',
         });
-        await page.reload();
+        await page.goto(landing);
         const row = page.locator('#pr-rows .row').first();
 
         await d.act(row);
@@ -395,7 +394,7 @@ for (const d of drivers) {
         code: 'unknown',
         message: 'EOF',
       });
-      await page.reload();
+      await page.goto(landing);
       const row = page.locator('#pr-rows .row').first();
 
       await d.act(row);
@@ -421,7 +420,7 @@ for (const d of drivers) {
       }) => {
         await start(page);
         await refuse(page, d, 409, { error: 'x: something the forge said' });
-        await page.reload();
+        await page.goto(landing);
         const row = page.locator('#pr-rows .row').first();
 
         await d.act(row);
@@ -448,7 +447,7 @@ for (const d of drivers) {
           code: specific.code,
           message: specific.message,
         });
-        await page.reload();
+        await page.goto(landing);
         const row = page.locator('#pr-rows .row').first();
 
         await d.act(row);
@@ -479,10 +478,6 @@ for (const d of drivers) {
 }
 
 test.describe('Enable auto-merge with a transient refusal', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('checks_pending keeps the button clickable: trying again once checks settle can work', async ({
     page,
   }) => {
@@ -499,7 +494,7 @@ test.describe('Enable auto-merge with a transient refusal', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     await viaActionsDialog(row, (footer) =>
       footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
@@ -535,7 +530,7 @@ test.describe('Enable auto-merge with a transient refusal', () => {
         }),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     await viaActionsDialog(row, (footer) =>
       footer.getByRole('button', { name: 'Enable auto-merge' }).click(),
