@@ -232,7 +232,7 @@ test.describe('the address of a pull request', () => {
             shared: { author: 'someone-else' },
           }),
         ),
-        url: baseURL ?? 'http://localhost:8080',
+        url: baseURL,
       },
     ]);
 

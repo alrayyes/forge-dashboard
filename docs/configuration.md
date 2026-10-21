@@ -124,6 +124,16 @@ refresh replaces it. A forge that has never fetched successfully has nothing
 to show. For what the dashboard does while a forge is limited, see
 [Rate limits](rate-limits.md).
 
+## Reserve for your own actions
+
+On GitHub the dashboard holds back 10% of each of the REST and GraphQL budgets
+(never less than 50 points) for the things you click: Merge, Update branch, the
+bot rebases, Close and Enable auto-merge. Scheduled refreshes, polls and webhook
+maintenance wait for the reset instead of spending it; your actions and Refresh
+now don't. The size is fixed and has no environment variable. To spend less in
+the background, raise `REFRESH_INTERVAL` or `CI_POLL_INTERVAL`. Forgejo reports
+no budget, so nothing is held back there. See [Rate limits](rate-limits.md).
+
 ## GitHub App support
 
 A personal access token's polling shares the account's rate-limit budget with
