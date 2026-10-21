@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1679 (WCAG 2.2 3.2.3 Consistent Navigation): every page with a footer
 // shows the same items in the same order. The page you're on keeps its link
@@ -72,8 +71,6 @@ async function expectAxeAndNoSidewaysScroll(page: Page) {
 
 test.describe('the footer is the same on every page', () => {
   test.describe('signed in', () => {
-    test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
     for (const [path, current] of Object.entries(SIGNED_IN)) {
       test(`${path} shows the same footer items`, async ({ page }) => {
         await mockVersion(page);
@@ -84,6 +81,10 @@ test.describe('the footer is the same on every page', () => {
   });
 
   test.describe('signed out', () => {
+    test.beforeEach(async ({ context }) => {
+      await context.clearCookies();
+    });
+
     for (const [path, current] of Object.entries(SIGNED_OUT)) {
       test(`${path} shows the same footer items`, async ({ page }) => {
         await mockVersion(page);
@@ -152,7 +153,9 @@ test.describe('the footer is the same on every page', () => {
   // CI builds a dev binary, so the unmocked version is the dev label.
   test('a dev build shows the same five items, with a dev build label', async ({
     page,
+    context,
   }) => {
+    await context.clearCookies();
     await page.goto('/disclaimer.html');
     await expect(page.locator('#footer-version')).toContainText('dev build');
     await expect(page.locator('footer a')).toHaveText([
@@ -172,8 +175,6 @@ test.describe('the footer is the same on every page', () => {
   });
 
   test.describe('signed in, nothing moves between pages', () => {
-    test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
     for (const width of [360, 1280]) {
       test(`footer height and link positions match on every page at ${width}px`, async ({
         page,

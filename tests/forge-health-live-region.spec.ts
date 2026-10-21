@@ -1,14 +1,11 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // The forge health live region speaks when the health state changes, not on
 // every snapshot (WCAG 4.1.3, status messages). The visible pill is redrawn on
 // every poll, so the live region is its own element whose text only changes
 // when the announcement does.
-
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 const LIVE = '#forge-health-live, #forge-health[aria-live]';
 

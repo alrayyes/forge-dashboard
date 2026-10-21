@@ -1,16 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1458: the Branches item shows the total and how many default branches are
 // failing, running and passing, as the pull request items do (#1439). The
 // server counts them (`navCounts.branches`); the page only draws them.
 // https://github.com/alrayyes/forge-dashboard/issues/1458
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 type Counts = {
   total: number;
