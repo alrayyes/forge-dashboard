@@ -108,6 +108,7 @@
     missingNote,
     parsePullRequestAddress,
   } from "#lib/linked-pull-requests.js";
+  import { createSpeaker } from "#lib/live-region.js";
   import {
     comesBack,
     hideFailedMessage,
@@ -4984,6 +4985,9 @@
     let pipelineReady = false;
     const pipelineNote = document.getElementById("pipeline-paused-note");
     const pipelineAnnounce = document.getElementById("pipeline-live-status");
+    const pipelineSpeaker = createSpeaker((text) => {
+      if (pipelineAnnounce) pipelineAnnounce.textContent = text;
+    });
 
     function setPipelineNote(text: string) {
       if (!pipelineNote) return;
@@ -5334,7 +5338,7 @@
       renderPipelineChecks(ordered, item, true);
       pipelineDialogBody.scrollTop = scroll;
       if (at >= 0) focusable()[at]?.focus({ preventScroll: true });
-      if (pipelineAnnounce && message) pipelineAnnounce.textContent = message;
+      if (message) pipelineSpeaker(message);
     }
 
     function openPipelineDialog(item: PullRequestItem) {
@@ -5344,7 +5348,7 @@
       pipelineShown = [];
       pipelineReady = false;
       setPipelineNote("");
-      if (pipelineAnnounce) pipelineAnnounce.textContent = "";
+      pipelineSpeaker.clear();
       if (pipelineDialogSubtitle) {
         pipelineDialogSubtitle.textContent = `${item.repo}#${item.number}`;
       }

@@ -17,6 +17,7 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 declare global {
   interface Window {
     __push: (data: unknown) => void;
+    __said: string[];
   }
 }
 
@@ -232,6 +233,40 @@ test.describe('pipeline panel updates live', () => {
     await expect(items).toHaveCount(2);
     await expect(items.nth(1)).toContainText('Passed');
     expect(requests).toBe(2);
+  });
+
+  test('two changes that read the same are each announced', async ({
+    page,
+  }) => {
+    const pair = (state: string) => [
+      { name: 'a', state, url: 'https://example.com/r/a' },
+      { name: 'b', state, url: 'https://example.com/r/b' },
+    ];
+    const state = await open(page, RUNNING, pair('running'));
+    // A screen reader speaks a live region when its text changes, so an
+    // identical line has to come after the region was emptied.
+    await dialog(page).evaluate((node) => {
+      const region = node.querySelector('.pipeline-live-status');
+      const seen: string[] = [];
+      window.__said = seen;
+      new MutationObserver(() => seen.push(region?.textContent ?? '')).observe(
+        region as Element,
+        { childList: true, characterData: true, subtree: true },
+      );
+    });
+    const line = 'Checks updated: 2 checks changed.';
+    const spoken = () =>
+      page.evaluate(() => window.__said.filter((text) => text !== ''));
+
+    state.checks = pair('success');
+    await push(page, PASSED);
+    await expect.poll(spoken).toEqual([line]);
+    state.checks = pair('running');
+    await push(page, RUNNING);
+
+    await expect.poll(spoken).toEqual([line, line]);
+    const all = await page.evaluate(() => window.__said);
+    expect(all.slice(all.indexOf(line), all.lastIndexOf(line))).toContain('');
   });
 
   test('a snapshot with the same CI makes no request', async ({ page }) => {

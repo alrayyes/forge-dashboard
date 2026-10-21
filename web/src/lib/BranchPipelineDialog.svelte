@@ -27,6 +27,7 @@
   // changed, so a finished pipeline costs no more requests.
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { FORGE_LABELS } from "#lib/forges.js";
+  import { createSpeaker } from "#lib/live-region.js";
   import {
     CHECK_STATE_LABELS,
     formatCheckDuration,
@@ -53,11 +54,14 @@
   let staleNote = $state("");
   // The one polite line a changed check earns.
   let announcement = $state("");
+  const speak = createSpeaker((text) => {
+    announcement = text;
+  });
 
   export function open(next: PipelineTarget) {
     target = next;
     staleNote = "";
-    announcement = "";
+    speak.clear();
     live = createLiveChecks({
       signature: ciSignature({
         ci: next.status,
@@ -122,7 +126,7 @@
         if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
         const message = announceChange(checks, ordered);
         checks = ordered;
-        if (message) announcement = message;
+        if (message) speak(message);
         return;
       }
       live?.refreshed();
@@ -145,6 +149,7 @@
   function closed() {
     request++;
     live = null;
+    speak.clear();
     target?.opener?.focus();
     target = null;
   }
