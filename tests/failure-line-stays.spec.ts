@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #918: a failed action's line stays on its row until it is dismissed or the
 // row is acted on again, however many snapshots arrive, and a permission
@@ -101,10 +100,6 @@ const rowFor = (page: Page, n: number) =>
   page.locator(`#pr-rows .row[data-pr-key$="#${n}"]`);
 
 test.describe('a failure line stays until dismissed (#918)', () => {
-  // Every action is mocked and nothing is saved per user, so it starts from the
-  // shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('the line survives snapshots, including ones that change the row', async ({
     page,
   }) => {

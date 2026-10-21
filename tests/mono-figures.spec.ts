@@ -1,21 +1,10 @@
-import { expect, type Locator, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { expect, type Locator, type Route } from '@playwright/test';
+import { test } from './server-fixture';
 
 // Versions, commit hashes and numbers read in the app's own mono face
 // (IBM Plex Mono) with tabular figures, so digits line up and a hash is easy
 // to tell from prose. Prose that happens to hold digits stays in the sans face.
 // https://github.com/alrayyes/forge-dashboard/issues/1754
-
-async function registerAndSignIn(
-  page: Page,
-  request: Parameters<typeof registerViaInvite>[1],
-  baseURL: string | undefined,
-) {
-  const username = `mono-figures-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Mono Figures');
-}
 
 async function figures(locator: Locator) {
   return locator.evaluate((el) => {
@@ -59,10 +48,6 @@ const RELEASES = [
       '### Bug Fixes\n\n* retry after 30 seconds ([#7](https://github.com/o/r/pull/7))',
   },
 ];
-
-// The tests mock what they read and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('mono face and tabular figures (#1754)', () => {
   test('changelog: versions, pull request numbers and hashes are mono, prose stays sans', async ({
@@ -174,32 +159,23 @@ test.describe('mono face and tabular figures (#1754)', () => {
     for (let i = 0; i < 2; i++) await expectMono(shas.nth(i));
   });
 
-  // Generating an API token writes per-user server state, so this one keeps
-  // its own user.
-  test.describe('with its own user', () => {
-    test.use({ storageState: { cookies: [], origins: [] } });
+  test('settings: webhook URLs, the secret and a new API token are mono', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html#integrations');
+    for (const id of [
+      'webhook-url-github',
+      'webhook-url-forgejo',
+      'webhook-secret',
+    ]) {
+      await expectMono(page.locator(`#${id}`));
+    }
+    await page.locator('#token-label').fill('laptop');
+    await page.getByRole('button', { name: 'Generate' }).click();
+    await expect(page.locator('#token-reveal-value')).not.toHaveValue('');
+    await expectMono(page.locator('#token-reveal-value'));
 
-    test('settings: webhook URLs, the secret and a new API token are mono', async ({
-      page,
-      request,
-      baseURL,
-    }) => {
-      await registerAndSignIn(page, request, baseURL);
-      await page.goto('/settings.html#integrations');
-      for (const id of [
-        'webhook-url-github',
-        'webhook-url-forgejo',
-        'webhook-secret',
-      ]) {
-        await expectMono(page.locator(`#${id}`));
-      }
-      await page.locator('#token-label').fill('laptop');
-      await page.getByRole('button', { name: 'Generate' }).click();
-      await expect(page.locator('#token-reveal-value')).not.toHaveValue('');
-      await expectMono(page.locator('#token-reveal-value'));
-
-      // A text field for prose stays sans.
-      await expectSans(page.locator('#token-label'));
-    });
+    // A text field for prose stays sans.
+    await expectSans(page.locator('#token-label'));
   });
 });

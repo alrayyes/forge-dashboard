@@ -186,6 +186,26 @@ func (b boardSettings) linkedPullRequests(index dashboard.ClosingIndex, issue da
 	return out
 }
 
+// closingIssue is one issue a pull request will close, with the address on
+// this dashboard that opens the Issues page on its pop-up.
+type closingIssue struct {
+	dashboard.IssueRef
+	PageURL string `json:"pageUrl"`
+}
+
+// closingIssues adds the address to each of pr's closing references. Never nil.
+func closingIssues(pr dashboard.PullRequest) []closingIssue {
+	out := make([]closingIssue, 0, len(pr.ClosesIssues))
+	for _, ref := range pr.ClosesIssues {
+		out = append(out, closingIssue{
+			IssueRef: ref,
+			PageURL:  "/issues.html?issue=" + string(pr.Forge) + "/" + ref.Repo + "/" + strconv.Itoa(ref.Number),
+		})
+	}
+
+	return out
+}
+
 // pullRequestView is a pull request as the API serves it: the snapshot's own
 // fields plus the actions it allows, worked out here so every client gets
 // the same answer (#805). The snapshot type stays free of it.
@@ -195,6 +215,9 @@ type pullRequestView struct {
 	// its own for release and dependency pull requests (#716).
 	Kind           dashboard.PullRequestKind      `json:"kind"`
 	AllowedActions []dashboard.ActionAvailability `json:"allowedActions"`
+	// ClosesIssues shadows the snapshot's list to add the address on this
+	// dashboard that opens each issue.
+	ClosesIssues []closingIssue `json:"closesIssues"`
 	// AuthorURL is the author's profile page on the forge, built here so no
 	// client needs a rule per forge. Empty for a deleted account.
 	AuthorURL string `json:"authorUrl"`
@@ -524,6 +547,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			AuthorURL:      dashboard.ProfileURL(pr.Forge, dashboard.WebBase(pr.URL, pr.Repo), pr.Author),
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
 			AllowedActions: actions,
+			ClosesIssues:   closingIssues(pr),
 			Status:         dashboard.PullRequestStatus(pr, actions),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),

@@ -1,14 +1,11 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The pages that draw no dashboard snapshot of their own take their numbers
 // from the layout's navigation counts. That read follows the dashboard poll's
 // rule: one read in flight, the next timed from each answer or failure at the
 // interval the server advises, and a hung read gives up and polling goes on.
 // https://github.com/alrayyes/forge-dashboard/issues/1770
-
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // Page and layout make one read between them (#1801): Insights, Settings and
 // Webhooks take their forge list from the layout's read, not their own.

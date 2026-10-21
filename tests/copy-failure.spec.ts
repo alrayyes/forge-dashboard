@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // A failed action keeps its plain sentence on the row, and a Copy button
 // beside it copies what the server really answered: the status, the body as
@@ -141,9 +140,6 @@ async function readClipboard(page: Page): Promise<Record<string, unknown>> {
 }
 
 test.describe('Copy error details on a failed action (#1323)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   });
@@ -361,9 +357,6 @@ test.describe('Copy error details on a failed action (#1323)', () => {
 // Rerun failed checks fails inside the pipeline panel, not on the row, so its
 // failure has its own line there (#1323, criterion 1).
 test.describe('Copy error details on a failed Rerun failed checks (#1323)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   });
@@ -473,9 +466,6 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
 });
 
 test.describe('Copy error details without a clipboard (#1323)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     // An insecure context or a refused permission: writeText rejects.
     await page.addInitScript(() => {
