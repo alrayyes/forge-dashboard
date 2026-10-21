@@ -196,6 +196,15 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "403":
+          description: |
+            Registration is closed: another registration on this empty
+            instance finished first and holds the instance's only passkey.
+            The pending account of this ceremony is removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/auth/login/begin:
     post:

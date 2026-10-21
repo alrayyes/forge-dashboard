@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -558,4 +559,89 @@ func TestRegistrationStatus_AfterOneUserRegisters_IsClosed(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.False(t, body.Open)
+}
+
+// beginAndAttest starts a registration ceremony for username and returns the
+// attestation response a virtual authenticator would send to finish it, so a
+// test can decide when, and how many at once, to finish.
+func beginAndAttest(tb testing.TB, srv *httptest.Server, username string) string {
+	tb.Helper()
+
+	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
+	body := strings.NewReader(`{"username":"` + username + `","displayName":"` + username + `"}`)
+	resp, err := http.Post(srv.URL+"/api/auth/register/begin", "application/json", body)
+	require.NoError(tb, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(tb, http.StatusOK, resp.StatusCode)
+
+	options, err := virtualwebauthn.ParseAttestationOptions(readAll(tb, resp))
+	require.NoError(tb, err)
+
+	return virtualwebauthn.CreateAttestationResponse(rp, virtualwebauthn.NewAuthenticator(), virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2), *options)
+}
+
+// Only the first passkey registration on an empty instance wins. Two visitors
+// who both began before either finished get one session and one refusal, and
+// the loser leaves no account behind.
+func TestRegisterFinish_TwoCeremoniesFinishingTogether_ExactlyOneWins(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	names := []string{"alice", "bob"}
+	attestations := map[string]string{}
+	for _, name := range names {
+		attestations[name] = beginAndAttest(t, srv, name)
+	}
+
+	statuses := make([]int, len(names))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i, name := range names {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			resp, err := http.Post(srv.URL+"/api/auth/register/finish?username="+name, "application/json", strings.NewReader(attestations[name]))
+			if err != nil {
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+			statuses[i] = resp.StatusCode
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	assert.ElementsMatch(t, []int{http.StatusOK, http.StatusForbidden}, statuses)
+
+	registered := 0
+	for _, name := range names {
+		resp, err := http.Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+name+`"}`))
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			registered++
+		}
+	}
+	assert.Equal(t, 1, registered, "the refused ceremony must leave no user row")
+}
+
+func TestRegisterFinish_AnotherUserAlreadyHoldsAPasskey_Answers403RegistrationClosed(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	// Both began while the instance was still empty; one finishes first.
+	first := beginAndAttest(t, srv, "alice")
+	second := beginAndAttest(t, srv, "bob")
+	resp, err := http.Post(srv.URL+"/api/auth/register/finish?username=alice", "application/json", strings.NewReader(first))
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	resp, err = http.Post(srv.URL+"/api/auth/register/finish?username=bob", "application/json", strings.NewReader(second))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	assert.Contains(t, readAll(t, resp), "registration is closed")
 }

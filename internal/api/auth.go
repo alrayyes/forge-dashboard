@@ -110,6 +110,11 @@ func handleRegisterFinish(deps Deps) http.HandlerFunc {
 
 		u, err := deps.AuthService.FinishRegistration(r.Context(), username, r)
 		if err != nil {
+			if errors.Is(err, auth.ErrRegistrationClosed) {
+				writeJSON(w, http.StatusForbidden, errorBody("registration is closed"))
+
+				return
+			}
 			writeJSON(w, http.StatusBadRequest, errorBody("registration failed"))
 
 			return
