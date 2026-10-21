@@ -154,6 +154,12 @@ type linkedPullRequest struct {
 	Number  int             `json:"number"`
 	Draft   bool            `json:"draft"`
 	PageURL string          `json:"pageUrl"`
+	// CI, Checks and AwaitingWorkflowApproval are the pull request's own
+	// pipeline fields, passed through so a pill can draw the same status as
+	// the pull request's row.
+	CI                       dashboard.CIStatus    `json:"ci"`
+	Checks                   dashboard.CheckCounts `json:"checks"`
+	AwaitingWorkflowApproval bool                  `json:"awaitingWorkflowApproval"`
 }
 
 // pullRequestPage is the dashboard page that lists a pull request of kind.
@@ -175,11 +181,15 @@ func (b boardSettings) linkedPullRequests(index dashboard.ClosingIndex, issue da
 	out := make([]linkedPullRequest, 0, len(prs))
 	for _, pr := range prs {
 		out = append(out, linkedPullRequest{
-			Forge:   pr.Forge,
-			Repo:    pr.Repo,
-			Number:  pr.Number,
-			Draft:   pr.Draft,
-			PageURL: pullRequestPage(dashboard.KindOf(pr, b.renovateAuthors)) + "?pr=" + string(pr.Forge) + "/" + pr.Repo + "/" + strconv.Itoa(pr.Number),
+			Forge:  pr.Forge,
+			Repo:   pr.Repo,
+			Number: pr.Number,
+			Draft:  pr.Draft,
+			CI:     pr.CI,
+			Checks: pr.Checks,
+
+			AwaitingWorkflowApproval: pr.AwaitingWorkflowApproval,
+			PageURL:                  pullRequestPage(dashboard.KindOf(pr, b.renovateAuthors)) + "?pr=" + string(pr.Forge) + "/" + pr.Repo + "/" + strconv.Itoa(pr.Number),
 		})
 	}
 

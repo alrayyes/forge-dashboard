@@ -22,7 +22,46 @@ const pr = (overrides: Partial<LinkedPullRequest> = {}): LinkedPullRequest => ({
   number: 12,
   draft: false,
   pageUrl: '/pull-requests.html?pr=github/alrayyes/app/12',
+  ci: 'none',
+  checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
+  awaitingWorkflowApproval: false,
   ...overrides,
+});
+
+describe('a pill that carries a pipeline', () => {
+  const ci = {
+    badge: {} as HTMLElement,
+    label: 'Running',
+    segments: [
+      { kind: 'passed' as const, n: 3 },
+      { kind: 'failed' as const, n: 1 },
+    ],
+  };
+
+  test('reads the word and the counts after the number and state', () => {
+    expect(linkedPillText(pr(), 'alrayyes/app', ci)).toBe(
+      '#12 open Running 3 1',
+    );
+  });
+
+  test('says the counts in words, after the visible text it contains', () => {
+    const name = linkedPillName(pr(), 'alrayyes/app', ci);
+    expect(name).toBe(
+      'Pull request #12 open Running 3 1: 3 passed, 1 failed, closes this issue',
+    );
+    expect(name).toContain(linkedPillText(pr(), 'alrayyes/app', ci));
+  });
+
+  test('a held run is the word alone', () => {
+    const held = {
+      badge: ci.badge,
+      label: 'Waiting for workflow approval',
+      segments: [],
+    };
+    expect(linkedPillName(pr(), 'alrayyes/app', held)).toBe(
+      'Pull request #12 open Waiting for workflow approval, closes this issue',
+    );
+  });
 });
 
 describe('linkedPillText', () => {

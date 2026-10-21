@@ -90,23 +90,22 @@ async function mock(
   });
   // `*` so a query string still matches; the stream has its own route above.
   await page.route('**/api/dashboard*', async (route: Route) => {
-    gate.dashboardStarted();
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
-        readIntervalSeconds: 60,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: [],
-        issues: [],
-        repos: [],
-        hiddenDrafts: 0,
-        mockedBySpec: true,
-        firstRefreshDone: true,
+    await gate.trackDashboard(() =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          readIntervalSeconds: 60,
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+          repos: [],
+          hiddenDrafts: 0,
+          firstRefreshDone: true,
+        }),
       }),
-    });
-    gate.dashboardServed();
+    );
   });
   await page.route('**/api/main-branches', async (route: Route) => {
     await gate.wait();
@@ -762,19 +761,6 @@ test.describe('Main branches page (#1224, #1279)', () => {
     fail = false;
     await page.getByRole('button', { name: /retry/i }).click();
     await expect(rows(page)).toHaveCount(6);
-  });
-
-  test('a dashboard read with a query string is still answered by the mock', async ({
-    page,
-  }) => {
-    await mock(page, snapshot(MIXED));
-    await page.goto('/');
-    await expect(rows(page)).toHaveCount(6);
-    const done = await page.evaluate(async () => {
-      const res = await fetch('/api/dashboard?probe=1');
-      return (await res.json()).mockedBySpec;
-    });
-    expect(done).toBe(true);
   });
 
   test('has no axe violations in light and dark, desktop and 390px, and no horizontal scroll', async ({

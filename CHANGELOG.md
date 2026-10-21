@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.256.0](https://github.com/alrayyes/forge-dashboard/compare/v0.255.0...v0.256.0) (2026-10-21)
+
+
+### Features
+
+* show the pipeline on the pill of the pull request that will close an issue ([#2218](https://github.com/alrayyes/forge-dashboard/issues/2218)) ([5c43d27](https://github.com/alrayyes/forge-dashboard/commit/5c43d278ff6b60307ab94d1acc3a48e2dd4b4d72))
+
 ## [0.255.0](https://github.com/alrayyes/forge-dashboard/compare/v0.254.2...v0.255.0) (2026-10-21)
 
 

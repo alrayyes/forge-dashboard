@@ -3,6 +3,12 @@
 // decides which pull requests those are and builds each address; this only
 // words them and reads the address back.
 
+import {
+  type CheckCounts,
+  type CheckSegment,
+  pillName,
+} from './check-counts.js';
+
 /** Matches components.schemas.LinkedPullRequest in api/openapi.yaml. */
 export type LinkedPullRequest = {
   forge: string;
@@ -10,7 +16,24 @@ export type LinkedPullRequest = {
   number: number;
   draft: boolean;
   pageUrl: string;
+  ci: string;
+  checks: CheckCounts;
+  awaitingWorkflowApproval: boolean;
 };
+
+/**
+ * The pipeline a pill carries, drawn by the same code as the pull request's own
+ * row: the node to show, and the word and counts it says, so the pill's text
+ * and name can contain them whole.
+ */
+export type PillCi = {
+  badge: HTMLElement;
+  label: string;
+  segments: CheckSegment[];
+};
+
+/** Draws a linked pull request's pipeline, or null when it has none to show. */
+export type PillCiRenderer = (pr: LinkedPullRequest) => PillCi | null;
 
 /** How many pills a row shows before the rest wait behind a count. */
 export const SHOWN_PILLS = 2;
@@ -22,14 +45,37 @@ const stateOf = (pr: LinkedPullRequest) => (pr.draft ? 'draft' : 'open');
 const numberOf = (pr: LinkedPullRequest, issueRepo: string) =>
   sameRepo(pr.repo, issueRepo) ? `#${pr.number}` : `${pr.repo}#${pr.number}`;
 
-/** What the pill shows: the number and the state, with the whole repo when it is not the issue's. */
-export function linkedPillText(pr: LinkedPullRequest, issueRepo: string) {
-  return `${numberOf(pr, issueRepo)} ${stateOf(pr)}`;
+/** The words of a pipeline as the pill's text reads them: "Running 3 2 1". */
+const ciText = (ci: PillCi) =>
+  [ci.label, ...ci.segments.map((s) => String(s.n))].join(' ');
+
+/**
+ * What the pill shows: the number and the state, with the whole repo when it is
+ * not the issue's, then the pipeline's word and counts when it has any.
+ */
+export function linkedPillText(
+  pr: LinkedPullRequest,
+  issueRepo: string,
+  ci?: PillCi | null,
+) {
+  const head = `${numberOf(pr, issueRepo)} ${stateOf(pr)}`;
+  return ci ? `${head} ${ciText(ci)}` : head;
 }
 
-/** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
-export function linkedPillName(pr: LinkedPullRequest, issueRepo: string) {
-  return `Pull request ${numberOf(pr, issueRepo)} ${stateOf(pr)}, closes this issue`;
+/**
+ * The pill's accessible name. It contains the visible text (WCAG 2.5.3), with
+ * each count said in words after it.
+ */
+export function linkedPillName(
+  pr: LinkedPullRequest,
+  issueRepo: string,
+  ci?: PillCi | null,
+) {
+  const head = `${numberOf(pr, issueRepo)} ${stateOf(pr)}`;
+  if (!ci) return `Pull request ${head}, closes this issue`;
+  const said =
+    ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
+  return `Pull request ${head} ${said}, closes this issue`;
 }
 
 /** The pills a row shows, and the ones kept behind the count. */
@@ -100,12 +146,14 @@ export const linkedPillId = (issueKey: string, pr: LinkedPullRequest) =>
  * each pill is a button that opens that pull request's dialog where the
  * reader is, and hands over the pill's id so focus can return to it. Without
  * it, the pill is a link to the pull request page with its pop-up open.
+ * With renderCi, a pill whose pull request has a pipeline carries it.
  */
 export function linkedPills(
   issueKey: string,
   issueRepo: string,
   list: LinkedPullRequest[] | undefined,
   onOpen?: (pr: LinkedPullRequest, triggerId: string) => void,
+  renderCi?: PillCiRenderer,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
@@ -121,8 +169,14 @@ export function linkedPills(
       link.id = linkedPillId(issueKey, pr);
       link.addEventListener('click', () => onOpen(pr, link.id));
     }
+    const ci: PillCi | null = renderCi ? renderCi(pr) : null;
     link.textContent = linkedPillText(pr, issueRepo);
-    link.setAttribute('aria-label', linkedPillName(pr, issueRepo));
+    if (ci) {
+      // The badge follows the number, with the space the text reads across.
+      link.append(' ', ci.badge);
+      link.classList.add('with-ci');
+    }
+    link.setAttribute('aria-label', linkedPillName(pr, issueRepo, ci));
     return link;
   };
   wrap.append(...shown.map(pill));
