@@ -26,7 +26,6 @@ const singleUserSpecs = [
   '**/stale-data-notice.spec.ts',
   '**/stream-after-first-poll.spec.ts',
   '**/title-hover-text.spec.ts',
-  '**/transient-failure-clears.spec.ts',
   '**/unreachable-forge.spec.ts',
   '**/update-branch-request.spec.ts',
   '**/wait-chip.spec.ts',
