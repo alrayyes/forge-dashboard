@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -113,6 +114,7 @@ func (c *Counters) AddCost(ctx context.Context, forge, credential string, cost i
 	if c == nil || cost <= 0 {
 		return
 	}
+	tallyFrom(ctx).add(Spent{GraphQL: cost})
 	c.Add(keyFor(ctx, forge, credential), Count{GraphQLCost: int64(cost)})
 }
 
@@ -144,7 +146,54 @@ type ctxKey int
 const (
 	kindKey ctxKey = iota
 	repoKey
+	tallyKey
 )
+
+// Spent is the points a run took from the forge's budgets.
+type Spent struct {
+	// GraphQL is the sum of the costs the API reported.
+	GraphQL int
+	// REST is the requests that counted against the limit; a 304 does not.
+	REST int
+}
+
+// Tally adds up what the requests made under one context spent, whatever else
+// runs at the same time. The Counters hold the same calls by kind and repo
+// but cannot say which run made them.
+type Tally struct {
+	graphQL atomic.Int64
+	rest    atomic.Int64
+}
+
+// WithTally returns a context whose requests are also added to the Tally.
+func WithTally(ctx context.Context) (context.Context, *Tally) {
+	t := &Tally{}
+
+	return context.WithValue(ctx, tallyKey, t), t
+}
+
+// Spent is what the Tally has collected so far.
+func (t *Tally) Spent() Spent {
+	if t == nil {
+		return Spent{}
+	}
+
+	return Spent{GraphQL: int(t.graphQL.Load()), REST: int(t.rest.Load())}
+}
+
+func (t *Tally) add(s Spent) {
+	if t == nil {
+		return
+	}
+	t.graphQL.Add(int64(s.GraphQL))
+	t.rest.Add(int64(s.REST))
+}
+
+func tallyFrom(ctx context.Context) *Tally {
+	t, _ := ctx.Value(tallyKey).(*Tally)
+
+	return t
+}
 
 // WithKind tags the requests made under ctx with why they are made.
 func WithKind(ctx context.Context, kind Kind) context.Context {
@@ -223,6 +272,7 @@ func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error)
 		key.Repo = repo
 	}
 	t.counters.Add(key, n)
+	tallyFrom(req.Context()).add(Spent{REST: int(n.REST)})
 
 	return resp, err //nolint:wrapcheck // a transport passes the error through untouched
 }

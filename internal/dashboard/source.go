@@ -28,6 +28,17 @@ type Result struct {
 	// MainBranches is one row per repo this forge reads the default-branch CI
 	// of (#1224). A repo whose read failed is in FailedRepos and missing here.
 	MainBranches []MainBranch
+	// Spent is what this fetch itself took from the forge's budgets, counted
+	// by the Source from its own calls. Nil means the Source does not measure
+	// it, so the reserve learns nothing from the fetch.
+	Spent *Spend
+}
+
+// Spend is the points a fetch took from each budget: GraphQL by the cost the
+// API reported, REST by the requests it counted against the limit.
+type Spend struct {
+	GraphQL int
+	REST    int
 }
 
 // FailedRepo is one repo a Source could not fully fetch, and which parts.
