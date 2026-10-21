@@ -64,7 +64,7 @@ func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, 
 		prs, _ := fetchDashboard(t, srv.URL, cookie)["pullRequests"].([]any)
 
 		return len(prs) == 5
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, manager, cookie
 }

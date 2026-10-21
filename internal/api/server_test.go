@@ -135,7 +135,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 		}
 
 		return len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
-	}, time.Second, 10*time.Millisecond, "saving settings should start a background refresh that the dashboard picks up")
+	}, pollBudget, 10*time.Millisecond, "saving settings should start a background refresh that the dashboard picks up")
 }
 
 func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testing.T) {

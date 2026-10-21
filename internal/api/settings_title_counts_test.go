@@ -52,7 +52,7 @@ func signInWithBoard(t *testing.T, srv *httptest.Server, username, token string,
 		issues, _ := fetchDashboard(t, srv.URL, cookie)["issues"].([]any)
 
 		return len(issues) == want
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return cookie
 }
@@ -234,7 +234,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullWhenTheOnlyForgeIsUnreachable(t *
 		forges, _ := fetchDashboard(t, srv.URL, cookie)["forges"].([]any)
 
 		return len(forges) == 1
-	}, 2*time.Second, 10*time.Millisecond, "the first refresh has finished and failed")
+	}, pollBudget, 10*time.Millisecond, "the first refresh has finished and failed")
 
 	assert.Equal(t, []*int{nil}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts)
 }

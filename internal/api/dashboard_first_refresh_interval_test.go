@@ -56,7 +56,7 @@ func TestDashboard_ReadInterval_NormalOnceTheFirstRefreshHasFinished(t *testing.
 	close(src.release)
 
 	require.Eventually(t, func() bool { return readIntervalOverHTTP(t, url, cookie) == float64(30) },
-		mcpPollBudget, 10*time.Millisecond)
+		pollBudget, 10*time.Millisecond)
 }
 
 // Nothing refreshes for a viewer with no saved settings, so the flag is true

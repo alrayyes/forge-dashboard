@@ -47,7 +47,7 @@ func TestDashboard_EachPullRequestCarriesItsKind(t *testing.T) {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == 5
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	kinds := map[int]string{}
 	prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)

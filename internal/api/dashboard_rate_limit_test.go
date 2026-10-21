@@ -51,7 +51,7 @@ func TestDashboard_RateLimitsCarryTheirSeverity(t *testing.T) {
 		forge, _ = forges[0].(map[string]any)
 
 		return forge["rateLimitGraphQL"] != nil
-	}, time.Second, 10*time.Millisecond, "the background refresh should have picked up the fixture")
+	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture")
 
 	graphql, _ := forge["rateLimitGraphQL"].(map[string]any)
 	rest, _ := forge["rateLimitREST"].(map[string]any)

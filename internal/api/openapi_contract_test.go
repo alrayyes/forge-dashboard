@@ -211,7 +211,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(prs) == 4
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }

@@ -50,7 +50,7 @@ func TestDashboard_PullRequestsCarryOneStatus(t *testing.T) {
 		prs, _ := fetchDashboard(t, srv.URL, cookie)["pullRequests"].([]any)
 
 		return len(prs) == 3
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	got := fetchDashboard(t, srv.URL, cookie)
 	byNumber := map[float64]map[string]any{}

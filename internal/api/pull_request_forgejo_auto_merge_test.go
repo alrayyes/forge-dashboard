@@ -42,7 +42,7 @@ func forgejoAutoMergeBoard(t *testing.T, prs ...dashboard.PullRequest) (*httptes
 		got, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
 
 		return len(got) == len(prs)
-	}, time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	return srv, cookie
 }

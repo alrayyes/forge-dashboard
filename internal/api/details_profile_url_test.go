@@ -32,7 +32,7 @@ func TestPullRequestDetails_PeopleCarryTheirProfileURL(t *testing.T) {
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
 		return len(prs) == 1
-	}, 2*time.Second, 10*time.Millisecond)
+	}, pollBudget, 10*time.Millisecond)
 
 	resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
