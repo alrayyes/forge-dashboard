@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/alrayyes/forge-dashboard/compare/v1.6.2...v1.7.0) (2026-10-21)
+
+
+### Features
+
+* keep a reserve of the forge budget for user actions ([#2336](https://github.com/alrayyes/forge-dashboard/issues/2336)) ([b529276](https://github.com/alrayyes/forge-dashboard/commit/b52927656c070f6e01c284648a6c8922c71a085a))
+
 ## [1.6.2](https://github.com/alrayyes/forge-dashboard/compare/v1.6.1...v1.6.2) (2026-10-21)
 
 
