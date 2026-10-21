@@ -137,6 +137,7 @@ const singleUserSpecs = [
   '**/main-branch-release-link.spec.ts',
   '**/ci-status-pulldown-gone.spec.ts',
   '**/main-branch-pill-counts.spec.ts',
+  '**/pr-auto-update.spec.ts',
 ];
 
 export default defineConfig({
