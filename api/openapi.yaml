@@ -1324,6 +1324,86 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
+  /api/pull-requests/reopen:
+    post:
+      operationId: reopenPullRequest
+      summary: Reopen one pull request that was closed without merging, on the signed-in user's behalf
+      description: |
+        Reopens the named pull request: the undo for Close, offered in the
+        pull request's dialog right after a close. It does not offer a
+        reopen for a merged pull request, because the forge doesn't allow
+        one.
+
+        A closed pull request is not on the board, so no `allowedActions`
+        entry says in advance whether the forge will accept this. The call
+        is made and the forge decides. When it refuses, the server re-reads
+        the pull request and answers an `ActionError` (see Merge):
+        `already_merged` when it was merged in the meantime, and
+        `not_reopenable` when it is still closed and the forge won't
+        reopen it, usually because its branch was deleted or rewritten
+        after the close. Both are a 409 with a plain-words `message` that
+        says what to do next.
+
+        On success the pull request is listed on the board again from the
+        next refresh.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: Reopened.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", no credentials are saved for that forge, or
+            that forge's client doesn't support reopening pull requests at
+            all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized — the saved token's scope doesn't cover reopening, or it isn't allowed to reopen on that repo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token). `code` is `unknown`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "409":
+          description: The forge won't reopen it. `code` is `already_merged` or `not_reopenable`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
   /api/pull-requests/rerun-checks:
     post:
       operationId: rerunPullRequestChecks
@@ -3278,12 +3358,17 @@ components:
             - forge_error
             - not_rate_limited
             - not_open
+            - not_reopenable
             - unknown
           description: |
             Why the action was refused, from a re-read of the pull
             request's real state. `already_merged` and `already_closed`
             mean the dashboard's row was stale: the pull request has
             nothing left to merge.
+
+            `not_reopenable` belongs to Reopen: the pull request is still
+            closed and the forge won't reopen it, usually because its
+            branch was deleted or rewritten after the close.
 
             `forge_error` means the forge failed on its own side (a 5xx):
             nothing is wrong with the request, so asking again may work.

@@ -165,6 +165,15 @@ type PullRequestCloser interface {
 	ClosePullRequest(ctx context.Context, owner, name string, number int) error
 }
 
+// PullRequestReopener is implemented by a ForgeClient (or, for
+// github.Client, a Source directly) that can reopen a pull request closed
+// without merging: the undo for PullRequestCloser. The forge decides whether
+// it can: a merged pull request, or one whose head branch was deleted or
+// rewritten since, is refused.
+type PullRequestReopener interface {
+	ReopenPullRequest(ctx context.Context, owner, name string, number int) error
+}
+
 // ChecksRerunner is implemented by a ForgeClient (or, for github.Client, a
 // Source directly) that can rerun the failed jobs of the CI on one of its
 // pull requests (#698) — checked via a type assertion, the same optional-

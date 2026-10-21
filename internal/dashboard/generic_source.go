@@ -341,6 +341,20 @@ func (s *GenericSource) ClosePullRequest(ctx context.Context, owner, name string
 	return nil
 }
 
+// ReopenPullRequest implements PullRequestReopener at the Source level by
+// delegating to the underlying client, the same shape ClosePullRequest uses.
+func (s *GenericSource) ReopenPullRequest(ctx context.Context, owner, name string, number int) error {
+	reopener, ok := s.client.(PullRequestReopener)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't reopen pull requests: %w", s.forge, errUnsupportedByClient)
+	}
+	if err := reopener.ReopenPullRequest(ctx, owner, name, number); err != nil {
+		return fmt.Errorf("dashboard: reopen pull request: %w", err)
+	}
+
+	return nil
+}
+
 // DisableAutoMerge implements PullRequestAutoMergeDisabler at the Source level
 // by delegating to the underlying client, so the cancel handler reaches the
 // Forgejo client's cancel of a merge scheduled on the forge (#1571).

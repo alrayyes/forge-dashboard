@@ -44,6 +44,7 @@ var mcpPending = []string{
 	"enablePullRequestAutoMerge",
 	"cancelPullRequestAutoMerge",
 	"closePullRequest",
+	"reopenPullRequest",
 	"rerunPullRequestChecks",
 	"hidePullRequest",
 	"unhidePullRequest",
