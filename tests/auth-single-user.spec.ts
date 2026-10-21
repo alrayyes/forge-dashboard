@@ -2,10 +2,8 @@ import { expect } from '@playwright/test';
 import { addOwnerPasskey, OWNER_USERNAME, test } from './server-fixture';
 import { addVirtualAuthenticator } from './webauthn-helper';
 
-// The sign-in tests that need no invite, on a server with one owner (#1880).
-// The page starts signed in as that owner; a test about a visitor with no
-// session clears its cookies first. The invite flows stay in auth.spec.ts
-// until the invites go.
+// The sign-in tests on a server with one owner. The page starts signed in as
+// that owner; a test about a visitor with no session clears its cookies first.
 
 test.describe('passkey login, one owner', () => {
   test('an unauthenticated visitor is redirected to the login page', async ({
