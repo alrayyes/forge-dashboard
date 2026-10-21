@@ -73,6 +73,15 @@ draw them; they become plain Unicode characters, never images, and code stays
 as written. Emoticons like `:)` aren't touched. The library and its emoji
 table load the first time a pop-up opens.
 
+The header's repository name and number are two links, to the repository and
+to the pull request on the forge. In the description, release notes and
+comments, `#12` and `owner/repo#12` become links to that issue or pull request
+on the same forge, as the forges themselves draw them; the forge sends you on
+to the pull request when the number is one. Code, a word like `abc#12` and
+text already inside a link stay as written. The page builds these addresses
+from the pull request's own address, so they follow whichever forge it came
+from.
+
 ## Issues a pull request closes
 
 A pull request that will close issues shows a "Closes" link for each, after

@@ -10,6 +10,8 @@
 //     <input type="checkbox"> inside a <label> with the item's text, built
 //     from the parsed tokens, so the text stays escaped (#1655);
 //   - every link opens in a new tab with rel="noopener noreferrer";
+//   - `#12` and `owner/repo#12` in plain text link to the item on the same
+//     forge when the caller says which repository the text belongs to;
 //   - :shortcodes: such as :robot: become the Unicode emoji, the way the
 //     forges draw them (#1995). Never an image, and the plugin skips code.
 //     Emoticons like `:)` stay as typed: the forges don't expand them and
@@ -57,6 +59,59 @@ function taskLists(state: StateCore): void {
   }
 }
 
+// `#12` and `owner/repo#12` in running text, the forms both forges autolink:
+// https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls
+// The lookbehind keeps `abc#12`, `a/b/c#12` and `&#12` as text, and the
+// lookahead keeps `#12abc` as text.
+const REFERENCE = /(?<![\w/&#.-])([\w.-]+\/[\w.-]+)?#(\d+)(?![\w-])/g;
+
+// Turns references into links to the item on the same forge. Only plain
+// text tokens are touched: code spans and blocks are other token types, and
+// text inside a link (an explicit one or a linkified URL) is skipped.
+// Without a repository address the text stays as it is.
+function references(state: StateCore): void {
+  const repoUrl = (state.env as { repoUrl?: string } | undefined)?.repoUrl;
+  if (!repoUrl) return;
+  const host = new URL(repoUrl).origin;
+  const { Token } = state;
+  for (const block of state.tokens) {
+    if (block.type !== 'inline' || !block.children) continue;
+    const out: typeof block.children = [];
+    let inLink = 0;
+    for (const child of block.children) {
+      if (child.type === 'link_open') inLink++;
+      if (child.type === 'link_close') inLink--;
+      if (child.type !== 'text' || inLink > 0) {
+        out.push(child);
+        continue;
+      }
+      let last = 0;
+      for (const m of child.content.matchAll(REFERENCE)) {
+        const text = new Token('text', '', 0);
+        text.content = child.content.slice(last, m.index);
+        const open = new Token('link_open', 'a', 1);
+        open.attrSet(
+          'href',
+          m[1] ? `${host}/${m[1]}/issues/${m[2]}` : `${repoUrl}/issues/${m[2]}`,
+        );
+        const label = new Token('text', '', 0);
+        label.content = m[0];
+        const close = new Token('link_close', 'a', -1);
+        out.push(text, open, label, close);
+        last = m.index + m[0].length;
+      }
+      if (last === 0) {
+        out.push(child);
+      } else {
+        const rest = new Token('text', '', 0);
+        rest.content = child.content.slice(last);
+        out.push(rest);
+      }
+    }
+    block.children = out;
+  }
+}
+
 function create(
   MarkdownItCtor: typeof MarkdownIt,
   emoji: (
@@ -68,6 +123,7 @@ function create(
   md.disable('image');
   emoji(md, { shortcuts: {} });
   md.core.ruler.after('inline', 'task-lists', taskLists);
+  md.core.ruler.after('linkify', 'references', references);
   md.renderer.rules.link_open = (tokens, idx, options, _env, self) => {
     const href = String(tokens[idx].attrGet('href') ?? '');
     // Only absolute http(s) and mailto links are links. A relative or
@@ -101,6 +157,12 @@ function load(): Promise<Renderer> {
   return renderer;
 }
 
-export async function renderMarkdown(text: string): Promise<string> {
-  return (await load()).render(text);
+// `repoUrl` is the repository the text belongs to; with it, `#12` and
+// `owner/repo#12` link to the item on that forge.
+export async function renderMarkdown(
+  text: string,
+  options: { repoUrl?: string | null } = {},
+): Promise<string> {
+  const repoUrl = options.repoUrl ?? undefined;
+  return (await load()).render(text, { repoUrl });
 }

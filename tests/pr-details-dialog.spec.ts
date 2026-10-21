@@ -191,6 +191,79 @@ test.describe('pull request details dialog', () => {
     });
   }
 
+  // The header names the repository and the item as two links, and #N in
+  // running text links to the item on the same forge. Each forge keeps its
+  // own address scheme.
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`links the repository, the number and #N references to the forge in ${scheme} mode, with no axe violations`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await mockDashboard(page, [
+        makePR({
+          url: 'https://github.com/alrayyes/forge-dashboard/pull/42',
+        }),
+      ]);
+      await mockDetails(
+        page,
+        details({
+          description: body(
+            'Closes #1859, see other/repo#12 and `#7` or abc#5.',
+          ),
+        }),
+      );
+      await page.goto('/pull-requests.html');
+
+      await trigger(page).click();
+      const header = dialog(page).locator('.details-ref');
+      await expect(
+        header.getByRole('link', { name: /^alrayyes\/forge-dashboard/ }),
+      ).toHaveAttribute('href', 'https://github.com/alrayyes/forge-dashboard');
+      await expect(header.getByRole('link', { name: /^#42/ })).toHaveAttribute(
+        'href',
+        'https://github.com/alrayyes/forge-dashboard/pull/42',
+      );
+      const text = dialog(page).locator('.markdown').first();
+      await expect(text.getByRole('link', { name: '#1859' })).toHaveAttribute(
+        'href',
+        'https://github.com/alrayyes/forge-dashboard/issues/1859',
+      );
+      await expect(
+        text.getByRole('link', { name: 'other/repo#12' }),
+      ).toHaveAttribute('href', 'https://github.com/other/repo/issues/12');
+      await expect(text.getByRole('link')).toHaveCount(2);
+      await expect(text.locator('code')).toHaveText('#7');
+      await expect(text).toContainText('abc#5.');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
+  test('builds the same links from a Forgejo address', async ({ page }) => {
+    await mockDashboard(page, [
+      makePR({
+        forge: 'forgejo',
+        repo: 'me/app',
+        url: 'https://git.example.org/me/app/pulls/42',
+      }),
+    ]);
+    await mockDetails(page, details({ description: body('Fixes #7') }));
+    await page.goto('/pull-requests.html');
+
+    await trigger(page).click();
+    await expect(
+      dialog(page)
+        .locator('.details-ref')
+        .getByRole('link', { name: /^me\/app/ }),
+    ).toHaveAttribute('href', 'https://git.example.org/me/app');
+    await expect(
+      dialog(page).getByRole('link', { name: '#7' }),
+    ).toHaveAttribute('href', 'https://git.example.org/me/app/issues/7');
+  });
+
   test('opens with Enter, Escape closes it and focus returns to the trigger', async ({
     page,
   }) => {
