@@ -544,6 +544,32 @@ func (m *Manager) RefreshRepoDebounced(ctx context.Context, userID []byte, forge
 	return entry.agg.RefreshRepoDebounced(ctx, forge, owner, name, fullName, attrs...)
 }
 
+// RecordDelivery delegates to userID's Aggregator — see
+// Aggregator.RecordDelivery. A no-op if userID has no running Aggregator.
+func (m *Manager) RecordDelivery(userID []byte, forge Forge, fullName, event string) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if ok {
+		entry.agg.RecordDelivery(forge, fullName, event)
+	}
+}
+
+// LastDelivery delegates to userID's Aggregator — see
+// Aggregator.LastDelivery. Reports false if userID has no running Aggregator.
+func (m *Manager) LastDelivery(userID []byte, forge Forge, fullName string, class EventClass) (time.Time, bool) {
+	m.mu.Lock()
+	entry, ok := m.users[string(userID)]
+	m.mu.Unlock()
+
+	if !ok {
+		return time.Time{}, false
+	}
+
+	return entry.agg.LastDelivery(forge, fullName, class)
+}
+
 // Subscribe delegates to userID's Aggregator — see Aggregator.Subscribe.
 // Reports false if userID has no running Aggregator.
 func (m *Manager) Subscribe(userID []byte) (<-chan Snapshot, func(), bool) {

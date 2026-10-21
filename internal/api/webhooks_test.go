@@ -159,7 +159,19 @@ func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string,
 // holds webhook refreshes back under the test's control.
 func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, sessionCookie, _, _ = newTestServerWithManager(t, source, after)
+
+	return srv, sessionCookie
+}
+
+// newTestServerWithManager is newTestServerWithDebounceTimer that also hands
+// back the Manager and a func answering the registered user's id, for a test
+// that reads state a webhook delivery left in the Aggregator.
+func newTestServerWithManager(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie, manager *dashboard.Manager, userID func() []byte) {
+	t.Helper()
+	var uid atomic.Pointer[[]byte]
+	buildSources := func(id []byte, c settingspkg.Credentials) []dashboard.Source {
+		uid.Store(&id)
 		if c.GitHubToken == "" {
 			return nil
 		}
@@ -187,7 +199,7 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	manager := dashboard.NewManager(time.Hour)
+	manager = dashboard.NewManager(time.Hour)
 	manager.SetWebhookDebounceTimer(after)
 	t.Cleanup(manager.Stop)
 
@@ -217,7 +229,7 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	return testSrv.URL, sessionCookie
+	return testSrv.URL, sessionCookie, manager, func() []byte { return *uid.Load() }
 }
 
 func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie) (token, secret string) {

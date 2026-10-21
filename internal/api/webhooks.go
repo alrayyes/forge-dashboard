@@ -221,6 +221,9 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 		}
 
 		slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
+		if _, _, fullName, ok := repoFromPayload(body); ok {
+			manager.RecordDelivery(userID, forge, fullName, event)
+		}
 		settleFromDelivery(manager, userID, forge, body)
 		w.WriteHeader(http.StatusNoContent)
 		go triggerRefresh(appCtx, manager, userID, forge, delivery, body)

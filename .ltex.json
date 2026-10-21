@@ -11,6 +11,7 @@
       "brotli",
       "gzip",
       "Cobertura",
+      "dialog",
       "Codecov",
       "Forgejo",
       "Forgejo-hosted",

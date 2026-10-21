@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { renderMarkdown } from "#lib/markdown.js";
 
   // One entry per release in CHANGELOG.md, written to /changelog.json at
   // build time by scripts/changelog-json.ts (#813). This page makes no
@@ -24,73 +25,36 @@
   const shown = $derived(releases.slice(0, visibleCount));
   const hiddenCount = $derived(Math.max(0, releases.length - visibleCount));
 
-  // textContent -> innerHTML escapes & < > but not quotes, and a link's URL
-  // ends up inside a quoted attribute below, so quotes are escaped here too.
-  function escapeHTML(s: string): string {
-    const div = document.createElement("div");
-    div.textContent = s;
-    return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  // The notes are release-please's Markdown (a bold scope, links, lists),
+  // rendered by the same safe renderer as the pull request dialog: raw HTML
+  // stays text, only http(s) and mailto links are links, images are off. A
+  // link labelled with a pull request number or a commit hash gets the mono
+  // class. The leading "## [version](compare-link) (date)" line is dropped:
+  // the version and date are already shown above the notes.
+  let rendered = $state<Record<string, string>>({});
+  // Releases whose renderer failed to load show their notes as plain text.
+  let plain = $state<Record<string, string>>({});
+
+  function withoutHeading(body: string | null): string {
+    return (body || "")
+      .split("\n")
+      .filter((line) => !line.startsWith("## "))
+      .join("\n");
   }
 
-  // The notes are commit messages, so a link in them is untrusted: only an
-  // http(s) URL becomes an anchor, and anything else (javascript:, data:)
-  // stays as the plain text it was written as (#891).
-  //
-  // A link whose label is a pull request number ("#123") or a commit hash is
-  // a reference, not prose: it gets the mono class, so digits line up and a
-  // hash reads as one. Only a link's label is matched, never the prose.
-  const REFERENCE = /^(#\d+|[0-9a-f]{7,40})$/;
-  function inline(text: string): string {
-    return escapeHTML(text).replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      (match, label, url) =>
-        /^https?:\/\//.test(url)
-          ? `<a href="${url}"${REFERENCE.test(label) ? ' class="mono"' : ""} target="_blank" rel="noopener noreferrer">${label}</a>`
-          : match,
-    );
-  }
-
-  // release-please/goreleaser output, not general Markdown: a leading
-  // "## [version](compare-link) (date)" line (dropped — redundant with
-  // the version/date this page already shows above it), then
-  // "### Features"/"### Bug Fixes" sections of "* text ([#N](url))
-  // ([hash](url))" bullets. Narrow to exactly that shape, safe by
-  // construction since every piece of text is HTML-escaped before any
-  // tag goes around it.
-  function renderReleaseNotes(body: string | null): string {
-    const lines = (body || "").split("\n");
-    let html = "";
-    let inList = false;
-
-    function closeList() {
-      if (inList) {
-        html += "</ul>";
-        inList = false;
-      }
+  $effect(() => {
+    for (const r of shown) {
+      if (r.version in rendered || r.version in plain) continue;
+      const text = withoutHeading(r.notes);
+      renderMarkdown(text, { monoReferences: true })
+        .then((html) => {
+          rendered[r.version] = html;
+        })
+        .catch(() => {
+          plain[r.version] = text;
+        });
     }
-
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line || line.indexOf("## ") === 0) continue;
-      if (line.indexOf("### ") === 0) {
-        closeList();
-        html += `<h3>${inline(line.slice(4))}</h3>`;
-        continue;
-      }
-      if (line.indexOf("* ") === 0) {
-        if (!inList) {
-          html += "<ul>";
-          inList = true;
-        }
-        html += `<li>${inline(line.slice(2))}</li>`;
-        continue;
-      }
-      closeList();
-      html += `<p>${inline(line)}</p>`;
-    }
-    closeList();
-    return html;
-  }
+  });
 
   // The changelog's dates are calendar days with no time, read as UTC so a
   // reader west of Greenwich doesn't see the day before.
@@ -201,6 +165,15 @@
     .release-notes h3:first-child {
       margin-top: 0;
     }
+    .release-notes p {
+      margin: 0 0 6px;
+    }
+    .release-notes .plain-notes {
+      white-space: pre-wrap;
+    }
+    .release-notes code {
+      font-size: 12px;
+    }
     .release-notes ul {
       margin: 0 0 4px;
       padding-left: 20px;
@@ -273,8 +246,12 @@
           >
         </div>
         <div class="release-notes">
-          <!-- nosemgrep: svelte-at-html -- renderReleaseNotes escapes every piece of text (quotes included) and only turns an http(s) URL into a link -->
-          {@html renderReleaseNotes(r.notes)}
+          {#if r.version in plain}
+            <p class="plain-notes">{plain[r.version]}</p>
+          {:else}
+            <!-- nosemgrep: svelte-at-html -- renderMarkdown() output only: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text -->
+            {@html rendered[r.version] ?? ""}
+          {/if}
         </div>
       </li>
     {/each}
