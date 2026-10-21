@@ -17,6 +17,7 @@ import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 declare global {
   interface Window {
     __push: (data: unknown) => void;
+    __said: string[];
   }
 }
 
@@ -95,8 +96,9 @@ async function open(
   page: Page,
   first: ReturnType<typeof pr>,
   checks: unknown[],
+  count = 2,
 ) {
-  const state = { checks, requests: 0 };
+  const state = { checks, requests: 0, status: 200 };
   await stubStream(page);
   await page.route('**/api/dashboard', (route: Route) =>
     route.fulfill({
@@ -108,9 +110,13 @@ async function open(
   await page.route('**/api/pull-requests/checks*', (route: Route) => {
     state.requests++;
     return route.fulfill({
-      status: 200,
+      status: state.status,
       contentType: 'application/json',
-      body: JSON.stringify({ checks: state.checks }),
+      body: JSON.stringify(
+        state.status === 200
+          ? { checks: state.checks }
+          : { error: 'forge unreachable' },
+      ),
     });
   });
   await page.goto('/pull-requests.html');
@@ -119,7 +125,9 @@ async function open(
     .first()
     .getByRole('button', { name: 'Open pipeline' })
     .click();
-  await expect(page.locator('#pipeline-dialog .pipeline-check')).toHaveCount(2);
+  await expect(page.locator('#pipeline-dialog .pipeline-check')).toHaveCount(
+    count,
+  );
 
   return state;
 }
@@ -155,6 +163,160 @@ test.describe('pipeline panel updates live', () => {
     await expect(dialog(page).locator('.pipeline-live-status')).toHaveText(
       'Checks updated: test is now Passed.',
     );
+  });
+
+  test('a failed live read says so and the next snapshot reads again', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    state.checks = DONE;
+    state.status = 500;
+    await push(page, PASSED);
+
+    await expect(dialog(page).locator('.pipeline-paused-note')).toHaveText(
+      "Couldn't refresh these checks. They may be out of date.",
+    );
+    await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
+      'Running',
+    );
+    expect(state.requests).toBe(2);
+
+    // The snapshot is the same as the one that failed, and still reads again.
+    state.status = 200;
+    await push(page, PASSED);
+
+    await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
+      'Passed',
+    );
+    await expect(dialog(page).locator('.pipeline-paused-note')).toBeHidden();
+    expect(state.requests).toBe(3);
+  });
+
+  test('a change before the first read has drawn restarts that read', async ({
+    page,
+  }) => {
+    await stubStream(page);
+    await page.route('**/api/dashboard', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot(RUNNING)),
+      }),
+    );
+    let requests = 0;
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/pull-requests/checks*', async (route: Route) => {
+      requests++;
+      // The first read is still out when the snapshot changes; it comes back
+      // with the old checks.
+      const first = requests === 1;
+      if (first) await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ checks: first ? RUN : DONE }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    await expect.poll(() => requests).toBe(1);
+
+    await push(page, PASSED);
+    await expect.poll(() => requests).toBe(2);
+    release();
+
+    const items = dialog(page).locator('.pipeline-check');
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(1)).toContainText('Passed');
+    expect(requests).toBe(2);
+  });
+
+  test('two changes that read the same are each announced', async ({
+    page,
+  }) => {
+    const pair = (state: string) => [
+      { name: 'a', state, url: 'https://example.com/r/a' },
+      { name: 'b', state, url: 'https://example.com/r/b' },
+    ];
+    const state = await open(page, RUNNING, pair('running'));
+    // A screen reader speaks a live region when its text changes, so an
+    // identical line has to come after the region was emptied.
+    await dialog(page).evaluate((node) => {
+      const region = node.querySelector('.pipeline-live-status');
+      const seen: string[] = [];
+      window.__said = seen;
+      new MutationObserver(() => seen.push(region?.textContent ?? '')).observe(
+        region as Element,
+        { childList: true, characterData: true, subtree: true },
+      );
+    });
+    const line = 'Checks updated: 2 checks changed.';
+    const spoken = () =>
+      page.evaluate(() => window.__said.filter((text) => text !== ''));
+
+    state.checks = pair('success');
+    await push(page, PASSED);
+    await expect.poll(spoken).toEqual([line]);
+    state.checks = pair('running');
+    await push(page, RUNNING);
+
+    await expect.poll(spoken).toEqual([line, line]);
+    const all = await page.evaluate(() => window.__said);
+    expect(all.slice(all.indexOf(line), all.lastIndexOf(line))).toContain('');
+  });
+
+  test('a redraw keeps focus on the same check when an earlier one is gone', async ({
+    page,
+  }) => {
+    const three = [
+      { name: 'lint', state: 'running', url: 'https://example.com/r/0' },
+      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      { name: 'test', state: 'running', url: 'https://example.com/r/2' },
+    ];
+    const state = await open(page, RUNNING, three, 3);
+    const link = dialog(page).getByRole('link', { name: 'View run: test' });
+    await link.focus();
+
+    state.checks = [
+      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      { name: 'test', state: 'success', url: 'https://example.com/r/2' },
+    ];
+    await push(page, PASSED);
+
+    await expect(dialog(page).locator('.pipeline-check')).toHaveCount(2);
+    await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
+      'Passed',
+    );
+    await expect(
+      dialog(page).getByRole('link', { name: 'View run: test' }),
+    ).toBeFocused();
+  });
+
+  test('a redraw moves focus to the close button when its check is gone', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    await dialog(page).getByRole('link', { name: 'View run: test' }).focus();
+
+    state.checks = [
+      { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
+    ];
+    await push(
+      page,
+      pr('failure', { passed: 0, running: 0, waiting: 0, failed: 1 }),
+    );
+
+    await expect(dialog(page).locator('.pipeline-check')).toHaveCount(1);
+    await expect(
+      dialog(page).getByRole('button', { name: /close/i }),
+    ).toBeFocused();
   });
 
   test('a snapshot with the same CI makes no request', async ({ page }) => {
@@ -242,7 +404,7 @@ test.describe('pipeline panel updates live', () => {
 });
 
 test.describe('pipeline panel with live updates paused', () => {
-  test('makes no request, says so, and the paused note passes axe', async ({
+  test('makes no request, says so, passes axe, and reads once on resume', async ({
     page,
     request,
     baseURL,
@@ -259,7 +421,7 @@ test.describe('pipeline panel with live updates paused', () => {
       `live-panel-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
       'Live Panel User',
     );
-    const state = { requests: 0 };
+    const state = { requests: 0, checks: RUN as unknown[] };
     await page.route('**/api/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
@@ -272,7 +434,7 @@ test.describe('pipeline panel with live updates paused', () => {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ checks: RUN }),
+        body: JSON.stringify({ checks: state.checks }),
       });
     });
     await page.goto('/pull-requests.html');
@@ -298,5 +460,17 @@ test.describe('pipeline panel with live updates paused', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+
+    // Turning updates back on reads once, for the change that waited. The
+    // button sits behind the modal panel, so the click is dispatched.
+    state.checks = DONE;
+    await page
+      .getByRole('button', { name: 'Pause live updates' })
+      .dispatchEvent('click');
+    await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
+      'Passed',
+    );
+    await expect(dialog(page).locator('.pipeline-paused-note')).toBeHidden();
+    expect(state.requests).toBe(2);
   });
 });

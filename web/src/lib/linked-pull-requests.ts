@@ -106,7 +106,9 @@ export function linkedPills(
   const pill = (pr: LinkedPullRequest) => {
     const link = element(
       linkable ? 'a' : 'span',
-      pr.draft ? 'linked-pr draft' : 'linked-pr',
+      ['linked-pr', pr.draft ? 'draft' : '', linkable ? '' : 'inert']
+        .filter(Boolean)
+        .join(' '),
     );
     if (link instanceof HTMLAnchorElement) link.href = pr.pageUrl;
     link.textContent = linkedPillText(pr, issueRepo);
