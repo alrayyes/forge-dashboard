@@ -191,6 +191,181 @@ test.describe('release history page', () => {
     }
   });
 
+  const oneRelease = (notes: string) => ({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      releases: [
+        {
+          version: '9.9.9',
+          date: '2026-10-05',
+          url: 'https://example.com',
+          notes,
+        },
+      ],
+    }),
+  });
+
+  // The Markdown renderer is a lazy chunk. If it never arrives, the notes
+  // still read as text instead of an empty card.
+  test('shows the notes as plain text when the renderer chunk is aborted', async ({
+    page,
+  }) => {
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill(oneRelease('### Features\n* **web:** a plain note')),
+    );
+    // Chunk names are hashes; the one holding markdown-it is the one that
+    // names its blockquote tokens.
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes('blockquote_open')) {
+        return route.abort();
+      }
+      return route.fulfill({ response });
+    });
+    const aborted = page.waitForEvent('requestfailed', (r) =>
+      r.url().includes('/_app/immutable/'),
+    );
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+    await aborted;
+
+    const notesBox = page.locator('.release-notes');
+    await expect(notesBox).toContainText('* **web:** a plain note');
+    await expect(notesBox.locator('strong')).toHaveCount(0);
+  });
+
+  // The card shows its text from the first paint, so the Markdown swap does
+  // not push the cards below it. Two releases, the renderer chunk held back:
+  // the second card's position is read before and after the swap.
+  test('the notes swap to Markdown without moving the card below', async ({
+    page,
+  }) => {
+    const notes = '### Features\n* **web:** a note';
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          releases: ['9.9.9', '9.9.8'].map((version) => ({
+            version,
+            date: '2026-10-05',
+            url: 'https://example.com',
+            notes,
+          })),
+        }),
+      }),
+    );
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes('blockquote_open')) await held;
+      return route.fulfill({ response });
+    });
+    await page.goto('/changelog.html');
+    await expect(page.locator('.release')).toHaveCount(2);
+    await expect(page.locator('.release-notes').first()).not.toBeEmpty();
+
+    const second = page.locator('.release').nth(1);
+    const before = (await second.boundingBox())?.y ?? 0;
+    expect(before).toBeGreaterThan(0);
+    release();
+    await expect(page.locator('.release-notes strong').first()).toHaveText(
+      'web:',
+    );
+    const after = (await second.boundingBox())?.y ?? 0;
+    expect(Math.abs(after - before)).toBeLessThan(12);
+  });
+
+  // A long URL in plain text has no break point. It wraps inside the card at
+  // phone width instead of pushing the page sideways.
+  test('a long unbroken URL in the plain notes wraps at phone width', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const url = `https://example.com/${'a'.repeat(70)}`;
+    await page.route('**/changelog.json', (route) =>
+      route.fulfill(oneRelease(`* see ${url}`)),
+    );
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes('blockquote_open')) {
+        return route.abort();
+      }
+      return route.fulfill({ response });
+    });
+    await page.goto('/changelog.html');
+    await waitForReleasesToSettle(page);
+    await expect(page.locator('.plain-notes')).toContainText(url);
+
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`ordered lists, code blocks and quotes are styled and pass axe in ${scheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.route('**/changelog.json', (route) =>
+        route.fulfill(
+          oneRelease(
+            [
+              '1. first',
+              '2. second',
+              '',
+              '```',
+              `const wide = '${'x'.repeat(200)}';`,
+              '```',
+              '',
+              '> quoted note',
+            ].join('\n'),
+          ),
+        ),
+      );
+      await page.goto('/changelog.html');
+      await waitForReleasesToSettle(page);
+
+      const notesBox = page.locator('.release-notes');
+      await expect(notesBox.locator('ol li')).toHaveCount(2);
+      const spacing = async (sel: string, prop: string) =>
+        page
+          .locator(sel)
+          .first()
+          .evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+      expect(await spacing('.release-notes ol', 'padding-left')).toBe('20px');
+      expect(await spacing('.release-notes pre', 'margin-bottom')).toBe('8px');
+      expect(await spacing('.release-notes blockquote', 'margin-bottom')).toBe(
+        '8px',
+      );
+      // Colours come from tokens, so they differ from the card's own and
+      // follow the scheme.
+      expect(await spacing('.release-notes pre', 'background-color')).not.toBe(
+        await spacing('.release', 'background-color'),
+      );
+      expect(await spacing('.release-notes pre', 'border-top-width')).toBe(
+        '1px',
+      );
+      expect(
+        await spacing('.release-notes blockquote', 'border-left-width'),
+      ).toBe('3px');
+      expect(await spacing('.release-notes blockquote', 'color')).not.toBe(
+        await spacing('.release-notes li', 'color'),
+      );
+      // A scrolling code block takes keyboard focus, so it can be read.
+      await expect(notesBox.locator('pre')).toHaveAttribute('tabindex', '0');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
   test('a missing changelog file says so plainly and falls back to nothing', async ({
     page,
   }) => {

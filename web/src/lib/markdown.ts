@@ -132,6 +132,14 @@ function create(
   emoji(md, { shortcuts: {} });
   md.core.ruler.after('inline', 'task-lists', taskLists);
   md.core.ruler.after('linkify', 'references', references);
+  // A code block can scroll sideways, and a keyboard can only scroll what
+  // takes focus.
+  for (const rule of ['fence', 'code_block'] as const) {
+    const base = md.renderer.rules[rule];
+    if (!base) continue;
+    md.renderer.rules[rule] = (...args) =>
+      base(...args).replace('<pre', '<pre tabindex="0"');
+  }
   md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
     const href = String(tokens[idx].attrGet('href') ?? '');
     // Only absolute http(s) and mailto links are links. A relative or
