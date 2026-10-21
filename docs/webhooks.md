@@ -24,7 +24,7 @@ signature-verified delivery for that repo, the same passive signal this
 whole page is otherwise about. For why a forge refuses requests,
 see [Rate limits](rate-limits.md).
 
-The page remembers its forge buttons, repo search, status select and sort
+The page remembers its forge buttons, repo search, status select, and sort
 the way the pull request and issue pages remember theirs: they are still set
 when you come back, and on another browser once you sign in. The page you were
 on and the page size are not remembered. A "Clear filters" button is on
@@ -33,7 +33,7 @@ its default, and puts them all back, including after a saved repo search that
 matches nothing.
 
 On a phone the table turns into cards and its header is hidden. A "Sort by"
-select above the cards takes over, with the same choices as the column
+select over the cards takes over, with the same choices as the column
 headers: repo, forge or webhook, in either direction. It is the same saved
 sort, so a choice made on a phone shows in the column headers on a wide screen.
 
@@ -69,7 +69,7 @@ on the installation's page, or GitHub keeps the old ones.
 
 A row is locked, with the missing permission named, only when GitHub refuses
 the listing outright ("Resource not accessible by integration", or the repo
-isn't in the installation). A server error, a rate limit or a bad credential
+isn't in the installation). A server error, a rate limit, or a bad credential
 says nothing about the permission, so it leaves the row as it was.
 
 On Forgejo the button needs admin on the repo. The dashboard reads that from
@@ -200,7 +200,7 @@ connection is replaced (you save new credentials) or removed, the pending
 refresh is dropped, and the next scheduled refresh picks the change up.
 
 A `pull_request` delivery whose action is `closed` also takes that pull
-request off the board before the refresh runs, merged or not. GitHub can go
+request off the board before the refresh runs (merged or not). GitHub can go
 on listing a pull request it just merged as open for a few seconds, and a
 refresh that fails lists nothing, so the delivery itself is trusted. The
 pull request stays off until a refresh stops listing it or two minutes
@@ -262,7 +262,7 @@ can't administer is tried once and left until the next restart.
   and the delivery ID — `webhook accepted`, `webhook signature invalid`,
   or `webhook token unknown`, followed by `webhook refresh dispatched`
   once the triggered refresh is queued, which is up to 5 seconds before it
-  runs (see above). No `LOG_LEVEL` change is
+  runs (see "How a delivery is verified"). No `LOG_LEVEL` change is
   needed to see them; each logs at its natural level (`INFO` for a
   normal delivery, `WARN` for a rejected one) regardless of what
   `LOG_LEVEL` is set to. A refresh that fails logs `scoped refresh failed`
