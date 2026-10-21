@@ -200,6 +200,27 @@ func TestAggregator_NextDelay_DoesNotStretchOnASnapshotRestoredAtStart(t *testin
 	assert.Equal(t, 20*time.Minute, restarted.NextDelay(20*time.Minute))
 }
 
+func TestAggregator_NextDelay_DoesNotStretchWhileARepoIsInFailedRepos(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{
+		Health:      dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:       []dashboard.Repo{repoWithHook("o/a", true), repoWithHook("o/b", true)},
+		FailedRepos: []dashboard.FailedRepo{{FullName: "o/b", PullRequests: true}},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+
+	src.mu.Lock()
+	src.result.FailedRepos = nil
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+}
+
 func TestAggregator_NextDelay_OnlyTheFailedForgeBlocksCoverageAndItRecovers(t *testing.T) {
 	t.Parallel()
 
