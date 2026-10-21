@@ -142,6 +142,7 @@ const singleUserSpecs = [
   '**/issue-dialog.spec.ts',
   '**/phone-card-action-row.spec.ts',
   '**/profile-links.spec.ts',
+  '**/pr-auto-update.spec.ts',
 ];
 
 export default defineConfig({
