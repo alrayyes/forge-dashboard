@@ -10,6 +10,7 @@ import {
 import {
   ageChoices,
   ciBucket,
+  closingChoiceLabel,
   type FilterableItem,
   failingFilters,
   matchesClosing,
@@ -337,6 +338,15 @@ describe('the title box and ticket numbers', () => {
 // The closing-link filter: pull requests that close an issue, issues that a
 // pull request closes. Pure, so these run without a browser; the pages' wiring
 // is in closing-link-filter.spec.ts.
+describe('closingChoiceLabel', () => {
+  test('words each choice as its button reads, per page', () => {
+    expect(closingChoiceLabel(true, 'yes')).toBe('Closes an issue');
+    expect(closingChoiceLabel(true, 'no')).toBe('Closes no issue');
+    expect(closingChoiceLabel(false, 'yes')).toBe('Has a closing pull request');
+    expect(closingChoiceLabel(false, 'no')).toBe('No closing pull request');
+  });
+});
+
 describe('matchesClosing', () => {
   const link = { repo: 'a/b', number: 1 };
   const closes = choiceItem({ closesIssues: [link] });

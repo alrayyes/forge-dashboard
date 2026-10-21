@@ -165,7 +165,10 @@ no issue**. The first keeps the pull requests that will close at least one
 issue when they merge (the ones with a "Closes" pill), the second the rest.
 Like Auto-merge it is saved with your other filters, comes back after a reload,
 is emptied by **Clear filters**, and offers a choice only when something in the
-list is that way. On a phone it is in the Filters sheet with 44px choices.
+list is that way. On a phone it is in the Filters sheet with 44px choices. The
+pick is shared with the Bots and Releases pages, which filter by it too, so a
+pick made here can leave those lists empty; the control shows it there, and Any
+or **Clear filters** brings the rows back.
 
 ## Bots
 

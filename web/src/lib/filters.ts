@@ -151,6 +151,15 @@ export function matchesClosing(
   return value === 'yes' ? linked > 0 : linked === 0;
 }
 
+// How each closing-link choice reads, on its button and in the active-filter
+// chip, so the two cannot drift.
+export function closingChoiceLabel(isPR: boolean, value: 'yes' | 'no'): string {
+  if (isPR) return value === 'yes' ? 'Closes an issue' : 'Closes no issue';
+  return value === 'yes'
+    ? 'Has a closing pull request'
+    : 'No closing pull request';
+}
+
 // The pill that's active for a state: a quick filter wins, then a forge,
 // else "all". Exactly one pill is ever active.
 export function activePill(state: SharedFilterState): string {

@@ -10,7 +10,7 @@ import { test } from './server-fixture';
 
 const LINK = { repo: 'acme/app', number: 1, url: 'https://example.com/i/1' };
 
-function pr(number: number, title: string, closes: boolean) {
+function pr(number: number, title: string, closes: boolean, kind = 'regular') {
   return {
     forge: 'github',
     repo: 'acme/app',
@@ -24,6 +24,7 @@ function pr(number: number, title: string, closes: boolean) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date(Date.now() - (100 - number) * 1000).toISOString(),
     mergeStatus: 'mergeable',
+    kind,
     ...(closes
       ? { closesIssues: [{ ...LINK, pageUrl: '/issues.html?issue=x' }] }
       : {}),
@@ -103,6 +104,8 @@ const issueTitles = (page: Page) =>
   page.locator('#issue-rows > .row .title-text');
 
 async function pick(page: Page, value: 'any' | 'yes' | 'no') {
+  // The buttons are in the markup before the script wires them; rows mean it ran.
+  await expect(page.locator('.row').first()).toBeVisible();
   const saved = page.waitForResponse(
     (r) =>
       r.url().includes('/api/settings/filter-state') &&
@@ -163,6 +166,29 @@ test.describe('Pull requests: closes an issue', () => {
     await page.reload();
     await expect(choice(page, 'no')).toBeVisible();
     await expect(choice(page, 'yes')).toBeHidden();
+    await expect(bar(page)).toBeVisible();
+
+    prs = [];
+    await page.reload();
+    await expect(bar(page)).toBeHidden();
+  });
+
+  test('a pick made here still shows, and clears, on the Bots page', async ({
+    page,
+  }) => {
+    prs = [
+      pr(1, 'Fixes a bug', true),
+      pr(2, 'Bump a from 1 to 2', false, 'dependency'),
+    ];
+    await open(page, '/pull-requests.html');
+    await pick(page, 'yes');
+
+    await page.goto('/bots.html');
+    await expect(choice(page, 'yes')).toHaveAttribute('aria-pressed', 'true');
+    await expect(prTitles(page)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await expect(choice(page, 'any')).toHaveAttribute('aria-pressed', 'true');
+    await expect(prTitles(page)).toHaveCount(1);
   });
 
   test('on a 360px phone it is in the Filters sheet with 44px choices', async ({
@@ -187,6 +213,9 @@ test.describe('Pull requests: closes an issue', () => {
     await sheet.locator('[data-link="no"]').click();
     await page.keyboard.press('Escape');
     await expect(prTitles(page)).toHaveCount(1);
+    await expect(
+      page.getByRole('button', { name: 'Remove filter: Closes no issue' }),
+    ).toBeVisible();
   });
 });
 
@@ -241,6 +270,11 @@ test.describe('Issues: has a closing pull request', () => {
     await sheet.locator('[data-link="yes"]').click();
     await page.keyboard.press('Escape');
     await expect(issueTitles(page)).toHaveCount(1);
+    await expect(
+      page.getByRole('button', {
+        name: 'Remove filter: Has a closing pull request',
+      }),
+    ).toBeVisible();
   });
 });
 

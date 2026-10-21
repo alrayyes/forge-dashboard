@@ -6160,7 +6160,7 @@
       // cleared, since the pools are built from what is left.
       if (pullsView)
         Filters.offerAutoMerge(
-          document.querySelectorAll<HTMLElement>(".am-group:not(.link-group)"),
+          document.querySelectorAll<HTMLElement>(".am-group"),
           sharedPoolExcluding("", "applyExceptAutoMerge"),
           sharedState.pr.autoMerge ?? "",
         );
@@ -7101,7 +7101,10 @@
       const closing = closingGroup()[closingKey()];
       if (closing)
         chips.push({
-          label: `${Filters.FILTER_NAMES[closingKey()]} ${closing}`,
+          label: Filters.closingChoiceLabel(
+            pullsView,
+            closing === "yes" ? "yes" : "no",
+          ),
           clear: () =>
             document
               .querySelector<HTMLButtonElement>('.link-group [data-link="any"]')
@@ -8644,6 +8647,28 @@
   }
 </script>
 
+<!-- The closing-link segment, once in the filter bar and once in the phone
+     Filters sheet, so the two cannot drift apart. -->
+{#snippet closingSegment(sheet: boolean)}
+  <div
+    class="link-group"
+    class:sheet-only={sheet}
+    role="group"
+    aria-label={view === "issues" ? "Closing pull request" : "Closing issue"}
+  >
+    <span class="am-label" aria-hidden="true"
+      >{view === "issues" ? "Closing PR" : "Closing issue"}</span
+    >
+    <button type="button" data-link="any" aria-pressed="true">Any</button>
+    <button type="button" data-link="yes" aria-pressed="false"
+      >{Filters.closingChoiceLabel(pullsView, "yes")}</button
+    >
+    <button type="button" data-link="no" aria-pressed="false"
+      >{Filters.closingChoiceLabel(pullsView, "no")}</button
+    >
+  </div>
+{/snippet}
+
 <svelte:head>
   <title
     >{view === "issues"
@@ -8849,26 +8874,7 @@
         >
       </div>
     {/if}
-    <div
-      class="am-group link-group"
-      role="group"
-      aria-label={view === "issues" ? "Closing pull request" : "Closing issue"}
-    >
-      <span class="am-label" aria-hidden="true"
-        >{view === "issues" ? "Closing PR" : "Closing issue"}</span
-      >
-      <button type="button" data-link="any" aria-pressed="true">Any</button>
-      <button type="button" data-link="yes" aria-pressed="false"
-        >{view === "issues"
-          ? "Has a closing pull request"
-          : "Closes an issue"}</button
-      >
-      <button type="button" data-link="no" aria-pressed="false"
-        >{view === "issues"
-          ? "No closing pull request"
-          : "Closes no issue"}</button
-      >
-    </div>
+    {@render closingSegment(false)}
     <!-- Phones (#828): this row stays when the rest of the controls fold
          into the Filters sheet. Everywhere else it just flows. -->
     <div class="filter-bar-top">
@@ -8953,28 +8959,7 @@
           ></span></button
         >
       {/if}
-      <div
-        class="am-group link-group sheet-only"
-        role="group"
-        aria-label={view === "issues"
-          ? "Closing pull request"
-          : "Closing issue"}
-      >
-        <span class="am-label" aria-hidden="true"
-          >{view === "issues" ? "Closing PR" : "Closing issue"}</span
-        >
-        <button type="button" data-link="any" aria-pressed="true">Any</button>
-        <button type="button" data-link="yes" aria-pressed="false"
-          >{view === "issues"
-            ? "Has a closing pull request"
-            : "Closes an issue"}</button
-        >
-        <button type="button" data-link="no" aria-pressed="false"
-          >{view === "issues"
-            ? "No closing pull request"
-            : "Closes no issue"}</button
-        >
-      </div>
+      {@render closingSegment(true)}
       <select
         class="group-select"
         id="pr-sort-select"
