@@ -1,19 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1229: every "something is happening, hold on" state on a pull request
 // row is one chip in the row's action area: an icon, a short label, a
 // lighter line naming the actor or the reason, and a button only where one
 // exists. These journeys play the server by mocking snapshots; the wording
 // itself is checked without a browser in web/src/lib/wait-chip.test.ts.
-
-// Every endpoint here is mocked, including the queued-action delete, and
-// nothing is saved per user, so the whole file starts from the shared session
-// (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 type MockPR = Record<string, unknown>;
 

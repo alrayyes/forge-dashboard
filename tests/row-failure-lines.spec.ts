@@ -1,8 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #752: a failure line on a row says one plain sentence, never the raw
 // error string; it can be dismissed and goes away by itself when it no
@@ -98,10 +97,6 @@ async function fail(page: Page) {
 }
 
 test.describe('row failure lines (#752)', () => {
-  // Every action is mocked and nothing is saved per user, so it starts from the
-  // shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
