@@ -202,7 +202,7 @@ server log. The tickets' criteria win over those two details.
   and red-outline destructive buttons, with every existing setting kept and
   none added.
 
-  Build the five groups in this order: Display, Sharing, Connections,
+  Build the groups in this order: Display, Connections,
   Behaviour, Integrations and security. Mark the current group by more than
   colour, as the accent bar and bold label do here. Put the chip beside each
   ignored pattern, and say "hides no issues" for zero, not "hides 0 issues".

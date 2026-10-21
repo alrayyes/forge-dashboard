@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // A person's avatar and name are one link to their page on the forge, on the
 // rows and in a dialog's comments. The server builds the address; the page
@@ -120,9 +119,6 @@ const author = (page: Page, title: string) =>
   page.locator('#pr-rows > .row', { hasText: title }).locator('.author');
 
 test.describe('Profile links (#1991)', () => {
-  // Writes nothing per user, so it starts from the shared session (#1379).
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('the author on a row links to their page on the forge, in a new tab', async ({
     page,
   }) => {
@@ -362,8 +358,6 @@ async function openDialog(page: Page) {
 }
 
 test.describe('Profile links in the pull request dialog (#1991)', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   test('a commenter is one link to their page', async ({ page }) => {
     await openDialog(page);
     const link = page

@@ -1,13 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // The Main branches pipeline panel reads its checks again only when the row's
 // own CI changed in the page's poll: no request while nothing changes, none for
 // a finished pipeline.
-
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 type Counts = {
   passed: number;

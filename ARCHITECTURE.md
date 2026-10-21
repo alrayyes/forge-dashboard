@@ -35,9 +35,9 @@ One Go binary serves all of it. `web/` builds to static files that
 - **The API** is `api/openapi.yaml`, written first and reviewed as the design.
   Go tests validate the handlers against it, and the client libraries are generated
   from it.
-- **Auth, settings and sharing** (`internal/auth`, `internal/settings`,
-  `internal/sharing`) keep users, passkeys, encrypted credentials and who may
-  see whose board in SQLite. A credential never reaches the browser.
+- **Auth and settings** (`internal/auth`, `internal/settings`) keep users,
+  passkeys and encrypted credentials in SQLite. A credential never reaches the
+  browser.
 
 ## Where logic lives
 
@@ -71,8 +71,8 @@ would need the same answer. The reasons, and what it costs, are in
   is — a personal API token (Settings → API tokens),
   `Authorization: Bearer <token>` — not a separate credential system. Its
   tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
-  exactly (including its own `?owner=`/`owner` semantics for a dashboard
-  someone else has shared with you), and `get_main_branches`, which mirrors
+  exactly (it takes no arguments, and the old `owner` argument is
+  refused), and `get_main_branches`, which mirrors
   `GET /api/main-branches` (default-branch CI status, no forge budget), and
   `get_pull_request_details`, which mirrors `GET /api/pull-requests/details`
   (a pull request's description, comments and reactions). That one reads the
@@ -190,8 +190,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
 It covers passkey registration and login gating the
 dashboard, per-user GitHub/Forgejo tokens (every signed-in user
 configures their own forges from the Settings page and sees only their
-own dashboard by default), and dashboard sharing (grant another registered user
-read-only access to your own dashboard, from Settings).
+own dashboard).
 
 ## Where to look next
 

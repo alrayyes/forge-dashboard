@@ -158,42 +158,6 @@ func TestDashboard_IssueSettings_DoNotChangeAnotherUsersBoard(t *testing.T) {
 	assert.Equal(t, []int{1, 2, 3, 4, 5}, issueNumbers(fetchDashboard(t, srv.URL, owner)))
 }
 
-// On a shared dashboard the data is the owner's and the settings are the
-// viewer's: what a viewer hides is their own choice, and the owner's choices
-// don't reach into what someone else sees.
-func TestDashboard_SharedDashboard_AppliesTheViewersSettingsNotTheOwners(t *testing.T) {
-	t.Parallel()
-	srv, owner := issueSettingsServer(t)
-	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	viewer, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
-	share := doJSON(t, http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, "", owner)
-	_ = share.Body.Close()
-	require.Equal(t, http.StatusNoContent, share.StatusCode)
-
-	t.Run("the owner's settings are not applied to the viewer", func(t *testing.T) {
-		status, _ := putSettings(t, srv.URL, `{"githubToken":"sekrit-token","ignoredTitles":["bug"]}`, owner)
-		require.Equal(t, http.StatusOK, status)
-
-		board := fetchDashboardWith(t, srv.URL, viewer, "?owner="+testUser)
-
-		assert.Equal(t, []int{1, 2, 3, 4, 5}, issueNumbers(board))
-		assert.InDelta(t, 0, board["settingsHiddenIssueCount"], 0)
-		assert.Equal(t, []int{1, 3, 4}, issueNumbers(fetchDashboard(t, srv.URL, owner)), "the owner's own board still follows them")
-	})
-
-	t.Run("the viewer's settings are applied, counts included", func(t *testing.T) {
-		status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["^Weekly"]}`, viewer)
-		require.Equal(t, http.StatusOK, status)
-
-		board := fetchDashboardWith(t, srv.URL, viewer, "?owner="+testUser)
-
-		assert.Equal(t, []int{2, 4, 5}, issueNumbers(board))
-		assert.InDelta(t, 2, board["settingsHiddenIssueCount"], 0)
-		assert.InDelta(t, 3, board["openIssueCount"], 0)
-		assert.InDelta(t, 3, navIssueTotal(board), 0)
-	})
-}
-
 func TestDashboardStream_AppliesTheIssueSettings(t *testing.T) {
 	t.Parallel()
 	srv, cookie := issueSettingsServer(t)
@@ -330,21 +294,4 @@ func TestDashboard_CarriesTheIssueSettingFlags(t *testing.T) {
 		assert.Equal(t, true, board["hideDependencyDashboard"])
 		assert.Equal(t, false, board["ignoredTitlesSet"])
 	})
-}
-
-func TestDashboard_SharedDashboard_FlagsFollowTheViewer(t *testing.T) {
-	t.Parallel()
-	srv, owner := issueSettingsServer(t)
-	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	viewer, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
-	share := doJSON(t, http.MethodPut, srv.URL+"/api/sharing/"+testOtherUser, "", owner)
-	_ = share.Body.Close()
-	require.Equal(t, http.StatusNoContent, share.StatusCode)
-	status, _ := putSettings(t, srv.URL, `{"githubToken":"sekrit-token","hideDependencyDashboard":true,"ignoredTitles":["x"]}`, owner)
-	require.Equal(t, http.StatusOK, status)
-
-	board := fetchDashboardWith(t, srv.URL, viewer, "?owner="+testUser)
-
-	assert.Equal(t, false, board["hideDependencyDashboard"], "the owner's choice is not the viewer's")
-	assert.Equal(t, false, board["ignoredTitlesSet"])
 }

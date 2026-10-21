@@ -73,9 +73,7 @@ func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBr
 	return buildMainBranchesResponse(snap.GeneratedAt, board.mainBranchRows(snap.MainBranches))
 }
 
-// handleMainBranches serves resolveMainBranchesFor over HTTP. Only the
-// signed-in user's own dashboard, like the stream and the refresh: sharing is
-// for the dashboard board.
+// handleMainBranches serves resolveMainBranchesFor over HTTP.
 func handleMainBranches(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := auth.UserFromContext(r.Context())

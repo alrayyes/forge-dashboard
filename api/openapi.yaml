@@ -68,8 +68,6 @@ tags:
     description: The signed-in user's own GitHub/Forgejo credentials.
   - name: admin
     description: Managing the user base itself. Every endpoint here requires the signed-in user to be the designated admin.
-  - name: sharing
-    description: Granting other registered users read-only access to the signed-in user's own dashboard.
   - name: webhooks
     description: |
       Where GitHub/Forgejo push repository events, for an immediate refresh
@@ -796,7 +794,7 @@ paths:
         Stops the token authenticating immediately. Idempotent — deleting
         an id that's already gone (or never belonged to the signed-in
         user) still answers 204, the same as any other delete-by-id
-        endpoint here (compare DELETE /api/sharing/{username}), so a
+        endpoint here (compare DELETE /api/admin/users/{username}), so a
         double-click or a retried request isn't an error.
       tags: [tokens]
       security: [{ bearerAuth: [] }]
@@ -2636,23 +2634,13 @@ paths:
         blocks on a live call to either forge, so it answers instantly even
         when a forge is slow or unreachable.
 
-        Omitting `owner` returns the signed-in user's own dashboard. Passing
-        it returns that user's dashboard instead — allowed only when they've
-        shared it with the caller (or the caller is viewing their own
-        username), and refused with a 403 otherwise.
+        Always the signed-in user's own dashboard.
 
-        Draft pull requests are left out unless `includeDrafts=true`. With
-        `owner`, the same rule applies to that user's dashboard, and
-        `hiddenDrafts` counts only the drafts in repos that user hasn't
+        Draft pull requests are left out unless `includeDrafts=true`, and
+        `hiddenDrafts` counts only the drafts in repos the user hasn't
         ignored, the same repos whose other pull requests show.
       tags: [dashboard]
       parameters:
-        - name: owner
-          in: query
-          required: false
-          schema:
-            type: string
-          description: A username that has shared their dashboard with the caller. Defaults to the caller's own.
         - $ref: "#/components/parameters/QueryIncludeDrafts"
         - $ref: "#/components/parameters/QueryIncludeHidden"
         - $ref: "#/components/parameters/HeaderBackgroundRead"
@@ -2670,18 +2658,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "403":
-          description: owner hasn't shared their dashboard with the signed-in user.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "404":
-          description: No user is registered under owner.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 
   /api/dashboard/stream:
     get:
@@ -2695,8 +2671,6 @@ paths:
         one, which is what turns that into a live update instead of
         something only the next scheduled refresh picks up.
 
-        Doesn't support `owner` the way GET /api/dashboard does — only
-        ever the signed-in user's own dashboard, never a shared one.
         The frontend's own 30-second poll against GET /api/dashboard
         keeps running unconditionally, connected or not — a browser or
         proxy that can't hold an SSE connection open just never
@@ -2807,12 +2781,6 @@ paths:
         briefly unreachable, instead of waiting for the next scheduled
         background refresh.
 
-        Doesn't support `owner` the way GET /api/dashboard does — only
-        ever the signed-in user's own dashboard, never a shared one, so
-        a user with shared access to someone else's dashboard can never
-        spend that owner's own forge rate-limit budget on their own
-        schedule.
-
         The server holds a five-second cooldown per user, so this can't
         be used to hammer a forge's API budget. A call inside that
         window does not fetch: it answers 200 with the current snapshot
@@ -2881,7 +2849,7 @@ paths:
         `stale` with `staleSince`, the same carry-over `forges[].staleSince`
         on GET /api/dashboard reports. A forge whose rate-limit budget is
         spent is skipped until it resets and its rows are kept the same way.
-        Only the signed-in user's own repositories, so there is no `owner`.
+        Only the signed-in user's own repositories.
 
         A repository with no default branch yet (empty) or no pipeline has
         status `none`. Unauthenticated GitHub access (a username with no
@@ -3005,7 +2973,8 @@ paths:
         `ci_poll` (one repository, waiting on a running check),
         `auto_merge_poll` (one repository, waiting on an armed auto-merge),
         `details` (a dialog or check list opened), `hook_maintenance`
-        (checking, adding or upgrading webhooks), `user_action` (a button
+        (checking, adding or upgrading webhooks), `advisories` (reading a
+        repository's open Dependabot alerts), `user_action` (a button
         pressed, a queued action, or something the dashboard does for you such
         as auto-merge) and `unknown` (a request nobody tagged, which is a bug
         to report). A request that names no repository, such as listing an
@@ -3030,82 +2999,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ForgeApiStats"
-        "401":
-          description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /api/sharing:
-    get:
-      operationId: getSharing
-      summary: The signed-in user's sharing relationships
-      description: |
-        Both directions at once: who the signed-in user has shared their
-        own dashboard with, and whose dashboards have been shared with
-        them.
-      tags: [sharing]
-      security: [{ bearerAuth: [] }]
-      responses:
-        "200":
-          description: The current sharing relationships.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SharingResponse"
-        "401":
-          description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /api/sharing/{username}:
-    put:
-      operationId: shareWith
-      summary: Share the signed-in user's dashboard with username
-      description: |
-        Idempotent — sharing with a username already on the list changes
-        nothing. username needs no tokens of their own configured to view
-        the shared dashboard; they see the owner's aggregated data exactly
-        as the owner sees it.
-      tags: [sharing]
-      security: [{ bearerAuth: [] }]
-      parameters:
-        - $ref: "#/components/parameters/PathUsername"
-      responses:
-        "204":
-          description: Shared.
-        "400":
-          description: Can't share your own dashboard with yourself.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "401":
-          description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "404":
-          description: No user is registered under that username.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    delete:
-      operationId: unshareWith
-      summary: Stop sharing the signed-in user's dashboard with username
-      description: Idempotent — removing a username that was never shared with changes nothing.
-      tags: [sharing]
-      security: [{ bearerAuth: [] }]
-      parameters:
-        - $ref: "#/components/parameters/PathUsername"
-      responses:
-        "204":
-          description: No longer shared.
         "401":
           description: No valid session cookie was presented.
           content:
@@ -3620,30 +3513,6 @@ components:
         expiresAt:
           type: string
           format: date-time
-
-    SharedUser:
-      type: object
-      required: [username, displayName]
-      properties:
-        username:
-          type: string
-        displayName:
-          type: string
-
-    SharingResponse:
-      type: object
-      required: [sharedWith, sharedWithMe]
-      properties:
-        sharedWith:
-          type: array
-          description: Users the signed-in user has shared their own dashboard with.
-          items:
-            $ref: "#/components/schemas/SharedUser"
-        sharedWithMe:
-          type: array
-          description: Users who have shared their dashboard with the signed-in user.
-          items:
-            $ref: "#/components/schemas/SharedUser"
 
     SettingsResponse:
       type: object
@@ -4747,8 +4616,8 @@ components:
           description: >-
             Why the requests were made. Open-ended, so a new kind is not a
             breaking change; today `full`, `scoped_webhook`, `ci_poll`,
-            `auto_merge_poll`, `details`, `hook_maintenance`, `user_action`
-            and `unknown`.
+            `auto_merge_poll`, `details`, `hook_maintenance`, `advisories`,
+            `user_action` and `unknown`.
         repo:
           type: string
           maxLength: 200
@@ -5824,8 +5693,7 @@ components:
             The signed-in user's queued actions, waiting and finished in the
             last 24 hours (GET /api/queued-actions), so a client lists them in
             its Activity panel and learns an outcome from the stream it
-            already reads. Always present, empty when there are none, and
-            always empty on another user's shared dashboard.
+            already reads. Always present, empty when there are none.
         autoMerged:
           type: array
           items:
@@ -6033,6 +5901,43 @@ components:
           type: [string, "null"]
           format: date-time
           description: When this row was last fetched. Null unless `stale`.
+        advisories:
+          $ref: "#/components/schemas/Advisories"
+
+    Advisories:
+      type: object
+      required: [state, count]
+      description: |
+        The open dependency advisories on a repository's default branch, read
+        from the forge's own source (GitHub's Dependabot alerts). Absent from
+        the row when no source reads them for its forge. A source that can't
+        answer, such as alerts switched off or a token without the
+        `security_events` scope, gives `state` "unknown", never a count of
+        zero.
+      properties:
+        state:
+          $ref: "#/components/schemas/AdvisoryState"
+        count:
+          type: integer
+          minimum: 0
+          description: How many advisories are open. Only meaningful when `state` is "known".
+        highest:
+          $ref: "#/components/schemas/AdvisorySeverity"
+        url:
+          type: string
+          description: Where to see the advisories on the forge. Absent when there are none or the state is unknown.
+
+    AdvisoryState:
+      type: string
+      enum: [known, unknown]
+      description: |
+        "known" is an answer the forge gave. "unknown" is no answer, and must
+        never be shown as zero.
+
+    AdvisorySeverity:
+      type: string
+      enum: [low, medium, high, critical]
+      description: The worst severity among the open advisories. Absent when there are none.
 
     MainBranchRelease:
       type: object

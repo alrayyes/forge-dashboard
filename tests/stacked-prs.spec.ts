@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #861: stacked pull requests. Each row in a stack carries a chip with its
 // place and what it waits for, the members sit together in position order,
@@ -97,7 +97,7 @@ async function open(page: Page, size = { width: 1280, height: 900 }) {
       }),
     }),
   );
-  await page.reload();
+  await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows .row')).toHaveCount(PRS.length);
 }
 
@@ -105,10 +105,6 @@ const rowFor = (page: Page, n: number) =>
   page.locator(`#pr-rows .row[data-pr-key$="#${n}"]`);
 
 test.describe('stacked pull requests (#861)', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('a stacked row has a chip with its place and what it waits for; others have none', async ({
     page,
   }) => {

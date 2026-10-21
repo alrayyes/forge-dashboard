@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // On a phone the Webhooks table turns into cards and its header is clipped to
 // 1px. The sort buttons in it must not be tab stops there, and a visible
@@ -42,10 +42,6 @@ async function open(page: Page, width: number) {
 }
 
 test.describe('webhooks sort on a phone', () => {
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('Tab never lands on a control that cannot be seen at 390px', async ({
     page,
   }) => {

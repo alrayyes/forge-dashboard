@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 
 // #695: a "Review requested from me" quick filter. The server says which
 // pull requests ask the signed-in user (`reviewRequestedFromMe`, matched
@@ -57,7 +57,7 @@ async function open(page: Page) {
       }),
     }),
   );
-  await page.reload();
+  await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
 }
 
@@ -69,7 +69,6 @@ const titles = (page: Page) => page.locator('#pr-rows > .row .title-text');
 
 test.describe('the Review requested from me pill (#695)', () => {
   test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
     await open(page);
   });
 

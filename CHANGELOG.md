@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.0](https://github.com/alrayyes/forge-dashboard/compare/v0.257.0...v1.0.0) (2026-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** the three sharing operations and the owner parameter are gone from api/openapi.yaml.
+
+### Features
+
+* **api:** remove dashboard sharing and the owner parameter ([#2217](https://github.com/alrayyes/forge-dashboard/issues/2217)) ([16e439f](https://github.com/alrayyes/forge-dashboard/commit/16e439f6f33afa1f3a413471ab74815c953556fd))
+
+## [0.257.0](https://github.com/alrayyes/forge-dashboard/compare/v0.256.0...v0.257.0) (2026-10-21)
+
+
+### Features
+
+* **api:** show GitHub dependency advisories on default-branch rows ([#2226](https://github.com/alrayyes/forge-dashboard/issues/2226)) ([a00f21b](https://github.com/alrayyes/forge-dashboard/commit/a00f21bfb932548a02ca1dfe02e3b8be32f0b989))
+
 ## [0.256.0](https://github.com/alrayyes/forge-dashboard/compare/v0.255.0...v0.256.0) (2026-10-21)
 
 
