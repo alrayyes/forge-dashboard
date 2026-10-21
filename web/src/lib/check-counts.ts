@@ -62,7 +62,16 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
 // words. The word is the pill's own: Running, Passed or Failed.
 export function pillName(label: string, segments: CheckSegment[]): string {
   const visible = [label, ...segments.map((s) => String(s.n))].join(' ');
-  const words = segments.map((s) => `${s.n} ${s.kind}`).join(', ');
+  // Skipped is inside passed, so beside a passed count it reads "of them" and
+  // never as a further count; alone (every pass was skipped) it is plain.
+  const hasPassed = segments.some((s) => s.kind === 'passed');
+  const words = segments
+    .map((s) =>
+      s.kind === 'skipped' && hasPassed
+        ? `${s.n} of them skipped`
+        : `${s.n} ${s.kind}`,
+    )
+    .join(', ');
 
   return `${visible}: ${words}`;
 }

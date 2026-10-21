@@ -103,7 +103,7 @@ test.describe('skipped counts on the pull request pill', () => {
     ).toBeVisible();
     await expect(pill).toHaveAttribute(
       'aria-label',
-      'Passed 8 2: 8 passed, 2 skipped. Open pipeline',
+      'Passed 8 2: 8 passed, 2 of them skipped. Open pipeline',
     );
   });
 
@@ -289,7 +289,7 @@ test.describe('skipped counts on the Issues page pill', () => {
 
     await expect(issuePill(page, 1)).toHaveText('#12 open Passed 8 2');
     await expect(issuePill(page, 1)).toHaveAccessibleName(
-      'Pull request #12 open Passed 8 2: 8 passed, 2 skipped, closes this issue',
+      'Pull request #12 open Passed 8 2: 8 passed, 2 of them skipped, closes this issue',
     );
     await expect(issuePill(page, 2)).toHaveText('#13 open Passed 3');
     await expect(issuePill(page, 2)).toHaveAccessibleName(

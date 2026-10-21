@@ -84,7 +84,7 @@ describe('checkSegments with skipped', () => {
           failed: 0,
         }),
       ),
-    ).toBe('Passed 8 2: 8 passed, 2 skipped');
+    ).toBe('Passed 8 2: 8 passed, 2 of them skipped');
   });
 });
 
