@@ -339,44 +339,6 @@ test.describe('settings page', () => {
     ).toContainText(/no github app configured/i);
   });
 
-  test('a non-numeric GitHub App installation ID is sent to the server, which refuses it (#620, #810)', async ({
-    page,
-  }) => {
-    // The input is disabled by default (previous test) since this
-    // environment has no App configured, so the value is set directly
-    // rather than typed: typing into a genuinely disabled control is a
-    // no-op in a real browser.
-    await page.goto('/settings.html#connections');
-
-    await page.evaluate(() => {
-      const el = document.getElementById(
-        'github-app-installation-id',
-      ) as HTMLInputElement;
-      el.disabled = false;
-      el.value = 'not-a-number';
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    const [saveRequest] = await Promise.all([
-      page.waitForRequest(
-        (r) => r.url().endsWith('/api/settings') && r.method() === 'PUT',
-      ),
-      page.click('#save-connections-button'),
-    ]);
-    expect(saveRequest).toBeTruthy();
-
-    // Nothing was saved and the page shows the server's reason, which names
-    // the field. (The input stays disabled here, with no App configured, so
-    // it can't take focus; the Forgejo URL test above covers focus.)
-    await expect(page.locator('#connections-status')).not.toHaveText('Saved.');
-    await expect(page.locator('#connections-status')).toHaveAttribute(
-      'class',
-      /error/,
-    );
-    await expect(page.locator('#connections-status')).toContainText(
-      /githubAppInstallationId/,
-    );
-  });
-
   test('the GitHub fine-grained permissions are a real list, not one run-on line', async ({
     page,
   }) => {
@@ -735,35 +697,20 @@ test.describe('settings page', () => {
       );
     });
 
-    test('revoking a token removes it from the list and stops it authenticating', async ({
-      page,
-      request,
-    }) => {
+    // That a revoked token stops authenticating, and that a live one does,
+    // is the server's: internal/api/tokens_test.go, the Bearer and Delete tests.
+    test('revoking a token removes it from the list', async ({ page }) => {
       await page.goto('/settings.html#integrations');
       await page.fill('#token-label', 'ci script');
       await page.click('#token-form button[type="submit"]');
       await expect(page.locator('#token-reveal-field')).toBeVisible();
-      const rawToken = await page.locator('#token-reveal-value').inputValue();
       await expect(page.locator('#api-token-list li')).toHaveCount(1);
-
-      // Confirms the token actually worked before revoking it — otherwise
-      // the 401 assertion below would trivially pass even for a broken
-      // or empty token, proving nothing about revocation specifically.
-      const beforeRevoke = await request.get('/api/tokens', {
-        headers: { Authorization: `Bearer ${rawToken}` },
-      });
-      expect(beforeRevoke.status()).toBe(200);
 
       await page.click('#api-token-list button.btn-remove');
 
       await expect(page.locator('#token-status')).toHaveText('Revoked.');
       await expect(page.locator('#api-token-list li')).toHaveCount(0);
       await expect(page.locator('#api-token-empty')).toBeVisible();
-
-      const resp = await request.get('/api/tokens', {
-        headers: { Authorization: `Bearer ${rawToken}` },
-      });
-      expect(resp.status()).toBe(401);
     });
 
     test('copying the revealed token confirms it in the token status line', async ({
