@@ -14,13 +14,6 @@ import (
 // put no user on the request, which RequireAuth makes impossible in practice.
 var errNoAuthenticatedUser = errors.New("no authenticated user in context")
 
-// getDashboardInput is get_dashboard's own argument shape — the same
-// ?owner= query parameter handleDashboard already accepts, since a shared
-// dashboard is reachable the same way from either transport.
-type getDashboardInput struct {
-	Owner string `json:"owner,omitempty" jsonschema:"a username whose dashboard to fetch, if that user has shared their dashboard with you from Settings -- omitted or empty for your own dashboard"`
-}
-
 // getPullRequestDetailsInput is get_pull_request_details's argument shape, the
 // same three query parameters GET /api/pull-requests/details takes. Number is
 // an int, so the schema refuses the non-integer the handler answers 400 for.
@@ -92,17 +85,12 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 			"health this dashboard already tracks across GitHub and Forgejo -- " +
 			"the same read-only data the web UI's own dashboard renders. Read-only: " +
 			"this app never writes to either forge through this tool.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, input getDashboardInput) (*mcp.CallToolResult, dashboardResponse, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, dashboardResponse, error) {
 		if !ok {
 			return nil, dashboardResponse{}, errNoAuthenticatedUser
 		}
 
-		resp, err := resolveDashboardFor(ctx, deps, u, input.Owner, boardView{})
-		if err != nil {
-			return nil, dashboardResponse{}, err
-		}
-
-		return nil, resp, nil
+		return nil, dashboardFor(ctx, deps, u, boardView{}), nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

@@ -160,25 +160,6 @@ func TestMCP_GetDashboard_ReturnsTheSameAggregatedDataAsTheHTTPEndpoint(t *testi
 	assert.EqualValues(t, 4, forge["repoCount"])
 }
 
-func TestMCP_GetDashboard_UnsharedOwner_ReturnsAToolError(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay) // bootstraps as admin
-	inviteToken := createInviteViaAdmin(t, srv, ownerCookie, testOtherUser, "Alex")
-	viewerCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", inviteToken)
-	apiToken := createAPIToken(t, srv.URL, viewerCookie)
-
-	session := connectMCP(t, srv.URL, apiToken)
-	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
-		Name:      "get_dashboard",
-		Arguments: map[string]any{"owner": testUser},
-	})
-	require.NoError(t, err)
-
-	assert.True(t, result.IsError, "an unshared owner should come back as a tool-level error, the same Forbidden case /api/dashboard?owner= already handles")
-}
-
 // callMainBranchesTool calls get_main_branches until it lists want rows and
 // returns what the tool answered.
 func callMainBranchesTool(t *testing.T, srvURL string, cookie *http.Cookie, want int) map[string]any {

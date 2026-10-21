@@ -126,9 +126,6 @@ const PENDING_OPERATIONS = [
   'getVersion',
   'getForgeApiStats',
   'refreshDashboard',
-  'getSharing',
-  'shareWith',
-  'unshareWith',
 ];
 const PENDING: Record<string, string> = Object.fromEntries(
   PENDING_OPERATIONS.map((id) => [id, NOT_YET]),

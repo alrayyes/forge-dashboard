@@ -20,7 +20,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
-	sharingpkg "github.com/alrayyes/forge-dashboard/internal/sharing"
 	"github.com/descope/virtualwebauthn"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -29,12 +28,13 @@ import (
 )
 
 const (
-	testRPID    = "localhost"
-	testOrigin  = "http://localhost"
-	testAdmin   = "admin"
-	testUser    = "ryan"
-	testDisplay = "Ryan"
-	testVersion = "0.99.0-test"
+	testRPID      = "localhost"
+	testOrigin    = "http://localhost"
+	testAdmin     = "admin"
+	testUser      = "ryan"
+	testOtherUser = "alex"
+	testDisplay   = "Ryan"
+	testVersion   = "0.99.0-test"
 
 	// Fast enough that require.Eventually in these tests doesn't have to
 	// wait long, slow enough not to burn CPU spinning between assertions.
@@ -130,9 +130,6 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settings
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(tb, settingsStore.Init(tb.Context()))
 
-	sharingStore := sharingpkg.NewStore(db)
-	require.NoError(tb, sharingStore.Init(tb.Context()))
-
 	manager := dashboard.NewManager(testRefreshInterval)
 	if autoMerge {
 		manager.SetAutoMergeStore(settingsStore)
@@ -147,7 +144,6 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settings
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		SharingStore:  sharingStore,
 		Manager:       manager,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
