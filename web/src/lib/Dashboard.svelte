@@ -4645,12 +4645,18 @@
         if (!keep.has(prKey(p))) feedback.dropFailedFor(prKey(p), "");
     }
 
+    // Whether a list has landed yet, so an empty one on screen is empty and
+    // not just not here yet (#2196).
+    let prListLanded = false;
+    let issueListLanded = false;
+
     // offer: false when the caller offers the choices itself, after this.
     function applyPendingNow(offer = true) {
       const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
       retireFailuresOfRemoved(sorted);
       const before = shownPRs;
       shownPRs = sorted;
+      prListLanded = true;
       if (offer && choicesDiffer(before, shownPRs)) offerWhatIsShown();
       prBoard.replaceItems(shownPRs);
       latestPRs = null;
@@ -4660,6 +4666,7 @@
     function applyPendingIssuesNow(offer = true) {
       const before = shownIssues;
       shownIssues = Filters.sortItems(rawIssues, sharedState.view.sort);
+      issueListLanded = true;
       if (offer && choicesDiffer(before, shownIssues)) offerWhatIsShown();
       issueBoard.replaceItems(shownIssues);
       latestIssues = null;
@@ -4707,8 +4714,12 @@
     // Returns true when it rendered the board.
     function reconcileIssues(): boolean {
       const before = shownIssues;
+      const wasLanded = issueListLanded;
       const rendered = settleIssues();
-      if (before.length > 0 && choicesDiffer(before, shownIssues))
+      if (
+        (before.length > 0 || wasLanded) &&
+        choicesDiffer(before, shownIssues)
+      )
         offerWhatIsShown();
       return rendered;
     }
@@ -4737,6 +4748,7 @@
         // Nothing on screen differs, but the rows off screen may. Keep them
         // current so a filter change later shows fresh data, without drawing.
         shownIssues = latestIssues;
+        issueListLanded = true;
         latestIssues = null;
         if (!issuesDrawn) {
           issuesDrawn = true;
@@ -4752,6 +4764,7 @@
       if (!held && (structural > 0 || userAsked)) {
         if (!userAsked) announceListUpdate(diff);
         shownIssues = latestIssues;
+        issueListLanded = true;
         latestIssues = null;
         latestIssuesAsked = false;
         issuesDrawn = true;
@@ -4894,7 +4907,7 @@
         items
           .map(
             (i) =>
-              `${i.forge}|${i.repo}|${i.author}|${i.createdAt}|${i.updatedAt}|${(i.labels || []).map((l) => l.name).join(",")}`,
+              `${i.forge}|${i.repo}|${i.author}|${i.title}|${i.createdAt}|${i.updatedAt}|${(i.labels || []).map((l) => l.name).join(",")}`,
           )
           .sort()
           .join("\n");
@@ -4904,8 +4917,9 @@
     // Returns true when it rendered the board.
     function reconcilePRs(): boolean {
       const before = shownPRs;
+      const wasLanded = prListLanded;
       const rendered = settlePRs();
-      if (before.length > 0 && choicesDiffer(before, shownPRs))
+      if ((before.length > 0 || wasLanded) && choicesDiffer(before, shownPRs))
         offerWhatIsShown();
       return rendered;
     }
@@ -4970,6 +4984,7 @@
       if (userAsked) {
         retireFailuresOfRemoved(latestPRs);
         shownPRs = latestPRs;
+        prListLanded = true;
         latestPRs = null;
         latestIsUserAsked = false;
         keepFocusAcross(() => prBoard.setItems(shownPRs));
@@ -4995,6 +5010,7 @@
         );
         retireFailuresOfRemoved(latestPRs);
         shownPRs = latestPRs;
+        prListLanded = true;
         latestPRs = null;
         markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(shownPRs, true));
@@ -5932,10 +5948,12 @@
 
     // What the choices come from: the list on screen, not the newest snapshot,
     // which can hold rows the list is still waiting to show (#1427). Before
-    // the first list lands the snapshot is all there is.
+    // the first list lands the snapshot is all there is; after, an empty list
+    // offers nothing (#2196).
     function itemsOnScreen(): FilterableItem[] {
-      const shown: FilterableItem[] = pullsView ? shownPRs : shownIssues;
-      return shown.length > 0 ? shown : pullsView ? allPRs : allIssues;
+      const landed = pullsView ? prListLanded : issueListLanded;
+      if (!landed) return pullsView ? allPRs : allIssues;
+      return pullsView ? shownPRs : shownIssues;
     }
 
     // Leave-one-out narrowing (#550): each shared select's own options

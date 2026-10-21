@@ -27,6 +27,7 @@ const singleUserSpecs = [
   '**/filter-choices-pills.spec.ts',
   '**/filter-choices-static.spec.ts',
   '**/filter-choices-held.spec.ts',
+  '**/filter-choices-edges.spec.ts',
   '**/filter-every-control.spec.ts',
   '**/filter-flush-on-leave.spec.ts',
   '**/filter-held-pick-note.spec.ts',
