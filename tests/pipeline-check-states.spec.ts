@@ -1,11 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// Mocks /api/dashboard and the checks route and writes nothing per user, so it
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+import { test } from './server-fixture';
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -184,7 +179,7 @@ test.describe('pipeline check states (#1473)', () => {
     }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       const dialog = await open(page);
-      // The shared user's saved theme wins over a cookie on load, so set the
+      // The owner's saved theme wins over a cookie on load, so set the
       // attribute the theme module itself sets, once the page has settled.
       await page.evaluate(
         (t) => document.documentElement.setAttribute('data-theme', t),

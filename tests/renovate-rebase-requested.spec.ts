@@ -1,14 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { closeActionsDialog, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
 import { rateLimit } from './severity-stand-in';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // While Renovate's rebase checkbox is ticked a rebase is already waiting, so
 // the server blocks a second request and the row says so instead of offering

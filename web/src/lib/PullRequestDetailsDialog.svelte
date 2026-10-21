@@ -54,6 +54,7 @@
   import { profileHref } from "#lib/profile-link.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
+  import { repoUrlOf } from "#lib/repo-url.js";
 
   // Puts a node the row's builders made into the header.
   const adopt = (content: HTMLElement) => (node: HTMLElement) => {
@@ -239,9 +240,11 @@
       const jobs: Promise<void>[] = [];
       const add = (key: string, text: string) =>
         jobs.push(
-          renderMarkdown(text).then((out) => {
-            rendered[key] = out;
-          }),
+          renderMarkdown(text, { repoUrl: repoUrlOf(current.url) }).then(
+            (out) => {
+              rendered[key] = out;
+            },
+          ),
         );
       add("description", loaded.description.text);
       if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
@@ -406,7 +409,34 @@
           <span class="forge-badge {FORGE_CLASSES[target.forge] ?? ''}"
             ><span class="dot"></span>{forgeLabel}</span
           >
-          <span class="mono">{target.repo} #{target.number}</span>
+          <!-- The repository and the number are two links, each named by its
+            own text, to the repository and to the item on the forge. Without
+            a repository address (an item address of an unknown shape) they
+            stay plain text. -->
+          <span class="mono">
+            {#if repoUrlOf(target.url)}
+              <a
+                class="ref-link"
+                href={repoUrlOf(target.url) ?? undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                >{target.repo}<span class="visually-hidden">
+                  (opens in a new tab)</span
+                ></a
+              >
+              <a
+                class="ref-link"
+                href={target.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                >#{target.number}<span class="visually-hidden">
+                  (opens in a new tab)</span
+                ></a
+              >
+            {:else}
+              {target.repo} #{target.number}
+            {/if}
+          </span>
         </p>
         <h2 class="details-title">{target.title}</h2>
         {#if target.subject === "issue" && target.author}
@@ -768,9 +798,19 @@
     color: var(--ink-2);
   }
   .details-note a,
+  .ref-link,
   .markdown :global(a) {
     color: var(--accent);
     overflow-wrap: anywhere;
+  }
+  /* The header links are small text where colour alone would be the cue. */
+  .ref-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    min-width: 24px;
+    max-width: 100%;
+    text-decoration: underline;
   }
   .details-skeleton {
     display: flex;
@@ -1099,6 +1139,10 @@
     }
     .details-retry,
     .details-open-link {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .ref-link {
       min-height: 44px;
       min-width: 44px;
     }

@@ -1,13 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // Task list items in the details pop-up show as read-only checkboxes.
 // https://github.com/alrayyes/forge-dashboard/issues/1655
-// Mocks /api/dashboard and /api/pull-requests/details only, so it starts from
-// the shared session.
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+// Mocks /api/dashboard and /api/pull-requests/details only.
 
 const reactions = {
   thumbsUp: { count: 0, logins: [] },

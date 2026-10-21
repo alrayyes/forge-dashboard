@@ -6,12 +6,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
-
-// The tests mock /api/dashboard and write nothing per user, so they start from
-// the shared session instead of registering a user each (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
+import { test } from './server-fixture';
 
 interface MockPR {
   forge: string;
@@ -76,8 +71,8 @@ function mockChecks(page: Page, body: unknown, status = 200) {
 
 test.describe('pull request pipeline checks panel', () => {
   test.beforeEach(async ({ page }) => {
-    // The live stream isn't part of these tests. Aborted, so a shared user's
-    // concurrent pages never hold a real stream open against the server, and
+    // The live stream isn't part of these tests. Aborted, so no real stream
+    // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
     await page.route('**/api/dashboard/stream*', (route) => route.abort());
   });
@@ -934,8 +929,6 @@ test.describe('pull request pipeline checks panel', () => {
 // A queued rerun is held until the pull request moves on or ten minutes pass,
 // and the row, the details dialog and the panel all read the one state (#1941).
 test.describe('the held rerun: release, expiry and shared state (#1941)', () => {
-  test.use({ storageState: SHARED_STORAGE_STATE_PATH });
-
   const withRerun = (overrides: Partial<MockPR> = {}) =>
     makePR({
       ci: 'failure',

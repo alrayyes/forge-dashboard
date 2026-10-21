@@ -1,9 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #755: a rate-limited forge goes read-only. Its mutating controls are not
 // drawn at all (not greyed), one banner per forge says so with the reset
@@ -70,10 +69,6 @@ const MUTATING = [
   'Dependabot: Rebase',
   'Renovate: Rebase',
 ];
-
-// Every endpoint is mocked and nothing is saved per user, so the whole file
-// starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 test.describe('a rate-limited forge goes read-only (#755)', () => {
   test.beforeEach(async ({ page }) => {

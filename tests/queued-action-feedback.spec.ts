@@ -5,19 +5,14 @@ import {
   openActionsDialog,
   viaActionsDialog,
 } from './actions-dialog-helper';
-import { test } from './fixtures';
+import { test } from './server-fixture';
 import { settle } from './settle-helper';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
 
 // #680, #714: Update branch, Dependabot rebase and Renovate rebase all
 // answer with "Queued…" the instant they're clicked and hold that state
 // until the next refresh (or a failure). The row says so with its waiting
 // chip (#1229), and Update branch's counts down to the next poll; a toast
 // and the Activity panel carry the same events. The top banner is not used.
-
-// Every queue endpoint is mocked and nothing is saved per user, so the whole
-// file starts from the shared session (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 // A negative check's stand-in for a sleep (#1378): one round trip through the
 // route handlers after the click. Nothing guarantees an earlier request is

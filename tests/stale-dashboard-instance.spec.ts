@@ -1,14 +1,9 @@
 import { expect, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { SHARED_STORAGE_STATE_PATH } from './shared-session';
+import { test } from './server-fixture';
 
 // #1259: a page opened at /releases.html is a hard load, and its Pull requests link
 // ("/pull-requests.html") is then a client-side navigation. The Releases board was destroyed
 // but its poll kept running, and drew release pull requests onto the pull request page.
-
-// The test mocks /api/dashboard and writes nothing per user, so it starts from
-// the shared session instead of registering a user (#1379).
-test.use({ storageState: SHARED_STORAGE_STATE_PATH });
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
