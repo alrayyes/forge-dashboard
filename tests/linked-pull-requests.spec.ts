@@ -387,6 +387,72 @@ test.describe('the address of a pull request', () => {
     expect(asked.some((u) => u.includes('includeHidden=true'))).toBe(true);
   });
 
+  test("closing the pop-up opened from the address puts focus on that pull request's title", async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [pullRequest(12), pullRequest(13)] });
+
+    await page.goto(address(13));
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(dialog(page)).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: '#13 Pull request 13' }),
+    ).toBeFocused();
+  });
+
+  test('closing a read only pop-up opened from the address puts focus on the title filter, not the page', async ({
+    page,
+  }) => {
+    const draft = pullRequest(14, { draft: true });
+    await mockBoard(page, {
+      shown: [pullRequest(12)],
+      everything: [pullRequest(12), draft],
+    });
+
+    await page.goto(address(14));
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(dialog(page)).toBeHidden();
+    await expect(page.getByLabel('Filter by title')).toBeFocused();
+  });
+
+  test('a pop-up opened from a row still returns focus to that row', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [pullRequest(12), pullRequest(13)] });
+    await page.goto('/pull-requests.html');
+
+    const title = page.getByRole('button', { name: '#13 Pull request 13' });
+    await title.click();
+    await expect(dialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(title).toBeFocused();
+  });
+
+  test('has no axe violations with the pop-up open from the address, or after it closes', async ({
+    page,
+  }) => {
+    await mockBoard(page, { shown: [pullRequest(12), pullRequest(13)] });
+
+    await page.goto(address(13));
+    await expect(dialog(page)).toBeVisible();
+    const open = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(open.violations).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    const closed = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(closed.violations).toEqual([]);
+  });
+
   test('says so, and keeps the address, when the lookup fails', async ({
     page,
   }) => {
