@@ -261,7 +261,9 @@ repositories, search), and it answers a request with `If-None-Match` or
 `If-Modified-Since` with a full `200`. We haven't tested other versions.
 Forgejo reports no request budget of its own to spend, so each read costs a
 round trip and nothing more. Check again when you upgrade Forgejo; if it starts
-sending ETags, add a cache for it the way GitHub's works.
+sending ETags, add a cache for it the way GitHub's works. Until then the
+default-branch pill keeps a finished run's job list in memory (a finished run
+never changes) and reads the jobs of runs still going on each poll.
 
 Each row below is one source file with its number of REST `GET` call sites. A
 test reads this table and fails when a file's count differs from the source, so
@@ -274,7 +276,7 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/github/pull_request_body.go`     | 1     | One pull request                                                                                                                                                    | Yes                               |
 | `internal/github/required_checks.go`       | 3     | Workflow runs, check runs, statuses                                                                                                                                 | Yes                               |
 | `internal/github/rerun.go`                 | 3     | One pull request, check runs, one job                                                                                                                               | Yes                               |
-| `internal/forgejo/client.go`               | 15    | Hooks, repositories, pull requests, issues, labels, reviews, statuses, Actions runs and jobs, protection                                                            | No, Forgejo sends no ETag         |
+| `internal/forgejo/client.go`               | 16    | Hooks, repositories, pull requests, issues, labels, reviews, statuses, Actions runs and jobs, protection                                                            | No, Forgejo sends no ETag         |
 | `internal/forgejo/issue_details.go`        | 1     | One issue                                                                                                                                                           | No, Forgejo sends no ETag         |
 | `internal/forgejo/main_branch.go`          | 3     | Repository, Actions runs, one commit                                                                                                                                | No, Forgejo sends no ETag         |
 | `internal/forgejo/pull_request_body.go`    | 1     | One pull request                                                                                                                                                    | No, Forgejo sends no ETag         |

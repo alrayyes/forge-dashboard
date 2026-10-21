@@ -3,6 +3,7 @@ package forgejo_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -131,4 +132,94 @@ func TestListOpenPullRequests_ChecksOfAPageCappedStatusListAreUnknown(t *testing
 	require.Len(t, prs, 1)
 	assert.Equal(t, dashboard.CIFailure, prs[0].CI, "the overall state still comes from the combined state")
 	assert.Equal(t, dashboard.CheckCounts{}, prs[0].Checks)
+}
+
+// Forgejo's combined status says pending for a check that is queued or running
+// alike, so the statuses alone can't tell the two apart. When something is
+// pending, the commit's Actions jobs say which is which (#2357): one running
+// and one queued check read as 1 running and 1 queued, not 2 queued.
+func TestListOpenPullRequests_ShowsARunningCheckAsRunning(t *testing.T) {
+	t.Parallel()
+
+	pending := []map[string]string{
+		{"status": "success", "context": "lint"},
+		{"status": "pending", "context": "test"},
+		{"status": "pending", "context": "build"},
+	}
+	tests := []struct {
+		name      string
+		runsCode  int
+		jobs      any
+		want      dashboard.CheckCounts
+		wantReads int
+	}{
+		{
+			name: "one running and one queued job",
+			jobs: []map[string]any{{"name": "test", "status": "running"}, {"name": "build", "status": "waiting"}},
+			want: dashboard.CheckCounts{Passed: 1, Running: 1, Waiting: 1}, wantReads: 1,
+		},
+		{
+			name: "the wrapped jobs answer reads the same",
+			jobs: map[string]any{"jobs": []map[string]any{{"name": "test", "status": "running"}, {"name": "build", "status": "running"}}},
+			want: dashboard.CheckCounts{Passed: 1, Running: 2}, wantReads: 1,
+		},
+		{
+			name: "more running jobs than pending statuses never exceed the pending ones",
+			jobs: []map[string]any{{"status": "running"}, {"status": "running"}, {"status": "running"}},
+			want: dashboard.CheckCounts{Passed: 1, Running: 2}, wantReads: 1,
+		},
+		{
+			name:     "an instance without the runs route keeps the pending ones queued",
+			runsCode: http.StatusNotFound,
+			want:     dashboard.CheckCounts{Passed: 1, Waiting: 2},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var jobReads atomic.Int32
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("page") != "1" {
+					writeJSON(t, w, []map[string]any{})
+
+					return
+				}
+				writeJSON(t, w, []map[string]any{{
+					"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+					"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
+					"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+					"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+				}})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{"state": "pending", "statuses": pending})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+				if tt.runsCode != 0 {
+					w.WriteHeader(tt.runsCode)
+
+					return
+				}
+				assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
+				writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
+					{"id": 7, "status": "running", "commit_sha": "cafef00d"},
+				}})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/7/jobs", func(w http.ResponseWriter, _ *http.Request) {
+				jobReads.Add(1)
+				writeJSON(t, w, tt.jobs)
+			})
+			srv := httptest.NewServer(mux)
+			t.Cleanup(srv.Close)
+
+			prs, err := forgejo.NewClient(srv.URL, "test-token", "").ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+
+			require.NoError(t, err)
+			require.Len(t, prs, 1)
+			assert.Equal(t, tt.want, prs[0].Checks)
+			assert.EqualValues(t, tt.wantReads, jobReads.Load(), "one jobs read per run still going, none when nothing is pending")
+		})
+	}
 }

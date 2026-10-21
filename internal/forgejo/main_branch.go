@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
@@ -19,8 +20,9 @@ import (
 // of repo's default branch, from the Actions runs Forgejo lists for it. The
 // newest commit with a run is the one that counts, and every workflow that ran
 // on it is folded into one status, since a commit with a green lint and a red
-// test is a broken main. Costs one list call, one more for the commit and, for
-// a failed run only, one for its jobs.
+// test is a broken main. The pill counts the commit's jobs, not its runs. Costs
+// one list call, one more for the commit and one for the jobs of each run,
+// except a finished run's, which are read once and kept.
 //
 // A repo with no default branch, no run, or an instance without Actions comes
 // back as status none. A runs list that fails is an error, so the caller keeps
@@ -43,12 +45,13 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 	}
 
 	row.Status = mainBranchStatus(runs)
-	row.Checks = runCounts(runs)
+	jobs := c.runJobs(ctx, repo, runs)
+	row.Checks = jobCounts(runs, jobs)
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
 	case row.Status == dashboard.MainBranchFailed:
 		failed := failedRuns(runs)
-		row.FailingJobs = c.failingJobNames(ctx, repo, failed)
+		row.FailingJobs = failingJobNames(failed, jobs)
 		row.RunURL = failed[0].HTMLURL
 	case row.Status == dashboard.MainBranchCancelled:
 		// Nothing failed, so no job is named; the link is the cancelled run.
@@ -187,30 +190,93 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 	}
 }
 
-// runCounts tallies the runs of the commit into passed, running, waiting and
-// failed. They are already listed for the status, so it costs no request; the
-// jobs inside them would cost one per run. A cancelled run is in none of the
-// four, as for a pull request: nothing broke, and mainBranchStatus reads it
-// the same way.
-func runCounts(runs []*branchRun) dashboard.CheckCounts {
-	var out dashboard.CheckCounts
-	for _, r := range runs {
-		switch checkStateFromWorkflowStatus(r.Status) {
-		case dashboard.CheckSuccess:
-			out.Passed++
-		case dashboard.CheckSkipped:
-			out.Passed++
-			out.Skipped++
-		case dashboard.CheckRunning:
-			out.Running++
-		case dashboard.CheckQueued:
-			out.Waiting++
-		case dashboard.CheckFailure:
-			out.Failed++
+// runJobs reads the jobs of every run, by run id. A run whose jobs can't be
+// read is left out, and counts as one check (see jobCounts). A finished run's
+// jobs are kept (see Client.finishedJobs), so only runs still going cost a
+// request on a repeat poll.
+func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) map[int64][]*gitea.ActionWorkflowJob {
+	out := make(map[int64][]*gitea.ActionWorkflowJob, len(runs))
+	for _, run := range runs {
+		key := ""
+		if finished := !run.StoppedAt.IsZero() && isFinished(run.Status); finished {
+			key = fmt.Sprintf("%s/%d/%s", repo.FullName, run.ID, run.StoppedAt.Format(time.RFC3339Nano))
+			c.finishedJobsMu.Lock()
+			cached, ok := c.finishedJobs[key]
+			c.finishedJobsMu.Unlock()
+			if ok {
+				out[run.ID] = cached
+
+				continue
+			}
+		}
+		jobs, err := c.listActionRunJobs(ctx, repo.Owner, repo.Name, run.ID)
+		if err != nil {
+			slog.Warn("list default-branch run jobs failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "run", run.ID, "error", err)
+
+			continue
+		}
+		out[run.ID] = jobs
+		if key != "" {
+			c.finishedJobsMu.Lock()
+			if len(c.finishedJobs) >= maxFinishedJobs {
+				clear(c.finishedJobs)
+			}
+			c.finishedJobs[key] = jobs
+			c.finishedJobsMu.Unlock()
 		}
 	}
 
 	return out
+}
+
+// maxFinishedJobs bounds Client.finishedJobs; past it the cache starts over.
+const maxFinishedJobs = 2000
+
+func isFinished(status string) bool {
+	switch status {
+	case "success", "failure", "cancelled", "skipped":
+		return true
+	}
+
+	return false
+}
+
+// jobCounts tallies the jobs of the commit's runs into passed, running,
+// waiting and failed (#2357). A run with no readable job list counts as one
+// check by its own status, so a failed read shows less detail, never nothing.
+// A cancelled job or run is in none of the four, as for a pull request:
+// nothing broke, and mainBranchStatus reads it the same way.
+func jobCounts(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	for _, r := range runs {
+		if list := jobs[r.ID]; len(list) > 0 {
+			for _, j := range list {
+				tally(&out, checkStateFromWorkflowStatus(j.Status))
+			}
+
+			continue
+		}
+		tally(&out, checkStateFromWorkflowStatus(r.Status))
+	}
+
+	return out
+}
+
+// tally counts one check in its state. Passed includes skipped, as on the wire.
+func tally(out *dashboard.CheckCounts, state dashboard.CheckState) {
+	switch state {
+	case dashboard.CheckSuccess:
+		out.Passed++
+	case dashboard.CheckSkipped:
+		out.Passed++
+		out.Skipped++
+	case dashboard.CheckRunning:
+		out.Running++
+	case dashboard.CheckQueued:
+		out.Waiting++
+	case dashboard.CheckFailure:
+		out.Failed++
+	}
 }
 
 // failedRuns is the runs that broke the commit: the ones that failed, or, when
@@ -229,17 +295,13 @@ func failedRuns(runs []*branchRun) []*branchRun {
 }
 
 // failingJobNames names the failed jobs of each run, or the run's workflow file
-// when its jobs can't be read or none shows as failed.
-func (c *Client) failingJobNames(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) []string {
+// when its jobs weren't read or none shows as failed.
+func failingJobNames(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) []string {
 	names := []string{}
 	for _, run := range runs {
 		var failing []string
-		jobs, err := c.listActionRunJobs(ctx, repo.Owner, repo.Name, run.ID)
-		if err != nil {
-			slog.Warn("list default-branch run jobs failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "run", run.ID, "error", err)
-		}
 		wanted := checkStateFromWorkflowStatus(run.Status)
-		for _, j := range jobs {
+		for _, j := range jobs[run.ID] {
 			if checkStateFromWorkflowStatus(j.Status) == wanted {
 				failing = append(failing, j.Name)
 			}
