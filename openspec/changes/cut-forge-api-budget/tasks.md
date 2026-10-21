@@ -61,9 +61,9 @@ One pull request per group, in this order. Each group is its own ticket (named i
 ## 7. Webhook-aware interval (#2014)
 
 - [x] 7.1 Add `coverage` from the snapshot's per-repo `HasWebhook` (which the persisted hook checks feed): every tracked repo has a healthy hook. Delivery lateness is not used: a quiet repo sends nothing for days, so silence cannot tell it from a broken hook. Failing tests first.
-- [x] 7.2 Replace the bare timer in `Run` with the `scheduler` (D7): stretched interval when covered (`min(4 * REFRESH_INTERVAL, max(2h, REFRESH_INTERVAL))`, so 80 minutes at the default), `REFRESH_INTERVAL` otherwise, still passing through `NextRefreshDelay`. Verify: tests for both transitions with a fake clock; the existing `NextRefreshDelay` tests unchanged.
+- [x] 7.2 Replace the bare timer in `Run` with the `NextDelay` method (D7): stretched interval when covered (`min(4 * REFRESH_INTERVAL, max(2h, REFRESH_INTERVAL))`, so 80 minutes at the default), `REFRESH_INTERVAL` otherwise, still passing through `NextRefreshDelay`. Verify: `NextDelay` tests for both transitions; the existing `NextRefreshDelay` tests unchanged.
 - [x] 7.3 Treat an explicit `REFRESH_INTERVAL` as the lower bound. Verify: a `cmd/forge-dashboard` test.
-- [x] 7.4 Update `docs/configuration.md` and `docs/rate-limits.md`. Verify: `full` refresh count per day before/after.
+- [x] 7.4 Update `docs/configuration.md` and `docs/rate-limits.md`. Verify: the `full` refresh count per day before/after, computed from the intervals.
 
 ## 8. Reserve budget for user actions (#2015)
 
