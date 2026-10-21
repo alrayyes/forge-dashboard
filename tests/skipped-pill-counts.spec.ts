@@ -311,6 +311,19 @@ const issuePill = (page: Page, number: number) =>
     .locator('.linked-pr');
 
 test.describe('skipped counts on the Issues page pill', () => {
+  test('a fully skipped pill has no ring, like the others there', async ({
+    page,
+  }) => {
+    await openIssues(page);
+
+    for (const n of [1, 2]) {
+      await expect(issuePill(page, n).locator('.ci-pill')).toHaveCSS(
+        'box-shadow',
+        'none',
+      );
+    }
+  });
+
   test('says them in the text and the name', async ({ page }) => {
     await openIssues(page);
 
