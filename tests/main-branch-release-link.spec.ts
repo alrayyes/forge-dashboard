@@ -47,39 +47,47 @@ const BRANCHES = [
     tag: `release-candidate-${'x'.repeat(60)}-2026.10.20`,
     url: 'https://example.com/acme/longtag/releases/tag/long',
   }),
+  row('acme/oddtag', {
+    tag: 'v1.0/rc 1',
+    url: 'https://example.com/acme/oddtag/releases/tag/odd',
+  }),
   row('acme/unsafe', {
     tag: 'v9.9.9',
     url: 'javascript:alert(1)',
   }),
 ];
 
+function releaseBody(notes: string, name = 'Spring cleaning') {
+  return JSON.stringify({
+    tag: 'v1.2.3',
+    name,
+    url: 'https://example.com/acme/shipped/releases/tag/v1.2.3',
+    publishedAt: '2026-10-01T10:00:00Z',
+    notes: {
+      text: notes,
+      format: 'markdown',
+      truncated: false,
+      edited: false,
+      reactions: {
+        thumbsUp: { count: 0, logins: [] },
+        thumbsDown: { count: 0, logins: [] },
+      },
+    },
+  });
+}
+
 async function open(
   page: Page,
   notes = '## Fixes\n- The page keeps its place.',
-) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/releases/details*', (route: Route) =>
+  details: (route: Route) => Promise<void> | void = (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        tag: 'v1.2.3',
-        name: 'Spring cleaning',
-        url: 'https://example.com/acme/shipped/releases/tag/v1.2.3',
-        publishedAt: '2026-10-01T10:00:00Z',
-        notes: {
-          text: notes,
-          format: 'markdown',
-          truncated: false,
-          edited: false,
-          reactions: {
-            thumbsUp: { count: 0, logins: [] },
-            thumbsDown: { count: 0, logins: [] },
-          },
-        },
-      }),
+      body: releaseBody(notes),
     }),
-  );
+) {
+  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/releases/details*', details);
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -88,7 +96,7 @@ async function open(
         generatedAt: new Date().toISOString(),
         counts: {
           failed: 0,
-          passed: 4,
+          passed: BRANCHES.length,
           running: 0,
           cancelled: 0,
           awaitingApproval: 0,
@@ -182,6 +190,86 @@ test.describe('Branches page latest release link', () => {
     await expect(
       page.locator('dialog.details-dialog').getByText('No release notes.'),
     ).toBeVisible();
+  });
+
+  test('a release the server cannot find shows the error, and a tag with a slash and a space is sent encoded', async ({
+    page,
+  }) => {
+    const urls: string[] = [];
+    await open(page, '', (route) => {
+      urls.push(route.request().url());
+
+      return route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'release not found' }),
+      });
+    });
+
+    await releaseLink(page, 'acme/oddtag').click();
+
+    const dialog = page.locator('dialog.details-dialog');
+    await expect(dialog.getByRole('alert')).toContainText(
+      'Could not load the details: release not found',
+    );
+    await expect(
+      dialog.getByRole('heading', { name: 'Release notes' }),
+    ).toHaveCount(0);
+    expect(new URL(urls[0]).searchParams.get('tag')).toBe('v1.0/rc 1');
+    expect(urls[0]).toContain('tag=v1.0%2Frc%201');
+  });
+
+  test('a slow first release answering after a second was opened does not replace it', async ({
+    page,
+  }) => {
+    let releaseFirst = () => {};
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    await open(page, '', async (route) => {
+      const tag = new URL(route.request().url()).searchParams.get('tag');
+      if (tag === 'v1.2.3') {
+        await firstHeld;
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: releaseBody('First notes.', 'First release'),
+        });
+      }
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: releaseBody('Second notes.', 'Second release'),
+      });
+    });
+    const dialog = page.locator('dialog.details-dialog');
+
+    await releaseLink(page, 'acme/shipped').click();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await releaseLink(page, 'acme/oddtag').click();
+    await expect(
+      dialog.getByRole('heading', { name: 'Second release' }),
+    ).toBeVisible();
+    const firstAnswer = page.waitForResponse((res) =>
+      res.url().includes('tag=v1.2.3'),
+    );
+    releaseFirst();
+    await firstAnswer;
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+
+    await expect(
+      dialog.getByRole('heading', { name: 'Second release' }),
+    ).toBeVisible();
+    await expect(dialog.getByText('Second notes.')).toBeVisible();
+    await expect(dialog.getByText('First notes.')).toHaveCount(0);
   });
 
   test('a repository with no release shows no link', async ({ page }) => {

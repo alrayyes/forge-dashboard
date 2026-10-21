@@ -21,6 +21,7 @@ query($owner: String!, $name: String!, $tag: String!) {
       publishedAt
       description
       isDraft
+      isPrerelease
       reactionGroups { content users(first: 10) { totalCount nodes { login } } }
     }
   }
@@ -37,6 +38,7 @@ type releaseDetailsResponse struct {
 			PublishedAt    *string                `json:"publishedAt"`
 			Description    string                 `json:"description"`
 			IsDraft        bool                   `json:"isDraft"`
+			IsPrerelease   bool                   `json:"isPrerelease"`
 			ReactionGroups []graphqlReactionGroup `json:"reactionGroups"`
 		} `json:"release"`
 	} `json:"repository"`
@@ -52,8 +54,10 @@ func (c *Client) GetReleaseDetails(ctx context.Context, owner, name, tag string)
 	}
 
 	release := resp.Repository.Release
-	// A draft is not published: the board never lists one, so it is not found.
-	if release == nil || release.IsDraft {
+	// A draft, a pre-release and a release with no publish date are not
+	// published as far as the board goes (it lists none of them), so each is
+	// not found.
+	if release == nil || release.IsDraft || release.IsPrerelease || release.PublishedAt == nil {
 		return dashboard.ReleaseDetails{}, &dashboard.ClientError{
 			Kind: dashboard.ForgeErrorNotFound,
 			Err:  fmt.Errorf("%w: %s/%s@%s", errReleaseNotFound, owner, name, tag),
@@ -63,13 +67,11 @@ func (c *Client) GetReleaseDetails(ctx context.Context, owner, name, tag string)
 	text, truncated := dashboard.CapText(release.Description, dashboard.MaxDetailsBodyRunes)
 	details := dashboard.ReleaseDetails{
 		Tag: release.TagName, Name: release.Name, URL: release.URL,
+		PublishedAt: *release.PublishedAt,
 		Notes: dashboard.DetailsBody{
 			Text: text, Format: dashboard.FormatMarkdown, Truncated: truncated,
 			Reactions: reactionsOf(release.ReactionGroups),
 		},
-	}
-	if release.PublishedAt != nil {
-		details.PublishedAt = *release.PublishedAt
 	}
 
 	return details, nil
