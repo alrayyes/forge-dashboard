@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -182,6 +184,40 @@ func TestRefreshPending_ARateLimitErrorOnAPullRequestAliasFailsTheCall(t *testin
 	_, err := c.RefreshPending(t.Context(), pendingRefs(2))
 
 	require.Error(t, err, "a throttle is the whole request failing, not one pull request")
+}
+
+// failingSecondRequest forwards to inner but answers the second request it sees
+// with a 502, as a flaky edge would.
+func failingSecondRequest(t *testing.T, inner *httptest.Server) *httptest.Server {
+	t.Helper()
+
+	target, err := url.Parse(inner.URL)
+	require.NoError(t, err)
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	var seen atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if seen.Add(1) == 2 {
+			w.WriteHeader(http.StatusBadGateway)
+
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func TestRefreshPending_ALaterChunkFailingKeepsTheEarlierChunksAnswers(t *testing.T) {
+	t.Parallel()
+
+	inner, _ := pendingServer(t, nil, nil)
+	c := github.NewClient("test-token", "", failingSecondRequest(t, inner).URL)
+
+	res, err := c.RefreshPending(t.Context(), pendingRefs(60))
+
+	require.Error(t, err)
+	assert.Len(t, res.Pulls, 25, "the first chunk was paid for, so its answers come back with the error")
 }
 
 func TestRefreshPending_NoRefsSendsNothing(t *testing.T) {
