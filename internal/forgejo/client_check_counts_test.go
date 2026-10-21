@@ -363,3 +363,22 @@ func TestListOpenPullRequests_SplitReadsOnlyTheJobsOfRunningRuns(t *testing.T) {
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
 	assert.Equal(t, []int{7}, s.reads)
 }
+
+// Some Forgejo versions ignore the head_sha filter and answer with the
+// repository's latest runs, so a run on another commit is not this commit's.
+func TestListOpenPullRequests_SplitIgnoresARunOnAnotherCommit(t *testing.T) {
+	t.Parallel()
+
+	other := splitRun(9, "running", "pull_request")
+	other["head_sha"] = "deadbeef"
+	s := &splitServer{
+		pending: 2,
+		runs:    []map[string]any{other, splitRun(7, "running", "pull_request")},
+		jobs:    map[int][]string{9: {"running", "running"}, 7: {"waiting", "waiting"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Waiting: 2}, got)
+	assert.Equal(t, []int{7}, s.reads)
+}

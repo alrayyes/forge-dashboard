@@ -1162,6 +1162,10 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 		if checkStateFromWorkflowStatus(run.Status) != dashboard.CheckRunning {
 			continue
 		}
+		// A forge that ignores the head_sha filter answers with other commits' runs.
+		if run.HeadSha != sha {
+			continue
+		}
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 		if err != nil {
 			slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
