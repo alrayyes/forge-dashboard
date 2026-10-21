@@ -1665,6 +1665,9 @@ type graphqlAutoMergeRequest struct {
 }
 
 type graphqlPullRequest struct {
+	// State is only asked for by the batched pending-check query, which looks
+	// pull requests up by number and so may find one that has since closed.
+	State            string        `json:"state"`
 	Number           int           `json:"number"`
 	Title            string        `json:"title"`
 	URL              string        `json:"url"`
@@ -2260,6 +2263,21 @@ type graphqlErrorEntry struct {
 	Extensions struct {
 		Type string `json:"type"`
 	} `json:"extensions"`
+	// Path locates the field that failed. In an aliased query its first
+	// element is the alias, which is how one failing branch is told apart
+	// from a failure of the whole request.
+	Path []any `json:"path"`
+}
+
+// alias is the top-level response key the error belongs to, or "" when it is
+// not tied to one.
+func (e graphqlErrorEntry) alias() string {
+	if len(e.Path) == 0 {
+		return ""
+	}
+	alias, _ := e.Path[0].(string)
+
+	return alias
 }
 
 // graphqlStatusError records and returns the failure for a GraphQL call the
@@ -2307,14 +2325,29 @@ func (c *Client) graphqlQueryError(ctx context.Context, resp *http.Response, ent
 // query-level failure comes back as 200 with a populated "errors" array
 // instead.
 func (c *Client) graphqlDo(ctx context.Context, query string, variables map[string]any, out any) error {
+	_, err := c.graphqlExec(ctx, query, variables, false, out)
+
+	return err
+}
+
+// graphqlDoPartial is graphqlDo for an aliased query where one branch failing
+// must not fail the rest. An error tied to an alias is returned in failed,
+// keyed by alias, while the other aliases decode into out as usual; an error
+// tied to no alias (rate limiting, a malformed query) is still the whole
+// request failing.
+func (c *Client) graphqlDoPartial(ctx context.Context, query string, variables map[string]any, out any) (map[string]struct{}, error) {
+	return c.graphqlExec(ctx, query, variables, true, out)
+}
+
+func (c *Client) graphqlExec(ctx context.Context, query string, variables map[string]any, partial bool, out any) (map[string]struct{}, error) {
 	body, err := json.Marshal(graphqlRequestBody{Query: query, Variables: variables})
 	if err != nil {
-		return fmt.Errorf("github: encode graphql request: %w", err)
+		return nil, fmt.Errorf("github: encode graphql request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.graphqlURL, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("github: build graphql request: %w", err)
+		return nil, fmt.Errorf("github: build graphql request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	// App-mode (c.appAuthenticated, #620) sets no header here at all — the
@@ -2329,7 +2362,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	if err != nil {
 		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, 0, string(dashboard.ForgeErrorUnreachable), nil)
 
-		return &apiError{
+		return nil, &apiError{
 			msg:  fmt.Sprintf("github: POST /graphql: %s", err),
 			kind: dashboard.ForgeErrorUnreachable,
 		}
@@ -2337,7 +2370,7 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return c.graphqlStatusError(ctx, resp)
+		return nil, c.graphqlStatusError(ctx, resp)
 	}
 
 	var envelope struct {
@@ -2347,22 +2380,26 @@ func (c *Client) graphqlDo(ctx context.Context, query string, variables map[stri
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
 		c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, string(dashboard.ForgeErrorUnknown), rateLimitFromHeaders(resp.Header))
 
-		return fmt.Errorf("github: decode graphql response: %w", err)
+		return nil, fmt.Errorf("github: decode graphql response: %w", err)
 	}
 	c.countGraphQLCost(ctx, envelope.Data)
-	if len(envelope.Errors) > 0 {
-		return c.graphqlQueryError(ctx, resp, envelope.Errors[0])
+	failed := make(map[string]struct{})
+	for _, entry := range envelope.Errors {
+		if !partial || entry.alias() == "" {
+			return nil, c.graphqlQueryError(ctx, resp, entry)
+		}
+		failed[entry.alias()] = struct{}{}
 	}
 	c.recordRequest(ctx, http.MethodPost, c.graphqlURL, resp.StatusCode, requestlog.OutcomeSuccess, rateLimitFromHeaders(resp.Header))
 	if out == nil {
-		return nil
+		return failed, nil
 	}
 
 	if err := json.Unmarshal(envelope.Data, out); err != nil {
-		return fmt.Errorf("github: decode graphql data: %w", err)
+		return nil, fmt.Errorf("github: decode graphql data: %w", err)
 	}
 
-	return nil
+	return failed, nil
 }
 
 // countGraphQLCost adds the rateLimit.cost a response reports to the stats.
@@ -3050,7 +3087,36 @@ query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes {
+%[2]s
+      }
+    }
+    issues(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
+      nodes {
         number
+        title
+        url
+        author {
+          login
+          avatarUrl
+        }
+        labels(first: 20) {
+          nodes {
+            name
+            color
+          }
+        }
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}
+`
+
+// pullRequestFields is the selection the single-repo and the batched pull
+// request queries both read, so a pull request maps the same however it was
+// fetched.
+const pullRequestFields = `        number
         title
         url
         isDraft
@@ -3125,33 +3191,9 @@ query($owner: String!, $name: String!) {
               }
             }
           }
-        }
-      }
-    }
-    issues(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
-      nodes {
-        number
-        title
-        url
-        author {
-          login
-          avatarUrl
-        }
-        labels(first: 20) {
-          nodes {
-            name
-            color
-          }
-        }
-        createdAt
-        updatedAt
-      }
-    }
-  }
-}
-`
+        }`
 
-var repoQuery = fmt.Sprintf(repoQueryTemplate, itemsPerRepo)
+var repoQuery = fmt.Sprintf(repoQueryTemplate, itemsPerRepo, pullRequestFields)
 
 type repoQueryResponse struct {
 	Repository *struct {
@@ -3162,6 +3204,50 @@ type repoQueryResponse struct {
 			Nodes []graphqlIssue `json:"nodes"`
 		} `json:"issues"`
 	} `json:"repository"`
+}
+
+// mapPullRequests maps one repo's pull request nodes and settles what the
+// query alone leaves ambiguous (behind, required checks that never reported).
+func (c *Client) mapPullRequests(ctx context.Context, owner, name, fullName string, nodes []graphqlPullRequest) []dashboard.PullRequest {
+	entries := make([]repoPullRequest, len(nodes))
+	for i, p := range nodes {
+		entries[i] = repoPullRequest{owner: owner, name: name, fullName: fullName, node: p}
+	}
+
+	return c.mapPullRequestsAcross(ctx, entries)
+}
+
+// repoPullRequest is a pull request node with the repo it came from.
+type repoPullRequest struct {
+	owner, name, fullName string
+	node                  graphqlPullRequest
+}
+
+// mapPullRequestsAcross is mapPullRequests for nodes of several repos. The
+// secondary lookups run once for all of them, so a batched query stays a
+// handful of requests however many repos it spans.
+func (c *Client) mapPullRequestsAcross(ctx context.Context, entries []repoPullRequest) []dashboard.PullRequest {
+	prs := make([]dashboard.PullRequest, 0, len(entries))
+	var behindChecks []behindCheck
+	var unreported []missingRequiredCheck
+	for _, e := range entries {
+		p := e.node
+		prs = append(prs, mapPullRequest(e.fullName, p))
+		unreported = appendUnreported(unreported, prs, e.owner, e.name, p)
+		if ambiguousMergeState(p.MergeStateStatus) {
+			behindChecks = append(behindChecks, behindCheck{
+				prIndex: len(prs) - 1,
+				owner:   e.owner,
+				name:    e.name,
+				number:  p.Number,
+				headOid: p.HeadRefOid,
+			})
+		}
+	}
+	c.resolveAmbiguousBehind(ctx, prs, behindChecks)
+	c.settleUnreportedRequiredChecks(ctx, prs, unreported)
+
+	return prs
 }
 
 // FetchRepo implements dashboard.RepoRefresher: the single-repo
@@ -3176,24 +3262,7 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 		return nil, nil, fmt.Errorf("github: graphql: repository %s not found: %w", fullName, errRepositoryNotFound)
 	}
 
-	prs := make([]dashboard.PullRequest, 0, len(resp.Repository.PullRequests.Nodes))
-	var behindChecks []behindCheck
-	var unreported []missingRequiredCheck
-	for _, p := range resp.Repository.PullRequests.Nodes {
-		prs = append(prs, mapPullRequest(fullName, p))
-		unreported = appendUnreported(unreported, prs, owner, name, p)
-		if ambiguousMergeState(p.MergeStateStatus) {
-			behindChecks = append(behindChecks, behindCheck{
-				prIndex: len(prs) - 1,
-				owner:   owner,
-				name:    name,
-				number:  p.Number,
-				headOid: p.HeadRefOid,
-			})
-		}
-	}
-	c.resolveAmbiguousBehind(ctx, prs, behindChecks)
-	c.settleUnreportedRequiredChecks(ctx, prs, unreported)
+	prs := c.mapPullRequests(ctx, owner, name, fullName, resp.Repository.PullRequests.Nodes)
 	issues := make([]dashboard.Issue, 0, len(resp.Repository.Issues.Nodes))
 	for _, i := range resp.Repository.Issues.Nodes {
 		issues = append(issues, mapIssue(fullName, i))
