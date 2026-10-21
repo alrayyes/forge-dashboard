@@ -38,11 +38,6 @@
     zoneNames,
   } from "#lib/time.svelte.js";
 
-  type SharedUser = { username: string; displayName: string };
-  type SharingResponse = {
-    sharedWith: SharedUser[];
-    sharedWithMe: SharedUser[];
-  };
   type SettingsResponse = {
     githubUsername: string;
     githubTokenSet: boolean;
@@ -137,81 +132,6 @@
         ? cred.getClientExtensionResults()
         : {},
     };
-  }
-
-  // ---- sharing ----
-  let sharedWith = $state<SharedUser[]>([]);
-  let sharedWithMe = $state<SharedUser[]>([]);
-  let shareUsername = $state("");
-  let shareStatus = $state("");
-  let shareStatusKind = $state<"" | "error" | "ok">("");
-
-  function loadSharing(): Promise<void> {
-    return fetch("/api/sharing", { headers: { Accept: "application/json" } })
-      .then((res) => {
-        if (res.status === 401) {
-          window.location.href = "/login.html";
-          return null;
-        }
-        return res.ok
-          ? res.json()
-          : Promise.reject(new Error(`could not load sharing (${res.status})`));
-      })
-      .then((data: SharingResponse | null) => {
-        if (!data) return;
-        sharedWith = data.sharedWith || [];
-        sharedWithMe = data.sharedWithMe || [];
-      });
-  }
-
-  async function submitShare(e: SubmitEvent) {
-    e.preventDefault();
-    const username = shareUsername.trim();
-    if (!username) return;
-
-    shareStatus = "Sharing…";
-    shareStatusKind = "";
-    try {
-      const res = await fetch(`/api/sharing/${encodeURIComponent(username)}`, {
-        method: "PUT",
-      });
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "could not share");
-      }
-      shareUsername = "";
-      shareStatus = `Shared with ${username}.`;
-      shareStatusKind = "ok";
-      await loadSharing();
-    } catch (err) {
-      shareStatus = (err as Error).message || "Could not share.";
-      shareStatusKind = "error";
-    }
-  }
-
-  async function stopSharing(username: string) {
-    shareStatus = "Removing…";
-    shareStatusKind = "";
-    try {
-      const res = await fetch(`/api/sharing/${encodeURIComponent(username)}`, {
-        method: "DELETE",
-      });
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      if (!res.ok) throw new Error("could not stop sharing");
-      shareStatus = `No longer shared with ${username}.`;
-      shareStatusKind = "ok";
-      await loadSharing();
-    } catch (err) {
-      shareStatus = (err as Error).message || "Could not stop sharing.";
-      shareStatusKind = "error";
-    }
   }
 
   // ---- credentials/settings form ----
@@ -953,10 +873,6 @@
     const clock = setInterval(() => {
       previewNow = new Date().toISOString();
     }, 15000);
-    loadSharing().catch((err) => {
-      shareStatus = err.message || "Could not load sharing.";
-      shareStatusKind = "error";
-    });
 
     fetch("/api/settings", { headers: { Accept: "application/json" } })
       .then((res) => {
@@ -1056,7 +972,7 @@
   <title>Settings — Forge Board</title>
   <meta
     name="description"
-    content="Your appearance, sharing, GitHub and Forgejo connections, pull request behavior, webhooks, passkeys and API tokens."
+    content="Your appearance, GitHub and Forgejo connections, pull request behavior, webhooks, passkeys and API tokens."
   />
   <style>
     .settings-wrap {
@@ -1593,81 +1509,6 @@
             aria-live="polite"
           >
             {timezoneStatus}
-          </p>
-        </div>
-      </div>
-
-      <div class="group" id="sharing" hidden={group !== "sharing"}>
-        <div class="card">
-          <h2>Sharing</h2>
-          <p class="hint">
-            Let another registered user view your dashboard, read-only — they
-            need no tokens of their own configured.
-          </p>
-          <form id="share-form" class="share-form" onsubmit={submitShare}>
-            <label for="share-username" class="sr-only"
-              >Username to share your dashboard with</label
-            >
-            <input
-              id="share-username"
-              type="text"
-              autocomplete="off"
-              placeholder="username"
-              required
-              bind:value={shareUsername}
-            />
-            <button type="submit" class="btn btn-primary">Share</button>
-          </form>
-          <ul class="share-list" id="shared-with-list">
-            {#each sharedWith as u (u.username)}
-              <li>
-                <span
-                  >{escapeHTML(u.displayName)} ({escapeHTML(u.username)})</span
-                >
-                <button
-                  class="btn-remove"
-                  type="button"
-                  data-username={u.username}
-                  onclick={() => stopSharing(u.username)}>Stop sharing</button
-                >
-              </li>
-            {/each}
-          </ul>
-          <p
-            class="empty-state"
-            id="shared-with-empty"
-            hidden={sharedWith.length > 0}
-          >
-            You haven't shared your dashboard with anyone yet.
-          </p>
-          <p
-            class={`status${shareStatusKind ? ` ${shareStatusKind}` : ""}`}
-            id="share-status"
-            role="status"
-            aria-live="polite"
-          >
-            {shareStatus}
-          </p>
-        </div>
-
-        <div class="card">
-          <h2>Shared with you</h2>
-          <p class="hint">Switch to one of these from the dashboard header.</p>
-          <ul class="share-list" id="shared-with-me-list">
-            {#each sharedWithMe as u (u.username)}
-              <li>
-                <span
-                  >{escapeHTML(u.displayName)} ({escapeHTML(u.username)})</span
-                >
-              </li>
-            {/each}
-          </ul>
-          <p
-            class="empty-state"
-            id="shared-with-me-empty"
-            hidden={sharedWithMe.length > 0}
-          >
-            Nobody has shared their dashboard with you yet.
           </p>
         </div>
       </div>

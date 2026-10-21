@@ -38,7 +38,6 @@ test.describe('settings page', () => {
     const small: string[] = [];
     for (const group of [
       'display',
-      'sharing',
       'connections',
       'behaviour',
       'integrations',

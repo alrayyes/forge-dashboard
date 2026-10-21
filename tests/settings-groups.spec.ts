@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { landOnPullRequests, test } from './server-fixture';
 
-// Settings is five groups, one shown at a time, the choice in the URL hash.
+// Settings is four groups, one shown at a time, the choice in the URL hash.
 // https://github.com/alrayyes/forge-dashboard/issues/1680
 
 const GROUPS = [
@@ -11,12 +11,6 @@ const GROUPS = [
     label: 'Display',
     cards: ['Appearance'],
     absent: ['GitHub', 'Webhooks'],
-  },
-  {
-    id: 'sharing',
-    label: 'Sharing',
-    cards: ['Sharing', 'Shared with you'],
-    absent: ['Appearance'],
   },
   {
     id: 'connections',
@@ -95,6 +89,18 @@ test.describe('settings groups', () => {
         page.locator('.settings-nav [aria-current="page"]'),
       ).toHaveCount(1);
     }
+  });
+
+  test('there is no Sharing group, and an old #sharing link opens Display', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html#sharing');
+    await expect(groupLink(page, 'Display')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await expect(page.getByRole('link', { name: /sharing/i })).toHaveCount(0);
+    await expect(cardHeading(page, 'Shared with you')).toHaveCount(0);
   });
 
   test('a group id in the hash opens that group on load', async ({ page }) => {
@@ -232,7 +238,7 @@ test.describe('settings groups', () => {
     await expect(link).not.toBeFocused();
   });
 
-  test('360px: all five groups are reachable, 44px high, with no sideways scroll', async ({
+  test('360px: all four groups are reachable, 44px high, with no sideways scroll', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
@@ -285,11 +291,6 @@ test.describe('settings groups', () => {
       await page.locator('#github-username').fill('conn-user');
       await page.locator('#save-connections-button').click();
       await expect(page.locator('#connections-status')).toHaveText('Saved.');
-    });
-
-    test('Sharing: the share form is reachable', async ({ page }) => {
-      await page.goto('/settings.html#sharing');
-      await expect(page.locator('#share-username')).toBeVisible();
     });
 
     test('Integrations and security: generating an API token works', async ({

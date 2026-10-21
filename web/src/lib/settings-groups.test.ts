@@ -6,14 +6,20 @@ import {
 } from './settings-groups.js';
 
 describe('settings groups', () => {
-  test('five groups in the agreed order', () => {
+  test('four groups in the agreed order', () => {
     expect(SETTINGS_GROUPS.map((g) => g.label)).toEqual([
       'Display',
-      'Sharing',
       'Connections',
       'Behaviour',
       'Integrations and security',
     ]);
+  });
+
+  test('the old sharing link opens Display', () => {
+    expect(groupFromHash('#sharing')).toEqual({ group: 'display' });
+    expect(groupFromHash('#shared-with-me-list')).toEqual({
+      group: 'display',
+    });
   });
 
   test('no hash and unknown hashes open Display', () => {

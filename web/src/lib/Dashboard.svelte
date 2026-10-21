@@ -155,7 +155,7 @@
   // its own duplicate copies of that chrome, and the nav.js injection
   // that used to drive them, were removed when it moved here
   // (alrayyes/forge-dashboard#645). Its own genuinely page-specific
-  // content (the forge-names subtitle, forge health, the owner-switcher,
+  // content (the forge-names subtitle, forge health,
   // the refresh button) used to be injected into the layout's <header>
   // via a Svelte context the layout exposed — that approach didn't work:
   // SvelteKit's SSR renders a layout's own template (everything before
@@ -1312,12 +1312,7 @@
       }
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
-      const closing = closingPills(
-        prKey(item),
-        item.repo,
-        item.closesIssues,
-        !currentOwner,
-      );
+      const closing = closingPills(prKey(item), item.repo, item.closesIssues);
       if (closing) attributes.appendChild(closing);
       return { state, attributes };
     }
@@ -1943,9 +1938,7 @@
       repo: string;
       number: number;
     }): Promise<PullRequestLookup> {
-      const url =
-        "/api/dashboard?includeDrafts=true&includeHidden=true" +
-        (currentOwner ? `&owner=${encodeURIComponent(currentOwner)}` : "");
+      const url = "/api/dashboard?includeDrafts=true&includeHidden=true";
       const res = await fetch(url, {
         headers: { Accept: "application/json" },
       }).catch(() => null);
@@ -2167,7 +2160,6 @@
           prKey(item),
           item.repo,
           (item as PullRequestItem).closesIssues,
-          !currentOwner,
           (issue, triggerId) =>
             openClosingIssue(item as PullRequestItem, issue, triggerId),
         );
@@ -2179,7 +2171,6 @@
           prKey(item),
           item.repo,
           (item as IssueItem).linkedPullRequests,
-          !currentOwner,
           (linked, triggerId) => void openLinkedPullRequest(linked, triggerId),
         );
         if (pills) titleCellEl.appendChild(pills);
@@ -8157,49 +8148,6 @@
         });
     });
 
-    // ---- switching to a dashboard someone else shared with you ----
-    let currentOwner = "";
-    const ownerSelect = document.getElementById(
-      "dashboard-owner-select",
-    ) as HTMLSelectElement | null;
-
-    fetch("/api/sharing", { headers: { Accept: "application/json" } })
-      .then((res) => (res.ok ? res.json() : null))
-      .then(
-        (
-          data: {
-            sharedWithMe?: { username: string; displayName: string }[];
-          } | null,
-        ) => {
-          if (
-            !data?.sharedWithMe ||
-            data.sharedWithMe.length === 0 ||
-            !ownerSelect
-          )
-            return;
-          for (const u of data.sharedWithMe) {
-            const option = document.createElement("option");
-            option.value = u.username;
-            option.textContent = `${u.displayName}’s dashboard`;
-            ownerSelect.appendChild(option);
-          }
-          ownerSelect.hidden = false;
-        },
-      )
-      .catch(() => {
-        /* a transient failure here isn't worth blocking the page over */
-      });
-
-    ownerSelect?.addEventListener("change", () => {
-      currentOwner = ownerSelect.value;
-      // Force-refresh only ever hits the signed-in user's own dashboard
-      // (POST /api/dashboard/refresh has no ?owner= support, same as
-      // the SSE stream) — hidden rather than left clickable-but-wrong
-      // while viewing someone else's shared one.
-      if (forceRefreshButton) forceRefreshButton.hidden = Boolean(currentOwner);
-      refresh(true);
-    });
-
     // ---- main fetch/render loop ----
     // Each pull request this app auto-merged is announced once, matched on
     // forge, repository, number and merge time. The server lists them for
@@ -8378,10 +8326,7 @@
       signal?: AbortSignal,
       fromPoll = false,
     ): Promise<DashboardSnapshot> {
-      const url = withDrafts(
-        "/api/dashboard" +
-          (currentOwner ? `?owner=${encodeURIComponent(currentOwner)}` : ""),
-      );
+      const url = withDrafts("/api/dashboard");
 
       return fetch(url, {
         // The poll's own timed read says nothing about a person being here.
@@ -8532,9 +8477,7 @@
     const streamFailureLimit = 5;
     let streamFailures = 0;
     function ensureStream() {
-      // A shared dashboard's forges are the owner's, but the stream is always
-      // the viewer's own, and its pushes are ignored there anyway.
-      if (destroyed || streamTimer || currentOwner) return;
+      if (destroyed || streamTimer) return;
       if (lastForges.length === 0 || streamFailures >= streamFailureLimit)
         return;
       if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
@@ -8564,10 +8507,6 @@
         streamRetryMs = Math.min(streamRetryMs * 2, streamRetryMaxMs);
       };
       source.onmessage = (event) => {
-        // Only when looking at your own dashboard — a push here is
-        // always this session's own aggregator, never the owner
-        // currently selected in the sharing dropdown.
-        if (currentOwner) return;
         try {
           applySnapshot(JSON.parse(event.data));
         } catch {
@@ -8689,16 +8628,6 @@
       <span class="sr-only">Connected forges: </span>
       <span id="forge-names"><span class="mono">&hellip;</span></span>
     </p>
-    <label for="dashboard-owner-select" class="sr-only">Viewing dashboard</label
-    >
-    <select
-      id="dashboard-owner-select"
-      class="mono"
-      style="font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface-sunken);color:var(--ink);"
-      hidden
-    >
-      <option value="">My dashboard</option>
-    </select>
     <div id="forge-health"></div>
     <!-- The one polite live region for forge health. #forge-health is
          redrawn on every snapshot, so it can't be live itself: this text

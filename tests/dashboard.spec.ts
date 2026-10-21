@@ -2387,31 +2387,19 @@ test.describe('dashboard page', () => {
       );
     });
 
-    test('is hidden while viewing a dashboard someone else shared', async ({
+    test('the dashboard header has no owner switcher and never asks about sharing', async ({
       page,
     }) => {
-      await page.route('**/api/sharing', (route: Route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            sharedWithMe: [
-              { username: 'someone-else', displayName: 'Someone Else' },
-            ],
-          }),
-        }),
-      );
+      const sharingRequests: string[] = [];
+      page.on('request', (r) => {
+        if (new URL(r.url()).pathname.startsWith('/api/sharing'))
+          sharingRequests.push(r.url());
+      });
       await page.reload();
 
       await expect(page.locator('#force-refresh-button')).toBeVisible();
-
-      await expect(page.locator('#dashboard-owner-select')).toBeVisible();
-      await page.selectOption('#dashboard-owner-select', 'someone-else');
-
-      await expect(page.locator('#force-refresh-button')).toBeHidden();
-
-      await page.selectOption('#dashboard-owner-select', '');
-      await expect(page.locator('#force-refresh-button')).toBeVisible();
+      await expect(page.locator('#dashboard-owner-select')).toHaveCount(0);
+      expect(sharingRequests).toEqual([]);
     });
   });
 
