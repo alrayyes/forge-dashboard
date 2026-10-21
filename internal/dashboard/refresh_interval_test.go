@@ -139,3 +139,25 @@ func TestAggregator_NextDelay_StillWaitsOutACriticalBudget(t *testing.T) {
 	assert.Equal(t, time.Hour, uncovered.NextDelay(20*time.Minute))
 	assert.Equal(t, 80*time.Minute, covered.NextDelay(20*time.Minute))
 }
+
+func TestAggregator_NextDelay_DoesNotStretchOnCarriedOverRepos(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:  []dashboard.Repo{repoWithHook("o/a", true)},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	require.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+
+	// The whole fetch fails: the repos are the earlier ones, with the hook
+	// state they had then, which says nothing about now.
+	src.mu.Lock()
+	src.result = dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false}}
+	src.mu.Unlock()
+	agg.Refresh(t.Context())
+	require.Len(t, agg.Get().Repos, 1)
+
+	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+}
