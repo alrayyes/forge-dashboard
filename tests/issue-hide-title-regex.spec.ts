@@ -1,27 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
+import { expect, type Page, type Route } from '@playwright/test';
 import { choicesOf } from './label-filter-helper';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #1593: "Hide titles matching (regex)" on the Issues page, next to the Hide
 // Dependency Dashboard box. The filter state is saved per user, so this spec
 // registers its own user rather than sharing the session.
 // https://github.com/alrayyes/forge-dashboard/issues/1593
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `hide-title-regex-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Hide Title Regex');
-}
 
 function issue(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -86,8 +71,8 @@ const rows = (page: Page) => page.locator('#issue-rows > .row');
 const choices = choicesOf;
 
 test.describe('hide titles matching a pattern (#1593)', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
     await open(page);
   });
 

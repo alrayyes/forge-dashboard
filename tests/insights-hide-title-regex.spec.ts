@@ -1,6 +1,5 @@
 import { expect, type Route } from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { landOnPullRequests, test } from './server-fixture';
 
 // #1593: the title pattern belongs to the Issues board. Insights shares the
 // saved filter state but has no box for it, so its charts must not hide
@@ -22,16 +21,8 @@ function issue(number: number, title: string) {
 
 test('a saved title pattern does not change the Insights issue counts', async ({
   page,
-  request,
-  baseURL,
 }) => {
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    `insights-hide-title-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
-    'Insights Hide Title',
-  );
+  await landOnPullRequests(page);
   const saved = await page.request.put('/api/settings/filter-state', {
     data: {
       shared: {},

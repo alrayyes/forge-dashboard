@@ -107,7 +107,7 @@ const issueDialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Issue details/ });
 
 test.describe('the pill on a pull request row', () => {
-  test('shows the issue number, links to it, and says what it is to a screen reader', async ({
+  test('shows the issue number, opens it, and says what it is to a screen reader', async ({
     page,
   }) => {
     await mockBoard(page, {
@@ -120,7 +120,6 @@ test.describe('the pill on a pull request row', () => {
     await expect(pills(page, 1)).toHaveAccessibleName(
       'Closes #12, opens the issue',
     );
-    await expect(pills(page, 1)).toHaveAttribute('href', address(12));
     await expect(pills(page, 2)).toHaveCount(0);
   });
 
@@ -186,14 +185,14 @@ test.describe('the pill on a pull request row', () => {
       }),
     );
     await page.goto('/pull-requests.html');
-    await expect(page.locator('a.closing-issue')).toHaveCount(1);
+    await expect(page.locator('button.closing-issue')).toHaveCount(1);
 
     await page
       .locator('#dashboard-owner-select')
       .selectOption({ label: 'Alice’s dashboard' });
 
     await expect(page.locator('.closing-issue')).toHaveText('Closes #12');
-    await expect(page.locator('a.closing-issue')).toHaveCount(0);
+    await expect(page.locator('button.closing-issue')).toHaveCount(0);
   });
 
   test('is also in the pull request pop-up', async ({ page }) => {
@@ -231,32 +230,7 @@ test.describe('the pill on a pull request row', () => {
 });
 
 test.describe('the address of an issue', () => {
-  test('clicking the pill loads the Issues page with that issue open, and Escape stays on the page', async ({
-    page,
-  }) => {
-    await mockBoard(page, {
-      pullRequests: [pullRequest(1, [closing(12)])],
-      issues: [issue(12), issue(13)],
-    });
-    await page.goto('/pull-requests.html');
-
-    await pills(page, 1).click();
-
-    await expect(page).toHaveURL(/\/issues\.html/);
-    await expect(issueDialog(page)).toBeVisible();
-    await expect(issueDialog(page)).toHaveAccessibleName(
-      `Issue details: ${REPO} #12`,
-    );
-    // The address is clean, so a reload does not open it again.
-    expect(new URL(page.url()).search).toBe('');
-
-    await page.keyboard.press('Escape');
-
-    await expect(issueDialog(page)).toBeHidden();
-    await expect(page.locator('#issue-rows .row')).toHaveCount(2);
-  });
-
-  test('opening the address directly does the same', async ({ page }) => {
+  test('opening the address directly still opens it', async ({ page }) => {
     await mockBoard(page, { issues: [issue(12)] });
 
     await page.goto(address(12));

@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 import { settle } from './settle-helper';
 
 // The issues page holds its list steady during a refresh. A snapshot that
@@ -15,15 +9,6 @@ import { settle } from './settle-helper';
 // modal is open or updates are paused, then lands by itself; a row whose own
 // content changed updates in place; a snapshot with no change renders
 // nothing.
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `issues-steady-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(page, request, baseURL, username, 'Steady Issues');
-}
 
 interface MockIssue {
   forge: string;
@@ -169,8 +154,8 @@ async function scrollDown(page: Page) {
 }
 
 test.describe('steady issues refresh', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   // #1198: the bar on the issues page counts issue rows only. Pull request

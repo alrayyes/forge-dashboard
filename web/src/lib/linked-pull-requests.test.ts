@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type LinkedPullRequest,
+  linkedPillId,
   linkedPillName,
   linkedPillText,
   missingNote,
@@ -121,5 +122,16 @@ describe('missingNote', () => {
     expect(missingNote({ forge: 'github', repo: 'o/a', number: 5 })).toBe(
       'Pull request o/a #5 is not open any more, or this dashboard does not track it.',
     );
+  });
+});
+
+describe('linkedPillId', () => {
+  test('is a safe id that differs per pull request and per issue', () => {
+    const id = linkedPillId('github/alrayyes/app/1', pr());
+    expect(id).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(id).not.toBe(
+      linkedPillId('github/alrayyes/app/1', pr({ number: 13 })),
+    );
+    expect(id).not.toBe(linkedPillId('github/alrayyes/app/2', pr()));
   });
 });

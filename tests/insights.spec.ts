@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import {
-  type APIRequestContext,
-  expect,
-  type Page,
-  type Route,
-} from '@playwright/test';
-import { test } from './fixtures';
-import { registerViaInvite } from './register-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { landOnPullRequests, test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
 
 interface RateLimit {
@@ -48,21 +42,6 @@ interface IssueFixture {
   labels: { name: string; color: string }[];
   createdAt: string;
   updatedAt: string;
-}
-
-async function registerAndSignIn(
-  page: Page,
-  request: APIRequestContext,
-  baseURL: string | undefined,
-) {
-  const username = `insights-test-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await registerViaInvite(
-    page,
-    request,
-    baseURL,
-    username,
-    'Insights Test User',
-  );
 }
 
 function mockDashboard(
@@ -137,8 +116,8 @@ function hoursAgo(hours: number) {
 }
 
 test.describe('insights page', () => {
-  test.beforeEach(async ({ page, request, baseURL }) => {
-    await registerAndSignIn(page, request, baseURL);
+  test.beforeEach(async ({ page }) => {
+    await landOnPullRequests(page);
   });
 
   test('is reachable from a link in the dashboard header', async ({ page }) => {

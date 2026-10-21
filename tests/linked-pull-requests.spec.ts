@@ -136,7 +136,6 @@ test.describe('the pill on an issue row', () => {
     await expect(pills(page, 1)).toHaveAccessibleName(
       'Pull request #12 open, closes this issue',
     );
-    await expect(pills(page, 1)).toHaveAttribute('href', address(12));
     await expect(pills(page, 3)).toHaveText('#13 draft');
     await expect(pills(page, 2)).toHaveCount(0);
   });
@@ -212,14 +211,14 @@ test.describe('the pill on an issue row', () => {
       }),
     );
     await page.goto('/issues.html');
-    await expect(page.locator('a.linked-pr')).toHaveCount(1);
+    await expect(page.locator('button.linked-pr')).toHaveCount(1);
 
     await page
       .locator('#dashboard-owner-select')
       .selectOption({ label: 'Alice’s dashboard' });
 
     await expect(page.locator('.linked-pr')).toHaveText('#12 open');
-    await expect(page.locator('a.linked-pr')).toHaveCount(0);
+    await expect(page.locator('button.linked-pr')).toHaveCount(0);
   });
 
   test('the non-link pill looks inert and a click on it reaches the issue title', async ({
@@ -255,7 +254,7 @@ test.describe('the pill on an issue row', () => {
       }),
     );
     await page.goto('/issues.html');
-    await expect(page.locator('a.linked-pr')).toHaveCount(1);
+    await expect(page.locator('button.linked-pr')).toHaveCount(1);
     await page
       .locator('#dashboard-owner-select')
       .selectOption({ label: 'Alice’s dashboard' });
@@ -300,33 +299,7 @@ test.describe('the pill on an issue row', () => {
 });
 
 test.describe('the address of a pull request', () => {
-  test('clicking the pill loads the page with that pull request open, and closing it stays on the page', async ({
-    page,
-  }) => {
-    await mockBoard(page, {
-      shown: [pullRequest(12), pullRequest(13)],
-      issues: [issue(1, [linked(12)])],
-    });
-    await page.goto('/issues.html');
-
-    await pills(page, 1).click();
-
-    await expect(page).toHaveURL(/\/pull-requests\.html/);
-    await expect(dialog(page)).toBeVisible();
-    await expect(dialog(page)).toHaveAccessibleName(
-      `Pull request details: ${REPO} #12`,
-    );
-    // The address is clean, so a reload does not open it again.
-    expect(new URL(page.url()).search).toBe('');
-
-    await page.keyboard.press('Escape');
-
-    await expect(dialog(page)).toBeHidden();
-    await expect(page).toHaveURL(/\/pull-requests\.html$/);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
-  });
-
-  test('opening the address directly does the same', async ({ page }) => {
+  test('opening the address directly still opens it', async ({ page }) => {
     await mockBoard(page, { shown: [pullRequest(12)] });
 
     await page.goto(address(12));

@@ -94,9 +94,13 @@ A pull request that will close issues shows a "Closes" link for each, after
 its title on the row and among the attributes in the pop-up. The row shows the
 first two and, when there are more, a link such as "2 more" that shows the rest
 in place. An issue in another repository than the pull request's names its
-repo. Each link opens the [Issues page](issues.md#opening-an-issue-from-its-address)
-with that issue's pop-up open, so no pop-up sits on top of another. Screen
-readers hear "Closes", the number and "opens the issue".
+repo. On a row, each pill is a button that opens that issue's pop-up on this page,
+and Escape puts focus back on the pill. An issue the board doesn't list still
+opens, with a link to its forge, and the pop-up says plainly if the forge can't
+show it. Inside a pull request's own pop-up the pill stays a link to the
+[Issues page](issues.md#opening-an-issue-from-its-address), so no pop-up sits
+on top of another. Screen readers hear "Closes", the number and "opens the
+issue".
 
 The server works out which issues those are, and builds the address that opens
 each. In `GET /api/dashboard` each pull request has `closesIssues`, always
