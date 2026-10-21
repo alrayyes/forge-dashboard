@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.255.0](https://github.com/alrayyes/forge-dashboard/compare/v0.254.2...v0.255.0) (2026-10-21)
+
+
+### Features
+
+* **web:** remove dashboard sharing and the owner switcher ([#2211](https://github.com/alrayyes/forge-dashboard/issues/2211)) ([8f8c446](https://github.com/alrayyes/forge-dashboard/commit/8f8c446c091c593011b4cd8d4aef1cda3b071170)), closes [#1889](https://github.com/alrayyes/forge-dashboard/issues/1889) [#1876](https://github.com/alrayyes/forge-dashboard/issues/1876)
+
 ## [0.254.2](https://github.com/alrayyes/forge-dashboard/compare/v0.254.1...v0.254.2) (2026-10-21)
 
 
