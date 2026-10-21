@@ -110,7 +110,9 @@
     });
     host.replaceChildren(pill);
     // An open panel gives focus back to the pill that opened it.
-    if (old instanceof HTMLElement) pipeline?.replaceOpener(old, pill);
+    if (old instanceof HTMLElement) {
+      untrack(() => pipeline?.replaceOpener(old, pill));
+    }
     if (hadFocus) pill.focus();
   }
 
