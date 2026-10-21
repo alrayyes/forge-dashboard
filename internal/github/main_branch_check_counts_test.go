@@ -25,6 +25,11 @@ func TestFetch_MainBranch_CarriesTheCheckCounts(t *testing.T) {
 			want:   dashboard.CheckCounts{Passed: 5, Skipped: 1, Running: 2, Waiting: 3, Failed: 2},
 		},
 		{
+			name:   "a pipeline where every check was skipped",
+			rollup: rollupOf("SUCCESS", map[string]int{"SKIPPED": 3}),
+			want:   dashboard.CheckCounts{Passed: 3, Skipped: 3},
+		},
+		{
 			name:   "a passed pipeline",
 			rollup: rollupOf("SUCCESS", map[string]int{"SUCCESS": 11, "NEUTRAL": 1}),
 			want:   dashboard.CheckCounts{Passed: 12},

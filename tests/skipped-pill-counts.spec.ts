@@ -113,11 +113,12 @@ test.describe('skipped counts on the pull request pill', () => {
     await openBoard(page, '/pull-requests.html');
 
     const pill = prPill(page, 'All skipped');
+    await expect(pill.locator('.ci-seg-label')).toHaveText('Skipped');
     await expect(segs(pill)).toHaveText(['3']);
     await expect(kinds(pill)).resolves.toEqual(['ci-seg-skipped']);
     await expect(pill).toHaveAttribute(
       'aria-label',
-      'Passed 3: 3 skipped. Open pipeline',
+      'Skipped 3: 3 skipped. Open pipeline',
     );
   });
 
@@ -221,10 +222,13 @@ test.describe('skipped counts on the Main branches pill', () => {
     await openBranches(page);
 
     await expect(segs(branchPill(page, 'acme/some'))).toHaveText(['8', '2']);
+    await expect(
+      branchPill(page, 'acme/all').locator('.ci-seg-label'),
+    ).toHaveText('Skipped');
     await expect(segs(branchPill(page, 'acme/all'))).toHaveText(['3']);
     await expect(branchPill(page, 'acme/all')).toHaveAttribute(
       'aria-label',
-      'Passed 3: 3 skipped. Open pipeline',
+      'Skipped 3: 3 skipped. Open pipeline',
     );
     await expect(segs(branchPill(page, 'acme/red'))).toHaveText([
       '4',
@@ -291,9 +295,9 @@ test.describe('skipped counts on the Issues page pill', () => {
     await expect(issuePill(page, 1)).toHaveAccessibleName(
       'Pull request #12 open Passed 8 2: 8 passed, 2 of them skipped, closes this issue',
     );
-    await expect(issuePill(page, 2)).toHaveText('#13 open Passed 3');
+    await expect(issuePill(page, 2)).toHaveText('#13 open Skipped 3');
     await expect(issuePill(page, 2)).toHaveAccessibleName(
-      'Pull request #13 open Passed 3: 3 skipped, closes this issue',
+      'Pull request #13 open Skipped 3: 3 skipped, closes this issue',
     );
   });
 });

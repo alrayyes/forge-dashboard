@@ -31,6 +31,11 @@ func TestFetch_RollupCheckCounts(t *testing.T) {
 			want:   dashboard.CheckCounts{Passed: 7, Skipped: 4},
 		},
 		{
+			name:   "a pipeline where every check was skipped is all passed and all skipped",
+			rollup: rollupFixture("SUCCESS", map[string]int{"SKIPPED": 3}, nil),
+			want:   dashboard.CheckCounts{Passed: 3, Skipped: 3},
+		},
+		{
 			name:   "every not-started state counts as waiting",
 			rollup: rollupFixture("PENDING", map[string]int{"QUEUED": 1, "PENDING": 1, "WAITING": 1, "REQUESTED": 1}, nil),
 			want:   dashboard.CheckCounts{Waiting: 4},

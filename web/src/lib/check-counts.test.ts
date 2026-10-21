@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { checkSegments, pillName } from './check-counts';
+import { checkSegments, pillName, pillWord } from './check-counts';
 
 describe('checkSegments', () => {
   test('draws passed, running, waiting, failed in that order', () => {
@@ -85,6 +85,54 @@ describe('checkSegments with skipped', () => {
         }),
       ),
     ).toBe('Passed 8 2: 8 passed, 2 of them skipped');
+  });
+});
+
+describe('skipped held to passed', () => {
+  test('never draws more skipped than passed', () => {
+    expect(
+      checkSegments({
+        passed: 2,
+        skipped: 5,
+        running: 0,
+        waiting: 0,
+        failed: 1,
+      }),
+    ).toEqual([
+      { kind: 'skipped', n: 2 },
+      { kind: 'failed', n: 1 },
+    ]);
+  });
+
+  test('draws no skipped when nothing passed', () => {
+    expect(
+      checkSegments({
+        passed: 0,
+        skipped: 4,
+        running: 1,
+        waiting: 0,
+        failed: 0,
+      }),
+    ).toEqual([{ kind: 'running', n: 1 }]);
+  });
+});
+
+describe('pillWord', () => {
+  const only = [{ kind: 'skipped' as const, n: 3 }];
+
+  test('says Skipped for a pass that was only skipped checks', () => {
+    expect(pillWord('Passed', only)).toBe('Skipped');
+  });
+
+  test('keeps the word beside other segments or on another state', () => {
+    expect(
+      pillWord('Passed', [
+        { kind: 'passed', n: 8 },
+        { kind: 'skipped', n: 2 },
+      ]),
+    ).toBe('Passed');
+    expect(pillWord('Failed', only)).toBe('Failed');
+    expect(pillWord('Running', only)).toBe('Running');
   });
 });
 

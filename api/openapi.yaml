@@ -4135,10 +4135,12 @@ components:
         `cancelled` has `failed` at 0. A timed-out or stale check counts as `failed`, a skipped,
         neutral or bare completed one as `passed`, on Forgejo too.
 
-        `skipped` says how many of the `passed` checks were skipped. It is
-        inside `passed`, not beside it, so `passed` still counts every check
-        that needs nothing more and the four states still add up to the checks
-        the pipeline lists. A neutral or bare completed check is passed without
+        `skipped` is a newer field and says how many of the `passed` checks
+        were skipped. It never exceeds `passed`: it is inside `passed`, not
+        beside it, so `passed` still counts every check that needs nothing more
+        and the four states still add up to the checks the pipeline lists. The
+        server always sends it; a client that may talk to an older server
+        reads a missing one as none. A neutral or bare completed check is passed without
         being skipped. A client that draws it shows it as detail on the passed
         count, and a pipeline where every passed check was skipped can read as
         skipped.
