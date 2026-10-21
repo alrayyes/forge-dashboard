@@ -10,7 +10,10 @@ import {
 import {
   ageChoices,
   ciBucket,
+  closingChoiceLabel,
   type FilterableItem,
+  failingFilters,
+  matchesClosing,
   matchesFilters,
   matchesQuickFilter,
   optionPool,
@@ -329,5 +332,54 @@ describe('the title box and ticket numbers', () => {
   test('a pull request matches on the title alone', () => {
     expect(hits(issue(1884), '1884', true)).toBe(false);
     expect(hits(issue(1, 'Fix 1884'), '1884', true)).toBe(true);
+  });
+});
+
+// The closing-link filter: pull requests that close an issue, issues that a
+// pull request closes. Pure, so these run without a browser; the pages' wiring
+// is in closing-link-filter.spec.ts.
+describe('closingChoiceLabel', () => {
+  test('words each choice as its button reads, per page', () => {
+    expect(closingChoiceLabel(true, 'yes')).toBe('Closes an issue');
+    expect(closingChoiceLabel(true, 'no')).toBe('Closes no issue');
+    expect(closingChoiceLabel(false, 'yes')).toBe('Has a closing pull request');
+    expect(closingChoiceLabel(false, 'no')).toBe('No closing pull request');
+  });
+});
+
+describe('matchesClosing', () => {
+  const link = { repo: 'a/b', number: 1 };
+  const closes = choiceItem({ closesIssues: [link] });
+  const none = choiceItem({});
+  const empty = choiceItem({ closesIssues: [] });
+  const linked = choiceItem({ linkedPullRequests: [link] });
+
+  test('a pull request is matched on its closing issues', () => {
+    expect(matchesClosing(closes, true, 'yes')).toBe(true);
+    expect(matchesClosing(none, true, 'yes')).toBe(false);
+    expect(matchesClosing(none, true, 'no')).toBe(true);
+    expect(matchesClosing(empty, true, 'no')).toBe(true);
+    expect(matchesClosing(closes, true, 'no')).toBe(false);
+  });
+
+  test('an issue is matched on its linked pull requests', () => {
+    expect(matchesClosing(linked, false, 'yes')).toBe(true);
+    expect(matchesClosing(none, false, 'yes')).toBe(false);
+    expect(matchesClosing(none, false, 'no')).toBe(true);
+  });
+
+  test('no pick, or one it does not know, keeps everything', () => {
+    expect(matchesClosing(none, true, undefined)).toBe(true);
+    expect(matchesClosing(none, true, 'bogus')).toBe(true);
+  });
+
+  test('failingFilters names the key each page stores it under', () => {
+    expect(failingFilters(none, true, {}, { closes: 'yes' })).toEqual([
+      'closes',
+    ]);
+    expect(failingFilters(none, false, {}, { closedBy: 'yes' })).toEqual([
+      'closedBy',
+    ]);
+    expect(failingFilters(closes, true, {}, { closes: 'yes' })).toEqual([]);
   });
 });

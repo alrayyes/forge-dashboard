@@ -5558,7 +5558,11 @@
     // since a repo with nothing else has nothing to show.
     function sharedPoolExcluding(
       excludeKey: Filters.PoolKey,
-      board: "apply" | "applyExceptQuick" | "applyExceptAutoMerge" = "apply",
+      board:
+        | "apply"
+        | "applyExceptQuick"
+        | "applyExceptAutoMerge"
+        | "applyExceptClosing" = "apply",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -5578,9 +5582,13 @@
                 ...sharedState.pr,
                 ...(board === "applyExceptQuick" ? { quick: "" } : {}),
                 ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
+                ...(board === "applyExceptClosing" ? { closes: "" } : {}),
               }
             : undefined
-          : withSettings(sharedState.issue),
+          : {
+              ...withSettings(sharedState.issue),
+              ...(board === "applyExceptClosing" ? { closedBy: "" } : {}),
+            },
       );
     }
 
@@ -5726,6 +5734,12 @@
           sharedPoolExcluding("", "applyExceptAutoMerge"),
           sharedState.pr.autoMerge ?? "",
         );
+      Filters.offerClosing(
+        document.querySelectorAll<HTMLElement>(".link-group"),
+        sharedPoolExcluding("", "applyExceptClosing"),
+        pullsView,
+        closingGroup()[closingKey()] ?? "",
+      );
       Filters.offerPills(
         document.querySelectorAll<HTMLElement>(".quick-pill"),
         forgePillPool(),
@@ -5765,6 +5779,7 @@
     function syncSharedControlsToState() {
       syncQuickPills();
       syncAutoMerge();
+      syncClosing();
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
         .forEach((c) => {
@@ -6417,6 +6432,12 @@
     const amButtons = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".am-group [data-am]"),
     );
+    function closingGroup(): Record<string, string> {
+      return pullsView ? sharedState.pr : sharedState.issue;
+    }
+    function closingKey(): "closes" | "closedBy" {
+      return pullsView ? "closes" : "closedBy";
+    }
     function syncAutoMerge() {
       const picked = sharedState.pr.autoMerge || "any";
       for (const b of amButtons)
@@ -6436,6 +6457,35 @@
       });
     }
     syncAutoMerge();
+
+    // ---- closing-link segment ----
+    // Pull requests: closes an issue or not. Issues: has a closing pull
+    // request or not. A segmented control with an Any segment, as for
+    // Auto-merge; the pick is saved with the page's other filters.
+    const linkButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".link-group [data-link]"),
+    );
+    function syncClosing() {
+      const picked = closingGroup()[closingKey()] || "any";
+      for (const b of linkButtons)
+        b.setAttribute("aria-pressed", String(b.dataset.link === picked));
+    }
+    for (const b of linkButtons) {
+      b.addEventListener("click", () => {
+        const value = b.dataset.link ?? "any";
+        const group = closingGroup();
+        if (value === "any") delete group[closingKey()];
+        else group[closingKey()] = value;
+        Filters.touchKey(pullsView ? "pr" : "issue", closingKey());
+        prBoard.resetPage();
+        issueBoard.resetPage();
+        updateSharedFilterOptions();
+        Filters.saveState(sharedState);
+        syncClosing();
+        renderBoth();
+      });
+    }
+    syncClosing();
 
     // "/" focuses the title search, as on GitHub — only when nothing
     // editable has focus and no modifier is held, so typing a slash into
@@ -6496,6 +6546,8 @@
         Object.keys(sharedState.shared).every((k) => !sharedState.shared[k]) &&
         !sharedState.pr.quick &&
         !sharedState.pr.autoMerge &&
+        !sharedState.pr.closes &&
+        !sharedState.issue.closedBy &&
         // A saved pick this page does not offer is still a filter (#1620).
         Filters.heldPicks().length === 0 &&
         // A field the Settings page replaced is not drawn, so what the
@@ -6616,6 +6668,18 @@
               .querySelector<HTMLButtonElement>('.am-group [data-am="any"]')
               ?.click(),
         });
+      const closing = closingGroup()[closingKey()];
+      if (closing)
+        chips.push({
+          label: Filters.closingChoiceLabel(
+            pullsView,
+            closing === "yes" ? "yes" : "no",
+          ),
+          clear: () =>
+            document
+              .querySelector<HTMLButtonElement>('.link-group [data-link="any"]')
+              ?.click(),
+        });
       if (pullsView && draftsOn())
         chips.push({
           label: "Drafts shown",
@@ -6728,7 +6792,7 @@
       );
       // Each filter is cleared in the group the page keeps it in: the
       // pull-request ones live in sharedState.pr, the rest in shared.
-      const prKeys = ["status", "quick", "autoMerge"];
+      const prKeys = ["status", "quick", "autoMerge", "closes"];
       for (const filter of failing) {
         const group = prKeys.includes(filter) ? "pr" : "shared";
         Filters.touchKey(group, filter);
@@ -6738,6 +6802,7 @@
       if (failing.length > 0) {
         syncQuickPills();
         syncAutoMerge();
+        syncClosing();
         document
           .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
             `${FILTER_CONTROLS}`,
@@ -6788,6 +6853,7 @@
       Filters.touchAll();
       syncQuickPills();
       syncAutoMerge();
+      syncClosing();
 
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
@@ -8151,6 +8217,28 @@
   }
 </script>
 
+<!-- The closing-link segment, once in the filter bar and once in the phone
+     Filters sheet, so the two cannot drift apart. -->
+{#snippet closingSegment(sheet: boolean)}
+  <div
+    class="link-group"
+    class:sheet-only={sheet}
+    role="group"
+    aria-label={view === "issues" ? "Closing pull request" : "Closing issue"}
+  >
+    <span class="am-label" aria-hidden="true"
+      >{view === "issues" ? "Closing PR" : "Closing issue"}</span
+    >
+    <button type="button" data-link="any" aria-pressed="true">Any</button>
+    <button type="button" data-link="yes" aria-pressed="false"
+      >{Filters.closingChoiceLabel(pullsView, "yes")}</button
+    >
+    <button type="button" data-link="no" aria-pressed="false"
+      >{Filters.closingChoiceLabel(pullsView, "no")}</button
+    >
+  </div>
+{/snippet}
+
 <svelte:head>
   <title
     >{view === "issues"
@@ -8440,6 +8528,7 @@
           ></span></button
         >
       {/if}
+      {@render closingSegment(true)}
       <select
         class="group-select"
         id="pr-sort-select"
@@ -8506,6 +8595,9 @@
         disabled>Clear filters</button
       >
     </div>
+    <!-- Last in the bar, so the pills above it appearing or going moves
+         nothing but this segment and the bar keeps its height. -->
+    {@render closingSegment(false)}
   </div>
 
   <!-- Saved picks this page does not offer (#1620). Always in the page, so a
