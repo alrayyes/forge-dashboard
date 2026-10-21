@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.252.1](https://github.com/alrayyes/forge-dashboard/compare/v0.252.0...v0.252.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **web:** put focus on the first row when the closed dialog still holds it ([#2154](https://github.com/alrayyes/forge-dashboard/issues/2154)) ([2304f1d](https://github.com/alrayyes/forge-dashboard/commit/2304f1da82937d0565b339049916556ab4830cd1)), closes [#2140](https://github.com/alrayyes/forge-dashboard/issues/2140)
+
 ## [0.252.0](https://github.com/alrayyes/forge-dashboard/compare/v0.251.0...v0.252.0) (2026-10-21)
 
 
