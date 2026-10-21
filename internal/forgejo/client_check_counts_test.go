@@ -3,7 +3,9 @@ package forgejo_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -268,4 +270,96 @@ func TestListOpenPullRequests_RecordsAFailedRunsListRequest(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"/repos/alrayyes/a/actions/runs"}, failed)
+}
+
+// splitServer stands in for a Forgejo with one open pull request whose head
+// commit has the given pending statuses and Actions runs. jobs maps a run id to
+// the status of each of its jobs, and reads records the run ids whose jobs were
+// asked for.
+type splitServer struct {
+	pending int
+	runs    []map[string]any
+	jobs    map[int][]string
+	failJob map[int]bool
+
+	mu    sync.Mutex
+	reads []int
+}
+
+func (s *splitServer) start(t *testing.T) *forgejo.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{{
+			"number": 12, "title": "Add NTP alarm", "html_url": "https://git.example/alrayyes/a/pulls/12",
+			"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
+			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
+			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		statuses := make([]map[string]string, 0, s.pending)
+		for range s.pending {
+			statuses = append(statuses, map[string]string{"status": "pending", "context": "ci"})
+		}
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": statuses})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"workflow_runs": s.runs})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/{id}/jobs", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.Atoi(r.PathValue("id"))
+		require.NoError(t, err)
+		s.mu.Lock()
+		s.reads = append(s.reads, id)
+		s.mu.Unlock()
+		if s.failJob[id] {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+		jobs := make([]map[string]any, 0, len(s.jobs[id]))
+		for _, st := range s.jobs[id] {
+			jobs = append(jobs, map[string]any{"name": "job", "status": st})
+		}
+		writeJSON(t, w, jobs)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func (s *splitServer) checks(t *testing.T, client *forgejo.Client) dashboard.CheckCounts {
+	t.Helper()
+	prs, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+	require.NoError(t, err)
+	require.Len(t, prs, 1)
+
+	return prs[0].Checks
+}
+
+func splitRun(id int, status, event string) map[string]any {
+	return map[string]any{"id": id, "status": status, "event": event, "head_sha": "cafef00d"}
+}
+
+// A queued or blocked run can't hold a running job, so its jobs aren't read.
+func TestListOpenPullRequests_SplitReadsOnlyTheJobsOfRunningRuns(t *testing.T) {
+	t.Parallel()
+
+	s := &splitServer{
+		pending: 3,
+		runs:    []map[string]any{splitRun(7, "running", "pull_request"), splitRun(8, "waiting", "pull_request"), splitRun(9, "blocked", "pull_request")},
+		jobs:    map[int][]string{7: {"running"}, 8: {"waiting"}, 9: {"blocked"}},
+	}
+
+	got := s.checks(t, s.start(t))
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 2}, got)
+	assert.Equal(t, []int{7}, s.reads)
 }

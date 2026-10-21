@@ -1134,7 +1134,7 @@ func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bo
 
 // splitRunning tells the running checks from the queued ones among counts'
 // pending statuses (#2357). Forgejo says pending for both, so the statuses
-// can't. The commit's Actions jobs can, and only runs still going are read, so
+// can't. The commit's Actions jobs can, and only running runs are read, so
 // a commit with nothing pending costs nothing extra. The running jobs move
 // from waiting to running, never more than were pending, as a pending status
 // can come from an external CI the jobs know nothing about. Any failure keeps
@@ -1157,7 +1157,9 @@ func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, coun
 
 	running := 0
 	for _, run := range runs.WorkflowRuns {
-		if isFinished(run.Status) {
+		// Only a run that is running can hold a running job: a queued or
+		// blocked one has none, and a finished one is past it.
+		if checkStateFromWorkflowStatus(run.Status) != dashboard.CheckRunning {
 			continue
 		}
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
