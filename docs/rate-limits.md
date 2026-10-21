@@ -128,6 +128,44 @@ they are. On GitHub, it also asks less:
 
 On every forge, "Refresh now" runs at most once every five seconds.
 
+## How the CI poll spends the budget
+
+The CI poll covers the open pull requests whose checks are still running and the
+ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
+
+- **One query for all of them.** On GitHub the poll reads every due pull request,
+  across every repo, in one aliased GraphQL query, 25 pull requests to a query.
+  It used to send one query per repo. The reply for a pull request that has since
+  merged or closed takes it off the board, and a repo GitHub can't answer for (a
+  deleted one, or an installation that lost access) is read on its own while the
+  rest of the query still counts. Forgejo has no GraphQL and keeps one scoped
+  refresh per repo.
+- **Longer gaps while nothing changes.** A pull request that reads the same after
+  a poll waits twice as long before the next one: `CI_POLL_INTERVAL`, then double,
+  up to 15 minutes. Any change in its checks, merge state or auto-merge setting
+  puts it back at `CI_POLL_INTERVAL`. If you set `CI_POLL_INTERVAL` above 15
+  minutes, that wins, so the poll is never faster than you asked.
+- **No poll while the webhook is working.** A GitHub repo is left out of the poll
+  when its webhook is confirmed to deliver check events (`check_run` or
+  `check_suite`) and one such delivery arrived within three poll intervals. The
+  delivery has to carry a valid signature, and its body has to be a check event
+  and not just a check header on some other body. Once deliveries go quiet for
+  longer than that, polling starts again by itself. This applies only to pull
+  requests waiting on a check, never to an armed auto-merge, because the merge
+  itself isn't a check delivery. Forgejo is never skipped: its webhook can't
+  subscribe to the event CI status rides on.
+
+For a rough sense of the saving, take 30 pull requests with a running check, on
+12 repos, polled every minute, where nothing changes for ten minutes and there is
+no working check webhook. Before, that was 12 queries a minute, 120 in ten
+minutes. Now it is 2 queries per poll (30 pull requests in chunks of 25) and 4
+polls in those ten minutes (at minutes 0, 1, 3 and 7), so 8 queries. The
+behind-or-not lookup some pull requests need is one more request per query, where
+it used to be one per repo. With a working check webhook the figure is 0. These
+are counts worked out from how the poll is scheduled and checked by tests, not a
+fresh measurement against GitHub; the baseline table below is the measured
+reference.
+
 You can queue Update branch, `Dependabot: Rebase` and `Renovate: Rebase`
 while a forge is limited. They run after the reset, when the pull request still
 needs them, and Merge and Close can't be queued. See
@@ -213,8 +251,8 @@ The kind says why the request was made:
 | ------------------ | ------------------------------------------------------------------------------------ |
 | `full`             | A refresh of the whole account.                                                      |
 | `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                      |
-| `ci_poll`          | A poll of one repo with a check still running.                                       |
-| `auto_merge_poll`  | A poll of one repo with an armed auto-merge.                                         |
+| `ci_poll`          | A poll of pull requests with a check still running.                                  |
+| `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.   |
 | `details`          | A pull request, issue or check list you opened.                                      |
 | `hook_maintenance` | Checking, adding or upgrading webhooks.                                              |
 | `advisories`       | Reading a repo's open Dependabot alerts, once per repo every 15 minutes at most.     |

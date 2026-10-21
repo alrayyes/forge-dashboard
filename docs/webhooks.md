@@ -247,7 +247,8 @@ can't administer is tried once and left until the next restart.
   `CI_POLL_INTERVAL` ([Configuration](configuration.md)) is the actual
   fix: forge-dashboard re-checks CI directly, on its own short
   interval, for exactly the open pull requests whose CI is still
-  pending — scoped to just those, not every tracked repo — so a broken
+  pending — scoped to just those, not every tracked repo, and on GitHub
+  skipped while the repo's check events arrive — so a broken
   `status` event costs at most that interval's own staleness instead of
   the full `REFRESH_INTERVAL`.
 - **The forge shows the delivery failing, or your dashboard never
