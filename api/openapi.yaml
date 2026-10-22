@@ -2810,7 +2810,7 @@ paths:
         answers once the forge has queued them, not when they finish, so a
         client shows a queued state and lets the next refresh carry the result.
 
-        A Main branches row offers it when its `status` is `failing`. A failed
+        A Main branches row offers it when its `status` is `failed`. A failed
         check that isn't an Actions job (a third-party check, a legacy status,
         an external CI) can't be rerun here and is skipped. Refusals are an
         `ActionError`; a 409 means the branch has no failed job to rerun.
@@ -2844,7 +2844,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
         "404":
-          description: The forge reported the repo doesn't exist (or isn't visible to this token). `code` is `unknown`.
+          description: The repo isn't one whose default branch the dashboard tracks, or the forge reported it doesn't exist (or isn't visible to this token). For the forge's answer `code` is `unknown`.
           content:
             application/json:
               schema:

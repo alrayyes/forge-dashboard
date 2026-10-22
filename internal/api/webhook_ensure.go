@@ -10,14 +10,28 @@ import (
 )
 
 // splitFullName splits "owner/repo" into its two halves. false for
-// anything else — no slash, more than one, or an empty side.
+// anything else: no slash, more than one, an empty side, a "." or ".." side,
+// or a character that could change the forge URL it is later put into (a
+// query, a fragment, an escape, whitespace or a control character).
 func splitFullName(fullName string) (owner, name string, ok bool) {
 	parts := strings.Split(fullName, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) != 2 || !safeRepoSegment(parts[0]) || !safeRepoSegment(parts[1]) {
 		return "", "", false
 	}
 
 	return parts[0], parts[1], true
+}
+
+// safeRepoSegment reports whether s can be one half of an "owner/repo" name
+// without altering the path it is joined into.
+func safeRepoSegment(s string) bool {
+	if s == "" || s == "." || s == ".." {
+		return false
+	}
+
+	return !strings.ContainsFunc(s, func(r rune) bool {
+		return r <= ' ' || r == 0x7f || strings.ContainsRune(`?#%\`, r)
+	})
 }
 
 // clientErrorStatus maps a forge error's Kind to the HTTP status a caller
