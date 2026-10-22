@@ -85,8 +85,9 @@ func resolveRefreshInterval(v string) time.Duration {
 
 // defaultShutdownDrain is how long the server answers /readyz 503 before it
 // stops accepting connections, so a router polling that path has taken it
-// out of rotation first. Docker's default stop grace is 10s and Shutdown
-// gets 5 of them, so a longer drain needs a longer stop_grace_period too.
+// out of rotation first. Docker's default stop grace is 10s, and Shutdown
+// and the request-log flush take up to 5 each after the drain, so the grace
+// period needs to be the drain plus 10s.
 // requestLogQueueSize is how many request-log rows wait for the single
 // writer before a full queue starts dropping them.
 const requestLogQueueSize = 256
@@ -119,8 +120,8 @@ func resolveShutdownDrain(v string) time.Duration {
 }
 
 // requestLogFlushLimit is how long shutdown waits for queued request-log rows
-// to reach the database. It matches the 5s given to srv.Shutdown, so the stop
-// grace period the docs ask for (SHUTDOWN_DRAIN plus 5 seconds) still holds.
+// to reach the database. It runs after srv.Shutdown has had its own 5s, so the
+// stop grace period the docs ask for is SHUTDOWN_DRAIN plus 10 seconds.
 const requestLogFlushLimit = 5 * time.Second
 
 func flushRequestLog(w *requestlog.Writer) {
@@ -130,10 +131,15 @@ func flushRequestLog(w *requestlog.Writer) {
 }
 
 // drainThenShutdown flips readiness to 503, waits the drain delay so a
-// router can notice, and only then shuts the server down.
-func drainThenShutdown(delay, timeout time.Duration, startDrain func(), shutdown func(context.Context) error) error {
+// router can notice, and only then shuts the server down. Closing abort ends
+// the wait without shutting down, for a server that already stopped.
+func drainThenShutdown(abort <-chan struct{}, delay, timeout time.Duration, startDrain func(), shutdown func(context.Context) error) error {
 	startDrain()
-	time.Sleep(delay)
+	select {
+	case <-time.After(delay):
+	case <-abort:
+		return nil
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -347,7 +353,7 @@ func run() error {
 	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 
-	return listenAndServe(ctx, newServer(addr, deps), &drain, manager.Stop)
+	return listenAndServe(ctx, newServer(addr, deps), &drain)
 }
 
 // resolveIntervals reads how often to refresh everything and how often to poll
@@ -396,19 +402,23 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 }
 
 // listenAndServe binds srv.Addr and serves it with the production shutdown
-// timeout. stopStreams ends the long-lived streams as shutdown begins.
-func listenAndServe(ctx context.Context, srv *http.Server, drain *api.Drain, stopStreams func()) error {
-	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", srv.Addr)
+// timeout. A signal that arrives while it binds doesn't abort the bind: the
+// server starts and stops at once, the same as one that arrives a moment later.
+func listenAndServe(ctx context.Context, srv *http.Server, drain *api.Drain) error {
+	addr := srv.Addr
+	if addr == "" {
+		addr = ":http" // what http.Server.ListenAndServe falls back to
+	}
+	ln, err := (&net.ListenConfig{}).Listen(context.WithoutCancel(ctx), "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
 
-	return serve(ctx, srv, ln, drain, shutdownTimeout, stopStreams)
+	return serve(ctx, srv, ln, drain, shutdownTimeout, drain.StopStreams)
 }
 
-// serve runs srv on ln until ctx is cancelled, then drains readiness, stops
-// whatever holds a request open for good (stopStreams, which runs as Shutdown
-// begins), and waits up to timeout for the rest. A server that is still busy
+// serve runs srv on ln until ctx is cancelled, then drains readiness, ends
+// the open event streams (stopStreams, which runs as Shutdown begins), and waits up to timeout for the rest. A server that is still busy
 // then is closed. It answers whatever stopped the server that wasn't that
 // shutdown.
 func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Drain, timeout time.Duration, stopStreams func()) error {
@@ -425,7 +435,7 @@ func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Dr
 		case <-serveDone:
 			return
 		}
-		if err := drainThenShutdown(resolveShutdownDrain(os.Getenv("SHUTDOWN_DRAIN")), timeout, drain.Start, srv.Shutdown); err != nil {
+		if err := drainThenShutdown(serveDone, resolveShutdownDrain(os.Getenv("SHUTDOWN_DRAIN")), timeout, drain.Start, srv.Shutdown); err != nil {
 			slog.Error("shutdown", "error", err)
 			if err := srv.Close(); err != nil {
 				slog.Error("close after shutdown", "error", err)

@@ -28,7 +28,7 @@ func TestDrainThenShutdown_FlipsUnreadyBeforeShutdownAndWaitsTheDelay(t *testing
 	start := time.Now()
 	var waited time.Duration
 
-	err := drainThenShutdown(30*time.Millisecond, time.Second,
+	err := drainThenShutdown(nil, 30*time.Millisecond, time.Second,
 		func() { order = append(order, "drain") },
 		func(context.Context) error {
 			waited = time.Since(start)
@@ -40,6 +40,23 @@ func TestDrainThenShutdown_FlipsUnreadyBeforeShutdownAndWaitsTheDelay(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, []string{"drain", "shutdown"}, order)
 	assert.GreaterOrEqual(t, waited, 30*time.Millisecond)
+}
+
+func TestDrainThenShutdown_AbortedDuringTheDelay_DoesNotShutDown(t *testing.T) {
+	t.Parallel()
+
+	abort := make(chan struct{})
+	close(abort)
+	shutDown := false
+
+	err := drainThenShutdown(abort, time.Minute, time.Second, func() {}, func(context.Context) error {
+		shutDown = true
+
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.False(t, shutDown)
 }
 
 func TestResolveShutdownDrain_NoEnv_UsesDefault(t *testing.T) {
@@ -78,6 +95,11 @@ func startServe(t *testing.T, handler http.Handler, timeout time.Duration, stopS
 		defer close(done)
 		_ = serve(ctx, srv, ln, &api.Drain{}, timeout, stopStreams)
 	}()
+
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
 
 	return "http://" + ln.Addr().String(), cancel, done
 }
