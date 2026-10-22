@@ -67,10 +67,10 @@ func migrate(t *testing.T, db *sql.DB, path string) (dbmigrate.Result, error) {
 	return dbmigrate.Run(t.Context(), db, path, settings.MigrationSteps(), quietLog) //nolint:wrapcheck // test helper
 }
 
-func hasColumn(t *testing.T, db *sql.DB, table, column string) bool {
+func hasUserID(t *testing.T, db *sql.DB, table string) bool {
 	t.Helper()
 
-	return scalar[int](t, db, `SELECT count(*) FROM pragma_table_info(?) WHERE name = ?`, table, column) > 0
+	return scalar[int](t, db, `SELECT count(*) FROM pragma_table_info(?) WHERE name = 'user_id'`, table) > 0
 }
 
 func tableExists(t *testing.T, db *sql.DB, table string) bool {
@@ -88,7 +88,7 @@ func TestMigrate_OldShapeWithOneUser_KeepsEveryRowWithoutTheUserID(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, 1, res.Applied)
 	for _, table := range migrationTables {
-		assert.False(t, hasColumn(t, db, table, "user_id"), table)
+		assert.False(t, hasUserID(t, db, table), table)
 		assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM `+table), table)
 	}
 	assert.False(t, tableExists(t, db, "user_credentials"))
@@ -146,7 +146,7 @@ func TestMigrate_FailureMidStep_LeavesEveryOldTableIntact(t *testing.T) {
 		"webhook_deliveries", "ignored_repos", "auto_update_branch_repos", "auto_merge_intents",
 		"hidden_pull_requests", "queued_actions", "pull_request_auto_update", "user_credentials",
 	} {
-		assert.True(t, hasColumn(t, db, table, "user_id"), table)
+		assert.True(t, hasUserID(t, db, table), table)
 		assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM `+table), table)
 	}
 	assert.False(t, tableExists(t, db, "settings"))
@@ -172,7 +172,7 @@ func TestMigrate_SeveralUsersAndNoCleanupMarker_RefusesWithTheInstruction(t *tes
 
 	require.ErrorIs(t, err, settings.ErrRunPreviousRelease)
 	assert.Contains(t, err.Error(), "previous release")
-	assert.True(t, hasColumn(t, db, "user_credentials", "user_id"))
+	assert.True(t, hasUserID(t, db, "user_credentials"))
 }
 
 func TestMigrate_SeveralUsersButCleanupMarker_KeepsOnlyTheOwnersRows(t *testing.T) {
@@ -224,7 +224,7 @@ func TestMigrate_NoUsersTable_WithSettingsToKeep_RefusesInsteadOfDroppingThem(t 
 	_, err := migrate(t, db, path)
 
 	require.ErrorIs(t, err, settings.ErrNoOwner)
-	assert.True(t, hasColumn(t, db, "user_credentials", "user_id"), "the old tables must be untouched")
+	assert.True(t, hasUserID(t, db, "user_credentials"), "the old tables must be untouched")
 	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM user_credentials`))
 }
 
@@ -246,7 +246,7 @@ func TestMigrate_NoUsersAndNothingToKeep_Migrates(t *testing.T) {
 	_, err := migrate(t, db, path)
 
 	require.NoError(t, err)
-	assert.False(t, hasColumn(t, db, "settings", "user_id"))
+	assert.False(t, hasUserID(t, db, "settings"))
 }
 
 func TestMigrate_RowsKeyedToSomeoneElse_AbortsRatherThanCopyNothing(t *testing.T) {
@@ -259,7 +259,7 @@ func TestMigrate_RowsKeyedToSomeoneElse_AbortsRatherThanCopyNothing(t *testing.T
 
 	require.ErrorIs(t, err, settings.ErrCopyIncomplete)
 	assert.Contains(t, err.Error(), "user_credentials")
-	assert.True(t, hasColumn(t, db, "user_credentials", "user_id"), "the whole step rolls back")
+	assert.True(t, hasUserID(t, db, "user_credentials"), "the whole step rolls back")
 	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM ignored_repos`))
 	assert.False(t, tableExists(t, db, "settings"))
 }
@@ -339,6 +339,6 @@ func TestMigrate_ASettingsTableAlreadyThereWithRows_RefusesRatherThanOverwrite(t
 
 	require.ErrorIs(t, err, settings.ErrSettingsTableInTheWay)
 	assert.Equal(t, "kept", scalar[string](t, db, `SELECT github_token FROM settings`))
-	assert.True(t, hasColumn(t, db, "user_credentials", "user_id"))
+	assert.True(t, hasUserID(t, db, "user_credentials"))
 	assert.Empty(t, backupFiles(t, path))
 }

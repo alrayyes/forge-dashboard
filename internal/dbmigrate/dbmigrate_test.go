@@ -324,7 +324,11 @@ func TestRun_AStepThatWillRefuseTakesNoBackupAndWritesNothing(t *testing.T) {
 	step := dbmigrate.Step{
 		Name:      "refuses",
 		Preflight: func(context.Context, dbmigrate.Tx) error { return refuse },
-		Run:       func(context.Context, dbmigrate.Tx) error { ran = true; return nil },
+		Run: func(context.Context, dbmigrate.Tx) error {
+			ran = true
+
+			return nil
+		},
 	}
 
 	for range 3 { // a refused start repeated must not pile up copies of the database

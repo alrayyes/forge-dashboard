@@ -82,13 +82,8 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 		return Result{}, nil
 	}
 
-	for i := current; i < len(steps); i++ {
-		if steps[i].Preflight == nil {
-			continue
-		}
-		if err := steps[i].Preflight(ctx, conn); err != nil {
-			return Result{}, fmt.Errorf("migrate: step %q: %w", steps[i].Name, err)
-		}
+	if err := preflight(ctx, conn, steps[current:]); err != nil {
+		return Result{}, err
 	}
 
 	var res Result
@@ -112,6 +107,20 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 	}
 
 	return res, nil
+}
+
+// preflight runs the read-only refusals of the pending steps.
+func preflight(ctx context.Context, conn *sql.Conn, pending []Step) error {
+	for _, step := range pending {
+		if step.Preflight == nil {
+			continue
+		}
+		if err := step.Preflight(ctx, conn); err != nil {
+			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		}
+	}
+
+	return nil
 }
 
 // readVersion returns the stored version. fresh is true when the database has

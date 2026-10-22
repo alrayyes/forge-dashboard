@@ -264,7 +264,7 @@ func checkSettingsTableFree(ctx context.Context, q dbmigrate.Tx, pending []rebui
 // countRows counts a table's rows, those of one user when owner is not empty.
 // Table names are constants of this file, never input.
 func countRows(ctx context.Context, q dbmigrate.Tx, table, owner string) (int, error) {
-	query := `SELECT count(*) FROM ` + table //nolint:gosec // constant table names
+	query := `SELECT count(*) FROM ` + table
 	var args []any
 	if owner != "" {
 		query += ` WHERE user_id = ?`
@@ -301,7 +301,7 @@ func (r rebuild) rebuild(ctx context.Context, tx dbmigrate.Tx, owner string) err
 	if r.new == "settings" {
 		target, selected = "id, "+r.columns, "1, "+r.columns
 	}
-	insert := `INSERT INTO ` + r.new + ` (` + target + `) SELECT ` + selected + ` FROM ` + aside + ` WHERE user_id = ?` //nolint:gosec // constants of this file
+	insert := `INSERT INTO ` + r.new + ` (` + target + `) SELECT ` + selected + ` FROM ` + aside + ` WHERE user_id = ?`
 	if _, err := tx.ExecContext(ctx, insert, owner); err != nil {
 		return fmt.Errorf("copy %s: %w", r.old, err)
 	}
@@ -380,34 +380,12 @@ func chooseOwner(ctx context.Context, q dbmigrate.Tx, pending []rebuild) (string
 		return "", err
 	}
 	if users == 0 {
-		for _, r := range pending {
-			n, err := countRows(ctx, q, r.old, "")
-			if err != nil {
-				return "", err
-			}
-			if n > 0 {
-				return "", fmt.Errorf("%w: %s holds %d rows and the users table is empty or missing; restore a backup", ErrNoOwner, r.old, n)
-			}
-		}
-
-		return "", nil
+		return "", requireNoRows(ctx, q, pending)
 	}
-
-	var hasMarker int
-	if err := q.QueryRowContext(ctx,
-		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, singleuser.MarkerTable).Scan(&hasMarker); err != nil {
-		return "", fmt.Errorf("look for the cleanup marker: %w", err)
-	}
-	if users > 1 && hasMarker == 0 {
-		var holders int
-		if err := q.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE credentials_json != '[]'`).Scan(&holders); err != nil {
-			return "", fmt.Errorf("count users with a passkey: %w", err)
+	if users > 1 {
+		if err := requireCleanupDone(ctx, q); err != nil {
+			return "", err
 		}
-		if holders == 0 {
-			return "", fmt.Errorf("%w: the single-user cleanup keeps the oldest user with a passkey, so it can't run and the previous release won't help; keep the one user you want in the users table (take a backup first) or restore a backup", ErrNoPasskeyHolder)
-		}
-
-		return "", fmt.Errorf("%w: run the previous release first, then this one", ErrRunPreviousRelease)
 	}
 
 	var id string
@@ -416,6 +394,44 @@ func chooseOwner(ctx context.Context, q dbmigrate.Tx, pending []rebuild) (string
 	}
 
 	return id, nil
+}
+
+// requireNoRows is the no-owner case: fine while the old tables are empty,
+// ErrNoOwner as soon as one holds a row that would be dropped.
+func requireNoRows(ctx context.Context, q dbmigrate.Tx, pending []rebuild) error {
+	for _, r := range pending {
+		n, err := countRows(ctx, q, r.old, "")
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			return fmt.Errorf("%w: %s holds %d rows and the users table is empty or missing; restore a backup", ErrNoOwner, r.old, n)
+		}
+	}
+
+	return nil
+}
+
+// requireCleanupDone refuses several users until the single-user cleanup has
+// settled them, and says which way out applies.
+func requireCleanupDone(ctx context.Context, q dbmigrate.Tx) error {
+	var hasMarker int
+	if err := q.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, singleuser.MarkerTable).Scan(&hasMarker); err != nil {
+		return fmt.Errorf("look for the cleanup marker: %w", err)
+	}
+	if hasMarker > 0 {
+		return nil
+	}
+	var holders int
+	if err := q.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE credentials_json != '[]'`).Scan(&holders); err != nil {
+		return fmt.Errorf("count users with a passkey: %w", err)
+	}
+	if holders == 0 {
+		return fmt.Errorf("%w: the single-user cleanup keeps the oldest user with a passkey, so it can't run and the previous release won't help; keep the one user you want in the users table (take a backup first) or restore a backup", ErrNoPasskeyHolder)
+	}
+
+	return fmt.Errorf("%w: run the previous release first, then this one", ErrRunPreviousRelease)
 }
 
 // countUsers counts the users, zero when the table doesn't exist.
