@@ -4089,10 +4089,6 @@ const maxFailureDetails = 5
 // at the end, and a full log can be megabytes.
 const logTailBytes = 16 * 1024
 
-// maxLogBody bounds what is read when the log host ignores the range request
-// and answers with the whole log.
-const maxLogBody = 16 * 1024 * 1024
-
 // excerptLines and excerptBytes cap the excerpt shown in the inspector.
 const (
 	excerptLines = 20
@@ -4179,29 +4175,20 @@ func (c *Client) logExcerpt(ctx context.Context, owner, name string, id int64) s
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 
-	fetchCtx, cancel := context.WithTimeout(ctx, logFetchTimeout)
+	blob, cancel, err := c.fetchLogBlob(ctx, loc, logTailBytes)
+	if err != nil {
+		return ""
+	}
 	defer cancel()
-	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, c.restClient.BaseURL.ResolveReference(loc).String(), nil)
-	if err != nil {
-		return ""
-	}
-	req.Header.Set("Range", fmt.Sprintf("bytes=-%d", logTailBytes))
-	blob, err := (&http.Client{Timeout: logFetchTimeout}).Do(req)
-	if err != nil {
-		return ""
-	}
 	defer func() { _ = blob.Body.Close() }()
 	if blob.StatusCode != http.StatusOK && blob.StatusCode != http.StatusPartialContent {
 		return ""
 	}
-	body, err := io.ReadAll(io.LimitReader(blob.Body, maxLogBody))
+	body, skipped, err := readTail(blob.Body, logTailBytes)
 	if err != nil {
 		return ""
 	}
-	partial := blob.StatusCode == http.StatusPartialContent
-	if len(body) > logTailBytes {
-		body, partial = body[len(body)-logTailBytes:], true
-	}
+	partial := skipped || blob.StatusCode == http.StatusPartialContent
 
 	return excerptFromLog(string(body), partial)
 }

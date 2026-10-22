@@ -110,3 +110,107 @@ func TestJobLog(t *testing.T) {
 		}
 	})
 }
+
+// jobLogServer redirects the logs request to blobURL (relative or absolute)
+// and serves blob from /blob with the given status and headers.
+func jobLogServer(t *testing.T, redirect string, blobHandler http.HandlerFunc) *github.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/actions/jobs/77/logs", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, redirect, http.StatusFound)
+	})
+	mux.HandleFunc("/blob/job-77.log", blobHandler)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return github.NewClient("test-token", "", srv.URL)
+}
+
+func TestJobLog_PartialContentFromTheStartIsNotCut(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Range", "bytes 0-17/18")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = io.WriteString(w, "first line\nlast\n")
+	})
+
+	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.NoError(t, err)
+	assert.Equal(t, "first line\nlast\n", got.Text)
+	assert.False(t, got.Truncated)
+}
+
+func TestJobLog_AnswerOverTheReadCapKeepsTheEnd(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
+		line := strings.Repeat("x", 1023) + "\n"
+		for range 17 * 1024 {
+			_, _ = io.WriteString(w, line)
+		}
+		_, _ = io.WriteString(w, "the very last line\n")
+	})
+
+	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.NoError(t, err)
+	assert.True(t, got.Truncated)
+	assert.True(t, strings.HasSuffix(got.Text, "the very last line\n"))
+}
+
+func TestJobLog_ADownloadErrorDoesNotCarryTheSignedURL(t *testing.T) {
+	t.Parallel()
+	mux := http.NewServeMux()
+	var base string
+	mux.HandleFunc("/repos/alrayyes/a/actions/jobs/77/logs", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, base+"/gone?sig=SECRETSIGNATURE", http.StatusFound)
+	})
+	mux.HandleFunc("/gone", func(w http.ResponseWriter, _ *http.Request) {
+		hj, _ := w.(http.Hijacker)
+		conn, _, _ := hj.Hijack()
+		_ = conn.Close()
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	base = srv.URL
+
+	_, err := github.NewClient("test-token", "", srv.URL).JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "SECRETSIGNATURE")
+	assert.NotContains(t, err.Error(), "/gone")
+}
+
+func TestJobLog_RefusesARedirectToAnotherPlainHTTPHost(t *testing.T) {
+	t.Parallel()
+	var hits int
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		_, _ = io.WriteString(w, "should never be fetched")
+	}))
+	t.Cleanup(other.Close)
+	c := jobLogServer(t, other.URL+"/blob/job-77.log", http.NotFound)
+
+	_, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.Error(t, err)
+	assert.Zero(t, hits)
+}
+
+func TestJobLog_AnExhaustedRateLimitIsRateLimited(t *testing.T) {
+	t.Parallel()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/actions/jobs/77/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "API rate limit exceeded"})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, err := github.NewClient("test-token", "", srv.URL).JobLog(t.Context(), "alrayyes", "a", 77)
+
+	var ce *dashboard.ClientError
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, ce.Kind)
+}
