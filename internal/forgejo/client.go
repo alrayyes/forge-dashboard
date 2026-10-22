@@ -90,6 +90,11 @@ type clientState struct {
 
 	// finishedJobs keeps the job list of each finished run (see finishedJobs).
 	finishedJobs *finishedJobs
+
+	// excerpts keeps the log excerpt of each finished failed job.
+	excerpts *excerptCache
+	// excerptTimeout bounds one job log read for an excerpt.
+	excerptTimeout time.Duration
 }
 
 // cachedReview is one pull request's review state as of updatedAt.
@@ -149,15 +154,17 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 	}
 
 	return &Client{sdk: sdk, clientState: &clientState{
-		token:        token,
-		username:     username,
-		instanceURL:  strings.TrimSuffix(instanceURL, "/"),
-		httpClient:   httpClient,
-		recorder:     rec,
-		rawTransport: rawTransport,
-		reviews:      map[string]cachedReview{},
-		schedule:     map[string]cachedSchedule{},
-		finishedJobs: newFinishedJobs(maxFinishedJobs),
+		token:          token,
+		username:       username,
+		instanceURL:    strings.TrimSuffix(instanceURL, "/"),
+		httpClient:     httpClient,
+		recorder:       rec,
+		rawTransport:   rawTransport,
+		reviews:        map[string]cachedReview{},
+		schedule:       map[string]cachedSchedule{},
+		finishedJobs:   newFinishedJobs(maxFinishedJobs),
+		excerpts:       newExcerptCache(maxExcerpts),
+		excerptTimeout: excerptReadTimeout,
 	}}
 }
 
@@ -1328,7 +1335,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 	}
 
 	var checks []dashboard.Check
-	var probes []string
+	var probes, keys []string
 	for _, run := range runs.WorkflowRuns {
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 		if err != nil {
@@ -1342,9 +1349,10 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				JobID: j.ID,
 			})
 			probes = append(probes, workflowContext(run, j.Name))
+			keys = append(keys, fmt.Sprintf("%d@%d", j.ID, j.CompletedAt.UnixNano()))
 		}
 	}
-	c.addFailureExcerpts(ctx, owner, name, checks)
+	c.addFailureExcerpts(ctx, owner, name, checks, keys)
 
 	return checks, probes, nil
 }

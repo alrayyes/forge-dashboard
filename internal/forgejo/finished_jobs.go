@@ -58,3 +58,51 @@ func (f *finishedJobs) touch(key string) {
 		f.order = append(slices.Delete(f.order, i, i+1), key)
 	}
 }
+
+// excerptCache keeps the log excerpt of each finished failed job, keyed by job
+// and finish time, with the same least-recently-read bound as finishedJobs.
+type excerptCache struct {
+	mu    sync.Mutex
+	max   int
+	text  map[string]string
+	order []string // keys, least recently read first
+}
+
+// maxExcerpts bounds a client's excerptCache; an excerpt is at most 2 KB.
+const maxExcerpts = 500
+
+func newExcerptCache(limit int) *excerptCache {
+	return &excerptCache{max: limit, text: map[string]string{}}
+}
+
+func (e *excerptCache) get(key string) (string, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	text, ok := e.text[key]
+	if ok {
+		e.touch(key)
+	}
+
+	return text, ok
+}
+
+func (e *excerptCache) put(key, text string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if _, ok := e.text[key]; ok {
+		e.touch(key)
+	} else {
+		e.order = append(e.order, key)
+	}
+	e.text[key] = text
+	for len(e.order) > e.max {
+		delete(e.text, e.order[0])
+		e.order = e.order[1:]
+	}
+}
+
+func (e *excerptCache) touch(key string) {
+	if i := slices.Index(e.order, key); i >= 0 {
+		e.order = append(slices.Delete(e.order, i, i+1), key)
+	}
+}

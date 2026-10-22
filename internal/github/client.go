@@ -4094,11 +4094,6 @@ func restRequestedReviewerLogins(users []*ghsdk.User) []string {
 	return logins
 }
 
-// maxFailureDetails caps how many failed jobs get a step and a log excerpt,
-// each costing three requests, so a run with dozens of failures can't turn
-// opening the inspector into a request storm.
-const maxFailureDetails = dashboard.MaxExcerptJobs
-
 // logTailBytes is how much of the end of a job log is fetched: the failure is
 // at the end, and a full log can be megabytes.
 const logTailBytes = 16 * 1024
@@ -4122,13 +4117,16 @@ func runDurationSeconds(r *ghsdk.CheckRun) *int {
 // jobs among runs (#697). It is best effort: a check run that isn't an
 // Actions job, a job or log the token can't read, or expired logs leave the
 // check as it was, with the link to the run.
+// At most dashboard.MaxExcerptJobs failed jobs are read, each costing up to
+// three requests, so a run with dozens of failures can't turn opening the
+// inspector into a request storm.
 func (c *Client) addFailureDetail(ctx context.Context, owner, name string, runs []*ghsdk.CheckRun, checks []dashboard.Check) {
 	detailed := 0
 	for i, r := range runs {
 		if checks[i].State != dashboard.CheckFailure && checks[i].State != dashboard.CheckTimedOut {
 			continue
 		}
-		if detailed == maxFailureDetails {
+		if detailed == dashboard.MaxExcerptJobs {
 			return
 		}
 		detailed++
@@ -4194,12 +4192,7 @@ func (c *Client) logExcerpt(ctx context.Context, owner, name string, id int64) s
 	}
 	partial := skipped || blob.StatusCode == http.StatusPartialContent
 
-	return excerptFromLog(string(body), partial)
-}
-
-// excerptFromLog is dashboard.LogExcerpt: the same excerpt on every forge.
-func excerptFromLog(tail string, partial bool) string {
-	return dashboard.LogExcerpt(tail, partial)
+	return dashboard.LogExcerpt(string(body), partial)
 }
 
 // heldByForge names GitHub as the holder of an enabled auto-merge, and nobody

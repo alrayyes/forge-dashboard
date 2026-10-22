@@ -1,12 +1,16 @@
 package forgejo
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
+	"sync"
+	"time"
 
 	"code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -93,27 +97,73 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 	return buf, cut, nil
 }
 
-// addFailureExcerpts fills Excerpt on the first few failed or timed-out Actions
-// jobs among checks, from the end of their logs, as the GitHub client does. It
-// is best effort: a job with no id, or a log the token can't read, keeps its
-// check as it was, with the link to the run. A pull request's list and a
-// branch's list both come through here, so the two boards agree.
-func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check) {
-	read := 0
-	for i := range checks {
-		if checks[i].JobID == 0 || (checks[i].State != dashboard.CheckFailure && checks[i].State != dashboard.CheckTimedOut) {
-			continue
-		}
-		if read == dashboard.MaxExcerptJobs {
-			return
-		}
-		read++
-		log, err := c.JobLog(ctx, owner, name, checks[i].JobID)
-		if err != nil {
-			slog.Debug("forgejo job log unavailable", "job", checks[i].JobID, "err", err)
+// excerptReadTimeout bounds each failed job's log read for its excerpt, as the
+// GitHub client bounds its own (logFetchTimeout). The reads run together, so it
+// also bounds the whole step.
+const excerptReadTimeout = 15 * time.Second
+
+// addFailureExcerpts fills Excerpt on the newest few failed or timed-out Actions
+// jobs among checks, from the end of their logs, as the GitHub client does. A
+// pull request's list and a branch's list both come through here, so the two
+// boards agree. keys[i] names check i's finished job (its id and finish time,
+// so a rerun reads afresh): a finished job's log never changes, so an excerpt
+// read once is kept and a red default branch costs no log read per poll.
+//
+// It is best effort: a job with no id, or a log the token can't read, keeps its
+// check as it was, with the link to the run. Newest first (the highest job id),
+// so jobs of superseded runs don't use up the budget. The reads run together,
+// each under excerptReadTimeout; the first refusal for a missing permission or
+// log cancels the rest, since they would be refused the same way.
+func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, keys []string) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var wg sync.WaitGroup
+	for _, i := range newestFailures(checks) {
+		if text, ok := c.excerpts.get(keys[i]); ok {
+			checks[i].Excerpt = text
 
 			continue
 		}
-		checks[i].Excerpt = dashboard.LogExcerpt(log.Text, log.Truncated)
+		wg.Go(func() {
+			text, err := c.readExcerpt(ctx, owner, name, checks[i].JobID)
+			if err != nil {
+				slog.Debug("forgejo job log unavailable", "job", checks[i].JobID, "err", err)
+				if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok &&
+					(clientErr.Kind == dashboard.ForgeErrorUnauthorized || clientErr.Kind == dashboard.ForgeErrorNotFound) {
+					cancel()
+				}
+
+				return
+			}
+			checks[i].Excerpt = text
+			c.excerpts.put(keys[i], text)
+		})
 	}
+	wg.Wait()
+}
+
+// newestFailures is the indexes of the failed or timed-out checks that have a
+// job id, newest first (the highest id), at most dashboard.MaxExcerptJobs.
+func newestFailures(checks []dashboard.Check) []int {
+	var picked []int
+	for i := range checks {
+		if checks[i].JobID != 0 && (checks[i].State == dashboard.CheckFailure || checks[i].State == dashboard.CheckTimedOut) {
+			picked = append(picked, i)
+		}
+	}
+	slices.SortStableFunc(picked, func(a, b int) int { return cmp.Compare(checks[b].JobID, checks[a].JobID) })
+
+	return picked[:min(len(picked), dashboard.MaxExcerptJobs)]
+}
+
+// readExcerpt reads job id's log under c.excerptTimeout and cuts its excerpt.
+func (c *Client) readExcerpt(ctx context.Context, owner, name string, id int64) (string, error) {
+	ctx, done := context.WithTimeout(ctx, c.excerptTimeout)
+	defer done()
+	log, err := c.JobLog(ctx, owner, name, id)
+	if err != nil {
+		return "", err
+	}
+
+	return dashboard.LogExcerpt(log.Text, log.Truncated), nil
 }

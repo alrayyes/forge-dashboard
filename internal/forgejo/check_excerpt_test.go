@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
@@ -86,7 +87,7 @@ func TestListChecks_FailedJobWithUnreadableLog_HasNoExcerpt(t *testing.T) {
 	assert.Empty(t, checks[0].Excerpt)
 }
 
-func TestListChecks_ManyFailedJobs_ReadsOnlyTheFirstFiveLogs(t *testing.T) {
+func TestListChecks_ManyFailedJobs_GivesTheNewestJobsTheBudget(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
@@ -102,6 +103,87 @@ func TestListChecks_ManyFailedJobs_ReadsOnlyTheFirstFiveLogs(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, int32(5), calls.Load())
-	assert.Equal(t, "boom", checks[4].Excerpt)
-	assert.Empty(t, checks[5].Excerpt)
+	assert.Empty(t, checks[0].Excerpt, "the oldest jobs miss out, not the newest")
+	assert.Empty(t, checks[2].Excerpt)
+	assert.Equal(t, "boom", checks[3].Excerpt)
+	assert.Equal(t, "boom", checks[7].Excerpt)
+}
+
+func TestListChecks_AFinishedJobsExcerptIsReadOnce(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	client := excerptServer(t, []map[string]any{{"id": 7, "name": "build", "status": "failure", "completed_at": "2026-10-10T09:05:00Z"}},
+		map[int]string{7: "boom\n"}, &calls)
+
+	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+
+	assert.Equal(t, "boom", first[0].Excerpt)
+	assert.Equal(t, "boom", second[0].Excerpt)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
+func TestListChecks_ASlowLogDoesNotStallTheList(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": []map[string]any{{"id": 7, "name": "build", "status": "failure"}}})
+	})
+	release := make(chan struct{})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/7/logs", func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(func() { close(release); srv.Close() })
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+	forgejo.SetExcerptReadTimeoutForTest(client, 100*time.Millisecond)
+
+	start := time.Now()
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second)
+	assert.Empty(t, checks[0].Excerpt)
+}
+
+func TestListDefaultBranchChecks_FailedJobCarriesItsExcerpt(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"name": "a", "default_branch": "main"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			actionRun(8, "main", "cafef00d", "failure", "2026-10-10T09:00:00Z", "2026-10-10T09:05:00Z"),
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/8/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": []map[string]any{{"id": 3, "name": "test", "status": "failure"}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/3/logs", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "FAIL internal/api\n")
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, "FAIL internal/api", checks[0].Excerpt)
 }
