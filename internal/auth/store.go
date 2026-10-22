@@ -126,11 +126,17 @@ func (s *Store) dropInviteMachinery(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `DROP TABLE IF EXISTS invites`); err != nil {
 		return fmt.Errorf("auth: drop invites table: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, `ALTER TABLE users DROP COLUMN is_admin`); err != nil {
-		if strings.Contains(err.Error(), "no such column") {
-			return nil
-		}
 
+	var hasColumn int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM pragma_table_info('users') WHERE name = 'is_admin'`).Scan(&hasColumn)
+	if err != nil {
+		return fmt.Errorf("auth: look for users.is_admin: %w", err)
+	}
+	if hasColumn == 0 {
+		return nil
+	}
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE users DROP COLUMN is_admin`); err != nil {
 		return fmt.Errorf("auth: drop users.is_admin: %w", err)
 	}
 
