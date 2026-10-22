@@ -412,13 +412,17 @@ func TestListChecks_ASiblingsCancelIsNotRememberedAsAFailure(t *testing.T) {
 		writeJSON(t, w, map[string]any{"jobs": finishedFailures(2)})
 	})
 	refused := make(chan struct{})
+	started := make(chan struct{})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/2/logs", func(w http.ResponseWriter, _ *http.Request) {
+		<-started
 		w.WriteHeader(http.StatusForbidden)
 		close(refused)
 	})
 	var oldReads atomic.Int32
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/1/logs", func(w http.ResponseWriter, r *http.Request) {
-		if oldReads.Add(1) > 1 {
+		if oldReads.Add(1) == 1 {
+			close(started)
+		} else {
 			_, _ = io.WriteString(w, "boom\n")
 
 			return
@@ -439,4 +443,71 @@ func TestListChecks_ASiblingsCancelIsNotRememberedAsAFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(2), oldReads.Load(), "job 1 was cancelled, never tried, so it is read again")
+}
+
+func TestListChecks_AnOlderCachedExcerptSurvivesAnExhaustedBudget(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	jobs := finishedFailures(7)
+	for i := 1; i < 7; i++ {
+		jobs[i]["status"] = "success"
+	}
+	logs := map[int]string{}
+	for id := 1; id <= 7; id++ {
+		logs[id] = "boom\n"
+	}
+	client := excerptServer(t, jobs, logs, &calls)
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	for i := 1; i < 7; i++ {
+		jobs[i]["status"] = "failure"
+	}
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(6), calls.Load(), "five new reads, job 1 kept")
+	assert.Empty(t, checks[1].Excerpt, "job 2 is the sixth uncached and waits for the next list")
+	assert.Equal(t, "boom", checks[0].Excerpt, "the older job was read before, so it keeps its excerpt")
+}
+
+func TestListChecks_ARateLimitStopsTheOtherReads(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": finishedFailures(3)})
+	})
+	limited := make(chan struct{})
+	var siblingsAnswered atomic.Int32
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/3/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		close(limited)
+	})
+	sibling := func(w http.ResponseWriter, r *http.Request) {
+		<-limited
+		select {
+		case <-time.After(300 * time.Millisecond):
+			siblingsAnswered.Add(1)
+			_, _ = io.WriteString(w, "boom\n")
+		case <-r.Context().Done():
+		}
+	}
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/1/logs", sibling)
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/2/logs", sibling)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Zero(t, siblingsAnswered.Load(), "a limited forge is not asked again by the same list")
 }

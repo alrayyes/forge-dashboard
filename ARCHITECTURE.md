@@ -81,7 +81,8 @@ would need the same answer. The reasons, and what it costs, are in
   requests on Forgejo. Another is
   `get_pull_request_checks`, which mirrors `GET /api/pull-requests/checks`
   (a pull request's individual CI checks). It spends budget too: 4 REST
-  requests on GitHub (more for failed jobs), 3 plus one per run on Forgejo.
+  requests on GitHub (more for failed jobs), 3 plus one per run on Forgejo
+  (and one log read per failed job, five at most).
   `get_main_branch_checks` mirrors `GET /api/main-branches/checks` (the jobs
   of a default branch's newest pipeline, in the same shape). It spends
   budget too: one request for the commits plus one per commit until one has

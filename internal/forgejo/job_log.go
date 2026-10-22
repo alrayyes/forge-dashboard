@@ -33,6 +33,16 @@ const jobLogErrorBody = 64 << 10
 // keeps only the last jobLogReadWindow bytes. Memory stays fixed however
 // large the log is.
 func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dashboard.JobLog, error) {
+	return c.jobLog(ctx, owner, name, id, jobLogReadWindow)
+}
+
+// excerptReadWindow is how much of a log's end an excerpt read keeps: the
+// excerpt is 20 lines or 2 KB, so a small window holds it with room for the
+// colour codes, and five reads at once stay light.
+const excerptReadWindow = 64 << 10
+
+// jobLog is JobLog with the size of the window kept from the end of the log.
+func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, window int) (dashboard.JobLog, error) {
 	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/logs", owner, name, id)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.instanceURL+"/api/v1"+path, nil)
@@ -58,7 +68,7 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, fmt.Errorf("%w: %s", errForgeRefused, reason))
 	}
 
-	tail, cut, err := readTail(httpResp.Body, jobLogReadWindow)
+	tail, cut, err := readTail(httpResp.Body, window)
 	if err != nil {
 		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
@@ -112,7 +122,8 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 // so jobs of superseded runs don't use up the budget; only reads count against
 // dashboard.MaxExcerptJobs, not excerpts already kept. The reads run together,
 // each under dashboard.ExcerptReadTimeout; the first refusal for a missing
-// permission cancels the rest, since they would be refused the same way.
+// permission, or for a rate limit, cancels the rest, since they would be
+// refused the same way.
 func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, keys []string) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -130,7 +141,8 @@ func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, che
 			}
 		}
 		if reads == dashboard.MaxExcerptJobs {
-			break
+			// Older jobs may still have a kept excerpt, so keep looking.
+			continue
 		}
 		reads++
 		wg.Go(func() { c.fillExcerpt(ctx, cancel, owner, name, &checks[i], keys[i]) })
@@ -148,9 +160,9 @@ func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, own
 		if key != "" && ctx.Err() == nil {
 			c.excerpts.fail(key)
 		}
-		// A refused token fails every sibling alike; a missing log is only
-		// that job's.
-		if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
+		// A refused token or a limited forge fails every sibling alike; a
+		// missing log is only that job's.
+		if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && (clientErr.Kind == dashboard.ForgeErrorUnauthorized || clientErr.Kind == dashboard.ForgeErrorRateLimited) {
 			cancel()
 		}
 
@@ -181,7 +193,7 @@ func newestFailures(checks []dashboard.Check) []int {
 func (c *Client) readExcerpt(ctx context.Context, owner, name string, id int64) (string, error) {
 	ctx, done := context.WithTimeout(ctx, c.excerptTimeout)
 	defer done()
-	log, err := c.JobLog(ctx, owner, name, id)
+	log, err := c.jobLog(ctx, owner, name, id, excerptReadWindow)
 	if err != nil {
 		return "", err
 	}

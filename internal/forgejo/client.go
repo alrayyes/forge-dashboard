@@ -1352,7 +1352,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			// A job with no finish time may still be going: not cached ("").
 			key := ""
 			if !j.CompletedAt.IsZero() {
-				key = fmt.Sprintf("%d@%d", j.ID, j.CompletedAt.UnixNano())
+				key = fmt.Sprintf("%s/%s#%d@%d", owner, name, j.ID, j.CompletedAt.UnixNano())
 			}
 			keys = append(keys, key)
 		}
