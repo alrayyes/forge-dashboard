@@ -557,8 +557,8 @@ type Repo struct {
 	StaleSince *time.Time `json:"staleSince,omitempty"`
 	// FailingSince is when the repo's fetch first failed, kept while it keeps
 	// failing. StaleSince is older: it is when the shown rows were fetched.
-	// Only the refresh schedule reads this, so it is not sent and not saved;
-	// after a restart the clock starts again.
+	// The refresh schedule reads it, and the repo list shows it. It is not
+	// saved, so after a restart the clock starts again.
 	// A row rebuilt from another must carry it over.
 	FailingSince *time.Time `json:"-"`
 }

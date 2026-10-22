@@ -17,6 +17,7 @@ import (
 // shape github.Client has.
 type fakeJobLogSource struct {
 	forge     dashboard.Forge
+	repos     []string // full names the source reports as tracked
 	log       dashboard.JobLog
 	err       error
 	lastOwner string
@@ -27,7 +28,12 @@ type fakeJobLogSource struct {
 func (f *fakeJobLogSource) Forge() dashboard.Forge { return f.forge }
 
 func (f *fakeJobLogSource) Fetch(_ context.Context) dashboard.Result {
-	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}}
+	repos := make([]dashboard.Repo, 0, len(f.repos))
+	for _, name := range f.repos {
+		repos = append(repos, dashboard.Repo{Forge: f.forge, FullName: name})
+	}
+
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}, Repos: repos}
 }
 
 func (f *fakeJobLogSource) JobLog(_ context.Context, owner, name string, jobID int64) (dashboard.JobLog, error) {
@@ -53,7 +59,7 @@ func getJobLog(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, f
 func TestJobLog_ReturnsTheText(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "step 1\nstep 2\n", Truncated: true}}
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "step 1\nstep 2\n", Truncated: true}}
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", "4242")
@@ -115,7 +121,7 @@ func TestJobLog_ForgeRefuses_MapsTheStatusAndKeepsAPlainMessage(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
 
-			source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, err: &dashboard.ClientError{Kind: kind, Err: assert.AnError}}
+			source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, err: &dashboard.ClientError{Kind: kind, Err: assert.AnError}}
 			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 			resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
@@ -148,6 +154,10 @@ func TestJobLog_Unauthenticated_Returns401(t *testing.T) {
 type fakeForgeClientWithJobLog struct {
 	fakeForgeClientWithChecker
 	lastJob int64
+}
+
+func (f *fakeForgeClientWithJobLog) ListRepos(_ context.Context) ([]dashboard.RepoRef, error) {
+	return []dashboard.RepoRef{{FullName: "a/b", Owner: "a", Name: "b"}}, nil
 }
 
 func (f *fakeForgeClientWithJobLog) JobLog(_ context.Context, owner, name string, jobID int64) (dashboard.JobLog, error) {
@@ -222,7 +232,7 @@ func TestJobLog_ErrorsNeverCarryTheUpstreamError(t *testing.T) {
 func TestJobLog_ResponseIsNotCachedOrSniffed(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "x"}}
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, log: dashboard.JobLog{Text: "x"}}
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
@@ -235,7 +245,7 @@ func TestJobLog_ResponseIsNotCachedOrSniffed(t *testing.T) {
 func TestJobLog_ADotRepoLikeDotGithubIsAccepted(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "ok\n"}}
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/.github"}, log: dashboard.JobLog{Text: "ok\n"}}
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "alrayyes/.github", "7")
@@ -248,11 +258,55 @@ func TestJobLog_ADotRepoLikeDotGithubIsAccepted(t *testing.T) {
 func TestJobLog_AConflictKindIsABadGatewayNotA409(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, err: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError}}
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, err: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError}}
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+}
+
+func TestJobLog_UntrackedRepo_Returns404AndNeverReachesTheForge(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "secret\n"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "someone/private-thing", "4242")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Empty(t, source.lastOwner, "the forge must not be called")
+	assert.Zero(t, source.lastJob)
+}
+
+func TestJobLog_RepoNameCaseIsIgnoredWhenMatchingTrackedRepos(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "ok\n"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "AlRayyes/Tempus-Fugit", "4242")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestJobLog_NothingLoadedYet_Returns503AndNeverReachesTheForge(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "secret\n"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	var body struct {
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Contains(t, body.Error, "retry")
+	assert.Empty(t, source.lastOwner, "the forge must not be called")
 }

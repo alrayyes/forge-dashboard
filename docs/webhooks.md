@@ -38,6 +38,11 @@ select over the cards takes over, with the same choices as the column
 headers: repo, forge or webhook, in either direction. It is the same saved
 sort, so a choice made on a phone shows in the column headers on a wide screen.
 
+A repo the dashboard can't fetch gets a "Failing since" badge next to its name,
+with the time its fetch first failed. Its pull requests and issues are then the
+last ones the dashboard could read. The badge goes when a fetch succeeds, and
+the time starts again after a restart.
+
 ## The easy way: "Add a webhook"
 
 On the Webhooks page, a repo without a confirmed webhook gets an "Add a

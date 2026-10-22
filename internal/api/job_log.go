@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -56,6 +57,14 @@ func jobLogFailure(err error) *statusError {
 	}
 }
 
+// repoTracked is true when snap lists fullName on forge. Names compare without
+// case, as both forges treat them.
+func repoTracked(snap dashboard.Snapshot, forge, fullName string) bool {
+	return slices.ContainsFunc(snap.Repos, func(r dashboard.Repo) bool {
+		return string(r.Forge) == forge && strings.EqualFold(r.FullName, fullName)
+	})
+}
+
 // resolveJobLogFor reads the output of one Actions job for u. Shared by
 // handleJobLog and the MCP get_check_log tool so the two can't drift.
 func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
@@ -74,6 +83,20 @@ func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullN
 	reader, serr := capabilityFor[dashboard.JobLogReader](src, forge, "doesn't support reading job logs")
 	if serr != nil {
 		return dashboard.JobLog{}, serr
+	}
+
+	// A repository the dashboard doesn't track is one the person never added;
+	// the token could still read it, so refuse before the forge is called.
+	warmUpAggregator(ctx, deps, u.ID, u.Username)
+	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
+	snap := deps.Manager.Get(u.ID)
+	if len(snap.Repos) == 0 {
+		// A cold start, an outage or a slow first refresh also looks like this,
+		// so it can't be told apart from "not tracked": ask the caller to retry.
+		return dashboard.JobLog{}, &statusError{http.StatusServiceUnavailable, "your repositories aren't loaded yet, retry shortly"}
+	}
+	if !repoTracked(snap, forge, fullName) {
+		return dashboard.JobLog{}, &statusError{http.StatusNotFound, "that repository isn't on your board"}
 	}
 
 	log, err := reader.JobLog(ctx, owner, name, jobID)

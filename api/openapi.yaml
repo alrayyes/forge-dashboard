@@ -2725,6 +2725,9 @@ paths:
         it as text. Whatever the forge already masks stays masked. Only the last
         256 KiB are returned; `truncated` says the start was cut.
 
+        Only for a repository the dashboard tracks for you; any other answers 404
+        without asking the forge.
+
         Fetched live on every call and never as part of a snapshot, since a log
         can be large and most are never opened. GitHub reads the job's log
         through its REST API (one request, then a short-lived download). Forgejo
@@ -2780,7 +2783,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "404":
-          description: The forge has no such job or log (it expired, or the check isn't an Actions job).
+          description: The repository isn't one the dashboard tracks for you, or the forge has no such job or log (it expired, or the check isn't an Actions job).
           content:
             application/json:
               schema:
@@ -2793,6 +2796,12 @@ paths:
                 $ref: "#/components/schemas/Error"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The dashboard has not loaded your repositories yet (a cold start or an outage), so it cannot say whether the repository is tracked. Retry shortly.
           content:
             application/json:
               schema:
@@ -6072,6 +6081,15 @@ components:
             signed-in user's role. Saving a token with the webhook scope in
             Settings is the fix. Absent when a token is saved, whatever
             role it holds. Set today for Forgejo only.
+        failingSince:
+          type: string
+          format: date-time
+          description: |
+            Present when the last fetch of this repository failed, and the
+            time of the first failure in the run it is still part of. Its
+            pull requests and issues are then the last good ones. Absent
+            when the repository is fetching fine. It is not saved, so it
+            restarts from the first failure after a restart.
         autoUpdateBranch:
           type: boolean
           description: |
