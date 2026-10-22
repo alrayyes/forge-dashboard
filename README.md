@@ -80,11 +80,14 @@ stale.
   [Credentials](docs/accounts.md#credentials) for exactly which permissions to
   grant. Nothing forge-related needs setting before
   the process starts.
-- **Read-only access is enough for advisories.** A GitHub credential reads
-  Dependabot alerts with **Dependabot alerts: Read-only** (or the classic
-  `security_events` scope); without it the page shows advisories as unknown, not
-  zero. See [When advisories can't be
-  read](docs/main-branches.md#when-advisories-cant-be-read).
+- **Optional: advisories.** Read-only access is enough. A GitHub credential
+  reads Dependabot alerts with **Dependabot alerts: Read-only** (or the classic
+  `security_events` scope), and so does a GitHub App with the same permission.
+  Alerts must also be switched on for the repo. Without access the page shows
+  advisories as unknown, not zero; a rate limit or a GitHub error does the same.
+  Answers are cached for fifteen minutes, so a fix can take that long to show,
+  and longer for a GitHub App. See
+  [When advisories can't be read](docs/main-branches.md#when-advisories-cant-be-read).
 
 ## Documentation
 
