@@ -28,6 +28,19 @@ const (
 	// of, so one badly out of date repo can't cost hundreds of calls. Past it
 	// the scan fails with ErrTooMany rather than report a count that stops short.
 	maxAdvisories = 300
+	// MaxPackages bounds the distinct packages one scan asks about, so a huge
+	// or hostile lockfile can't cost dozens of batches times maxPages pages.
+	// Past it the scan fails with ErrTooMany.
+	MaxPackages = 3000
+	// maxRecordIDs bounds the advisory ids whose records are fetched before they
+	// are grouped by alias, which is what keeps the calls bounded; the count
+	// against maxAdvisories is taken after grouping.
+	maxRecordIDs = 600
+	// RecordTTL is how long an advisory's record is reused. A later withdrawal,
+	// severity or alias shows up after it.
+	RecordTTL = 15 * time.Minute
+	// maxCachedRecords bounds the record cache.
+	maxCachedRecords = 5000
 	// maxPages bounds the pages followed for one package's matches.
 	maxPages = 5
 	// detailConcurrency is how many advisory records are fetched at once.
@@ -58,8 +71,24 @@ type Client struct {
 	base string
 	http *http.Client
 
-	mu      sync.Mutex
-	records map[string]record
+	sem chan struct{}
+	now func() time.Time
+
+	mu       sync.Mutex
+	records  map[string]cachedRecord
+	inflight map[string]*flight
+}
+
+type cachedRecord struct {
+	rec     record
+	expires time.Time
+}
+
+// SetClock replaces the clock the record cache expires by. For tests.
+func (c *Client) SetClock(now func() time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = now
 }
 
 // record is the part of an advisory's OSV record a scan uses.
@@ -76,7 +105,8 @@ func NewClient(base string, httpClient *http.Client) *Client {
 		httpClient = &http.Client{Timeout: httpTimeout}
 	}
 
-	return &Client{base: strings.TrimSuffix(base, "/"), http: httpClient, records: map[string]record{}}
+	return &Client{base: strings.TrimSuffix(base, "/"), http: httpClient, records: map[string]cachedRecord{},
+		inflight: map[string]*flight{}, sem: make(chan struct{}, detailConcurrency), now: time.Now}
 }
 
 type query struct {
@@ -99,6 +129,10 @@ type batchResult struct {
 // list of packages is a clean scan. Any failed call is an error, since a
 // partial answer would read as fewer advisories than there are.
 func (c *Client) Scan(ctx context.Context, pkgs []Package) (Summary, error) {
+	pkgs = distinct(pkgs)
+	if len(pkgs) > MaxPackages {
+		return Summary{}, ErrTooMany
+	}
 	ids := map[string]struct{}{}
 	for start := 0; start < len(pkgs); start += batchSize {
 		end := min(start+batchSize, len(pkgs))
@@ -106,7 +140,7 @@ func (c *Client) Scan(ctx context.Context, pkgs []Package) (Summary, error) {
 			return Summary{}, err
 		}
 	}
-	if len(ids) > maxAdvisories {
+	if len(ids) > maxRecordIDs {
 		return Summary{}, ErrTooMany
 	}
 
@@ -115,7 +149,27 @@ func (c *Client) Scan(ctx context.Context, pkgs []Package) (Summary, error) {
 		return Summary{}, err
 	}
 
-	return summarise(recs), nil
+	sum := summarise(recs)
+	if sum.Count > maxAdvisories {
+		return Summary{}, ErrTooMany
+	}
+
+	return sum, nil
+}
+
+// distinct drops repeats of one package: a lockfile lists the same name and
+// version once per place it is installed.
+func distinct(pkgs []Package) []Package {
+	seen := make(map[Package]struct{}, len(pkgs))
+	out := make([]Package, 0, len(pkgs))
+	for _, p := range pkgs {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+
+	return out
 }
 
 // queryBatch asks about pkgs, following each package's page tokens, and adds
@@ -163,32 +217,17 @@ func collect(queries []query, results []batchResult, ids map[string]struct{}) []
 	return next
 }
 
-// loadRecords returns the record of every id, fetching the ones not yet remembered.
+// loadRecords returns the record of every id, fetching the ones not held.
 func (c *Client) loadRecords(ctx context.Context, ids map[string]struct{}) (map[string]record, error) {
-	out := make(map[string]record, len(ids))
-	var missing []string
-	c.mu.Lock()
-	for id := range ids {
-		if r, ok := c.records[id]; ok {
-			out[id] = r
-		} else {
-			missing = append(missing, id)
-		}
-	}
-	c.mu.Unlock()
-
 	var (
 		wg       sync.WaitGroup
 		outMu    sync.Mutex
 		firstErr error
+		out      = make(map[string]record, len(ids))
 	)
-	sem := make(chan struct{}, detailConcurrency)
-	for _, id := range missing {
-		sem <- struct{}{}
-		wg.Add(1)
-		go func() {
-			defer func() { <-sem; wg.Done() }()
-			r, err := c.fetchRecord(ctx, id)
+	for id := range ids {
+		wg.Go(func() {
+			r, err := c.record(ctx, id)
 			outMu.Lock()
 			defer outMu.Unlock()
 			if err != nil {
@@ -197,10 +236,7 @@ func (c *Client) loadRecords(ctx context.Context, ids map[string]struct{}) (map[
 				return
 			}
 			out[id] = r
-			c.mu.Lock()
-			c.records[id] = r
-			c.mu.Unlock()
-		}()
+		})
 	}
 	wg.Wait()
 	if firstErr != nil {
@@ -208,6 +244,78 @@ func (c *Client) loadRecords(ctx context.Context, ids map[string]struct{}) (map[
 	}
 
 	return out, nil
+}
+
+// flight is one record fetch that callers asking for the same id share.
+type flight struct {
+	done chan struct{}
+	rec  record
+	err  error
+}
+
+// record returns an advisory's record from the cache while it is fresh, else
+// fetches it. Scans of different repos run in parallel and meet the same ids on
+// a cold start, so one fetch serves them all, and at most detailConcurrency
+// fetches are in flight across the client.
+func (c *Client) record(ctx context.Context, id string) (record, error) {
+	c.mu.Lock()
+	if e, ok := c.records[id]; ok && c.now().Before(e.expires) {
+		c.mu.Unlock()
+
+		return e.rec, nil
+	}
+	if f, ok := c.inflight[id]; ok {
+		c.mu.Unlock()
+		select {
+		case <-f.done:
+			return f.rec, f.err
+		case <-ctx.Done():
+			return record{}, fmt.Errorf("osv: wait for advisory record: %w", ctx.Err())
+		}
+	}
+	f := &flight{done: make(chan struct{})}
+	c.inflight[id] = f
+	c.mu.Unlock()
+
+	f.rec, f.err = c.fetchLimited(ctx, id)
+
+	c.mu.Lock()
+	delete(c.inflight, id)
+	if f.err == nil {
+		c.remember(id, f.rec)
+	}
+	c.mu.Unlock()
+	close(f.done)
+
+	return f.rec, f.err
+}
+
+func (c *Client) fetchLimited(ctx context.Context, id string) (record, error) {
+	select {
+	case c.sem <- struct{}{}:
+		defer func() { <-c.sem }()
+	case <-ctx.Done():
+		return record{}, fmt.Errorf("osv: wait to fetch advisory record: %w", ctx.Err())
+	}
+
+	return c.fetchRecord(ctx, id)
+}
+
+// remember keeps a record for RecordTTL. Past maxCachedRecords it drops the
+// expired ones first, and everything if that is not enough, so the cache can't
+// grow without bound. The caller holds c.mu.
+func (c *Client) remember(id string, r record) {
+	if len(c.records) >= maxCachedRecords {
+		for k, e := range c.records {
+			if !c.now().Before(e.expires) {
+				delete(c.records, k)
+			}
+		}
+		if len(c.records) >= maxCachedRecords {
+			clear(c.records)
+		}
+	}
+	c.records[id] = cachedRecord{rec: r, expires: c.now().Add(RecordTTL)}
 }
 
 func (c *Client) fetchRecord(ctx context.Context, id string) (record, error) {
@@ -282,24 +390,25 @@ func (s sets) find(x string) string {
 }
 
 // aliasRoots maps each live (not withdrawn) record to a representative of the
-// set of records it shares an alias with.
+// set of records it shares an alias with. Every record is joined to all of its
+// aliases, fetched or not, so two records that name the same CVE are one
+// advisory even when neither lists the other.
 func aliasRoots(recs map[string]record) map[string]string {
-	live := func(id string) bool {
-		r, ok := recs[id]
-
-		return ok && !r.withdrawn
-	}
 	groups := sets{}
 	for id, r := range recs {
+		if r.withdrawn {
+			continue
+		}
 		for _, a := range r.aliases {
-			if live(id) && live(a) {
-				groups[groups.find(a)] = groups.find(id)
+			if other, ok := recs[a]; ok && other.withdrawn {
+				continue
 			}
+			groups[groups.find(a)] = groups.find(id)
 		}
 	}
 	roots := map[string]string{}
-	for id := range recs {
-		if live(id) {
+	for id, r := range recs {
+		if !r.withdrawn {
 			roots[id] = groups.find(id)
 		}
 	}
