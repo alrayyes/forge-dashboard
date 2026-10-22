@@ -106,3 +106,20 @@ export async function copyLog(
 
   return deps.select() ? 'copied' : 'selected';
 }
+
+// What a failed check's Copy button puts on the clipboard: the whole log when
+// the log endpoint answers, else the excerpt the list already carries. `whole`
+// says which, so the button can tell the person.
+export async function logToCopy(
+  url: string | null,
+  excerpt: string,
+  forgeName: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ text: string; whole: boolean }> {
+  if (url) {
+    const got = await loadRunLog(url, forgeName, fetchImpl);
+    if (got.ok) return { text: got.text, whole: true };
+  }
+
+  return { text: excerpt, whole: false };
+}

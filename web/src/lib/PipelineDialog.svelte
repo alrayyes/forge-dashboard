@@ -40,6 +40,7 @@
   // costs no more requests.
   import { tick } from "svelte";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
+  import CopyCheckLog from "#lib/CopyCheckLog.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
@@ -295,6 +296,15 @@
             class="pipeline-check-excerpt"
             tabindex="0"
             aria-label="Log excerpt: {check.name}">{check.excerpt}</pre>
+          {#if target?.checksUrl}
+            <CopyCheckLog
+              name={check.name}
+              jobId={check.jobId}
+              checksUrl={target.checksUrl}
+              excerpt={check.excerpt}
+              forgeName={forgeLabel(target)}
+            />
+          {/if}
         {/if}
       </li>
     {/each}

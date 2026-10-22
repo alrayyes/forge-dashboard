@@ -4539,3 +4539,9 @@ footer a[aria-current="page"] {
   background: var(--surface);
   border: 1px solid var(--border);
 }
+
+/* The Copy log button under a failed check's excerpt, and what a copy said. */
+.pipeline-check-copy-status {
+  font-size: 12px;
+  color: var(--ink-2);
+}

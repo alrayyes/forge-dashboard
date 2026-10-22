@@ -4,6 +4,7 @@ import {
   copyLog,
   type LogResult,
   loadRunLog,
+  logToCopy,
   logUrl,
   notePlaces,
 } from './run-log';
@@ -138,5 +139,35 @@ describe('copyLog', () => {
       select: () => false,
     });
     expect(got).toBe('selected');
+  });
+});
+
+describe('logToCopy', () => {
+  test('is the whole log when the endpoint answers', async () => {
+    const got = await logToCopy(
+      '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9',
+      'tail',
+      'GitHub',
+      respond(200, { text: 'all of it\n', truncated: false }),
+    );
+
+    expect(got).toEqual({ text: 'all of it\n', whole: true });
+  });
+
+  test('is the excerpt when the full log cannot be read', async () => {
+    const got = await logToCopy(
+      '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9',
+      'tail',
+      'GitHub',
+      respond(404, { error: 'gone' }),
+    );
+
+    expect(got).toEqual({ text: 'tail', whole: false });
+  });
+
+  test('is the excerpt when the check has no log url', async () => {
+    const got = await logToCopy(null, 'tail', 'GitHub');
+
+    expect(got).toEqual({ text: 'tail', whole: false });
   });
 });

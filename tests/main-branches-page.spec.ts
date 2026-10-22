@@ -457,6 +457,41 @@ test.describe('Main branches page (#1224, #1279)', () => {
     }
   });
 
+  test('a failed job on a branch has the same Copy log button as a pull request', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await mock(page, snapshot(MIXED));
+    await mockChecks(page, {
+      body: { checks: [{ ...JOBS[0], jobId: 11 }, JOBS[1]] },
+    });
+    await page.route('**/api/checks/log*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'whole log\n', truncated: false }),
+      }),
+    );
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+
+    await dialog(page).getByRole('button', { name: 'Copy log: lint' }).click();
+
+    await expect(
+      dialog(page).locator('.pipeline-check-copy-status'),
+    ).toHaveText('Copied');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'whole log\n',
+    );
+    await expect(
+      dialog(page).getByRole('button', { name: 'Copy log: unit' }),
+    ).toHaveCount(0);
+  });
+
   test('a row with a status but no run URL still opens the panel, without a run link', async ({
     page,
   }) => {

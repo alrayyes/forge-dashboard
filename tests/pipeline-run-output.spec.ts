@@ -44,7 +44,13 @@ async function setup(
       contentType: 'application/json',
       body: JSON.stringify({
         checks: [
-          { name: 'build', state: 'failure', url: runUrl, jobId: 9 },
+          {
+            name: 'build',
+            state: 'failure',
+            url: runUrl,
+            jobId: 9,
+            excerpt: 'boom: exit 1',
+          },
           { name: 'lint', state: 'success', url: `${runUrl}0` },
         ],
       }),
@@ -168,5 +174,59 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(
       dialog.getByRole('link', { name: 'View run: lint' }),
     ).toBeVisible();
+  });
+
+  test('a failed check has a Copy log button beside its excerpt that copies the whole log', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const asked = await setup(page, {
+      status: 200,
+      body: { text: 'step 1\nboom: exit 1\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+
+    await copy.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      'Copied',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'step 1\nboom: exit 1\n',
+    );
+    expect(new URL(asked[0]).searchParams.get('jobId')).toBe('9');
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('when the full log cannot be read, Copy log copies the excerpt and says so', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, { status: 404, body: { error: 'gone' } });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      'Copied the excerpt (the full log could not be read)',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'boom: exit 1',
+    );
+  });
+
+  test('a passed check has no Copy log button', async ({ page }) => {
+    await setup(page, { status: 200, body: { text: '', truncated: false } });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(
+      dialog.getByRole('button', { name: 'Copy log: lint' }),
+    ).toHaveCount(0);
   });
 });
