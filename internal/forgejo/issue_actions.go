@@ -2,13 +2,29 @@ package forgejo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	gitea "code.gitea.io/sdk/gitea"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
+
+// issueWriteMessage is what a person sees when the token can read issues but
+// not change them: Forgejo's scopes are per kind of object, and the token
+// hint in Settings only needed read:issue until issues could be closed here.
+const issueWriteMessage = "Changing an issue needs the write:issue scope on the token. Add it in Settings."
+
+// issuePermission names the missing scope on a permission refusal.
+func issuePermission(err error) error {
+	if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
+		clientErr.PermissionMessage = issueWriteMessage
+	}
+
+	return err
+}
 
 // CloseIssue implements dashboard.IssueCloser: closes owner/name#number.
 // Forgejo treats closing an issue that is already closed as done.
@@ -28,7 +44,7 @@ func (c *Client) setIssueState(ctx context.Context, owner, name string, number i
 	slog.Debug("forgejo request", "method", http.MethodPatch, "url", path)
 	_, resp, err := c.sdk.EditIssue(owner, name, int64(number), gitea.EditIssueOption{State: &state})
 	if err != nil {
-		return c.forgejoError(ctx, http.MethodPatch, path, resp, err)
+		return issuePermission(c.forgejoError(ctx, http.MethodPatch, path, resp, err))
 	}
 	c.recordRequest(ctx, http.MethodPatch, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
@@ -45,7 +61,7 @@ func (c *Client) CommentIssue(ctx context.Context, owner, name string, number in
 	slog.Debug("forgejo request", "method", http.MethodPost, "url", path)
 	_, resp, err := c.sdk.CreateIssueComment(owner, name, int64(number), gitea.CreateIssueCommentOption{Body: body})
 	if err != nil {
-		return c.forgejoError(ctx, http.MethodPost, path, resp, err)
+		return issuePermission(c.forgejoError(ctx, http.MethodPost, path, resp, err))
 	}
 	c.recordRequest(ctx, http.MethodPost, path, resp.StatusCode, requestlog.OutcomeSuccess)
 

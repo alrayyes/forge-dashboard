@@ -87,5 +87,6 @@ func TestIssueActions_NoWriteAccess_ClassifiesAsUnauthorized(t *testing.T) {
 		var clientErr *dashboard.ClientError
 		require.ErrorAs(t, err, &clientErr, name)
 		assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind, name)
+		assert.Contains(t, clientErr.PermissionMessage, "Issues", name)
 	}
 }

@@ -86,5 +86,6 @@ func TestIssueActions_TokenWithoutWriteScope_ClassifiesAsUnauthorized(t *testing
 		var clientErr *dashboard.ClientError
 		require.ErrorAs(t, err, &clientErr, name)
 		assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind, name)
+		assert.Contains(t, clientErr.PermissionMessage, "write:issue", name)
 	}
 }
