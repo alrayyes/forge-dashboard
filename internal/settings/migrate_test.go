@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -70,7 +71,7 @@ func migrate(t *testing.T, db *sql.DB, path string) (dbmigrate.Result, error) {
 func migrateLogged(t *testing.T, db *sql.DB, path string, log *slog.Logger) (dbmigrate.Result, error) {
 	t.Helper()
 
-	return dbmigrate.Run(t.Context(), db, path, settings.MigrationSteps(), log) //nolint:wrapcheck // test helper
+	return dbmigrate.Run(t.Context(), db, path, settings.MigrationSteps(log), log) //nolint:wrapcheck // test helper
 }
 
 func hasUserID(t *testing.T, db *sql.DB, table string) bool {
@@ -190,11 +191,17 @@ func TestMigrate_SeveralUsersButCleanupMarker_KeepsOnlyTheOwnersRows(t *testing.
 	mustExec(t, db, `INSERT INTO ignored_repos VALUES ('other', 'github', 'z/z', 1, 1)`)
 	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES ('other', 'other-token', '2026-02-02 00:00:00')`)
 
-	_, err := migrate(t, db, path)
+	var logs strings.Builder
+	_, err := migrateLogged(t, db, path, slog.New(slog.NewTextHandler(&logs, nil)))
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM ignored_repos`))
 	assert.Equal(t, "hook-token", scalar[string](t, db, `SELECT webhook_token FROM settings`))
+	assert.Contains(t, logs.String(), "level=WARN", "dropping another user's rows is said out loud")
+	assert.Contains(t, logs.String(), "table=ignored_repos")
+	assert.Contains(t, logs.String(), "table=user_credentials")
+	assert.Contains(t, logs.String(), "user_id=other")
+	assert.Contains(t, logs.String(), "backup")
 }
 
 func TestMigrate_RowsOfAUnknownUserBesideTheOwners_AbortsAndSaysWhatToDo(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
@@ -42,13 +43,13 @@ var ErrSettingsTableInTheWay = errors.New("settings: a settings table with rows 
 
 // MigrationSteps are the schema steps for the settings tables, in order. Pass
 // them to dbmigrate.Run before any store creates its tables.
-func MigrationSteps() []dbmigrate.Step {
+func MigrationSteps(log *slog.Logger) []dbmigrate.Step {
 	tables := make([]string, 0, len(rebuilds))
 	for _, r := range rebuilds {
 		tables = append(tables, r.new)
 	}
 
-	return []dbmigrate.Step{{Name: "drop the user id from the settings tables", Tables: tables, Preflight: preflight, Run: dropUserID}}
+	return []dbmigrate.Step{{Name: "drop the user id from the settings tables", Tables: tables, Preflight: preflight, Run: func(ctx context.Context, tx dbmigrate.Tx) error { return dropUserID(ctx, tx, log) }}}
 }
 
 // rebuild describes one table that loses its user id. The new shape is written
@@ -214,7 +215,7 @@ func preflight(ctx context.Context, q dbmigrate.Tx) error {
 // the copy counted, the old one dropped. A table that is missing or already has
 // the new shape is skipped, so the step is safe to replay and a table no
 // release created yet is left to the store.
-func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
+func dropUserID(ctx context.Context, tx dbmigrate.Tx, log *slog.Logger) error {
 	pending, err := tablesWithUserID(ctx, tx)
 	if err != nil {
 		return err
@@ -236,6 +237,9 @@ func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
 	}
 
 	for _, r := range pending {
+		if err := r.logDropped(ctx, tx, owner, log); err != nil {
+			return err
+		}
 		if err := r.rebuild(ctx, tx, owner); err != nil {
 			return err
 		}
@@ -321,6 +325,29 @@ func foreignUserIDs(ctx context.Context, q dbmigrate.Tx, table, owner, not strin
 	}
 
 	return ids, nil
+}
+
+// logDropped says which other users' rows a table loses to the owner's. They
+// are in the backup the migration took first.
+func (r rebuild) logDropped(ctx context.Context, q dbmigrate.Tx, owner string, log *slog.Logger) error {
+	ids, err := foreignUserIDs(ctx, q, r.old, owner, "")
+	if err != nil || len(ids) == 0 {
+		return err
+	}
+	total, err := countRows(ctx, q, r.old, "")
+	if err != nil {
+		return err
+	}
+	mine, err := countRows(ctx, q, r.old, owner)
+	if err != nil {
+		return err
+	}
+	log.Warn("migrate: the oldest user's settings win; another user's rows are dropped and kept only in the backup",
+		slog.String("table", r.old),
+		slog.Int("dropped_rows", total-mine),
+		slog.String("user_id", strings.Join(ids, ",")))
+
+	return nil
 }
 
 // checkSettingsTableFree makes room for the new settings table. One can only

@@ -154,6 +154,12 @@ rebuild refuses them too, whether or not the owner has rows in the same table.
 The message names the table and the user ids and gives the `DELETE` that clears
 them. Copy the database file, run it, and start again. Nothing is deleted for you.
 
+Rows of another user who still exists, left beside the owner's by a second
+registration after the extra users were removed, are not an error: the oldest
+user wins, and the log has one `the oldest user's settings win` warning per
+table with the dropped row count and the user ids. Those rows survive only in
+the copy.
+
 That release keeps the oldest user who holds a passkey. If the database has
 several users and none holds a passkey, it can't choose and the previous
 release won't help. The server says so and stops. Keep the one user you want

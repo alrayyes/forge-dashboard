@@ -622,7 +622,7 @@ func openUpgradedDatabase(ctx context.Context) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	if _, err := dbmigrate.Run(ctx, db, databasePath(), settings.MigrationSteps(), slog.Default()); err != nil {
+	if _, err := dbmigrate.Run(ctx, db, databasePath(), settings.MigrationSteps(slog.Default()), slog.Default()); err != nil {
 		_ = db.Close()
 
 		return nil, fmt.Errorf("upgrade database: %w", err)
