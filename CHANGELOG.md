@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/alrayyes/forge-dashboard/compare/v2.7.0...v2.8.0) (2026-10-22)
+
+
+### Features
+
+* **web:** search pull requests and bot PRs by number ([#2518](https://github.com/alrayyes/forge-dashboard/issues/2518)) ([4f3191e](https://github.com/alrayyes/forge-dashboard/commit/4f3191e6ef82bf8ba89f42f7b1fa7983791ce735))
+
 ## [2.7.0](https://github.com/alrayyes/forge-dashboard/compare/v2.6.0...v2.7.0) (2026-10-22)
 
 
