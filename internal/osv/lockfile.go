@@ -34,9 +34,10 @@ var errNoPackages = errors.New("osv: lockfile has no packages map")
 func ParsePackageLock(data []byte) ([]Package, error) {
 	var lock struct {
 		Packages map[string]struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-			Link    bool   `json:"link"`
+			Name     string `json:"name"`
+			Version  string `json:"version"`
+			Resolved string `json:"resolved"`
+			Link     bool   `json:"link"`
 		} `json:"packages"`
 	}
 	if err := json.Unmarshal(data, &lock); err != nil {
@@ -50,7 +51,7 @@ func ParsePackageLock(data []byte) ([]Package, error) {
 	var out []Package
 	for key, p := range lock.Packages {
 		i := strings.LastIndex(key, marker) //nolint:modernize // CutLast needs a newer Go than this module pins
-		if i < 0 || p.Link || p.Version == "" {
+		if i < 0 || p.Link || p.Version == "" || !fromRegistry(p.Resolved) {
 			continue // the root, a workspace folder or a symlink
 		}
 		name := key[i+len(marker):]
@@ -61,6 +62,14 @@ func ParsePackageLock(data []byte) ([]Package, error) {
 	}
 
 	return out, nil
+}
+
+// fromRegistry says whether a lock entry's resolved source is an npm registry
+// tarball (".../name/-/name-1.0.0.tgz"). A git, file or plain tarball source is
+// not the registry package of that name and version, so matching it against
+// OSV could flag the wrong code. An entry with no resolved source is kept.
+func fromRegistry(resolved string) bool {
+	return resolved == "" || strings.Contains(resolved, "/-/")
 }
 
 // ParseGoMod reads the modules a go.mod builds, direct and indirect, at the

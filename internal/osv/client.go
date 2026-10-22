@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -219,33 +220,60 @@ func collect(queries []query, results []batchResult, ids map[string]struct{}) []
 	return next
 }
 
-// loadRecords returns the record of every id, fetching the ones not held.
+// loadRecords returns the record of every id, fetching the ones not held with
+// at most detailConcurrency workers. The first error stops the rest, so an OSV
+// that is failing doesn't cost a call per advisory.
 func (c *Client) loadRecords(ctx context.Context, ids map[string]struct{}) (map[string]record, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	todo := make(chan string)
 	var (
 		wg       sync.WaitGroup
-		outMu    sync.Mutex
+		mu       sync.Mutex
 		firstErr error
 		out      = make(map[string]record, len(ids))
 	)
-	for id := range ids {
+	for range min(detailConcurrency, len(ids)) {
 		wg.Go(func() {
-			r, err := c.record(ctx, id)
-			outMu.Lock()
-			defer outMu.Unlock()
-			if err != nil {
-				firstErr = cmp.Or(firstErr, err)
-
-				return
+			for id := range todo {
+				r, err := c.record(ctx, id)
+				mu.Lock()
+				if err != nil {
+					firstErr = cmp.Or(firstErr, err)
+					cancel()
+				} else {
+					out[id] = r
+				}
+				mu.Unlock()
 			}
-			out[id] = r
 		})
 	}
+	feed(ctx, todo, ids)
 	wg.Wait()
 	if firstErr != nil {
 		return nil, fmt.Errorf("osv: read advisory records: %w", firstErr)
 	}
+	if err := ctx.Err(); err != nil && len(out) < len(ids) {
+		return nil, fmt.Errorf("osv: read advisory records: %w", err)
+	}
 
 	return out, nil
+}
+
+// feed hands the ids to the workers until they are all taken or ctx ends.
+func feed(ctx context.Context, todo chan<- string, ids map[string]struct{}) {
+	defer close(todo)
+	for id := range ids {
+		select {
+		case todo <- id:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func isContextErr(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // flight is one record fetch that callers asking for the same id share.
@@ -260,19 +288,27 @@ type flight struct {
 // a cold start, so one fetch serves them all, and at most detailConcurrency
 // fetches are in flight across the client.
 func (c *Client) record(ctx context.Context, id string) (record, error) {
-	c.mu.Lock()
-	if e, ok := c.records[id]; ok && c.now().Before(e.expires) {
-		c.mu.Unlock()
+	for {
+		c.mu.Lock()
+		if e, ok := c.records[id]; ok && c.now().Before(e.expires) {
+			c.mu.Unlock()
 
-		return e.rec, nil
-	}
-	if f, ok := c.inflight[id]; ok {
+			return e.rec, nil
+		}
+		f, ok := c.inflight[id]
+		if !ok {
+			break // still holding c.mu: this caller fetches
+		}
 		c.mu.Unlock()
 		select {
 		case <-f.done:
-			return f.rec, f.err
 		case <-ctx.Done():
 			return record{}, fmt.Errorf("osv: wait for advisory record: %w", ctx.Err())
+		}
+		// The fetch's own scan may have been cut short; that is its deadline,
+		// not an answer about the record, so go round and fetch with ours.
+		if f.err == nil || !isContextErr(f.err) || ctx.Err() != nil {
+			return f.rec, f.err
 		}
 	}
 	f := &flight{done: make(chan struct{})}
@@ -427,6 +463,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, into any) er
 		}
 		rd = bytes.NewReader(b)
 	}
+	slog.Debug("osv request", "method", method, "url", c.base+path)
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rd)
 	if err != nil {
 		return fmt.Errorf("osv: build request: %w", err)

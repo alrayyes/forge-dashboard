@@ -68,6 +68,7 @@ func (c *Client) SetAdvisoryScanner(s AdvisoryScanner) {
 type advisoryCache struct {
 	mu      sync.Mutex
 	entries map[string]advisoryEntry
+	calls   map[string]*advisoryCall
 	now     func() time.Time
 }
 
@@ -99,6 +100,37 @@ func (c *advisoryCache) get(repo string) (e advisoryEntry, fresh, ok bool) {
 	return e, ok && c.clock().Before(e.expires), ok
 }
 
+// advisoryCall is one repo's read in flight, shared by everyone who asks for
+// the repo meanwhile: a refresh and a webhook-scoped refresh arrive together.
+type advisoryCall struct {
+	done  chan struct{}
+	value dashboard.Advisories
+}
+
+// join returns the repo's read in flight, or starts one and says the caller
+// is to run it.
+func (c *advisoryCache) join(repo string) (call *advisoryCall, leader bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if call, ok := c.calls[repo]; ok {
+		return call, false
+	}
+	if c.calls == nil {
+		c.calls = map[string]*advisoryCall{}
+	}
+	call = &advisoryCall{done: make(chan struct{})}
+	c.calls[repo] = call
+
+	return call, true
+}
+
+func (c *advisoryCache) finish(repo string, call *advisoryCall) {
+	c.mu.Lock()
+	delete(c.calls, repo)
+	c.mu.Unlock()
+	close(call.done)
+}
+
 func (c *advisoryCache) put(repo string, e advisoryEntry, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -109,33 +141,17 @@ func (c *advisoryCache) put(repo string, e advisoryEntry, ttl time.Duration) {
 	c.entries[repo] = e
 }
 
-func (c *advisoryCache) expireAll() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for k, e := range c.entries {
-		e.expires = time.Time{}
-		c.entries[k] = e
-	}
-}
-
-// ReadAdvisories implements dashboard.AdvisoryReader from the lockfiles in the
-// root of owner/name's default branch (package-lock.json and go.mod), matched
-// against OSV. Costs one listing of the root plus one read per lockfile found.
+// readAdvisories reads a repo's advisories from the lockfiles in the root of
+// its default branch (package-lock.json and go.mod), matched against OSV, or
+// starting from packages already read from the forge when known is set. Costs
+// one listing of the root plus one read per lockfile found. It returns the
+// packages it read so a caller can keep them when OSV fails.
 //
 // A repo with no lockfile it can read is unknown, never zero. So is one where
 // any lockfile is too big to read or fails to parse, since the others alone
 // would read as the whole answer, and one that matches more advisories than a
 // scan reads. A failed call to the forge or to OSV is an error. The package
 // names and versions in the lockfiles are sent to OSV; nothing else is.
-func (c *Client) ReadAdvisories(ctx context.Context, owner, name, _ string) (dashboard.Advisories, error) {
-	v, _, err := c.readAdvisories(ctx, owner, name, nil)
-
-	return v, err
-}
-
-// readAdvisories is ReadAdvisories, starting from packages already read from
-// the forge when known is set. It returns the packages it read so a caller can
-// keep them when OSV fails.
 func (c *Client) readAdvisories(ctx context.Context, owner, name string, known []osv.Package) (dashboard.Advisories, []osv.Package, error) {
 	if c.advisoryScanner == nil {
 		return dashboard.Advisories{}, nil, errNoAdvisoryScanner
@@ -214,10 +230,6 @@ func (c *Client) rootLockfiles(ctx context.Context, owner, name string) (files, 
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, nil, nil // an empty repo has no root to list
-		}
-
 		return nil, nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
 	var entries []struct {
@@ -270,7 +282,23 @@ func (c *Client) advisoriesFor(ctx context.Context, repo dashboard.RepoRef) *das
 	if fresh {
 		return &old.value
 	}
+	call, leader := c.advisories.join(repo.FullName)
+	if !leader {
+		select {
+		case <-call.done:
+			return &call.value
+		case <-ctx.Done():
+			return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
+		}
+	}
+	defer c.advisories.finish(repo.FullName, call)
+	call.value = *c.refreshAdvisories(ctx, repo, old, have)
 
+	return &call.value
+}
+
+// refreshAdvisories reads a repo's advisories again and remembers the answer.
+func (c *Client) refreshAdvisories(ctx context.Context, repo dashboard.RepoRef, old advisoryEntry, have bool) *dashboard.Advisories {
 	var known []osv.Package
 	if old.havePkgs && c.advisories.clock().Before(old.pkgsUntil) {
 		known = old.pkgs
@@ -291,7 +319,7 @@ func (c *Client) advisoriesFor(ctx context.Context, repo dashboard.RepoRef) *das
 		case pkgs != nil:
 			e.pkgs, e.havePkgs, e.pkgsUntil = pkgs, true, c.advisories.clock().Add(advisoriesTTL)
 		}
-		c.advisories.put(repo.FullName, e, min(advisoriesRetry<<(e.failures-1), advisoriesRetryMax))
+		c.advisories.put(repo.FullName, e, min(advisoriesRetry<<min(e.failures-1, 6), advisoriesRetryMax))
 
 		return &e.value
 	}

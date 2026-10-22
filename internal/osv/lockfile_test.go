@@ -72,3 +72,21 @@ func TestParsePackageLock_AnAliasedInstallUsesTheRealName(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []osv.Package{{Ecosystem: "npm", Name: "lodash", Version: "4.17.0"}}, got)
 }
+
+func TestParsePackageLock_SkipsWhatDidNotComeFromTheRegistry(t *testing.T) {
+	t.Parallel()
+
+	lock := `{"packages":{
+		"node_modules/reg":{"version":"1.0.0","resolved":"https://registry.npmjs.org/reg/-/reg-1.0.0.tgz"},
+		"node_modules/private":{"version":"2.0.0","resolved":"https://npm.example.com/private/-/private-2.0.0.tgz"},
+		"node_modules/gitdep":{"version":"1.0.0","resolved":"git+ssh://git@github.com/o/gitdep.git#abc"},
+		"node_modules/tarball":{"version":"1.0.0","resolved":"https://example.com/tarball-1.0.0.tgz"},
+		"node_modules/local":{"version":"1.0.0","resolved":"file:../local"}}}`
+
+	got, err := osv.ParsePackageLock([]byte(lock))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []osv.Package{
+		{Ecosystem: "npm", Name: "reg", Version: "1.0.0"},
+		{Ecosystem: "npm", Name: "private", Version: "2.0.0"},
+	}, got, "a git, tarball or file source is not the registry package of that name")
+}

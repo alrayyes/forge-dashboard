@@ -1,10 +1,19 @@
 package forgejo
 
-import "time"
+import (
+	"context"
+	"time"
 
-// ExpireAdvisories makes every remembered advisory answer stale, so the next
-// read asks again.
-func ExpireAdvisories(c *Client) { c.advisories.expireAll() }
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+)
+
+// ReadAdvisories reads a repo's advisories once, past the cache, deadline and
+// back-off that ReadMainBranch applies.
+func ReadAdvisories(ctx context.Context, c *Client, owner, name string) (dashboard.Advisories, error) {
+	v, _, err := c.readAdvisories(ctx, owner, name, nil)
+
+	return v, err
+}
 
 // SetAdvisoryClock replaces the clock the advisory cache expires by.
 func SetAdvisoryClock(c *Client, now func() time.Time) { c.advisories.now = now }

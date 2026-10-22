@@ -30,7 +30,7 @@ import (
 //
 // With an advisory scanner set (SetAdvisoryScanner) the row also carries the
 // repo's open dependency advisories, read from its lockfiles and remembered for
-// fifteen minutes (see ReadAdvisories).
+// fifteen minutes (see advisoriesFor).
 func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (dashboard.MainBranch, error) {
 	row, err := c.readBranchRuns(ctx, repo)
 	if err != nil {

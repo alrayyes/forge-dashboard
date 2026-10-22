@@ -1,6 +1,7 @@
 package osv_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -289,4 +290,43 @@ func TestScan_ARecordExpires(t *testing.T) {
 	_, err = client.Scan(t.Context(), pkgs)
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, s.details.Load(), "a record is read again after its time to live")
+}
+
+func TestScan_AWaiterDoesNotInheritAnotherScansDeadline(t *testing.T) {
+	t.Parallel()
+	s := &osvServer{
+		vulns:  map[string][]string{"a@1.0.0": {"GHSA-1"}},
+		detail: map[string]map[string]any{"GHSA-1": ghsa("HIGH")},
+		delay:  300 * time.Millisecond,
+	}
+	client := s.start(t)
+	pkgs := []osv.Package{{Ecosystem: "npm", Name: "a", Version: "1.0.0"}}
+
+	short, cancel := context.WithTimeout(t.Context(), 80*time.Millisecond)
+	defer cancel()
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		_, err := client.Scan(short, pkgs)
+		assert.Error(t, err)
+	})
+	time.Sleep(30 * time.Millisecond)
+
+	got, err := client.Scan(t.Context(), pkgs)
+	wg.Wait()
+	require.NoError(t, err, "the first scan timing out must not fail a healthy one")
+	assert.Equal(t, osv.Summary{Count: 1, Highest: "high"}, got)
+}
+
+func TestScan_StopsFetchingRecordsAfterTheFirstError(t *testing.T) {
+	t.Parallel()
+	s := &osvServer{vulns: map[string][]string{}, detail: map[string]map[string]any{}}
+	var ids []string
+	for i := range 500 {
+		ids = append(ids, fmt.Sprintf("GHSA-%d", i)) // none has a record: every fetch is a 404
+	}
+	s.vulns["a@1.0.0"] = ids
+
+	_, err := s.start(t).Scan(t.Context(), []osv.Package{{Ecosystem: "npm", Name: "a", Version: "1.0.0"}})
+	require.Error(t, err)
+	assert.Less(t, s.details.Load(), int32(100), "a failing OSV doesn't cost a call per advisory")
 }

@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ dashboard.AdvisoryReader = (*forgejo.Client)(nil)
-
 // fakeScanner stands in for OSV: it records what it was asked and answers with
 // a canned summary or error.
 type fakeScanner struct {
@@ -97,7 +95,7 @@ func TestReadAdvisories_FillsCountAndSeverityFromTheLockfile(t *testing.T) {
 	scanner := &fakeScanner{summary: osv.Summary{Count: 2, Highest: "high"}}
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON, "go.mod": "module x\n\nrequire github.com/a/b v1.2.3\n"}}).start(t, scanner)
 
-	got, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "https://forge.example/alrayyes/a")
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 2, Highest: dashboard.SeverityHigh}, got)
 	require.Equal(t, 1, scanner.calls())
@@ -111,7 +109,7 @@ func TestReadAdvisories_ACleanLockfileIsAKnownZero(t *testing.T) {
 	t.Parallel()
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, &fakeScanner{})
 
-	got, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown}, got)
 }
@@ -121,7 +119,7 @@ func TestReadAdvisories_NoLockfileIsUnknownNeverZero(t *testing.T) {
 	scanner := &fakeScanner{}
 	client := (&lockfileServer{files: map[string]string{}}).start(t, scanner)
 
-	got, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
 	assert.Zero(t, scanner.calls(), "nothing to send to OSV")
@@ -131,7 +129,7 @@ func TestReadAdvisories_AnUnreadableLockfileIsUnknown(t *testing.T) {
 	t.Parallel()
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": "not json"}}).start(t, &fakeScanner{})
 
-	got, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, got)
 }
@@ -140,7 +138,7 @@ func TestReadAdvisories_AnOSVOutageIsAnError(t *testing.T) {
 	t.Parallel()
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, &fakeScanner{err: assert.AnError})
 
-	_, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	_, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
 	require.Error(t, err)
 }
 
@@ -148,7 +146,7 @@ func TestReadAdvisories_TooManyAdvisoriesIsUnknownWithItsReason(t *testing.T) {
 	t.Parallel()
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, &fakeScanner{err: osv.ErrTooMany})
 
-	got, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonTooMany}, got)
 }
@@ -157,7 +155,7 @@ func TestReadAdvisories_AForgeErrorIsAnError(t *testing.T) {
 	t.Parallel()
 	client := (&lockfileServer{listCode: http.StatusInternalServerError}).start(t, &fakeScanner{})
 
-	_, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	_, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
 	require.Error(t, err)
 }
 
@@ -181,13 +179,13 @@ func TestReadMainBranch_AFailedReadKeepsTheLastAnswer(t *testing.T) {
 	t.Parallel()
 	scanner := &fakeScanner{summary: osv.Summary{Count: 4, Highest: "high"}}
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
-	forgejo.ExpireAdvisories(client)
+	clk := withClock(client)
 
 	first, err := client.ReadMainBranch(t.Context(), repoA)
 	require.NoError(t, err)
 	require.Equal(t, 4, first.Advisories.Count)
 
-	forgejo.ExpireAdvisories(client)
+	clk.advance(16 * time.Minute)
 	scanner.mu.Lock()
 	scanner.err = assert.AnError
 	scanner.mu.Unlock()
@@ -238,7 +236,7 @@ func TestReadAdvisories_ALockfileTooBigToReadMakesTheRepoUnknown(t *testing.T) {
 		sizes: map[string]int{"package-lock.json": 9 << 20},
 	}
 
-	got, err := forge.start(t, scanner).ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	got, err := forgejo.ReadAdvisories(t.Context(), forge.start(t, scanner), "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, got, "the go.mod alone must not read as the whole repo")
 	assert.Zero(t, scanner.calls())
@@ -249,7 +247,7 @@ func TestReadAdvisories_OneUnreadableLockfileMakesTheRepoUnknown(t *testing.T) {
 	scanner := &fakeScanner{summary: osv.Summary{Count: 1}}
 	forge := &lockfileServer{files: map[string]string{"package-lock.json": "not json", "go.mod": "module x\n\nrequire github.com/a/b v1.2.3\n"}}
 
-	got, err := forge.start(t, scanner).ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	got, err := forgejo.ReadAdvisories(t.Context(), forge.start(t, scanner), "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
 	assert.Zero(t, scanner.calls())
@@ -349,4 +347,62 @@ func TestReadMainBranch_AFailedFirstReadIsUnknown(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, row.Advisories)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, *row.Advisories)
+}
+
+func TestReadMainBranch_ManyFailuresInARowNeverMakeTheRetryImmediate(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{err: assert.AnError}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
+	clk := withClock(client)
+
+	for i := range 60 {
+		before := scanner.calls()
+		for range 2 {
+			_, err := client.ReadMainBranch(t.Context(), repoA)
+			require.NoError(t, err)
+		}
+		require.Equal(t, before+1, scanner.calls(), "read %d: a failed read is not asked again at once", i)
+		clk.advance(31 * time.Minute)
+	}
+}
+
+func TestReadMainBranch_ARootListing404IsAFailureNotAnEmptyRepo(t *testing.T) {
+	t.Parallel()
+	client := (&lockfileServer{listCode: http.StatusNotFound}).start(t, &fakeScanner{})
+
+	_, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
+	require.Error(t, err)
+}
+
+func TestReadMainBranch_ConcurrentReadsOfOneRepoShareOneRead(t *testing.T) {
+	t.Parallel()
+	scanner := &slowScanner{}
+	scanner.summary = osv.Summary{Count: 1}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
+	client := forge.start(t, scanner)
+
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Go(func() {
+			row, err := client.ReadMainBranch(t.Context(), repoA)
+			if err != nil {
+				t.Error(err)
+
+				return
+			}
+			assert.Equal(t, 1, row.Advisories.Count)
+		})
+	}
+	wg.Wait()
+	assert.Equal(t, 1, scanner.calls())
+	assert.EqualValues(t, 2, forge.requests.Load())
+}
+
+// slowScanner answers after a pause, so parallel readers overlap.
+type slowScanner struct{ fakeScanner }
+
+func (s *slowScanner) Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary, error) {
+	time.Sleep(150 * time.Millisecond)
+
+	return s.fakeScanner.Scan(ctx, pkgs)
 }
