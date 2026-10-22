@@ -267,3 +267,77 @@ func TestReadMainBranch_StatusAgreesWithTheCountsWhenARunFinishesMidRead(t *test
 		assert.Equal(t, dashboard.MainBranchRunning, row.Status)
 	})
 }
+
+// A settled run has no stop time on the runs list, so the row takes its finish
+// time from the latest job to complete. Without one the row would read passed
+// with no finish time or duration.
+func TestReadMainBranch_ASettledRunTakesItsFinishTimeFromItsJobs(t *testing.T) {
+	t.Parallel()
+
+	s := &mainBranchServer{
+		runs: []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+		jobs: map[string][]map[string]any{"1": {
+			{"name": "a", "status": "success", "completed_at": "2026-10-10T09:02:00Z"},
+			{"name": "b", "status": "success", "completed_at": "2026-10-10T09:03:00Z"},
+		}},
+	}
+	client := s.start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+
+	require.NoError(t, err)
+	require.Equal(t, dashboard.MainBranchPassed, row.Status)
+	require.NotNil(t, row.FinishedAt)
+	assert.Equal(t, "2026-10-10T09:03:00Z", row.FinishedAt.UTC().Format(time.RFC3339))
+	require.NotNil(t, row.DurationSeconds)
+	assert.Equal(t, 120, *row.DurationSeconds)
+}
+
+// A job list that fills the forge's default page may have more jobs on a page
+// nobody read, so it can't show that every job finished.
+func TestReadMainBranch_DoesNotSettleOnAJobListThatMayBeTruncated(t *testing.T) {
+	t.Parallel()
+
+	full := make([]string, 30)
+	for i := range full {
+		full[i] = "success"
+	}
+	s := &mainBranchServer{
+		runs: []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+		jobs: map[string][]map[string]any{"1": jobsOf(full...)},
+	}
+	client := s.start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.MainBranchRunning, row.Status)
+}
+
+func TestReadMainBranch_SettlingLeavesTheOtherCasesAlone(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		jobs []map[string]any
+		want dashboard.MainBranchStatus
+	}{
+		"no jobs read keeps the run as listed":    {jobs: []map[string]any{}, want: dashboard.MainBranchRunning},
+		"only cancelled jobs settle as cancelled": {jobs: jobsOf("cancelled", "cancelled"), want: dashboard.MainBranchCancelled},
+		"a queued job keeps the run running":      {jobs: jobsOf("success", "waiting"), want: dashboard.MainBranchRunning},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			s := &mainBranchServer{
+				runs: []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+				jobs: map[string][]map[string]any{"1": tc.jobs},
+			}
+			client := s.start(t)
+
+			row, err := client.ReadMainBranch(t.Context(), repoA)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, row.Status)
+		})
+	}
+}
