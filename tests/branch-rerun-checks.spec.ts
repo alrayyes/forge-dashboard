@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 // The Main branches pipeline dialog offers "Rerun failed checks" on a failed
 // branch, as the pull request dialog does.
 
-function branch(status: 'failed' | 'passed') {
+function branch(status: 'failed' | 'passed', running = 0) {
   const failed = status === 'failed';
   return {
     forge: 'github',
@@ -23,13 +23,25 @@ function branch(status: 'failed' | 'passed') {
     finishedAt: null,
     durationSeconds: null,
     runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
-    checks: { passed: 1, running: 0, waiting: 0, failed: failed ? 1 : 0 },
+    checks: { passed: 1, running, waiting: 0, failed: failed ? 1 : 0 },
     stale: false,
     staleSince: null,
   };
 }
 
-async function openPanel(page: Page, status: 'failed' | 'passed') {
+async function openPanel(
+  page: Page,
+  status: 'failed' | 'passed',
+  state: { checks: unknown[]; running?: number } = {
+    checks: [
+      {
+        name: 'test',
+        state: status === 'failed' ? 'failure' : 'success',
+        url: 'https://example.com/r/2',
+      },
+    ],
+  },
+) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/main-branches', (route) =>
     route.fulfill({
@@ -46,7 +58,7 @@ async function openPanel(page: Page, status: 'failed' | 'passed') {
           none: 0,
           total: 1,
         },
-        branches: [branch(status)],
+        branches: [branch(status, state.running ?? 0)],
       }),
     }),
   );
@@ -54,15 +66,7 @@ async function openPanel(page: Page, status: 'failed' | 'passed') {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        checks: [
-          {
-            name: 'test',
-            state: status === 'failed' ? 'failure' : 'success',
-            url: 'https://example.com/r/2',
-          },
-        ],
-      }),
+      body: JSON.stringify({ checks: state.checks }),
     }),
   );
   await page.goto('/');
@@ -71,11 +75,65 @@ async function openPanel(page: Page, status: 'failed' | 'passed') {
     .first()
     .click();
   const dialog = page.getByRole('dialog', { name: /pipeline/i });
-  await expect(dialog.getByRole('listitem')).toHaveCount(1);
+  await expect(dialog.getByRole('listitem')).toHaveCount(state.checks.length);
   return dialog;
 }
 
 test.describe('main branches rerun failed checks', () => {
+  test('a poll that redraws the control mid-request still shows the in-flight state, then the refusal', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/main-branches/rerun-checks', async (route) => {
+      await gate;
+      await route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'not_mergeable',
+          message: 'no failed job to rerun on this branch',
+          error: 'no failed job to rerun on this branch',
+        }),
+      });
+    });
+    const state = {
+      running: 1,
+      checks: [
+        { name: 'build', state: 'running', url: 'https://example.com/r/1' },
+        { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+      ],
+    };
+    const dialog = await openPanel(page, 'failed', state);
+
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('status')).toContainText('Queuing the rerun');
+
+    // The page's poll finds a check moved, so the dialog draws the control
+    // again while the request is still out.
+    state.running = 0;
+    state.checks = [
+      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+    ];
+    await page.clock.runFor(60_000);
+    await expect(dialog.getByRole('listitem').first()).toContainText('Passed');
+    await expect(dialog.getByRole('status')).toContainText('Queuing the rerun');
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toHaveAttribute('aria-disabled', 'true');
+
+    release();
+
+    await expect(dialog.getByRole('alert')).toContainText(
+      'no failed job to rerun on this branch',
+    );
+    await expect(dialog.getByRole('status')).toHaveText('');
+  });
+
   test('a failed branch offers the button, which posts for that repository and holds a queued state', async ({
     page,
   }) => {

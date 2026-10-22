@@ -23,6 +23,10 @@ export type RerunTarget = { forge: string; fullName: string };
 
 export function createBranchRerun() {
   const states = new Map<string, State>();
+  // The controls on screen per repository. The dialog draws its control again
+  // when the checks change, so the node a click came from may be gone by the
+  // time the request ends: the answer goes to whichever nodes are on screen.
+  const views = new Map<string, Set<{ node: HTMLElement; sync: () => void }>>();
   const keyOf = (t: RerunTarget) => `${t.forge}\u0000${t.fullName}`;
 
   // A queued rerun is held until the branch's CI moves on or the hold runs out.
@@ -34,6 +38,17 @@ export function createBranchRerun() {
       Date.now() - s.queuedAt <= HOLD_MS
     );
   };
+
+  // Redraws every control on screen for key, and forgets the ones that left it.
+  function syncAll(key: string) {
+    const live = views.get(key);
+    if (!live) return;
+    for (const view of live) {
+      if (!view.node.isConnected) live.delete(view);
+      else view.sync();
+    }
+    if (live.size === 0) views.delete(key);
+  }
 
   async function post(t: RerunTarget): Promise<void> {
     const res = await fetch('/api/main-branches/rerun-checks', {
@@ -100,12 +115,16 @@ export function createBranchRerun() {
       }
     };
     sync();
+    const view = { node: wrap, sync };
+    const live = views.get(key) ?? new Set();
+    views.set(key, live);
+    live.add(view);
 
     button.addEventListener('click', () => {
       if (button.getAttribute('aria-disabled') === 'true') return;
       const sig = signature();
       states.set(key, { phase: 'requesting' });
-      sync();
+      syncAll(key);
       post(t)
         .then(() => {
           states.set(key, {
@@ -125,7 +144,7 @@ export function createBranchRerun() {
             }),
           });
         })
-        .finally(sync);
+        .finally(() => syncAll(key));
     });
 
     wrap.append(button, status, failureBox);
