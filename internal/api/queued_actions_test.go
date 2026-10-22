@@ -329,8 +329,7 @@ func TestQueuedActions_AnotherUser_NeitherSeesNorCancelsThem(t *testing.T) {
 	t.Parallel()
 	srv, _, owner := queueBoard(t, true, time.Now().Add(time.Hour))
 	_, created := queueUpdate(t, srv, owner, 5)
-	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	other, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
+	other := registerExtraUser(t, srv, testOtherUser, "Alex")
 
 	assert.Empty(t, listQueued(t, srv, other), "the other user's list")
 	assert.Empty(t, fetchDashboard(t, srv.URL, other)["queuedActions"], "the other user's dashboard")
@@ -342,9 +341,8 @@ func TestQueuedActions_AnotherUser_NeitherSeesNorCancelsThem(t *testing.T) {
 
 func TestQueuedActions_AnotherUser_CannotQueueOnTheOwnersBoard(t *testing.T) {
 	t.Parallel()
-	srv, _, owner := queueBoard(t, true, time.Now().Add(time.Hour))
-	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	other, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
+	srv, _, _ := queueBoard(t, true, time.Now().Add(time.Hour))
+	other := registerExtraUser(t, srv, testOtherUser, "Alex")
 
 	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), other)
 	_ = resp.Body.Close()

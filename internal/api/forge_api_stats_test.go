@@ -165,8 +165,7 @@ func TestForgeAPIStats_TwoUsersSeeOnlyTheirOwnCredentialsRows(t *testing.T) {
 		false, 0, func(d *api.Deps) { d.APIStats = counters })
 
 	adminCookie, _, _ := registerViaRealCeremony(t, srv, "admin-user", "Admin")
-	invite := createInviteViaAdmin(t, srv, adminCookie, "guest-user", "Guest")
-	guestCookie, _, _ := registerViaRealCeremony(t, srv, "guest-user", "Guest", invite)
+	guestCookie := registerExtraUser(t, srv, "guest-user", "Guest")
 	for cookie, token := range map[*http.Cookie]string{adminCookie: "token-of-admin", guestCookie: "token-of-guest"} {
 		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
 		_ = resp.Body.Close()

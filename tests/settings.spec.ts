@@ -5,8 +5,7 @@ import { addVirtualAuthenticator } from './webauthn-helper';
 
 test.describe('settings page', () => {
   test.beforeEach(async ({ page }) => {
-    // Registering through an invite used to give the page a virtual
-    // authenticator; the Passkeys tests add a passkey with it.
+    // The Passkeys tests add a passkey with this virtual authenticator.
     await addVirtualAuthenticator(page);
   });
 

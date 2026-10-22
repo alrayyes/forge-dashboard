@@ -42,7 +42,7 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	settingsStore := settings.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(ctx))
 
-	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
+	user, err := authStore.CreateUser(ctx, "owner", "Owner")
 	require.NoError(t, err)
 	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}, Authenticator: webauthn.Authenticator{SignCount: 5}}))
 	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{2}}))
@@ -63,7 +63,7 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
-	for _, table := range []string{"api_tokens", "hidden_pull_requests", "ceremonies", "invites"} {
+	for _, table := range []string{"api_tokens", "hidden_pull_requests", "ceremonies"} {
 		assert.Zero(t, rowCount(t, db, table), table)
 	}
 	tables, err := db.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
@@ -118,7 +118,7 @@ func TestE2EReset_ForgetsTheTabsThePreviousTestLeftReportingVisible(t *testing.T
 	cipher, err := settings.NewCipher("MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=")
 	require.NoError(t, err)
 	require.NoError(t, settings.NewStore(db, cipher).Init(ctx))
-	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
+	user, err := authStore.CreateUser(ctx, "owner", "Owner")
 	require.NoError(t, err)
 	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}}))
 
@@ -156,7 +156,7 @@ func TestE2EReset_WaitsForAConcurrentWriteInsteadOfFailing(t *testing.T) {
 	cipher, err := settings.NewCipher("MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=")
 	require.NoError(t, err)
 	require.NoError(t, settings.NewStore(db, cipher).Init(ctx))
-	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
+	user, err := authStore.CreateUser(ctx, "owner", "Owner")
 	require.NoError(t, err)
 	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}}))
 
@@ -205,7 +205,7 @@ func TestE2EReset_AFailedRewriteLeavesNoOpenTransaction(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	authStore := auth.NewStore(db)
 	require.NoError(t, authStore.Init(ctx))
-	user, err := authStore.CreateUser(ctx, "owner", "Owner", true)
+	user, err := authStore.CreateUser(ctx, "owner", "Owner")
 	require.NoError(t, err)
 	require.NoError(t, authStore.AddCredential(ctx, user.ID, webauthn.Credential{ID: []byte{1}}))
 	owner, err := authStore.GetUserByID(ctx, user.ID)

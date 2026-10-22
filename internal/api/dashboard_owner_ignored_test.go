@@ -30,8 +30,7 @@ func TestDashboard_WithOwnerQuery_IsIgnoredAndTheCallerSeesTheirOwn(t *testing.T
 
 	srv := newTestServerWithSources(t, buildSources)
 	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	token := createInviteViaAdmin(t, srv, ownerCookie, testOtherUser, "Alex")
-	otherCookie, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
+	otherCookie := registerExtraUser(t, srv, testOtherUser, "Alex")
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+secretToken+`"}`, ownerCookie)
 	require.Equal(t, http.StatusOK, status)
 	status, _ = putSettings(t, srv.URL, `{"githubToken":"`+otherToken+`"}`, otherCookie)

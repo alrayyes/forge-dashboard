@@ -13,56 +13,37 @@ import (
 type SessionUser struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"displayName"`
-	IsAdmin     bool   `json:"isAdmin"`
 }
 
 func sessionUserOf(u *auth.User) SessionUser {
-	return SessionUser{Username: u.Username, DisplayName: u.DisplayName, IsAdmin: u.IsAdmin}
+	return SessionUser{Username: u.Username, DisplayName: u.DisplayName}
 }
 
 type registerBeginRequest struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"displayName"`
-	// InviteToken is only required once any account already exists — see
-	// RegistrationStatus/handleRegistrationStatus. Left blank, it's still
-	// how the very first (bootstrap) registration on a fresh instance
-	// works, since Service.BeginRegistration never even looks at it in
-	// that case.
-	InviteToken string `json:"inviteToken"`
 }
 
 func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req registerBeginRequest
-		// displayName is only required with no inviteToken — the bootstrap
-		// path, where nothing else supplies one. An invite-scoped
-		// registration never sends a typed displayName at all (the login
-		// page's invite flow shows no field for it): the invite's own
-		// displayName is what Service.BeginRegistration actually uses,
-		// so an empty one here isn't a client error.
 		err := json.NewDecoder(r.Body).Decode(&req)
 		req.Username = strings.TrimSpace(req.Username)
 		if err == nil && overBound(w,
 			bound{"username", req.Username, maxUsernameLen},
-			bound{"displayName", req.DisplayName, maxDisplayNameLen},
-			bound{"inviteToken", req.InviteToken, maxInviteTokenLen}) {
+			bound{"displayName", req.DisplayName, maxDisplayNameLen}) {
 			return
 		}
-		if err != nil || req.Username == "" || (req.InviteToken == "" && req.DisplayName == "") {
+		if err != nil || req.Username == "" || req.DisplayName == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
 
 			return
 		}
 
-		creation, err := svc.BeginRegistration(r.Context(), req.Username, req.DisplayName, req.InviteToken)
+		creation, err := svc.BeginRegistration(r.Context(), req.Username, req.DisplayName)
 		if err != nil {
-			if errors.Is(err, auth.ErrAlreadyRegistered) {
-				writeJSON(w, http.StatusConflict, errorBody("username already registered"))
-
-				return
-			}
-			if errors.Is(err, auth.ErrInvalidInvite) {
-				writeJSON(w, http.StatusForbidden, errorBody("invalid, expired, or already-used invite"))
+			if errors.Is(err, auth.ErrRegistrationClosed) {
+				writeJSON(w, http.StatusForbidden, errorBody("registration is closed"))
 
 				return
 			}
@@ -76,11 +57,9 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 
 // registrationStatusResponse matches components.schemas.RegistrationStatus.
 type registrationStatusResponse struct {
-	// Open is true only when the instance has zero registered users — the
-	// one moment self-registration (POST /api/auth/register/begin with
-	// no inviteToken) is allowed at all. The login page uses this to
-	// decide whether to offer its own self-serve "Register a new passkey
-	// instead" button.
+	// Open is true only when the instance has zero registered users, the one
+	// moment POST /api/auth/register/begin is allowed at all. The login page
+	// uses this to decide whether to offer its register button.
 	Open bool `json:"open"`
 }
 

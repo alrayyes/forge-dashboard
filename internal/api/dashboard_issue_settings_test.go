@@ -150,8 +150,7 @@ func TestDashboard_IssueCounts_FollowTheIssuesThatRemain(t *testing.T) {
 func TestDashboard_IssueSettings_DoNotChangeAnotherUsersBoard(t *testing.T) {
 	t.Parallel()
 	srv, owner := issueSettingsServer(t)
-	token := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	other, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", token)
+	other := registerExtraUser(t, srv, testOtherUser, "Alex")
 	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["bug"]}`, other)
 	require.Equal(t, http.StatusOK, status)
 

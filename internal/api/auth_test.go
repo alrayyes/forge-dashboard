@@ -156,6 +156,8 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settings
 	mux := api.NewMux(deps)
 	srv := httptest.NewServer(mux)
 	tb.Cleanup(srv.Close)
+	testStores.Store(srv.URL, authStore)
+	tb.Cleanup(func() { testStores.Delete(srv.URL) })
 
 	return srv, manager, authStore, settingsStore, db, dbPath
 }
@@ -173,25 +175,14 @@ func testEncryptionKey(tb testing.TB) string {
 // HTTP handlers using a virtual WebAuthn authenticator (real crypto, real
 // attestation — not a mock of forge-dashboard's own code) and returns the
 // session cookie the server issued.
-//
-// inviteToken is optional and only needed once an account already exists
-// (#477) — every call site in this codebase that registers the very
-// first, sole user on a fresh *httptest.Server omits it and still hits
-// the unchanged bootstrap path; a call registering a second-or-later user
-// passes the token an admin's own POST /api/admin/invites issued (see
-// createInviteViaAdmin).
-func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, displayName string, inviteToken ...string) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
+func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, displayName string) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
 	tb.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
 	authenticator := virtualwebauthn.NewAuthenticator()
 	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
 
-	token := ""
-	if len(inviteToken) > 0 {
-		token = inviteToken[0]
-	}
-	beginBody := strings.NewReader(`{"username":"` + username + `","displayName":"` + displayName + `","inviteToken":"` + token + `"}`)
+	beginBody := strings.NewReader(`{"username":"` + username + `","displayName":"` + displayName + `"}`)
 	beginResp, err := testClient(tb).Post(srv.URL+"/api/auth/register/begin", "application/json", beginBody)
 	require.NoError(tb, err)
 	defer func() { _ = beginResp.Body.Close() }()
@@ -235,31 +226,26 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, disp
 	return nil, cred, authenticator
 }
 
-// createInviteViaAdmin calls POST /api/admin/invites as adminCookie and
-// returns the raw invite token — the token used to register username via
-// registerViaRealCeremony once self-registration is closed (#477).
-func createInviteViaAdmin(t *testing.T, srv *httptest.Server, adminCookie *http.Cookie, username, displayName string) string {
-	t.Helper()
+// testStores maps a test server's URL to its auth store, so a test of per-user
+// isolation can add a second user the way no public flow can any more:
+// registration closes once the first user holds a passkey.
+var testStores sync.Map
 
-	req, err := http.NewRequest(
-		http.MethodPost,
-		srv.URL+"/api/admin/invites",
-		strings.NewReader(`{"username":"`+username+`","displayName":"`+displayName+`"}`),
-	)
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(adminCookie)
-	resp, err := testClient(t).Do(req)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	raw := readAll(t, resp)
-	require.Equal(t, http.StatusCreated, resp.StatusCode, "create invite body: %s", raw)
+// registerExtraUser adds a second user straight to the server's store, with a
+// passkey and a session, and returns that session's cookie.
+func registerExtraUser(tb testing.TB, srv *httptest.Server, username, displayName string) *http.Cookie {
+	tb.Helper()
 
-	var body api.AdminInviteCreateResponse
-	require.NoError(t, json.Unmarshal([]byte(raw), &body))
-	require.NotEmpty(t, body.Token)
+	store, ok := testStores.Load(srv.URL)
+	require.True(tb, ok, "server was not built by newTestServerWithDatabase")
+	authStore := store.(*authpkg.Store) //nolint:forcetypeassert // only newTestServerWithDatabase stores here
+	u, err := authStore.CreateUser(tb.Context(), username, displayName)
+	require.NoError(tb, err)
+	require.NoError(tb, authStore.AddCredential(tb.Context(), u.ID, webauthn.Credential{ID: []byte("cred-" + username), PublicKey: []byte("pk")}))
+	token, err := authStore.CreateSession(tb.Context(), u.ID, authpkg.SessionTTL)
+	require.NoError(tb, err)
 
-	return body.Token
+	return &http.Cookie{Name: authpkg.CookieName, Value: token} //nolint:gosec // a client-side test cookie
 }
 
 func readAll(tb testing.TB, resp *http.Response) string {
@@ -341,44 +327,6 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 	})
 }
 
-func TestPasskeyRegistration_FirstUserBecomesAdmin(t *testing.T) {
-	t.Parallel()
-	srv := newTestServer(t)
-
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
-	require.NoError(t, err)
-	req.AddCookie(sessionCookie)
-	resp, err := testClient(t).Do(req)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	var body api.SessionUser
-	require.NoError(t, readJSON(resp, &body))
-	assert.True(t, body.IsAdmin)
-}
-
-func TestPasskeyRegistration_SecondUserIsNotAdmin(t *testing.T) {
-	t.Parallel()
-	srv := newTestServer(t)
-
-	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin") // first registrant becomes admin
-	token := createInviteViaAdmin(t, srv, adminCookie, testUser, testDisplay)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay, token)
-
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
-	require.NoError(t, err)
-	req.AddCookie(sessionCookie)
-	resp, err := testClient(t).Do(req)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	var body api.SessionUser
-	require.NoError(t, readJSON(resp, &body))
-	assert.False(t, body.IsAdmin)
-}
-
 func TestLogout_ClearsTheSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
@@ -401,15 +349,32 @@ func TestLogout_ClearsTheSession(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, resp2.StatusCode)
 }
 
-func TestRegisterBegin_DuplicateUsername_Conflicts(t *testing.T) {
+// An instance has one owner: once a user holds a passkey, register/begin
+// answers 403 whatever username it carries, with or without an old invite
+// token, and creates no account.
+func TestRegisterBegin_AfterAUserRegistered_IsClosedForAnyUsername(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 	registerViaRealCeremony(t, srv, testUser, testDisplay)
 
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"Someone Else"}`))
+	for _, body := range []string{
+		`{"username":"` + testUser + `","displayName":"Someone Else"}`,
+		`{"username":"newcomer","displayName":"Newcomer"}`,
+		`{"username":"newcomer","displayName":"Newcomer","inviteToken":"left-over-token"}`,
+	} {
+		resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(body))
+		require.NoError(t, err)
+		raw := readAll(t, resp)
+		_ = resp.Body.Close()
+
+		assert.Equal(t, http.StatusForbidden, resp.StatusCode, body)
+		assert.Contains(t, raw, "registration is closed")
+	}
+
+	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"newcomer"}`))
 	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	defer func() { _ = loginResp.Body.Close() }()
+	assert.Equal(t, http.StatusNotFound, loginResp.StatusCode, "a refused registration must not create an account")
 }
 
 // Real bug, reported live: a reload between register/begin and
@@ -444,95 +409,6 @@ func TestLoginBegin_AbandonedRegistration_ReturnsNotFoundNotServerError(t *testi
 	require.NoError(t, err)
 	defer func() { _ = loginResp.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, loginResp.StatusCode)
-}
-
-func TestRegisterBegin_AfterBootstrap_WithNoInvite_IsRefused(t *testing.T) {
-	t.Parallel()
-	srv := newTestServer(t)
-	registerViaRealCeremony(t, srv, testAdmin, "Admin") // bootstraps the admin
-
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-}
-
-func TestRegisterBegin_AfterBootstrap_WithValidInvite_Succeeds(t *testing.T) {
-	t.Parallel()
-	srv := newTestServer(t)
-	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
-	token := createInviteViaAdmin(t, srv, adminCookie, testUser, testDisplay)
-
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`","inviteToken":"`+token+`"}`))
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
-func TestRegisterBegin_AfterBootstrap_WithExpiredOrConsumedOrMismatchedInvite_IsRefused(t *testing.T) {
-	t.Parallel()
-	srv := newTestServer(t)
-	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
-
-	t.Run("consumed", func(t *testing.T) {
-		token := createInviteViaAdmin(t, srv, adminCookie, "already-consumed", "Already Consumed")
-		registerViaRealCeremony(t, srv, "already-consumed", "Already Consumed", token)
-
-		// Delete the account the consumed token registered, so a retry
-		// with the same token exercises the "already consumed" invite
-		// check specifically (ErrInvalidInvite, 403) rather than the
-		// separate "username already has credentials" check
-		// (ErrAlreadyRegistered, 409) that fires first while the account
-		// still exists.
-		delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/admin/users/already-consumed", nil)
-		require.NoError(t, err)
-		delReq.AddCookie(adminCookie)
-		delResp, err := testClient(t).Do(delReq)
-		require.NoError(t, err)
-		_ = delResp.Body.Close()
-		require.Equal(t, http.StatusNoContent, delResp.StatusCode)
-
-		resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"already-consumed","displayName":"Again","inviteToken":"`+token+`"}`))
-		require.NoError(t, err)
-		defer func() { _ = resp.Body.Close() }()
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-
-	t.Run("mismatched username", func(t *testing.T) {
-		token := createInviteViaAdmin(t, srv, adminCookie, "invited-for-someone", "Someone")
-
-		resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"someone-else","displayName":"Someone Else","inviteToken":"`+token+`"}`))
-		require.NoError(t, err)
-		defer func() { _ = resp.Body.Close() }()
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-
-	t.Run("unknown token", func(t *testing.T) {
-		resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"nobody-invited","displayName":"Nobody","inviteToken":"not-a-real-token"}`))
-		require.NoError(t, err)
-		defer func() { _ = resp.Body.Close() }()
-		assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	})
-}
-
-// The invite-scoped registration flow (#477) never asks the invitee for a
-// display name — the invite's own displayName is what actually gets
-// used — so an invited registration with a blank displayName in the
-// request body isn't a client error the way it is for the un-invited
-// bootstrap path.
-func TestRegisterBegin_WithInvite_BlankDisplayName_Succeeds(t *testing.T) {
-	t.Parallel()
-	srv := newTestServer(t)
-	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
-	token := createInviteViaAdmin(t, srv, adminCookie, testUser, testDisplay)
-
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"","inviteToken":"`+token+`"}`))
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestRegistrationStatus_NoUsersYet_IsOpen(t *testing.T) {

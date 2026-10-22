@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// markerTable records that the cleanup has run, so a user who registers later
-// (an invited one, until invites go) is never mistaken for a leftover.
+// markerTable records that the cleanup has run, so it never runs again on a
+// database that has settled on one user.
 const markerTable = "single_user_cleanup"
 
 // ownedTable is a table whose rows belong to a user, found through column.
@@ -25,10 +25,10 @@ type ownedTable struct {
 }
 
 // owned lists every table holding a user's data. The test that lists
-// sqlite_master fails when a table exists that is neither here, in emptied,
-// nor handled by hand below (users, ceremonies, the marker). The cache tables
-// (http_etags, snapshot_cache, hook_checks, webhook_seen) are keyed by
-// credential and repo, hold no user, and are left alone.
+// sqlite_master fails when a table exists that is neither here nor handled by
+// hand below (users, ceremonies, the marker). The cache tables (http_etags,
+// snapshot_cache, hook_checks, webhook_seen) are keyed by credential and repo,
+// hold no user, and are left alone.
 var owned = []ownedTable{
 	{"sessions", "user_id"},
 	{"api_tokens", "user_id"},
@@ -43,10 +43,6 @@ var owned = []ownedTable{
 	{"queued_actions", "user_id"},
 	{"pull_request_auto_update", "user_id"},
 }
-
-// emptied are tables of features that are going away; the cleanup empties
-// them for everyone, the kept user included.
-var emptied = []string{"invites"}
 
 // Result says what Run did.
 type Result struct {
@@ -93,7 +89,6 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, log *slog.Logger) (Resu
 	if err != nil {
 		return Result{}, err
 	}
-	warnIfNotAdmin(ctx, db, log, keeper)
 
 	res := Result{Kept: keeper.username, Removed: len(others)}
 	if len(others) > 0 {
@@ -195,18 +190,6 @@ func otherUsers(ctx context.Context, db *sql.DB, keeperID string) ([]user, error
 	return others, nil
 }
 
-// warnIfNotAdmin says so when the keeper is not the admin, naming both: the
-// admin may be the person who expected to keep the instance.
-func warnIfNotAdmin(ctx context.Context, db *sql.DB, log *slog.Logger, keeper user) {
-	var admin string
-	err := db.QueryRowContext(ctx, `SELECT username FROM users WHERE is_admin = 1 ORDER BY created_at, rowid LIMIT 1`).Scan(&admin)
-	if err != nil || admin == keeper.username {
-		return
-	}
-	log.Warn("single-user cleanup: the oldest registered user is not the admin",
-		slog.String("keeper", keeper.username), slog.String("admin", admin))
-}
-
 type removal struct {
 	user user
 	rows map[string]int64
@@ -262,18 +245,13 @@ func deleteUserRows(ctx context.Context, tx *sql.Tx, u user) (map[string]int64, 
 	return rows, nil
 }
 
-// deleteLeftovers empties what no single user owns and removes the users.
-// Rows of users that no longer exist (the admin "remove user" action left some
-// behind) go too: only the kept user's rows may remain.
+// deleteLeftovers removes the other users. Rows of users that no longer exist
+// (the removed admin "remove user" action left some behind) go too: only the
+// kept user's rows may remain.
 func deleteLeftovers(ctx context.Context, tx *sql.Tx, keeper user) error {
 	for _, t := range owned {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s != ?`, t.name, t.column), keeper.id); err != nil {
 			return fmt.Errorf("single-user cleanup: delete stray %s rows: %w", t.name, err)
-		}
-	}
-	for _, table := range emptied {
-		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table); err != nil { //nolint:gosec // table comes from the emptied list above
-			return fmt.Errorf("single-user cleanup: empty %s: %w", table, err)
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id != ?`, keeper.id); err != nil {
@@ -286,7 +264,7 @@ func deleteLeftovers(ctx context.Context, tx *sql.Tx, keeper user) error {
 // WriteMarker records that the cleanup is settled for this database. Run calls
 // it after deleting; the first passkey registration on an instance calls it
 // too, because such an instance never held several users from before the
-// upgrade, and a user invited later must survive a restart.
+// upgrade.
 func WriteMarker(ctx context.Context, tx *sql.Tx, keptUsername string, removedUsers int) error {
 	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS `+markerTable+` (
 		ran_at TIMESTAMP NOT NULL,

@@ -140,8 +140,7 @@ func TestDashboard_FirstRefreshDone_IsPerViewer(t *testing.T) {
 		return nil
 	}, false, 50*time.Millisecond)
 	cookieA, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	invite := createInviteViaAdmin(t, srv, cookieA, testOtherUser, "Alex")
-	cookieB, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", invite)
+	cookieB := registerExtraUser(t, srv, testOtherUser, "Alex")
 	for cookie, token := range map[*http.Cookie]string{cookieA: firstRefreshToken, cookieB: slowToken} {
 		put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
 		_ = put.Body.Close()

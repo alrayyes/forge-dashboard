@@ -76,8 +76,7 @@ func TestMCP_ListQueuedActions_AnotherUserSeesOnlyTheirOwnQueue(t *testing.T) {
 	srv, _, owner := queueBoard(t, true, time.Now().Add(time.Hour))
 	status, _ := queueUpdate(t, srv, owner, 5)
 	require.Equal(t, http.StatusCreated, status)
-	invite := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	other, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", invite)
+	other := registerExtraUser(t, srv, testOtherUser, "Alex")
 
 	queued := func(cookie *http.Cookie) []any {
 		session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, cookie))

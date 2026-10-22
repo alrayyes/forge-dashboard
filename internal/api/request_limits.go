@@ -12,7 +12,6 @@ import (
 const (
 	maxUsernameLen     = 64
 	maxDisplayNameLen  = 100
-	maxInviteTokenLen  = 256
 	maxForgeTokenLen   = 512
 	maxForgeURLLen     = 2048
 	maxLabelLen        = 100

@@ -177,7 +177,7 @@ func TestAccessLog_5xxStatus_LogsAtError(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	u, err := authStore.CreateUser(t.Context(), testUser, testDisplay, false)
+	u, err := authStore.CreateUser(t.Context(), testUser, testDisplay)
 	require.NoError(t, err)
 	token, err := authStore.CreateSession(t.Context(), u.ID, time.Hour)
 	require.NoError(t, err)

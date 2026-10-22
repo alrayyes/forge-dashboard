@@ -40,7 +40,7 @@ func TestStore_CreateUser_RoundTripsByUsername(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	created, err := store.CreateUser(t.Context(), "ryan", "Ryan", true)
+	created, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
@@ -48,7 +48,6 @@ func TestStore_CreateUser_RoundTripsByUsername(t *testing.T) {
 
 	assert.Equal(t, created.ID, got.ID)
 	assert.Equal(t, "Ryan", got.DisplayName)
-	assert.True(t, got.IsAdmin)
 	assert.Empty(t, got.Credentials)
 }
 
@@ -65,7 +64,7 @@ func TestStore_AddCredential_ThenUpdateCredential_PersistsSignCountBump(t *testi
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	cred := webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}
@@ -122,7 +121,7 @@ func TestStore_Session_CreateThenResolve_ReturnsTheOwner(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
@@ -138,7 +137,7 @@ func TestStore_Session_Expired_IsRefused(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	token, err := store.CreateSession(t.Context(), u.ID, -time.Second)
@@ -153,7 +152,7 @@ func TestStore_Session_Deleted_IsRefused(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
@@ -178,7 +177,7 @@ func TestStore_DeleteUnregisteredUser_RemovesAUserWithNoCredentials(t *testing.T
 	t.Parallel()
 	store := newTestStore(t)
 
-	_, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "ryan"))
@@ -191,7 +190,7 @@ func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
@@ -205,7 +204,7 @@ func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 func TestStore_AddFirstCredential_NobodyRegisteredYet_AttachesThePasskey(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", true)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
@@ -218,9 +217,9 @@ func TestStore_AddFirstCredential_NobodyRegisteredYet_AttachesThePasskey(t *test
 func TestStore_AddFirstCredential_AnotherUserHoldsAPasskey_ReturnsErrRegistrationClosed(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	winner, err := store.CreateUser(t.Context(), "winner", "Winner", true)
+	winner, err := store.CreateUser(t.Context(), "winner", "Winner")
 	require.NoError(t, err)
-	loser, err := store.CreateUser(t.Context(), "loser", "Loser", true)
+	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
 	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
@@ -232,9 +231,9 @@ func TestStore_AddFirstCredential_AnotherUserHoldsAPasskey_ReturnsErrRegistratio
 func TestStore_AddFirstCredential_Refused_RemovesThePendingUser(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	winner, err := store.CreateUser(t.Context(), "winner", "Winner", true)
+	winner, err := store.CreateUser(t.Context(), "winner", "Winner")
 	require.NoError(t, err)
-	loser, err := store.CreateUser(t.Context(), "loser", "Loser", true)
+	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
 	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
@@ -259,7 +258,7 @@ func TestStore_HasAnyRegisteredUser_UnfinishedRegistration_StillReportsFalse(t *
 
 	// CreateUser alone is what BeginRegistration does before the ceremony
 	// finishes — a row exists, but nothing was ever actually completed.
-	_, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	has, err := store.HasAnyRegisteredUser(t.Context())
@@ -271,7 +270,7 @@ func TestStore_HasAnyRegisteredUser_CompletedRegistration_ReportsTrue(t *testing
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
@@ -280,103 +279,18 @@ func TestStore_HasAnyRegisteredUser_CompletedRegistration_ReportsTrue(t *testing
 	assert.True(t, has)
 }
 
-func TestStore_ListUsers_ReturnsEveryRegisteredUser(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	_, err := store.CreateUser(t.Context(), "ryan", "Ryan", true)
-	require.NoError(t, err)
-	_, err = store.CreateUser(t.Context(), "alex", "Alex", false)
-	require.NoError(t, err)
-
-	users, err := store.ListUsers(t.Context())
-	require.NoError(t, err)
-
-	require.Len(t, users, 2)
-	usernames := []string{users[0].Username, users[1].Username}
-	assert.ElementsMatch(t, []string{"ryan", "alex"}, usernames)
-}
-
-func TestStore_RevokeUser_ClearsCredentialsAndSessions(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
-	require.NoError(t, err)
-	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
-	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
-	require.NoError(t, err)
-
-	require.NoError(t, store.RevokeUser(t.Context(), u.ID))
-
-	got, err := store.GetUserByID(t.Context(), u.ID)
-	require.NoError(t, err)
-	assert.Empty(t, got.Credentials)
-
-	_, err = store.UserForSession(t.Context(), token)
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
 // TestStore_RevokeUser_AlsoRevokesAPITokens is a regression test for the
 // same "signed out everywhere" gap DeleteUser already had to cover for
 // sessions — an API token is another way to authenticate as this user,
 // so revoking has to reach it too, not just the session-cookie path.
-func TestStore_RevokeUser_AlsoRevokesAPITokens(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
-	require.NoError(t, err)
-	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
-	require.NoError(t, err)
-
-	require.NoError(t, store.RevokeUser(t.Context(), u.ID))
-
-	_, err = store.UserForAPIToken(t.Context(), rawToken)
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
-func TestStore_DeleteUser_RemovesTheAccountAndItsSessions(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
-	require.NoError(t, err)
-	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
-	require.NoError(t, err)
-
-	require.NoError(t, store.DeleteUser(t.Context(), u.ID))
-
-	_, err = store.GetUserByUsername(t.Context(), "ryan")
-	require.ErrorIs(t, err, auth.ErrNotFound)
-
-	_, err = store.UserForSession(t.Context(), token)
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
 // TestStore_DeleteUser_AlsoRemovesAPITokens is the same regression
 // coverage TestStore_RevokeUser_AlsoRevokesAPITokens is, for the
 // account-deletion path instead of the revoke-in-place one.
-func TestStore_DeleteUser_AlsoRemovesAPITokens(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
-	require.NoError(t, err)
-	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
-	require.NoError(t, err)
-
-	require.NoError(t, store.DeleteUser(t.Context(), u.ID))
-
-	_, err = store.UserForAPIToken(t.Context(), rawToken)
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
 func TestStore_APIToken_CreateThenResolve_ReturnsTheOwner(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
@@ -398,7 +312,7 @@ func TestStore_APIToken_RawValueNeverStored(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -423,7 +337,7 @@ func TestStore_APIToken_Use_RecordsLastUsedAt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -442,7 +356,7 @@ func TestStore_APIToken_Delete_StopsItAuthenticating(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -460,9 +374,9 @@ func TestStore_APIToken_Delete_ScopedToOwner(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
-	attacker, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
+	attacker, err := store.CreateUser(t.Context(), "mallory", "Mallory")
 	require.NoError(t, err)
 	rawToken, tok, err := store.CreateAPIToken(t.Context(), owner.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -478,7 +392,7 @@ func TestStore_APIToken_Delete_UnknownID_IsIdempotent(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	err = store.DeleteAPIToken(t.Context(), u.ID, "not-a-real-id")
@@ -490,7 +404,7 @@ func TestStore_APIToken_List_OrderedOldestFirst(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	_, first, err := store.CreateAPIToken(t.Context(), u.ID, "first", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -512,7 +426,7 @@ func TestStore_APIToken_ExpiresAt_RoundTrips(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	wantExpiry := time.Now().Add(90 * 24 * time.Hour)
 
@@ -534,7 +448,7 @@ func TestStore_APIToken_Expired_RejectedLikeAnInvalidToken(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(-time.Minute))
 	require.NoError(t, err)
@@ -562,7 +476,7 @@ func TestStore_APIToken_LegacyRowWithNoExpiry_RejectedNotGrandfathered(t *testin
 	store := auth.NewStore(db)
 	require.NoError(t, store.Init(t.Context()))
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "old laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -578,7 +492,7 @@ func TestStore_ListCredentials_NoneYet_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
 	creds, err := store.ListCredentials(t.Context(), u.ID)
@@ -591,7 +505,7 @@ func TestStore_SetCredentialLabel_ThenListCredentials_ReturnsIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	credID := []byte("cred-1")
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: credID, PublicKey: []byte("pk")}))
@@ -609,7 +523,7 @@ func TestStore_SetCredentialLabel_Twice_ReplacesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	credID := []byte("cred-1")
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: credID, PublicKey: []byte("pk")}))
@@ -632,7 +546,7 @@ func TestStore_ListCredentials_NoMetadataRow_FallsBackRatherThanVanishing(t *tes
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
@@ -647,11 +561,11 @@ func TestStore_ListCredentials_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	a, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	a, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), a.ID, webauthn.Credential{ID: []byte("cred-a"), PublicKey: []byte("pk")}))
 	require.NoError(t, store.SetCredentialLabel(t.Context(), a.ID, []byte("cred-a"), "Ryan's key"))
-	b, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
+	b, err := store.CreateUser(t.Context(), "mallory", "Mallory")
 	require.NoError(t, err)
 
 	creds, err := store.ListCredentials(t.Context(), b.ID)
@@ -664,7 +578,7 @@ func TestStore_RemoveCredential_WithAnotherRemaining_RemovesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, []byte("cred-1"), "MacBook"))
@@ -691,7 +605,7 @@ func TestStore_RemoveCredential_LastOne_RefusedWithErrLastCredential(t *testing.
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
@@ -710,7 +624,7 @@ func TestStore_RemoveCredential_UnknownID_IsIdempotent(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
@@ -723,11 +637,11 @@ func TestStore_RemoveCredential_ScopedToOwner(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 	require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk2")}))
-	attacker, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
+	attacker, err := store.CreateUser(t.Context(), "mallory", "Mallory")
 	require.NoError(t, err)
 
 	require.NoError(t, store.RemoveCredential(t.Context(), attacker.ID, credentialIDKeyForTest([]byte("cred-1"))))
@@ -737,171 +651,34 @@ func TestStore_RemoveCredential_ScopedToOwner(t *testing.T) {
 	assert.Len(t, got.Credentials, 2, "the owner's credential must survive another user's delete attempt")
 }
 
-func TestStore_RevokeUser_AlsoClearsCredentialMetadata(t *testing.T) {
+// A database created while invites and the admin flag existed keeps its users,
+// and loses the invites table and users.is_admin on the next start.
+func TestStore_Init_DropsTheInviteMachineryAnOlderDatabaseHad(t *testing.T) {
 	t.Parallel()
-	store := newTestStore(t)
-
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
 	require.NoError(t, err)
-	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
-	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, []byte("cred-1"), "MacBook"))
+	t.Cleanup(func() { _ = db.Close() })
+	for _, stmt := range []string{
+		`CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,
+			is_admin INTEGER NOT NULL DEFAULT 0, credentials_json TEXT NOT NULL DEFAULT '[]', created_at TIMESTAMP NOT NULL)`,
+		`INSERT INTO users (id, username, display_name, is_admin, created_at) VALUES ('aWQ', 'ryan', 'Ryan', 1, '2026-01-01T00:00:00Z')`,
+		`CREATE TABLE invites (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL,
+			created_by TEXT NOT NULL REFERENCES users(id), expires_at TIMESTAMP NOT NULL, consumed_at TIMESTAMP)`,
+	} {
+		_, err := db.ExecContext(t.Context(), stmt)
+		require.NoError(t, err)
+	}
+	store := auth.NewStore(db)
 
-	require.NoError(t, store.RevokeUser(t.Context(), u.ID))
-	// A revoked account can register fresh credentials again without an
-	// old label resurfacing against a same-valued new credential ID.
-	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk-new")}))
+	require.NoError(t, store.Init(t.Context()))
+	require.NoError(t, store.Init(t.Context()), "a second start finds nothing left to drop")
 
-	creds, err := store.ListCredentials(t.Context(), u.ID)
+	var invites, isAdmin int
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM sqlite_master WHERE name = 'invites'`).Scan(&invites))
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM pragma_table_info('users') WHERE name = 'is_admin'`).Scan(&isAdmin))
+	assert.Zero(t, invites)
+	assert.Zero(t, isAdmin)
+	got, err := store.GetUserByUsername(t.Context(), "ryan")
 	require.NoError(t, err)
-	require.Len(t, creds, 1)
-	assert.NotEqual(t, "MacBook", creds[0].Label)
-}
-
-func TestStore_CreateInvite_ThenConsumeIfValid_RoundTrips(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
-	require.NoError(t, err)
-
-	raw, created, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
-	require.NoError(t, err)
-	assert.NotEmpty(t, raw)
-	assert.Equal(t, "ryan", created.Username)
-	assert.Equal(t, "Ryan", created.DisplayName)
-	assert.Nil(t, created.ConsumedAt)
-
-	consumed, err := store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
-	require.NoError(t, err)
-	assert.Equal(t, "ryan", consumed.Username)
-	assert.Equal(t, "Ryan", consumed.DisplayName)
-	require.NotNil(t, consumed.ConsumedAt)
-}
-
-func TestStore_ConsumeInviteIfValid_UnknownToken_IsRejected(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	_, err := store.ConsumeInviteIfValid(t.Context(), "not-a-real-token", "ryan")
-
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
-func TestStore_ConsumeInviteIfValid_Expired_IsRejected(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
-	require.NoError(t, err)
-	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, -time.Minute)
-	require.NoError(t, err)
-
-	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
-
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
-func TestStore_ConsumeInviteIfValid_AlreadyConsumed_IsRejected(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
-	require.NoError(t, err)
-	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
-	require.NoError(t, err)
-
-	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
-	require.NoError(t, err)
-
-	// The consumed_at written by the first, successful consume is left
-	// untouched by this rejected second attempt — there's nothing further
-	// to observe about it without a getter this store doesn't expose, but
-	// the property that actually matters (a spent token can never spend
-	// again) is exactly what this asserts.
-	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
-
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
-func TestStore_ConsumeInviteIfValid_UsernameMismatch_LeavesInviteUnconsumed(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
-	require.NoError(t, err)
-	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
-	require.NoError(t, err)
-
-	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "someone-else")
-	require.ErrorIs(t, err, auth.ErrNotFound)
-
-	// Proves the mismatched attempt above left consumed_at untouched: the
-	// same token, presented with the username it was actually issued for,
-	// still succeeds.
-	consumed, err := store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
-	require.NoError(t, err)
-	assert.NotNil(t, consumed.ConsumedAt)
-}
-
-func TestStore_ListOutstandingInvites_ExcludesExpired(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
-	require.NoError(t, err)
-	_, _, err = store.CreateInvite(t.Context(), "expired-user", "Expired", admin.ID, -time.Minute)
-	require.NoError(t, err)
-	_, live, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
-	require.NoError(t, err)
-
-	invites, err := store.ListOutstandingInvites(t.Context())
-	require.NoError(t, err)
-
-	require.Len(t, invites, 1)
-	assert.Equal(t, live.ID, invites[0].ID)
-}
-
-func TestStore_ListOutstandingInvites_ExcludesConsumed(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
-	require.NoError(t, err)
-	raw, _, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
-	require.NoError(t, err)
-	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
-	require.NoError(t, err)
-
-	invites, err := store.ListOutstandingInvites(t.Context())
-	require.NoError(t, err)
-
-	assert.Empty(t, invites)
-}
-
-func TestStore_RevokeInvite_ThenConsume_IsRejected(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	admin, err := store.CreateUser(t.Context(), "admin", "Admin", true)
-	require.NoError(t, err)
-	raw, created, err := store.CreateInvite(t.Context(), "ryan", "Ryan", admin.ID, time.Hour)
-	require.NoError(t, err)
-
-	require.NoError(t, store.RevokeInvite(t.Context(), created.ID))
-
-	invites, err := store.ListOutstandingInvites(t.Context())
-	require.NoError(t, err)
-	assert.Empty(t, invites)
-
-	_, err = store.ConsumeInviteIfValid(t.Context(), raw, "ryan")
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
-func TestStore_RevokeInvite_UnknownID_IsNotFoundError(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	err := store.RevokeInvite(t.Context(), "not-a-real-id")
-
-	assert.ErrorIs(t, err, auth.ErrNotFound)
+	assert.Equal(t, "Ryan", got.DisplayName)
 }

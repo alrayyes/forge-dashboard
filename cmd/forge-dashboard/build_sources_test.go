@@ -61,9 +61,9 @@ func TestBuildSourcesForUser_TwoUsers_RecordUnderTwoDistinctAccountIDs(t *testin
 	store := newTestAuthStore(t)
 	build := buildSourcesForUser(store, nil, 0, nil, nil)
 
-	userA, err := store.CreateUser(t.Context(), "user-a", "User A", false)
+	userA, err := store.CreateUser(t.Context(), "user-a", "User A")
 	require.NoError(t, err)
-	userB, err := store.CreateUser(t.Context(), "user-b", "User B", false)
+	userB, err := store.CreateUser(t.Context(), "user-b", "User B")
 	require.NoError(t, err)
 
 	creds := settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "test-token"}

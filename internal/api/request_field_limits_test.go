@@ -50,7 +50,7 @@ func TestRequestSchemas_EveryFieldCarriesABound(t *testing.T) {
 		"RegisterBeginRequest", "LoginBeginRequest", "SettingsRequest", "ThemeRequest",
 		"TimezoneRequest", "APITokenCreateRequest", "WebhookEnsureRequest",
 		"RepoIgnoreRequest", "PullRequestActionRequest",
-		"PullRequestDependabotActionRequest", "AdminInviteCreateRequest",
+		"PullRequestDependabotActionRequest",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -97,10 +97,7 @@ func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 	}{
 		"register username":     {http.MethodPost, "/api/auth/register/begin", `{"username":"` + over("RegisterBeginRequest", "username") + `","displayName":"x"}`, "username", false},
 		"register display name": {http.MethodPost, "/api/auth/register/begin", `{"username":"x","displayName":"` + over("RegisterBeginRequest", "displayName") + `"}`, "displayName", false},
-		"register invite token": {http.MethodPost, "/api/auth/register/begin", `{"username":"x","inviteToken":"` + over("RegisterBeginRequest", "inviteToken") + `"}`, "inviteToken", false},
 		"login username":        {http.MethodPost, "/api/auth/login/begin", `{"username":"` + over("LoginBeginRequest", "username") + `"}`, "username", false},
-		"invite username":       {http.MethodPost, "/api/admin/invites", `{"username":"` + over("AdminInviteCreateRequest", "username") + `","displayName":"x"}`, "username", true},
-		"invite display name":   {http.MethodPost, "/api/admin/invites", `{"username":"x","displayName":"` + over("AdminInviteCreateRequest", "displayName") + `"}`, "displayName", true},
 		"github token":          {http.MethodPut, "/api/settings", `{"githubToken":"` + over("SettingsRequest", "githubToken") + `"}`, "githubToken", true},
 		"github username":       {http.MethodPut, "/api/settings", `{"githubUsername":"` + over("SettingsRequest", "githubUsername") + `"}`, "githubUsername", true},
 		"forgejo url":           {http.MethodPut, "/api/settings", `{"forgejoUrl":"` + over("SettingsRequest", "forgejoUrl") + `"}`, "forgejoUrl", true},
@@ -159,13 +156,13 @@ func TestRequestFields_AStringAtItsBoundIsStillAccepted(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, testDisplay)
 
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/admin/invites",
-		`{"username":"`+strings.Repeat("a", maxLength(t, "AdminInviteCreateRequest", "username"))+`","displayName":"x"}`, cookie)
+	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json",
+		strings.NewReader(`{"username":"`+strings.Repeat("a", maxLength(t, "RegisterBeginRequest", "username"))+`","displayName":"x"}`))
+	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 // formatBound writes a spec bound as a JSON integer.
