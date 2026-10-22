@@ -316,13 +316,13 @@ export function advisoryCoverage(
 // the server named none. The page notice names a cause only when it is sure.
 export function advisoryUnknownReason(
   branches: readonly MainBranch[],
-): AdvisoryReason | null {
-  let shared: AdvisoryReason | null = null;
+): Exclude<AdvisoryReason, 'not_enabled'> | null {
+  let shared: Exclude<AdvisoryReason, 'not_enabled'> | null = null;
   for (const b of branches) {
     if (b.forge === 'forgejo') continue;
     if (b.advisories?.state !== 'unknown') continue;
     const r = b.advisories.reason;
-    if (!r) return null;
+    if (!r || r === 'not_enabled') return null;
     if (shared && shared !== r) return null;
     shared = r;
   }
@@ -331,7 +331,10 @@ export function advisoryUnknownReason(
 
 // What the notice says for a cause. Whether the owner has anything to do
 // differs by cause: a rate limit clears by itself, a refusal needs a token.
-export const ADVISORY_REASON_TEXT: Record<AdvisoryReason, string> = {
+export const ADVISORY_REASON_TEXT: Record<
+  Exclude<AdvisoryReason, 'not_enabled'>,
+  string
+> = {
   refused:
     'GitHub refused the read: the credential lacks the Dependabot alerts permission (read-only).',
   switched_off:
@@ -342,11 +345,11 @@ export const ADVISORY_REASON_TEXT: Record<AdvisoryReason, string> = {
     'GitHub returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.',
   too_many:
     'A repository has more open alerts than the dashboard reads in one go, so it shows no count rather than a short one.',
-  not_enabled:
-    'Checking Forgejo lock files is switched off on this server, so those repositories are not checked.',
 };
 
 // Only a refusal or switched-off alerts are fixed with the permission steps.
-export function advisoryReasonNeedsGrant(r: AdvisoryReason): boolean {
+export function advisoryReasonNeedsGrant(
+  r: Exclude<AdvisoryReason, 'not_enabled'>,
+): boolean {
   return r === 'refused' || r === 'switched_off';
 }

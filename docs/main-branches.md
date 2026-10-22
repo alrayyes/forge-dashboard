@@ -145,9 +145,9 @@ fifteen minutes. A failed read, or the first refusal, is retried after five
 minutes; the same refusal again waits the full fifteen. A rate limit or a
 GitHub error shows as unknown too, so an unknown row does not always mean a
 missing permission. The API says which in `reason` on the unknown answer
-(`refused`, `switched_off`, `throttled`, `failed`, `too_many` or, for a Forgejo
-repo, `not_enabled`), and the notice
-on the page names the cause when every unknown row shares one. GitHub's reference:
+(`refused`, `switched_off`, `throttled`, `failed` or `too_many`; a Forgejo
+repo can also say `not_enabled`, which only the API reports), and the notice on
+the page names the cause when every unknown GitHub row shares one. GitHub's reference:
 [List Dependabot alerts for a repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
 
 ## Main branches API
