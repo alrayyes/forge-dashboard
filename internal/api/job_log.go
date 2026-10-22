@@ -22,21 +22,26 @@ func validRepoSegment(s string) bool {
 	return repoSegment.MatchString(s) && strings.Trim(s, ".") != ""
 }
 
-// parseJobID reads a decimal job id; ok is false for anything but plain
-// digits that fit an int64.
-func parseJobID(s string) (int64, bool) {
+// parseJobID reads a decimal job id. A non-empty problem names the rule the
+// text broke, in words a caller can act on.
+func parseJobID(s string) (id int64, problem string) {
+	if s == "" {
+		return 0, "jobId is required"
+	}
 	for _, r := range s {
 		if r < '0' || r > '9' {
-			return 0, false
+			return 0, "jobId must be digits only"
 		}
 	}
 	id, err := strconv.ParseInt(s, 10, 64)
-
-	if err != nil || id <= 0 {
-		return 0, false
+	if err != nil {
+		return 0, "jobId is too large"
+	}
+	if id <= 0 {
+		return 0, "jobId must be a positive integer"
 	}
 
-	return id, true
+	return id, ""
 }
 
 // jobLogFailure is what a caller is told about a failed read: a fixed
@@ -121,7 +126,12 @@ func handleJobLog(deps Deps) http.HandlerFunc {
 		}
 
 		q := r.URL.Query()
-		jobID, _ := parseJobID(q.Get("jobId"))
+		jobID, problem := parseJobID(q.Get("jobId"))
+		if problem != "" {
+			writeJSON(w, http.StatusBadRequest, errorBody(problem))
+
+			return
+		}
 		log, serr := resolveJobLogFor(r.Context(), deps, u, q.Get("forge"), q.Get("fullName"), jobID)
 		if serr != nil {
 			serr.write(w)
