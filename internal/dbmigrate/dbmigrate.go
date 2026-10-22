@@ -32,9 +32,11 @@ type Tx interface {
 // Step is one schema change.
 type Step struct {
 	Name string
-	// Tables are the tables the step creates or rewrites. Only their foreign
-	// keys are checked after it runs, so a dangling key it never touched can't
-	// block it. Empty means every table.
+	// Tables are the tables the step creates or rewrites. After it runs, the
+	// foreign keys of those tables and of every table that references one of
+	// them are checked, so a dangling key in an unrelated table can't block it.
+	// Only declared keys count: a table with none can't fail the check. Empty
+	// means every table.
 	Tables []string
 	// Preflight, when set, runs before the backup and before anything is
 	// written. It only reads. A step that is bound to refuse says so here, so a
@@ -203,7 +205,11 @@ func inTransaction(ctx context.Context, conn *sql.Conn, name string, fn func() e
 	committed := false
 	defer func() {
 		if !committed {
-			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+			// A failed rollback may leave the transaction open on a pooled
+			// connection, so it is reported next to the error that caused it.
+			if _, rbErr := conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`); rbErr != nil {
+				err = errors.Join(err, fmt.Errorf("migrate: rollback %q: %w", name, rbErr))
+			}
 		}
 	}()
 
@@ -233,9 +239,45 @@ func checkForeignKeys(ctx context.Context, tx Tx, tables []string) error {
 		if err := firstViolation(ctx, tx, `SELECT count(*) FROM pragma_foreign_key_check(?)`, table); err != nil {
 			return err
 		}
+		// Rows in tables that point at this one dangle when the step removed
+		// or rekeyed what they pointed at.
+		referrers, err := referencing(ctx, tx, table)
+		if err != nil {
+			return err
+		}
+		for _, referrer := range referrers {
+			if err := firstViolation(ctx, tx, `SELECT count(*) FROM pragma_foreign_key_check(?)`, referrer); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
+}
+
+// referencing lists the tables that declare a foreign key to table.
+func referencing(ctx context.Context, tx Tx, table string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx,
+		`SELECT DISTINCT m.name FROM sqlite_master m, pragma_foreign_key_list(m.name) f
+		 WHERE m.type = 'table' AND f."table" = ? COLLATE NOCASE`, table)
+	if err != nil {
+		return nil, fmt.Errorf("foreign key check: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("foreign key check: %w", err)
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("foreign key check: %w", err)
+	}
+
+	return names, nil
 }
 
 func firstViolation(ctx context.Context, tx Tx, query string, args ...any) error {
