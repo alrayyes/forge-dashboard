@@ -169,6 +169,14 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 // that reads state a webhook delivery left in the Aggregator.
 func newTestServerWithManager(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie, manager *dashboard.Manager, userID func() []byte) {
 	t.Helper()
+
+	return newTestServerWithDrain(t, source, after, &api.Drain{})
+}
+
+// newTestServerWithDrain is newTestServerWithManager with the Drain under the
+// test's control, for a test that ends open streams the way shutdown does.
+func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboard.AfterFunc, drain *api.Drain) (srv string, sessionCookie *http.Cookie, manager *dashboard.Manager, userID func() []byte) {
+	t.Helper()
 	var uid atomic.Pointer[[]byte]
 	buildSources := func(id []byte, c settingspkg.Credentials) []dashboard.Source {
 		uid.Store(&id)
@@ -214,6 +222,7 @@ func newTestServerWithManager(t *testing.T, source dashboard.Source, after dashb
 		Manager:       manager,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
+		Drain:         drain,
 	})
 	testSrv := httptest.NewServer(mux)
 	t.Cleanup(testSrv.Close)

@@ -3,11 +3,14 @@ package api_test
 import (
 	"bufio"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,4 +129,53 @@ func TestDashboardStream_ClosesWhenTheClientDisconnects(t *testing.T) {
 	// panic the handler's goroutine — there's nothing further to observe
 	// black-box, since the handler's own cleanup happens server-side.
 	assert.NoError(t, resp.Body.Close())
+}
+
+// Shutdown waits for in-flight requests, and an open stream never ends on its
+// own, so stopping the streams has to end it for real, with a stream that was
+// already open and with one that opens afterwards.
+func TestDashboardStream_EndsWhenTheDrainStopsStreams(t *testing.T) {
+	t.Parallel()
+
+	drain := &api.Drain{}
+	srvURL, sessionCookie, _, _ := newTestServerWithDrain(t, &countingSource{calls: &atomic.Int64{}}, func(_ time.Duration, f func()) func() bool { return time.AfterFunc(time.Millisecond, f).Stop }, drain)
+	// open starts a stream and returns a channel that yields once it ends.
+	open := func() <-chan error {
+		req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
+		require.NoError(t, err)
+		req.AddCookie(sessionCookie)
+		resp, err := testClient(t).Do(req) //nolint:bodyclose // closed by the goroutine below
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		done := make(chan error, 1)
+		go func() {
+			defer func() { _ = resp.Body.Close() }()
+			_, err := io.Copy(io.Discard, resp.Body)
+			done <- err
+		}()
+
+		return done
+	}
+
+	before := open()
+	select {
+	case <-before:
+		t.Fatal("stream ended before the drain stopped it")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	drain.StopStreams()
+
+	select {
+	case err := <-before:
+		require.NoError(t, err)
+	case <-time.After(pollBudget):
+		t.Fatal("an open stream outlived StopStreams")
+	}
+	select {
+	case err := <-open():
+		require.NoError(t, err)
+	case <-time.After(pollBudget):
+		t.Fatal("a stream opened after StopStreams was not ended at once")
+	}
 }

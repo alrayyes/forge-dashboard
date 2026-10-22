@@ -973,18 +973,21 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
-		streamSnapshots(r.Context(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
+		streamSnapshots(r.Context(), deps.Drain.streamsStopped(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
 			return buildDashboardResponse(r.Context(), deps, u.ID, snap, view)
 		})
 	}
 }
 
 // streamSnapshots writes one server-sent event for each snapshot that arrives
-// on ch, until the client goes away, ch closes, or a write fails.
-func streamSnapshots(ctx context.Context, w http.ResponseWriter, flusher http.Flusher, ch <-chan dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse) {
+// on ch, until the client goes away, stopped closes (the server is shutting
+// down), ch closes, or a write fails.
+func streamSnapshots(ctx context.Context, stopped <-chan struct{}, w http.ResponseWriter, flusher http.Flusher, ch <-chan dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-stopped:
 			return
 		case snap, open := <-ch:
 			if !open {

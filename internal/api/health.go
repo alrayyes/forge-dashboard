@@ -27,7 +27,43 @@ const (
 // Drain flips /readyz to 503 once shutdown starts, before the server stops
 // accepting connections, so a router that polls /readyz stops sending
 // traffic first. The zero value isn't draining.
-type Drain struct{ started atomic.Bool }
+type Drain struct {
+	started atomic.Bool
+
+	mu       sync.Mutex
+	streams  chan struct{}
+	stopOnce sync.Once
+}
+
+// streamsStopped is closed once StopStreams has run. It is created on first
+// use so the zero value works, and stays closed, so a stream that opens after
+// shutdown began still sees it. A nil Drain never stops its streams.
+func (d *Drain) streamsStopped() <-chan struct{} {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.streams == nil {
+		d.streams = make(chan struct{})
+	}
+
+	return d.streams
+}
+
+// StopStreams ends every open server-sent event stream, and any that opens
+// later. Shutdown waits for in-flight requests and a stream never ends on its
+// own, so the server calls this as Shutdown begins. It's safe to call twice.
+func (d *Drain) StopStreams() {
+	d.stopOnce.Do(func() {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		if d.streams == nil {
+			d.streams = make(chan struct{})
+		}
+		close(d.streams)
+	})
+}
 
 // Start marks the server as shutting down. It's safe to call twice.
 func (d *Drain) Start() { d.started.Store(true) }
