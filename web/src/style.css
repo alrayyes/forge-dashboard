@@ -3492,6 +3492,18 @@ footer a.mono:focus-visible {
 .pipeline-check-link:focus-visible {
   text-decoration: underline;
 }
+/* View run and Copy are buttons that read as the link beside them. */
+button.pipeline-check-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+button.pipeline-check-link:disabled {
+  color: var(--ink-2);
+  cursor: default;
+}
 .pipeline-rerun {
   display: flex;
   flex-wrap: wrap;
@@ -4477,4 +4489,53 @@ footer a[aria-current="page"] {
   align-items: flex-start;
   gap: 4px;
   max-width: 100%;
+}
+
+/* A check's output, opened under it by View run. */
+.run-output {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.run-output[hidden] {
+  display: none;
+}
+.run-output-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+.run-output-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.run-output-status {
+  margin: 4px 0 0;
+  min-height: 1em;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.run-output-note,
+.run-output-error {
+  margin: 4px 0;
+  font-size: 12px;
+}
+.run-output-error {
+  color: var(--critical);
+}
+.run-output-text {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  max-height: 320px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
