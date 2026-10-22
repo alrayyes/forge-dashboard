@@ -283,3 +283,26 @@ func TestAggregator_AfterARestart_AnUnchangedRepoIsNotRewritten(t *testing.T) {
 	after, _ := cache.writes()
 	assert.Len(t, after, len(before), "what the database holds is already right")
 }
+
+// repoSource adds the one-repo refresh a webhook uses.
+type repoSource struct{ *flakySource }
+
+func (s repoSource) FetchRepo(context.Context, string, string, string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
+	return []dashboard.PullRequest{{Forge: s.forge, Repo: "o/r", Number: 9}}, nil, nil
+}
+
+func TestAggregator_AfterARestart_AWebhookRefreshOfTheOnlyRepoClearsStarting(t *testing.T) {
+	t.Parallel()
+	cache := savedByAFirstRun(t)
+	restarted := dashboard.NewAggregator(
+		[]dashboard.Source{repoSource{&flakySource{forge: dashboard.ForgeGitHub, prs: []int{1, 2}}}},
+		dashboard.WithSnapshotCache(cache),
+	)
+
+	require.True(t, restarted.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "r", "o/r"))
+
+	h := health(restarted.Get(), dashboard.ForgeGitHub)
+	assert.False(t, h.Starting, "every saved repo of the forge now has fresh rows")
+	assert.Nil(t, h.StaleSince)
+	assert.True(t, h.Reachable)
+}
