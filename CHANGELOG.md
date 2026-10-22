@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.0](https://github.com/alrayyes/forge-dashboard/compare/v2.11.6...v2.12.0) (2026-10-22)
+
+
+### Features
+
+* **web:** filter the Branches page by has or no open advisories ([#2601](https://github.com/alrayyes/forge-dashboard/issues/2601)) ([63a1e32](https://github.com/alrayyes/forge-dashboard/commit/63a1e329b335212698466e33a0bea528649d771e))
+
 ## [2.11.6](https://github.com/alrayyes/forge-dashboard/compare/v2.11.5...v2.11.6) (2026-10-22)
 
 
