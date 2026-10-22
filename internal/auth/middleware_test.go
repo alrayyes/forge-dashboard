@@ -60,6 +60,50 @@ func TestRequireAuth_BearerToken_AuthenticatesWithNoSessionCookie(t *testing.T) 
 	assert.Equal(t, "ryan", rec.Body.String())
 }
 
+func TestRequireAuth_SessionCookiePreferredOverBearerWhenBothPresent(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	token, err := store.CreateSession(t.Context(), time.Hour)
+	require.NoError(t, err)
+	rawToken, _, err := store.CreateAPIToken(t.Context(), "laptop", time.Now().Add(30*24*time.Hour))
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	// #nosec G124 -- a request Cookie header being simulated here, not a response Set-Cookie; Secure/HttpOnly/SameSite are response-only attributes gosec cannot tell don't apply.
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	req.Header.Set("Authorization", "Bearer "+rawToken)
+	rec := httptest.NewRecorder()
+
+	auth.RequireAuth(store)(handlerEchoingUsername()).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	tokens, err := store.ListAPITokens(t.Context())
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	assert.Nil(t, tokens[0].LastUsedAt, "the cookie authenticated the request, so the bearer token was never looked up")
+}
+
+func TestRequireAuth_ValidCookieWithAnInvalidBearer_StillAuthenticates(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	token, err := store.CreateSession(t.Context(), time.Hour)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	// #nosec G124 -- a request Cookie header being simulated here, not a response Set-Cookie.
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	req.Header.Set("Authorization", "Bearer fdb_not-a-real-token")
+	rec := httptest.NewRecorder()
+
+	auth.RequireAuth(store)(handlerEchoingUsername()).ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
 func TestRequireAuth_NoCredentialAtAll_Returns401(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
