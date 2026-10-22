@@ -308,7 +308,6 @@ func TestAggregator_NextDelay_StretchesAgainAfterAScopedRefreshClearsAStaleRepo(
 	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "b", "o/b"))
 
 	assert.Nil(t, repoNamed(t, agg, "o/b").StaleSince)
-	assert.Nil(t, repoNamed(t, agg, "o/b").FailingSince)
 	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
 }
 
@@ -338,4 +337,26 @@ func TestAggregator_NextDelay_ARepoWhoseForgeHasNoHealthEntryIsNotCovered(t *tes
 	require.Len(t, agg.Get().Repos, 1)
 
 	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+}
+
+func TestAggregator_AScopedRefreshDoesNotResetHowLongAFullRefreshHasBeenFailing(t *testing.T) {
+	t.Parallel()
+
+	result := dashboard.Result{
+		Health:      dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:       []dashboard.Repo{repoWithHook("o/a", true), repoWithHook("o/b", true)},
+		FailedRepos: []dashboard.FailedRepo{{FullName: "o/b", Issues: true}},
+	}
+	src := &staleRepoSource{fakeRepoRefresherSource: newFakeRepoRefresherSource(), result: result}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	first := repoNamed(t, agg, "o/b").FailingSince
+	require.NotNil(t, first)
+
+	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "b", "o/b"))
+	require.Nil(t, repoNamed(t, agg, "o/b").StaleSince)
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, first, repoNamed(t, agg, "o/b").FailingSince, "the full refresh has failed since the first time")
+	assert.Nil(t, repoNamed(t, agg, "o/a").FailingSince, "and a repo that never failed has no clock")
 }

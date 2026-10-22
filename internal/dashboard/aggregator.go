@@ -969,19 +969,20 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 }
 
 // withoutStale is repos with StaleSince cleared on forge/fullName's row. It
-// copies the slice only when there is a stale mark to clear, since the
-// snapshot's own slice is shared with readers.
+// leaves FailingSince: a scoped refresh fetches what a webhook told it about,
+// not what the full refresh keeps failing on, so only a good full refresh ends
+// the failure. It copies the slice only when there is a mark to clear, since
+// the snapshot's own slice is shared with readers.
 func withoutStale(repos []Repo, forge Forge, fullName string) []Repo {
 	for i, r := range repos {
 		if r.Forge != forge || r.FullName != fullName {
 			continue
 		}
-		if r.StaleSince == nil && r.FailingSince == nil {
+		if r.StaleSince == nil {
 			return repos
 		}
 		out := slices.Clone(repos)
 		out[i].StaleSince = nil
-		out[i].FailingSince = nil
 
 		return out
 	}
