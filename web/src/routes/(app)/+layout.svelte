@@ -239,7 +239,9 @@
             settleDashboardRead(data);
             setFirstRefresh(data.firstRefreshDone);
             const pending = firstRefreshPending(data.firstRefreshDone);
-            setNavCounts(pending ? null : data.navCounts);
+            // The Branches page reads its own list and keeps the pill to
+            // its counts, so a snapshot from before that read can't undo them.
+            setNavCounts(pending ? null : data.navCounts, isCurrentRoute("/"));
             // The server advises a short interval while the first refresh
             // runs, so the pages that draw no snapshot of their own leave the
             // loading state at once.

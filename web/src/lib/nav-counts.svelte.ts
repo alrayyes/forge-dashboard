@@ -38,14 +38,29 @@ export type ServerNavCounts = {
 
 export const navCounts = $state<{ value: NavCounts | null }>({ value: null });
 
-export function setNavCounts(raw: ServerNavCounts | undefined | null) {
+export function setNavCounts(
+  raw: ServerNavCounts | undefined | null,
+  keepPageBranches = false,
+) {
   navCounts.value = raw
     ? {
-        branches: raw.branches,
+        branches: (keepPageBranches && pageBranches) || raw.branches,
         pullRequests: raw.pullRequests,
         issues: { total: raw.issues.total, failed: 0 },
         releases: raw.releases,
         bots: raw.bots,
       }
     : null;
+}
+
+// The Branches page reads its own list, which can be a poll newer than the
+// layout's last read of the snapshot. It hands the pill its counts so the two
+// never disagree, and the layout keeps them (setNavCounts' keepPageBranches)
+// until the page is left.
+let pageBranches: NavCount | null = null;
+
+export function setBranchNavCount(branches: NavCount | null) {
+  pageBranches = branches;
+  if (branches && navCounts.value)
+    navCounts.value = { ...navCounts.value, branches };
 }

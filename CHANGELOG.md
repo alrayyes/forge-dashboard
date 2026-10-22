@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.11.3](https://github.com/alrayyes/forge-dashboard/compare/v2.11.2...v2.11.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* **web:** make the Branches nav pill follow the page's own counts ([#2583](https://github.com/alrayyes/forge-dashboard/issues/2583)) ([50add49](https://github.com/alrayyes/forge-dashboard/commit/50add492186e0ab72a3bfecb4ae5ad0022dcfd13))
+
+## [2.11.2](https://github.com/alrayyes/forge-dashboard/compare/v2.11.1...v2.11.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* **web:** an open issue dialog follows the forge when the issue is closed or reopened ([#2580](https://github.com/alrayyes/forge-dashboard/issues/2580)) ([2d6ac30](https://github.com/alrayyes/forge-dashboard/commit/2d6ac30b770b522adb71404489434d4605cec1d2))
+
 ## [2.11.1](https://github.com/alrayyes/forge-dashboard/compare/v2.11.0...v2.11.1) (2026-10-22)
 
 
