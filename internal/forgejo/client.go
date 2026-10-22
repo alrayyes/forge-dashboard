@@ -1339,6 +1339,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				Name:  j.Name,
 				State: checkStateFromWorkflowStatus(j.Status),
 				URL:   j.HTMLURL,
+				JobID: j.ID,
 			})
 			probes = append(probes, workflowContext(run, j.Name))
 		}
