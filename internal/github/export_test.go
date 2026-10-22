@@ -3,6 +3,7 @@ package github
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -106,3 +107,11 @@ func (c *Client) AdvisoryTTLForTest(repo string) time.Duration {
 
 	return time.Until(c.advisories.entries[repo].expires)
 }
+
+// SetLogProxyForTest replaces the proxy choice of the log blob client; call it
+// before the first JobLog.
+func (c *Client) SetLogProxyForTest(fn func(*http.Request) (*url.URL, error)) { c.logProxy = fn }
+
+// LogBlobClientForTest is the shared client the log downloads use.
+func (c *Client) LogBlobClientForTest() *http.Client { return c.logBlobClient() }
+func DialAddressForTest(u *url.URL) string           { return dialAddress(u) }

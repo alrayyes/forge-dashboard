@@ -5,7 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -284,7 +286,56 @@ func TestJobLog_AnUnsatisfiableRangeIsAnEmptyLog(t *testing.T) {
 	assert.False(t, got.Truncated)
 }
 
-func TestJobLog_ABodyWithoutEndIsReadOnlyUpToACap(t *testing.T) {
+func TestJobLog_WithAProxyConfigured_ADirectDialToLoopbackIsStillRefused(t *testing.T) {
+	t.Parallel()
+	var hits atomic.Int32
+	target := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		_, _ = io.WriteString(w, "should never be fetched")
+	}))
+	t.Cleanup(target.Close)
+	proxy := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(proxy.Close)
+	proxyURL, err := url.Parse(proxy.URL)
+	require.NoError(t, err)
+	// What ProxyFromEnvironment does for loopback and NO_PROXY hosts: no proxy.
+	c := jobLogServer(t, target.URL+"/blob", http.NotFound)
+	c.SetLogProxyForTest(func(r *http.Request) (*url.URL, error) {
+		if strings.HasPrefix(r.URL.Hostname(), "127.") {
+			return nil, nil
+		}
+
+		return proxyURL, nil
+	})
+
+	_, err = c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.Error(t, err)
+	assert.Zero(t, hits.Load())
+}
+
+func TestJobLog_WithAProxyConfigured_APrivateAddressTargetIsRefusedBeforeTheProxy(t *testing.T) {
+	t.Parallel()
+	var proxied atomic.Int32
+	proxy := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		proxied.Add(1)
+	}))
+	t.Cleanup(proxy.Close)
+	proxyURL, err := url.Parse(proxy.URL)
+	require.NoError(t, err)
+
+	for _, target := range []string{"https://10.0.0.5/x", "https://100.64.1.2/x", "https://[64:ff9b::a00:5]/x", "https://169.254.169.254/x", "https://localhost/x"} {
+		c := jobLogServer(t, target, http.NotFound)
+		c.SetLogProxyForTest(func(*http.Request) (*url.URL, error) { return proxyURL, nil })
+
+		_, err = c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+		require.Error(t, err, target)
+	}
+	assert.Zero(t, proxied.Load())
+}
+
+func TestJobLog_ABodyPastTheCapIsAnErrorNotAMidBodyTail(t *testing.T) {
 	t.Parallel()
 	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
 		line := strings.Repeat("y", 1023) + "\n"
@@ -295,9 +346,40 @@ func TestJobLog_ABodyWithoutEndIsReadOnlyUpToACap(t *testing.T) {
 		}
 	})
 
-	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+	_, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
 
-	require.NoError(t, err)
-	assert.True(t, got.Truncated)
-	assert.LessOrEqual(t, len(got.Text), dashboard.MaxJobLogBytes)
+	require.Error(t, err)
+}
+
+func TestJobLog_TheBlobClientIsReusedBetweenCalls(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok\n")
+	})
+
+	for range 3 {
+		_, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+		require.NoError(t, err)
+	}
+
+	first, second := c.LogBlobClientForTest(), c.LogBlobClientForTest()
+	assert.Same(t, first, second)
+}
+
+func TestDialAddress_FillsTheDefaultPortAndLowercasesTheHost(t *testing.T) {
+	t.Parallel()
+
+	for in, want := range map[string]string{
+		"https://GHES.example.com/api/v3/": "ghes.example.com:443",
+		"http://ghes.example.com/":         "ghes.example.com:80",
+		"https://ghes.example.com:8443/":   "ghes.example.com:8443",
+	} {
+		u, err := url.Parse(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := github.DialAddressForTest(u); got != want {
+			t.Errorf("%s: got %s, want %s", in, got, want)
+		}
+	}
 }

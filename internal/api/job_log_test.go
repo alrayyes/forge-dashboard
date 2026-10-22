@@ -231,3 +231,28 @@ func TestJobLog_ResponseIsNotCachedOrSniffed(t *testing.T) {
 	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
 	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
 }
+
+func TestJobLog_ADotRepoLikeDotGithubIsAccepted(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "ok\n"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "alrayyes/.github", "7")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, ".github", source.lastName)
+}
+
+func TestJobLog_AConflictKindIsABadGatewayNotA409(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, err: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+}

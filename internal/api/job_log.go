@@ -15,7 +15,7 @@ import (
 // repoSegment is what a forge allows in an owner or repository name. Anything
 // else (a dot-only segment, a query or fragment mark, a percent escape, a
 // slash) could rewrite the path of the request made with the user's token.
-var repoSegment = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$`)
+var repoSegment = regexp.MustCompile(`^[A-Za-z0-9_.][A-Za-z0-9._-]{0,99}$`)
 
 func validRepoSegment(s string) bool {
 	return repoSegment.MatchString(s) && strings.Trim(s, ".") != ""
@@ -50,7 +50,9 @@ func jobLogFailure(err error) *statusError {
 	case http.StatusTooManyRequests:
 		return &statusError{status, "the forge is limiting requests; try again shortly"}
 	default:
-		return &statusError{status, "the job's log could not be read"}
+		// Anything else, a Conflict kind included, is the forge failing: the
+		// route has no 409 to give.
+		return &statusError{http.StatusBadGateway, "the job's log could not be read"}
 	}
 }
 

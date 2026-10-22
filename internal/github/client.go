@@ -82,7 +82,12 @@ type Client struct {
 	token           string
 	username        string
 	restClient      *ghsdk.Client
-	webhookPath     string
+	// logProxy picks the proxy of a log blob download (nil: the environment's);
+	// logBlob is the one client those downloads share.
+	logProxy    func(*http.Request) (*url.URL, error)
+	logBlobMu   sync.Mutex
+	logBlob     *http.Client
+	webhookPath string
 
 	// hooks* remember a webhook check GitHub refused for lack of permission
 	// (#894), so refreshes don't ask 50 repos the same question every time.
