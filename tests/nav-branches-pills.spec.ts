@@ -137,24 +137,25 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
     await open(page, MIXED);
     await expect(tab(page).locator('.nav-pills')).toBeVisible();
 
-    const boxes = await page
-      .locator('.bottom-nav .bottom-nav-link')
-      .evaluateAll((els) =>
-        els.map((el) => {
-          const r = el.getBoundingClientRect();
-          const p = el.querySelector('.nav-pills')?.getBoundingClientRect();
-          return {
-            right: r.right,
-            height: r.height,
-            inside: p ? p.left >= r.left - 1 && p.right <= r.right + 1 : true,
-          };
-        }),
-      );
-    for (const b of boxes) {
-      expect(b.right).toBeLessThanOrEqual(361);
-      expect(b.height).toBeGreaterThanOrEqual(44);
-      expect(b.inside).toBe(true);
-    }
+    // Retry the measurement: a link read while hydration swaps the nav's
+    // nodes has a 0x0 box, which is a moment, not a layout.
+    await expect
+      .poll(() =>
+        page.locator('.bottom-nav .bottom-nav-link').evaluateAll(
+          (els) =>
+            els.length > 0 &&
+            els.every((el) => {
+              const r = el.getBoundingClientRect();
+              const p = el.querySelector('.nav-pills')?.getBoundingClientRect();
+              return (
+                r.right <= 361 &&
+                r.height >= 44 &&
+                (!p || (p.left >= r.left - 1 && p.right <= r.right + 1))
+              );
+            }),
+        ),
+      )
+      .toBe(true);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
     );
@@ -173,19 +174,23 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
       none: 164,
     });
     await expect(tab(page).locator('.nav-none')).toHaveText('164');
-    const fits = await page
-      .locator('.bottom-nav .bottom-nav-link')
-      .evaluateAll((els) =>
-        els.every((el) => {
-          const r = el.getBoundingClientRect();
-          const p = el.querySelector('.nav-pills')?.getBoundingClientRect();
-          return (
-            r.right <= 361 &&
-            (!p || (p.left >= r.left - 1 && p.right <= r.right + 1))
-          );
-        }),
-      );
-    expect(fits).toBe(true);
+    await expect
+      .poll(() =>
+        page.locator('.bottom-nav .bottom-nav-link').evaluateAll(
+          (els) =>
+            els.length > 0 &&
+            els.every((el) => {
+              const r = el.getBoundingClientRect();
+              const p = el.querySelector('.nav-pills')?.getBoundingClientRect();
+              return (
+                r.height > 0 &&
+                r.right <= 361 &&
+                (!p || (p.left >= r.left - 1 && p.right <= r.right + 1))
+              );
+            }),
+        ),
+      )
+      .toBe(true);
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,
