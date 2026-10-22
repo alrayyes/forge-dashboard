@@ -277,3 +277,41 @@ func TestRun_TheBackupIsOfTheDatabaseAsItWas_NotOneThatAlreadyHoldsAVersionRow(t
 	t.Cleanup(func() { _ = backup.Close() })
 	assert.Equal(t, 0, count(t, backup, `SELECT count(*) FROM sqlite_master WHERE name = 'schema_version'`))
 }
+
+func TestRun_OnlyTheTablesAStepNamesAreCheckedForDanglingKeys(t *testing.T) {
+	db, path := open(t)
+	db.SetMaxOpenConns(1)
+	exec(t, db, `PRAGMA foreign_keys = OFF`)
+	exec(t, db, `CREATE TABLE parent (id INTEGER PRIMARY KEY)`)
+	exec(t, db, `CREATE TABLE stale (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))`)
+	exec(t, db, `INSERT INTO stale (id, parent_id) VALUES (1, 99)`) // already dangling before the step
+	exec(t, db, `CREATE TABLE mine (id INTEGER PRIMARY KEY)`)
+	step := dbmigrate.Step{Name: "touches mine", Tables: []string{"mine"}, Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO mine (id) VALUES (1)`)
+
+		return err //nolint:wrapcheck // test step
+	}}
+
+	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.NoError(t, err, "a dangling key in a table the step never touched is not the step's doing")
+	assert.Equal(t, 1, version(t, db))
+}
+
+func TestRun_ADanglingKeyInANamedTableRollsTheStepBack(t *testing.T) {
+	db, path := open(t)
+	db.SetMaxOpenConns(1)
+	exec(t, db, `PRAGMA foreign_keys = OFF`)
+	exec(t, db, `CREATE TABLE parent (id INTEGER PRIMARY KEY)`)
+	exec(t, db, `CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))`)
+	step := dbmigrate.Step{Name: "dangles", Tables: []string{"child"}, Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO child (id, parent_id) VALUES (1, 7)`)
+
+		return err //nolint:wrapcheck // test step
+	}}
+
+	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.ErrorIs(t, err, dbmigrate.ErrDanglingForeignKey)
+	assert.Equal(t, 0, count(t, db, `SELECT count(*) FROM child`))
+}

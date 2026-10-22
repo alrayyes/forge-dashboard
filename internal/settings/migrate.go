@@ -19,7 +19,12 @@ var ErrRunPreviousRelease = errors.New("settings: the database has several users
 // MigrationSteps are the schema steps for the settings tables, in order. Pass
 // them to dbmigrate.Run before any store creates its tables.
 func MigrationSteps() []dbmigrate.Step {
-	return []dbmigrate.Step{{Name: "drop the user id from the settings tables", Run: dropUserID}}
+	tables := make([]string, 0, len(rebuilds))
+	for _, r := range rebuilds {
+		tables = append(tables, r.new)
+	}
+
+	return []dbmigrate.Step{{Name: "drop the user id from the settings tables", Tables: tables, Run: dropUserID}}
 }
 
 // rebuild describes one table that loses its user id. The new shape is written

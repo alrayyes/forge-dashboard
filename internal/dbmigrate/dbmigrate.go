@@ -32,7 +32,11 @@ type Tx interface {
 // Step is one schema change.
 type Step struct {
 	Name string
-	Run  func(ctx context.Context, tx Tx) error
+	// Tables are the tables the step creates or rewrites. Only their foreign
+	// keys are checked after it runs, so a dangling key it never touched can't
+	// block it. Empty means every table.
+	Tables []string
+	Run    func(ctx context.Context, tx Tx) error
 }
 
 // Result says what Run did.
@@ -157,7 +161,7 @@ func apply(ctx context.Context, conn *sql.Conn, version int, step Step) error {
 		if err := step.Run(ctx, conn); err != nil {
 			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
 		}
-		if err := checkForeignKeys(ctx, conn); err != nil {
+		if err := checkForeignKeys(ctx, conn, step.Tables); err != nil {
 			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
 		}
 
@@ -192,17 +196,36 @@ func inTransaction(ctx context.Context, conn *sql.Conn, name string, fn func() e
 	return nil
 }
 
-func checkForeignKeys(ctx context.Context, tx Tx) error {
-	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
-	if err != nil {
+func checkForeignKeys(ctx context.Context, tx Tx, tables []string) error {
+	if len(tables) == 0 {
+		return firstViolation(ctx, tx, `SELECT count(*) FROM pragma_foreign_key_check`)
+	}
+	for _, table := range tables {
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&exists); err != nil {
+			return fmt.Errorf("foreign key check: %w", err)
+		}
+		if exists == 0 {
+			continue // a table the step left to the store to create
+		}
+		if err := firstViolation(ctx, tx, `SELECT count(*) FROM pragma_foreign_key_check(?)`, table); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func firstViolation(ctx context.Context, tx Tx, query string, args ...any) error {
+	var n int
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
 		return fmt.Errorf("foreign key check: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-	if rows.Next() {
+	if n > 0 {
 		return ErrDanglingForeignKey
 	}
 
-	return rows.Err() //nolint:wrapcheck // the caller adds the step
+	return nil
 }
 
 // suspendForeignKeys switches enforcement off on this connection when it is on,
