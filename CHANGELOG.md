@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.8](https://github.com/alrayyes/forge-dashboard/compare/v1.7.7...v1.7.8) (2026-10-22)
+
+
+### Bug Fixes
+
+* **config:** one policy for bad interval settings, and a minimum REFRESH_INTERVAL ([#2399](https://github.com/alrayyes/forge-dashboard/issues/2399)) ([773fc7f](https://github.com/alrayyes/forge-dashboard/commit/773fc7f47fa2e2c734256810d64119d77e771fc2))
+* **dashboard:** stretched refresh wait follows real webhook coverage ([#2387](https://github.com/alrayyes/forge-dashboard/issues/2387)) ([a02d9e4](https://github.com/alrayyes/forge-dashboard/commit/a02d9e4d4e3b777c765e82cc62a3a612dfdf1798))
+
 ## [1.7.7](https://github.com/alrayyes/forge-dashboard/compare/v1.7.6...v1.7.7) (2026-10-21)
 
 
