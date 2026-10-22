@@ -861,6 +861,7 @@ func (c *Client) linearHistoryRequired(ctx context.Context, owner, name, branch 
 // way every REST endpoint this client otherwise calls does.
 const autoMergeLookupQuery = `
 query($owner: String!, $name: String!, $number: Int!) {
+  rateLimit { cost }
   repository(owner: $owner, name: $name) {
     mergeCommitAllowed
     squashMergeAllowed
@@ -948,6 +949,7 @@ func (c *Client) EnableAutoMerge(ctx context.Context, owner, name string, number
 // disablePullRequestAutoMerge takes in place of owner/name/number.
 const pullRequestIDQuery = `
 query($owner: String!, $name: String!, $number: Int!) {
+  rateLimit { cost }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       id
@@ -3069,7 +3071,7 @@ func buildBehindCompareQuery(checks []behindCheck) (string, map[string]any) {
 		vars[fmt.Sprintf("number%d", i)] = chk.number
 		vars[fmt.Sprintf("head%d", i)] = chk.headOid
 	}
-	query.WriteString(") {\n")
+	query.WriteString(") {\n  rateLimit { cost }\n")
 	for i := range checks {
 		fmt.Fprintf(&query, `  pr%[1]d: repository(owner: $owner%[1]d, name: $name%[1]d) {
     pullRequest(number: $number%[1]d) {
@@ -3138,6 +3140,7 @@ func mapIssue(fullName string, i graphqlIssue) dashboard.Issue {
 // RepoRefresher) rather than a full account-wide Fetch.
 const repoQueryTemplate = `
 query($owner: String!, $name: String!) {
+  rateLimit { cost }
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, first: %[1]d, orderBy: {field: CREATED_AT, direction: DESC}) {
       nodes {
