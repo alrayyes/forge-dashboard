@@ -3878,6 +3878,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				Name:            r.GetName(),
 				State:           checkStateFromRun(r),
 				URL:             r.GetHTMLURL(),
+				JobID:           r.GetID(),
 				DurationSeconds: runDurationSeconds(r),
 			})
 		}
