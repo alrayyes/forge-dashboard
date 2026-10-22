@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.10](https://github.com/alrayyes/forge-dashboard/compare/v1.7.9...v1.7.10) (2026-10-22)
+
+
+### Bug Fixes
+
+* **forgejo:** read a main-branch row's status and counts from one reading ([#2407](https://github.com/alrayyes/forge-dashboard/issues/2407)) ([6519041](https://github.com/alrayyes/forge-dashboard/commit/65190419f961ec02554c4be194d2abc9c7affb77))
+
 ## [1.7.9](https://github.com/alrayyes/forge-dashboard/compare/v1.7.8...v1.7.9) (2026-10-22)
 
 
