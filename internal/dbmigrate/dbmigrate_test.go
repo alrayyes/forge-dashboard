@@ -353,3 +353,23 @@ func TestRun_APassingPreflightLetsTheBackupAndTheStepRun(t *testing.T) {
 	assert.NotEmpty(t, res.BackupPath)
 	assert.Equal(t, 1, version(t, db))
 }
+
+func TestRun_AFailedRollbackIsReportedAlongsideTheStepError(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	boom := errors.New("injected")
+	// A step that ends the transaction itself leaves nothing for ROLLBACK to undo,
+	// so the rollback fails.
+	step := dbmigrate.Step{Name: "commits early", Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		if _, err := tx.ExecContext(ctx, `COMMIT`); err != nil {
+			return err //nolint:wrapcheck // test step
+		}
+
+		return boom
+	}}
+
+	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.ErrorIs(t, err, boom)
+	assert.ErrorContains(t, err, "rollback")
+}

@@ -203,7 +203,11 @@ func inTransaction(ctx context.Context, conn *sql.Conn, name string, fn func() e
 	committed := false
 	defer func() {
 		if !committed {
-			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+			// A failed rollback may leave the transaction open on a pooled
+			// connection, so it is reported next to the error that caused it.
+			if _, rbErr := conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`); rbErr != nil {
+				err = errors.Join(err, fmt.Errorf("migrate: rollback %q: %w", name, rbErr))
+			}
 		}
 	}()
 
