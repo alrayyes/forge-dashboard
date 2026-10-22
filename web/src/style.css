@@ -314,6 +314,12 @@ header,
   border-color: var(--critical-bg);
 }
 
+.forge-health.starting .pulse-dot {
+  background: var(--ink-2);
+  animation: none;
+  box-shadow: none;
+}
+
 .pulse-dot {
   width: 7px;
   height: 7px;

@@ -439,6 +439,11 @@ type ForgeHealth struct {
 	Error     string         `json:"error,omitempty"`
 	ErrorKind ForgeErrorKind `json:"errorKind,omitempty"`
 	RepoCount int            `json:"repoCount"`
+	// Starting is set while the rows shown for this forge are the ones the
+	// last run saved and no fetch has answered since this start. The forge
+	// has not been asked yet, so it is neither reachable nor in error: the
+	// first refresh that reaches it replaces this entry.
+	Starting bool `json:"starting,omitempty"`
 	// StaleSince is set when this refresh failed and the pull requests,
 	// issues and repos shown for the forge are the last good ones, fetched
 	// at this time (#922). Absent when the data is current, and for a forge

@@ -142,6 +142,13 @@
     isUnreachable,
     spentLimit,
   } from "#lib/forge-lock.js";
+  import {
+    chipClass,
+    chipLabel,
+    healthSentence,
+    isOutage,
+    staleNote,
+  } from "#lib/forge-starting.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -7076,8 +7083,7 @@
             .filter((b): b is string => b !== null)
             .sort((a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)))[0];
           return (
-            name +
-            (f.reachable ? " reachable" : " unreachable") +
+            healthSentence(name, f) +
             (limited
               ? ", rate limited"
               : lows.length > 0
@@ -7105,28 +7111,23 @@
       container.innerHTML = "";
       for (const f of forges) {
         const item = el("div", "forge-health-item");
-        const chip = el(
-          "span",
-          `forge-health${f.reachable ? "" : " unreachable"}`,
-        );
+        const chip = el("span", chipClass(f));
         chip.appendChild(el("span", "pulse-dot"));
-        const label =
-          (FORGE_LABELS[f.forge] || f.forge) +
-          (f.reachable ? " reachable" : " unreachable");
-        chip.appendChild(document.createTextNode(label));
+        chip.appendChild(
+          document.createTextNode(
+            chipLabel(FORGE_LABELS[f.forge] || f.forge, f),
+          ),
+        );
         item.appendChild(chip);
         // The rows of an unreachable forge are its last good ones, not
         // current ones (#933). Plain text, for every error kind: the
         // rate-limit banner doesn't say the data is old.
-        if (!f.reachable && f.staleSince) {
-          item.appendChild(
-            el(
-              "span",
-              "forge-health-stale",
-              `Showing data from ${relativeTime(f.staleSince)}`,
-            ),
-          );
-        }
+        // While the app is starting the same line says so: no forge has
+        // been asked yet, so it is not an outage.
+        const note = f.staleSince
+          ? staleNote(f, relativeTime(f.staleSince))
+          : null;
+        if (note) item.appendChild(el("span", "forge-health-stale", note));
         // The remaining budget and when it comes back, as text (#732). Kept
         // out of the live region: the numbers change on every poll.
         // Each budget the forge has, labelled, so this never describes a
@@ -7294,8 +7295,7 @@
       );
       const down = lastForges.filter(
         (f) =>
-          !f.reachable &&
-          !readOnlyByLimit.has(FORGE_LABELS[f.forge] || f.forge),
+          isOutage(f) && !readOnlyByLimit.has(FORGE_LABELS[f.forge] || f.forge),
       );
       if (down.length === 0) {
         existing?.remove();
@@ -8034,17 +8034,27 @@
       const wasUnreachable = new Set(
         lastForges.filter((f) => !f.reachable).map((f) => f.forge),
       );
+      // Starting up is locked like an outage, but nothing was lost, so
+      // coming out of it is not news.
+      const wasStarting = new Set(
+        lastForges.filter((f) => f.starting).map((f) => f.forge),
+      );
       lastForges = data.forges || [];
       // Rows that didn't change aren't redrawn, but their controls follow
       // whether the forge can be reached: a forge going down or coming back
       // has to redraw them (#1199).
       const reachabilityChanged = lastForges.some(
-        (f) => wasUnreachable.has(f.forge) === f.reachable,
+        (f) =>
+          wasUnreachable.has(f.forge) === f.reachable ||
+          // Starting up and then an outage are both unreachable, but the
+          // lock reason on the controls differs.
+          (wasStarting.has(f.forge) && !f.starting),
       );
       // A forge that answers again gets its controls back, and one polite
       // line saying so.
       for (const f of lastForges) {
         if (!f.reachable || !wasUnreachable.has(f.forge)) continue;
+        if (wasStarting.has(f.forge)) continue;
         const label = FORGE_LABELS[f.forge] || f.forge;
         feedback.notify({
           title: "Forge",

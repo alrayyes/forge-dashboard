@@ -103,5 +103,7 @@ func TestDashboard_AfterARestart_ShowsTheSavedSnapshotMarkedStaleNotALoadingStat
 	require.Len(t, forges, 1)
 	forge, _ := forges[0].(map[string]any)
 	assert.Equal(t, false, forge["reachable"])
+	assert.Equal(t, true, forge["starting"], "the page says starting up, not unreachable")
+	assert.Nil(t, forge["errorKind"])
 	assert.NotNil(t, forge["staleSince"], "the saved rows say when they were fetched")
 }
