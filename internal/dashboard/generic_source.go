@@ -407,6 +407,21 @@ func (s *GenericSource) ListDefaultBranchChecks(ctx context.Context, owner, name
 	return checks, nil
 }
 
+// JobLog implements JobLogReader at the Source level by delegating to the
+// underlying client, like ListChecks.
+func (s *GenericSource) JobLog(ctx context.Context, owner, name string, jobID int64) (JobLog, error) {
+	reader, ok := s.client.(JobLogReader)
+	if !ok {
+		return JobLog{}, fmt.Errorf("dashboard: %s's client can't read job logs: %w", s.forge, errUnsupportedByClient)
+	}
+	log, err := reader.JobLog(ctx, owner, name, jobID)
+	if err != nil {
+		return JobLog{}, fmt.Errorf("dashboard: read job log: %w", err)
+	}
+
+	return log, nil
+}
+
 // AddLabel implements PullRequestLabeler at the Source level by delegating to
 // the underlying client, the same "Source unwraps to its ForgeClient" shape
 // ClosePullRequest and ListChecks use. #1347: internal/forgejo.Client labels a

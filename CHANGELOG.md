@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/alrayyes/forge-dashboard/compare/v2.2.0...v2.3.0) (2026-10-22)
+
+
+### Features
+
+* **api:** read one CI job's output on demand ([#2488](https://github.com/alrayyes/forge-dashboard/issues/2488)) ([d9a684d](https://github.com/alrayyes/forge-dashboard/commit/d9a684ddc8f9895ba8bdaf608b983adf7b00460a))
+
 ## [2.2.0](https://github.com/alrayyes/forge-dashboard/compare/v2.1.0...v2.2.0) (2026-10-22)
 
 

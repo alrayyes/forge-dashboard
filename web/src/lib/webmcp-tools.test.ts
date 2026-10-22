@@ -41,6 +41,7 @@ describe('WebMCP read tools', () => {
       'get_dashboard',
       'get_main_branches',
       'get_main_branch_checks',
+      'get_check_log',
       'get_pull_request_checks',
       'get_pull_request_details',
       'list_queued_actions',
@@ -116,6 +117,35 @@ describe('WebMCP read tools', () => {
     await expect(
       t.execute({ forge: 'github', fullName: 'nope' }),
     ).rejects.toThrow('fullName');
+    expect(calls).toHaveLength(0);
+  });
+
+  test('get_check_log reads /api/checks/log with the repository and the job', async () => {
+    const { calls, tool } = setup({ body: { text: 'ok\n', truncated: false } });
+    expect(
+      await tool('get_check_log').execute({
+        forge: 'forgejo',
+        fullName: 'acme/api',
+        jobId: 31,
+      }),
+    ).toEqual({ text: 'ok\n', truncated: false });
+    expect(calls[0].url).toBe(
+      '/api/checks/log?forge=forgejo&fullName=acme%2Fapi&jobId=31',
+    );
+  });
+
+  test('get_check_log refuses input the endpoint would reject, without calling it', async () => {
+    const { calls, tool } = setup();
+    const t = tool('get_check_log');
+    await expect(
+      t.execute({ forge: 'github', fullName: 'nope', jobId: 1 }),
+    ).rejects.toThrow('fullName');
+    await expect(
+      t.execute({ forge: 'github', fullName: 'a/b', jobId: 0 }),
+    ).rejects.toThrow('jobId');
+    await expect(
+      t.execute({ forge: 'github', fullName: 'a/b' }),
+    ).rejects.toThrow('jobId');
     expect(calls).toHaveLength(0);
   });
 
