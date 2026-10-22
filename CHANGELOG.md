@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/alrayyes/forge-dashboard/compare/v2.8.0...v2.9.0) (2026-10-22)
+
+
+### Features
+
+* **branches:** no Rerun button when the forge is unreachable or rate limited ([#2533](https://github.com/alrayyes/forge-dashboard/issues/2533)) ([481880f](https://github.com/alrayyes/forge-dashboard/commit/481880fbc1b2f3d4204884114eff0007cec7fcc2))
+
 ## [2.8.0](https://github.com/alrayyes/forge-dashboard/compare/v2.7.0...v2.8.0) (2026-10-22)
 
 
