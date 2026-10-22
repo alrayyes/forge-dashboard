@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"sync"
+	"time"
 
 	"code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -38,8 +39,9 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 
 // excerptReadWindow is how much of a log's end an excerpt read keeps: the
 // excerpt is 20 lines or 2 KB, so a small window holds it with room for the
-// colour codes, and five reads at once stay light.
-const excerptReadWindow = 64 << 10
+// colour codes, and five reads at once stay light. It is the tail the GitHub
+// client keeps for the same excerpt.
+const excerptReadWindow = 16 << 10
 
 // jobLog is JobLog with the size of the window kept from the end of the log.
 func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, window int) (dashboard.JobLog, error) {
@@ -71,7 +73,17 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 			reason = httpResp.Status
 		}
 
-		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, fmt.Errorf("%w: %s", errForgeRefused, reason))
+		refusal := fmt.Errorf("%w: %s", errForgeRefused, reason)
+		if httpResp.StatusCode == http.StatusNotFound {
+			// A log that was pruned, or a job that keeps none, is an ordinary
+			// answer: the request is logged as made, not as an error.
+			clientErr, status := classifyForgejoError(http.MethodGet, path, resp, refusal)
+			c.recordRequest(ctx, http.MethodGet, path, status, requestlog.OutcomeSuccess)
+
+			return dashboard.JobLog{}, clientErr
+		}
+
+		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, refusal)
 	}
 
 	tail, cut, err := readTail(httpResp.Body, window)
@@ -91,7 +103,7 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 // anything before them was dropped. It never holds more than 2*window bytes.
 func readTail(r io.Reader, window int) ([]byte, bool, error) {
 	buf := make([]byte, 0, 2*window)
-	chunk := make([]byte, 32<<10)
+	chunk := make([]byte, min(32<<10, window))
 	cut := false
 	for {
 		n, err := r.Read(chunk)
@@ -119,13 +131,15 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 // addFailureExcerpts fills Excerpt on the newest few failed or timed-out Actions
 // jobs among checks, from the end of their logs, as the GitHub client does. A
 // pull request's list and a branch's list both come through here, so the two
-// boards agree. keys[i] names check i's finished job (its id and finish time,
-// so a rerun reads afresh), or "" for a job that isn't finished: a finished
-// job's log never changes, so an excerpt read once is kept and a red default
-// branch costs no log read per poll. A read that failed, or found the log empty, is
-// remembered briefly too, so such a log isn't asked for on every poll. A job with no
-// finish time has no key, so it is neither kept nor remembered: it is read on
-// every poll and counts against the budget.
+// boards agree. keys[i] names check i's job (its id and finish time, so a rerun
+// reads afresh; a job with no finish time is named by its id alone), and
+// finished[i] is when it finished, zero if unknown. A job's log stops changing
+// a moment after it finishes, so an excerpt read from a settled log is kept for
+// good and a red default branch costs no log read per poll. One read before
+// that, or for a job with no finish time, is kept for a minute only, so a log
+// that was still being flushed is read once more. A read that failed, or found
+// the log empty, is remembered briefly too, so such a log isn't asked for on
+// every poll.
 //
 // It is best effort: a job with no id, or a log the token can't read, keeps its
 // check as it was, with the link to the run. Newest first (the highest job id),
@@ -134,7 +148,7 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 // each under dashboard.ExcerptReadTimeout; the first refusal for a missing
 // permission, or for a rate limit, cancels the rest, since they would be
 // refused the same way.
-func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, keys []string) {
+func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, keys []string, finished []time.Time) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
@@ -157,22 +171,34 @@ func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, che
 		// A refusal elsewhere in the list (or a gone caller) dooms every read
 		// not yet started; sending it would only record a failed request.
 		if ctx.Err() != nil {
-			break
+			continue
 		}
 		reads++
-		wg.Go(func() { c.fillExcerpt(ctx, cancel, owner, name, &checks[i], keys[i]) })
+		wg.Go(func() { c.fillExcerpt(ctx, cancel, owner, name, &checks[i], keys[i], c.logSettled(finished, i)) })
 	}
 	wg.Wait()
 }
 
+// logSettled reports whether check i's log is final: its job has been finished
+// a while, since a read just after the finish may have missed lines the runner
+// had yet to flush. No finish times (nil) means every log is taken as settled.
+func (c *Client) logSettled(finished []time.Time, i int) bool {
+	if finished == nil {
+		return true
+	}
+
+	return !finished[i].IsZero() && c.excerpts.now().Sub(finished[i]) >= excerptSettleDelay
+}
+
 // fillExcerpt reads one failed job's log into check.Excerpt and keeps the result
 // under key, when it has one.
-func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, owner, name string, check *dashboard.Check, key string) {
+func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, owner, name string, check *dashboard.Check, key string, settled bool) {
 	text, err := c.readExcerpt(ctx, owner, name, check.JobID)
 	if err != nil {
 		slog.Debug("forgejo job log unavailable", "job", check.JobID, "err", err)
-		// A sibling's cancel says nothing about this log.
-		if key != "" && ctx.Err() == nil {
+		// A sibling's cancel says nothing about this log; the read's own error
+		// does, even when it lands just after the cancel.
+		if key != "" && !errors.Is(err, context.Canceled) {
 			c.excerpts.fail(key)
 		}
 		// A refused token or a limited forge fails every sibling alike; a
@@ -195,7 +221,7 @@ func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, own
 
 		return
 	}
-	c.excerpts.put(key, text)
+	c.excerpts.put(key, text, settled)
 }
 
 // newestFailures is the indexes of the failed or timed-out checks that have a

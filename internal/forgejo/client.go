@@ -412,6 +412,15 @@ func upgradeComparedEvents() []string {
 // through, which makes it the natural place to do that rather than
 // repeating the same call at every site.
 func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gitea.Response, err error) error {
+	clientErr, statusCode := classifyForgejoError(method, path, resp, err)
+	c.recordRequest(ctx, method, path, statusCode, string(clientErr.Kind))
+
+	return clientErr
+}
+
+// classifyForgejoError is forgejoError without the request log entry, and the
+// status code it would log.
+func classifyForgejoError(method, path string, resp *gitea.Response, err error) (*dashboard.ClientError, int) {
 	msg := err.Error()
 	kind := dashboard.ForgeErrorUnreachable
 	statusCode := 0
@@ -432,10 +441,9 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 			rateLimit = rateLimitFromRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 		}
 	}
-	c.recordRequest(ctx, method, path, statusCode, string(kind))
 	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
-	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit, UpstreamStatus: upstreamStatus}
+	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit, UpstreamStatus: upstreamStatus}, statusCode
 }
 
 // rateLimitFromRetryAfter turns a Retry-After header (RFC 9110 10.2.3: a
@@ -1336,6 +1344,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 
 	var checks []dashboard.Check
 	var probes, keys []string
+	var finished []time.Time
 	for _, run := range runs.WorkflowRuns {
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 		if err != nil {
@@ -1349,15 +1358,17 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				JobID: j.ID,
 			})
 			probes = append(probes, workflowContext(run, j.Name))
-			// A job with no finish time may still be going: not cached ("").
-			key := ""
+			// A job with no finish time is named by its id alone, and its excerpt
+			// is kept only briefly (see addFailureExcerpts).
+			key := fmt.Sprintf("%s/%s#%d", owner, name, j.ID)
 			if !j.CompletedAt.IsZero() {
-				key = fmt.Sprintf("%s/%s#%d@%d", owner, name, j.ID, j.CompletedAt.UnixNano())
+				key = fmt.Sprintf("%s@%d", key, j.CompletedAt.UnixNano())
 			}
 			keys = append(keys, key)
+			finished = append(finished, j.CompletedAt)
 		}
 	}
-	c.addFailureExcerpts(ctx, owner, name, checks, keys)
+	c.addFailureExcerpts(ctx, owner, name, checks, keys, finished)
 
 	return checks, probes, nil
 }

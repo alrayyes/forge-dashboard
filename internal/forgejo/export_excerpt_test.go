@@ -22,6 +22,11 @@ func NewExcerptCacheForTest(now func() time.Time) *ExcerptCacheForTest {
 	return &ExcerptCacheForTest{c}
 }
 
+// Put keeps text under key; final false keeps it only for the failure delay.
+func (e *ExcerptCacheForTest) Put(key, text string, final bool) { e.c.put(key, text, final) }
+
+func (e *ExcerptCacheForTest) Get(key string) (string, bool) { return e.c.get(key) }
+
 func (e *ExcerptCacheForTest) Fail(key string) { e.c.fail(key) }
 
 func (e *ExcerptCacheForTest) RecentlyFailed(key string) bool { return e.c.recentlyFailed(key) }
@@ -31,5 +36,5 @@ const ExcerptReadWindow = excerptReadWindow
 
 // AddFailureExcerptsForTest runs the excerpt reads for checks under ctx.
 func AddFailureExcerptsForTest(ctx context.Context, c *Client, owner, name string, checks []dashboard.Check, keys []string) {
-	c.addFailureExcerpts(ctx, owner, name, checks, keys)
+	c.addFailureExcerpts(ctx, owner, name, checks, keys, nil)
 }

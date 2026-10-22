@@ -276,7 +276,7 @@ func TestListChecks_ARefusedLogStopsTheOtherReads(t *testing.T) {
 	assert.Empty(t, checks[1].Excerpt)
 }
 
-func TestListChecks_AJobWithNoFinishTimeIsNeverCached(t *testing.T) {
+func TestListChecks_AJobWithNoFinishTimeIsKeptOnlyBriefly(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
@@ -290,24 +290,87 @@ func TestListChecks_AJobWithNoFinishTimeIsNeverCached(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "first", first[0].Excerpt)
-	assert.Equal(t, "second", second[0].Excerpt)
+	assert.Equal(t, "first", second[0].Excerpt, "an unkeyed job is not read on every poll")
+	assert.Equal(t, int32(1), calls.Load())
 }
 
-func TestListChecks_AFailedReadIsNotCached(t *testing.T) {
+func TestListChecks_AJobThatJustFinishedIsReadAgainLater(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
-	logs := map[int]string{}
-	client := excerptServer(t, []map[string]any{{"id": 7, "name": "build", "status": "failure"}}, logs, &calls)
+	now := time.Now().UTC().Format(time.RFC3339)
+	jobs := []map[string]any{{"id": 7, "name": "build", "status": "failure", "completed_at": now}}
+	client := excerptServer(t, jobs, map[int]string{7: "partial\n"}, &calls)
 
 	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
 	require.NoError(t, err)
-	logs[7] = "boom\n"
 	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
 	require.NoError(t, err)
 
-	assert.Empty(t, first[0].Excerpt)
-	assert.Equal(t, "boom", second[0].Excerpt)
+	assert.Equal(t, "partial", first[0].Excerpt)
+	assert.Equal(t, "partial", second[0].Excerpt)
+	assert.Equal(t, int32(1), calls.Load(), "within the delay it is kept, so a poll costs no read")
+}
+
+func TestExcerptCache_AnExcerptOfAJobThatJustFinishedExpires(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	cache := forgejo.NewExcerptCacheForTest(func() time.Time { return at })
+	cache.Put("early", "partial", false)
+	cache.Put("settled", "whole", true)
+
+	_, early := cache.Get("early")
+	assert.True(t, early)
+	at = at.Add(2 * time.Minute)
+	_, early = cache.Get("early")
+	text, settled := cache.Get("settled")
+
+	assert.False(t, early, "a log read before it settled is read once more")
+	assert.True(t, settled)
+	assert.Equal(t, "whole", text)
+}
+
+func TestAddFailureExcerpts_ACancelledListStillAttachesKeptExcerpts(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	client := excerptServer(t, finishedFailures(3), map[int]string{1: "a\n", 2: "b\n", 3: "c\n"}, &calls)
+	warm := []dashboard.Check{{Name: "three", State: dashboard.CheckFailure, JobID: 3}}
+	forgejo.AddFailureExcerptsForTest(t.Context(), client, "alrayyes", "a", warm, []string{"a#3@1"})
+	require.Equal(t, "c", warm[0].Excerpt)
+	checks := []dashboard.Check{
+		{Name: "one", State: dashboard.CheckFailure, JobID: 1},
+		{Name: "two", State: dashboard.CheckFailure, JobID: 2},
+		{Name: "three", State: dashboard.CheckFailure, JobID: 3},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	forgejo.AddFailureExcerptsForTest(ctx, client, "alrayyes", "a", checks, []string{"a#1@1", "a#2@1", "a#3@1"})
+
+	assert.Equal(t, "c", checks[2].Excerpt, "a kept excerpt does not depend on the list still being live")
+}
+
+func TestListChecks_AMissingLogIsNotAFailedRequest(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	rec := &fakeRecorder{}
+	client := excerptServer(t, finishedFailures(1), map[int]string{}, &calls, rec)
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	var seen bool
+	for _, e := range rec.all() {
+		if strings.Contains(e.Endpoint, "/jobs/1/logs") {
+			seen = true
+			assert.Equal(t, http.StatusNotFound, e.StatusCode)
+			assert.Equal(t, requestlog.OutcomeSuccess, e.Outcome, "a pruned log is expected, not an error")
+		}
+	}
+	assert.True(t, seen, "the read is still recorded")
 }
 
 func finishedFailures(n int) []map[string]any {
@@ -389,10 +452,10 @@ func TestListChecks_TheSameJobIdInTwoReposKeepsSeparateExcerpts(t *testing.T) {
 	assert.Equal(t, "boom in b", second[0].Excerpt)
 }
 
-func TestExcerptReadWindow_IsSixtyFourKilobytes(t *testing.T) {
+func TestExcerptReadWindow_IsTheGitHubTailSize(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 64<<10, forgejo.ExcerptReadWindow)
+	assert.Equal(t, 16<<10, forgejo.ExcerptReadWindow)
 }
 
 func TestAddFailureExcerpts_StartsNoReadOnceTheListIsCancelled(t *testing.T) {

@@ -86,7 +86,8 @@ would need the same answer. The reasons, and what it costs, are in
   `get_main_branch_checks` mirrors `GET /api/main-branches/checks` (the jobs
   of a default branch's newest pipeline, in the same shape). It spends
   budget too: one request for the commits plus one per commit until one has
-  checks on GitHub, 3 plus one per run on Forgejo.
+  checks on GitHub, 3 plus one per run on Forgejo (and one log read per
+  failed job, five at most).
   `get_check_log` mirrors `GET /api/checks/log` (one CI job's output as plain
   text, the last 256 KiB at most, by the `jobId` a check carries). It spends
   one request on Forgejo and one plus a short-lived download on GitHub. It refuses
