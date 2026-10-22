@@ -77,7 +77,7 @@ func TestRerunFailedDefaultBranchChecks_UsesTheNewestCommitThatHasChecks(t *test
 		checks:  map[string][]string{"ci": {"success", "failure"}, "older": {"failure"}},
 	}
 
-	require.NoError(t, s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a"))
+	require.NoError(t, s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main"))
 
 	assert.Equal(t, []string{"900"}, s.reruns)
 }
@@ -86,7 +86,7 @@ func TestRerunFailedDefaultBranchChecks_NothingFailed_IsAConflict(t *testing.T) 
 	t.Parallel()
 	s := &branchRerunServer{commits: []string{"ci"}, checks: map[string][]string{"ci": {"success"}}}
 
-	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
 
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)
@@ -104,7 +104,7 @@ func TestRerunFailedDefaultBranchChecks_HeldNewestCommit_IsNeverReplacedByAnOlde
 		held:    map[string]bool{"held": true},
 	}
 
-	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
 
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)
