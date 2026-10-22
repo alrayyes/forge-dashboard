@@ -137,6 +137,7 @@
     spentLimit,
   } from "#lib/forge-lock.js";
   import {
+    chipClass,
     chipLabel,
     healthSentence,
     isOutage,
@@ -2626,7 +2627,9 @@
     // its reason.
     function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
       return (
-        reason?.code === "rate_limited" || reason?.code === "forge_unreachable"
+        reason?.code === "rate_limited" ||
+        reason?.code === "forge_unreachable" ||
+        reason?.code === "forge_starting"
       );
     }
 
@@ -7156,10 +7159,7 @@
       container.innerHTML = "";
       for (const f of forges) {
         const item = el("div", "forge-health-item");
-        const chip = el(
-          "span",
-          `forge-health${f.starting ? " starting" : f.reachable ? "" : " unreachable"}`,
-        );
+        const chip = el("span", chipClass(f));
         chip.appendChild(el("span", "pulse-dot"));
         chip.appendChild(
           document.createTextNode(
@@ -8092,7 +8092,11 @@
       // whether the forge can be reached: a forge going down or coming back
       // has to redraw them (#1199).
       const reachabilityChanged = lastForges.some(
-        (f) => wasUnreachable.has(f.forge) === f.reachable,
+        (f) =>
+          wasUnreachable.has(f.forge) === f.reachable ||
+          // Starting up and then an outage are both unreachable, but the
+          // lock reason on the controls differs.
+          (wasStarting.has(f.forge) && !f.starting),
       );
       // A forge that answers again gets its controls back, and one polite
       // line saying so.

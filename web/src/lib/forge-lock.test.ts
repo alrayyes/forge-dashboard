@@ -145,7 +145,9 @@ describe('a forge that is still starting up', () => {
       'github',
       NOW,
     );
-    expect(lock?.reason).toMatch(/still loading|starting/i);
+    expect(lock?.code).toBe('forge_starting');
+    expect(lock?.reason).toMatch(/still loading/i);
+    expect(lock?.reason).not.toMatch(/try again/i);
     expect(lock?.reason).not.toMatch(/can't be reached/);
   });
 });

@@ -24,7 +24,7 @@ export type ForgeHealthEntry = {
 };
 
 export type ForgeLock = {
-  code: 'forge_unreachable' | 'rate_limited';
+  code: 'forge_unreachable' | 'forge_starting' | 'rate_limited';
   reason: string;
   // When a rate limit lifts, so a caller can look again then.
   resetsAt?: string;
@@ -43,8 +43,8 @@ function lockOf(
 ): ForgeLock | null {
   if (health.starting)
     return {
-      code: 'forge_unreachable',
-      reason: 'Still loading from this forge, try again in a moment.',
+      code: 'forge_starting',
+      reason: 'Still loading from this forge since the app started.',
     };
   if (isUnreachable(health))
     return {

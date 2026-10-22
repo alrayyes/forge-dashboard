@@ -94,4 +94,12 @@ test.describe('start-up state', () => {
     );
     await expect(page.locator('#unreachable-banner')).toBeVisible();
   });
+
+  test('the starting dot does not pulse', async ({ page }) => {
+    await serve(page, { forges: [starting('github')] });
+    await page.goto('/pull-requests.html');
+    const dot = page.locator('#forge-health .forge-health.starting .pulse-dot');
+    await expect(dot).toHaveCSS('animation-name', 'none');
+    await expect(dot).toHaveCSS('box-shadow', 'none');
+  });
 });

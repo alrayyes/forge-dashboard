@@ -720,6 +720,24 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(only).toContainText('No run was found');
   });
 
+  test('rows saved by the last run say the app is starting, not that the forge is down', async ({
+    page,
+  }) => {
+    const stale = { stale: true, staleSince: minutesAgo(11) };
+    await mock(page, {
+      ...snapshot([row('acme/a', 'passed', stale)]),
+      forges: [
+        { forge: 'github', reachable: false, starting: true, repoCount: 1 },
+      ],
+    });
+    await page.goto('/');
+    await expect(page.locator('[data-testid="starting-banner"]')).toContainText(
+      /starting up/i,
+    );
+    await expect(page.locator('[data-testid="stale-banner"]')).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText(/can't be read/i);
+  });
+
   test('stale rows sit under one banner and offer nothing to write', async ({
     page,
   }) => {

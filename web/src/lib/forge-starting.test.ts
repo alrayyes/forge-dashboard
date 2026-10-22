@@ -1,9 +1,11 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import {
+  chipClass,
   chipLabel,
   healthSentence,
   isOutage,
+  splitStaleRows,
   staleNote,
 } from './forge-starting';
 
@@ -37,5 +39,28 @@ describe('forge-starting', () => {
     expect(staleNote({ ...base, staleSince: 'x' }, 'a minute ago')).toBe(
       'Showing data from a minute ago',
     );
+  });
+});
+
+describe('chipClass', () => {
+  test('names the state so style and wording stay together', () => {
+    expect(chipClass(starting)).toBe('forge-health starting');
+    expect(chipClass(base)).toBe('forge-health unreachable');
+    expect(chipClass({ forge: 'github', reachable: true })).toBe(
+      'forge-health',
+    );
+  });
+});
+
+describe('splitStaleRows', () => {
+  test('rows of a starting forge are apart from rows of an outage', () => {
+    const rows = [
+      { forge: 'github', n: 1 },
+      { forge: 'forgejo', n: 2 },
+    ];
+    const forges = [starting, { forge: 'forgejo', reachable: false }];
+    const { starting: s, outage } = splitStaleRows(rows, forges);
+    expect(s.map((r) => r.n)).toEqual([1]);
+    expect(outage.map((r) => r.n)).toEqual([2]);
   });
 });

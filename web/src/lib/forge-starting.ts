@@ -35,3 +35,24 @@ export function staleNote(h: StartingHealth, ago: string): string | null {
   if (!h.reachable && h.staleSince) return `Showing data from ${ago}`;
   return null;
 }
+
+// The chip's class, from the same state as its label.
+export function chipClass(h: StartingHealth): string {
+  if (h.starting) return 'forge-health starting';
+  return h.reachable ? 'forge-health' : 'forge-health unreachable';
+}
+
+// Stale rows split by why they are old: their forge is still starting up (the
+// saved rows of the last run) or its fetch failed.
+export function splitStaleRows<R extends { forge: string }>(
+  rows: readonly R[],
+  forges: readonly StartingHealth[] | undefined,
+): { starting: R[]; outage: R[] } {
+  const startingForges = new Set(
+    (forges ?? []).filter((f) => f.starting).map((f) => f.forge),
+  );
+  return {
+    starting: rows.filter((r) => startingForges.has(r.forge)),
+    outage: rows.filter((r) => !startingForges.has(r.forge)),
+  };
+}
