@@ -3,6 +3,7 @@
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { ciSignature } from "#lib/pipeline-live.js";
+  import { createBranchRerun } from "#lib/branch-rerun.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     branchesAwaitingFlag,
@@ -60,6 +61,7 @@
   let pipeline = $state<PipelineDialog>();
   // The branch whose dialog is open, to follow its row from each refresh.
   let openRow: MainBranch | null = null;
+  const rerun = createBranchRerun();
 
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
@@ -140,6 +142,12 @@
   const branchSignature = (b: MainBranch) =>
     ciSignature({ ci: b.status, checks: b.checks, runUrl: b.runUrl });
 
+  // The newest copy of a row, since the dialog outlives the polls.
+  const latest = (b: MainBranch) =>
+    data?.branches.find(
+      (x) => x.forge === b.forge && x.fullName === b.fullName,
+    ) ?? b;
+
   function openPipeline(b: MainBranch, opener: HTMLElement) {
     openRow = b;
     pipeline?.open({
@@ -150,6 +158,10 @@
       errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
       runUrl: b.runUrl,
       forgeName: FORGE_LABELS[b.forge] ?? b.forge,
+      controls: (failed) =>
+        failed && openRow
+          ? rerun.control(openRow, () => branchSignature(latest(openRow ?? b)))
+          : null,
       opener,
       onClose: () => {
         openRow = null;

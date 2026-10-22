@@ -162,3 +162,12 @@ the one the row describes, the newest on the default branch that a check ran
 on, so a bot's commit that skips CI does not hide the run. A branch with no
 job answers an empty list. `required` is never set, since only a pull request
 has a base branch whose protection could require a job.
+
+`POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns only the
+failed jobs of the workflow runs on that same commit, once per run, and answers
+204 when the forge has queued them. The pipeline panel of a failed row offers it
+as `Rerun failed checks`, with the same permission needs and the same reasons on
+a refusal as the pull request button (see
+[Pull request actions](pull-request-actions.md)). The button reads "Rerun
+queued" until the row's CI changes or ten minutes pass. A branch with nothing
+left to rerun answers "no failed job to rerun on this branch" with a 409.
