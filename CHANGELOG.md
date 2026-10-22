@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.1](https://github.com/alrayyes/forge-dashboard/compare/v2.10.0...v2.10.1) (2026-10-22)
+
+
+### Performance Improvements
+
+* **forgejo:** rerun the default branch's checks without a second repo lookup ([#2567](https://github.com/alrayyes/forge-dashboard/issues/2567)) ([f956f0a](https://github.com/alrayyes/forge-dashboard/commit/f956f0a1917974d13cac3fae2e41851322457a79))
+
 ## [2.10.0](https://github.com/alrayyes/forge-dashboard/compare/v2.9.0...v2.10.0) (2026-10-22)
 
 
