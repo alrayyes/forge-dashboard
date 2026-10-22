@@ -828,10 +828,6 @@ test.describe('dashboard page', () => {
 
   test.describe('theme and filters persist across a reload', () => {
     test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
-    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -872,7 +868,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
@@ -883,6 +879,7 @@ test.describe('dashboard page', () => {
       // pins that mechanism directly rather than through Settings' own
       // control, which settings.spec.ts already covers.
       await setTheme(page, 'dark');
+      // The reload is the point: it proves the state survives one.
       await page.reload();
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
@@ -896,6 +893,7 @@ test.describe('dashboard page', () => {
       await selectForge(page, 'forgejo');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
+      // The reload is the point: it proves the state survives one.
       await page.reload();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText(
@@ -914,6 +912,7 @@ test.describe('dashboard page', () => {
       await titleFilter.fill('github');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
+      // The reload is the point: it proves the state survives one.
       await page.reload();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(titleFilter).toHaveValue('github');
@@ -1107,6 +1106,8 @@ test.describe('dashboard page', () => {
         // biome-ignore lint/suspicious/noDocumentCookie: matches filters.js's own setCookie, which this test is deliberately bypassing to simulate a fresh browser.
         document.cookie = 'forge-board-filters=; max-age=0; path=/';
       });
+      // The reload is the point: with the cookie gone, only the server
+      // copy of the filter can bring it back.
       await page.reload();
 
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
@@ -1121,11 +1122,9 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('grouping', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
-    test.beforeEach(async ({ page }) => {
+    // A function, not a beforeEach, so the group-by-forge describe below can
+    // install its own mock and still load the page only once.
+    async function landOnRepoGrouping(page: Page) {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1175,17 +1174,19 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
-    });
+    }
 
     test('off by default: the flat list is unchanged', async ({ page }) => {
+      await landOnRepoGrouping(page);
       await expect(page.locator('#pr-rows > .group-heading')).toHaveCount(0);
     });
 
     test('group by repo clusters rows under a real heading per repo, alphabetically, with a count', async ({
       page,
     }) => {
+      await landOnRepoGrouping(page);
       await page.selectOption('#shared-group-select', 'repo');
 
       const headings = page.locator('#pr-rows > h3.group-heading');
@@ -1202,6 +1203,7 @@ test.describe('dashboard page', () => {
     test('a filter combined with grouping only clusters the repos that still have matches — no empty headings', async ({
       page,
     }) => {
+      await landOnRepoGrouping(page);
       await page.selectOption('#shared-group-select', 'repo');
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'Dashboard');
 
@@ -1215,6 +1217,7 @@ test.describe('dashboard page', () => {
     test('switching back to no grouping returns to the flat list', async ({
       page,
     }) => {
+      await landOnRepoGrouping(page);
       await page.selectOption('#shared-group-select', 'repo');
       await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(2);
 
@@ -1277,7 +1280,7 @@ test.describe('dashboard page', () => {
             }),
           }),
         );
-        await page.reload();
+        await page.goto('/pull-requests.html');
         await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
       });
 
@@ -1321,10 +1324,6 @@ test.describe('dashboard page', () => {
 
   test.describe('repo and author filters are selects, title is autocomplete', () => {
     test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
-    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1362,7 +1361,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
