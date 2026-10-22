@@ -4,6 +4,7 @@
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { ciSignature } from "#lib/pipeline-live.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
+  import { forgeLockReason } from "#lib/forge-lock.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     branchesAwaitingFlag,
@@ -160,7 +161,11 @@
       forgeName: FORGE_LABELS[b.forge] ?? b.forge,
       controls: (failed) =>
         failed && openRow
-          ? rerun.control(openRow, () => branchSignature(latest(openRow ?? b)))
+          ? rerun.control(
+              openRow,
+              () => branchSignature(latest(openRow ?? b)),
+              () => forgeLockReason(data?.forges, b.forge),
+            )
           : null,
       opener,
       onClose: () => {
@@ -213,7 +218,11 @@
             (b) => b.forge === row.forge && b.fullName === row.fullName,
           )
         : undefined;
-      if (row) pipeline?.follow(now ? branchSignature(now) : null);
+      if (row) {
+        pipeline?.follow(now ? branchSignature(now) : null);
+        // The forge may have gone down, or come back, since the last poll.
+        rerun.redraw(row);
+      }
     } catch {
       // A refresh that fails keeps the rows already on screen.
       if (initial || !data) failed = true;

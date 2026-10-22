@@ -10,6 +10,7 @@ import {
 } from './action-error';
 import { copyButton } from './copy-details';
 import type { FailureDetails } from './feedback';
+import type { ForgeLock } from './forge-lock';
 
 // How long a queued rerun is held, so the same rerun can't be queued twice.
 const HOLD_MS = 10 * 60 * 1000;
@@ -75,9 +76,14 @@ export function createBranchRerun() {
     throw await readActionFailure(res);
   }
 
-  // The control to draw above the list. `signature` is the row's CI signature,
-  // read again by the caller for each draw.
-  function control(t: RerunTarget, signature: () => string): HTMLElement {
+  // The control to draw above the list. `signature` is the row's CI signature
+  // and `lock` is why the forge would refuse a rerun, both read again by the
+  // caller for each draw.
+  function control(
+    t: RerunTarget,
+    signature: () => string,
+    lock: () => ForgeLock | null = () => null,
+  ): HTMLElement {
     const key = keyOf(t);
     const wrap = document.createElement('div');
     wrap.className = 'pipeline-rerun';
@@ -98,15 +104,22 @@ export function createBranchRerun() {
       const isHeld = held(t, signature());
       const state = states.get(key);
       const sending = state?.phase === 'requesting';
+      // A forge that can't be reached or has no budget left would refuse the
+      // click, so there is no button, only the reason.
+      const locked = lock();
+      if (locked) button.remove();
+      else if (!button.isConnected) wrap.prepend(button);
       button.textContent = isHeld ? 'Rerun queued' : 'Rerun failed checks';
       // Pending, not disabled, so the button keeps focus.
       if (isHeld || sending) button.setAttribute('aria-disabled', 'true');
       else button.removeAttribute('aria-disabled');
-      status.textContent = isHeld
-        ? 'Rerun queued. The new results show here after the next refresh.'
-        : sending
-          ? 'Queuing the rerun…'
-          : '';
+      status.textContent = locked
+        ? locked.reason
+        : isHeld
+          ? 'Rerun queued. The new results show here after the next refresh.'
+          : sending
+            ? 'Queuing the rerun…'
+            : '';
       for (const extra of failureBox.querySelectorAll(
         '.pipeline-rerun-copy, .feedback-details',
       ))
@@ -161,9 +174,13 @@ export function createBranchRerun() {
         .finally(() => syncAll(key));
     });
 
-    wrap.append(button, status, failureBox);
+    wrap.append(status, failureBox);
+    sync();
     return wrap;
   }
 
-  return { control };
+  // Draws the controls for t again, when something outside them changed.
+  const redraw = (t: RerunTarget) => syncAll(keyOf(t));
+
+  return { control, redraw };
 }

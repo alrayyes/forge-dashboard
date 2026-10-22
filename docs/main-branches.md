@@ -176,5 +176,9 @@ failed jobs of the workflow runs on that same commit, once per run, and answers
 as `Rerun failed checks`, with the same permission needs and the same reasons on
 a refusal as the pull request button (see
 [Pull request actions](pull-request-actions.md)). The button reads "Rerun
-queued" until the row's CI changes or ten minutes pass. A branch with nothing
+queued" until the row's CI changes or ten minutes pass. When the row's forge
+can't be reached, or its REST rate limit is spent, the panel draws no button and
+says why in the pull request board's words, and the button returns on the first
+refresh that shows the forge healthy again. The response carries each forge's
+health in `forges`, the same entries the dashboard serves. A branch with nothing
 left to rerun answers "no failed job to rerun on this branch" with a 409.

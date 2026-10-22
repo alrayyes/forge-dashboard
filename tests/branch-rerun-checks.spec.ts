@@ -32,7 +32,7 @@ function branch(status: 'failed' | 'passed', running = 0) {
 async function openPanel(
   page: Page,
   status: 'failed' | 'passed',
-  state: { checks: unknown[]; running?: number } = {
+  state: { checks: unknown[]; running?: number; forges?: unknown[] } = {
     checks: [
       {
         name: 'test',
@@ -58,6 +58,9 @@ async function openPanel(
           none: 0,
           total: 1,
         },
+        forges: state.forges ?? [
+          { forge: 'github', reachable: true, repoCount: 1 },
+        ],
         branches: [branch(status, state.running ?? 0)],
       }),
     }),
@@ -214,5 +217,75 @@ test.describe('main branches rerun failed checks', () => {
     const dialog = await openPanel(page, 'passed');
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+  });
+
+  const failedCheck = [
+    { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+  ];
+
+  test('an unreachable forge gets no Rerun button, only the reason', async ({
+    page,
+  }) => {
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges: [{ forge: 'github', reachable: false, repoCount: 1 }],
+    });
+
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+    await expect(dialog.getByRole('status')).toHaveText(
+      "This forge can't be reached right now.",
+    );
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a forge out of REST budget gets no Rerun button and says when it resumes', async ({
+    page,
+  }) => {
+    const resetsAt = new Date(Date.now() + 20 * 60_000).toISOString();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges: [
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 1,
+          rateLimitREST: {
+            limit: 5000,
+            remaining: 0,
+            resetsAt,
+            severity: 'exceeded',
+          },
+        },
+      ],
+    });
+
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+    await expect(dialog.getByRole('status')).toContainText(
+      /^GitHub API rate limit reached\. Actions resume at .+ \(in \d+ min\)\.$/,
+    );
+  });
+
+  test('the button comes back when a poll shows the forge reachable again', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: false, repoCount: 1 },
+    ];
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+
+    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    await page.clock.runFor(60_000);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
   });
 });

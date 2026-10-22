@@ -3,6 +3,7 @@
 // the page component stays the one place that touches elements.
 
 import type { CheckCounts } from './check-counts';
+import type { ForgeHealthEntry } from './forge-lock';
 
 export type MainBranchStatus =
   | 'failed'
@@ -70,6 +71,7 @@ export function statusCount(counts: MainBranchCounts, key: StatusPill): number {
 export type MainBranches = {
   generatedAt: string;
   counts: MainBranchCounts;
+  forges: ForgeHealthEntry[];
   branches: MainBranch[];
 };
 
