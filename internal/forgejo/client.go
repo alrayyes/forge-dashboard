@@ -1343,8 +1343,8 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 	}
 
 	var checks []dashboard.Check
-	var probes, keys []string
-	var finished []time.Time
+	var probes []string
+	var excerptKeys []excerptKey
 	for _, run := range runs.WorkflowRuns {
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 		if err != nil {
@@ -1358,17 +1358,10 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				JobID: j.ID,
 			})
 			probes = append(probes, workflowContext(run, j.Name))
-			// A job with no finish time is named by its id alone, and its excerpt
-			// is kept only briefly (see addFailureExcerpts).
-			key := fmt.Sprintf("%s/%s#%d", owner, name, j.ID)
-			if !j.CompletedAt.IsZero() {
-				key = fmt.Sprintf("%s@%d", key, j.CompletedAt.UnixNano())
-			}
-			keys = append(keys, key)
-			finished = append(finished, j.CompletedAt)
+			excerptKeys = append(excerptKeys, newExcerptKey(owner, name, j))
 		}
 	}
-	c.addFailureExcerpts(ctx, owner, name, checks, keys, finished)
+	c.addFailureExcerpts(ctx, owner, name, checks, excerptKeys)
 
 	return checks, probes, nil
 }

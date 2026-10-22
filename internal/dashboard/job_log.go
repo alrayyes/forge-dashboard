@@ -54,7 +54,8 @@ func NewJobLog(raw []byte, cut bool) JobLog {
 		cut = tail[start-1] != '\n'
 		tail = tail[start:]
 	}
-	if i := strings.IndexByte(tail, '\n'); cut && i >= 0 {
+	// The first line is partial, so it goes, unless it is all there is.
+	if i := strings.IndexByte(tail, '\n'); cut && i >= 0 && strings.TrimSpace(tail[i+1:]) != "" {
 		tail = tail[i+1:]
 	}
 

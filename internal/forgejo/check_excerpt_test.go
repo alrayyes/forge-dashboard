@@ -519,7 +519,7 @@ func TestExcerptCache_AFailureIsForgottenAfterTheDelay(t *testing.T) {
 	assert.False(t, cache.RecentlyFailed("7@1"))
 }
 
-func TestListChecks_ASiblingsCancelIsNotRememberedAsAFailure(t *testing.T) {
+func TestListChecks_ACancelledSiblingIsRememberedWithTheRefusal(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
@@ -563,7 +563,7 @@ func TestListChecks_ASiblingsCancelIsNotRememberedAsAFailure(t *testing.T) {
 	_, err = client.ListChecks(t.Context(), "alrayyes", "a", 5)
 	require.NoError(t, err)
 
-	assert.Equal(t, int32(2), oldReads.Load(), "job 1 was cancelled, never tried, so it is read again")
+	assert.Equal(t, int32(1), oldReads.Load(), "the refusal is remembered for job 1 too, so the next list does not send it again")
 }
 
 func TestListChecks_AnOlderCachedExcerptSurvivesAnExhaustedBudget(t *testing.T) {
@@ -675,4 +675,76 @@ func TestListChecks_AReadCancelledByASiblingIsNotRecordedAsAFailedRequest(t *tes
 		assert.NotContains(t, e.Endpoint, "/jobs/1/", "a read the list cancelled is not a failed request")
 		assert.NotContains(t, e.Endpoint, "/jobs/2/", "a read the list cancelled is not a failed request")
 	}
+}
+
+func TestListChecks_ARefusalIsRememberedForTheWholeBatch(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": finishedFailures(4)})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	// A cancelled read may still reach the server a moment later.
+	var first int32
+	require.Eventually(t, func() bool {
+		now := calls.Load()
+		settled := now == first
+		first = now
+
+		return settled
+	}, 5*time.Second, 50*time.Millisecond)
+	_, err = client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+
+	assert.Equal(t, first, calls.Load(), "no read of the batch is tried again within the delay")
+}
+
+func TestListChecks_ARerunWithTheSameFinishTimeIsReadAgain(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	logs := map[int]string{7: "first run\n"}
+	jobs := []map[string]any{{"id": 7, "name": "build", "status": "failure", "completed_at": "2026-10-10T09:05:00Z", "run_attempt": 1}}
+	client := excerptServer(t, jobs, logs, &calls)
+
+	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	logs[7] = "second run\n"
+	jobs[0]["run_attempt"] = 2
+	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+
+	assert.Equal(t, "first run", first[0].Excerpt)
+	assert.Equal(t, "second run", second[0].Excerpt)
+}
+
+func TestExcerptCache_PastTheCapANewFailureIsStillRemembered(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	cache := forgejo.NewExcerptCacheForTest(func() time.Time { return at })
+	for i := range forgejo.MaxExcerptsForTest + 5 {
+		cache.Fail(fmt.Sprintf("job-%d", i))
+	}
+
+	assert.True(t, cache.RecentlyFailed(fmt.Sprintf("job-%d", forgejo.MaxExcerptsForTest+4)))
+	assert.False(t, cache.RecentlyFailed("job-0"), "the oldest goes first")
 }

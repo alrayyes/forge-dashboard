@@ -688,10 +688,11 @@ slow forge can delay the answer to a request for checks by up to about 15
 seconds, until the excerpts are kept. A log with text is read once per
 finished job and kept, so a branch that stays red costs no more reads. A log
 that can't be read, or that is empty, is not asked for again for a minute, and
-a token that is refused stops the rest of that list's reads. A log that is
-gone for good is asked for again every minute while the panel stays open, and
-a failed job with no finish time is read on every call; both are bounded by
-the five reads. A job whose log can't be read keeps its link.
+a token that is refused stops the rest of that list's reads, none of which is
+tried again for a minute. A log that is gone for good is asked for again every
+minute while the panel stays open, and an excerpt of a job with no finish time
+is kept for a minute only; both are bounded by the five reads. A job whose
+log can't be read keeps its link.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each

@@ -36,5 +36,13 @@ const ExcerptReadWindow = excerptReadWindow
 
 // AddFailureExcerptsForTest runs the excerpt reads for checks under ctx.
 func AddFailureExcerptsForTest(ctx context.Context, c *Client, owner, name string, checks []dashboard.Check, keys []string) {
-	c.addFailureExcerpts(ctx, owner, name, checks, keys, nil)
+	jobs := make([]excerptKey, len(keys))
+	for i, k := range keys {
+		// Long finished, so the log is settled.
+		jobs[i] = excerptKey{key: k, finished: time.Unix(1, 0)}
+	}
+	c.addFailureExcerpts(ctx, owner, name, checks, jobs)
 }
+
+// MaxExcerptsForTest is how many entries the excerpt cache holds.
+const MaxExcerptsForTest = maxExcerpts
