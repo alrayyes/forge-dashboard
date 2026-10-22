@@ -22,6 +22,13 @@ var ErrSeveralUsers = errors.New("auth: the database has several users and the s
 // tables would lose them.
 var ErrNoOwner = errors.New("auth: sessions, tokens or passkey labels exist but no user owns them")
 
+// ErrOrphanRows is returned when a table holds rows keyed to a user id that is
+// not in users and the single-user cleanup never ran on this database. The
+// settings step refuses the same case. A database the cleanup did run on (it
+// leaves a marker) drops them with a warning instead, since the cleanup always
+// removed such leftovers without a word.
+var ErrOrphanRows = errors.New("auth: rows belong to a user that does not exist")
+
 // ErrCopyIncomplete is returned when a table's rows did not all reach its new
 // shape. The step rolls back, so the old table is still there.
 var ErrCopyIncomplete = errors.New("auth: rows were lost in the copy")
@@ -111,15 +118,21 @@ var authRebuilds = []authRebuild{
 }
 
 // preflightDropUserID refuses what the step would refuse, before the backup is
-// taken. It only reads.
+// taken. It only reads. It is a courtesy so a refused start leaves no backup:
+// the settings step runs before this one and can change what this one sees (it
+// drops tables and rows), so the check inside the step's own transaction is the
+// authority and repeats every refusal.
 func preflightDropUserID(ctx context.Context, q dbmigrate.Tx) error {
 	pending, err := pendingRebuilds(ctx, q)
 	if err != nil || len(pending) == 0 {
 		return err
 	}
-	_, err = chooseAuthOwner(ctx, q, pending)
+	owner, err := chooseAuthOwner(ctx, q, pending)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return checkNoOrphans(ctx, q, pending, owner)
 }
 
 func dropAuthUserID(ctx context.Context, tx dbmigrate.Tx, log *slog.Logger) error {
@@ -129,6 +142,9 @@ func dropAuthUserID(ctx context.Context, tx dbmigrate.Tx, log *slog.Logger) erro
 	}
 	owner, err := chooseAuthOwner(ctx, tx, pending)
 	if err != nil {
+		return err
+	}
+	if err := checkNoOrphans(ctx, tx, pending, owner); err != nil {
 		return err
 	}
 	for _, r := range pending {
@@ -163,8 +179,13 @@ func pendingRebuilds(ctx context.Context, q dbmigrate.Tx) ([]authRebuild, error)
 }
 
 // chooseAuthOwner returns the id whose rows survive: the user Store.Owner
-// returns. Several users with no cleanup marker are refused. With no user at
-// all it refuses when a table holds rows that would be dropped.
+// returns, which is the user the single-user cleanup keeps. Several users with
+// no cleanup marker are refused when one holds a passkey, since the previous
+// release settles that. When none does, that release never will, so the upgrade
+// goes on only if no other user holds a session, token or passkey label: those
+// are live credentials, and the oldest row wins only over abandoned
+// registrations. With no user at all it refuses when a table holds rows that
+// would be dropped.
 func chooseAuthOwner(ctx context.Context, q dbmigrate.Tx, pending []authRebuild) (string, error) {
 	users, err := countUsers(ctx, q)
 	if err != nil {
@@ -173,32 +194,79 @@ func chooseAuthOwner(ctx context.Context, q dbmigrate.Tx, pending []authRebuild)
 	if users == 0 {
 		return "", requireNoOwnedRows(ctx, q, pending)
 	}
-	if users > 1 {
-		var marker int
-		if err := q.QueryRowContext(ctx,
-			`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, singleuser.MarkerTable).Scan(&marker); err != nil {
-			return "", fmt.Errorf("look for the cleanup marker: %w", err)
-		}
-		if marker == 0 {
-			// With no passkey holder the cleanup never runs and writes no marker, so
-			// waiting for it never ends: the oldest wins, the rest is logged.
-			var holders int
-			if err := q.QueryRowContext(ctx,
-				`SELECT count(*) FROM users WHERE credentials_json != '[]'`).Scan(&holders); err != nil {
-				return "", fmt.Errorf("count users with a passkey: %w", err)
-			}
-			if holders > 0 {
-				return "", fmt.Errorf("%w: run the previous release first, then this one", ErrSeveralUsers)
-			}
-		}
+	cleaned, err := cleanupMarkerExists(ctx, q)
+	if err != nil {
+		return "", err
 	}
 
 	var id string
 	if err := q.QueryRowContext(ctx, `SELECT id FROM users `+OwnerOrder).Scan(&id); err != nil {
 		return "", fmt.Errorf("find the owner: %w", err)
 	}
+	if users == 1 || cleaned {
+		return id, nil
+	}
+
+	var holders int
+	if err := q.QueryRowContext(ctx,
+		`SELECT count(*) FROM users WHERE credentials_json != '[]'`).Scan(&holders); err != nil {
+		return "", fmt.Errorf("count users with a passkey: %w", err)
+	}
+	if holders > 0 {
+		return "", fmt.Errorf("%w: run the previous release first, then this one", ErrSeveralUsers)
+	}
+	if err := requireOthersHoldNothing(ctx, q, pending, id); err != nil {
+		return "", err
+	}
 
 	return id, nil
+}
+
+func cleanupMarkerExists(ctx context.Context, q dbmigrate.Tx) (bool, error) {
+	var marker int
+	if err := q.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, singleuser.MarkerTable).Scan(&marker); err != nil {
+		return false, fmt.Errorf("look for the cleanup marker: %w", err)
+	}
+
+	return marker > 0, nil
+}
+
+// requireOthersHoldNothing refuses to drop a live session, token or passkey
+// label of a user other than the owner. ResetPasskeys keeps API tokens, so a
+// user with no passkey can still hold working tokens.
+func requireOthersHoldNothing(ctx context.Context, q dbmigrate.Tx, pending []authRebuild, owner string) error {
+	for _, r := range pending {
+		if r.copyAll {
+			continue
+		}
+		var names []string
+		rows, err := q.QueryContext(ctx,
+			`SELECT DISTINCT u.username FROM `+r.table+` t JOIN users u ON u.id = t.`+r.column+` WHERE t.`+r.column+` != ? ORDER BY u.username`, owner)
+		if err != nil {
+			return fmt.Errorf("list the other users in %s: %w", r.table, err)
+		}
+		for rows.Next() {
+			var n string
+			if err := rows.Scan(&n); err != nil {
+				_ = rows.Close()
+
+				return fmt.Errorf("list the other users in %s: %w", r.table, err)
+			}
+			names = append(names, n)
+		}
+		err = rows.Err()
+		_ = rows.Close()
+		if err != nil {
+			return fmt.Errorf("list the other users in %s: %w", r.table, err)
+		}
+		if len(names) > 0 {
+			return fmt.Errorf("%w: no user holds a passkey, so the previous release cannot settle it, but %s still holds rows for %s; copy the database file, delete the users you do not want from users and their rows from %s, then start again, or restore a backup",
+				ErrSeveralUsers, strings.Join(names, ", "), r.table, r.table)
+		}
+	}
+
+	return nil
 }
 
 func countUsers(ctx context.Context, q dbmigrate.Tx) (int, error) {
@@ -235,11 +303,58 @@ func requireNoOwnedRows(ctx context.Context, q dbmigrate.Tx, pending []authRebui
 	return nil
 }
 
+// checkNoOrphans stops on rows keyed to a user id that is not in users, even
+// beside the owner's own, unless the single-user cleanup ran on this database
+// (then it dropped such rows itself and the step logs them). Rows of another
+// user who still exists are different: the owner wins, and the step logs what
+// it drops.
+func checkNoOrphans(ctx context.Context, q dbmigrate.Tx, pending []authRebuild, owner string) error {
+	if owner == "" {
+		return nil
+	}
+	cleaned, err := cleanupMarkerExists(ctx, q)
+	if err != nil || cleaned {
+		return err
+	}
+	for _, r := range pending {
+		if r.copyAll {
+			continue
+		}
+		ids, err := r.orphanIDs(ctx, q)
+		if err != nil {
+			return err
+		}
+		if len(ids) > 0 {
+			return fmt.Errorf("%w: %s has rows for user ids that are not in users (%s); copy the database file, delete them with DELETE FROM %s WHERE %s IN (%s), then start again, or restore a backup",
+				ErrOrphanRows, r.table, strings.Join(ids, ", "), r.table, r.column, quoteAll(ids))
+		}
+	}
+
+	return nil
+}
+
+func quoteAll(ids []string) string {
+	quoted := make([]string, 0, len(ids))
+	for _, id := range ids {
+		quoted = append(quoted, "'"+strings.ReplaceAll(id, "'", "''")+"'")
+	}
+
+	return strings.Join(quoted, ", ")
+}
+
+// orphanIDs lists the user ids in the table that are not in users.
+func (r authRebuild) orphanIDs(ctx context.Context, q dbmigrate.Tx) ([]string, error) {
+	return r.ids(ctx, q, `SELECT DISTINCT `+r.column+` FROM `+r.table+` WHERE `+r.column+` NOT IN (SELECT id FROM users) ORDER BY `+r.column)
+}
+
 // otherIDs lists the user ids in the table other than the owner's, whether or
 // not they are in users. Names are constants of this file, never input.
 func (r authRebuild) otherIDs(ctx context.Context, q dbmigrate.Tx, owner string) ([]string, error) {
-	query := `SELECT DISTINCT ` + r.column + ` FROM ` + r.table + ` WHERE ` + r.column + ` != ? ORDER BY ` + r.column
-	rows, err := q.QueryContext(ctx, query, owner)
+	return r.ids(ctx, q, `SELECT DISTINCT `+r.column+` FROM `+r.table+` WHERE `+r.column+` != ? ORDER BY `+r.column, owner)
+}
+
+func (r authRebuild) ids(ctx context.Context, q dbmigrate.Tx, query string, args ...any) ([]string, error) {
+	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list the other user ids in %s: %w", r.table, err)
 	}
@@ -258,6 +373,16 @@ func (r authRebuild) otherIDs(ctx context.Context, q dbmigrate.Tx, owner string)
 	}
 
 	return ids, nil
+}
+
+func (r authRebuild) countOthers(ctx context.Context, q dbmigrate.Tx, table, owner string) (int, error) {
+	var n int
+	if err := q.QueryRowContext(ctx,
+		`SELECT count(*) FROM `+table+` WHERE `+r.column+` != ?`, owner).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count the other rows of %s: %w", table, err)
+	}
+
+	return n, nil
 }
 
 func (r authRebuild) count(ctx context.Context, q dbmigrate.Tx, table, owner string) (int, error) {
@@ -329,13 +454,20 @@ func (r authRebuild) rebuild(ctx context.Context, tx dbmigrate.Tx, owner string)
 		return fmt.Errorf("copy %s: %w", r.table, err)
 	}
 
-	want := owner
-	if r.copyAll {
-		want = ""
-	}
-	expected, err := r.count(ctx, tx, aside, want)
+	// Count what should arrive without the filter the copy used: every source
+	// row, less the rows that belong to other user ids and are dropped on
+	// purpose. A row the filter missed (a NULL id, say) is then a shortfall.
+	total, err := r.count(ctx, tx, aside, "")
 	if err != nil {
 		return err
+	}
+	expected := total
+	if !r.copyAll {
+		dropped, err := r.countOthers(ctx, tx, aside, owner)
+		if err != nil {
+			return err
+		}
+		expected = total - dropped
 	}
 	got, err := r.count(ctx, tx, r.table, "")
 	if err != nil {
