@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.4](https://github.com/alrayyes/forge-dashboard/compare/v2.11.3...v2.11.4) (2026-10-22)
+
+
+### Bug Fixes
+
+* **webhooks:** start the dashboard from saved settings when a delivery finds none running ([#2591](https://github.com/alrayyes/forge-dashboard/issues/2591)) ([b6a343a](https://github.com/alrayyes/forge-dashboard/commit/b6a343a71dfb12f5a5642a4af780e8a3ada47e46))
+
 ## [2.11.3](https://github.com/alrayyes/forge-dashboard/compare/v2.11.2...v2.11.3) (2026-10-22)
 
 

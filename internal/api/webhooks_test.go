@@ -772,10 +772,12 @@ func TestGitHubWebhook_TenDeliveriesForOneRepo_CauseOneScopedRefresh(t *testing.
 	assert.Equal(t, int64(1), source.repoFetchCallCount("alrayyes/burst"), "ten deliveries in one window are one scoped refresh")
 }
 
-func TestGitHubWebhook_NoDashboardRunning_StillAcknowledgesWith204(t *testing.T) {
+func TestGitHubWebhook_NoDashboardRunning_StartsOneAndRefreshesTheRepo(t *testing.T) {
 	t.Parallel()
 
-	srvURL, sessionCookie, service := newTestServerWithManager(t, &countingSource{calls: &atomic.Int64{}}, nil)
+	timers := &heldTimers{}
+	source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
+	srvURL, sessionCookie, service := newTestServerWithManager(t, source, timers.After)
 	token, secret := webhookCredentials(t, srvURL, sessionCookie)
 	service.Stop()
 	require.False(t, service.Running())
@@ -789,5 +791,14 @@ func TestGitHubWebhook_NoDashboardRunning_StillAcknowledgesWith204(t *testing.T)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-	assert.False(t, service.Running(), "a delivery doesn't start a dashboard")
+	assert.True(t, service.Running(), "a delivery with saved settings starts the dashboard")
+
+	require.Eventually(t, func() bool {
+		timers.mu.Lock()
+		defer timers.mu.Unlock()
+
+		return len(timers.armed) >= 1
+	}, 5*time.Second, 5*time.Millisecond)
+	timers.fireAll()
+	require.Eventually(t, func() bool { return source.repoFetchCallCount("alrayyes/a") >= 1 }, 5*time.Second, 5*time.Millisecond, "the refresh the delivery asked for runs")
 }
