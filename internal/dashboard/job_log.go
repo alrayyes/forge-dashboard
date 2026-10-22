@@ -49,8 +49,10 @@ func NewJobLog(raw []byte, cut bool) JobLog {
 
 	tail := text
 	if len(tail) > MaxJobLogBytes {
-		tail = tail[len(tail)-MaxJobLogBytes:]
-		cut = true
+		// The window starts mid-line unless the byte before it ends a line.
+		start := len(tail) - MaxJobLogBytes
+		cut = tail[start-1] != '\n'
+		tail = tail[start:]
 	}
 	if i := strings.IndexByte(tail, '\n'); cut && i >= 0 {
 		tail = tail[i+1:]
