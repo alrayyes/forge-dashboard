@@ -400,7 +400,33 @@ func TestService_FirstRefreshComplete_ReadyAfterTheGraceEvenIfTheRefreshIsStillR
 		"the refresh is still blocked, but the grace has passed")
 }
 
-func TestService_FirstRefreshComplete_AnAggregatorAddedLaterGetsItsOwnGraceButCannotUnreadyAServingProcess(t *testing.T) {
+// A login or settings save during a slow first refresh replaces the Aggregator.
+// The grace runs from the first start, so repeated saves can't keep readiness
+// false past the configured window.
+func TestService_FirstRefreshComplete_ReplacingTheAggregatorDoesNotRestartTheGrace(t *testing.T) {
+	t.Parallel()
+
+	blocked := &gatedSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(blocked.release) })
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+	m.SetFirstRefreshGrace(150 * time.Millisecond)
+
+	start := time.Now()
+	m.Ensure(t.Context(), []dashboard.Source{blocked})
+
+	for time.Since(start) < 100*time.Millisecond {
+		time.Sleep(20 * time.Millisecond)
+		m.Ensure(t.Context(), []dashboard.Source{blocked})
+	}
+	require.False(t, m.FirstRefreshComplete(), "still inside the grace")
+
+	time.Sleep(time.Until(start.Add(200 * time.Millisecond)))
+	assert.True(t, m.FirstRefreshComplete(),
+		"the grace ran from the first start, not from the latest Ensure")
+}
+
+func TestService_FirstRefreshComplete_AnAggregatorAddedLaterCannotUnreadyAServingProcess(t *testing.T) {
 	t.Parallel()
 
 	m := dashboard.NewService(time.Hour)
