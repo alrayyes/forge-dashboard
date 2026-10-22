@@ -322,6 +322,58 @@ func TestJobLog_AnUnsatisfiableRangeOnALogWithContentIsRetriedWithoutRange(t *te
 	assert.Empty(t, ranges[1])
 }
 
+func TestJobLog_AFailingRetryWithoutRangeIsAnErrorNotAPanic(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Range") == "" {
+			hj, ok := w.(http.Hijacker)
+			require.True(t, ok)
+			conn, _, err := hj.Hijack()
+			require.NoError(t, err)
+			_ = conn.Close()
+
+			return
+		}
+		w.Header().Set("Content-Range", "bytes */12")
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+	})
+
+	_, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.Error(t, err)
+}
+
+func TestJobLog_ARetryThatIsUnsatisfiableToo_IsAnEmptyLog(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Range", "bytes */12")
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+	})
+
+	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.NoError(t, err)
+	assert.Empty(t, got.Text)
+}
+
+func TestJobLog_ARetryThatIsRefused_IsAClassifiedError(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Range") == "" {
+			w.WriteHeader(http.StatusForbidden)
+
+			return
+		}
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+	})
+
+	_, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	var ce *dashboard.ClientError
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, dashboard.ForgeErrorUnauthorized, ce.Kind)
+}
+
 func TestJobLog_WithAProxyConfigured_ADirectDialToLoopbackIsStillRefused(t *testing.T) {
 	t.Parallel()
 	var hits atomic.Int32
