@@ -49,7 +49,7 @@ var errNothingToRerunOnBranch = errors.New("no failed GitHub Actions job to reru
 // reruns the failed Actions jobs of the check runs on the commit
 // ListDefaultBranchChecks shows, the one the Main branches row reports, as
 // RerunFailedChecks does for a pull request.
-func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error {
+func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, _ string) error {
 	sha, _, err := c.defaultBranchChecks(ctx, owner, name)
 	if err != nil {
 		return err

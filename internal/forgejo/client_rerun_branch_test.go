@@ -21,6 +21,8 @@ type branchRerunServer struct {
 	runs   []map[string]any
 	mu     sync.Mutex
 	reruns []string
+	// repoLookups counts reads of the repository itself.
+	repoLookups int
 }
 
 func (s *branchRerunServer) start(t *testing.T) *forgejo.Client {
@@ -28,6 +30,9 @@ func (s *branchRerunServer) start(t *testing.T) *forgejo.Client {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		s.mu.Lock()
+		s.repoLookups++
+		s.mu.Unlock()
 		writeJSON(t, w, map[string]any{"name": "a", "default_branch": "main"})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
@@ -59,16 +64,17 @@ func TestRerunFailedDefaultBranchChecks_RerunsOnlyTheFailedRunsOfTheNewestCommit
 		{"id": 44, "commit_sha": "new", "prettyref": "#7", "status": "failure", "event": "pull_request"},
 	}}
 
-	require.NoError(t, s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a"))
+	require.NoError(t, s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main"))
 
 	assert.Equal(t, []string{"42"}, s.reruns)
+	assert.Zero(t, s.repoLookups, "the default branch is known, so the repository isn't read")
 }
 
 func TestRerunFailedDefaultBranchChecks_NoFailedRun_IsAConflict(t *testing.T) {
 	t.Parallel()
 	s := &branchRerunServer{runs: []map[string]any{branchRun(41, "new", "main", "success")}}
 
-	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
 
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)
@@ -86,7 +92,7 @@ func TestRerunFailedDefaultBranchChecks_RunsListMissing_IsAnErrorNotNothingToRer
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	err := forgejo.NewClient(srv.URL, "test-token", "").RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+	err := forgejo.NewClient(srv.URL, "test-token", "").RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
 
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)

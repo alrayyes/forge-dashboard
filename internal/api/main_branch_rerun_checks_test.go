@@ -18,10 +18,13 @@ type fakeBranchRerunSource struct {
 	fakeBranchCheckerSource
 	err    error
 	called []string
+	// branches is the default branch each call was handed.
+	branches []string
 }
 
-func (f *fakeBranchRerunSource) RerunFailedDefaultBranchChecks(_ context.Context, owner, name string) error {
+func (f *fakeBranchRerunSource) RerunFailedDefaultBranchChecks(_ context.Context, owner, name, defaultBranch string) error {
 	f.called = append(f.called, owner+"/"+name)
+	f.branches = append(f.branches, defaultBranch)
 
 	return f.err
 }
@@ -52,6 +55,7 @@ func TestMainBranchRerunChecks_RerunsTheDefaultBranch_AndAnswers204(t *testing.T
 
 	assert.Equal(t, http.StatusNoContent, status)
 	assert.Equal(t, []string{"alrayyes/tempus-fugit"}, source.called)
+	assert.Equal(t, []string{"main"}, source.branches, "the row's branch is handed on")
 }
 
 func TestMainBranchRerunChecks_NothingFailed_Answers409WithTheForgeReason(t *testing.T) {

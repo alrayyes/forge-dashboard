@@ -314,7 +314,7 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/forgejo/main_branch.go`          | 3     | Repository, Actions runs, one commit                                                                                                                                | No, Forgejo sends no ETag         |
 | `internal/forgejo/pull_request_body.go`    | 1     | One pull request                                                                                                                                                    | No, Forgejo sends no ETag         |
 | `internal/forgejo/pull_request_details.go` | 4     | Pull request, comments, reactions                                                                                                                                   | No, Forgejo sends no ETag         |
-| `internal/forgejo/rerun.go`                | 3     | One pull request, repository, Actions runs                                                                                                                          | No, Forgejo sends no ETag         |
+| `internal/forgejo/rerun.go`                | 2     | One pull request, Actions runs                                                                                                                                      | No, Forgejo sends no ETag         |
 | `internal/forgejo/scheduled_merge.go`      | 1     | Issue timeline                                                                                                                                                      | No, Forgejo sends no ETag         |
 
 The one GitHub read that isn't conditional is the download of a job's log. The

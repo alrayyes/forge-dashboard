@@ -198,8 +198,10 @@ type ChecksRerunner interface {
 // a Source directly) that can rerun the failed jobs of the newest pipeline on a
 // repository's default branch: the branch twin of ChecksRerunner. An error of
 // kind ForgeErrorConflict means there was no failed job it could rerun.
+// defaultBranch is the branch the Main branches row already names, so a forge
+// that needs it doesn't look the repository up to learn it.
 type DefaultBranchRerunner interface {
-	RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error
+	RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, defaultBranch string) error
 }
 
 // BranchUpdater is implemented by a ForgeClient (or, for github.Client, a
