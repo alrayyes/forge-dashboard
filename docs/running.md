@@ -62,7 +62,7 @@ on the dashboard, not here. `GET /healthz` stays the cheap liveness answer
 `condition: service_healthy` waits on the same state.
 
 Generate `ENCRYPTION_KEY` once and keep it — losing it makes every saved
-credential unrecoverable, and every user has to re-enter theirs from the
+credential unrecoverable, and you have to re-enter them from the
 Settings page.
 
 The published image is `ghcr.io/alrayyes/forge-dashboard`, built and
