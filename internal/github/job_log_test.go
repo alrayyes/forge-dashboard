@@ -326,11 +326,11 @@ func TestJobLog_AFailingRetryWithoutRangeIsAnErrorNotAPanic(t *testing.T) {
 	t.Parallel()
 	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Range") == "" {
-			hj, ok := w.(http.Hijacker)
-			require.True(t, ok)
-			conn, _, err := hj.Hijack()
-			require.NoError(t, err)
-			_ = conn.Close()
+			if hj, ok := w.(http.Hijacker); ok {
+				if conn, _, err := hj.Hijack(); err == nil {
+					_ = conn.Close()
+				}
+			}
 
 			return
 		}
