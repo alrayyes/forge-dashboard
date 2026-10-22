@@ -16,6 +16,7 @@ query($owner: String!, $name: String!, $number: Int!) {
   rateLimit { cost }
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
+      state
       body
       lastEditedAt
       reactionGroups { content users(first: 10) { totalCount nodes { login } } }
@@ -59,5 +60,11 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 		}
 	}
 
-	return threadDetails(*resp.Repository.Issue), nil
+	details := threadDetails(*resp.Repository.Issue)
+	details.State = dashboard.IssueStateOpen
+	if resp.Repository.Issue.State == "CLOSED" {
+		details.State = dashboard.IssueStateClosed
+	}
+
+	return details, nil
 }

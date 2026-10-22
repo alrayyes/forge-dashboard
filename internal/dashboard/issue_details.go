@@ -2,10 +2,21 @@ package dashboard
 
 import "context"
 
+// IssueState is whether the forge has the issue open or closed right now.
+type IssueState string
+
+const (
+	// IssueStateOpen is an issue the forge has open.
+	IssueStateOpen IssueState = "open"
+	// IssueStateClosed is an issue the forge has closed.
+	IssueStateClosed IssueState = "closed"
+)
+
 // IssueDetails is what the issue dialog shows: the description and the
 // conversation, read the way a pull request's are. Matches
 // components.schemas.IssueDetails.
 type IssueDetails struct {
+	State             IssueState       `json:"state"`
 	Description       DetailsBody      `json:"description"`
 	Comments          []DetailsComment `json:"comments"`
 	CommentCount      int              `json:"commentCount"`

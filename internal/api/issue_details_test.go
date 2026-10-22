@@ -60,6 +60,7 @@ func sampleIssueDetails() dashboard.IssueDetails {
 	none := dashboard.Reaction{Logins: []string{}}
 
 	return dashboard.IssueDetails{
+		State: dashboard.IssueStateClosed,
 		Description: dashboard.DetailsBody{
 			Text: "The page loses its place.", Format: dashboard.FormatMarkdown,
 			Reactions: dashboard.Reactions{ThumbsUp: dashboard.Reaction{Count: 2, Logins: []string{"demo-a", "demo-b"}}, ThumbsDown: none},
@@ -95,6 +96,7 @@ func TestIssueDetails_ReturnsTheDescriptionAndTheConversation(t *testing.T) {
 	comments, ok := body["comments"].([]any)
 	require.True(t, ok)
 	require.Len(t, comments, 1)
+	assert.Equal(t, "closed", body["state"])
 	assert.EqualValues(t, 1, body["commentCount"])
 	assert.Equal(t, false, body["commentsTruncated"])
 	assert.NotContains(t, body, "releaseNotes", "an issue has no release notes")

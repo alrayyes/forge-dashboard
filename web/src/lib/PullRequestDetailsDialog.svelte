@@ -103,6 +103,8 @@
     commentCount: number;
     commentsTruncated: boolean;
     releaseNotes?: Body | null;
+    // Only an issue's details say it: open or closed in the forge right now.
+    state?: "open" | "closed";
   };
 
   // Dashboard.svelte's hooks: Escape first backs out of an armed confirm, and
@@ -110,7 +112,13 @@
   let {
     onEscape,
     onClosed,
-  }: { onEscape?: () => boolean; onClosed?: () => void } = $props();
+    onIssueState,
+  }: {
+    onEscape?: () => boolean;
+    onClosed?: () => void;
+    // An issue's details arrived: whether the forge has it closed.
+    onIssueState?: (closed: boolean) => void;
+  } = $props();
 
   let dialogEl = $state<HTMLDialogElement>();
   // These three hosts exist from the start so the page can fill them in the
@@ -309,6 +317,8 @@
       html = rendered;
       details = loaded;
       phase = "ready";
+      if (current.subject === "issue" && loaded.state)
+        onIssueState?.(loaded.state === "closed");
       // A quiet swap leaves a list the reader has open alone; a full load
       // replaces everything, so the old content's state goes with it.
       if (!quiet) {
