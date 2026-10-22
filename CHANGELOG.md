@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/alrayyes/forge-dashboard/compare/v2.1.0...v2.2.0) (2026-10-22)
+
+
+### Features
+
+* **web:** say an unreadable advisory answer once, not on every row ([#2458](https://github.com/alrayyes/forge-dashboard/issues/2458)) ([1c9cb82](https://github.com/alrayyes/forge-dashboard/commit/1c9cb82a4e585fa856f9dbd877e73277df637faa))
+
 ## [2.1.0](https://github.com/alrayyes/forge-dashboard/compare/v2.0.2...v2.1.0) (2026-10-22)
 
 
