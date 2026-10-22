@@ -173,7 +173,7 @@ func startSession(w http.ResponseWriter, r *http.Request, deps Deps, u *auth.Use
 	// pick up whatever was most recently saved, not just a gap to paper
 	// over. A user with nothing saved yet just gets Service.Get's
 	// empty-snapshot default, same as before this ran.
-	loadAndEnsure(r.Context(), deps, u.Username)
+	loadAndEnsure(r.Context(), deps)
 
 	writeJSON(w, http.StatusOK, sessionUserOf(u))
 }

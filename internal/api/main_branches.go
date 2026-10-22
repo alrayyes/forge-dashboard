@@ -6,7 +6,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -67,8 +66,8 @@ func buildMainBranchesResponse(generatedAt, now time.Time, forges []dashboard.Fo
 // It never calls a forge, so it costs no rate-limit budget however often it's
 // read. Shared by handleMainBranches and the MCP get_main_branches tool so the
 // two can't drift.
-func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBranchesResponse {
-	warmUpAggregator(ctx, deps, u.Username)
+func resolveMainBranchesFor(ctx context.Context, deps Deps) mainBranchesResponse {
+	warmUpAggregator(ctx, deps)
 	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
 
 	snap := deps.Service.Get()
@@ -80,13 +79,6 @@ func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBr
 // handleMainBranches serves resolveMainBranchesFor over HTTP.
 func handleMainBranches(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
-		writeJSON(w, http.StatusOK, resolveMainBranchesFor(r.Context(), deps, u))
+		writeJSON(w, http.StatusOK, resolveMainBranchesFor(r.Context(), deps))
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -63,8 +62,8 @@ func handleMainBranchChecks(deps Deps) http.HandlerFunc {
 // branches page shows, so the rerun route can't be aimed at a repository the
 // dashboard doesn't follow. The row also names the default branch, which saves
 // the forge a lookup.
-func trackedMainBranch(ctx context.Context, deps Deps, u *auth.User, forge, fullName string) (mainBranchView, bool) {
-	rows := resolveMainBranchesFor(ctx, deps, u).Branches
+func trackedMainBranch(ctx context.Context, deps Deps, forge, fullName string) (mainBranchView, bool) {
+	rows := resolveMainBranchesFor(ctx, deps).Branches
 	i := slices.IndexFunc(rows, func(b mainBranchView) bool {
 		return string(b.Forge) == forge && b.FullName == fullName
 	})
@@ -85,7 +84,6 @@ func handleMainBranchRerunChecks(deps Deps) http.HandlerFunc {
 			return
 		}
 		req := t.req
-		u := t.user
 		owner, name := t.owner, t.name
 
 		src, _, ok := forgeSource(w, r, deps, req.Forge)
@@ -97,7 +95,7 @@ func handleMainBranchRerunChecks(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		row, tracked := trackedMainBranch(r.Context(), deps, u, req.Forge, req.FullName)
+		row, tracked := trackedMainBranch(r.Context(), deps, req.Forge, req.FullName)
 		if !tracked {
 			writeJSON(w, http.StatusNotFound, errorBody("that repository's default branch isn't tracked"))
 
