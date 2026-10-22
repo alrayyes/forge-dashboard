@@ -223,6 +223,29 @@ in the same field as before, the labels in lowercase one after another. A page
 that doesn't offer one of the saved labels leaves it saved and says so, as it
 does for any other filter.
 
+## The repo and author filters
+
+The repo and author filters work like the Label filter: each is a button that
+opens a group of checkboxes, the pull requests and issues shown are the ones
+that match **any** ticked repo and **any** ticked author, and the button names
+one pick or counts several ("2 repos", "2 authors"). Each has a Clear button
+under the choices. A repo is listed with its forge, under a heading per forge
+when more than one forge has a repo on screen, so one name on two forges stays
+two choices.
+
+Each repo shows its own logo and each author their avatar beside the name, in
+the choices and on the chips below the search on a phone. When there is no
+image, or it does not load, the first letter of the name stands in. The images
+are decoration for sighted readers; the name beside them is what a screen
+reader speaks. An avatar or logo is shown only over HTTPS.
+
+The choices narrow each other as the Label filter's do, so ticking a repo
+drops an author who has nothing in it. Pick the control you care most about
+last, or tick the other one again afterwards. A value saved before the list
+existed is read as a list of one. A pick holds up to 20 values, and the server
+refuses a longer one. A page that does not offer a saved repo or author leaves
+it saved and says so. The Insights page shows the same two controls.
+
 ## Remembered filters
 
 Filters are remembered per account, in a cookie and in a copy on the server,
