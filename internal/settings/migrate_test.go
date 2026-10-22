@@ -278,6 +278,20 @@ func TestMigrate_ARefusedStart_TakesNoBackup(t *testing.T) {
 	assert.False(t, tableExists(t, db, "schema_version"))
 }
 
+func TestMigrate_RowsKeyedToSomeoneElse_TwoRefusedStartsLeaveNoBackup(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `UPDATE user_credentials SET user_id = 'someone-else'`)
+
+	for range 2 {
+		_, err := migrate(t, db, path)
+		require.ErrorIs(t, err, settings.ErrCopyIncomplete)
+	}
+
+	assert.Empty(t, backupFiles(t, path), "a start that aborts before changing anything takes no backup")
+	assert.True(t, hasUserID(t, db, "user_credentials"))
+}
+
 func TestMigrate_SeveralUsersNoneWithAPasskey_SaysThePreviousReleaseWillNotHelp(t *testing.T) {
 	db, path := openMigrationDB(t)
 	seedOldShape(t, db)

@@ -195,9 +195,12 @@ func preflight(ctx context.Context, q dbmigrate.Tx) error {
 	if err := checkSettingsTableFree(ctx, q, pending); err != nil {
 		return err
 	}
-	_, err = chooseOwner(ctx, q, pending)
+	owner, err := chooseOwner(ctx, q, pending)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return checkOwnerHasRows(ctx, q, pending, owner)
 }
 
 // dropUserID rebuilds each table that still has a user_id column without it,
@@ -223,9 +226,34 @@ func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
 		return err
 	}
 
+	if err := checkOwnerHasRows(ctx, tx, pending, owner); err != nil {
+		return err
+	}
+
 	for _, r := range pending {
 		if err := r.rebuild(ctx, tx, owner); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// checkOwnerHasRows refuses a table that holds rows when none of them belong to
+// the owner: copying would leave it empty and the old rows would be dropped. It
+// runs in the preflight so that the refusal happens before the backup.
+func checkOwnerHasRows(ctx context.Context, q dbmigrate.Tx, pending []rebuild, owner string) error {
+	for _, r := range pending {
+		total, err := countRows(ctx, q, r.old, "")
+		if err != nil {
+			return err
+		}
+		mine, err := countRows(ctx, q, r.old, owner)
+		if err != nil {
+			return err
+		}
+		if total > 0 && mine == 0 {
+			return fmt.Errorf("%w: %s had %d rows, %d belong to the owner, 0 were copied", ErrCopyIncomplete, r.old, total, mine)
 		}
 	}
 
