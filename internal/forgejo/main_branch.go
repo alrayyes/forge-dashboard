@@ -209,40 +209,45 @@ func settledRuns(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) [
 		if len(list) == 0 || len(list) >= jobsPageSize || checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning {
 			continue
 		}
-		var failed, cancelled bool
-		var stopped time.Time
-		over := true
-		for _, j := range list {
-			if j.CompletedAt.After(stopped) {
-				stopped = j.CompletedAt
-			}
-			switch checkStateFromWorkflowStatus(j.Status) {
-			case dashboard.CheckRunning, dashboard.CheckQueued:
-				over = false
-			case dashboard.CheckFailure:
-				failed = true
-			case dashboard.CheckCancelled:
-				cancelled = true
-			case dashboard.CheckSuccess, dashboard.CheckSkipped:
-			}
-		}
+		status, stopped, over := jobsOutcome(list)
 		if !over {
 			continue
 		}
 		settled := *r
 		settled.StoppedAt = stopped
-		switch {
-		case failed:
-			settled.Status = "failure"
-		case cancelled:
-			settled.Status = "cancelled"
-		default:
-			settled.Status = "success"
-		}
+		settled.Status = status
 		out[i] = &settled
 	}
 
 	return out
+}
+
+// jobsOutcome reads a run's finished jobs as the status the run ends in, and the
+// latest time one completed. over is false while any job is running or queued.
+func jobsOutcome(list []*gitea.ActionWorkflowJob) (status string, stopped time.Time, over bool) {
+	var failed, cancelled bool
+	for _, j := range list {
+		if j.CompletedAt.After(stopped) {
+			stopped = j.CompletedAt
+		}
+		switch checkStateFromWorkflowStatus(j.Status) {
+		case dashboard.CheckRunning, dashboard.CheckQueued:
+			return "", time.Time{}, false
+		case dashboard.CheckFailure:
+			failed = true
+		case dashboard.CheckCancelled:
+			cancelled = true
+		case dashboard.CheckSuccess, dashboard.CheckSkipped:
+		}
+	}
+	switch {
+	case failed:
+		return "failure", stopped, true
+	case cancelled:
+		return "cancelled", stopped, true
+	}
+
+	return "success", stopped, true
 }
 
 // jobsPageSize is how many jobs Forgejo answers with when no page size is asked
