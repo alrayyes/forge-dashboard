@@ -87,3 +87,41 @@ a summary line. A table named `single_user_cleanup` records that this step is
 settled, so later starts leave the database alone. Whoever finishes the first
 passkey registration on an empty instance becomes its owner, so register yours
 as soon as a new instance is up.
+
+## Lost your only passkey
+
+An instance has no email or SMS recovery. Whoever controls the host can reopen
+registration with a command of the same binary, run with the same `DB_PATH`
+as the server. It needs only the database, so `ENCRYPTION_KEY` is not required
+for this command. The distroless image has no shell, so call the binary
+directly, without a terminal:
+
+```sh
+docker exec <container> /forge-dashboard reset-passkeys --yes
+# without Docker:
+DB_PATH=./data/forge-dashboard.db ./forge-dashboard reset-passkeys --yes
+```
+
+The command:
+
+- clears the owner's passkeys and signs every session out;
+- keeps the user row, so every saved setting and the webhook token stay, and the
+  passkey you register next attaches to that same user;
+- keeps API tokens, unless you add `--tokens`;
+- copies the database first, next to the original, as
+  `<DB_PATH>.before-reset-passkeys-<UTC timestamp>`, readable only by its owner
+  because it holds every secret the database does. Delete it once you are
+  satisfied; the server never does;
+- logs a `reset-passkeys: cleared the owner's passkeys` warning with what it
+  removed.
+
+If the owner still has a passkey, the command refuses until you pass `--yes`.
+With no passkey registered it changes nothing and says registration is already
+open.
+
+**Registration is open to anyone who can reach the site until the owner
+finishes a passkey.** Run the command when you are ready to register, open the
+site straight away, and register. If a stranger finishes first, they become the
+owner of your settings. Run the command again, then register yours.
+Restrict who can reach the instance while the window is open if it is exposed
+to the internet.
