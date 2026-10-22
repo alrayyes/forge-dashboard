@@ -25,7 +25,12 @@ type JobLogReader interface {
 	JobLog(ctx context.Context, owner, name string, jobID int64) (JobLog, error)
 }
 
-var jobLogEscape = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+// jobLogEscape matches a terminal escape: an OSC string (title, hyperlink),
+// a CSI sequence (colour, cursor), or a short ESC sequence such as a charset
+// switch. Stray control characters other than newline and tab go with them.
+var jobLogEscape = regexp.MustCompile(`\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[ -/]*[0-~]?`)
+
+var jobLogControl = regexp.MustCompile(`[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]`)
 
 // NewJobLog turns the raw bytes a forge sent into a JobLog: colour codes and
 // carriage returns removed, invalid UTF-8 dropped, and only the last
@@ -37,6 +42,7 @@ func NewJobLog(raw []byte, cut bool) JobLog {
 	text = jobLogEscape.ReplaceAllString(text, "")
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\r", "\n")
+	text = jobLogControl.ReplaceAllString(text, "")
 	if len(text) <= MaxJobLogBytes && !cut {
 		return JobLog{Text: text}
 	}
