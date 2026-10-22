@@ -308,7 +308,7 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/github/pull_request_body.go`     | 1     | One pull request                                                                                                                                                    | Yes                               |
 | `internal/github/required_checks.go`       | 3     | Workflow runs, check runs, statuses                                                                                                                                 | Yes                               |
 | `internal/github/rerun.go`                 | 4     | One pull request, commits, check runs, one job                                                                                                                      | Yes                               |
-| `internal/forgejo/advisories.go`           | 2     | The repository's root listing, and one lockfile                                                                                                                     | No, Forgejo sends no ETag         |
+| `internal/forgejo/advisories.go`           | 2     | The repository's root listing, and one lock file                                                                                                                    | No, Forgejo sends no ETag         |
 | `internal/forgejo/client.go`               | 16    | Hooks, repositories, pull requests, issues, labels, reviews, statuses, Actions runs and jobs, protection                                                            | No, Forgejo sends no ETag         |
 | `internal/forgejo/issue_details.go`        | 1     | One issue                                                                                                                                                           | No, Forgejo sends no ETag         |
 | `internal/forgejo/job_log.go`              | 1     | One job's log                                                                                                                                                       | No, Forgejo sends no ETag         |
@@ -341,17 +341,17 @@ Each row is one forge, credential, kind and repo, with four counts:
 
 The kind says why the request was made:
 
-| Kind               | Cause                                                                                                                                                                                |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `full`             | A refresh of the whole account.                                                                                                                                                      |
-| `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                                                                                                                      |
-| `ci_poll`          | A poll of pull requests with a check still running.                                                                                                                                  |
-| `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.                                                                                                   |
-| `details`          | A pull request, issue or check list you opened.                                                                                                                                      |
-| `hook_maintenance` | Checking, adding or upgrading webhooks.                                                                                                                                              |
-| `advisories`       | Reading a repo's open Dependabot alerts, or on Forgejo its root listing and lockfiles, at most every 15 minutes per repo. A failed read, or a first refusal, is tried again after 5. |
-| `user_action`      | A button you pressed, a queued action, or auto-merge and auto-update acting for you.                                                                                                 |
-| `unknown`          | A request nobody tagged. That is a bug in the dashboard; please report it.                                                                                                           |
+| Kind               | Cause                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `full`             | A refresh of the whole account.                                                                                                                                                       |
+| `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                                                                                                                       |
+| `ci_poll`          | A poll of pull requests with a check still running.                                                                                                                                   |
+| `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.                                                                                                    |
+| `details`          | A pull request, issue or check list you opened.                                                                                                                                       |
+| `hook_maintenance` | Checking, adding or upgrading webhooks.                                                                                                                                               |
+| `advisories`       | Reading a repo's open Dependabot alerts, or on Forgejo its root listing and lock files, at most every 15 minutes per repo. A failed read, or a first refusal, is tried again after 5. |
+| `user_action`      | A button you pressed, a queued action, or auto-merge and auto-update acting for you.                                                                                                  |
+| `unknown`          | A request nobody tagged. That is a bug in the dashboard; please report it.                                                                                                            |
 
 A few things to know when you read the numbers:
 

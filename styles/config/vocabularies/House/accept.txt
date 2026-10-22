@@ -98,6 +98,3 @@ lookahead
 lookbehind
 backreferences?
 ETags?
-lockfiles?
-GHSA
-OSV

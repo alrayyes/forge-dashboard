@@ -83,27 +83,27 @@ offers **Reset filters**. A repo with no pipeline says no run was found.
 ## Forgejo advisories
 
 Forgejo has no alerts of its own, so the advisories on a Forgejo row come from
-the repo's lockfiles. The dashboard lists the root of the default branch, reads
-`package-lock.json` (npm lockfile version 2 or 3) and `go.mod` if they are
+the repo's lock files. The dashboard lists the root of the default branch, reads
+`package-lock.json` (npm lock file version 2 or 3) and `go.mod` if they are
 there, and asks [OSV](https://google.github.io/osv.dev/post-v1-querybatch/)
 which of the pinned packages have known advisories. The count is the number of
-distinct advisories, with GHSA and CVE twins counted once, and the severity is
-the highest the advisory database states. An advisory that states none still
-counts, and the pill then shows the count alone. The pill does not link
-anywhere, since OSV has no page for a whole repo.
+distinct advisories, with one flaw listed under two ids counted once, and the
+severity is the highest the advisory database states. An advisory that states
+none still counts, and the pill then shows the count alone. The pill does not
+link anywhere, since OSV has no page for a whole repo.
 
 **The package names and versions in those files are sent to `api.osv.dev`**, for
 private repos too, and nothing else is: no repo name, URL or token. Set
 `OSV_ADVISORIES=off` to turn it off; Forgejo rows then carry no advisories.
 
-A repo with no lockfile the dashboard reads, or one that doesn't parse, is
+A repo with no lock file the dashboard reads, or one that doesn't parse, is
 `unknown`, never zero, and so is one that matches more advisories than a scan
 reads. The page does not flag an unknown Forgejo row, since most repos have no
-lockfile: neither the notice above the list nor the grey dash is about them.
+lock file: neither the notice above the list nor the grey dash is about them.
 An OSV outage keeps the last answer, or shows `unknown` if there is none.
 Answers are cached for fifteen minutes and a failed read is retried after five,
 like the GitHub ones. A read costs one listing of the root plus one read per
-lockfile, counted under the `advisories` kind in [Rate limits](rate-limits.md).
+lock file, counted under the `advisories` kind in [Rate limits](rate-limits.md).
 
 ## When advisories can't be read
 
