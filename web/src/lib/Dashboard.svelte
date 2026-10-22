@@ -2315,9 +2315,7 @@
         case "update_branch":
           return fix === "update_branch" ? null : updateBranchActionCell(pr);
         case "dependabot_rebase":
-          return fix === "dependabot_rebase" || dependabotRebaseHidden(pr)
-            ? null
-            : dependabotActionButton(pr, "rebase");
+          return fix === "dependabot_rebase" ? null : dependabotSplitCell(pr);
         case "renovate_rebase":
           return fix === "renovate_rebase"
             ? null
@@ -2332,6 +2330,13 @@
             return fix === "renovate_rebase"
               ? null
               : renovateRebaseActionCell(pr);
+          // A Rebase locked by a pending Recreate keeps its place, so the row
+          // still says what it is waiting on.
+          if (
+            findAction(pr, "dependabot_rebase")?.blocked?.code ===
+            "already_requested"
+          )
+            return fix === "dependabot_rebase" ? null : dependabotSplitCell(pr);
           if (findAction(pr, "merge")?.blocked) return mergeAction;
           return null;
         default:
@@ -2958,7 +2963,9 @@
         case "update_branch":
           return updateBranchActionCell(item);
         case "dependabot_rebase":
-          return dependabotRebaseCell(item);
+          return idScope === ""
+            ? dependabotSplitCell(item)
+            : dependabotRebaseCell(item);
         case "renovate_rebase":
           return renovateRebaseActionCell(item);
         default:
@@ -2967,8 +2974,7 @@
     }
 
     function dependabotRebaseCell(item: PullRequestItem): HTMLElement | null {
-      return findAction(item, "dependabot_rebase") &&
-        !dependabotRebaseHidden(item)
+      return findAction(item, "dependabot_rebase")
         ? dependabotActionButton(item, "rebase")
         : null;
     }
@@ -3344,10 +3350,14 @@
     // Cancel, a click anywhere else, Escape, or 8 seconds alone. The state
     // lives in confirmArm and mergeState/closeState, not in the row's DOM,
     // so a rebuilt row comes back still armed.
-    type ConfirmKind = "merge" | "close";
+    type ConfirmKind = "merge" | "close" | "recreate";
+    // Dependabot's Recreate is armed the same way: it discards edits made to
+    // the pull request, so it never fires on one click.
+    const recreateState: Record<string, ActionState> = {};
     const confirmStates: Record<ConfirmKind, Record<string, ActionState>> = {
       merge: mergeState,
       close: closeState,
+      recreate: recreateState,
     };
     const splitArmKey = (armKey: string): [ConfirmKind, string] => {
       const at = armKey.indexOf(":");
@@ -3869,9 +3879,9 @@
       };
     }
 
-    // No confirm step — same reasoning as doUpdateBranch: this only
-    // asks Dependabot to redo its own routine, reversible work, not a
-    // merge.
+    // Rebase has no confirm step — same reasoning as doUpdateBranch: it only
+    // asks Dependabot to redo its own routine, reversible work, not a merge.
+    // Recreate discards edits, so its caller arms a confirm first.
     function doDependabotAction(
       item: PullRequestItem,
       action: "rebase" | "recreate",
@@ -3884,14 +3894,6 @@
       };
       markPending(button, true);
       button.textContent = queuedBotLabel(action === "rebase");
-      // Recreate rebuilds the whole pull request, so a Rebase beside it has
-      // no point from the moment it's queued, not once the response lands
-      // and the board re-renders (#792, #834).
-      if (action === "recreate")
-        button
-          .closest(".row")
-          ?.querySelectorAll('[data-bot-action="rebase"]')
-          .forEach((el) => el.remove());
       const fkey = `dependabot:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -3904,6 +3906,13 @@
         bot: action === "rebase" ? botLineInfo("Dependabot") : undefined,
         retry: () => doDependabotAction(item, action, buttonEl("row-action")),
       });
+      // The two commands lock each other from the moment one is queued, not
+      // once the response lands: the other one is redrawn locked, naming this
+      // one. Focus goes back to the button that was clicked.
+      const focusId = button.id;
+      const hadFocus = document.activeElement === button;
+      renderPRBoard();
+      if (hadFocus && focusId) document.getElementById(focusId)?.focus();
 
       fetch("/api/pull-requests/dependabot-action", {
         method: "POST",
@@ -3961,9 +3970,33 @@
         });
     }
 
+    // The reason a Dependabot command can't be sent right now because the
+    // other one is pending, or undefined. Local state answers first, so the
+    // lock is there the moment a click queues the other command; the server's
+    // own entry covers a request made elsewhere or before a reload.
+    function dependabotPendingReason(
+      item: PullRequestItem,
+      action: "rebase" | "recreate",
+    ): string | undefined {
+      const other = action === "rebase" ? "recreate" : "rebase";
+      const phase = dependabotActionState[`${prKey(item)}:${other}`]?.phase;
+      if (phase === "queued" || phase === "rebasing")
+        return `A Dependabot ${other === "rebase" ? "Rebase" : "Recreate"} is pending on this pull request.`;
+      const entry = findAction(
+        item,
+        action === "rebase" ? "dependabot_rebase" : "dependabot_recreate",
+      );
+      return entry?.blocked?.code === "already_requested"
+        ? entry.blocked.message
+        : undefined;
+    }
+
     function dependabotActionButton(
       item: PullRequestItem,
       action: "rebase" | "recreate",
+      // Print the reason of a locked entry beside it, for the menu, where a
+      // hover bubble would be clipped and a touch screen has no hover.
+      printReason = false,
     ): HTMLElement | null {
       const key = `${prKey(item)}:${action}`;
       const entry = dependabotActionState[key] || { phase: "idle" };
@@ -3984,14 +4017,31 @@
         );
 
       if (entry.phase === "idle") {
+        const pending = dependabotPendingReason(item, action);
+        if (pending)
+          return lockedActionButton(
+            DEPENDABOT_ACTION_LABELS[action],
+            pending,
+            undefined,
+            printReason ? "" : undefined,
+          );
         const proactiveReason = proactiveActionLockReason(item.forge);
         if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
           return lockedActionButton(
             DEPENDABOT_ACTION_LABELS[action],
             proactiveReason,
+            undefined,
+            printReason ? "" : undefined,
           );
       }
+
+      if (
+        action === "recreate" &&
+        entry.phase === "idle" &&
+        recreateState[prKey(item)]?.phase === "confirming"
+      )
+        return recreateConfirmCell(item);
 
       const queued = entry.phase === "queued" || entry.phase === "rebasing";
       const button = buttonEl(
@@ -4002,11 +4052,152 @@
       );
       markPending(button, queued);
       button.dataset.botAction = action;
+      button.type = "button";
+      button.id = `${idScope}dependabot-${action}-${domSafeId(prKey(item))}`;
       button.addEventListener("click", () => {
         if (isPending(button)) return;
-        doDependabotAction(item, action, button);
+        if (action === "rebase") {
+          doDependabotAction(item, action, button);
+          return;
+        }
+        botMenuOpen = null;
+        armConfirm("recreate", item);
+        renderPRBoard();
+        document
+          .getElementById(
+            `${idScope}recreate-confirm-${domSafeId(prKey(item))}`,
+          )
+          ?.focus();
       });
       return button;
+    }
+
+    // Recreate's second click. It says what it does, since this is the one
+    // Dependabot command that throws work away.
+    function recreateConfirmCell(item: PullRequestItem): HTMLElement {
+      const key = prKey(item);
+      const scope = idScope;
+      const wrap = el("span", "row-action-group");
+      const confirmButton = buttonEl("row-action confirm", "Confirm recreate?");
+      confirmButton.id = `${scope}recreate-confirm-${domSafeId(key)}`;
+      const noteId = `${scope}recreate-note-${domSafeId(key)}`;
+      confirmButton.setAttribute("aria-describedby", noteId);
+      confirmGroup("recreate", item, wrap, confirmButton, () => {
+        delete recreateState[key];
+        doDependabotAction(item, "recreate", confirmButton);
+      });
+      const note = el(
+        "span",
+        "confirm-hint",
+        "Recreate discards any edits made to this pull request.",
+      );
+      note.id = noteId;
+      wrap.insertBefore(note, wrap.querySelector(".confirm-hint"));
+      return wrap;
+    }
+
+    // ---- the row's split button ----
+    // Rebase is the common, safe command and stays the main button. Recreate
+    // is the heavier fallback, so it sits in a menu behind a chevron. The
+    // menu opens inline, under the button, so a row never clips it. Which
+    // pull request's menu is open lives here and not in the DOM, because a
+    // poll rebuilds the row.
+    let botMenuOpen: string | null = null;
+
+    function closeBotMenu(focusToggle: boolean) {
+      const key = botMenuOpen;
+      if (key === null) return;
+      botMenuOpen = null;
+      renderPRBoard();
+      if (focusToggle)
+        document.getElementById(`recreate-arm-${domSafeId(key)}`)?.focus();
+    }
+
+    document.addEventListener("click", (e) => {
+      if (botMenuOpen === null) return;
+      if (e.target instanceof Element && e.target.closest(".split-button"))
+        return;
+      closeBotMenu(false);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || botMenuOpen === null) return;
+      e.stopImmediatePropagation();
+      closeBotMenu(true);
+    });
+
+    function dependabotSplitCell(item: PullRequestItem): HTMLElement | null {
+      const main = dependabotRebaseCell(item);
+      if (!main) return null;
+      const recreate = dependabotActionButton(item, "recreate", true);
+      if (!recreate) return main;
+      // Armed: the confirm step stands in for the whole split button.
+      if (recreate.classList.contains("confirm-group")) return recreate;
+
+      const key = prKey(item);
+      const safe = domSafeId(key);
+      const open = botMenuOpen === key;
+      const menuId = `dependabot-menu-${safe}`;
+
+      const wrap = el("span", "row-action-group split-button");
+      const bar = el("span", "split-button-bar");
+      bar.appendChild(main);
+      const toggle = buttonEl("row-action split-button-toggle");
+      toggle.type = "button";
+      toggle.id = `recreate-arm-${safe}`;
+      toggle.setAttribute("aria-label", "More Dependabot actions");
+      toggle.setAttribute("aria-haspopup", "menu");
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-controls", menuId);
+      toggle.appendChild(chevronIcon());
+      toggle.addEventListener("click", () => {
+        botMenuOpen = open ? null : key;
+        renderPRBoard();
+        const again = document.getElementById(toggle.id);
+        if (botMenuOpen === null) again?.focus();
+        else
+          document
+            .getElementById(menuId)
+            ?.querySelector<HTMLElement>("button")
+            ?.focus();
+      });
+      bar.appendChild(toggle);
+      wrap.appendChild(bar);
+
+      if (open) {
+        const menu = el("div", "split-button-menu");
+        menu.id = menuId;
+        menu.setAttribute("role", "menu");
+        menu.setAttribute("aria-label", "More Dependabot actions");
+        const itemButton = recreate.matches("button")
+          ? recreate
+          : recreate.querySelector("button");
+        itemButton?.setAttribute("role", "menuitem");
+        if (itemButton) itemButton.id = `recreate-item-${safe}`;
+        menu.appendChild(recreate);
+        wrap.appendChild(menu);
+      }
+      return wrap;
+    }
+
+    function chevronIcon(): SVGElement {
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 12 12");
+      svg.setAttribute("width", "10");
+      svg.setAttribute("height", "10");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      const path = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "path",
+      );
+      path.setAttribute("d", "M2 4.5 6 8.5 10 4.5");
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "currentColor");
+      path.setAttribute("stroke-width", "1.75");
+      path.setAttribute("stroke-linecap", "round");
+      path.setAttribute("stroke-linejoin", "round");
+      svg.appendChild(path);
+      return svg;
     }
 
     // ---- Renovate rebase action ----
@@ -7470,14 +7661,6 @@
       return rebase ? "Rebase requested" : "Recreate requested";
     }
 
-    // Recreate rebuilds the whole pull request, so a Rebase on top of it
-    // has no point while it's pending (#792). A pending Rebase keeps
-    // Recreate: that's still a different outcome.
-    function dependabotRebaseHidden(item: PullRequestItem): boolean {
-      const phase = dependabotActionState[`${prKey(item)}:recreate`]?.phase;
-      return phase === "queued" || phase === "rebasing";
-    }
-
     function queuedRequestInfo(item: PullRequestItem) {
       return {
         prKey: prKey(item),
@@ -7557,7 +7740,7 @@
             kind: (action === "rebase"
               ? "bot-rebase"
               : "bot-recreate") as WaitKind,
-            inline: "Rebase requested",
+            inline: queuedBotLabel(action === "rebase"),
             message: `Dependabot ${action} requested.`,
             bot:
               action === "rebase"

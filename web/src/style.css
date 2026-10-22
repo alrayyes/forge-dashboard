@@ -4438,3 +4438,43 @@ footer a[aria-current="page"] {
 #issue-rows {
   overflow-anchor: none;
 }
+
+/* Dependabot's split button on a bot row: Rebase stays the main button and a
+   chevron opens a menu with Recreate. The menu opens inline, under the
+   button, because the row clips whatever spills out of its cells. */
+.split-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+}
+.split-button-bar {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+}
+.split-button-bar > .row-action,
+.split-button-bar > .row-action-locked {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.split-button-bar > .row-action-locked > .row-action {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.split-button-toggle {
+  justify-content: center;
+  min-width: 30px;
+  padding: 4px 8px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-color: var(--accent-ink);
+}
+.split-button-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 100%;
+}
