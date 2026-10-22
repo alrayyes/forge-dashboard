@@ -273,6 +273,71 @@ test.describe('an issue row opens its dialog', () => {
     await expect(titleButton(page)).toBeFocused();
   });
 
+  test('an open dialog follows the forge: Closed when the issue is closed, Open again when it is reopened', async ({
+    page,
+  }) => {
+    // The snapshot lists open issues only: closing it removes the row, and
+    // the details endpoint is the one that says what the forge has now.
+    let forgeState: 'open' | 'closed' = 'open';
+    await page.route('https://avatars.example.com/u/7', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'image/svg+xml',
+        body: AVATAR,
+      }),
+    );
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    const snapshot = (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues:
+            forgeState === 'open'
+              ? [{ ...ISSUE, updatedAt: new Date().toISOString() }]
+              : [],
+        }),
+      });
+    await page.route('**/api/dashboard/refresh', snapshot);
+    await page.route('**/api/dashboard*', snapshot);
+    await page.route('**/api/issues/details*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...details, state: forgeState }),
+      }),
+    );
+    const refresh = () =>
+      page.evaluate(() =>
+        document.querySelector<HTMLElement>('#force-refresh-button')?.click(),
+      );
+    const status = dialog(page).getByRole('group', { name: 'Status' });
+
+    await page.goto('/issues.html');
+    await titleButton(page).click();
+    await expect(status).toHaveText('Open');
+
+    forgeState = 'closed';
+    await refresh();
+    await expect(status).toHaveText('Closed');
+    await expect(dialog(page)).toBeVisible();
+
+    forgeState = 'open';
+    await refresh();
+    await expect(status).toHaveText('Open');
+
+    forgeState = 'closed';
+    await refresh();
+    await expect(status).toHaveText('Closed');
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     for (const width of [1280, 390]) {
       test(`has no axe violations with the dialog open in ${scheme} at ${width}px`, async ({

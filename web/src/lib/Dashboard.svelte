@@ -393,6 +393,9 @@
   // The dialog's hooks into the board, set once the board exists below.
   let escapeDetails: () => boolean = () => false;
   let detailsClosed: () => void = () => {};
+  // Draws an issue dialog's header status once its details say whether the
+  // forge has the issue closed. Set once the board exists below.
+  let issueStateShown: (closed: boolean) => void = () => {};
 
   // The Issues settings (#1630). The server applies them to what it sends, so
   // this page only stops drawing the two fields they replace and says how many
@@ -1819,6 +1822,48 @@
     // footer but the link to the forge: there is no action on an issue. The
     // board's dialog state (dialogKey) stays null, so a poll neither redraws
     // its footer nor reloads it.
+    // The issue the open dialog shows, and the updatedAt the snapshot had for
+    // it when the dialog last read the forge (undefined while the snapshot
+    // does not list it). The dialog draws its status from its own details, so
+    // a close or a reopen in the forge reaches it through a re-read.
+    let issueDialog: {
+      forge: string;
+      repo: string;
+      number: number;
+      seenUpdatedAt: string | undefined;
+    } | null = null;
+
+    function listedIssue(
+      forge: string,
+      repo: string,
+      number: number,
+      issues: IssueItem[] = rawIssues,
+    ): IssueItem | undefined {
+      return issues.find(
+        (i) => i.forge === forge && i.repo === repo && i.number === number,
+      );
+    }
+
+    // A snapshot that no longer lists the open dialog's issue (it was
+    // closed), lists it again (reopened), or lists it changed has the dialog
+    // read the forge again, quietly, so its status and thread follow.
+    function followIssueDialog(issues: IssueItem[]) {
+      const open = issueDialog;
+      if (!open || !detailsDialog) return;
+      const now = listedIssue(
+        open.forge,
+        open.repo,
+        open.number,
+        issues,
+      )?.updatedAt;
+      if (now === open.seenUpdatedAt) return;
+      open.seenUpdatedAt = now;
+      void detailsDialog.reload().then((ok) => {
+        // A read that failed is tried again on the next snapshot.
+        if (!ok && issueDialog === open) open.seenUpdatedAt = undefined;
+      });
+    }
+
     function openIssueDialog(
       item: IssueDialogItem,
       triggerId: string,
@@ -1834,6 +1879,13 @@
         option: null,
         actions: [],
       });
+      issueDialog = {
+        forge: item.forge,
+        repo: item.repo,
+        number: item.number,
+        seenUpdatedAt: listedIssue(item.forge, item.repo, item.number)
+          ?.updatedAt,
+      };
       detailsDialog?.open(
         { ...item, subject: "issue", status: issueStatus(item) },
         triggerId,
@@ -2045,13 +2097,22 @@
       note.hidden = false;
     }
 
-    // The issue header: it is open (the board lists open issues only), and
-    // its labels as the pull request header shows them.
-    function issueStatus(item: IssueDialogItem): DetailsStatus {
+    // The issue header: open when the dialog opens (the board lists open
+    // issues only), until the dialog's own details say otherwise, and its
+    // labels as the pull request header shows them.
+    function issueStateElement(closed: boolean): HTMLElement {
       const state = el("div", "details-state");
       state.setAttribute("role", "group");
-      state.setAttribute("aria-label", "Status when opened");
-      state.appendChild(el("span", "attr-chip", "Open"));
+      state.setAttribute("aria-label", "Status");
+      state.appendChild(el("span", "attr-chip", closed ? "Closed" : "Open"));
+      return state;
+    }
+
+    issueStateShown = (closed) =>
+      detailsDialog?.setHeaderState(issueStateElement(closed));
+
+    function issueStatus(item: IssueDialogItem): DetailsStatus {
+      const state = issueStateElement(false);
       const attributes = el("div", "attr-cluster");
       attributes.setAttribute("role", "group");
       attributes.setAttribute("aria-label", "Labels when opened");
@@ -2073,6 +2134,7 @@
       }
       dialogKey = null;
       dialogClosed = null;
+      issueDialog = null;
       if (confirmArm.disarm("dropped")) renderPRBoard();
       // The dialog hands focus back to its row. When that row left the board
       // while it was open, focus would fall to the page: put it on the first
@@ -8171,6 +8233,7 @@
       if (botChanged.size > 0) keepFocusAcross(renderPRBoard);
       if (view === "issues") ingestIssues(issues, userAsked);
       else issueBoard.setItems(issues);
+      followIssueDialog(issues);
       if (addressedIssue && !firstRefreshPending(data.firstRefreshDone))
         openAddressedIssue(issues);
     }
@@ -8974,6 +9037,7 @@
   bind:this={detailsDialog}
   onEscape={() => escapeDetails()}
   onClosed={() => detailsClosed()}
+  onIssueState={(closed) => issueStateShown(closed)}
 />
 
 {#if pullsView}
