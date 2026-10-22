@@ -14,7 +14,7 @@ import (
 
 type fakeCreds struct{}
 
-func (fakeCreds) EnsureWebhookCredentials(context.Context, []byte) (string, string, error) {
+func (fakeCreds) EnsureWebhookCredentials(context.Context) (string, string, error) {
 	return "tok", "sekret", nil
 }
 
@@ -68,7 +68,7 @@ func covered(forge dashboard.Forge, names ...string) []dashboard.Repo {
 func upgradingAggregator(t *testing.T, state *dashboard.WebhookUpgrades, srcs ...dashboard.Source) *dashboard.Aggregator {
 	t.Helper()
 	agg := dashboard.NewAggregator(srcs)
-	agg.EnableWebhookUpgrade(t.Context(), []byte("u1"), fakeCreds{}, "https://dash.example", state)
+	agg.EnableWebhookUpgrade(t.Context(), fakeCreds{}, "https://dash.example", state)
 
 	return agg
 }

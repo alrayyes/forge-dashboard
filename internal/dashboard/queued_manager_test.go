@@ -17,7 +17,7 @@ func TestManager_WithAQueueStore_RunsADueQueuedActionAfterAStart(t *testing.T) {
 	t.Parallel()
 	src := &queueSource{health: healthyHealth(), prs: []dashboard.PullRequest{behindPR(5, "alice")}}
 	store := openQueueStore(t, filepath.Join(t.TempDir(), "app.db"))
-	_, _, err := store.EnqueueQueuedAction(t.Context(), queueUser, dashboard.QueuedAction{
+	_, _, err := store.EnqueueQueuedAction(t.Context(), dashboard.QueuedAction{
 		Action: dashboard.ActionUpdateBranch, Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: 5,
 		Status: dashboard.QueuedWaiting, RunAt: time.Now().Add(-time.Hour), CreatedAt: time.Now().Add(-2 * time.Hour),
 	})

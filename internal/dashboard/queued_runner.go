@@ -14,18 +14,17 @@ import (
 // settings a Renovate rebase uses. settings.Store satisfies it. Defined here,
 // in the consuming package.
 type QueuedActionStore interface {
-	QueuedActions(ctx context.Context, userID []byte) ([]QueuedAction, error)
-	UpdateQueuedAction(ctx context.Context, userID []byte, q QueuedAction) (bool, error)
-	PruneQueuedActions(ctx context.Context, userID []byte, cutoff time.Time) error
-	RenovateRebaseLabel(ctx context.Context, userID []byte) (string, error)
-	RenovateAuthors(ctx context.Context, userID []byte) ([]string, error)
+	QueuedActions(ctx context.Context) ([]QueuedAction, error)
+	UpdateQueuedAction(ctx context.Context, q QueuedAction) (bool, error)
+	PruneQueuedActions(ctx context.Context, cutoff time.Time) error
+	RenovateRebaseLabel(ctx context.Context) (string, error)
+	RenovateAuthors(ctx context.Context) ([]string, error)
 }
 
 // queuedActionsConfig is nil on an Aggregator that never called
 // EnableQueuedActions.
 type queuedActionsConfig struct {
-	userID []byte
-	store  QueuedActionStore
+	store QueuedActionStore
 	// wake tells RunQueuedActions the queue changed, so it plans again.
 	wake chan struct{}
 }
@@ -51,10 +50,10 @@ func WithQueuedActionBuffer(d time.Duration) AggregatorOption {
 	return func(a *Aggregator) { a.queuedBuffer = d }
 }
 
-// EnableQueuedActions turns on running the actions userID queued for a forge's
+// EnableQueuedActions turns on running the actions queued for a forge's
 // rate-limit reset. Nothing else is ever run from the queue.
-func (a *Aggregator) EnableQueuedActions(userID []byte, store QueuedActionStore) {
-	a.queued = &queuedActionsConfig{userID: userID, store: store, wake: make(chan struct{}, 1)}
+func (a *Aggregator) EnableQueuedActions(store QueuedActionStore) {
+	a.queued = &queuedActionsConfig{store: store, wake: make(chan struct{}, 1)}
 }
 
 // QueuedActionsChanged tells the scheduler the queue changed, and subscribers
@@ -102,7 +101,7 @@ func (a *Aggregator) RunQueuedActions(ctx context.Context) {
 // least queuedMinWait. With nothing waiting it is a long time: only a wake-up
 // matters then.
 func (a *Aggregator) untilNextQueued(ctx context.Context) time.Duration {
-	items, err := a.queued.store.QueuedActions(ctx, a.queued.userID)
+	items, err := a.queued.store.QueuedActions(ctx)
 	if err != nil {
 		slog.Warn("queued actions: could not load the queue", "error", err)
 
@@ -129,13 +128,13 @@ func (a *Aggregator) ProcessQueuedActions(ctx context.Context) {
 	if cfg == nil {
 		return
 	}
-	items, err := cfg.store.QueuedActions(ctx, cfg.userID)
+	items, err := cfg.store.QueuedActions(ctx)
 	if err != nil {
 		slog.Warn("queued actions: could not load the queue", "error", err)
 
 		return
 	}
-	if err := cfg.store.PruneQueuedActions(ctx, cfg.userID, a.now().Add(-queuedFinishedKeep)); err != nil {
+	if err := cfg.store.PruneQueuedActions(ctx, a.now().Add(-queuedFinishedKeep)); err != nil {
 		slog.Warn("queued actions: could not prune finished actions", "error", err)
 	}
 	if len(a.dueQueued(items)) == 0 {
@@ -144,7 +143,7 @@ func (a *Aggregator) ProcessQueuedActions(ctx context.Context) {
 
 	a.Refresh(ctx)
 	// Read the queue again: a cancel during the refresh must win.
-	items, err = cfg.store.QueuedActions(ctx, cfg.userID)
+	items, err = cfg.store.QueuedActions(ctx)
 	if err != nil {
 		slog.Warn("queued actions: could not load the queue", "error", err)
 
@@ -173,11 +172,11 @@ func (a *Aggregator) dueQueued(items []QueuedAction) []QueuedAction {
 
 func (a *Aggregator) loadRenovateSettings(ctx context.Context) (string, []string) {
 	cfg := a.queued
-	label, err := cfg.store.RenovateRebaseLabel(ctx, cfg.userID)
+	label, err := cfg.store.RenovateRebaseLabel(ctx)
 	if err != nil {
 		slog.Warn("queued actions: could not load the renovate rebase label", "error", err)
 	}
-	authors, err := cfg.store.RenovateAuthors(ctx, cfg.userID)
+	authors, err := cfg.store.RenovateAuthors(ctx)
 	if err != nil {
 		slog.Warn("queued actions: could not load renovate authors", "error", err)
 	}
@@ -361,7 +360,7 @@ func (a *Aggregator) retryUnreachableQueued(ctx context.Context, q QueuedAction)
 // rescheduleQueued keeps q waiting for a later time.
 func (a *Aggregator) rescheduleQueued(ctx context.Context, q QueuedAction, runAt time.Time) {
 	q.RunAt = runAt.UTC()
-	if _, err := a.queued.store.UpdateQueuedAction(ctx, a.queued.userID, q); err != nil {
+	if _, err := a.queued.store.UpdateQueuedAction(ctx, q); err != nil {
 		slog.Warn("queued actions: could not reschedule", "id", q.ID, "error", err)
 	}
 }
@@ -371,7 +370,7 @@ func (a *Aggregator) rescheduleQueued(ctx context.Context, q QueuedAction, runAt
 func (a *Aggregator) finishQueued(ctx context.Context, q QueuedAction, status QueuedStatus, code ActionCode, message string) {
 	at := a.now().UTC()
 	q.Status, q.FinishedAt, q.Code, q.Message = status, &at, code, message
-	found, err := a.queued.store.UpdateQueuedAction(ctx, a.queued.userID, q)
+	found, err := a.queued.store.UpdateQueuedAction(ctx, q)
 	if err != nil {
 		slog.Warn("queued actions: could not record the outcome", "id", q.ID, "error", err)
 

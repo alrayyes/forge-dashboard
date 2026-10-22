@@ -241,7 +241,7 @@ func (a *Aggregator) forgetAutoUpdateChoice(key string) {
 	// from, and a stuck database must not hold up a merge or a webhook.
 	ctx, cancel := context.WithTimeout(context.Background(), forgetAutoUpdateTimeout)
 	defer cancel()
-	if err := a.autoUpdate.lister.ForgetPullRequestAutoUpdates(ctx, a.autoUpdate.userID, []string{key}); err != nil {
+	if err := a.autoUpdate.lister.ForgetPullRequestAutoUpdates(ctx, []string{key}); err != nil {
 		slog.Warn("could not forget a settled pull request's update choice", "pull_request", key, "error", err)
 	}
 }

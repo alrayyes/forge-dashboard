@@ -75,7 +75,7 @@ func setPullRequestAutoUpdateFor(ctx context.Context, deps Deps, u *auth.User, r
 		return "", &statusError{http.StatusNotFound, "pull request not found"}
 	}
 
-	if err := saveAutoUpdateChoice(ctx, deps.SettingsStore, u.ID, req); err != nil {
+	if err := saveAutoUpdateChoice(ctx, deps.SettingsStore, req); err != nil {
 		slog.Warn("could not save pull request auto-update choice", "error", err)
 
 		return "", &statusError{http.StatusInternalServerError, "could not save"}
@@ -86,20 +86,20 @@ func setPullRequestAutoUpdateFor(ctx context.Context, deps Deps, u *auth.User, r
 
 // saveAutoUpdateChoice keeps req's choice only while it differs from the repo's
 // setting, and drops any earlier one otherwise.
-func saveAutoUpdateChoice(ctx context.Context, store *settings.Store, userID []byte, req pullRequestAutoUpdateRequest) error {
+func saveAutoUpdateChoice(ctx context.Context, store *settings.Store, req pullRequestAutoUpdateRequest) error {
 	if req.Enabled == nil {
-		return wrapAutoUpdate(store.ClearPullRequestAutoUpdate(ctx, userID, req.Forge, req.FullName, req.Number))
+		return wrapAutoUpdate(store.ClearPullRequestAutoUpdate(ctx, req.Forge, req.FullName, req.Number))
 	}
-	repos, err := store.AutoUpdateBranchRepos(ctx, userID)
+	repos, err := store.AutoUpdateBranchRepos(ctx)
 	if err != nil {
 		return wrapAutoUpdate(err)
 	}
 	_, repoEnabled := repos[settings.WebhookDeliveryKey(req.Forge, req.FullName)]
 	if *req.Enabled == repoEnabled {
-		return wrapAutoUpdate(store.ClearPullRequestAutoUpdate(ctx, userID, req.Forge, req.FullName, req.Number))
+		return wrapAutoUpdate(store.ClearPullRequestAutoUpdate(ctx, req.Forge, req.FullName, req.Number))
 	}
 
-	return wrapAutoUpdate(store.SetPullRequestAutoUpdate(ctx, userID, req.Forge, req.FullName, req.Number, *req.Enabled))
+	return wrapAutoUpdate(store.SetPullRequestAutoUpdate(ctx, req.Forge, req.FullName, req.Number, *req.Enabled))
 }
 
 // wrapAutoUpdate names the operation on a store error, for the log line.

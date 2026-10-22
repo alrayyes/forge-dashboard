@@ -13,9 +13,9 @@ import (
 // one local setting for it: read the caller and the body, check the repo name,
 // call apply, answer 204. None of them touches the forge, and each is
 // idempotent, so a repeat call is a 204 and not an error.
-func handleRepoSetting(deps Deps, apply func(ctx context.Context, store *settings.Store, userID []byte, forge, fullName string) error) http.HandlerFunc {
+func handleRepoSetting(deps Deps, apply func(ctx context.Context, store *settings.Store, forge, fullName string) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
@@ -37,7 +37,7 @@ func handleRepoSetting(deps Deps, apply func(ctx context.Context, store *setting
 			return
 		}
 
-		if err := apply(r.Context(), deps.SettingsStore, u.ID, req.Forge, req.FullName); err != nil {
+		if err := apply(r.Context(), deps.SettingsStore, req.Forge, req.FullName); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save"))
 
 			return

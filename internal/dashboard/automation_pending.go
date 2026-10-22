@@ -33,7 +33,7 @@ func (a *Aggregator) mergePending(ctx context.Context) bool {
 		return false
 	}
 
-	armed, err := cfg.store.AutoMergeIntents(ctx, cfg.userID)
+	armed, err := cfg.store.AutoMergeIntents(ctx)
 	if err != nil {
 		slog.Warn("auto-merge: could not load armed pull requests", "error", err)
 
@@ -49,13 +49,13 @@ func (a *Aggregator) updatePending(ctx context.Context) bool {
 		return false
 	}
 
-	enabled, err := cfg.lister.AutoUpdateBranchRepos(ctx, cfg.userID)
+	enabled, err := cfg.lister.AutoUpdateBranchRepos(ctx)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load enabled repos", "error", err)
 
 		return false
 	}
-	overrides, err := cfg.lister.PullRequestAutoUpdates(ctx, cfg.userID)
+	overrides, err := cfg.lister.PullRequestAutoUpdates(ctx)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load pull request choices", "error", err)
 		overrides = nil

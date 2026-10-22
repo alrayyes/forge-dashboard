@@ -14,7 +14,7 @@ func TestAggregator_MarkSettled_ForgetsThePullRequestsOwnUpdateChoice(t *testing
 	t.Parallel()
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": false}}
 	agg := dashboard.NewAggregator([]dashboard.Source{&fakeSource{}})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	agg.MarkSettled(dashboard.ForgeGitHub, "alrayyes/a", 1)
 
@@ -32,7 +32,7 @@ func TestAggregator_MarkSettled_LeavesAnotherPullRequestsChoiceAlone(t *testing.
 	t.Parallel()
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": false, "github/alrayyes/a#2": false}}
 	agg := dashboard.NewAggregator([]dashboard.Source{&fakeSource{}})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	agg.MarkSettled(dashboard.ForgeGitHub, "alrayyes/a", 1)
 
@@ -43,7 +43,7 @@ func TestAggregator_MarkSettled_BoundsTheDelete(t *testing.T) {
 	t.Parallel()
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": false}}
 	agg := dashboard.NewAggregator([]dashboard.Source{&fakeSource{}})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	agg.MarkSettled(dashboard.ForgeGitHub, "alrayyes/a", 1)
 
@@ -58,7 +58,7 @@ func TestAggregator_Refresh_AnOpenPullRequestKeepsItsChoice(t *testing.T) {
 		overrides: map[string]bool{"github/alrayyes/a#1": false},
 	}
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	agg.Refresh(t.Context())
 	agg.Refresh(t.Context())
@@ -75,7 +75,7 @@ func TestAggregator_ClosedThenReopened_FollowsTheRepoAgain(t *testing.T) {
 		overrides: map[string]bool{"github/alrayyes/a#1": false},
 	}
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.MarkSettled(dashboard.ForgeGitHub, "alrayyes/a", 1)
 	agg.Unsettle(dashboard.ForgeGitHub, "alrayyes/a", 1)
 

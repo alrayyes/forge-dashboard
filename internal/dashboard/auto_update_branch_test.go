@@ -56,7 +56,7 @@ type fakeAutoUpdateBranchLister struct {
 
 // ForgetPullRequestAutoUpdates deletes the keys from the choices, as the store
 // does, so a later read sees them gone.
-func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(ctx context.Context, _ []byte, keys []string) error {
+func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(ctx context.Context, keys []string) error {
 	_, f.forgetBounded = ctx.Deadline()
 	f.forgotten = append(f.forgotten, keys...)
 	for _, key := range keys {
@@ -66,7 +66,7 @@ func (f *fakeAutoUpdateBranchLister) ForgetPullRequestAutoUpdates(ctx context.Co
 	return nil
 }
 
-func (f *fakeAutoUpdateBranchLister) PullRequestAutoUpdates(_ context.Context, _ []byte) (map[string]bool, error) {
+func (f *fakeAutoUpdateBranchLister) PullRequestAutoUpdates(_ context.Context) (map[string]bool, error) {
 	if f.overridesErr != nil {
 		return nil, f.overridesErr
 	}
@@ -74,11 +74,11 @@ func (f *fakeAutoUpdateBranchLister) PullRequestAutoUpdates(_ context.Context, _
 	return f.overrides, nil
 }
 
-func (f *fakeAutoUpdateBranchLister) RenovateAuthors(_ context.Context, _ []byte) ([]string, error) {
+func (f *fakeAutoUpdateBranchLister) RenovateAuthors(_ context.Context) ([]string, error) {
 	return f.authors, nil
 }
 
-func (f *fakeAutoUpdateBranchLister) AutoUpdateBranchRepos(_ context.Context, _ []byte) (map[string]struct{}, error) {
+func (f *fakeAutoUpdateBranchLister) AutoUpdateBranchRepos(_ context.Context) (map[string]struct{}, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -86,7 +86,7 @@ func (f *fakeAutoUpdateBranchLister) AutoUpdateBranchRepos(_ context.Context, _ 
 	return f.enabled, nil
 }
 
-func (f *fakeAutoUpdateBranchLister) RenovateRebaseLabel(_ context.Context, _ []byte) (string, error) {
+func (f *fakeAutoUpdateBranchLister) RenovateRebaseLabel(_ context.Context) (string, error) {
 	if f.labelErr != nil {
 		return "", f.labelErr
 	}
@@ -111,7 +111,7 @@ func TestAggregator_Refresh_BehindPROnEnabledRepo_UpdatesBranch(t *testing.T) {
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
@@ -131,7 +131,7 @@ func TestAggregator_Refresh_PRNotBehind_LeavesItAlone(t *testing.T) {
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches())
@@ -149,7 +149,7 @@ func TestAggregator_Refresh_BehindPROnRepoNotEnabled_LeavesItAlone(t *testing.T)
 	lister := &fakeAutoUpdateBranchLister{enabled: map[string]struct{}{}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches())
@@ -174,7 +174,7 @@ func TestAggregator_Refresh_BehindReleasePleasePR_NeverUpdated(t *testing.T) {
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches(), "a release-please pull request must never get the generic UpdateBranch call")
@@ -197,7 +197,7 @@ func TestAggregator_Refresh_BehindUnlabelledReleasePleasePR_NeverUpdated(t *test
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches(), "an unlabelled release-please pull request must never get the generic UpdateBranch call")
@@ -219,7 +219,7 @@ func TestAggregator_Refresh_BehindDraftPR_NeverUpdated(t *testing.T) {
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches(), "a draft pull request must never get its branch updated")
@@ -314,7 +314,7 @@ func TestAggregator_Refresh_BehindDependabotPR_PostsRebaseComment(t *testing.T) 
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
@@ -339,7 +339,7 @@ func TestAggregator_Refresh_BehindDependabotPRRESTAuthorForm_PostsRebaseComment(
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments())
@@ -359,7 +359,7 @@ func TestAggregator_Refresh_BehindDependabotPR_NeverCallsUpdateBranch(t *testing
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches(), "a Dependabot PR must go through its own rebase comment, not the generic UpdateBranch")
@@ -379,7 +379,7 @@ func TestAggregator_Refresh_DependabotRebaseThenCIFails_PostsRecreateOnce(t *tes
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	// Dependabot pushed its own rebase commit: no longer behind, but that
@@ -412,7 +412,7 @@ func TestAggregator_Refresh_DependabotRebaseThenHeldForApproval_WaitsThenRecreat
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	// The rebase's CI shows failure only because a workflow waits for a person
@@ -449,7 +449,7 @@ func TestAggregator_Refresh_DependabotRebaseThenCISucceeds_NeverRecreates(t *tes
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	src.result.PullRequests = []dashboard.PullRequest{
@@ -474,7 +474,7 @@ func TestAggregator_Refresh_DependabotRebaseStillPending_DoesNotRecreateYet(t *t
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	// Dependabot's own rebase commit landed (no longer behind), but that
@@ -512,7 +512,7 @@ func TestAggregator_Refresh_DependabotRebaseSilentlyFails_DoesNotRepostForever(t
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	// Every one of these refreshes sees the exact same still-behind,
 	// still-pending pull request — the real shape of a rebase Dependabot
@@ -543,7 +543,7 @@ func TestAggregator_Refresh_DependabotRefusesRecreate_DoesNotRebaseAgain(t *test
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	src.result.PullRequests[0].CI = dashboard.CIFailure
@@ -572,7 +572,7 @@ func TestAggregator_Refresh_DependabotBehindAgainAfterSuccessfulRebase_RebasesAg
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	src.result.PullRequests[0].Behind = false
@@ -602,7 +602,7 @@ func TestAggregator_Refresh_DependabotPRClosedAfterRebase_StopsWatchingWithoutRe
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	// Merged or closed before its rebase's CI ever resolved.
@@ -621,7 +621,7 @@ func TestAggregator_Refresh_ListerErrors_RefreshStillSucceeds(t *testing.T) {
 	lister := &fakeAutoUpdateBranchLister{err: assert.AnError}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	require.NotPanics(t, func() { agg.Refresh(t.Context()) })
 	assert.True(t, agg.Get().Forges[0].Reachable, "a lister failure must not corrupt the snapshot it has nothing to do with")
@@ -642,7 +642,7 @@ func TestAggregator_Refresh_BehindRenovatePR_AddsRebaseLabelInsteadOfUpdatingBra
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1: needs-rebase"}, src.labels())
@@ -664,7 +664,7 @@ func TestAggregator_Refresh_BehindRenovatePROnForgejo_AddsRebaseLabelInsteadOfUp
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1: rebase"}, src.labels())
@@ -686,7 +686,7 @@ func TestAggregator_Refresh_BehindPRFromAConfiguredRenovateAuthor_AddsRebaseLabe
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1: rebase"}, src.labels())
@@ -710,7 +710,7 @@ func TestAggregator_Refresh_BehindRenovatePR_LabelFailureIsLoggedNotFatal(t *tes
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	require.NotPanics(t, func() { agg.Refresh(t.Context()) })
 	assert.True(t, agg.Get().Forges[0].Reachable, "an AddLabel failure must not corrupt the snapshot it has nothing to do with")
@@ -730,7 +730,7 @@ func TestAggregator_Refresh_BehindNonRenovatePR_UnchangedBehavior(t *testing.T) 
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
@@ -761,7 +761,7 @@ func TestAggregator_Refresh_DependabotCommandsBlocked_PostsNothing(t *testing.T)
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.comments())

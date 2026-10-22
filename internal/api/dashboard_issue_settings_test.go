@@ -147,16 +147,6 @@ func TestDashboard_IssueCounts_FollowTheIssuesThatRemain(t *testing.T) {
 	assert.InDelta(t, 3, navIssueTotal(after), 0)
 }
 
-func TestDashboard_IssueSettings_DoNotChangeAnotherUsersBoard(t *testing.T) {
-	t.Parallel()
-	srv, owner := issueSettingsServer(t)
-	other := registerExtraUser(t, srv, testOtherUser, "Alex")
-	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["bug"]}`, other)
-	require.Equal(t, http.StatusOK, status)
-
-	assert.Equal(t, []int{1, 2, 3, 4, 5}, issueNumbers(fetchDashboard(t, srv.URL, owner)))
-}
-
 func TestDashboardStream_AppliesTheIssueSettings(t *testing.T) {
 	t.Parallel()
 	srv, cookie := issueSettingsServer(t)

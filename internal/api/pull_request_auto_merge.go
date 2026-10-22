@@ -45,7 +45,7 @@ func handlePullRequestAutoMerge(deps Deps) http.HandlerFunc {
 func armForgejoAutoMerge(w http.ResponseWriter, r *http.Request, deps Deps, t actionTarget) {
 	forge := t.req.Forge
 
-	intents, err := deps.SettingsStore.AutoMergeIntents(r.Context(), t.user.ID)
+	intents, err := deps.SettingsStore.AutoMergeIntents(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorBody("could not load auto-merge settings"))
 
@@ -64,7 +64,7 @@ func armForgejoAutoMerge(w http.ResponseWriter, r *http.Request, deps Deps, t ac
 		return
 	}
 
-	if err := deps.SettingsStore.ArmAutoMerge(r.Context(), t.user.ID, forge, t.req.FullName, t.req.Number); err != nil {
+	if err := deps.SettingsStore.ArmAutoMerge(r.Context(), forge, t.req.FullName, t.req.Number); err != nil {
 		slog.Warn("could not store auto-merge intent", "forge", forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
 		writeJSON(w, http.StatusInternalServerError, errorBody("could not turn on auto-merge"))
 
@@ -121,7 +121,7 @@ func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
 			}
 		}
 
-		if err := deps.SettingsStore.CancelAutoMerge(r.Context(), t.user.ID, t.req.Forge, t.req.FullName, t.req.Number); err != nil {
+		if err := deps.SettingsStore.CancelAutoMerge(r.Context(), t.req.Forge, t.req.FullName, t.req.Number); err != nil {
 			slog.Warn("could not remove auto-merge intent", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not cancel auto-merge"))
 

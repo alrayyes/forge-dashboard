@@ -31,7 +31,6 @@ func newTestStore(t *testing.T) *settings.Store {
 func TestStore_SetThenGet_RoundTrips(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
 	want := settings.Credentials{
 		GitHubToken:     "ghp_abc123",
@@ -40,9 +39,9 @@ func TestStore_SetThenGet_RoundTrips(t *testing.T) {
 		ForgejoToken:    "fj_xyz789",
 		ForgejoUsername: "ryan",
 	}
-	require.NoError(t, store.Set(t.Context(), userID, want))
+	require.NoError(t, store.Set(t.Context(), want))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, want.GitHubToken, got.GitHubToken)
 	assert.Equal(t, want.GitHubUsername, got.GitHubUsername)
@@ -55,12 +54,11 @@ func TestStore_SetThenGet_RoundTrips(t *testing.T) {
 func TestStore_SetThenGet_RoundTripsRenovateRebaseLabel(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
 	want := settings.Credentials{RenovateRebaseLabel: "retry"}
-	require.NoError(t, store.Set(t.Context(), userID, want))
+	require.NoError(t, store.Set(t.Context(), want))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "retry", got.RenovateRebaseLabel)
 }
@@ -68,12 +66,11 @@ func TestStore_SetThenGet_RoundTripsRenovateRebaseLabel(t *testing.T) {
 func TestStore_SetThenGet_RoundTripsTheme(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
 	want := settings.Credentials{Theme: "dark"}
-	require.NoError(t, store.Set(t.Context(), userID, want))
+	require.NoError(t, store.Set(t.Context(), want))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "dark", got.Theme)
 }
@@ -81,12 +78,11 @@ func TestStore_SetThenGet_RoundTripsTheme(t *testing.T) {
 func TestStore_SetThenGet_RoundTripsGitHubAppInstallationID(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
 	want := settings.Credentials{GitHubAppInstallationID: 42}
-	require.NoError(t, store.Set(t.Context(), userID, want))
+	require.NoError(t, store.Set(t.Context(), want))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), got.GitHubAppInstallationID)
 }
@@ -109,11 +105,10 @@ func TestStore_GitHubAppInstallationID_StoredAsPlainInteger(t *testing.T) {
 	store := settings.NewStore(db, cipher)
 	require.NoError(t, store.Init(t.Context()))
 
-	userID := []byte("user-1")
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubAppInstallationID: 42}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubAppInstallationID: 42}))
 
 	var rawColumn int64
-	require.NoError(t, db.QueryRow(`SELECT github_app_installation_id FROM user_credentials LIMIT 1`).Scan(&rawColumn))
+	require.NoError(t, db.QueryRow(`SELECT github_app_installation_id FROM settings LIMIT 1`).Scan(&rawColumn))
 	assert.Equal(t, int64(42), rawColumn)
 }
 
@@ -121,7 +116,7 @@ func TestStore_Get_NeverSaved_ThemeDefaultsToEmptyMeaningSystem(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.Get(t.Context(), []byte("user-1"))
+	got, err := store.Get(t.Context())
 	require.ErrorIs(t, err, settings.ErrNotFound)
 	assert.Empty(t, got.Theme)
 }
@@ -142,7 +137,7 @@ func TestStore_Get_NeverSaved_ReturnsErrNotFound(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	_, err := store.Get(t.Context(), []byte("nobody"))
+	_, err := store.Get(t.Context())
 
 	assert.ErrorIs(t, err, settings.ErrNotFound)
 }
@@ -150,12 +145,11 @@ func TestStore_Get_NeverSaved_ReturnsErrNotFound(t *testing.T) {
 func TestStore_Set_Twice_ReplacesTheWholeRow(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "first-token"}))
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "second-token"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubToken: "first-token"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubToken: "second-token"}))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "second-token", got.GitHubToken)
 }
@@ -172,15 +166,14 @@ func TestStore_TokensAreEncryptedAtRest(t *testing.T) {
 	store := settings.NewStore(db, cipher)
 	require.NoError(t, store.Init(t.Context()))
 
-	userID := []byte("user-1")
 	const secretToken = "ghp_this-must-never-appear-in-plaintext" // #nosec G101 -- a fake test fixture, not a real credential
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: secretToken}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubToken: secretToken}))
 
 	// Queried by scanning the one row that exists rather than
 	// reconstructing the store's own user-id encoding here — this test
 	// only cares what's in the column, not how the row is addressed.
 	var rawColumn string
-	require.NoError(t, db.QueryRow(`SELECT github_token FROM user_credentials LIMIT 1`).Scan(&rawColumn))
+	require.NoError(t, db.QueryRow(`SELECT github_token FROM settings LIMIT 1`).Scan(&rawColumn))
 	assert.NotContains(t, rawColumn, secretToken, "the raw database column must never hold the plaintext token")
 	assert.NotEmpty(t, rawColumn)
 }
@@ -188,9 +181,8 @@ func TestStore_TokensAreEncryptedAtRest(t *testing.T) {
 func TestStore_EnsureWebhookCredentials_FirstCall_GeneratesNonEmptyValues(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	token, secret, err := store.EnsureWebhookCredentials(t.Context())
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, token)
@@ -201,42 +193,27 @@ func TestStore_EnsureWebhookCredentials_FirstCall_GeneratesNonEmptyValues(t *tes
 func TestStore_EnsureWebhookCredentials_SecondCall_ReturnsTheSameValues(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	firstToken, firstSecret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	firstToken, firstSecret, err := store.EnsureWebhookCredentials(t.Context())
 	require.NoError(t, err)
 
-	secondToken, secondSecret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	secondToken, secondSecret, err := store.EnsureWebhookCredentials(t.Context())
 	require.NoError(t, err)
 
 	assert.Equal(t, firstToken, secondToken, "a webhook already configured on a forge points at this URL — it can't change on every visit to Settings")
 	assert.Equal(t, firstSecret, secondSecret)
 }
 
-func TestStore_EnsureWebhookCredentials_TwoUsers_GetDifferentValues(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	tokenA, secretA, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-a"))
-	require.NoError(t, err)
-	tokenB, secretB, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-b"))
-	require.NoError(t, err)
-
-	assert.NotEqual(t, tokenA, tokenB)
-	assert.NotEqual(t, secretA, secretB)
-}
-
 func TestStore_EnsureWebhookCredentials_AfterExistingSettingsSaved_LeavesThemIntact(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "ghp_existing", GitHubUsername: "ryan"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubToken: "ghp_existing", GitHubUsername: "ryan"}))
 
-	_, _, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	_, _, err := store.EnsureWebhookCredentials(t.Context())
 	require.NoError(t, err)
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "ghp_existing", got.GitHubToken, "generating webhook credentials must not disturb settings already saved")
 	assert.Equal(t, "ryan", got.GitHubUsername)
@@ -245,17 +222,16 @@ func TestStore_EnsureWebhookCredentials_AfterExistingSettingsSaved_LeavesThemInt
 func TestStore_Set_NeverOverwritesAlreadyGeneratedWebhookCredentials(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	token, secret, err := store.EnsureWebhookCredentials(t.Context())
 	require.NoError(t, err)
 
 	// A real settings save (the Settings page's own Save button) — it
 	// doesn't know about webhook credentials at all, and shouldn't need
 	// to for them to survive.
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubUsername: "octocat"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubUsername: "octocat"}))
 
-	gotToken, gotSecret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	gotToken, gotSecret, err := store.EnsureWebhookCredentials(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, token, gotToken)
 	assert.Equal(t, secret, gotSecret)
@@ -264,80 +240,21 @@ func TestStore_Set_NeverOverwritesAlreadyGeneratedWebhookCredentials(t *testing.
 func TestStore_Get_IncludesWebhookCredentialsOnceGenerated(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
+	token, secret, err := store.EnsureWebhookCredentials(t.Context())
 	require.NoError(t, err)
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, token, got.WebhookToken)
 	assert.Equal(t, secret, got.WebhookSecret)
-}
-
-func TestStore_FindByWebhookToken_ReturnsTheOwningUserAndSecret(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-
-	token, secret, err := store.EnsureWebhookCredentials(t.Context(), userID)
-	require.NoError(t, err)
-
-	gotUserID, gotSecret, err := store.FindByWebhookToken(t.Context(), token)
-	require.NoError(t, err)
-	assert.Equal(t, userID, gotUserID)
-	assert.Equal(t, secret, gotSecret)
-}
-
-func TestStore_FindByWebhookToken_UnknownToken_ReturnsErrNotFound(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	_, _, err := store.FindByWebhookToken(t.Context(), "not-a-real-token")
-
-	assert.ErrorIs(t, err, settings.ErrNotFound)
-}
-
-func TestStore_FindByWebhookToken_EmptyToken_ReturnsErrNotFound(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	// Every row that's never called EnsureWebhookCredentials shares ""
-	// as its webhook_token default — this must never resolve to one of
-	// them, or an empty token in a request would pick an arbitrary user.
-	require.NoError(t, store.Set(t.Context(), []byte("user-1"), settings.Credentials{GitHubUsername: "ryan"}))
-	require.NoError(t, store.Set(t.Context(), []byte("user-2"), settings.Credentials{GitHubUsername: "octocat"}))
-
-	_, _, err := store.FindByWebhookToken(t.Context(), "")
-
-	assert.ErrorIs(t, err, settings.ErrNotFound)
-}
-
-func TestStore_FindByWebhookToken_TwoUsers_EachResolvesToTheirOwn(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	tokenA, secretA, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-a"))
-	require.NoError(t, err)
-	tokenB, secretB, err := store.EnsureWebhookCredentials(t.Context(), []byte("user-b"))
-	require.NoError(t, err)
-
-	gotUserIDA, gotSecretA, err := store.FindByWebhookToken(t.Context(), tokenA)
-	require.NoError(t, err)
-	assert.Equal(t, []byte("user-a"), gotUserIDA)
-	assert.Equal(t, secretA, gotSecretA)
-
-	gotUserIDB, gotSecretB, err := store.FindByWebhookToken(t.Context(), tokenB)
-	require.NoError(t, err)
-	assert.Equal(t, []byte("user-b"), gotUserIDB)
-	assert.Equal(t, secretB, gotSecretB)
 }
 
 func TestStore_WebhookDeliveries_NeverRecorded_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.WebhookDeliveries(t.Context(), []byte("user-1"))
+	got, err := store.WebhookDeliveries(t.Context())
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -346,31 +263,19 @@ func TestStore_WebhookDeliveries_NeverRecorded_ReturnsEmpty(t *testing.T) {
 func TestStore_RecordWebhookDelivery_ThenWebhookDeliveries_ReturnsIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.RecordWebhookDelivery(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.RecordWebhookDelivery(t.Context(), "github", "alrayyes/forge-dashboard"))
 
-	got, err := store.WebhookDeliveries(t.Context(), userID)
+	got, err := store.WebhookDeliveries(t.Context())
 	require.NoError(t, err)
 	assert.Contains(t, got, settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard"))
-}
-
-func TestStore_RecordWebhookDelivery_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	require.NoError(t, store.RecordWebhookDelivery(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard"))
-
-	got, err := store.WebhookDeliveries(t.Context(), []byte("user-b"))
-	require.NoError(t, err)
-	assert.Empty(t, got)
 }
 
 func TestStore_GetFilterState_NeverSaved_ReturnsEmptyObject(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.GetFilterState(t.Context(), []byte("user-1"))
+	got, err := store.GetFilterState(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, "{}", got)
@@ -379,11 +284,10 @@ func TestStore_GetFilterState_NeverSaved_ReturnsEmptyObject(t *testing.T) {
 func TestStore_SetFilterState_ThenGetFilterState_RoundTrips(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
+	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
 
-	got, err := store.GetFilterState(t.Context(), userID)
+	got, err := store.GetFilterState(t.Context())
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"shared":{"forge":"github"}}`, got)
 }
@@ -391,12 +295,11 @@ func TestStore_SetFilterState_ThenGetFilterState_RoundTrips(t *testing.T) {
 func TestStore_SetFilterState_Twice_ReplacesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
-	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"forgejo"}}`))
+	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
+	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"forgejo"}}`))
 
-	got, err := store.GetFilterState(t.Context(), userID)
+	got, err := store.GetFilterState(t.Context())
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"shared":{"forge":"forgejo"}}`, got)
 }
@@ -404,13 +307,12 @@ func TestStore_SetFilterState_Twice_ReplacesIt(t *testing.T) {
 func TestStore_SetFilterState_BeforeAnySettingsSaved_StillWorks(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
 	// No Set/EnsureWebhookCredentials call first — a brand-new user who's
 	// never touched Settings at all, only the filter bar.
-	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{}}`))
+	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{}}`))
 
-	got, err := store.GetFilterState(t.Context(), userID)
+	got, err := store.GetFilterState(t.Context())
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"shared":{}}`, got)
 }
@@ -418,12 +320,11 @@ func TestStore_SetFilterState_BeforeAnySettingsSaved_StillWorks(t *testing.T) {
 func TestStore_SetFilterState_AfterExistingSettingsSaved_LeavesThemIntact(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubUsername: "ryan"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubUsername: "ryan"}))
 
-	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
+	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "ryan", got.GitHubUsername, "saving filter state must not disturb settings already saved")
 }
@@ -431,35 +332,23 @@ func TestStore_SetFilterState_AfterExistingSettingsSaved_LeavesThemIntact(t *tes
 func TestStore_Set_NeverOverwritesAlreadySavedFilterState(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.SetFilterState(t.Context(), userID, `{"shared":{"forge":"github"}}`))
+	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
 
 	// A real settings save (the Settings page's own Save button) — it
 	// doesn't know about filter state at all, and shouldn't need to for
 	// it to survive.
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubUsername: "octocat"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubUsername: "octocat"}))
 
-	got, err := store.GetFilterState(t.Context(), userID)
+	got, err := store.GetFilterState(t.Context())
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"shared":{"forge":"github"}}`, got)
-}
-
-func TestStore_FilterState_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	require.NoError(t, store.SetFilterState(t.Context(), []byte("user-a"), `{"shared":{"forge":"github"}}`))
-
-	got, err := store.GetFilterState(t.Context(), []byte("user-b"))
-	require.NoError(t, err)
-	assert.Equal(t, "{}", got)
 }
 
 func TestStore_IgnoredRepos_NoneIgnored_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.IgnoredRepos(t.Context(), []byte("user-1"))
+	got, err := store.IgnoredRepos(t.Context())
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -468,11 +357,10 @@ func TestStore_IgnoredRepos_NoneIgnored_ReturnsEmpty(t *testing.T) {
 func TestStore_IgnoreRepo_ThenIgnoredRepos_ReturnsIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", true, true))
 
-	got, err := store.IgnoredRepos(t.Context(), userID)
+	got, err := store.IgnoredRepos(t.Context())
 	require.NoError(t, err)
 	assert.Contains(t, got, settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard"))
 }
@@ -480,12 +368,11 @@ func TestStore_IgnoreRepo_ThenIgnoredRepos_ReturnsIt(t *testing.T) {
 func TestStore_IgnoreRepo_Twice_IsANoOp(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", true, true))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", true, true))
 
-	got, err := store.IgnoredRepos(t.Context(), userID)
+	got, err := store.IgnoredRepos(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
 }
@@ -493,11 +380,10 @@ func TestStore_IgnoreRepo_Twice_IsANoOp(t *testing.T) {
 func TestStore_IgnoreRepo_PRsOnly_LeavesIssuesVisible(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, false))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", true, false))
 
-	got, err := store.IgnoredRepos(t.Context(), userID)
+	got, err := store.IgnoredRepos(t.Context())
 	require.NoError(t, err)
 	scope := got[settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard")]
 	assert.True(t, scope.PRs)
@@ -507,11 +393,10 @@ func TestStore_IgnoreRepo_PRsOnly_LeavesIssuesVisible(t *testing.T) {
 func TestStore_IgnoreRepo_IssuesOnly_LeavesPRsVisible(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", false, true))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", false, true))
 
-	got, err := store.IgnoredRepos(t.Context(), userID)
+	got, err := store.IgnoredRepos(t.Context())
 	require.NoError(t, err)
 	scope := got[settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard")]
 	assert.False(t, scope.PRs)
@@ -521,12 +406,11 @@ func TestStore_IgnoreRepo_IssuesOnly_LeavesPRsVisible(t *testing.T) {
 func TestStore_IgnoreRepo_RepeatWithDifferentScope_ReplacesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, false))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", true, false))
 
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", false, true))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", false, true))
 
-	got, err := store.IgnoredRepos(t.Context(), userID)
+	got, err := store.IgnoredRepos(t.Context())
 	require.NoError(t, err)
 	scope := got[settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard")]
 	assert.False(t, scope.PRs)
@@ -536,12 +420,11 @@ func TestStore_IgnoreRepo_RepeatWithDifferentScope_ReplacesIt(t *testing.T) {
 func TestStore_UnignoreRepo_RemovesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
+	require.NoError(t, store.IgnoreRepo(t.Context(), "github", "alrayyes/forge-dashboard", true, true))
 
-	require.NoError(t, store.UnignoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.UnignoreRepo(t.Context(), "github", "alrayyes/forge-dashboard"))
 
-	got, err := store.IgnoredRepos(t.Context(), userID)
+	got, err := store.IgnoredRepos(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
@@ -549,29 +432,17 @@ func TestStore_UnignoreRepo_RemovesIt(t *testing.T) {
 func TestStore_UnignoreRepo_NeverIgnored_IsANoOp(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	err := store.UnignoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard")
+	err := store.UnignoreRepo(t.Context(), "github", "alrayyes/forge-dashboard")
 
 	require.NoError(t, err)
-}
-
-func TestStore_IgnoreRepo_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	require.NoError(t, store.IgnoreRepo(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard", true, true))
-
-	got, err := store.IgnoredRepos(t.Context(), []byte("user-b"))
-	require.NoError(t, err)
-	assert.Empty(t, got)
 }
 
 func TestStore_AutoUpdateBranchRepos_NoneEnabled_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.AutoUpdateBranchRepos(t.Context(), []byte("user-1"))
+	got, err := store.AutoUpdateBranchRepos(t.Context())
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -580,11 +451,10 @@ func TestStore_AutoUpdateBranchRepos_NoneEnabled_ReturnsEmpty(t *testing.T) {
 func TestStore_EnableAutoUpdateBranch_ThenAutoUpdateBranchRepos_ReturnsIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), "github", "alrayyes/forge-dashboard"))
 
-	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
+	got, err := store.AutoUpdateBranchRepos(t.Context())
 	require.NoError(t, err)
 	assert.Contains(t, got, settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard"))
 }
@@ -592,12 +462,11 @@ func TestStore_EnableAutoUpdateBranch_ThenAutoUpdateBranchRepos_ReturnsIt(t *tes
 func TestStore_EnableAutoUpdateBranch_Twice_IsANoOp(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
-	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), "github", "alrayyes/forge-dashboard"))
 
-	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
+	got, err := store.AutoUpdateBranchRepos(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
 }
@@ -605,12 +474,11 @@ func TestStore_EnableAutoUpdateBranch_Twice_IsANoOp(t *testing.T) {
 func TestStore_DisableAutoUpdateBranch_RemovesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), "github", "alrayyes/forge-dashboard"))
 
-	require.NoError(t, store.DisableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.DisableAutoUpdateBranch(t.Context(), "github", "alrayyes/forge-dashboard"))
 
-	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
+	got, err := store.AutoUpdateBranchRepos(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
@@ -618,29 +486,17 @@ func TestStore_DisableAutoUpdateBranch_RemovesIt(t *testing.T) {
 func TestStore_DisableAutoUpdateBranch_NeverEnabled_IsANoOp(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	err := store.DisableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard")
+	err := store.DisableAutoUpdateBranch(t.Context(), "github", "alrayyes/forge-dashboard")
 
 	require.NoError(t, err)
-}
-
-func TestStore_EnableAutoUpdateBranch_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard"))
-
-	got, err := store.AutoUpdateBranchRepos(t.Context(), []byte("user-b"))
-	require.NoError(t, err)
-	assert.Empty(t, got)
 }
 
 func TestStore_RenovateRebaseLabel_NeverSaved_ReturnsDefault(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.RenovateRebaseLabel(t.Context(), []byte("user-1"))
+	got, err := store.RenovateRebaseLabel(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, "rebase", got)
@@ -649,10 +505,9 @@ func TestStore_RenovateRebaseLabel_NeverSaved_ReturnsDefault(t *testing.T) {
 func TestStore_RenovateRebaseLabel_ReflectsSavedCredentials(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{RenovateRebaseLabel: "needs-rebase"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{RenovateRebaseLabel: "needs-rebase"}))
 
-	got, err := store.RenovateRebaseLabel(t.Context(), userID)
+	got, err := store.RenovateRebaseLabel(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, "needs-rebase", got)
@@ -661,11 +516,10 @@ func TestStore_RenovateRebaseLabel_ReflectsSavedCredentials(t *testing.T) {
 func TestStore_SetThenGet_RoundTripsTimezone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{Timezone: "Europe/Amsterdam"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{Timezone: "Europe/Amsterdam"}))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "Europe/Amsterdam", got.Timezone)
 }
@@ -674,7 +528,7 @@ func TestStore_Get_NeverSaved_TimezoneDefaultsToEmptyMeaningBrowser(t *testing.T
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.Get(t.Context(), []byte("user-1"))
+	got, err := store.Get(t.Context())
 	require.ErrorIs(t, err, settings.ErrNotFound)
 	assert.Empty(t, got.Timezone)
 }
@@ -682,12 +536,11 @@ func TestStore_Get_NeverSaved_TimezoneDefaultsToEmptyMeaningBrowser(t *testing.T
 func TestStore_SetThenGet_RoundTripsTheIssueHidingSettings(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
 	want := settings.Credentials{HideDependencyDashboard: true, IgnoredTitles: []string{"^Weekly report", "a,b"}}
-	require.NoError(t, store.Set(t.Context(), userID, want))
+	require.NoError(t, store.Set(t.Context(), want))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.True(t, got.HideDependencyDashboard)
 	assert.Equal(t, []string{"^Weekly report", "a,b"}, got.IgnoredTitles, "a comma inside a pattern survives")
@@ -696,10 +549,9 @@ func TestStore_SetThenGet_RoundTripsTheIssueHidingSettings(t *testing.T) {
 func TestStore_NeverSavedIssueHidingSettings_AreOffAndEmpty(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{Theme: "dark"}))
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{Theme: "dark"}))
 
-	got, err := store.Get(t.Context(), userID)
+	got, err := store.Get(t.Context())
 	require.NoError(t, err)
 	assert.False(t, got.HideDependencyDashboard)
 	assert.Empty(t, got.IgnoredTitles)
@@ -718,12 +570,11 @@ func TestStore_Get_CorruptIgnoredTitles_FallsBackToNoPatternsAndKeepsTheRest(t *
 			require.NoError(t, err)
 			store := settings.NewStore(db, cipher)
 			require.NoError(t, store.Init(t.Context()))
-			userID := []byte("user-1")
-			require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "ghp_keep", HideDependencyDashboard: true, IgnoredTitles: []string{"x"}}))
-			_, err = db.ExecContext(t.Context(), `UPDATE user_credentials SET ignored_titles = ?`, bad)
+			require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubToken: "ghp_keep", HideDependencyDashboard: true, IgnoredTitles: []string{"x"}}))
+			_, err = db.ExecContext(t.Context(), `UPDATE settings SET ignored_titles = ?`, bad)
 			require.NoError(t, err)
 
-			got, err := store.Get(t.Context(), userID)
+			got, err := store.Get(t.Context())
 
 			require.NoError(t, err, "a bad list must not take the credentials with it")
 			assert.Empty(t, got.IgnoredTitles)
@@ -731,4 +582,40 @@ func TestStore_Get_CorruptIgnoredTitles_FallsBackToNoPatternsAndKeepsTheRest(t *
 			assert.True(t, got.HideDependencyDashboard)
 		})
 	}
+}
+
+func TestStore_WebhookSecretFor_TheSavedToken_ReturnsTheSecret(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	token, secret, err := store.EnsureWebhookCredentials(t.Context())
+	require.NoError(t, err)
+
+	got, err := store.WebhookSecretFor(t.Context(), token)
+
+	require.NoError(t, err)
+	assert.Equal(t, secret, got)
+}
+
+func TestStore_WebhookSecretFor_AnotherToken_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	_, _, err := store.EnsureWebhookCredentials(t.Context())
+	require.NoError(t, err)
+
+	_, err = store.WebhookSecretFor(t.Context(), "not-a-real-token")
+
+	assert.ErrorIs(t, err, settings.ErrNotFound)
+}
+
+func TestStore_WebhookSecretFor_EmptyToken_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	// Settings saved before the webhook was set up hold an empty token. An
+	// empty token in a request must never match it.
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubUsername: "ryan"}))
+
+	_, err := store.WebhookSecretFor(t.Context(), "")
+
+	assert.ErrorIs(t, err, settings.ErrNotFound)
 }
