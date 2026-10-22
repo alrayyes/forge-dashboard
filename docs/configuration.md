@@ -116,13 +116,15 @@ offered either (GitHub refuses it there, because the parent's branch has no
 protection rule). The snapshot holds open pull requests only, so a parent that
 already merged without the child having its base changed isn't flagged.
 
-When a refresh against a forge fails (a rate limit, a timeout, an error from
-its API), the dashboard keeps showing that forge's last good pull requests,
-issues and repos instead of none, and the forge's health carries `staleSince`,
-the time that data was fetched, next to `reachable: false`. The next good
-refresh replaces it. A forge that has never fetched successfully has nothing
-to show. For what the dashboard does while a forge is limited, see
-[Rate limits](rate-limits.md).
+When a refresh against a forge fails (a rate limit, a timeout, an error from its
+API), the dashboard keeps showing that forge's last good pull requests, issues
+and repos instead of none, and the forge's health carries `staleSince`, the time
+that data was fetched, next to `reachable: false`. The next good refresh
+replaces it. After a restart the saved rows come back the same way, but the
+forge carries `starting: true` and no `errorKind`: it has not been asked yet, so
+it is not an outage. A forge that has never fetched successfully has nothing to
+show. For what the dashboard does while a forge is limited, see [Rate
+limits](rate-limits.md).
 
 ## Reserve for your own actions
 

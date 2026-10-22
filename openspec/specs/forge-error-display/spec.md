@@ -104,3 +104,10 @@ replaces the mark with its real reachability.
 - **WHEN** the first refresh answers for a forge
 - **THEN** the starting notice clears and the chip shows the real
   reachability
+
+#### Scenario: Saved main-branch rows after a restart
+
+- **WHEN** the Main branches page shows rows saved by the last run for a
+  forge that is starting
+- **THEN** a notice says the app is starting up and the rows are the saved
+  ones, and the "forge can't be read" notice is not shown for them
