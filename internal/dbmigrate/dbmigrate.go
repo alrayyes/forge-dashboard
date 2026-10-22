@@ -36,7 +36,11 @@ type Step struct {
 	// keys are checked after it runs, so a dangling key it never touched can't
 	// block it. Empty means every table.
 	Tables []string
-	Run    func(ctx context.Context, tx Tx) error
+	// Preflight, when set, runs before the backup and before anything is
+	// written. It only reads. A step that is bound to refuse says so here, so a
+	// refused start leaves no backup behind and writes nothing.
+	Preflight func(ctx context.Context, q Tx) error
+	Run       func(ctx context.Context, tx Tx) error
 }
 
 // Result says what Run did.
@@ -76,6 +80,15 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 	}
 	if current == len(steps) {
 		return Result{}, nil
+	}
+
+	for i := current; i < len(steps); i++ {
+		if steps[i].Preflight == nil {
+			continue
+		}
+		if err := steps[i].Preflight(ctx, conn); err != nil {
+			return Result{}, fmt.Errorf("migrate: step %q: %w", steps[i].Name, err)
+		}
 	}
 
 	var res Result

@@ -315,3 +315,37 @@ func TestRun_ADanglingKeyInANamedTableRollsTheStepBack(t *testing.T) {
 	require.ErrorIs(t, err, dbmigrate.ErrDanglingForeignKey)
 	assert.Equal(t, 0, count(t, db, `SELECT count(*) FROM child`))
 }
+
+func TestRun_AStepThatWillRefuseTakesNoBackupAndWritesNothing(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	refuse := errors.New("refused up front")
+	ran := false
+	step := dbmigrate.Step{
+		Name:      "refuses",
+		Preflight: func(context.Context, dbmigrate.Tx) error { return refuse },
+		Run:       func(context.Context, dbmigrate.Tx) error { ran = true; return nil },
+	}
+
+	for range 3 { // a refused start repeated must not pile up copies of the database
+		_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+		require.ErrorIs(t, err, refuse)
+	}
+
+	assert.False(t, ran)
+	assert.Empty(t, backups(t, path))
+	assert.Equal(t, 0, count(t, db, `SELECT count(*) FROM sqlite_master WHERE name = 'schema_version'`))
+}
+
+func TestRun_APassingPreflightLetsTheBackupAndTheStepRun(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	step := rebuild
+	step.Preflight = func(context.Context, dbmigrate.Tx) error { return nil }
+
+	res, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, res.BackupPath)
+	assert.Equal(t, 1, version(t, db))
+}
