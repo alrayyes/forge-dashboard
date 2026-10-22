@@ -107,10 +107,6 @@ export async function copyLog(
   return deps.select() ? 'copied' : 'selected';
 }
 
-// What a failed check's Copy button puts on the clipboard: the whole log when
-// the log endpoint answers, else the excerpt the list already carries. `kind`
-// says which landed ("cut" is a whole log the server trimmed to its last
-// KEPT_KB), and `why` says in words why only the excerpt did, when it is that.
 // Where a check's full log is read from, and why there is no address when
 // there is none: no job to read, or a checks address that names no repository.
 export function logSource(
@@ -128,6 +124,10 @@ export function logSource(
       };
 }
 
+// What a failed check's Copy button puts on the clipboard: the whole log when
+// the log endpoint answers, else the excerpt the list already carries. `kind`
+// says which landed ("cut" is a whole log the server trimmed to its last
+// KEPT_KB), and `why` says in words why only the excerpt did, when it is that.
 export type Prepared = {
   text: string;
   kind: 'whole' | 'cut' | 'excerpt';
@@ -216,6 +216,9 @@ export async function copyPending(
 
         return p.text;
       });
+      // If makeItem or write throws before anything awaits `text`, its
+      // rejection would go unhandled; the fallback below reads `pending` itself.
+      text.catch(() => {});
       await deps.clipboard.write([deps.makeItem(text)]);
 
       return { outcome: 'copied', prepared: await pending };

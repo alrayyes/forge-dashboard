@@ -20,6 +20,14 @@ const pr = {
 
 const runUrl = 'https://github.com/alrayyes/forge-dashboard/runs/9';
 
+// A browser that has no async clipboard and refuses the selection copy.
+async function refuseClipboard(page: Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined });
+    document.execCommand = () => false;
+  });
+}
+
 async function setup(
   page: Page,
   log: { status: number; body: unknown },
@@ -292,10 +300,7 @@ test.describe('a check run output in the pipeline dialog', () => {
   test('when the clipboard refuses, the status does not claim anything was copied', async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'clipboard', { value: undefined });
-      document.execCommand = () => false;
-    });
+    await refuseClipboard(page);
     await setup(page, {
       status: 200,
       body: { text: 'whole\n', truncated: false },
@@ -394,10 +399,7 @@ test.describe('a check run output in the pipeline dialog', () => {
   test('when every copy route is refused the whole log is selected in a field and the instruction stays', async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'clipboard', { value: undefined });
-      document.execCommand = () => false;
-    });
+    await refuseClipboard(page);
     await setup(page, {
       status: 200,
       body: { text: 'line one\nline two\n', truncated: false },
@@ -422,10 +424,7 @@ test.describe('a check run output in the pipeline dialog', () => {
   test('pressing Copy log again keeps the field to copy from until the new log arrives', async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'clipboard', { value: undefined });
-      document.execCommand = () => false;
-    });
+    await refuseClipboard(page);
     await setup(page, {
       status: 200,
       body: { text: 'first log\n', truncated: false },
@@ -542,8 +541,12 @@ async function openBranchFailure(
     .click();
 
   return {
-    state,
     dialog: page.getByRole('dialog', { name: /pipeline/i }),
+    state,
+    poll: async () => {
+      state.failed++;
+      await page.clock.runFor(60_000);
+    },
     rerun: async () => {
       state.failed = 2;
       state.jobId = 10;
@@ -557,10 +560,7 @@ test.describe('a rerun gives a failed check a new job', () => {
   test('the field to copy from and its instruction go, so the old log cannot be pasted for the new run', async ({
     page,
   }) => {
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'clipboard', { value: undefined });
-      document.execCommand = () => false;
-    });
+    await refuseClipboard(page);
     const { dialog, rerun } = await openBranchFailure(page);
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
     const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
@@ -573,6 +573,24 @@ test.describe('a rerun gives a failed check a new job', () => {
     );
     await expect(field).toHaveCount(0);
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText('');
+  });
+
+  test('a later excerpt of the same job keeps the field to copy from', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    const { dialog, state, poll } = await openBranchFailure(page);
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await expect(field).toHaveValue('log of job 9\n');
+
+    state.excerpt = 'a later line of the same job';
+    await poll();
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+      'a later line of the same job',
+    );
+    await expect(field).toHaveValue('log of job 9\n');
   });
 
   test('a log still loading when the check is rerun is not written to the clipboard', async ({
@@ -603,34 +621,74 @@ test.describe('a rerun gives a failed check a new job', () => {
 });
 
 test.describe('the copy status line', () => {
-  test('a copy that throws drops the field left by the press before it', async ({
+  test('a selection that throws leaves no hidden field behind and still offers the field to copy from', async ({
     page,
   }) => {
+    await refuseClipboard(page);
     await page.addInitScript(() => {
-      Object.defineProperty(navigator, 'clipboard', { value: undefined });
-      document.execCommand = () => false;
+      const select = HTMLTextAreaElement.prototype.select;
+      HTMLTextAreaElement.prototype.select = function () {
+        // Only the hidden field the copy makes has no label.
+        if (!this.hasAttribute('aria-label')) throw new Error('no selection');
+        select.call(this);
+      };
     });
     await setup(page, {
       status: 200,
       body: { text: 'old log\n', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    await expect(field).toHaveValue('old log\n');
 
-    await page.evaluate(() => {
-      HTMLInputElement.prototype.setSelectionRange = () => {};
-      HTMLTextAreaElement.prototype.select = () => {
-        throw new Error('no selection');
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(
+      dialog.getByRole('textbox', { name: 'Log to copy: build' }),
+    ).toHaveValue('old log\n');
+    await expect(dialog.locator('textarea:not([aria-label])')).toHaveCount(0);
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'Cmd+C',
+    );
+  });
+
+  test('a dialog closed while the log loads is not copied into', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { tries: number };
+      w.tries = 0;
+      Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      document.execCommand = () => {
+        w.tries++;
+
+        return false;
       };
     });
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await setup(page, {
+      status: 200,
+      body: { text: 'x', truncated: false },
+    });
+    await page.route('**/api/checks/log*', async (route) => {
+      await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'x', truncated: false }),
+      });
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
-      "Couldn't copy the log.",
-    );
-    await expect(field).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await page.keyboard.press('Escape');
+    release();
+    await page.waitForTimeout(200);
+
+    expect(
+      await page.evaluate(() => (window as unknown as { tries: number }).tries),
+    ).toBe(0);
   });
 
   test('a second Copied inside ten seconds is announced again', async ({

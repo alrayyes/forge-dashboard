@@ -49,12 +49,14 @@
   }
 
   // The row is keyed by the check's name, so a rerun hands the same component a
-  // new job and excerpt. What was copied or shown for the old one must not stay
-  // for the new one: someone could paste a stale log into a ticket.
+  // new job. What was copied or shown for the old one must not stay for the
+  // new one: someone could paste a stale log into a ticket. The job names the
+  // log; a check with no job copies its excerpt, so that names it instead. A
+  // later excerpt of the same job is the same log and changes nothing.
   let generation = 0;
   let identity: string | undefined;
   $effect.pre(() => {
-    const next = `${jobId ?? ""}\u0000${excerpt}`;
+    const next = jobId ? `job:${jobId}` : `excerpt:${excerpt}`;
     if (identity !== undefined && next !== identity) {
       generation++;
       clearTimeout(timer);
@@ -75,6 +77,8 @@
   // dialog the button sat in when it was clicked: the page outside it is
   // inert, and an inert field can't be copied from.
   function selectCopy(text: string, host: HTMLElement): boolean {
+    // A dialog closed while the log loaded has nobody to copy for.
+    if (host instanceof HTMLDialogElement && !host.open) return false;
     const field = document.createElement("textarea");
     field.value = text;
     field.setAttribute("readonly", "");
@@ -82,17 +86,20 @@
     host.append(field);
     // Selecting the field would take focus from the button; give it back.
     const focused = document.activeElement;
-    field.select();
-    // iOS Safari ignores select() on a readonly field.
-    field.setSelectionRange(0, text.length);
     let done = false;
     try {
+      field.select();
+      // iOS Safari ignores select() on a readonly field.
+      field.setSelectionRange(0, text.length);
       done = document.execCommand("copy");
     } catch {
       done = false;
+    } finally {
+      field.remove();
+      if (focused instanceof HTMLElement) {
+        focused.focus({ preventScroll: true });
+      }
     }
-    field.remove();
-    if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
 
     return done;
   }
@@ -147,7 +154,7 @@
     } catch {
       // keep the generic line, and drop a field left by an earlier press: it
       // holds a log this press did not produce
-      manual = "";
+      if (run === generation) manual = "";
     } finally {
       // A removed row has no status left to show; there is nothing to announce.
       if (!gone && run === generation) {

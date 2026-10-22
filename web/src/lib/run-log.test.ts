@@ -382,4 +382,31 @@ describe('copyPending', () => {
     expect(selected).toEqual(['full']);
     expect(out.outcome).toBe('copied');
   });
+
+  test('an empty answer with a clipboard item that throws leaves no unhandled rejection', async () => {
+    const seen: unknown[] = [];
+    const onUnhandled = (e: unknown) => seen.push(e);
+    process.on('unhandledRejection', onUnhandled);
+    const empty = Promise.resolve({
+      text: '',
+      kind: 'whole' as const,
+      why: '',
+    });
+
+    const result = await copyPending(empty, {
+      clipboard: {
+        writeText: async () => {},
+        write: async () => {},
+      },
+      makeItem: () => {
+        throw new Error('no item');
+      },
+      select: () => false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off('unhandledRejection', onUnhandled);
+
+    expect(result.outcome).toBe('nothing');
+    expect(seen).toEqual([]);
+  });
 });
