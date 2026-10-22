@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.3](https://github.com/alrayyes/forge-dashboard/compare/v2.5.2...v2.5.3) (2026-10-22)
+
+
+### Bug Fixes
+
+* **logs:** keep the first whole line when a job log is cut on a line start ([#2513](https://github.com/alrayyes/forge-dashboard/issues/2513)) ([183902f](https://github.com/alrayyes/forge-dashboard/commit/183902f9149c70d52fc08887f24d7ce6903297d5))
+
 ## [2.5.2](https://github.com/alrayyes/forge-dashboard/compare/v2.5.1...v2.5.2) (2026-10-22)
 
 
