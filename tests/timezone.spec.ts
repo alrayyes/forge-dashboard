@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { landOnPullRequests, test } from './server-fixture';
+import { test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
 
 // Times show in one zone, with its name, everywhere (#996). The zone is the
@@ -163,10 +163,6 @@ test.describe('a browser that reports UTC (#996)', () => {
 test.describe('the time zone control on Settings (#996)', () => {
   test.use({ locale: 'en-GB', timezoneId: 'Europe/Amsterdam' });
 
-  test.beforeEach(async ({ page }) => {
-    await landOnPullRequests(page);
-  });
-
   test('defaults to the browser zone, named in the option', async ({
     page,
   }) => {
@@ -195,6 +191,7 @@ test.describe('the time zone control on Settings (#996)', () => {
     await expect(preview).toContainText(/\d{2}:\d{2} UTC/);
     await expect(page.locator('#timezone-status')).toHaveText('');
 
+    // The reload is the point: it proves the saved zone survives one.
     await page.reload();
     await expect(page.getByLabel('Time zone')).toHaveValue('UTC');
 
@@ -204,6 +201,9 @@ test.describe('the time zone control on Settings (#996)', () => {
 
   test('choosing the browser default saves an empty name', async ({ page }) => {
     await page.goto('/settings.html#display');
+    // Wait for the saved zone to arrive: a pick made before it does is
+    // overwritten when it lands.
+    await expect(page.locator('#timezone-preview')).toContainText('CEST');
     await page.getByLabel('Time zone').selectOption('UTC');
     await expect(page.locator('#timezone-preview')).toContainText('UTC');
 
@@ -229,6 +229,7 @@ test.describe('the time zone control on Settings (#996)', () => {
         : route.continue(),
     );
     await page.goto('/settings.html#display');
+    await expect(page.locator('#timezone-preview')).toContainText('CEST');
     await page.getByLabel('Time zone').selectOption('UTC');
     await expect(page.locator('#timezone-status')).toHaveText(
       'Could not save time zone.',
