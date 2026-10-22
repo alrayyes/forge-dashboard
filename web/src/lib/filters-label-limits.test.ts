@@ -139,3 +139,33 @@ describe('labels in a multibyte script', () => {
     expect(encoded.length).toBeLessThanOrEqual(MAX_ENCODED);
   });
 });
+
+// Label, Repo and Author share the one filter cookie, so the three picks
+// together, not each alone, have to fit what a browser keeps of it.
+describe('the three picks together stay inside the cookie', () => {
+  const multibyte = (tag: string) =>
+    Array.from({ length: 20 }, (_, i) => `${tag}${i}`.padEnd(60, '日'));
+
+  test('full picks of all three are cut so the saved cookie keeps room for the rest', () => {
+    const value = JSON.stringify({
+      shared: {
+        label: multibyte('l').join('\n'),
+        repo: multibyte('github:r').join('\n'),
+        author: multibyte('a').join('\n'),
+      },
+      rev: 1,
+    });
+    Object.assign(globalThis, {
+      document: { cookie: `forge-board-filters=${encodeURIComponent(value)}` },
+    });
+    const state = loadState();
+    saveState(state);
+    const written = String(
+      (globalThis as unknown as { document: { cookie: string } }).document
+        .cookie,
+    );
+    const nameAndValue = written.split(';')[0];
+    // 4096 is what a browser keeps; 500 is left for the other filters.
+    expect(nameAndValue.length).toBeLessThanOrEqual(3600);
+  });
+});

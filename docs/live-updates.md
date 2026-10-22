@@ -213,8 +213,9 @@ with 44px choices.
 A label saved before the list existed is read as a list of one, so nothing
 needs doing after an upgrade. A pick holds up to 20 labels and 1000
 characters, and the server refuses a longer one. The browser keeps the saved
-filters in one cookie of about 4 KB, so the pick is also held to 2000
-characters as that cookie writes it; labels in a script that takes several
+filters in one cookie of about 4 KB, and label, repo and author each
+take a share of it, so a pick is also held to 1000 characters as that cookie
+writes it; labels in a script that takes several
 bytes a letter run out of room sooner, and the page stops ticking more once
 the room is gone. A saved pick over any of these limits is cut down to fit
 when the page loads. If the server still refuses a save, the page says the

@@ -22,10 +22,11 @@ export const MAX_CHARS = 1000;
 // whole cookie, name and value (RFC 6265 section 6.1 asks for at least that;
 // Chrome and Firefox stop there), and the saved filters share one cookie. A
 // label in a multibyte script is up to nine characters on the wire for each one
-// typed (three bytes, each as %XX), so the pick is also held to this many
-// characters once written as the cookie writes it, which leaves the rest of
-// the cookie for the other filters.
-export const MAX_ENCODED = 2000;
+// typed (three bytes, each as %XX), so each pick is also held to this many
+// characters once written as the cookie writes it. Label, repo and author
+// share the one cookie, so three full picks take three times this and the
+// rest of the cookie is left for the other filters.
+export const MAX_ENCODED = 1000;
 
 // The pick as the cookie carries it: quoted in JSON, then percent-encoded.
 export function encodedSize(joined: string): number {

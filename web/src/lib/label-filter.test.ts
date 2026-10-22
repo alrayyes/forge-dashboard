@@ -53,7 +53,7 @@ describe('the size of a pick', () => {
   });
 
   test('keeps at most a thousand characters, skipping a label that would pass it', () => {
-    const big = 'a'.repeat(990);
+    const big = 'a'.repeat(980);
     expect(parseLabels(`${big}\n${'b'.repeat(20)}\nc`)).toEqual([big, 'c']);
   });
 
