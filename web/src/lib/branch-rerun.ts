@@ -10,6 +10,8 @@ import {
 } from './action-error';
 import { copyButton } from './copy-details';
 import type { FailureDetails } from './feedback';
+import type { ForgeLock } from './forge-lock';
+import { msUntilReset } from './rate-limit';
 
 // How long a queued rerun is held, so the same rerun can't be queued twice.
 const HOLD_MS = 10 * 60 * 1000;
@@ -30,6 +32,13 @@ export function createBranchRerun() {
   // One timer per repository, set when a rerun is queued so the control redraws
   // when the hold ends even if nothing else does.
   const releases = new Map<string, ReturnType<typeof setTimeout>>();
+  // One timer per repository while its forge's rate limit holds the control
+  // back, so the button returns when the limit lifts even with no poll.
+  const unlocks = new Map<
+    string,
+    { at: string; timer: ReturnType<typeof setTimeout> }
+  >();
+  const MAX_UNLOCK_WAIT_MS = 5 * 60 * 1000;
   const keyOf = (t: RerunTarget) => `${t.forge}\u0000${t.fullName}`;
 
   // A queued rerun is held until the branch's CI moves on or the hold runs out.
@@ -55,6 +64,8 @@ export function createBranchRerun() {
       // No control is left to redraw, so the hold's timer has nothing to do.
       clearTimeout(releases.get(key));
       releases.delete(key);
+      clearTimeout(unlocks.get(key)?.timer);
+      unlocks.delete(key);
     }
   }
 
@@ -75,9 +86,14 @@ export function createBranchRerun() {
     throw await readActionFailure(res);
   }
 
-  // The control to draw above the list. `signature` is the row's CI signature,
-  // read again by the caller for each draw.
-  function control(t: RerunTarget, signature: () => string): HTMLElement {
+  // The control to draw above the list. `signature` is the row's CI signature
+  // and `lock` is why the forge would refuse a rerun, both read again by the
+  // caller for each draw.
+  function control(
+    t: RerunTarget,
+    signature: () => string,
+    lock: () => ForgeLock | null = () => null,
+  ): HTMLElement {
     const key = keyOf(t);
     const wrap = document.createElement('div');
     wrap.className = 'pipeline-rerun';
@@ -94,35 +110,89 @@ export function createBranchRerun() {
     failure.setAttribute('role', 'alert');
     failureBox.appendChild(failure);
 
+    let shownFailure: unknown = null;
     const sync = () => {
       const isHeld = held(t, signature());
+      // A forge that can't be reached or has no budget left would refuse the
+      // click, so there is no button, only the reason.
+      const locked = lock();
+      // Deliberate, though it writes from a draw: a refusal from before the
+      // lock is stale once the lock lifts, for every view of this repository.
+      if (locked && states.get(key)?.phase === 'failed') states.delete(key);
       const state = states.get(key);
       const sending = state?.phase === 'requesting';
+      if (locked) {
+        // Take keyboard focus along, or it drops to the page.
+        if (document.activeElement === button) {
+          wrap.tabIndex = -1;
+          wrap.focus();
+        }
+        button.remove();
+      } else if (!button.isConnected) {
+        wrap.prepend(button);
+        // Focus was parked on the wrapper while the button was away.
+        if (document.activeElement === wrap) button.focus();
+        wrap.removeAttribute('tabindex');
+      }
       button.textContent = isHeld ? 'Rerun queued' : 'Rerun failed checks';
       // Pending, not disabled, so the button keeps focus.
       if (isHeld || sending) button.setAttribute('aria-disabled', 'true');
       else button.removeAttribute('aria-disabled');
-      status.textContent = isHeld
-        ? 'Rerun queued. The new results show here after the next refresh.'
-        : sending
-          ? 'Queuing the rerun…'
-          : '';
-      for (const extra of failureBox.querySelectorAll(
-        '.pipeline-rerun-copy, .feedback-details',
-      ))
-        extra.remove();
-      if (state?.phase === 'failed') {
-        failure.textContent = state.message;
-        failureBox.hidden = false;
-        failureBox.appendChild(
-          copyButton(state.details, 'row-action pipeline-rerun-copy'),
-        );
-      } else {
-        failureBox.hidden = true;
-        failure.textContent = '';
+      // The lock adds to what the status already says; it never replaces it.
+      const text = [
+        isHeld
+          ? 'Rerun queued. The new results show here after the next refresh.'
+          : sending
+            ? 'Queuing the rerun…'
+            : '',
+        locked?.reason ?? '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      // A live region: write only a change, or each redraw re-announces it.
+      if (status.textContent !== text) status.textContent = text;
+      // Armed once per reset time, so a redraw does not restart it. Only a
+      // rate limit says when it ends; an unreachable forge is looked at again
+      // by the next poll's redraw.
+      const at = locked?.resetsAt;
+      if (unlocks.get(key)?.at !== at) {
+        clearTimeout(unlocks.get(key)?.timer);
+        unlocks.delete(key);
+        // setTimeout wraps past about 24 days and would fire at once, looping;
+        // the next poll arms it again anyway.
+        const left = at ? msUntilReset(at) : null;
+        // A reset that passed since the lock was computed: look again shortly.
+        const wait = Math.min(left ?? 250, MAX_UNLOCK_WAIT_MS);
+        if (at)
+          unlocks.set(key, {
+            at,
+            timer: setTimeout(() => {
+              unlocks.delete(key);
+              syncAll(key);
+            }, wait),
+          });
+      }
+      // Drawn once per failure, so a redraw keeps the Copy button's focus and
+      // its "Copied" feedback.
+      const failed = state?.phase === 'failed' ? state : null;
+      if (failed !== shownFailure) {
+        shownFailure = failed;
+        for (const extra of failureBox.querySelectorAll(
+          '.pipeline-rerun-copy, .feedback-details',
+        ))
+          extra.remove();
+        if (failed) {
+          failure.textContent = failed.message;
+          failureBox.hidden = false;
+          failureBox.appendChild(
+            copyButton(failed.details, 'row-action pipeline-rerun-copy'),
+          );
+        } else {
+          failureBox.hidden = true;
+          failure.textContent = '';
+        }
       }
     };
-    sync();
     const view = { node: wrap, sync };
     const live = views.get(key) ?? new Set();
     views.set(key, live);
@@ -130,6 +200,8 @@ export function createBranchRerun() {
 
     button.addEventListener('click', () => {
       if (button.getAttribute('aria-disabled') === 'true') return;
+      // A snapshot may have locked the forge since the last draw.
+      if (lock()) return sync();
       const sig = signature();
       states.set(key, { phase: 'requesting' });
       syncAll(key);
@@ -161,9 +233,13 @@ export function createBranchRerun() {
         .finally(() => syncAll(key));
     });
 
-    wrap.append(button, status, failureBox);
+    wrap.append(status, failureBox);
+    sync();
     return wrap;
   }
 
-  return { control };
+  // Draws the controls for t again, when something outside them changed.
+  const redraw = (t: RerunTarget) => syncAll(keyOf(t));
+
+  return { control, redraw };
 }

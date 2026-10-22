@@ -5974,7 +5974,7 @@ components:
 
     MainBranches:
       type: object
-      required: [generatedAt, counts, branches]
+      required: [generatedAt, counts, forges, branches]
       properties:
         generatedAt:
           type: string
@@ -5982,6 +5982,16 @@ components:
           description: When the snapshot was refreshed, not when it was requested.
         counts:
           $ref: "#/components/schemas/MainBranchCounts"
+        forges:
+          type: array
+          description: >-
+            Each forge's health as of the last refresh, the same as the
+            dashboard's. A client uses it to hold back an action that a forge
+            which can't be reached, or whose rate limit is spent, would
+            probably refuse. The budget can run out between refreshes, so the
+            forge still has the final say.
+          items:
+            $ref: "#/components/schemas/ForgeHealth"
         branches:
           type: array
           items:
