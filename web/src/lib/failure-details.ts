@@ -22,7 +22,7 @@ function capped(raw: unknown): unknown {
 // context and when it happened.
 export function failureDetails(
   err: FailedRequest,
-  context: { action: string; forge: string; repo: string; number: number },
+  context: { action: string; forge: string; repo: string; number?: number },
   now: Date = new Date(),
 ): FailureDetails {
   const base = { ...context, at: now.toISOString() };

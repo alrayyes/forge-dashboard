@@ -17,7 +17,7 @@ export type FailureDetails = {
   action: string;
   forge: string;
   repo: string;
-  number: number;
+  number?: number;
   at: string;
 };
 
