@@ -157,11 +157,13 @@ stops with `run the previous release first`. Upgrading takes two releases: start
 the release that removes the extra users first, let it finish, then start this
 one. A refused start writes nothing and takes no copy.
 
-Rows keyed to a user that is not in the `users` table belong to nobody, so the
-rebuild refuses them too, whether or not the owner has rows in the same table.
-That holds for the sessions, API tokens and passkey labels as well.
-The message names the table and the user ids and gives the `DELETE` that clears
-them. Copy the database file, run it, and start again. Nothing is deleted for you.
+Settings rows keyed to a user that is not in the `users` table belong to nobody,
+so that rebuild refuses them, whether or not the owner has rows in the same
+table. The message names the table and the user ids and gives the `DELETE` that
+clears them. Copy the database file, run it, and start again. Nothing is deleted
+for you. Sessions, API tokens and passkey labels of an unknown user are
+different: the earlier cleanup removed them without a word, so the sign-in
+rebuild drops them and logs the table, the count and the user ids.
 
 Rows of another user who still exists, left beside the owner's by a second
 registration after the extra users were removed, are not an error: the oldest

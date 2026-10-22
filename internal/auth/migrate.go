@@ -22,11 +22,6 @@ var ErrSeveralUsers = errors.New("auth: the database has several users and the s
 // tables would lose them.
 var ErrNoOwner = errors.New("auth: sessions, tokens or passkey labels exist but no user owns them")
 
-// ErrOrphanRows is returned when a table holds rows keyed to a user id that is
-// not in users. Nobody can reach them, and copying only the owner's rows would
-// drop them without a word, so the migration stops and says which ids.
-var ErrOrphanRows = errors.New("auth: rows belong to a user that does not exist")
-
 // ErrCopyIncomplete is returned when a table's rows did not all reach its new
 // shape. The step rolls back, so the old table is still there.
 var ErrCopyIncomplete = errors.New("auth: rows were lost in the copy")
@@ -122,12 +117,9 @@ func preflightDropUserID(ctx context.Context, q dbmigrate.Tx) error {
 	if err != nil || len(pending) == 0 {
 		return err
 	}
-	owner, err := chooseAuthOwner(ctx, q, pending)
-	if err != nil {
-		return err
-	}
+	_, err = chooseAuthOwner(ctx, q, pending)
 
-	return checkNoOrphans(ctx, q, pending, owner)
+	return err
 }
 
 func dropAuthUserID(ctx context.Context, tx dbmigrate.Tx, log *slog.Logger) error {
@@ -137,9 +129,6 @@ func dropAuthUserID(ctx context.Context, tx dbmigrate.Tx, log *slog.Logger) erro
 	}
 	owner, err := chooseAuthOwner(ctx, tx, pending)
 	if err != nil {
-		return err
-	}
-	if err := checkNoOrphans(ctx, tx, pending, owner); err != nil {
 		return err
 	}
 	for _, r := range pending {
@@ -246,49 +235,11 @@ func requireNoOwnedRows(ctx context.Context, q dbmigrate.Tx, pending []authRebui
 	return nil
 }
 
-// checkNoOrphans stops on rows keyed to a user id that is not in users, even
-// beside the owner's own. Rows of another user who still exists are different:
-// the owner wins, and the step logs what it drops. The migration never deletes
-// an orphan itself.
-func checkNoOrphans(ctx context.Context, q dbmigrate.Tx, pending []authRebuild, owner string) error {
-	if owner == "" {
-		return nil
-	}
-	for _, r := range pending {
-		if r.copyAll {
-			continue
-		}
-		ids, err := r.otherIDs(ctx, q, owner, true)
-		if err != nil {
-			return err
-		}
-		if len(ids) > 0 {
-			return fmt.Errorf("%w: %s has rows for user ids that are not in users (%s); copy the database file, delete them with DELETE FROM %s WHERE %s IN (%s), then start again, or restore a backup",
-				ErrOrphanRows, r.table, strings.Join(ids, ", "), r.table, r.column, quoteAll(ids))
-		}
-	}
-
-	return nil
-}
-
-func quoteAll(ids []string) string {
-	quoted := make([]string, 0, len(ids))
-	for _, id := range ids {
-		quoted = append(quoted, "'"+strings.ReplaceAll(id, "'", "''")+"'")
-	}
-
-	return strings.Join(quoted, ", ")
-}
-
-// otherIDs lists the user ids in the table other than the owner's, or only
-// those missing from users when orphans is true. Names are constants of this
-// file, never input.
-func (r authRebuild) otherIDs(ctx context.Context, q dbmigrate.Tx, owner string, orphans bool) ([]string, error) {
-	query := `SELECT DISTINCT ` + r.column + ` FROM ` + r.table + ` WHERE ` + r.column + ` != ?`
-	if orphans {
-		query += ` AND ` + r.column + ` NOT IN (SELECT id FROM users)`
-	}
-	rows, err := q.QueryContext(ctx, query+` ORDER BY `+r.column, owner)
+// otherIDs lists the user ids in the table other than the owner's, whether or
+// not they are in users. Names are constants of this file, never input.
+func (r authRebuild) otherIDs(ctx context.Context, q dbmigrate.Tx, owner string) ([]string, error) {
+	query := `SELECT DISTINCT ` + r.column + ` FROM ` + r.table + ` WHERE ` + r.column + ` != ? ORDER BY ` + r.column
+	rows, err := q.QueryContext(ctx, query, owner)
 	if err != nil {
 		return nil, fmt.Errorf("list the other user ids in %s: %w", r.table, err)
 	}
@@ -324,13 +275,15 @@ func (r authRebuild) count(ctx context.Context, q dbmigrate.Tx, table, owner str
 	return n, nil
 }
 
-// logDropped says which other users' rows a table loses to the owner's. They
-// are in the backup taken first. Ids are logged, never tokens or hashes.
+// logDropped says which other user ids' rows a table loses to the owner's,
+// whether the user still exists or the rows are orphans nobody could reach. The
+// old cleanup removed orphans without a word, so they never stop the start.
+// They are in the backup taken first. Ids are logged, never tokens or hashes.
 func (r authRebuild) logDropped(ctx context.Context, q dbmigrate.Tx, owner string, log *slog.Logger) error {
 	if r.copyAll {
 		return nil
 	}
-	ids, err := r.otherIDs(ctx, q, owner, false)
+	ids, err := r.otherIDs(ctx, q, owner)
 	if err != nil || len(ids) == 0 {
 		return err
 	}
@@ -342,7 +295,7 @@ func (r authRebuild) logDropped(ctx context.Context, q dbmigrate.Tx, owner strin
 	if err != nil {
 		return err
 	}
-	log.Warn("migrate: the owner's rows win; another user's rows are dropped and kept only in the backup",
+	log.Warn("migrate: the owner's rows win; rows of other user ids are dropped and kept only in the backup",
 		slog.String("table", r.table),
 		slog.Int("dropped_rows", total-mine),
 		slog.String("user_id", strings.Join(ids, ",")))

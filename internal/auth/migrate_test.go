@@ -237,23 +237,24 @@ func TestMigrate_SeveralUsersButCleanupMarker_KeepsTheOwnersRowsAndWarnsAboutThe
 	assert.NotContains(t, logs.String(), "hash-three")
 }
 
-func TestMigrate_RowsOfAUnknownUser_AbortWithoutABackupAndSayWhatToDo(t *testing.T) {
+func TestMigrate_RowsOfAUnknownUser_AreDroppedWithAWarning(t *testing.T) {
 	db, path := openMigrationDB(t)
 	seedOldShape(t, db)
 	mustExec(t, db, `PRAGMA foreign_keys = OFF`)
 	mustExec(t, db, `INSERT INTO sessions VALUES ('ghost-session', 'ghost', '2099-01-01 00:00:00', '2026-02-01 00:00:00')`)
+	mustExec(t, db, `INSERT INTO credential_metadata VALUES ('ghost', 'cred-g', 'Key', '2026-01-01 00:00:00')`)
+	before := scalar[int](t, db, `SELECT count(*) FROM sessions WHERE user_id != 'ghost'`)
 
-	for range 2 {
-		_, err := migrate(t, db, path)
+	var logs strings.Builder
+	_, err := migrateLogged(t, db, path, slog.New(slog.NewTextHandler(&logs, nil)))
 
-		require.ErrorIs(t, err, auth.ErrOrphanRows)
-		assert.Contains(t, err.Error(), "sessions")
-		assert.Contains(t, err.Error(), "ghost")
-		assert.Contains(t, err.Error(), "DELETE FROM sessions WHERE user_id")
-	}
-
-	assert.Empty(t, backupFiles(t, path))
-	assert.True(t, hasColumn(t, db, "sessions", "user_id"))
+	require.NoError(t, err, "the old cleanup removed such rows silently, so they must not stop the start")
+	assert.Equal(t, before, scalar[int](t, db, `SELECT count(*) FROM sessions`))
+	assert.False(t, hasColumn(t, db, "sessions", "user_id"))
+	assert.Contains(t, logs.String(), "level=WARN")
+	assert.Contains(t, logs.String(), "user_id=ghost")
+	assert.NotContains(t, logs.String(), "ghost-session", "a session token is a secret")
+	assert.NotEmpty(t, backupFiles(t, path))
 }
 
 func TestMigrate_NoUsersButRowsToKeep_RefusesInsteadOfDroppingThem(t *testing.T) {
