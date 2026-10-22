@@ -172,19 +172,23 @@ var rebuilds = []rebuild{
 // legacyColumns are columns that releases added to these tables after they were
 // first created. A database that never saw them gets them here, before the
 // copy names them, so the copy works from any older shape.
-var legacyColumns = []string{
-	`ALTER TABLE user_credentials ADD COLUMN webhook_token TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE user_credentials ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE user_credentials ADD COLUMN renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE user_credentials ADD COLUMN filter_state TEXT NOT NULL DEFAULT '{}'`,
-	`ALTER TABLE user_credentials ADD COLUMN theme TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE user_credentials ADD COLUMN timezone TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE user_credentials ADD COLUMN github_app_installation_id INTEGER NOT NULL DEFAULT 0`,
-	`ALTER TABLE user_credentials ADD COLUMN renovate_authors TEXT NOT NULL DEFAULT ''`,
-	`ALTER TABLE user_credentials ADD COLUMN hide_dependency_dashboard INTEGER NOT NULL DEFAULT 0`,
-	`ALTER TABLE user_credentials ADD COLUMN ignored_titles TEXT NOT NULL DEFAULT '[]'`,
-	`ALTER TABLE ignored_repos ADD COLUMN ignore_prs BOOLEAN NOT NULL DEFAULT 1`,
-	`ALTER TABLE ignored_repos ADD COLUMN ignore_issues BOOLEAN NOT NULL DEFAULT 1`,
+var legacyColumns = map[string][]string{
+	"user_credentials": {
+		`webhook_token TEXT NOT NULL DEFAULT ''`,
+		`webhook_secret TEXT NOT NULL DEFAULT ''`,
+		`renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
+		`filter_state TEXT NOT NULL DEFAULT '{}'`,
+		`theme TEXT NOT NULL DEFAULT ''`,
+		`timezone TEXT NOT NULL DEFAULT ''`,
+		`github_app_installation_id INTEGER NOT NULL DEFAULT 0`,
+		`renovate_authors TEXT NOT NULL DEFAULT ''`,
+		`hide_dependency_dashboard INTEGER NOT NULL DEFAULT 0`,
+		`ignored_titles TEXT NOT NULL DEFAULT '[]'`,
+	},
+	"ignored_repos": {
+		`ignore_prs BOOLEAN NOT NULL DEFAULT 1`,
+		`ignore_issues BOOLEAN NOT NULL DEFAULT 1`,
+	},
 }
 
 // preflight refuses what the step would refuse, before the backup is taken: an
@@ -475,11 +479,8 @@ func tablesWithUserID(ctx context.Context, tx dbmigrate.Tx) ([]rebuild, error) {
 }
 
 func addLegacyColumns(ctx context.Context, tx dbmigrate.Tx, table string) error {
-	for _, stmt := range legacyColumns {
-		if !strings.HasPrefix(stmt, `ALTER TABLE `+table+` `) {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx, stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+	for _, column := range legacyColumns[table] {
+		if _, err := tx.ExecContext(ctx, `ALTER TABLE `+table+` ADD COLUMN `+column); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 			return fmt.Errorf("add a missing column to %s: %w", table, err)
 		}
 	}
