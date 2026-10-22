@@ -136,6 +136,7 @@ const singleUserSpecs = [
   '**/settings.spec.ts',
   '**/filter-save-refused.spec.ts',
   '**/main-branch-release-link.spec.ts',
+  '**/main-branch-advisories.spec.ts',
   '**/ci-status-pulldown-gone.spec.ts',
   '**/main-branch-pill-counts.spec.ts',
   '**/branch-pipeline-panel-live.spec.ts',

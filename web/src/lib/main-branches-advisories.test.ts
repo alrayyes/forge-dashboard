@@ -18,7 +18,6 @@ describe('advisoryPill', () => {
     expect(pill).toEqual({
       tone: 'unknown',
       text: 'Advisories unknown',
-      label: 'Dependency advisories unknown',
       href: null,
     });
   });
@@ -29,7 +28,6 @@ describe('advisoryPill', () => {
     ).toEqual({
       tone: 'high',
       text: '3 advisories, high',
-      label: '3 open dependency advisories, highest severity high',
       href: URL,
     });
   });

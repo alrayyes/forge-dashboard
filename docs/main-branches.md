@@ -24,7 +24,15 @@ screen reader hears it as "Latest release v1.2.3, open details", and on a phone
 it is 44 pixels tall. It is underlined like the repo name, and a tag too long
 for the row is cut to one line, with the whole tag on hover. A repo with no
 release, or only drafts and pre-releases, shows no tag, and so does every
-Forgejo repo for now. A branch whose only trouble is a cancelled run (a newer
+Forgejo repo for now. A GitHub repo with open Dependabot alerts on its default branch
+also shows a pill with the count and the highest severity in words, for example
+"3 advisories, critical", linking to the alerts on GitHub in a new tab. The
+severity is the word, so the tint (red for high and critical, amber for medium,
+grey for low) is never the only signal. A repo with none open shows nothing. A
+repo whose alerts could not be read, because they are switched off or the token
+lacks the scope, shows a grey "Advisories unknown" and no link: unknown is no
+answer and is never shown as zero. A repo no source reads, such as a Forgejo
+one, shows no pill. A branch whose only trouble is a cancelled run (a newer
 push or a person stopped it) reads Cancelled, not Failed, with a stop glyph; a real
 failure beside a cancelled run is Failed and names only the failed job, and a
 cancelled run beside one still going is Running. A GitHub branch whose newest

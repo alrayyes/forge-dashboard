@@ -262,7 +262,6 @@ export type AdvisoryPill = {
   // The severity, 'counted' for a count with no severity, or 'unknown'.
   tone: AdvisorySeverity | 'counted' | 'unknown';
   text: string;
-  label: string;
   href: string | null;
 };
 
@@ -276,7 +275,6 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
     return {
       tone: 'unknown',
       text: 'Advisories unknown',
-      label: 'Dependency advisories unknown',
       href: null,
     };
   }
@@ -286,9 +284,6 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
   return {
     tone: a.highest ?? 'counted',
     text: a.highest ? `${a.count} ${noun}, ${a.highest}` : `${a.count} ${noun}`,
-    label: a.highest
-      ? `${a.count} open dependency ${noun}, highest severity ${a.highest}`
-      : `${a.count} open dependency ${noun}`,
     href,
   };
 }
