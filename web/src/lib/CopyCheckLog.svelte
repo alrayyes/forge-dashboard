@@ -110,13 +110,20 @@
       // The clipboard write starts here, inside the click, with the log still
       // being read.
       const source = logSource(checksUrl, jobId);
+      // A check rerun (or its row gone) while the log loads has another log
+      // now: the read fails then, so the clipboard write that waits on it
+      // writes nothing rather than the old run's log.
       const pending = logToCopy(
         source.url,
         excerpt,
         forgeName,
         fetch,
         source.why,
-      );
+      ).then((prepared) => {
+        if (run !== generation || gone) throw new Error("the check was rerun");
+
+        return prepared;
+      });
       const { outcome, prepared } = await copyPending(pending, {
         clipboard: navigator.clipboard,
         makeItem:
@@ -138,7 +145,9 @@
       // pressing the button again never takes away what the person is copying.
       manual = outcome === "selected" ? prepared.text : "";
     } catch {
-      // keep the generic line
+      // keep the generic line, and drop a field left by an earlier press: it
+      // holds a log this press did not produce
+      manual = "";
     } finally {
       // A removed row has no status left to show; there is nothing to announce.
       if (!gone && run === generation) {

@@ -459,6 +459,100 @@ test.describe('a check run output in the pipeline dialog', () => {
   });
 });
 
+// The Main branches pipeline dialog for one failed check whose job the test
+// can change; `state` is read by the routes, and a poll shows the change.
+async function openBranchFailure(
+  page: Page,
+  log?: (jobId: number) => Promise<void>,
+) {
+  const row = (failed: number) => ({
+    forge: 'github',
+    fullName: 'acme/auth-service',
+    url: 'https://example.com/acme/auth-service',
+    branch: 'main',
+    status: 'failed',
+    commit: {
+      sha: 'd98f3c2',
+      subject: 'fix: change',
+      author: 'sre-dev',
+      committedAt: new Date(Date.now() - 1800_000).toISOString(),
+    },
+    failingJobs: [],
+    finishedAt: null,
+    durationSeconds: null,
+    runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
+    checks: { passed: 0, running: 0, waiting: 0, failed },
+    stale: false,
+    staleSince: null,
+  });
+  const state = { failed: 1, jobId: 9, excerpt: 'old boom' };
+  await page.clock.install();
+  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/main-branches', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        counts: {
+          failed: 1,
+          passed: 0,
+          running: 0,
+          cancelled: 0,
+          awaitingApproval: 0,
+          none: 0,
+          total: 1,
+        },
+        branches: [row(state.failed)],
+      }),
+    }),
+  );
+  await page.route('**/api/main-branches/checks*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        checks: [
+          {
+            name: 'build',
+            state: 'failure',
+            url: 'https://example.com/r/1',
+            jobId: state.jobId,
+            excerpt: state.excerpt,
+          },
+        ],
+      }),
+    }),
+  );
+  await page.route('**/api/checks/log*', async (route: Route) => {
+    await log?.(state.jobId);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        text: `log of job ${state.jobId}\n`,
+        truncated: false,
+      }),
+    });
+  });
+  await page.goto('/');
+  await page
+    .getByRole('button', { name: /open pipeline/i })
+    .first()
+    .click();
+
+  return {
+    state,
+    dialog: page.getByRole('dialog', { name: /pipeline/i }),
+    rerun: async () => {
+      state.failed = 2;
+      state.jobId = 10;
+      state.excerpt = 'new boom';
+      await page.clock.runFor(60_000);
+    },
+  };
+}
+
 test.describe('a rerun gives a failed check a new job', () => {
   test('the field to copy from and its instruction go, so the old log cannot be pasted for the new run', async ({
     page,
@@ -467,98 +561,108 @@ test.describe('a rerun gives a failed check a new job', () => {
       Object.defineProperty(navigator, 'clipboard', { value: undefined });
       document.execCommand = () => false;
     });
-    const row = (failed: number) => ({
-      forge: 'github',
-      fullName: 'acme/auth-service',
-      url: 'https://example.com/acme/auth-service',
-      branch: 'main',
-      status: 'failed',
-      commit: {
-        sha: 'd98f3c2',
-        subject: 'fix: change',
-        author: 'sre-dev',
-        committedAt: new Date(Date.now() - 1800_000).toISOString(),
-      },
-      failingJobs: [],
-      finishedAt: null,
-      durationSeconds: null,
-      runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
-      checks: { passed: 0, running: 0, waiting: 0, failed },
-      stale: false,
-      staleSince: null,
-    });
-    const state = {
-      failed: 1,
-      jobId: 9,
-      excerpt: 'old boom',
-    };
-    await page.clock.install();
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/main-branches', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          counts: {
-            failed: 1,
-            passed: 0,
-            running: 0,
-            cancelled: 0,
-            awaitingApproval: 0,
-            none: 0,
-            total: 1,
-          },
-          branches: [row(state.failed)],
-        }),
-      }),
-    );
-    await page.route('**/api/main-branches/checks*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          checks: [
-            {
-              name: 'build',
-              state: 'failure',
-              url: 'https://example.com/r/1',
-              jobId: state.jobId,
-              excerpt: state.excerpt,
-            },
-          ],
-        }),
-      }),
-    );
-    await page.route('**/api/checks/log*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          text: `log of job ${state.jobId}\n`,
-          truncated: false,
-        }),
-      }),
-    );
-    await page.goto('/');
-    await page
-      .getByRole('button', { name: /open pipeline/i })
-      .first()
-      .click();
-    const dialog = page.getByRole('dialog', { name: /pipeline/i });
+    const { dialog, rerun } = await openBranchFailure(page);
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
     const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
     await expect(field).toHaveValue('log of job 9\n');
 
-    state.failed = 2;
-    state.jobId = 10;
-    state.excerpt = 'new boom';
-    await page.clock.runFor(60_000);
+    await rerun();
 
     await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
       'new boom',
     );
     await expect(field).toHaveCount(0);
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText('');
+  });
+
+  test('a log still loading when the check is rerun is not written to the clipboard', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const { dialog, rerun } = await openBranchFailure(page, () => held);
+    await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      'Copying',
+    );
+    await rerun();
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+      'new boom',
+    );
+    release();
+    await page.waitForTimeout(300);
+
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'SENTINEL',
+    );
+  });
+});
+
+test.describe('the copy status line', () => {
+  test('a copy that throws drops the field left by the press before it', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      document.execCommand = () => false;
+    });
+    await setup(page, {
+      status: 200,
+      body: { text: 'old log\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await expect(field).toHaveValue('old log\n');
+
+    await page.evaluate(() => {
+      HTMLInputElement.prototype.setSelectionRange = () => {};
+      HTMLTextAreaElement.prototype.select = () => {
+        throw new Error('no selection');
+      };
+    });
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      "Couldn't copy the log.",
+    );
+    await expect(field).toHaveCount(0);
+  });
+
+  test('a second Copied inside ten seconds is announced again', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, {
+      status: 200,
+      body: { text: 'a log\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const button = dialog.getByRole('button', { name: 'Copy log: build' });
+    const status = dialog.locator('.pipeline-check-copy-status');
+    await button.click();
+    await expect(status).toHaveText('Copied');
+    await status.evaluate((el) => {
+      const seen: string[] = [];
+      (window as unknown as { seen: string[] }).seen = seen;
+      new MutationObserver(() => seen.push(el.textContent ?? '')).observe(el, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+
+    await button.click();
+    await expect(status).toHaveText('Copied');
+
+    const seen = await page.evaluate(
+      () => (window as unknown as { seen: string[] }).seen,
+    );
+    expect(seen).toEqual(['Copying', 'Copied']);
   });
 });

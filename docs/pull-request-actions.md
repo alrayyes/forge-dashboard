@@ -672,6 +672,13 @@ the finished checks of the previous commit. The server reads the id of the
 commit the checks belong to, and when it isn't the head of the pull request the
 pill stays pending until they agree.
 
+A failed check that has an excerpt or a job to read also has a `Copy log`
+button under it. It copies the whole log of the job, or the last 256 KB of it
+when the log is longer, and the excerpt alone when the log can't be read; the
+status line beside the button says which of these it copied. Where the browser
+refuses every way of copying, the log is put in a text field, selected, for the
+person to copy with Ctrl+C (Cmd+C on a Mac).
+
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
