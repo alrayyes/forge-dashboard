@@ -23,14 +23,14 @@ func credentialInfoOf(c *auth.Credential) CredentialInfo {
 
 func handleCredentialsGet(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
 			return
 		}
 
-		creds, err := store.ListCredentials(r.Context(), u.ID)
+		creds, err := store.ListCredentials(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load passkeys"))
 
@@ -96,7 +96,7 @@ func handleCredentialsAddFinish(deps Deps) http.HandlerFunc {
 
 func handleCredentialsDelete(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
@@ -104,7 +104,7 @@ func handleCredentialsDelete(store *auth.Store) http.HandlerFunc {
 		}
 
 		id := r.PathValue("id")
-		if err := store.RemoveCredential(r.Context(), u.ID, id); err != nil {
+		if err := store.RemoveCredential(r.Context(), id); err != nil {
 			if errors.Is(err, auth.ErrLastCredential) {
 				writeJSON(w, http.StatusBadRequest, errorBody("can't remove the account's last remaining passkey"))
 

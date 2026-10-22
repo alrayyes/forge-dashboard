@@ -27,12 +27,11 @@ const OutcomeSuccess = "success"
 
 // Entry is one outbound request's own record.
 type Entry struct {
-	ID        int64
-	LoggedAt  time.Time
-	Forge     dashboard.Forge
-	AccountID string // "" when no per-account credential made this request
-	Method    string
-	Endpoint  string
+	ID       int64
+	LoggedAt time.Time
+	Forge    dashboard.Forge
+	Method   string
+	Endpoint string
 	// StatusCode is 0 when the request never got a response at all.
 	StatusCode int
 	// Outcome is OutcomeSuccess or a dashboard.ForgeErrorKind string.
@@ -47,10 +46,9 @@ type Entry struct {
 }
 
 // Filter narrows a listing to entries matching every set field — a zero
-// Filter (both fields empty) matches everything.
+// Filter matches everything.
 type Filter struct {
-	Forge     dashboard.Forge
-	AccountID string
+	Forge dashboard.Forge
 }
 
 // Recorder is what internal/github and internal/forgejo depend on to

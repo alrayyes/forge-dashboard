@@ -37,8 +37,8 @@ func newResetFixture(t *testing.T, withPasskey bool) resetFixture {
 	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	if withPasskey {
-		require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
-		_, err = store.CreateSession(t.Context(), owner.ID, time.Hour)
+		require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+		_, err = store.CreateSession(t.Context(), time.Hour)
 		require.NoError(t, err)
 	}
 

@@ -89,7 +89,7 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 
 	// The ceremony, not the username, names the row: the owner's row may hold
 	// another username until this registration wins.
-	u, err := s.store.GetUserByID(ctx, session.UserID)
+	u, err := s.store.userByID(ctx, session.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 	if err := s.store.AddFirstCredential(ctx, u.ID, username, *cred); err != nil {
 		return nil, err
 	}
-	if err := s.store.SetCredentialLabel(ctx, u.ID, cred.ID, initialCredentialLabel); err != nil {
+	if err := s.store.SetCredentialLabel(ctx, cred.ID, initialCredentialLabel); err != nil {
 		return nil, err
 	}
 	u.Username = username
@@ -147,11 +147,11 @@ func (s *Service) FinishAddCredential(ctx context.Context, u *User, label string
 	if err != nil {
 		return nil, fmt.Errorf("auth: finish add credential: %w", err)
 	}
-	if err := s.store.AddCredential(ctx, u.ID, *cred); err != nil {
+	if err := s.store.AddCredential(ctx, *cred); err != nil {
 		return nil, err
 	}
 	createdAt := time.Now().UTC()
-	if err := s.store.setCredentialLabelAt(ctx, u.ID, cred.ID, label, createdAt); err != nil {
+	if err := s.store.setCredentialLabelAt(ctx, cred.ID, label, createdAt); err != nil {
 		return nil, err
 	}
 
@@ -201,16 +201,16 @@ func (s *Service) FinishLogin(ctx context.Context, username string, r *http.Requ
 	if err != nil {
 		return nil, fmt.Errorf("auth: finish login: %w", err)
 	}
-	if err := s.store.UpdateCredential(ctx, u.ID, *cred); err != nil {
+	if err := s.store.UpdateCredential(ctx, *cred); err != nil {
 		return nil, err
 	}
 
 	return u, nil
 }
 
-// CreateSession issues a session token for u, ready to set as a cookie.
-func (s *Service) CreateSession(ctx context.Context, u *User) (token string, err error) {
-	return s.store.CreateSession(ctx, u.ID, SessionTTL)
+// CreateSession issues a session token for the owner, ready to set as a cookie.
+func (s *Service) CreateSession(ctx context.Context) (token string, err error) {
+	return s.store.CreateSession(ctx, SessionTTL)
 }
 
 // HasAnyRegisteredUser reports whether any account has completed

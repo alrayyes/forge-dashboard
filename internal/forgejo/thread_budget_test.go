@@ -97,7 +97,7 @@ func TestRefresh_ManyReposAndTabs_StaysUnderTheThreadBudget(t *testing.T) {
 
 	writer := requestlog.NewWriter(store, 1000)
 	t.Cleanup(writer.Close)
-	recorder := requestlog.NewSQLiteRecorder(store, "", requestlog.WithWriter(writer))
+	recorder := requestlog.NewSQLiteRecorder(store, requestlog.WithWriter(writer))
 
 	srv := stubForgejo(t)
 	client := forgejo.NewClient(srv.URL, "test-token", "", recorder)

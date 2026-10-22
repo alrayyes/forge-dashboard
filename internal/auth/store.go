@@ -65,14 +65,12 @@ const schema = `
 
 	CREATE TABLE IF NOT EXISTS sessions (
 		token TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL REFERENCES users(id),
 		expires_at TIMESTAMP NOT NULL,
 		created_at TIMESTAMP NOT NULL
 	);
 
 	CREATE TABLE IF NOT EXISTS api_tokens (
 		id TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL REFERENCES users(id),
 		label TEXT NOT NULL,
 		token_hash TEXT NOT NULL UNIQUE,
 		created_at TIMESTAMP NOT NULL,
@@ -81,18 +79,15 @@ const schema = `
 	);
 
 	CREATE TABLE IF NOT EXISTS credential_metadata (
-		user_id TEXT NOT NULL,
-		credential_id TEXT NOT NULL,
+		credential_id TEXT PRIMARY KEY,
 		label TEXT NOT NULL,
-		created_at TIMESTAMP NOT NULL,
-		PRIMARY KEY (user_id, credential_id)
+		created_at TIMESTAMP NOT NULL
 	);
 
 	CREATE TABLE IF NOT EXISTS request_log (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		logged_at TIMESTAMP NOT NULL,
 		forge TEXT NOT NULL,
-		account_id TEXT REFERENCES users(id),
 		method TEXT NOT NULL,
 		endpoint TEXT NOT NULL,
 		status_code INTEGER,
@@ -251,7 +246,7 @@ func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName
 		return nil, err
 	}
 
-	return s.GetUserByID(ctx, raw)
+	return s.userByID(ctx, raw)
 }
 
 // GetUserByUsername returns ErrNotFound when no such user is registered.
@@ -264,9 +259,10 @@ func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, 
 	return scanUser(row)
 }
 
-// GetUserByID returns ErrNotFound when no such user is registered. id is
-// the raw WebAuthn user handle, the same bytes User.ID holds.
-func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
+// userByID returns ErrNotFound when no such user is registered. id is the raw
+// WebAuthn user handle, the same bytes User.ID holds. Only a registration
+// ceremony names its row this way; everything else acts for the owner.
+func (s *Store) userByID(ctx context.Context, id []byte) (*User, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, username, display_name, credentials_json, created_at FROM users WHERE id = ?`,
 		encodeID(id),
@@ -342,7 +338,7 @@ func (s *Store) ResetPasskeys(ctx context.Context, withTokens bool) (ResetResult
 	if _, err := tx.ExecContext(ctx, `UPDATE users SET credentials_json = '[]' WHERE id = ?`, id); err != nil {
 		return ResetResult{}, fmt.Errorf("auth: clear passkeys: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM credential_metadata`); err != nil {
 		return ResetResult{}, fmt.Errorf("auth: clear passkey labels: %w", err)
 	}
 	// Every ceremony in flight belongs to the passkeys just cleared or to a
@@ -351,11 +347,11 @@ func (s *Store) ResetPasskeys(ctx context.Context, withTokens bool) (ResetResult
 		return ResetResult{}, fmt.Errorf("auth: clear ceremonies: %w", err)
 	}
 
-	if res.Sessions, err = deleteCount(ctx, tx, `DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
+	if res.Sessions, err = deleteCount(ctx, tx, `DELETE FROM sessions`); err != nil {
 		return ResetResult{}, fmt.Errorf("auth: clear sessions: %w", err)
 	}
 	if withTokens {
-		if res.Tokens, err = deleteCount(ctx, tx, `DELETE FROM api_tokens WHERE user_id = ?`, id); err != nil {
+		if res.Tokens, err = deleteCount(ctx, tx, `DELETE FROM api_tokens`); err != nil {
 			return ResetResult{}, fmt.Errorf("auth: clear API tokens: %w", err)
 		}
 	}
@@ -422,10 +418,10 @@ func scanUser(row rowScanner) (*User, error) {
 	return &u, nil
 }
 
-// AddCredential appends cred to userID's stored credentials — a brand-new
+// AddCredential appends cred to the owner's stored credentials — a brand-new
 // passkey, from a just-finished registration ceremony.
-func (s *Store) AddCredential(ctx context.Context, userID []byte, cred webauthn.Credential) error {
-	u, err := s.GetUserByID(ctx, userID)
+func (s *Store) AddCredential(ctx context.Context, cred webauthn.Credential) error {
+	u, err := s.Owner(ctx)
 	if err != nil {
 		return err
 	}
@@ -503,8 +499,8 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, username 
 // FinishLogin bumps the authenticator's signature counter on every
 // successful login, and that has to be persisted to catch a cloned
 // authenticator on a later login.
-func (s *Store) UpdateCredential(ctx context.Context, userID []byte, cred webauthn.Credential) error {
-	u, err := s.GetUserByID(ctx, userID)
+func (s *Store) UpdateCredential(ctx context.Context, cred webauthn.Credential) error {
+	u, err := s.Owner(ctx)
 	if err != nil {
 		return err
 	}
@@ -542,13 +538,13 @@ func credentialIDKey(id []byte) string {
 	return base64.RawURLEncoding.EncodeToString(id)
 }
 
-// SetCredentialLabel names credID (userID's own passkey) label — called
+// SetCredentialLabel names credID (a passkey of the owner) label — called
 // once, right after AddCredential, for both the very first passkey a
 // brand-new account registers and every one added afterward (#355), so
 // Settings always has something to show even for an account that
 // predates this feature having a UI of its own.
-func (s *Store) SetCredentialLabel(ctx context.Context, userID []byte, credID []byte, label string) error {
-	return s.setCredentialLabelAt(ctx, userID, credID, label, time.Now().UTC())
+func (s *Store) SetCredentialLabel(ctx context.Context, credID []byte, label string) error {
+	return s.setCredentialLabelAt(ctx, credID, label, time.Now().UTC())
 }
 
 // setCredentialLabelAt is SetCredentialLabel with an explicit createdAt
@@ -556,12 +552,12 @@ func (s *Store) SetCredentialLabel(ctx context.Context, userID []byte, credID []
 // to a caller in the same response matches exactly what got persisted,
 // rather than a fresh time.Now() taken moments later disagreeing with
 // it by however long the write itself took.
-func (s *Store) setCredentialLabelAt(ctx context.Context, userID []byte, credID []byte, label string, createdAt time.Time) error {
+func (s *Store) setCredentialLabelAt(ctx context.Context, credID []byte, label string, createdAt time.Time) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO credential_metadata (user_id, credential_id, label, created_at)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT (user_id, credential_id) DO UPDATE SET label = excluded.label`,
-		encodeID(userID), credentialIDKey(credID), label, createdAt,
+		INSERT INTO credential_metadata (credential_id, label, created_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT (credential_id) DO UPDATE SET label = excluded.label`,
+		credentialIDKey(credID), label, createdAt,
 	)
 	if err != nil {
 		return fmt.Errorf("auth: set credential label: %w", err)
@@ -570,22 +566,21 @@ func (s *Store) setCredentialLabelAt(ctx context.Context, userID []byte, credID 
 	return nil
 }
 
-// ListCredentials returns userID's own passkeys, oldest first — driven
+// ListCredentials returns the owner's passkeys, oldest first — driven
 // by the account's real webauthn.Credential list (the source of truth
 // for what can actually authenticate), not credential_metadata alone,
 // so a credential somehow missing its label row still appears rather
 // than silently vanishing from the list. defaultLabel fills that gap:
 // a credential from before this feature existed reads back with no
 // metadata row at all.
-func (s *Store) ListCredentials(ctx context.Context, userID []byte) ([]*Credential, error) {
-	u, err := s.GetUserByID(ctx, userID)
+func (s *Store) ListCredentials(ctx context.Context) ([]*Credential, error) {
+	u, err := s.Owner(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT credential_id, label, created_at FROM credential_metadata WHERE user_id = ?`,
-		encodeID(userID),
+		`SELECT credential_id, label, created_at FROM credential_metadata`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("auth: list credential labels: %w", err)
@@ -624,20 +619,18 @@ func (s *Store) ListCredentials(ctx context.Context, userID []byte) ([]*Credenti
 }
 
 // ErrLastCredential is returned by RemoveCredential when credID is
-// userID's only remaining passkey — this app is WebAuthn-only with no
+// the owner's only remaining passkey — this app is WebAuthn-only with no
 // password fallback, so deleting it would lock the account out
 // entirely (#355).
 var ErrLastCredential = errors.New("auth: can't remove the account's last remaining passkey")
 
-// RemoveCredential deletes credID from userID's account, scoped to that
-// user so one account's own credential id can never be guessed into
-// deleting another's — the same shape DeleteAPIToken's own scoping
-// uses. Idempotent for an id that's unknown or already gone (matching
-// DeleteAPIToken), but never for the account's last one: that's always
+// RemoveCredential deletes credID from the owner's account. Idempotent for an
+// id that's unknown or already gone (matching DeleteAPIToken), but never for
+// the account's last one: that's always
 // ErrLastCredential, not silently skipped, so a caller (or a stale
 // list somehow down to one) can't accidentally lock the account out.
-func (s *Store) RemoveCredential(ctx context.Context, userID []byte, credID string) error {
-	u, err := s.GetUserByID(ctx, userID)
+func (s *Store) RemoveCredential(ctx context.Context, credID string) error {
+	u, err := s.Owner(ctx)
 	if err != nil {
 		return err
 	}
@@ -661,7 +654,7 @@ func (s *Store) RemoveCredential(ctx context.Context, userID []byte, credID stri
 	if err := s.saveCredentials(ctx, u); err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ? AND credential_id = ?`, encodeID(userID), credID)
+	_, err = s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE credential_id = ?`, credID)
 	if err != nil {
 		return fmt.Errorf("auth: delete credential metadata: %w", err)
 	}
@@ -729,9 +722,9 @@ func (s *Store) DeleteCeremony(ctx context.Context, username, kind string) error
 	return nil
 }
 
-// CreateSession issues a new opaque session token for userID, valid for
+// CreateSession issues a new opaque session token for the owner, valid for
 // ttl.
-func (s *Store) CreateSession(ctx context.Context, userID []byte, ttl time.Duration) (token string, err error) {
+func (s *Store) CreateSession(ctx context.Context, ttl time.Duration) (token string, err error) {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("auth: generate session token: %w", err)
@@ -740,8 +733,8 @@ func (s *Store) CreateSession(ctx context.Context, userID []byte, ttl time.Durat
 
 	now := time.Now().UTC()
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`,
-		token, encodeID(userID), now.Add(ttl), now,
+		`INSERT INTO sessions (token, expires_at, created_at) VALUES (?, ?, ?)`,
+		token, now.Add(ttl), now,
 	)
 	if err != nil {
 		return "", fmt.Errorf("auth: create session: %w", err)
@@ -750,15 +743,12 @@ func (s *Store) CreateSession(ctx context.Context, userID []byte, ttl time.Durat
 	return token, nil
 }
 
-// UserForSession returns the user a valid, unexpired session token
-// belongs to, or ErrNotFound.
+// UserForSession returns the owner when token is a valid, unexpired session,
+// or ErrNotFound.
 func (s *Store) UserForSession(ctx context.Context, token string) (*User, error) {
-	var (
-		userIDStr string
-		expiresAt time.Time
-	)
-	err := s.db.QueryRowContext(ctx, `SELECT user_id, expires_at FROM sessions WHERE token = ?`, token).
-		Scan(&userIDStr, &expiresAt)
+	var expiresAt time.Time
+	err := s.db.QueryRowContext(ctx, `SELECT expires_at FROM sessions WHERE token = ?`, token).
+		Scan(&expiresAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -769,12 +759,7 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 		return nil, ErrNotFound
 	}
 
-	id, err := decodeID(userIDStr)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.GetUserByID(ctx, id)
+	return s.Owner(ctx)
 }
 
 // DeleteSession revokes a session token — logout, or the owner revoking
@@ -808,14 +793,14 @@ func hashAPIToken(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// CreateAPIToken generates a brand-new personal API token for userID,
+// CreateAPIToken generates a brand-new personal API token for the owner,
 // labeled label, valid until expiresAt (#356 — mandatory, no "never
 // expires" option; the caller, internal/api's handler, enforces the
 // future/366-day-cap validation before this is ever called). raw is the
 // only time the actual credential is ever returned — only its hash is
 // stored, so losing it means generating a new one, the same "show once"
 // handling a real secret needs.
-func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string, expiresAt time.Time) (raw string, tok *APIToken, err error) {
+func (s *Store) CreateAPIToken(ctx context.Context, label string, expiresAt time.Time) (raw string, tok *APIToken, err error) {
 	idBytes := make([]byte, 16)
 	if _, err := rand.Read(idBytes); err != nil {
 		return "", nil, fmt.Errorf("auth: generate api token id: %w", err)
@@ -833,8 +818,8 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string,
 		ExpiresAt: expiresAt.UTC(),
 	}
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO api_tokens (id, user_id, label, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		tok.ID, encodeID(userID), label, hashAPIToken(raw), tok.CreatedAt, tok.ExpiresAt,
+		`INSERT INTO api_tokens (id, label, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)`,
+		tok.ID, label, hashAPIToken(raw), tok.CreatedAt, tok.ExpiresAt,
 	)
 	if err != nil {
 		return "", nil, fmt.Errorf("auth: create api token: %w", err)
@@ -843,11 +828,10 @@ func (s *Store) CreateAPIToken(ctx context.Context, userID []byte, label string,
 	return raw, tok, nil
 }
 
-// ListAPITokens returns userID's own live tokens, oldest first.
-func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, error) {
+// ListAPITokens returns the owner's tokens, oldest first.
+func (s *Store) ListAPITokens(ctx context.Context) ([]*APIToken, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, label, created_at, expires_at, last_used_at FROM api_tokens WHERE user_id = ? ORDER BY created_at, id`,
-		encodeID(userID),
+		`SELECT id, label, created_at, expires_at, last_used_at FROM api_tokens ORDER BY created_at, id`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("auth: list api tokens: %w", err)
@@ -883,7 +867,7 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 	return tokens, nil
 }
 
-// UserForAPIToken returns the user raw belongs to, or ErrNotFound — the
+// UserForAPIToken returns the owner when raw is a valid token, or ErrNotFound — the
 // Bearer-token equivalent of UserForSession. An expired token (or a
 // legacy row with no recorded expiry at all — see APIToken.ExpiresAt)
 // is rejected the same way an unknown one is, not a distinct error a
@@ -893,9 +877,8 @@ func (s *Store) ListAPITokens(ctx context.Context, userID []byte) ([]*APIToken, 
 // authenticated.
 func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) {
 	hash := hashAPIToken(raw)
-	var userIDStr string
 	var expiresAt sql.NullTime
-	err := s.db.QueryRowContext(ctx, `SELECT user_id, expires_at FROM api_tokens WHERE token_hash = ?`, hash).Scan(&userIDStr, &expiresAt)
+	err := s.db.QueryRowContext(ctx, `SELECT expires_at FROM api_tokens WHERE token_hash = ?`, hash).Scan(&expiresAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -910,20 +893,13 @@ func (s *Store) UserForAPIToken(ctx context.Context, raw string) (*User, error) 
 		slog.Warn("could not record api token use", "error", err)
 	}
 
-	id, err := decodeID(userIDStr)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.GetUserByID(ctx, id)
+	return s.Owner(ctx)
 }
 
-// DeleteAPIToken revokes id, scoped to userID so one user can never
-// revoke another's token by guessing an id — idempotent, same as
-// DeleteUser's own sessions cleanup: deleting one that's already gone,
-// or never belonged to userID, is not an error.
-func (s *Store) DeleteAPIToken(ctx context.Context, userID []byte, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE id = ? AND user_id = ?`, id, encodeID(userID))
+// DeleteAPIToken revokes id. Idempotent: deleting one that's already gone is
+// not an error.
+func (s *Store) DeleteAPIToken(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("auth: delete api token: %w", err)
 	}
@@ -943,7 +919,6 @@ type RequestLogRow struct {
 	ID         int64
 	LoggedAt   time.Time
 	Forge      string
-	AccountID  string // "" when no per-account credential made this request
 	Method     string
 	Endpoint   string
 	StatusCode int    // 0 when the request never got a response at all
@@ -958,11 +933,9 @@ type RequestLogRow struct {
 	RateLimitCost      *int
 }
 
-// RequestLogFilter narrows ListRequests. A zero Filter (both fields
-// empty) returns every row.
+// RequestLogFilter narrows ListRequests. A zero Filter returns every row.
 type RequestLogFilter struct {
-	Forge     string
-	AccountID string
+	Forge string
 }
 
 // RecordRequest persists row, then deletes the oldest rows past
@@ -976,13 +949,12 @@ func (s *Store) RecordRequest(ctx context.Context, row RequestLogRow, maxEntries
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	accountID := sql.NullString{String: row.AccountID, Valid: row.AccountID != ""}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO request_log (
-			logged_at, forge, account_id, method, endpoint, status_code, outcome,
+			logged_at, forge, method, endpoint, status_code, outcome,
 			rate_limit_limit, rate_limit_remaining, rate_limit_resets_at, rate_limit_cost
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		row.LoggedAt, row.Forge, accountID, row.Method, row.Endpoint, nullableInt(row.StatusCode), row.Outcome,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		row.LoggedAt, row.Forge, row.Method, row.Endpoint, nullableInt(row.StatusCode), row.Outcome,
 		row.RateLimitLimit, row.RateLimitRemaining, row.RateLimitResetsAt, row.RateLimitCost,
 	)
 	if err != nil {
@@ -1023,17 +995,13 @@ func nullableInt(statusCode int) sql.NullInt64 {
 // over it with no nil check.
 func (s *Store) ListRequests(ctx context.Context, filter RequestLogFilter) ([]RequestLogRow, error) {
 	query := `
-		SELECT id, logged_at, forge, account_id, method, endpoint, status_code, outcome,
+		SELECT id, logged_at, forge, method, endpoint, status_code, outcome,
 		       rate_limit_limit, rate_limit_remaining, rate_limit_resets_at, rate_limit_cost
 		FROM request_log WHERE 1=1`
 	var args []any
 	if filter.Forge != "" {
 		query += " AND forge = ?"
 		args = append(args, filter.Forge)
-	}
-	if filter.AccountID != "" {
-		query += " AND account_id = ?"
-		args = append(args, filter.AccountID)
 	}
 	query += " ORDER BY id DESC"
 
@@ -1046,17 +1014,15 @@ func (s *Store) ListRequests(ctx context.Context, filter RequestLogFilter) ([]Re
 	out := []RequestLogRow{}
 	for rows.Next() {
 		var (
-			row       RequestLogRow
-			accountID sql.NullString
-			status    sql.NullInt64
+			row    RequestLogRow
+			status sql.NullInt64
 		)
 		if err := rows.Scan(
-			&row.ID, &row.LoggedAt, &row.Forge, &accountID, &row.Method, &row.Endpoint, &status, &row.Outcome,
+			&row.ID, &row.LoggedAt, &row.Forge, &row.Method, &row.Endpoint, &status, &row.Outcome,
 			&row.RateLimitLimit, &row.RateLimitRemaining, &row.RateLimitResetsAt, &row.RateLimitCost,
 		); err != nil {
 			return nil, fmt.Errorf("auth: scan request log row: %w", err)
 		}
-		row.AccountID = accountID.String
 		row.StatusCode = int(status.Int64)
 		out = append(out, row)
 	}

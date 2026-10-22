@@ -1,7 +1,8 @@
 // Package singleuser turns a database that grew several users into one with a
 // single owner. Run is called once at startup, after every store has created
 // its tables: it keeps the oldest registered user, copies the database aside,
-// and deletes every other user with all their data in one transaction.
+// and deletes every other user and their ceremonies in one transaction. The
+// auth and settings tables hold no user any more, so nothing else is keyed to one.
 package singleuser
 
 import (
@@ -18,29 +19,6 @@ import (
 // records that the cleanup ran, so it never runs again on a database that has
 // settled on one user.
 const MarkerTable = "single_user_cleanup"
-
-// ownedTable is a table whose rows belong to a user, found through column.
-type ownedTable struct {
-	name   string
-	column string
-}
-
-// owned lists every table holding a user's data. The test that lists
-// sqlite_master fails when a table exists that is neither here nor handled by
-// hand below (users, ceremonies, the marker). The settings tables hold no user
-// since the schema step that merged them into one owner. That step runs at
-// startup, before this cleanup does, and it refuses a database with several
-// users and no marker. So a database that reaches the step with several users
-// was cleaned up by an earlier release, and this function never sees the old
-// per-user settings tables. The cache tables (http_etags,
-// snapshot_cache, hook_checks, webhook_seen) are keyed by credential and repo,
-// hold no user, and are left alone.
-var owned = []ownedTable{
-	{"sessions", "user_id"},
-	{"api_tokens", "user_id"},
-	{"credential_metadata", "user_id"},
-	{"request_log", "account_id"},
-}
 
 // Result says what Run did.
 type Result struct {
@@ -236,13 +214,6 @@ func deleteOthers(ctx context.Context, db *sql.DB, keeper user, others []user) (
 // goes last, and counts them per table for the log.
 func deleteUserRows(ctx context.Context, tx *sql.Tx, u user) (map[string]int64, error) {
 	rows := map[string]int64{}
-	for _, t := range owned {
-		n, err := execCount(ctx, tx, fmt.Sprintf(`DELETE FROM %s WHERE %s = ?`, t.name, t.column), u.id)
-		if err != nil {
-			return nil, fmt.Errorf("single-user cleanup: delete %s of %s: %w", t.name, u.username, err)
-		}
-		rows[t.name] = n
-	}
 	n, err := execCount(ctx, tx, `DELETE FROM ceremonies WHERE username = ?`, u.username)
 	if err != nil {
 		return nil, fmt.Errorf("single-user cleanup: delete ceremonies of %s: %w", u.username, err)
@@ -252,15 +223,8 @@ func deleteUserRows(ctx context.Context, tx *sql.Tx, u user) (map[string]int64, 
 	return rows, nil
 }
 
-// deleteLeftovers removes the other users. Rows of users that no longer exist
-// (the "remove user" action of the old multi-user build left some behind) go
-// too: only the kept user's rows may remain.
+// deleteLeftovers removes the other users.
 func deleteLeftovers(ctx context.Context, tx *sql.Tx, keeper user) error {
-	for _, t := range owned {
-		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s != ?`, t.name, t.column), keeper.id); err != nil {
-			return fmt.Errorf("single-user cleanup: delete stray %s rows: %w", t.name, err)
-		}
-	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id != ?`, keeper.id); err != nil {
 		return fmt.Errorf("single-user cleanup: delete users: %w", err)
 	}

@@ -1,8 +1,12 @@
 package auth_test
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	_ "embed"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -12,6 +16,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -117,7 +122,7 @@ func TestMigrate_OldShape_KeepsEveryRowWithoutTheUserID(t *testing.T) {
 	assert.Equal(t, "/api/v1/version", scalar[string](t, db, `SELECT endpoint FROM request_log WHERE id = 2`))
 	assert.Equal(t, 5000, scalar[int](t, db, `SELECT rate_limit_limit FROM request_log WHERE id = 1`))
 	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM ceremonies`), "ceremonies stay keyed by username")
-	assert.Equal(t, "owner", scalar[string](t, db, `SELECT id FROM users`))
+	assert.Equal(t, "b3duZXI", scalar[string](t, db, `SELECT id FROM users`))
 }
 
 func TestMigrate_RunTwice_SecondRunChangesNothing(t *testing.T) {
@@ -290,4 +295,47 @@ func TestMigrate_TheOwnerIsTheUserTheStoreCallsTheOwner(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "old-session", scalar[string](t, db, `SELECT token FROM sessions`))
+}
+
+func TestMigrate_AfterwardsTheStoreAuthenticatesTheSameSessionAndBothTokens(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	// Real hashes and real passkey ids, so the store can find them again.
+	sum := func(raw string) string {
+		h := sha256.Sum256([]byte(raw))
+
+		return hex.EncodeToString(h[:])
+	}
+	mustExec(t, db, `UPDATE api_tokens SET token_hash = '`+sum("raw-one")+`' WHERE id = 't1'`)
+	mustExec(t, db, `UPDATE api_tokens SET token_hash = '`+sum("raw-two")+`' WHERE id = 't2'`)
+	idA, idB := []byte("cred-a"), []byte("cred-b")
+	mustExec(t, db, `UPDATE credential_metadata SET credential_id = '`+base64.RawURLEncoding.EncodeToString(idA)+`' WHERE credential_id = 'cred-a'`)
+	mustExec(t, db, `UPDATE credential_metadata SET credential_id = '`+base64.RawURLEncoding.EncodeToString(idB)+`' WHERE credential_id = 'cred-b'`)
+	creds, err := json.Marshal([]webauthn.Credential{{ID: idA, PublicKey: []byte("pk")}, {ID: idB, PublicKey: []byte("pk")}})
+	require.NoError(t, err)
+	mustExec(t, db, `UPDATE users SET credentials_json = '`+string(creds)+`'`)
+
+	_, err = migrate(t, db, path)
+	require.NoError(t, err)
+
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	for name, got := range map[string]func() (*auth.User, error){
+		"the session cookie": func() (*auth.User, error) { return store.UserForSession(t.Context(), "session-cookie") },
+		"the first token":    func() (*auth.User, error) { return store.UserForAPIToken(t.Context(), "raw-one") },
+		"the second token":   func() (*auth.User, error) { return store.UserForAPIToken(t.Context(), "raw-two") },
+	} {
+		user, err := got()
+		require.NoError(t, err, name)
+		assert.Equal(t, []byte("owner"), user.ID, name+" still signs the owner in, and the passkey handle is unchanged")
+	}
+
+	tokens, err := store.ListAPITokens(t.Context())
+	require.NoError(t, err)
+	assert.Len(t, tokens, 2)
+	labels, err := store.ListCredentials(t.Context())
+	require.NoError(t, err)
+	require.Len(t, labels, 2)
+	assert.Equal(t, "Laptop", labels[0].Label)
+	assert.Equal(t, "Phone", labels[1].Label)
 }

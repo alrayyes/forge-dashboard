@@ -78,9 +78,9 @@ func TestBeginRegistration_AfterAUserHoldsAPasskey_IsClosed(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
-	require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
 	for _, username := range []string{"alex", "ryan"} {
 		_, err = svc.BeginRegistration(t.Context(), username, "Anyone")

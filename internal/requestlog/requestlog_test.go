@@ -35,32 +35,10 @@ func TestNoopRecorder_DiscardsWithNoError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestSQLiteRecorder_Record_StampsItsOwnAccountID(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	rec := requestlog.NewSQLiteRecorder(store, "acct-1")
-
-	require.NoError(t, rec.Record(t.Context(), requestlog.Entry{
-		LoggedAt: time.Now().UTC(),
-		Forge:    dashboard.ForgeGitHub,
-		// Deliberately set to something else — SQLiteRecorder's own
-		// bound accountID wins, not whatever the caller put here.
-		AccountID: "someone-else",
-		Method:    "POST",
-		Endpoint:  "/graphql",
-		Outcome:   requestlog.OutcomeSuccess,
-	}))
-
-	entries, err := rec.List(t.Context(), requestlog.Filter{})
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
-	assert.Equal(t, "acct-1", entries[0].AccountID)
-}
-
 func TestSQLiteRecorder_Record_RoundTripsRateLimitFields(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	rec := requestlog.NewSQLiteRecorder(store, "acct-1")
+	rec := requestlog.NewSQLiteRecorder(store)
 
 	limit, remaining, cost := 5000, 10, 1
 	resetsAt := time.Now().UTC().Truncate(time.Second)
@@ -98,7 +76,7 @@ func TestSQLiteRecorder_Record_RoundTripsRateLimitFields(t *testing.T) {
 func TestSQLiteRecorder_Record_RecordsAFailure(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	rec := requestlog.NewSQLiteRecorder(store, "acct-1")
+	rec := requestlog.NewSQLiteRecorder(store)
 
 	require.NoError(t, rec.Record(t.Context(), requestlog.Entry{
 		LoggedAt: time.Now().UTC(),
@@ -117,7 +95,7 @@ func TestSQLiteRecorder_Record_RecordsAFailure(t *testing.T) {
 func TestSQLiteRecorder_List_FiltersByForge(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	rec := requestlog.NewSQLiteRecorder(store, "acct-1")
+	rec := requestlog.NewSQLiteRecorder(store)
 
 	require.NoError(t, rec.Record(t.Context(), requestlog.Entry{
 		LoggedAt: time.Now().UTC(), Forge: dashboard.ForgeGitHub, Method: "GET", Endpoint: "/a", Outcome: requestlog.OutcomeSuccess,

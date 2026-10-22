@@ -13,18 +13,9 @@ import (
 // (the same SQLite database auth/session data already lives in, per
 // design.md's "reuse what's already there" decision) rather than
 // standing up a second storage mechanism for one more record type.
-//
-// It's scoped to one account: SQLiteRecorder is constructed once per
-// signed-in user (wherever that user's forge clients are built — see
-// cmd/forge-dashboard's buildSourcesForUser), and every Entry it records
-// carries that account's own ID regardless of what the caller set on
-// Entry.AccountID — the account whose credential made a request is a
-// property of *which client made it*, not something each individual
-// client call site needs to know or pass through.
 type SQLiteRecorder struct {
-	store     *auth.Store
-	accountID string
-	writer    *Writer
+	store  *auth.Store
+	writer *Writer
 }
 
 // Option configures a SQLiteRecorder.
@@ -37,10 +28,9 @@ func WithWriter(w *Writer) Option {
 	return func(r *SQLiteRecorder) { r.writer = w }
 }
 
-// NewSQLiteRecorder returns a SQLiteRecorder that persists into store,
-// stamping every recorded Entry with accountID.
-func NewSQLiteRecorder(store *auth.Store, accountID string, opts ...Option) *SQLiteRecorder {
-	r := &SQLiteRecorder{store: store, accountID: accountID}
+// NewSQLiteRecorder returns a SQLiteRecorder that persists into store.
+func NewSQLiteRecorder(store *auth.Store, opts ...Option) *SQLiteRecorder {
+	r := &SQLiteRecorder{store: store}
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -55,7 +45,6 @@ func (r *SQLiteRecorder) Record(ctx context.Context, e Entry) error {
 	row := auth.RequestLogRow{
 		LoggedAt:           e.LoggedAt,
 		Forge:              string(e.Forge),
-		AccountID:          r.accountID,
 		Method:             e.Method,
 		Endpoint:           e.Endpoint,
 		StatusCode:         e.StatusCode,
@@ -83,8 +72,7 @@ func (r *SQLiteRecorder) Record(ctx context.Context, e Entry) error {
 // counterpart against the same store.
 func (r *SQLiteRecorder) List(ctx context.Context, filter Filter) ([]Entry, error) {
 	rows, err := r.store.ListRequests(ctx, auth.RequestLogFilter{
-		Forge:     string(filter.Forge),
-		AccountID: filter.AccountID,
+		Forge: string(filter.Forge),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("requestlog: list: %w", err)
@@ -96,7 +84,6 @@ func (r *SQLiteRecorder) List(ctx context.Context, filter Filter) ([]Entry, erro
 			ID:                 row.ID,
 			LoggedAt:           row.LoggedAt,
 			Forge:              dashboard.Forge(row.Forge),
-			AccountID:          row.AccountID,
 			Method:             row.Method,
 			Endpoint:           row.Endpoint,
 			StatusCode:         row.StatusCode,
