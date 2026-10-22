@@ -37,7 +37,7 @@
     isFiltered,
     filterFromState,
     filterToState,
-    releaseHref,
+    httpHref,
     advisoryPill,
     type MainBranch,
     type MainBranches,
@@ -163,7 +163,7 @@
 
   function openRelease(b: MainBranch) {
     const release = b.latestRelease;
-    const url = release ? releaseHref(release.url) : null;
+    const url = release ? httpHref(release.url) : null;
     if (!release || !url) return;
     releaseDialog?.setChrome({
       status: null,
@@ -782,6 +782,7 @@
       {:else}
         <ul class="mb-list" aria-label="Default branches">
           {#each visible as b (rowKey(b))}
+            {@const adv = advisoryPill(b.advisories)}
             <li
               class="mb-row"
               data-testid="main-branch-row"
@@ -830,7 +831,7 @@
                       b.forge}</span
                   >
                   {#if b.stale}<span class="mb-chip mb-stale">stale</span>{/if}
-                  {#if b.latestRelease && releaseHref(b.latestRelease.url)}
+                  {#if b.latestRelease && httpHref(b.latestRelease.url)}
                     {@const release = b.latestRelease}
                     <!-- A native button, as the CI pill is: it opens the
                       release dialog, which carries the link to the forge. -->
@@ -856,8 +857,7 @@
                       ><span class="mb-release-tag">{release.tag}</span></button
                     >
                   {/if}
-                  {#if advisoryPill(b.advisories)}
-                    {@const adv = advisoryPill(b.advisories)!}
+                  {#if adv}
                     <!-- Severity is the word beside the count; the colour
                       only echoes it. Unknown is words, never a zero. -->
                     {#if adv.href}

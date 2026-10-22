@@ -239,9 +239,9 @@ export function filterFromState(
   return { status, forge, query };
 }
 
-// The release link is shown only for an http(s) url, so anything else
-// (javascript:, data:) is never put in a href.
-export function releaseHref(url: string): string | null {
+// A link (a release, an advisories page) is shown only for an http(s) url, so
+// anything else (javascript:, data:) is never put in a href.
+export function httpHref(url: string): string | null {
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'https:' || parsed.protocol === 'http:'
@@ -280,7 +280,7 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
   }
   if (a.count <= 0) return null;
   const noun = a.count === 1 ? 'advisory' : 'advisories';
-  const href = a.url ? releaseHref(a.url) : null;
+  const href = a.url ? httpHref(a.url) : null;
   return {
     tone: a.highest ?? 'counted',
     text: a.highest ? `${a.count} ${noun}, ${a.highest}` : `${a.count} ${noun}`,
