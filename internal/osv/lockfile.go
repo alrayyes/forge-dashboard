@@ -25,7 +25,10 @@ const (
 	EcosystemGo  = "Go"
 )
 
-var errNoPackages = errors.New("osv: lockfile has no packages map")
+var (
+	errNoPackages = errors.New("osv: lockfile has no packages map")
+	errNoModule   = errors.New("osv: go.mod has no module directive")
+)
 
 // ParsePackageLock reads the installed packages from an npm package-lock.json
 // (lockfile version 2 or 3). A version 1 file keeps its tree under
@@ -64,21 +67,44 @@ func ParsePackageLock(data []byte) ([]Package, error) {
 	return out, nil
 }
 
-// fromRegistry says whether a lock entry's resolved source is an npm registry
-// tarball (".../name/-/name-1.0.0.tgz"). A git, file or plain tarball source is
-// not the registry package of that name and version, so matching it against
-// OSV could flag the wrong code. An entry with no resolved source is kept.
+// publicRegistries are the hosts of the public npm registry (and its yarn
+// alias), whose package names are public already.
+var publicRegistries = []string{"https://registry.npmjs.org/", "https://registry.yarnpkg.com/"}
+
+// fromRegistry says whether a lock entry's resolved source is a tarball of the
+// public npm registry (".../name/-/name-1.0.0.tgz"). A private registry's
+// package names stay out of the request, and a git, file or plain tarball
+// source is not the registry package of that name and version, so matching it
+// against OSV could flag the wrong code. An entry with no resolved source is
+// kept.
 func fromRegistry(resolved string) bool {
-	return resolved == "" || strings.Contains(resolved, "/-/")
+	if resolved == "" {
+		return true
+	}
+
+	return strings.Contains(resolved, "/-/") && slices.ContainsFunc(publicRegistries, func(host string) bool {
+		return strings.HasPrefix(resolved, host)
+	})
 }
 
 // ParseGoMod reads the modules a go.mod builds, direct and indirect, at the
 // versions it pins. OSV's Go ecosystem writes versions without the leading "v".
 // A replace directive swaps the module that is built: one to another module
 // reads as that module and version, one to a local path leaves nothing to match
-// and drops the module.
+// and drops the module. A file with no module directive is not a go.mod, and
+// is an error rather than a module with nothing to match.
 func ParseGoMod(data []byte) ([]Package, error) {
-	var requires, replaces [][]string
+	requires, replaces, hasModule := goModLines(data)
+	if !hasModule {
+		return nil, errNoModule
+	}
+
+	return applyReplaces(requires, replaces), nil
+}
+
+// goModLines splits a go.mod into its require and replace lines (the fields
+// after the keyword, block or not) and says whether it has a module directive.
+func goModLines(data []byte) (requires, replaces [][]string, hasModule bool) {
 	block := ""
 	for line := range strings.SplitSeq(string(data), "\n") {
 		line, _, _ = strings.Cut(line, "//")
@@ -86,6 +112,8 @@ func ParseGoMod(data []byte) ([]Package, error) {
 		switch {
 		case len(fields) == 0:
 			continue
+		case block == "" && fields[0] == "module":
+			hasModule = true
 		case block != "" && fields[0] == ")":
 			block = ""
 		case block == "require":
@@ -101,7 +129,7 @@ func ParseGoMod(data []byte) ([]Package, error) {
 		}
 	}
 
-	return applyReplaces(requires, replaces), nil
+	return requires, replaces, hasModule
 }
 
 // replacement is what a replace directive swaps a module for.

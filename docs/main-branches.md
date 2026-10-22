@@ -94,20 +94,22 @@ link anywhere, since OSV has no page for a whole repo.
 
 This is off by default, because **the package names and versions in those files
 are sent to `api.osv.dev`**, for private repos too. A `go.mod` module path can
-name an internal host or project. Nothing else is sent: no repo name, URL or
-token. Set `OSV_ADVISORIES=on` to turn it on; a line in the log at startup says
-so. While it is off, every Forgejo row is `unknown` with the reason
-`not_enabled`: not checked, never zero.
+name an internal host or project. Only npm packages the lock file resolves to
+the public registry are sent, so a private registry's package names stay home.
+Nothing else is sent: no repo name, URL or token. Set `OSV_ADVISORIES=on` to
+turn it on; a line in the log at startup says so, and a value that is neither
+`on` nor `off` logs a warning and leaves it off. While it is off, every Forgejo
+row is `unknown` with the reason `not_enabled`: not checked, never zero.
 
 With it on, a repo with no lock file the dashboard reads is `unknown`, never
-zero. So is a repo where any lock file is over 8 megabytes or doesn't parse (it
-is asked again after five minutes), and one that matches more than 300 distinct
-advisories. Only the repo root is read: a root `go.mod` alone reads as known
-even when the front end lives in a subdirectory, so a count is the advisories
-in the root lock files, not in the whole repo. A `replace` directive in
-`go.mod` is applied, and an aliased npm install is matched by its real name. A
-lock file lists many packages: past 3000 distinct name and version pairs the
-repo is `unknown`.
+zero. So is a repo where any lock file is over 8 megabytes, doesn't parse or,
+for `go.mod`, has no `module` line (it is asked again after five minutes), and
+one that matches more than 300 distinct advisories. Only the repo root is read:
+a root `go.mod` alone reads as known even when the front end lives in a
+subdirectory, so a count is the advisories in the root lock files, not in the
+whole repo. A `replace` directive in `go.mod` is applied, and an aliased npm
+install is matched by its real name. A lock file lists many packages: past 3000
+distinct name and version pairs the repo is `unknown`.
 
 The page does not flag an unknown Forgejo row, since most repos have no lock
 file: neither the notice above the list nor the grey dash is about them. Answers

@@ -79,6 +79,7 @@ func TestParsePackageLock_SkipsWhatDidNotComeFromTheRegistry(t *testing.T) {
 	lock := `{"packages":{
 		"node_modules/reg":{"version":"1.0.0","resolved":"https://registry.npmjs.org/reg/-/reg-1.0.0.tgz"},
 		"node_modules/private":{"version":"2.0.0","resolved":"https://npm.example.com/private/-/private-2.0.0.tgz"},
+		"node_modules/mirror":{"version":"2.0.0","resolved":"https://registry.npmjs.org.evil.example/mirror/-/mirror-2.0.0.tgz"},
 		"node_modules/gitdep":{"version":"1.0.0","resolved":"git+ssh://git@github.com/o/gitdep.git#abc"},
 		"node_modules/tarball":{"version":"1.0.0","resolved":"https://example.com/tarball-1.0.0.tgz"},
 		"node_modules/local":{"version":"1.0.0","resolved":"file:../local"}}}`
@@ -87,6 +88,28 @@ func TestParsePackageLock_SkipsWhatDidNotComeFromTheRegistry(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []osv.Package{
 		{Ecosystem: "npm", Name: "reg", Version: "1.0.0"},
-		{Ecosystem: "npm", Name: "private", Version: "2.0.0"},
-	}, got, "a git, tarball or file source is not the registry package of that name")
+	}, got, "only the public registry's packages are sent: a private registry's names stay home, as do git, tarball and file sources")
+}
+
+func TestParsePackageLock_KeepsEntriesFromTheYarnRegistryHost(t *testing.T) {
+	t.Parallel()
+
+	lock := `{"packages":{"node_modules/y":{"version":"1.0.0","resolved":"https://registry.yarnpkg.com/y/-/y-1.0.0.tgz"}}}`
+
+	got, err := osv.ParsePackageLock([]byte(lock))
+	require.NoError(t, err)
+	assert.Equal(t, []osv.Package{{Ecosystem: "npm", Name: "y", Version: "1.0.0"}}, got)
+}
+
+func TestParseGoMod_AnEmptyOrGarbageFileIsAnError(t *testing.T) {
+	t.Parallel()
+
+	for _, data := range []string{"", "\n\n", "<html>not a go.mod</html>", "require github.com/a/b v1.0.0\n"} {
+		_, err := osv.ParseGoMod([]byte(data))
+		require.Error(t, err, "%q has no module directive, so it is not a go.mod", data)
+	}
+
+	got, err := osv.ParseGoMod([]byte("module x\n\ngo 1.22\n"))
+	require.NoError(t, err, "a module with no requirements is a real, empty go.mod")
+	assert.Empty(t, got)
 }
