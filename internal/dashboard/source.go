@@ -194,6 +194,14 @@ type ChecksRerunner interface {
 	RerunFailedChecks(ctx context.Context, owner, name string, number int) error
 }
 
+// DefaultBranchRerunner is implemented by a ForgeClient (or, for github.Client,
+// a Source directly) that can rerun the failed jobs of the newest pipeline on a
+// repository's default branch: the branch twin of ChecksRerunner. An error of
+// kind ForgeErrorConflict means there was no failed job it could rerun.
+type DefaultBranchRerunner interface {
+	RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error
+}
+
 // BranchUpdater is implemented by a ForgeClient (or, for github.Client, a
 // Source directly) that can bring one of its own pull requests' head
 // branch up to date with its base — checked via a type assertion, the

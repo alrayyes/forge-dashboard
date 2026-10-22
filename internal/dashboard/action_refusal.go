@@ -138,6 +138,9 @@ const (
 	PullRequestActionDependabot      PullRequestAction = "dependabot"
 	PullRequestActionRenovateRebase  PullRequestAction = "renovate_rebase"
 	PullRequestActionRerunChecks     PullRequestAction = "rerun_checks"
+	// PullRequestActionRerunBranchChecks is the rerun of a default branch's
+	// failed checks. It has no pull request, but it fails the same ways.
+	PullRequestActionRerunBranchChecks PullRequestAction = "rerun_branch_checks"
 )
 
 // ClassifyActionRefusal classifies a refused Merge; see
@@ -197,7 +200,7 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 		if r, ok := classifyReopenRefusal(actionErr); ok {
 			return r
 		}
-	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionRerunChecks:
+	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionRerunChecks, PullRequestActionRerunBranchChecks:
 	}
 
 	return unknownRefusal(actionErr, forgeText)

@@ -110,6 +110,7 @@ const PENDING_OPERATIONS = [
   'closePullRequest',
   'reopenPullRequest',
   'rerunPullRequestChecks',
+  'rerunMainBranchChecks',
   'hidePullRequest',
   'unhidePullRequest',
   'updatePullRequestBranch',
