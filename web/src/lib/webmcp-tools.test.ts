@@ -196,6 +196,13 @@ describe('WebMCP read tools', () => {
     expect(description).not.toMatch(/failed first|failing first/i);
   });
 
+  test('get_main_branches describes the advisories field and its unknown state', () => {
+    const { tool } = setup();
+    const description = tool('get_main_branches').description;
+    expect(description).toContain('advisories');
+    expect(description).toContain('unknown');
+  });
+
   test('numbers and names are bounded in the schema and in the check', async () => {
     const { tool, calls } = setup();
     const t = tool('get_pull_request_checks');
