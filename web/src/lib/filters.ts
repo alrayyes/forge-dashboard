@@ -23,7 +23,7 @@ export interface SharedFilterState {
 export interface FilterableItem {
   forge: string;
   repo: string;
-  // The ticket number. Only an issue is matched on it (title box).
+  // The ticket number, matched by the title box.
   number?: number;
   title: string;
   author?: string;
@@ -953,18 +953,13 @@ export function minutesAgo(iso: string): number {
   );
 }
 
-// The title box on the Issues page also takes a ticket number: `1884` or
-// `#1884` matches numbers that start with it. The # is optional and does not
-// change what matches, so a year or a version in a title stays findable and a
-// title that holds `#1884` as typed does too. Pull requests match on the title
-// alone.
-export function matchesTitleTerm(
-  item: FilterableItem,
-  isPR: boolean,
-  term: string,
-): boolean {
+// The title box also takes a ticket number: `1884` or `#1884` matches numbers
+// that start with it. The # is optional and does not change what matches, so a
+// year or a version in a title stays findable and a title that holds `#1884`
+// as typed does too. Issues, pull requests and Bot PRs all match this way.
+export function matchesTitleTerm(item: FilterableItem, term: string): boolean {
   const inTitle = item.title.toLowerCase().includes(term);
-  if (isPR || item.number === undefined) return inTitle;
+  if (item.number === undefined) return inTitle;
   const digits = /^#?(\d+)$/.exec(term.trim());
   if (!digits) return inTitle;
   return String(item.number).startsWith(digits[1]) || inTitle;
@@ -997,7 +992,7 @@ export function failingFilters(
   const failing: string[] = [];
   if (shared.forge && item.forge !== shared.forge) failing.push('forge');
   if (shared.repo && repoKey !== shared.repo) failing.push('repo');
-  if (shared.title && !matchesTitleTerm(item, isPR, shared.title))
+  if (shared.title && !matchesTitleTerm(item, shared.title))
     failing.push('title');
   if (
     shared.author &&
