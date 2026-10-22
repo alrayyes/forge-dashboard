@@ -48,6 +48,13 @@ longer start. A 50-repo refresh from six tabs peaks at about 20 threads, so
 docker inspect --format '{{.State.Health.Status}}' <container>
 ```
 
+Readiness does not wait for the forges, on purpose. Ready means the app can
+serve its last saved view, and tying it to a third-party outage would take
+the dashboard down with the forge. After a restart the page shows the saved
+rows with a "Starting up, showing data from" line and a "loading" chip
+for each forge, until the first refresh has asked it. Only a fetch that
+fails is drawn as unreachable.
+
 `starting` is normal for up to 30 seconds after boot, then `healthy`. A
 healthy container stays healthy when a forge goes unreachable. That shows
 on the dashboard, not here. `GET /healthz` stays the cheap liveness answer

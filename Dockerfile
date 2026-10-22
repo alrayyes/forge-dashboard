@@ -72,6 +72,9 @@ EXPOSE 8080
 # unready. --start-period is failure-free time for a cold volume and the
 # schema setup; the first refresh only starts once someone signs in, so a
 # restarted container is ready on the database alone.
+# Readiness stays off the forges on purpose: a restarted container serves the
+# saved rows, and the page marks each forge "starting" until the first refresh
+# has asked it, so a start-up gap is never shown as an outage.
 #
 # Resource note: a container's pids limit counts OS threads, and the
 # healthcheck is a second process that needs one more. A 50-repo refresh from

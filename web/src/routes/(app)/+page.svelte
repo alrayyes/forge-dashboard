@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { splitStaleRows } from "#lib/forge-starting.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { ciSignature } from "#lib/pipeline-live.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
@@ -79,7 +80,14 @@
   const forgeOffered = $derived(offeredForges(branches, filter));
   const advisoryState = $derived(advisoryCoverage(branches));
   const advisoryReason = $derived(advisoryUnknownReason(branches));
-  const staleRows = $derived(branches.filter((b) => b.stale));
+  const staleSplit = $derived(
+    splitStaleRows(
+      branches.filter((b) => b.stale),
+      data?.forges,
+    ),
+  );
+  const staleRows = $derived(staleSplit.outage);
+  const startingRows = $derived(staleSplit.starting);
   const staleSince = $derived(
     staleRows
       .map((b) => b.staleSince)
@@ -736,6 +744,16 @@
       <button type="button" class="mb-toggle" onclick={retry}>Retry</button>
     </div>
   {:else if data}
+    {#if startingRows.length > 0}
+      <div class="mb-banner" role="status" data-testid="starting-banner">
+        <p>
+          The app is starting up, so {startingRows.length === 1
+            ? "1 repository shows"
+            : `${startingRows.length} repositories show`} the status saved by the
+          last run until the first refresh answers. Those rows are marked stale.
+        </p>
+      </div>
+    {/if}
     {#if staleRows.length > 0}
       <div class="mb-banner" role="status" data-testid="stale-banner">
         <p>
