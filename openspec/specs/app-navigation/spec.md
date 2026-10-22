@@ -3,7 +3,7 @@
 ## Purpose
 
 Defines the signed-in shell's persistent navigation: which routes are
-reachable, how the current page and admin-only links are shown, and how
+reachable, how the current page is shown, and how
 sign-out works, across both the desktop header chrome and a mobile bottom
 tab bar.
 
@@ -37,21 +37,15 @@ whichever is showing — SHALL indicate the current page at any time.
   indicator (`aria-current="page"` and its visual state), and no other
   control does
 
-### Requirement: Admin-only link visibility
+### Requirement: No admin navigation
 
-The Admin navigation link SHALL be shown only to a session whose user is
-an admin, and hidden otherwise, regardless of which navigation surface
-(header or bottom tab bar) is active.
+The navigation SHALL NOT offer an Admin link on any surface (header or
+bottom tab bar), since the instance has one owner and no admin area.
 
-#### Scenario: Non-admin session
+#### Scenario: Signed-in session
 
-- **WHEN** a signed-in, non-admin user views any `(app)` page
+- **WHEN** a signed-in user views any `(app)` page
 - **THEN** no visible navigation control links to Admin
-
-#### Scenario: Admin session
-
-- **WHEN** a signed-in admin user views any `(app)` page
-- **THEN** an Admin navigation control is visible
 
 ### Requirement: Sign-out
 
