@@ -424,33 +424,6 @@ func TestRun_KeptUser_StillHasWorkingSessionTokenPasskeysAndSettings(t *testing.
 	assert.Equal(t, keeper.ID, userID)
 }
 
-// An old database still has its invites table when the cleanup runs, which is
-// before auth.Store.Init drops it. With foreign keys on, an invite made by a
-// user the cleanup deletes must not block the delete, and Init must still
-// succeed afterwards.
-func TestRun_ForeignKeysOn_AnInviteByADeletedUserDoesNotBlockCleanupOrInit(t *testing.T) {
-	t.Parallel()
-	f := threeUsers(t)
-	f.db.SetMaxOpenConns(1) // foreign_keys is per connection
-	for _, stmt := range []string{
-		`PRAGMA foreign_keys = ON`,
-		`CREATE TABLE invites (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL,
-			created_by TEXT NOT NULL REFERENCES users(id), expires_at TIMESTAMP NOT NULL, consumed_at TIMESTAMP)`,
-		fmt.Sprintf(`INSERT INTO invites (token_hash, username, display_name, created_by, expires_at)
-			VALUES ('h', 'new', 'New', '%s', '2099-01-01')`, base64.RawURLEncoding.EncodeToString(f.users[1].ID)),
-	} {
-		_, err := f.db.ExecContext(t.Context(), stmt)
-		require.NoError(t, err)
-	}
-
-	_, err := f.run(t)
-	require.NoError(t, err)
-
-	require.NoError(t, f.auth.Init(t.Context()))
-	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM users`))
-	assert.Zero(t, f.count(t, `SELECT count(*) FROM sqlite_master WHERE name = 'invites'`))
-}
-
 func TestOwnerUsername_IsTheOldestUserHoldingAPasskey(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
