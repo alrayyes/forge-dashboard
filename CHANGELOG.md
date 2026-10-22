@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/alrayyes/forge-dashboard/compare/v2.5.3...v2.6.0) (2026-10-22)
+
+
+### Features
+
+* say why advisories are unknown ([#2527](https://github.com/alrayyes/forge-dashboard/issues/2527)) ([76f4bca](https://github.com/alrayyes/forge-dashboard/commit/76f4bca0433490df5bfb65f716ce5df23c64fefb))
+
 ## [2.5.3](https://github.com/alrayyes/forge-dashboard/compare/v2.5.2...v2.5.3) (2026-10-22)
 
 
