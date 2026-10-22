@@ -644,12 +644,13 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
     page,
   }) => {
     await open(page);
-    expect(await pickTexts(page, 'author')).toEqual(['alice', 'bob', 'carol']);
-    expect(await pickTexts(page, 'repo')).toEqual([
-      'acme/api',
-      'acme/docs',
-      'acme/web',
-    ]);
+    // The controls fill once the first fetch lands, so wait for them.
+    await expect
+      .poll(() => pickTexts(page, 'author'))
+      .toEqual(['alice', 'bob', 'carol']);
+    await expect
+      .poll(() => pickTexts(page, 'repo'))
+      .toEqual(['acme/api', 'acme/docs', 'acme/web']);
   });
 
   test('has no axe violations open with picks and images, light and dark', async ({
