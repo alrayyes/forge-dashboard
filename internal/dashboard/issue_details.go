@@ -6,8 +6,9 @@ import "context"
 type IssueState string
 
 const (
-	// IssueStateOpen and IssueStateClosed are the two states a forge reports.
-	IssueStateOpen   IssueState = "open"
+	// IssueStateOpen is an issue the forge has open.
+	IssueStateOpen IssueState = "open"
+	// IssueStateClosed is an issue the forge has closed.
 	IssueStateClosed IssueState = "closed"
 )
 
