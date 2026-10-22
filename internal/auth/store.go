@@ -358,7 +358,7 @@ func deleteCount(ctx context.Context, tx *sql.Tx, query string, args ...any) (in
 	}
 	n, err := r.RowsAffected()
 
-	return int(n), err //nolint:wrapcheck // callers add the table
+	return int(n), err
 }
 
 // rowScanner is the common surface of *sql.Row and *sql.Rows that scanUser

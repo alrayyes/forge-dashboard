@@ -232,6 +232,16 @@ func main() {
 
 	configureLogging()
 
+	// Operator recovery: runs against the database and exits, no server.
+	if len(os.Args) > 1 && os.Args[1] == "reset-passkeys" {
+		if err := runResetPasskeys(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		return
+	}
+
 	if err := run(); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)

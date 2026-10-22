@@ -27,10 +27,11 @@ request arrived over HTTPS) is what actually gates `/` and
 closed` if so. The login page only shows the registration button on an
   instance with no users. More passkeys for the same account are added from
   Settings, signed in.
-- **Losing every passkey is a hard lockout.** There's no email/SMS channel
-  here to build a self-service account-recovery flow on top of — the only
-  way back in is restoring the SQLite database (`DB_PATH`) from a backup
-  taken before the loss.
+- **Losing every passkey is fixed from the host, not the browser.** There's
+  no email or SMS channel here to build a self-service recovery flow on, so
+  the operator runs `forge-dashboard reset-passkeys`, which clears the
+  owner's passkeys and reopens registration. Settings and the webhook token
+  are kept. See [Lost your only passkey](running.md#lost-your-only-passkey).
 - **`RP_ID`** / **`RP_ORIGIN`** configure the WebAuthn relying party.
   They default to `localhost` / `http://localhost:8080` for a local run;
   a real deployment **must** set both to its real domain, or every
