@@ -639,22 +639,6 @@ func (m *Manager) Subscribe(userID []byte) (<-chan Snapshot, func(), bool) {
 	return ch, unsubscribe, true
 }
 
-// Remove stops userID's refresh loop and evicts their snapshot — a no-op
-// if they had none running. Used when an account is deleted, so a removed
-// user's background refresh doesn't keep polling either forge for no one.
-func (m *Manager) Remove(userID []byte) {
-	key := string(userID)
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if existing, ok := m.users[key]; ok {
-		existing.cancel()
-		delete(m.users, key)
-	}
-	delete(m.refreshedOnce, key)
-}
-
 // Stop cancels every running per-user refresh loop.
 func (m *Manager) Stop() {
 	m.mu.Lock()

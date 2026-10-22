@@ -128,16 +128,3 @@ func TestParseAutoMergeKey_SomethingElse_IsNotAKey(t *testing.T) {
 		assert.False(t, ok, key)
 	}
 }
-
-func TestStore_Delete_RemovesThePullRequestAutoUpdates(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.SetPullRequestAutoUpdate(t.Context(), userID, "github", "alrayyes/a", 7, false))
-
-	require.NoError(t, store.Delete(t.Context(), userID))
-
-	got, err := store.PullRequestAutoUpdates(t.Context(), userID)
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}

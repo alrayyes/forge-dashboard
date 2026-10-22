@@ -160,16 +160,3 @@ func TestStore_ForgetHiddenPullRequests_RemovesOnlyTheOnesNamed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
 }
-
-func TestStore_Delete_RemovesTheUsersHiddenPullRequests(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, time.Time{}))
-
-	require.NoError(t, store.Delete(t.Context(), userID))
-
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now())
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}

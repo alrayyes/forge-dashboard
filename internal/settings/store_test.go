@@ -160,25 +160,6 @@ func TestStore_Set_Twice_ReplacesTheWholeRow(t *testing.T) {
 	assert.Equal(t, "second-token", got.GitHubToken)
 }
 
-func TestStore_Delete_ThenGet_ReturnsErrNotFound(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-
-	require.NoError(t, store.Set(t.Context(), userID, settings.Credentials{GitHubToken: "a-token"}))
-	require.NoError(t, store.Delete(t.Context(), userID))
-
-	_, err := store.Get(t.Context(), userID)
-	assert.ErrorIs(t, err, settings.ErrNotFound)
-}
-
-func TestStore_Delete_NeverSaved_IsANoOp(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	assert.NoError(t, store.Delete(t.Context(), []byte("nobody")))
-}
-
 func TestStore_TokensAreEncryptedAtRest(t *testing.T) {
 	t.Parallel()
 
@@ -385,19 +366,6 @@ func TestStore_RecordWebhookDelivery_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T)
 	assert.Empty(t, got)
 }
 
-func TestStore_Delete_RemovesWebhookDeliveries(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.RecordWebhookDelivery(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
-
-	require.NoError(t, store.Delete(t.Context(), userID))
-
-	got, err := store.WebhookDeliveries(t.Context(), userID)
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}
-
 func TestStore_GetFilterState_NeverSaved_ReturnsEmptyObject(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
@@ -599,19 +567,6 @@ func TestStore_IgnoreRepo_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-func TestStore_Delete_RemovesIgnoredRepos(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.IgnoreRepo(t.Context(), userID, "github", "alrayyes/forge-dashboard", true, true))
-
-	require.NoError(t, store.Delete(t.Context(), userID))
-
-	got, err := store.IgnoredRepos(t.Context(), userID)
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}
-
 func TestStore_AutoUpdateBranchRepos_NoneEnabled_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
@@ -677,19 +632,6 @@ func TestStore_EnableAutoUpdateBranch_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T
 	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), []byte("user-a"), "github", "alrayyes/forge-dashboard"))
 
 	got, err := store.AutoUpdateBranchRepos(t.Context(), []byte("user-b"))
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}
-
-func TestStore_Delete_RemovesAutoUpdateBranchRepos(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.EnableAutoUpdateBranch(t.Context(), userID, "github", "alrayyes/forge-dashboard"))
-
-	require.NoError(t, store.Delete(t.Context(), userID))
-
-	got, err := store.AutoUpdateBranchRepos(t.Context(), userID)
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
