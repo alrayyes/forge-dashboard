@@ -920,7 +920,7 @@
                       ><span class="mb-release-tag">{release.tag}</span></button
                     >
                   {/if}
-                  {#if advisoryState === "partial" && b.advisories?.state === "unknown"}
+                  {#if advisoryState === "partial" && b.forge !== "forgejo" && b.advisories?.state === "unknown"}
                     <span
                       class="mb-advisory-cue"
                       data-testid="main-branch-advisories-cue"

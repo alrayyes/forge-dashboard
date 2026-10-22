@@ -169,7 +169,7 @@ func isRiskyCall(dir string, call *ast.CallExpr, hasSite bool) (string, bool) {
 		return name, true
 	case "NewRequestWithContext":
 		return name, !isGetSite(dir, call)
-	case "rawRequest":
+	case "rawRequest", "rawRequestMax":
 		return name, mentionsMethodGet(call) && !hasSite
 	}
 
@@ -258,10 +258,10 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 		"internal/github/hook_check_persist.go:restoreHookChecks:Do": true, // sync.Once, sends nothing
 	}
 	allowedForgejo := map[string]bool{
-		"internal/forgejo/client.go:rawRequest:NewRequestWithContext": true,
-		"internal/forgejo/client.go:rawRequest:Do":                    true,
-		"internal/forgejo/job_log.go:jobLog:NewRequestWithContext":    true, // job log stream, never conditional: one per failed job when the panel loads its checks (up to five on Forgejo), or on demand
-		"internal/forgejo/job_log.go:jobLog:Do":                       true, // job log stream, never conditional: one per failed job when the panel loads its checks (up to five on Forgejo), or on demand
+		"internal/forgejo/client.go:rawRequestMax:NewRequestWithContext": true,
+		"internal/forgejo/client.go:rawRequestMax:Do":                    true,
+		"internal/forgejo/job_log.go:jobLog:NewRequestWithContext":       true, // job log stream, never conditional: one per failed job when the panel loads its checks (up to five on Forgejo), or on demand
+		"internal/forgejo/job_log.go:jobLog:Do":                          true, // job log stream, never conditional: one per failed job when the panel loads its checks (up to five on Forgejo), or on demand
 	}
 
 	assert.Empty(t, httpCallsOutsideTheCount(t, "github", allowedGitHub))

@@ -34,8 +34,8 @@ credential lacks the permission, is never shown as zero: unknown is no answer.
 When every GitHub repo is unknown, one notice above the list says so and links
 to [When advisories can't be read](#when-advisories-cant-be-read), and no row
 repeats it. When only some are unknown, those rows carry a small grey dash
-(read aloud as "Advisories unknown") and no pill. A repo no source reads, such as
-a Forgejo one, shows no pill. A branch whose only trouble is a cancelled run (a
+(read aloud as "Advisories unknown") and no pill. A repo no source reads
+shows no pill. A branch whose only trouble is a cancelled run (a
 newer push or a person stopped it) reads Cancelled, not Failed, with a stop
 glyph; a real
 failure beside a cancelled run is Failed and names only the failed job, and a
@@ -80,6 +80,50 @@ panel here only reads. With every
 default branch passing the page says so, and a filter that matches nothing
 offers **Reset filters**. A repo with no pipeline says no run was found.
 
+## Forgejo advisories
+
+Forgejo has no alerts of its own, so the advisories on a Forgejo row come from
+the repo's lock files. The dashboard lists the root of the default branch, reads
+`package-lock.json` (npm lock file version 2 or 3) and `go.mod` if they are
+there, and asks [OSV](https://google.github.io/osv.dev/post-v1-querybatch/)
+which of the pinned packages have known advisories. The count is the number of
+distinct advisories, with one flaw listed under two ids counted once, and the
+severity is the highest the advisory database states. An advisory that states
+none still counts, and the pill then shows the count alone. The pill does not
+link anywhere, since OSV has no page for a whole repo.
+
+This is off by default, because **the package names and versions in those files
+are sent to `api.osv.dev`**, for private repos too. Only two things are kept
+out: Go modules whose path starts with the Forgejo host itself, and npm packages
+that don't resolve to the public npm registry. A private Go module on another
+host, or a private scoped package on the public npm registry, is still sent by
+name, which is why this is off by default. Nothing else is sent: no repo name,
+URL or token. Set `OSV_ADVISORIES=on` to turn it on; a line in the log at
+startup says so, and a value that is neither `on` nor `off` logs a warning and
+leaves it off. While it is off, every Forgejo row is `unknown` with the reason
+`not_enabled`: not checked, never zero.
+
+With it on, a repo with no lock file the dashboard reads is `unknown`, never
+zero. So is a repo where any lock file is over 8 megabytes, doesn't parse or,
+for `go.mod`, has no `module` line (it is asked again after an hour), and one
+that matches more than 300 distinct advisories. Only the repo root is read: a
+root `go.mod` alone reads as known even when the front end lives in a
+subdirectory, so a count is the advisories in the root lock files, not in the
+whole repo. A `replace` directive in `go.mod` is applied, and an aliased npm
+install is matched by its real name. A lock file lists many packages: past 3000
+distinct name and version pairs the repo is `unknown`. So is a repo where every
+package was left out for being private, since nothing was checked.
+
+The page does not flag an unknown Forgejo row, since most repos have no lock
+file: neither the notice above the list nor the grey dash is about them. Answers
+are cached for fifteen minutes. A failed read keeps the last answer for up to a
+day, or shows `unknown` if there is none or it is older, and is retried after
+five minutes, then ten, up to thirty while OSV stays down, without reading the
+lock files from the forge again. One repo's read gives up after ten seconds so a
+slow OSV can't hold up the CI row. A read costs one listing of the root plus one
+read per lock file, counted under the `advisories` kind in [Rate
+limits](rate-limits.md).
+
 ## When advisories can't be read
 
 GitHub answers 403 or 404 when the credential can't read a repo's Dependabot
@@ -107,8 +151,9 @@ fifteen minutes. A failed read, or the first refusal, is retried after five
 minutes; the same refusal again waits the full fifteen. A rate limit or a
 GitHub error shows as unknown too, so an unknown row does not always mean a
 missing permission. The API says which in `reason` on the unknown answer
-(`refused`, `switched_off`, `throttled`, `failed` or `too_many`), and the notice
-on the page names the cause when every unknown row shares one. GitHub's reference:
+(`refused`, `switched_off`, `throttled`, `failed` or `too_many`; a Forgejo
+repo can also say `not_enabled`, which only the API reports), and the notice on
+the page names the cause when every unknown GitHub row shares one. GitHub's reference:
 [List Dependabot alerts for a repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
 
 ## Main branches API
@@ -121,8 +166,9 @@ its default branch, the status of the pipeline on the newest commit (`failed`,
 finished and how long it ran, a link to the run, and the repository's latest
 published release (`latestRelease`, its tag and the page of its notes, or
 null) and its open dependency advisories (`advisories`: `state`, `count`, the
-`highest` severity and a `url` to the alerts). `advisories` is absent for a repo
-whose forge no source reads, such as Forgejo. `state` is `unknown` when the
+`highest` severity and a `url` to the alerts). A Forgejo repo's
+`advisories` is `unknown` with the reason `not_enabled` until `OSV_ADVISORIES=on`.
+`state` is `unknown` when the
 forge could not say, for example alerts switched off or a token without the
 scope, and is never a count of zero; `reason` then says why when the dashboard
 can tell. The release's title and notes are a
