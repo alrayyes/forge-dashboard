@@ -28,6 +28,9 @@ const (
 	ReasonThrottled   AdvisoryReason = "throttled"
 	ReasonFailed      AdvisoryReason = "failed"
 	ReasonTooMany     AdvisoryReason = "too_many"
+	// ReasonNotEnabled is a source the operator has not switched on, so the
+	// repo was not checked.
+	ReasonNotEnabled AdvisoryReason = "not_enabled"
 )
 
 // AdvisorySeverity is how serious an advisory is, using the four levels

@@ -96,6 +96,8 @@ type clientState struct {
 	// each repo's last answer.
 	advisoryScanner AdvisoryScanner
 	advisories      advisoryCache
+	// advisoryDeadline overrides advisoryDeadline; zero keeps it. For tests.
+	advisoryDeadline time.Duration
 }
 
 // cachedReview is one pull request's review state as of updatedAt.

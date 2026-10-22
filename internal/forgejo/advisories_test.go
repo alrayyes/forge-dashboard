@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
@@ -45,6 +46,7 @@ func (f *fakeScanner) calls() int {
 // its content, and listCode, when set, fails the root listing.
 type lockfileServer struct {
 	files    map[string]string
+	sizes    map[string]int // overrides the size the listing states for a file
 	listCode int
 	rawCode  int
 	requests atomic.Int32
@@ -62,7 +64,11 @@ func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *f
 		}
 		entries := []map[string]any{{"name": "README.md", "type": "file", "size": 10}, {"name": "src", "type": "dir"}}
 		for name, body := range s.files {
-			entries = append(entries, map[string]any{"name": name, "type": "file", "size": len(body)})
+			size := len(body)
+			if n, ok := s.sizes[name]; ok {
+				size = n
+			}
+			entries = append(entries, map[string]any{"name": name, "type": "file", "size": size})
 		}
 		writeJSON(t, w, entries)
 	})
@@ -189,11 +195,149 @@ func TestReadMainBranch_AFailedReadKeepsTheLastAnswer(t *testing.T) {
 	assert.Equal(t, 4, again.Advisories.Count, "an OSV outage never turns a known count into zero")
 }
 
-func TestReadMainBranch_WithoutAScannerThereAreNoAdvisories(t *testing.T) {
+func TestReadMainBranch_WithoutAScannerTheRowSaysNotChecked(t *testing.T) {
 	t.Parallel()
 	row, err := (&mainBranchServer{}).start(t).ReadMainBranch(t.Context(), repoA)
 	require.NoError(t, err)
-	assert.Nil(t, row.Advisories)
+	require.NotNil(t, row.Advisories)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonNotEnabled}, *row.Advisories)
+}
+
+// clock is a time the test moves by hand.
+type clock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (c *clock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.t
+}
+
+func (c *clock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
+func withClock(client *forgejo.Client) *clock {
+	c := &clock{t: time.Now()}
+	forgejo.SetAdvisoryClock(client, c.now)
+
+	return c
+}
+
+func TestReadAdvisories_ALockfileTooBigToReadMakesTheRepoUnknown(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{}
+	forge := &lockfileServer{
+		files: map[string]string{"package-lock.json": lockJSON, "go.mod": "module x\n\nrequire github.com/a/b v1.2.3\n"},
+		sizes: map[string]int{"package-lock.json": 9 << 20},
+	}
+
+	got, err := forge.start(t, scanner).ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, got, "the go.mod alone must not read as the whole repo")
+	assert.Zero(t, scanner.calls())
+}
+
+func TestReadAdvisories_OneUnreadableLockfileMakesTheRepoUnknown(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{summary: osv.Summary{Count: 1}}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": "not json", "go.mod": "module x\n\nrequire github.com/a/b v1.2.3\n"}}
+
+	got, err := forge.start(t, scanner).ReadAdvisories(t.Context(), "alrayyes", "a", "")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
+	assert.Zero(t, scanner.calls())
+}
+
+func TestReadMainBranch_AnUnreadableLockfileIsAskedAgainAfterTheShortRetry(t *testing.T) {
+	t.Parallel()
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": "not json"}}
+	client := forge.start(t, &fakeScanner{})
+	clk := withClock(client)
+
+	_, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	clk.advance(4 * time.Minute)
+	_, err = client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, forge.requests.Load(), "still cached inside five minutes")
+
+	clk.advance(2 * time.Minute)
+	_, err = client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	assert.EqualValues(t, 4, forge.requests.Load(), "read again after five, not fifteen")
+}
+
+func TestReadMainBranch_AnOSVOutageDoesNotReadTheForgeAgain(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{err: assert.AnError}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
+	client := forge.start(t, scanner)
+	clk := withClock(client)
+
+	_, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, forge.requests.Load())
+
+	scanner.mu.Lock()
+	scanner.err = nil
+	scanner.summary = osv.Summary{Count: 3, Highest: "high"}
+	scanner.mu.Unlock()
+	clk.advance(6 * time.Minute)
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	assert.Equal(t, 3, row.Advisories.Count)
+	assert.Equal(t, 2, scanner.calls(), "OSV is asked again")
+	assert.EqualValues(t, 2, forge.requests.Load(), "the lockfile is not read again")
+}
+
+func TestReadMainBranch_RetriesBackOff(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{err: assert.AnError}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
+	clk := withClock(client)
+	read := func() {
+		_, err := client.ReadMainBranch(t.Context(), repoA)
+		require.NoError(t, err)
+	}
+
+	read() // fails, ask again in 5 minutes
+	clk.advance(5*time.Minute + time.Second)
+	read() // fails, ask again in 10
+	require.Equal(t, 2, scanner.calls())
+	clk.advance(6 * time.Minute)
+	read()
+	assert.Equal(t, 2, scanner.calls(), "10 minutes haven't passed")
+	clk.advance(5 * time.Minute)
+	read()
+	assert.Equal(t, 3, scanner.calls())
+}
+
+func TestReadMainBranch_ASlowReadGivesUpAtTheDeadline(t *testing.T) {
+	t.Parallel()
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, blockingScanner{})
+	forgejo.SetAdvisoryDeadline(client, 50*time.Millisecond)
+
+	start := time.Now()
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second)
+	require.NotNil(t, row.Advisories)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, *row.Advisories)
+}
+
+// blockingScanner never answers until its context ends.
+type blockingScanner struct{}
+
+func (blockingScanner) Scan(ctx context.Context, _ []osv.Package) (osv.Summary, error) {
+	<-ctx.Done()
+
+	return osv.Summary{}, ctx.Err()
 }
 
 func TestReadMainBranch_AFailedFirstReadIsUnknown(t *testing.T) {
