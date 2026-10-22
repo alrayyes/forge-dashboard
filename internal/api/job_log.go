@@ -69,7 +69,7 @@ func repoTracked(snap dashboard.Snapshot, forge, fullName string) bool {
 	})
 }
 
-// resolveJobLogFor reads the output of one Actions job for u. Shared by
+// resolveJobLogFor reads the output of one Actions job. Shared by
 // handleJobLog and the MCP get_check_log tool so the two can't drift.
 func resolveJobLogFor(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
 	owner, name, ok := splitFullName(fullName)

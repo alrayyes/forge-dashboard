@@ -55,10 +55,8 @@ type setPullRequestAutoUpdateInput struct {
 // transport (https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#streamable-http)
 // at whatever path server.go mounts it under. It's meant to sit behind
 // auth.RequireAuth the same way every other /api/* handler in this
-// package does -- getServer below reads the *auth.User RequireAuth put in
-// r's context and builds a fresh *mcp.Server with tool handlers closed
-// over that specific user, the same "authenticated the same way the
-// frontend already is" contract #561 asked for. No new auth mechanism:
+// package does -- getServer below builds a fresh *mcp.Server per request, the
+// same "authenticated the same way the frontend already is" contract #561 asked for. No new auth mechanism:
 // an MCP client authenticates with this app's own personal API tokens
 // (Authorization: Bearer <token>, /api/tokens) exactly as a script hitting
 // /api/dashboard directly already would.
@@ -70,7 +68,7 @@ func newMCPHandler(deps Deps) http.Handler {
 	return mcp.NewStreamableHTTPHandler(getServer, nil)
 }
 
-// newMCPServer builds the server for one authenticated user. Every tool it
+// newMCPServer builds the MCP server. Every tool it
 // registers must have an entry in mcpToolOperations (mcp_operations.go), which
 // the parity test checks against what the server really serves.
 func newMCPServer(deps Deps) *mcp.Server {

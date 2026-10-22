@@ -10,7 +10,7 @@ import (
 )
 
 // resolveMainBranchChecksFor lists every job/check of the newest pipeline on the
-// named repository's default branch for u. It is the branch twin of
+// named repository's default branch. It is the branch twin of
 // resolvePullRequestChecksFor and shares its response shape, so the pipeline
 // panel that renders one renders the other. Shared by handleMainBranchChecks
 // and the MCP get_main_branch_checks tool so the two can't drift.

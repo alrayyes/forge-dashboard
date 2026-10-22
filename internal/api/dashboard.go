@@ -844,8 +844,8 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 //
 // The Running() check is a fast path — cheap, and safe even if it races,
 // since a false negative just falls through to EnsureIfAbsent below,
-// which is what actually has to be race-safe: several requests for the
-// same user landing in the same instant right after a restart (several
+// which is what actually has to be race-safe: several requests
+// landing in the same instant right after a restart (several
 // browser tabs and an SSE reconnect, all reconnecting at once) used to
 // each see "not running" from a bare Running() check and each spin up
 // their own Aggregator with its own immediate Refresh — confirmed as a

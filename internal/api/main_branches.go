@@ -62,7 +62,7 @@ func buildMainBranchesResponse(generatedAt, now time.Time, forges []dashboard.Fo
 }
 
 // resolveMainBranchesFor answers the CI status of every tracked repo's default
-// branch (#1224) for u from the snapshot the background refresh already holds.
+// branch (#1224) from the snapshot the background refresh already holds.
 // It never calls a forge, so it costs no rate-limit budget however often it's
 // read. Shared by handleMainBranches and the MCP get_main_branches tool so the
 // two can't drift.

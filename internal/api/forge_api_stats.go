@@ -49,7 +49,7 @@ func handleForgeAPIStats(deps Deps) http.HandlerFunc {
 	}
 }
 
-// resolveForgeAPIStatsFor answers u's counters and budgets. Shared by the HTTP
+// resolveForgeAPIStatsFor answers the forge-API counters and budgets. Shared by the HTTP
 // handler and the MCP get_forge_api_stats tool so the two can't drift.
 func resolveForgeAPIStatsFor(ctx context.Context, deps Deps) (forgeAPIStatsResponse, error) {
 	creds, err := deps.SettingsStore.Get(ctx)

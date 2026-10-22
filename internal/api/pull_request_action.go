@@ -23,8 +23,8 @@ type actionTarget struct {
 	owner, name string
 }
 
-// readActionTarget reads who is asking and which pull request, and answers 500
-// or 400 itself when it can't.
+// readActionTarget reads which pull request the caller means and answers 400 itself
+// when it can't.
 func readActionTarget(w http.ResponseWriter, r *http.Request) (actionTarget, bool) {
 	var req pullRequestActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

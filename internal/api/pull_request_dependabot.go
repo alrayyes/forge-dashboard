@@ -43,8 +43,8 @@ type dependabotTarget struct {
 	comment string
 }
 
-// readDependabotTarget reads who is asking, the action and which pull request,
-// and answers 500 or 400 itself when it can't. The action is checked before
+// readDependabotTarget reads the action and which pull request,
+// and answers 400 itself when it can't. The action is checked before
 // the repo name, which is the order this endpoint always had.
 func readDependabotTarget(w http.ResponseWriter, r *http.Request) (dependabotTarget, bool) {
 	var req pullRequestDependabotActionRequest
