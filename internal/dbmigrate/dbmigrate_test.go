@@ -46,6 +46,10 @@ func count(t *testing.T, db *sql.DB, query string) int {
 func version(t *testing.T, db *sql.DB) int {
 	t.Helper()
 
+	if count(t, db, `SELECT count(*) FROM sqlite_master WHERE name = 'schema_version'`) == 0 {
+		return 0 // nothing was stamped
+	}
+
 	return count(t, db, `SELECT version FROM schema_version`)
 }
 
@@ -53,7 +57,7 @@ func version(t *testing.T, db *sql.DB) int {
 // a column being dropped, the way SQLite's documented procedure does.
 var rebuild = dbmigrate.Step{
 	Name: "drop user_id from notes",
-	Run: func(ctx context.Context, tx *sql.Tx) error {
+	Run: func(ctx context.Context, tx dbmigrate.Tx) error {
 		for _, q := range []string{
 			`CREATE TABLE notes_new (title TEXT NOT NULL PRIMARY KEY, body TEXT NOT NULL)`,
 			`INSERT INTO notes_new (title, body) SELECT title, body FROM notes`,
@@ -146,7 +150,7 @@ func TestRun_AFailingStepLeavesEveryTableAndTheVersionAlone(t *testing.T) {
 	boom := errors.New("injected")
 	failing := dbmigrate.Step{
 		Name: "fails after rebuilding",
-		Run: func(ctx context.Context, tx *sql.Tx) error {
+		Run: func(ctx context.Context, tx dbmigrate.Tx) error {
 			if err := rebuild.Run(ctx, tx); err != nil {
 				return err //nolint:wrapcheck // test step
 			}
@@ -167,7 +171,7 @@ func TestRun_AFailingStepLeavesEveryTableAndTheVersionAlone(t *testing.T) {
 func TestRun_EarlierStepsStayWhenALaterOneFails(t *testing.T) {
 	db, path := open(t)
 	seedOld(t, db)
-	failing := dbmigrate.Step{Name: "second", Run: func(context.Context, *sql.Tx) error { return errors.New("no") }}
+	failing := dbmigrate.Step{Name: "second", Run: func(context.Context, dbmigrate.Tx) error { return errors.New("no") }}
 
 	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{rebuild, failing}, quiet)
 
@@ -179,7 +183,7 @@ func TestRun_EarlierStepsStayWhenALaterOneFails(t *testing.T) {
 func TestRun_AFreshDatabaseIsStampedWithoutRunningAStep(t *testing.T) {
 	db, path := open(t)
 	ran := false
-	step := dbmigrate.Step{Name: "x", Run: func(context.Context, *sql.Tx) error {
+	step := dbmigrate.Step{Name: "x", Run: func(context.Context, dbmigrate.Tx) error {
 		ran = true
 
 		return nil
@@ -212,7 +216,7 @@ func TestRun_ADanglingForeignKeyRollsTheStepBack(t *testing.T) {
 	exec(t, db, `CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))`)
 	exec(t, db, `INSERT INTO parent (id) VALUES (1)`)
 	exec(t, db, `INSERT INTO child (id, parent_id) VALUES (1, 1)`)
-	orphan := dbmigrate.Step{Name: "orphans the child", Run: func(ctx context.Context, tx *sql.Tx) error {
+	orphan := dbmigrate.Step{Name: "orphans the child", Run: func(ctx context.Context, tx dbmigrate.Tx) error {
 		_, err := tx.ExecContext(ctx, `DELETE FROM parent`)
 
 		return err //nolint:wrapcheck // test step
@@ -236,4 +240,116 @@ func TestRun_LeavesForeignKeysAsItFoundThem(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, count(t, db, `PRAGMA foreign_keys`))
+}
+
+func TestRun_AStepHoldsTheWriteLockFromItsFirstStatement(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	other, err := sql.Open("sqlite", path) // no busy timeout: a held lock fails at once
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = other.Close() })
+	var writeErr error
+	readOnly := dbmigrate.Step{Name: "reads first", Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM notes`).Scan(&n); err != nil {
+			return err //nolint:wrapcheck // test step
+		}
+		_, writeErr = other.ExecContext(ctx, `INSERT INTO notes (user_id, title, body) VALUES ('u', 'x', 'y')`)
+
+		return nil
+	}}
+
+	_, err = dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{readOnly}, quiet)
+
+	require.NoError(t, err)
+	require.Error(t, writeErr, "another connection must not get a write in once the step has begun")
+}
+
+func TestRun_TheBackupIsOfTheDatabaseAsItWas_NotOneThatAlreadyHoldsAVersionRow(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+
+	res, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{rebuild}, quiet)
+	require.NoError(t, err)
+
+	backup, err := sql.Open("sqlite", res.BackupPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backup.Close() })
+	assert.Equal(t, 0, count(t, backup, `SELECT count(*) FROM sqlite_master WHERE name = 'schema_version'`))
+}
+
+func TestRun_OnlyTheTablesAStepNamesAreCheckedForDanglingKeys(t *testing.T) {
+	db, path := open(t)
+	db.SetMaxOpenConns(1)
+	exec(t, db, `PRAGMA foreign_keys = OFF`)
+	exec(t, db, `CREATE TABLE parent (id INTEGER PRIMARY KEY)`)
+	exec(t, db, `CREATE TABLE stale (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))`)
+	exec(t, db, `INSERT INTO stale (id, parent_id) VALUES (1, 99)`) // already dangling before the step
+	exec(t, db, `CREATE TABLE mine (id INTEGER PRIMARY KEY)`)
+	step := dbmigrate.Step{Name: "touches mine", Tables: []string{"mine"}, Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO mine (id) VALUES (1)`)
+
+		return err //nolint:wrapcheck // test step
+	}}
+
+	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.NoError(t, err, "a dangling key in a table the step never touched is not the step's doing")
+	assert.Equal(t, 1, version(t, db))
+}
+
+func TestRun_ADanglingKeyInANamedTableRollsTheStepBack(t *testing.T) {
+	db, path := open(t)
+	db.SetMaxOpenConns(1)
+	exec(t, db, `PRAGMA foreign_keys = OFF`)
+	exec(t, db, `CREATE TABLE parent (id INTEGER PRIMARY KEY)`)
+	exec(t, db, `CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))`)
+	step := dbmigrate.Step{Name: "dangles", Tables: []string{"child"}, Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO child (id, parent_id) VALUES (1, 7)`)
+
+		return err //nolint:wrapcheck // test step
+	}}
+
+	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.ErrorIs(t, err, dbmigrate.ErrDanglingForeignKey)
+	assert.Equal(t, 0, count(t, db, `SELECT count(*) FROM child`))
+}
+
+func TestRun_AStepThatWillRefuseTakesNoBackupAndWritesNothing(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	refuse := errors.New("refused up front")
+	ran := false
+	step := dbmigrate.Step{
+		Name:      "refuses",
+		Preflight: func(context.Context, dbmigrate.Tx) error { return refuse },
+		Run: func(context.Context, dbmigrate.Tx) error {
+			ran = true
+
+			return nil
+		},
+	}
+
+	for range 3 { // a refused start repeated must not pile up copies of the database
+		_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+		require.ErrorIs(t, err, refuse)
+	}
+
+	assert.False(t, ran)
+	assert.Empty(t, backups(t, path))
+	assert.Equal(t, 0, count(t, db, `SELECT count(*) FROM sqlite_master WHERE name = 'schema_version'`))
+}
+
+func TestRun_APassingPreflightLetsTheBackupAndTheStepRun(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	step := rebuild
+	step.Preflight = func(context.Context, dbmigrate.Tx) error { return nil }
+
+	res, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, res.BackupPath)
+	assert.Equal(t, 1, version(t, db))
 }

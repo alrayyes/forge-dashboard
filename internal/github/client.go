@@ -4167,7 +4167,7 @@ func (c *Client) failedStep(ctx context.Context, owner, name string, id int64) (
 func (c *Client) logExcerpt(ctx context.Context, owner, name string, id int64) string {
 	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/logs", owner, name, id)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
-	loc, resp, err := c.restClient.Actions.GetWorkflowJobLogs(ctx, owner, name, id, 1)
+	loc, resp, err := c.restClient.Actions.GetWorkflowJobLogs(ctx, owner, name, id, 0)
 	if err != nil {
 		slog.Debug("github job log unavailable", "path", path, "err", err)
 

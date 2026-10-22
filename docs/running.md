@@ -125,3 +125,46 @@ site straight away, and register. If a stranger finishes first, they become the
 owner of your settings. Run the command again, then register yours.
 Restrict who can reach the instance while the window is open if it is exposed
 to the internet.
+
+## Schema upgrades
+
+Saved settings, ignored repositories, hidden pull requests, queued actions and
+the other per-board tables used to carry a user id on every row. They no longer
+do: an instance has one owner, so the first start of this version rebuilds each
+of those tables without the column and keeps the owner's rows as they were. The
+webhook token and secret are copied unchanged, so a webhook you already installed
+keeps working.
+
+Before the first rebuild the server copies the database next to the original,
+as `<DB_PATH>.before-migration-<UTC timestamp>`, readable only by the owner
+because it holds every secret. The rebuild is one transaction: if it fails, the
+database is as it was, the log says why, and the server does not start. Restore
+the copy, or fix the cause and start again. A new instance has nothing to
+rebuild and takes no copy. To go back to an older release, restore the copy
+first: the older release would not find its tables and would start from empty
+settings.
+
+A database that still holds several users from before the single-user release
+stops with `run the previous release first`. Upgrading takes two releases: start
+the release that removes the extra users first, let it finish, then start this
+one. A refused start writes nothing and takes no copy.
+
+Rows keyed to a user that is not in the `users` table belong to nobody, so the
+rebuild refuses them too, whether or not the owner has rows in the same table.
+The message names the table and the user ids and gives the `DELETE` that clears
+them. Copy the database file, run it, and start again. Nothing is deleted for you.
+
+Rows of another user who still exists, left beside the owner's by a second
+registration after the extra users were removed, are not an error: the oldest
+user wins, and the log has one `the oldest user's settings win` warning per
+table with the dropped row count and the user ids. Those rows survive only in
+the copy.
+
+That release keeps the oldest user who holds a passkey. If the database has
+several users and none holds a passkey, it can't choose and the previous
+release won't help. The server says so and stops. Keep the one user you want
+in the `users` table (copy the file first) and start again. A settings table
+that already holds rows beside the old one stops the upgrade the same way, so
+nothing is overwritten.
+
+Delete the copy once you are satisfied; the server never does.

@@ -142,22 +142,6 @@ func TestMCP_GetSettings_EmptySettingsAreListsNotNull(t *testing.T) {
 	assert.Empty(t, content["githubUsername"])
 }
 
-func TestMCP_GetSettings_AnotherUserSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	owner, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	status, _ := putSettings(t, srv.URL, seededSettings, owner)
-	require.Equal(t, http.StatusOK, status)
-	other := registerExtraUser(t, srv, testOtherUser, "Alex")
-
-	theirs := settingsContent(t, callSettingsTool(t, srv.URL, other))
-	assert.Empty(t, theirs["githubUsername"])
-	assert.Equal(t, false, theirs["githubTokenSet"])
-	assert.Equal(t, []any{}, theirs["ignoredTitles"])
-	assert.Equal(t, "ryan", settingsContent(t, callSettingsTool(t, srv.URL, owner))["githubUsername"])
-}
-
 func TestMCP_GetSettings_ValidatesAgainstItsOutputSchema(t *testing.T) {
 	t.Parallel()
 

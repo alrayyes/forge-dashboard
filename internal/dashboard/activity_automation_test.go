@@ -74,7 +74,7 @@ func TestAggregator_Run_WhileIdle_StillRefreshesForAnArmedPullRequest(t *testing
 	store := armedStore(armedKey)
 	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
-	agg.EnableAutoMerge([]byte("user-1"), store)
+	agg.EnableAutoMerge(store)
 
 	runIdle(t, agg, act, src.callCount)
 	require.Empty(t, src.mergedPullRequests(), "not mergeable yet")
@@ -91,7 +91,7 @@ func TestAggregator_Run_WhileIdle_RestsWhenNothingIsArmed(t *testing.T) {
 	store := armedStore()
 	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
-	agg.EnableAutoMerge([]byte("user-1"), store)
+	agg.EnableAutoMerge(store)
 
 	runIdle(t, agg, act, src.callCount)
 	time.Sleep(100 * time.Millisecond)
@@ -110,7 +110,7 @@ func TestAggregator_Run_WhileIdle_StillRefreshesForABehindPullRequestNotYetUpdat
 	lister := &switchableLister{}
 	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	runIdle(t, agg, act, src.callCount)
 	require.Empty(t, src.updatedBranches())
@@ -142,7 +142,7 @@ func TestAggregator_Run_WhileIdle_RestsForABehindPullRequestAlreadyTried(t *test
 	lister := &fakeAutoUpdateBranchLister{enabled: map[string]struct{}{"github/alrayyes/a": {}}}
 	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	runIdle(t, agg, act, src.callCount)
 	time.Sleep(100 * time.Millisecond)
@@ -163,26 +163,26 @@ func (l *switchableLister) enable(key string) {
 	l.enabled = map[string]struct{}{key: {}}
 }
 
-func (l *switchableLister) AutoUpdateBranchRepos(context.Context, []byte) (map[string]struct{}, error) {
+func (l *switchableLister) AutoUpdateBranchRepos(context.Context) (map[string]struct{}, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	return l.enabled, nil
 }
 
-func (l *switchableLister) PullRequestAutoUpdates(context.Context, []byte) (map[string]bool, error) {
+func (l *switchableLister) PullRequestAutoUpdates(context.Context) (map[string]bool, error) {
 	return nil, nil
 }
 
-func (l *switchableLister) ForgetPullRequestAutoUpdates(context.Context, []byte, []string) error {
+func (l *switchableLister) ForgetPullRequestAutoUpdates(context.Context, []string) error {
 	return nil
 }
 
-func (l *switchableLister) RenovateRebaseLabel(context.Context, []byte) (string, error) {
+func (l *switchableLister) RenovateRebaseLabel(context.Context) (string, error) {
 	return "rebase", nil
 }
 
-func (l *switchableLister) RenovateAuthors(context.Context, []byte) ([]string, error) {
+func (l *switchableLister) RenovateAuthors(context.Context) ([]string, error) {
 	return nil, nil
 }
 
@@ -202,7 +202,7 @@ func TestAggregator_Run_WhileIdle_StillRefreshesForAPullRequestSwitchedOnByItsOw
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
 	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	runIdle(t, agg, act, src.callCount)
 
@@ -221,7 +221,7 @@ func TestAggregator_Run_WhileIdle_RestsForAPullRequestSwitchedOffByItsOwnChoice(
 	}
 	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 
 	runIdle(t, agg, act, src.callCount)
 	time.Sleep(100 * time.Millisecond)

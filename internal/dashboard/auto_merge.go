@@ -17,14 +17,13 @@ import (
 // "forge/owner/repo#number", and a way to drop one. settings.Store satisfies
 // it. Defined here, in the consuming package.
 type AutoMergeStore interface {
-	AutoMergeIntents(ctx context.Context, userID []byte) (map[string]struct{}, error)
-	CancelAutoMerge(ctx context.Context, userID []byte, forge, repoFullName string, number int) error
+	AutoMergeIntents(ctx context.Context) (map[string]struct{}, error)
+	CancelAutoMerge(ctx context.Context, forge, repoFullName string, number int) error
 }
 
 // autoMergeConfig is nil on an Aggregator that never called EnableAutoMerge.
 type autoMergeConfig struct {
-	userID []byte
-	store  AutoMergeStore
+	store AutoMergeStore
 
 	// attempts remembers the merge tried for each armed pull request, so a
 	// refusal is never repeated on every refresh (a refresh runs several
@@ -57,8 +56,8 @@ const transientAutoMergeWait = 5 * time.Minute
 // pull request the user armed gets merged, the way a click on Merge would
 // merge it, once its checks pass and the forge calls it mergeable. Nothing
 // else is ever merged: a pull request the user didn't arm is never touched.
-func (a *Aggregator) EnableAutoMerge(userID []byte, store AutoMergeStore) {
-	a.autoMerge = &autoMergeConfig{userID: userID, store: store, attempts: make(map[string]autoMergeAttempt), failures: make(map[string]AutoMergeFailure), cancelled: make(map[string]AutoMergeCancelled), cancelAttempts: make(map[string]autoMergeAttempt)}
+func (a *Aggregator) EnableAutoMerge(store AutoMergeStore) {
+	a.autoMerge = &autoMergeConfig{store: store, attempts: make(map[string]autoMergeAttempt), failures: make(map[string]AutoMergeFailure), cancelled: make(map[string]AutoMergeCancelled), cancelAttempts: make(map[string]autoMergeAttempt)}
 }
 
 // runAutoMerge is the post-refresh hook. A store failure is logged and
@@ -71,7 +70,7 @@ func (a *Aggregator) runAutoMerge(ctx context.Context, snap Snapshot) {
 	}
 	a.cancelEmptyAutoMerges(ctx, snap)
 
-	armed, err := cfg.store.AutoMergeIntents(ctx, cfg.userID)
+	armed, err := cfg.store.AutoMergeIntents(ctx)
 	if err != nil {
 		slog.Warn("auto-merge: could not load armed pull requests", "error", err)
 
@@ -128,7 +127,7 @@ func (a *Aggregator) autoMergeNow(ctx context.Context, pr PullRequest) {
 	}
 
 	slog.Info("auto-merge: merged", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number)
-	if err := a.autoMerge.store.CancelAutoMerge(ctx, a.autoMerge.userID, string(pr.Forge), pr.Repo, pr.Number); err != nil {
+	if err := a.autoMerge.store.CancelAutoMerge(ctx, string(pr.Forge), pr.Repo, pr.Number); err != nil {
 		slog.Warn("auto-merge: could not clear the intent", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
 	}
 	a.autoMerge.recordMerged(AutoMerged{Forge: pr.Forge, Repo: pr.Repo, Number: pr.Number, At: a.now()}, a.now())
@@ -162,7 +161,7 @@ func (a *Aggregator) dropIfFinished(ctx context.Context, snap Snapshot, key stri
 		return
 	}
 	slog.Info("auto-merge: pull request finished elsewhere, intent removed", "forge", forge, "repo", repo, "number", number)
-	if err := a.autoMerge.store.CancelAutoMerge(ctx, a.autoMerge.userID, string(forge), repo, number); err != nil {
+	if err := a.autoMerge.store.CancelAutoMerge(ctx, string(forge), repo, number); err != nil {
 		slog.Warn("auto-merge: could not clear the intent", "forge", forge, "repo", repo, "number", number, "error", err)
 	}
 }

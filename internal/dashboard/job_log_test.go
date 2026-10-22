@@ -69,3 +69,11 @@ func TestNewJobLog_StripsOSCSequencesAndStrayControlCharacters(t *testing.T) {
 
 	assert.Equal(t, "beforelink after\ttab\n", got.Text)
 }
+
+func TestNewJobLog_AnUnterminatedOSCDoesNotSwallowTheLog(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.NewJobLog([]byte("a\x1b]0;never closed\nline two\nline three\n"), false)
+
+	assert.Equal(t, "a\nline two\nline three\n", got.Text)
+}

@@ -13,29 +13,29 @@ import (
 )
 
 // AutoUpdateBranchLister reports what an Aggregator needs to decide
-// which behind pull requests to auto-update for userID (#365): the set
+// which behind pull requests to auto-update (#365): the set
 // of repos enabled for it. Defined here in the consuming package per
 // go.md, rather than importing internal/settings' concrete *Store
 // directly. settings.Store satisfies this today.
 type AutoUpdateBranchLister interface {
-	AutoUpdateBranchRepos(ctx context.Context, userID []byte) (map[string]struct{}, error)
-	// PullRequestAutoUpdates reports userID's own choice for the pull
+	AutoUpdateBranchRepos(ctx context.Context) (map[string]struct{}, error)
+	// PullRequestAutoUpdates reports the user's own choice for the pull
 	// requests that have one, keyed forge/owner/repo#number (settings.AutoMergeKey):
 	// true to update that pull request whatever its repo says, false to leave
 	// it alone. A pull request without an entry follows its repo.
-	PullRequestAutoUpdates(ctx context.Context, userID []byte) (map[string]bool, error)
+	PullRequestAutoUpdates(ctx context.Context) (map[string]bool, error)
 	// ForgetPullRequestAutoUpdates deletes the choices named by their keys.
-	ForgetPullRequestAutoUpdates(ctx context.Context, userID []byte, keys []string) error
-	// RenovateRebaseLabel reports userID's own configured Renovate rebase
+	ForgetPullRequestAutoUpdates(ctx context.Context, keys []string) error
+	// RenovateRebaseLabel reports the user's configured Renovate rebase
 	// label (Credentials.RenovateRebaseLabelOrDefault) — what a behind
 	// Renovate pull request gets labeled with instead of the generic
 	// UpdateBranch call (#541), mirroring the manual Renovate: Rebase
 	// button.
-	RenovateRebaseLabel(ctx context.Context, userID []byte) (string, error)
-	// RenovateAuthors reports the logins userID has said are Renovate's
+	RenovateRebaseLabel(ctx context.Context) (string, error)
+	// RenovateAuthors reports the logins the user has said are Renovate's
 	// (Settings), so a Forgejo or GitLab Renovate account is recognised
 	// (#1062).
-	RenovateAuthors(ctx context.Context, userID []byte) ([]string, error)
+	RenovateAuthors(ctx context.Context) ([]string, error)
 }
 
 // autoUpdateBranchConfig holds what an Aggregator needs to run the
@@ -43,7 +43,6 @@ type AutoUpdateBranchLister interface {
 // called EnableAutoUpdateBranch, which is every one before #365 and
 // every one Manager builds with no AutoUpdateBranchLister configured.
 type autoUpdateBranchConfig struct {
-	userID []byte
 	lister AutoUpdateBranchLister
 
 	// dependabotWatch holds the key (see dependabotPRKey) of every open
@@ -98,7 +97,7 @@ const (
 
 // EnableAutoUpdateBranch turns on the hook that runs after every
 // completed refresh: any pull request the snapshot reports Behind, on a
-// repo lister currently reports enabled for userID, gets brought up to
+// repo lister currently reports enabled, gets brought up to
 // date the same way a manual click would — except a release-please pull
 // request, which is always skipped (release-please regenerates its own
 // branch and changelog together on every push to the base branch, so a
@@ -114,8 +113,8 @@ const (
 // queried fresh on every refresh, since this Aggregator's own dedicated
 // enable/disable endpoints don't trigger a rebuild the way most other
 // settings changes do.
-func (a *Aggregator) EnableAutoUpdateBranch(userID []byte, lister AutoUpdateBranchLister) {
-	a.autoUpdate = &autoUpdateBranchConfig{userID: userID, lister: lister, dependabotWatch: make(map[string]struct{}), dependabotAttempted: make(map[string]struct{}), updateAttempts: make(map[string]updateAttempt)}
+func (a *Aggregator) EnableAutoUpdateBranch(lister AutoUpdateBranchLister) {
+	a.autoUpdate = &autoUpdateBranchConfig{lister: lister, dependabotWatch: make(map[string]struct{}), dependabotAttempted: make(map[string]struct{}), updateAttempts: make(map[string]updateAttempt)}
 }
 
 // runAutoUpdateBranch is the post-refresh hook itself — a no-op if
@@ -133,7 +132,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 	a.pruneDependabotAttempts(snap)
 	a.pruneUpdateAttempts(snap)
 
-	enabled, err := a.autoUpdate.lister.AutoUpdateBranchRepos(ctx, a.autoUpdate.userID)
+	enabled, err := a.autoUpdate.lister.AutoUpdateBranchRepos(ctx)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load enabled repos", "error", err)
 
@@ -141,7 +140,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 	}
 	// An unreadable list of per-pull-request choices degrades to the repo
 	// setting alone, the same way a lister failure above degrades the pass.
-	overrides, err := a.autoUpdate.lister.PullRequestAutoUpdates(ctx, a.autoUpdate.userID)
+	overrides, err := a.autoUpdate.lister.PullRequestAutoUpdates(ctx)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load pull request choices", "error", err)
 		overrides = nil
@@ -151,14 +150,14 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		return
 	}
 
-	renovateLabel, err := a.autoUpdate.lister.RenovateRebaseLabel(ctx, a.autoUpdate.userID)
+	renovateLabel, err := a.autoUpdate.lister.RenovateRebaseLabel(ctx)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load renovate rebase label", "error", err)
 
 		return
 	}
 
-	renovateAuthors, err := a.autoUpdate.lister.RenovateAuthors(ctx, a.autoUpdate.userID)
+	renovateAuthors, err := a.autoUpdate.lister.RenovateAuthors(ctx)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load renovate authors", "error", err)
 
@@ -189,7 +188,7 @@ func (a *Aggregator) forgetStaleAutoUpdateChoices(ctx context.Context, snap Snap
 	if len(stale) == 0 {
 		return
 	}
-	if err := a.autoUpdate.lister.ForgetPullRequestAutoUpdates(ctx, a.autoUpdate.userID, stale); err != nil {
+	if err := a.autoUpdate.lister.ForgetPullRequestAutoUpdates(ctx, stale); err != nil {
 		slog.Warn("auto-update-branch: could not forget stale pull request choices", "error", err)
 	}
 }

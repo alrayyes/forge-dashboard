@@ -15,11 +15,10 @@ import (
 func TestStore_HidePullRequest_ThenHiddenPullRequests_ReturnsIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, time.Time{}))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now())
+	got, err := store.HiddenPullRequests(t.Context(), time.Now())
 	require.NoError(t, err)
 	assert.Contains(t, got, settings.AutoMergeKey("github", "alrayyes/a", 7))
 }
@@ -28,7 +27,7 @@ func TestStore_HiddenPullRequests_NoneHidden_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	got, err := store.HiddenPullRequests(t.Context(), []byte("user-1"), time.Now())
+	got, err := store.HiddenPullRequests(t.Context(), time.Now())
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -37,10 +36,9 @@ func TestStore_HiddenPullRequests_NoneHidden_ReturnsEmpty(t *testing.T) {
 func TestStore_HidePullRequest_WithoutAnEndTime_NeverExpires(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, time.Time{}))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now().AddDate(10, 0, 0))
+	got, err := store.HiddenPullRequests(t.Context(), time.Now().AddDate(10, 0, 0))
 
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
@@ -49,11 +47,10 @@ func TestStore_HidePullRequest_WithoutAnEndTime_NeverExpires(t *testing.T) {
 func TestStore_HidePullRequest_ReportsItsEndTime(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 	until := time.Now().Add(7 * 24 * time.Hour).UTC().Truncate(time.Second)
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, until))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, until))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now())
+	got, err := store.HiddenPullRequests(t.Context(), time.Now())
 
 	require.NoError(t, err)
 	assert.True(t, until.Equal(got[settings.AutoMergeKey("github", "alrayyes/a", 7)].Until))
@@ -62,11 +59,10 @@ func TestStore_HidePullRequest_ReportsItsEndTime(t *testing.T) {
 func TestStore_HiddenPullRequests_DropsOneWhoseTimeHasPassed(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 	until := time.Now().Add(time.Hour)
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, until))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, until))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, until.Add(time.Second))
+	got, err := store.HiddenPullRequests(t.Context(), until.Add(time.Second))
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -75,14 +71,13 @@ func TestStore_HiddenPullRequests_DropsOneWhoseTimeHasPassed(t *testing.T) {
 func TestStore_HiddenPullRequests_ForgetsAnExpiredOneForGood(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
 	until := time.Now().Add(time.Hour)
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, until))
-	_, err := store.HiddenPullRequests(t.Context(), userID, until.Add(time.Second))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, until))
+	_, err := store.HiddenPullRequests(t.Context(), until.Add(time.Second))
 	require.NoError(t, err)
 
 	// Asked again with an earlier clock, it is still gone: the row was deleted.
-	got, err := store.HiddenPullRequests(t.Context(), userID, until.Add(-time.Minute))
+	got, err := store.HiddenPullRequests(t.Context(), until.Add(-time.Minute))
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -91,12 +86,11 @@ func TestStore_HiddenPullRequests_ForgetsAnExpiredOneForGood(t *testing.T) {
 func TestStore_HidePullRequest_Twice_ReplacesTheEarlierChoice(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, time.Time{}))
 	until := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, until))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, until))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now())
+	got, err := store.HiddenPullRequests(t.Context(), time.Now())
 
 	require.NoError(t, err)
 	assert.True(t, until.Equal(got[settings.AutoMergeKey("github", "alrayyes/a", 7)].Until))
@@ -105,12 +99,11 @@ func TestStore_HidePullRequest_Twice_ReplacesTheEarlierChoice(t *testing.T) {
 func TestStore_UnhidePullRequest_RemovesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, time.Time{}))
 
-	require.NoError(t, store.UnhidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7))
+	require.NoError(t, store.UnhidePullRequest(t.Context(), "github", "alrayyes/a", 7))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now())
+	got, err := store.HiddenPullRequests(t.Context(), time.Now())
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
@@ -119,44 +112,31 @@ func TestStore_UnhidePullRequest_NotHidden_IsANoOp(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	assert.NoError(t, store.UnhidePullRequest(t.Context(), []byte("user-1"), "github", "alrayyes/a", 7))
+	assert.NoError(t, store.UnhidePullRequest(t.Context(), "github", "alrayyes/a", 7))
 }
 
 func TestStore_HidePullRequest_KeepsTwoPullRequestsOfOneRepoApart(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, time.Time{}))
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 8, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 8, time.Time{}))
 
-	require.NoError(t, store.UnhidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7))
+	require.NoError(t, store.UnhidePullRequest(t.Context(), "github", "alrayyes/a", 7))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now())
+	got, err := store.HiddenPullRequests(t.Context(), time.Now())
 	require.NoError(t, err)
 	assert.Contains(t, got, settings.AutoMergeKey("github", "alrayyes/a", 8))
-}
-
-func TestStore_HiddenPullRequests_AreEachUsersOwn(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	require.NoError(t, store.HidePullRequest(t.Context(), []byte("user-1"), "github", "alrayyes/a", 7, time.Time{}))
-
-	got, err := store.HiddenPullRequests(t.Context(), []byte("user-2"), time.Now())
-
-	require.NoError(t, err)
-	assert.Empty(t, got)
 }
 
 func TestStore_ForgetHiddenPullRequests_RemovesOnlyTheOnesNamed(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 7, time.Time{}))
-	require.NoError(t, store.HidePullRequest(t.Context(), userID, "github", "alrayyes/a", 8, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 7, time.Time{}))
+	require.NoError(t, store.HidePullRequest(t.Context(), "github", "alrayyes/a", 8, time.Time{}))
 
-	require.NoError(t, store.ForgetHiddenPullRequests(t.Context(), userID, []settings.HiddenPullRequest{{Forge: "github", Repo: "alrayyes/a", Number: 7}}))
+	require.NoError(t, store.ForgetHiddenPullRequests(t.Context(), []settings.HiddenPullRequest{{Forge: "github", Repo: "alrayyes/a", Number: 7}}))
 
-	got, err := store.HiddenPullRequests(t.Context(), userID, time.Now())
+	got, err := store.HiddenPullRequests(t.Context(), time.Now())
 	require.NoError(t, err)
 	assert.Len(t, got, 1)
 }

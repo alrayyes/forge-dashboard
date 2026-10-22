@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
+	"syscall"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	ghsdk "github.com/google/go-github/v75/github"
@@ -31,7 +34,7 @@ var (
 func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dashboard.JobLog, error) {
 	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/logs", owner, name, id)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
-	loc, resp, err := c.restClient.Actions.GetWorkflowJobLogs(ctx, owner, name, id, 1)
+	loc, resp, err := c.restClient.Actions.GetWorkflowJobLogs(ctx, owner, name, id, 0)
 	if err != nil {
 		return dashboard.JobLog{}, c.logRequestError(ctx, path, resp, err)
 	}
@@ -48,6 +51,9 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 		return dashboard.JobLog{}, err
 	}
 
+	if blob.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+		return dashboard.JobLog{}, nil
+	}
 	body, skipped, err := readTail(blob.Body, dashboard.MaxJobLogBytes)
 	if err != nil {
 		return dashboard.JobLog{}, fmt.Errorf("%w: %w", errJobLogDownload, redactedCause(err))
@@ -82,7 +88,7 @@ func (c *Client) logRequestError(ctx context.Context, path string, resp *ghsdk.R
 // the two that carry text.
 func blobStatusError(status int, id int64) error {
 	switch status {
-	case http.StatusOK, http.StatusPartialContent:
+	case http.StatusOK, http.StatusPartialContent, http.StatusRequestedRangeNotSatisfiable:
 		return nil
 	case http.StatusNotFound, http.StatusGone:
 		return &dashboard.ClientError{
@@ -107,8 +113,8 @@ func blobStatusError(status int, id int64) error {
 // releases the request's timeout; call it once the body is read.
 func (c *Client) fetchLogBlob(ctx context.Context, loc *url.URL, n int) (*http.Response, context.CancelFunc, error) {
 	target := c.restClient.BaseURL.ResolveReference(loc)
-	if target.Scheme != "https" && (target.Scheme != c.restClient.BaseURL.Scheme || target.Host != c.restClient.BaseURL.Host) {
-		return nil, nil, fmt.Errorf("%w: the log redirect is not https", errJobLogRedirect)
+	if err := c.checkLogTarget(target); err != nil {
+		return nil, nil, err
 	}
 	fetchCtx, cancel := context.WithTimeout(ctx, logFetchTimeout)
 	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, target.String(), nil)
@@ -118,7 +124,7 @@ func (c *Client) fetchLogBlob(ctx context.Context, loc *url.URL, n int) (*http.R
 		return nil, nil, fmt.Errorf("%w: %w", errJobLogDownload, redactedCause(err))
 	}
 	req.Header.Set("Range", fmt.Sprintf("bytes=-%d", n))
-	blob, err := (&http.Client{Timeout: logFetchTimeout}).Do(req)
+	blob, err := c.logBlobClient().Do(req)
 	if err != nil {
 		cancel()
 
@@ -126,6 +132,71 @@ func (c *Client) fetchLogBlob(ctx context.Context, loc *url.URL, n int) (*http.R
 	}
 
 	return blob, cancel, nil
+}
+
+// maxLogRedirects is how many hops a blob download may follow.
+const maxLogRedirects = 3
+
+// maxLogDownload bounds the bytes read from a blob host that ignores the range
+// request and sends more than a log can reasonably be.
+const maxLogDownload = 64 * 1024 * 1024
+
+// checkLogTarget applies one rule to every URL a log download touches, the
+// first and each redirect hop: https, or the API's own origin.
+func (c *Client) checkLogTarget(target *url.URL) error {
+	base := c.restClient.BaseURL
+	if target.Scheme == "https" || (target.Scheme == base.Scheme && target.Host == base.Host) {
+		return nil
+	}
+
+	return fmt.Errorf("%w: the log redirect is not https", errJobLogRedirect)
+}
+
+// logBlobClient is the token-free client for a blob download. It checks every
+// redirect hop with checkLogTarget, follows at most maxLogRedirects, and dials
+// only public addresses, except the API's own host (a GitHub Enterprise Server
+// instance, a test), so a redirect can't reach loopback, private, link-local
+// or metadata addresses.
+func (c *Client) logBlobClient() *http.Client {
+	apiHost := c.restClient.BaseURL.Host
+	// Behind a proxy the dial goes to the proxy, which then owns the question
+	// of where a request may go.
+	proxy, _ := http.ProxyFromEnvironment(&http.Request{URL: &url.URL{Scheme: "https", Host: "logs.invalid"}})
+	dialer := &net.Dialer{
+		Timeout: logFetchTimeout,
+		Control: func(_, address string, _ syscall.RawConn) error {
+			if proxy != nil || address == apiHost || hostOnly(address) == hostOnly(apiHost) {
+				return nil
+			}
+			ip, err := netip.ParseAddrPort(address)
+			if err != nil || ip.Addr().IsLoopback() || ip.Addr().IsPrivate() || ip.Addr().IsLinkLocalUnicast() ||
+				ip.Addr().IsLinkLocalMulticast() || ip.Addr().IsUnspecified() || ip.Addr().IsMulticast() {
+				return fmt.Errorf("%w: non-public address", errJobLogRedirect)
+			}
+
+			return nil
+		},
+	}
+
+	return &http.Client{
+		Timeout:   logFetchTimeout,
+		Transport: &http.Transport{DialContext: dialer.DialContext, Proxy: http.ProxyFromEnvironment, TLSHandshakeTimeout: logFetchTimeout},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) > maxLogRedirects {
+				return fmt.Errorf("%w: too many redirects", errJobLogRedirect)
+			}
+
+			return c.checkLogTarget(req.URL)
+		},
+	}
+}
+
+func hostOnly(hostport string) string {
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		return h
+	}
+
+	return hostport
 }
 
 // redactedCause is err without the URL a *url.Error carries.
@@ -143,8 +214,10 @@ func redactedCause(err error) error {
 func readTail(r io.Reader, n int) (tail []byte, skipped bool, err error) {
 	buf := make([]byte, 0, 2*n)
 	chunk := make([]byte, 32*1024)
-	for {
+	var total int
+	for total < maxLogDownload {
 		m, rerr := r.Read(chunk)
+		total += m
 		buf = append(buf, chunk[:m]...)
 		if len(buf) >= 2*n {
 			buf = append(buf[:0], buf[len(buf)-n:]...)

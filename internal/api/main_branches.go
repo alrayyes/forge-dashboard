@@ -68,7 +68,7 @@ func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBr
 	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
 
 	snap := deps.Manager.Get(u.ID)
-	board := loadBoardSettings(ctx, deps.SettingsStore, u.ID)
+	board := loadBoardSettings(ctx, deps.SettingsStore)
 
 	return buildMainBranchesResponse(snap.GeneratedAt, board.mainBranchRows(snap.MainBranches))
 }

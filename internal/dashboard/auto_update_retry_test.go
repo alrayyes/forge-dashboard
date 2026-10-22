@@ -65,7 +65,7 @@ func refresh(t *testing.T, agg *dashboard.Aggregator, times int) {
 
 func newRetryAggregator(src *refusingUpdater) *dashboard.Aggregator {
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), &fakeAutoUpdateBranchLister{enabled: map[string]struct{}{"github/alrayyes/a": {}}})
+	agg.EnableAutoUpdateBranch(&fakeAutoUpdateBranchLister{enabled: map[string]struct{}{"github/alrayyes/a": {}}})
 
 	return agg
 }

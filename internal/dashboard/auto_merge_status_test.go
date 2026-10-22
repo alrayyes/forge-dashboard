@@ -116,7 +116,7 @@ func TestAutoMerge_Merged_IsForgottenAfterTenMinutes(t *testing.T) {
 	src := &fakeAutoMergeSource{}
 	src.result = dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true}, PullRequests: []dashboard.PullRequest{amPR(nil)}}
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(func() time.Time { return now }))
-	agg.EnableAutoMerge([]byte("user-1"), armedStore(armedKey))
+	agg.EnableAutoMerge(armedStore(armedKey))
 	agg.Refresh(t.Context())
 
 	now = now.Add(11 * time.Minute)

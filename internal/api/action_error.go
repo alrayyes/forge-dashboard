@@ -68,7 +68,7 @@ func refuseIfNotAllowed(ctx context.Context, w http.ResponseWriter, deps Deps, u
 
 	// A failed read leaves no extra Renovate logins, which is what the board
 	// shows too when its own read fails.
-	renovateAuthors, _ := deps.SettingsStore.RenovateAuthors(ctx, userID)
+	renovateAuthors, _ := deps.SettingsStore.RenovateAuthors(ctx)
 
 	for _, a := range dashboard.AllowedActions(pr, renovateAuthors) {
 		if a.Action != action {
