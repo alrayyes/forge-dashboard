@@ -452,7 +452,8 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 
 			return
 		}
-		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName))
+		branch, branchOK := a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName)
+		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, branch, branchOK)
 	})
 
 	return true
@@ -497,20 +498,22 @@ func (a *Aggregator) repoRefresherFor(forge Forge) RepoRefresher {
 
 // fetchMainBranch re-reads fullName's default branch when the source can, or
 // returns nil, which leaves the row as it was. A failed read is logged and also
-// leaves it, so one flaky call never blanks the row.
-func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, forge Forge, owner, name, fullName string) *MainBranch {
+// leaves it, so one flaky call never blanks the row. The bool is false only for
+// a failed read: a source that never reads the branch has nothing to be stale
+// about.
+func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, forge Forge, owner, name, fullName string) (*MainBranch, bool) {
 	refresher, ok := src.(MainBranchRefresher)
 	if !ok {
-		return nil
+		return nil, true
 	}
 	branch, err := refresher.FetchMainBranch(ctx, owner, name, fullName)
 	if err != nil {
 		slog.Warn("scoped default branch refresh failed", "forge", forge, "repo", fullName, "error", err)
 
-		return nil
+		return nil, false
 	}
 
-	return &branch
+	return &branch, true
 }
 
 // mergeRepo replaces forge/fullName's own entries in the current snapshot
@@ -520,17 +523,13 @@ func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, for
 // scoped refreshes of different repos run side by side, and a read taken
 // before the lock was released let the later write drop the earlier one's
 // repo (#966).
-func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue, branch *MainBranch) {
-	a.mergeRepoFrom(ctx, forge, fullName, seq, branch, func(Snapshot) ([]PullRequest, []Issue, bool) {
+//
+// branchOK is false when the branch read failed: the repo's stale mark then
+// stays, since the branch row is still the old one.
+func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue, branch *MainBranch, branchOK bool) {
+	a.mergeReposFrom(ctx, forge, seq, []repoRows{{fullName: fullName, branch: branch, rows: func(Snapshot) ([]PullRequest, []Issue, bool) {
 		return prs, issues, true
-	})
-}
-
-// mergeRepoFrom is mergeRepo for a caller whose rows depend on the snapshot
-// they replace. rows is given the current snapshot under the same hold of mu
-// that writes the result, and returns false to drop the write.
-func (a *Aggregator) mergeRepoFrom(ctx context.Context, forge Forge, fullName string, seq uint64, branch *MainBranch, rows func(current Snapshot) ([]PullRequest, []Issue, bool)) {
-	a.mergeReposFrom(ctx, forge, seq, []repoRows{{fullName: fullName, branch: branch, rows: rows, fetched: true}})
+	}, fetched: branchOK}})
 }
 
 // repoRows is one repo's share of a merge: its main branch row, if any, and the
@@ -539,13 +538,14 @@ type repoRows struct {
 	fullName string
 	branch   *MainBranch
 	rows     func(current Snapshot) ([]PullRequest, []Issue, bool)
-	// fetched is true when rows came from a fetch of both the repo's pull
-	// requests and its issues, which is what a stale mark is about. A merge
-	// that re-feeds the snapshot's own issues leaves the mark alone.
+	// fetched is true when rows came from a fetch of the repo's pull requests,
+	// its issues and, where it reads one, its main branch, which is what a stale
+	// mark is about. A merge that re-feeds the snapshot's own issues leaves the
+	// mark alone.
 	fetched bool
 }
 
-// mergeReposFrom is mergeRepoFrom for several repos of one forge at once: every
+// mergeReposFrom merges several repos of one forge at once: every
 // repo is merged into the snapshot under one hold of mu, and the subscribers are
 // told and the after-merge sweeps run once for the lot, not once per repo.
 func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64, repos []repoRows) {
@@ -554,6 +554,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 	a.mu.Lock()
 	merged := a.snap
 	wrote := false
+	var fetched map[string]bool
 	for _, r := range repos {
 		prs, issues, ok := r.rows(merged)
 		if !ok {
@@ -561,7 +562,10 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 		}
 		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues)
 		if r.fetched {
-			merged.Repos = withoutStale(merged.Repos, forge, r.fullName)
+			if fetched == nil {
+				fetched = make(map[string]bool, len(repos))
+			}
+			fetched[r.fullName] = true
 		}
 		wrote = true
 	}
@@ -570,6 +574,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 
 		return
 	}
+	merged.Repos = withoutStale(merged.Repos, forge, fetched)
 	a.snap = merged
 	a.mu.Unlock()
 
@@ -968,25 +973,28 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	return res
 }
 
-// withoutStale is repos with StaleSince cleared on forge/fullName's row. It
-// copies the slice only when there is a stale mark to clear, since the
-// snapshot's own slice is shared with readers.
-func withoutStale(repos []Repo, forge Forge, fullName string) []Repo {
+// withoutStale is repos with StaleSince cleared on the rows of forge's repos
+// named in fullNames. It leaves FailingSince: a scoped refresh fetches what a
+// webhook told it about, not what the full refresh keeps failing on, so only a
+// good full refresh ends the failure. It copies the slice once, and only when
+// there is a mark to clear, since the snapshot's own slice is shared with
+// readers.
+func withoutStale(repos []Repo, forge Forge, fullNames map[string]bool) []Repo {
+	var out []Repo
 	for i, r := range repos {
-		if r.Forge != forge || r.FullName != fullName {
+		if r.Forge != forge || !fullNames[r.FullName] || r.StaleSince == nil {
 			continue
 		}
-		if r.StaleSince == nil && r.FailingSince == nil {
-			return repos
+		if out == nil {
+			out = slices.Clone(repos)
 		}
-		out := slices.Clone(repos)
 		out[i].StaleSince = nil
-		out[i].FailingSince = nil
-
-		return out
+	}
+	if out == nil {
+		return repos
 	}
 
-	return repos
+	return out
 }
 
 // keepFailedRepos puts back what the forge had for each repo it answered but
@@ -1061,7 +1069,7 @@ type repoKey struct {
 // meanwhile is already gone from the snapshot, while the full refresh, which
 // read the forge before the merge, still lists it. For every repo a scoped
 // refresh merged after this full one started (a larger seq), the snapshot's
-// current entries win. Every other repo takes the full refresh's data.
+// current entries win, the repo's own row included. Every other repo takes the full refresh's data.
 func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Snapshot {
 	newer := make(map[repoKey]bool)
 	for key, scopedSeq := range a.scopedSeq {
@@ -1090,9 +1098,31 @@ func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Sn
 		}
 	}
 
-	snap.PullRequests, snap.Issues = prs, issues
+	repos := keepRows(snap.Repos, current.Repos, newer)
+
+	snap.PullRequests, snap.Issues, snap.Repos = prs, issues, repos
 	AnnotateStacks(snap.PullRequests)
 	sortByRecency(snap.PullRequests, snap.Issues)
 
 	return snap
+}
+
+// keepRows is repos with the row of each repo in newer replaced by current's.
+// The row carries the stale mark, which a scoped refresh may have cleared;
+// taking the full refresh's row would write the mark back.
+func keepRows(repos, current []Repo, newer map[repoKey]bool) []Repo {
+	kept := make(map[repoKey]Repo, len(newer))
+	for _, r := range current {
+		if key := (repoKey{r.Forge, r.FullName}); newer[key] {
+			kept[key] = r
+		}
+	}
+	out := slices.Clone(repos)
+	for i, r := range out {
+		if row, ok := kept[repoKey{r.Forge, r.FullName}]; ok {
+			out[i] = row
+		}
+	}
+
+	return out
 }
