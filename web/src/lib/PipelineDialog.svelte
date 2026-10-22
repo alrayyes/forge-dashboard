@@ -39,6 +39,8 @@
   // reads again only when its own row's CI changed, so a finished pipeline
   // costs no more requests.
   import { tick } from "svelte";
+  import CheckRunOutput from "#lib/CheckRunOutput.svelte";
+  import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
   import {
@@ -187,6 +189,16 @@
     if (event.target === dialog) dialog.close();
   }
 
+  // The forge's name for a board that doesn't name it: the checks url carries
+  // the forge.
+  function forgeLabel(t: PipelineTarget): string {
+    const forge = new URLSearchParams(t.checksUrl.split("?")[1] ?? "").get(
+      "forge",
+    );
+
+    return t.forgeName ?? FORGE_LABELS[forge ?? ""] ?? forge ?? "the forge";
+  }
+
   // Each check's key, so a redraw keeps a node, and the focus on it, with the
   // check it was drawn for when others come or go.
   const keyOf = $derived(
@@ -251,7 +263,15 @@
         <!-- A skipped job never ran, and a job with no page has nowhere to go:
              no link, never an empty href, which would resolve to this page. A
              held workflow's own page is where the forge's approve button is. -->
-        {#if check.state !== "skipped" && check.url}
+        {#if check.state !== "skipped" && check.state !== "awaiting_approval" && check.jobId && check.url && target?.checksUrl}
+          <CheckRunOutput
+            name={check.name}
+            jobId={check.jobId}
+            checksUrl={target.checksUrl}
+            runUrl={check.url}
+            forgeName={forgeLabel(target)}
+          />
+        {:else if check.state !== "skipped" && check.url}
           {@const linkText =
             check.state === "awaiting_approval"
               ? "Approve on GitHub"

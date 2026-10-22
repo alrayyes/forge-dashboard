@@ -49,6 +49,7 @@ const singleUserSpecs = [
   '**/nav-telemetry-pills.spec.ts',
   '**/pipeline-check-states.spec.ts',
   '**/pipeline-panel-live.spec.ts',
+  '**/pipeline-run-output.spec.ts',
   '**/behind-fix-button.spec.ts',
   '**/ci-pill-counts.spec.ts',
   '**/running-pill-counts.spec.ts',
