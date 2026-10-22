@@ -280,3 +280,33 @@ func TestJobLog_UntrackedRepo_Returns404AndNeverReachesTheForge(t *testing.T) {
 	assert.Empty(t, source.lastOwner, "the forge must not be called")
 	assert.Zero(t, source.lastJob)
 }
+
+func TestJobLog_RepoNameCaseIsIgnoredWhenMatchingTrackedRepos(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "ok\n"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "AlRayyes/Tempus-Fugit", "4242")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestJobLog_NothingLoadedYet_Returns503AndNeverReachesTheForge(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "secret\n"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	var body struct {
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Contains(t, body.Error, "retry")
+	assert.Empty(t, source.lastOwner, "the forge must not be called")
+}

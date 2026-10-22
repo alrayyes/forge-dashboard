@@ -89,7 +89,8 @@ would need the same answer. The reasons, and what it costs, are in
   `get_check_log` mirrors `GET /api/checks/log` (one CI job's output as plain
   text, the last 256 KiB at most, by the `jobId` a check carries). It spends
   one request on Forgejo and one plus a short-lived download on GitHub. It refuses
-  a repository you don't track with a 404, before any forge call.
+  a repository you don't track with a 404, before any forge call, and answers
+  503 while your repositories haven't loaded yet.
   `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.

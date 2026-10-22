@@ -2800,6 +2800,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "503":
+          description: The dashboard has not loaded your repositories yet (a cold start or an outage), so it cannot say whether the repository is tracked. Retry shortly.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/main-branches/checks:
     get:
