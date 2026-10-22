@@ -1478,6 +1478,14 @@ func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Re
 // errResponseTooBig is a response body past the limit a caller set.
 var errResponseTooBig = errors.New("forgejo: response body too big")
 
+// tooBig records a download that went over the limit as the request it was, and
+// returns the error that says so.
+func (c *Client) tooBig(ctx context.Context, method, path string, resp *http.Response, maxBytes int64) error {
+	c.recordRequest(ctx, method, path, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	return fmt.Errorf("%w: more than %d bytes", errResponseTooBig, maxBytes)
+}
+
 // rawRequestMax is rawRequest with a cap on the body it reads: a positive
 // maxBytes turns a longer body into errResponseTooBig instead of reading it
 // all into memory. Zero reads without a cap.
@@ -1497,6 +1505,10 @@ func (c *Client) rawRequestMax(ctx context.Context, method, path string, body io
 		return nil, nil, fmt.Errorf("forgejo: %s %s: %w", method, path, err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
+	if maxBytes > 0 && httpResp.ContentLength > maxBytes && httpResp.StatusCode < 300 {
+		// Said up front: don't read a body we will refuse.
+		return nil, nil, c.tooBig(ctx, method, path, httpResp, maxBytes)
+	}
 	var src io.Reader = httpResp.Body
 	if maxBytes > 0 {
 		src = io.LimitReader(httpResp.Body, maxBytes+1)
@@ -1507,10 +1519,10 @@ func (c *Client) rawRequestMax(ctx context.Context, method, path string, body io
 		return nil, resp, fmt.Errorf("forgejo: read response body: %w", err)
 	}
 	if maxBytes > 0 && int64(len(respBody)) > maxBytes {
-		// The download happened, so count it like any other.
-		c.recordRequest(ctx, method, path, httpResp.StatusCode, requestlog.OutcomeSuccess)
-
-		return nil, resp, fmt.Errorf("%w: more than %d bytes", errResponseTooBig, maxBytes)
+		if httpResp.StatusCode < 300 {
+			return nil, resp, c.tooBig(ctx, method, path, httpResp, maxBytes)
+		}
+		respBody = respBody[:maxBytes] // a refusal's body is only read for its message
 	}
 	if httpResp.StatusCode >= 300 {
 		msg := rawRequestErrorMessage(respBody)

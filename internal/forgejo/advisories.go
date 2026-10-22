@@ -300,15 +300,18 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]os
 }
 
 // withoutOwnHost drops the Go modules whose path starts with this forge's own
-// host: they are the instance's private modules, and their names stay home. It
-// says how many it dropped.
+// host: they are the instance's private modules, and their names stay home. The
+// host is compared as a lower-case name without its port on both sides, since
+// DNS names ignore case and a module path may or may not carry the port. It
+// says how many modules it dropped.
 func (c *Client) withoutOwnHost(pkgs []osv.Package) (kept []osv.Package, dropped int) {
 	u, err := url.Parse(c.instanceURL)
-	if err != nil || u.Host == "" {
+	if err != nil || u.Hostname() == "" {
 		return pkgs, 0
 	}
+	own := strings.ToLower(u.Hostname())
 	for _, p := range pkgs {
-		if p.Ecosystem == osv.EcosystemGo && (p.Name == u.Host || strings.HasPrefix(p.Name, u.Host+"/")) {
+		if p.Ecosystem == osv.EcosystemGo && moduleHost(p.Name) == own {
 			dropped++
 
 			continue
@@ -317,6 +320,17 @@ func (c *Client) withoutOwnHost(pkgs []osv.Package) (kept []osv.Package, dropped
 	}
 
 	return kept, dropped
+}
+
+// moduleHost is the lower-case host name a Go module path starts with, without
+// a port.
+func moduleHost(module string) string {
+	first, _, _ := strings.Cut(module, "/")
+	if u, err := url.Parse("//" + first); err == nil && u.Hostname() != "" {
+		first = u.Hostname()
+	}
+
+	return strings.ToLower(first)
 }
 
 // rootLockfiles lists the lockfiles in the root of the default branch: the ones
@@ -458,7 +472,11 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 
 		return &v, false
 	}
-	c.advisories.put(key, advisoryEntry{value: v, answered: now}, advisoriesTTL)
+	ttl := advisoriesTTL
+	if v.State == dashboard.AdvisoriesUnknown {
+		ttl = advisoriesUnreadableRetry // too many advisories: the same lock file gives the same answer
+	}
+	c.advisories.put(key, advisoryEntry{value: v, answered: now}, ttl)
 
 	return &v, false
 }
@@ -467,7 +485,7 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 // young enough, and the next try waits longer after each failure in a row.
 func (c *Client) failedRead(key string, repo dashboard.RepoRef, old advisoryEntry, have bool, known, pkgs []osv.Package, err error) *dashboard.Advisories {
 	slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "error", err)
-	e := advisoryEntry{value: old.value, answered: old.answered, failures: old.failures + 1}
+	e := advisoryEntry{value: old.value, answered: old.answered, unreadable: old.unreadable, failures: old.failures + 1}
 	stale := old.value.State == dashboard.AdvisoriesKnown && c.advisories.clock().Sub(old.answered) > advisoriesStaleMax
 	if !have || stale {
 		e.value = dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}

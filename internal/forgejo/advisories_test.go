@@ -606,3 +606,17 @@ func TestReadMainBranch_AWaiterWhoseLeaderWasCancelledReadsItself(t *testing.T) 
 	require.NotNil(t, got)
 	assert.Equal(t, 3, got.Count, "the waiter's own context is live, so it reads for itself")
 }
+
+func TestReadMainBranch_TooManyAdvisoriesIsNotReadAgainForAnHour(t *testing.T) {
+	t.Parallel()
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
+	client := forge.start(t, &fakeScanner{err: osv.ErrTooMany})
+	clk := withClock(client)
+
+	_, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	clk.advance(50 * time.Minute)
+	_, err = client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, forge.requests.Load(), "the same answer is not downloaded again every fifteen minutes")
+}

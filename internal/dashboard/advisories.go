@@ -85,10 +85,11 @@ func UnknownAdvisories() *Advisories {
 }
 
 // AdvisoryReader is a source of dependency advisories for one repo: GitHub's
-// Dependabot alerts, OSV matches for a Forgejo lock file. A new provider
-// implements only this. A source that can't answer (alerts off, no permission,
-// advisories not enabled) returns the unknown state with a nil error; an error
-// is reserved for a read that failed, which the caller also shows as unknown.
+// Dependabot alerts implement it. A source that can't answer (alerts off, no
+// permission) returns the unknown state with a nil error; an error is reserved
+// for a read that failed, which the caller also shows as unknown. The Forgejo
+// client fills its rows' advisories itself, from OSV matches for a lock file,
+// and does not implement this.
 type AdvisoryReader interface {
 	ReadAdvisories(ctx context.Context, owner, name, repoURL string) (Advisories, error)
 }
