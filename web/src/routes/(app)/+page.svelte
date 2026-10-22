@@ -725,7 +725,10 @@
         <p>
           Advisories can't be read for your GitHub repositories, so none are
           shown. Most likely the credential lacks the Dependabot alerts
-          permission (read-only), or alerts are switched off on the repo. <a
+          permission (read-only), or alerts are switched off on the repo. A rate
+          limit or a GitHub error looks the same. A permission you just accepted
+          can take up to an hour and a quarter to show; saving Settings reads
+          them again at once. <a
             href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#when-advisories-cant-be-read"
             target="_blank"
             rel="noopener noreferrer"
