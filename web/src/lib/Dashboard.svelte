@@ -31,20 +31,14 @@
   import * as Filters from "#lib/filters.js";
   import { choicesChange, offerAction, shownList } from "#lib/shown-list.js";
   import {
-    type LabelFilterControl,
-    joinLabels,
-    AUTHOR_CONFIG,
     labelKey,
     choiceText,
-    mountLabelFilter,
-    mountPickFilter,
     type PickChoice,
-    type PickFilterControl,
     pickImageNode,
-    REPO_CONFIG,
     parseLabels,
     toggleLabel,
   } from "#lib/label-filter.js";
+  import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import {
@@ -5842,11 +5836,7 @@
     // that does (#1620). A later change that makes a pick stale is the
     // user's own, and clears it for good.
     // The Label filter's control, mounted once the shared bar exists.
-    let labelFilter: LabelFilterControl | null = null;
-    let repoFilter: PickFilterControl | null = null;
-    let authorFilter: PickFilterControl | null = null;
-    let repoChoicesNow: PickChoice[] = [];
-    let authorChoicesNow: PickChoice[] = [];
+    const picks = new SharedPicks((key) => reposByKey.get(key)?.logoUrl);
 
     function offerTitles() {
       Filters.populateDatalist(
@@ -5861,47 +5851,14 @@
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
     ): boolean {
-      // Repo and Author hold several picks, like Label: the ones this page
-      // does not offer are set aside, the rest stay picked.
-      const repoOffered = Filters.repoChoices(
-        sharedPoolExcluding("repo"),
-        (key) => reposByKey.get(key)?.logoUrl,
-      );
-      const staleRepo = Filters.reconcilePick(
+      // Repo, Author and Label hold several picks: the ones this page does not
+      // offer are set aside, the rest stay picked.
+      const stalePicks = picks.refresh(
         sharedState,
-        "repo",
-        repoOffered.map((c) => c.value),
+        (key) => sharedPoolExcluding(key),
         holdPicks,
-      );
-      repoChoicesNow = repoOffered;
-      repoFilter?.render(repoOffered, parseLabels(sharedState.shared.repo));
-      const authorOffered = Filters.authorChoices(
-        sharedPoolExcluding("author"),
-      );
-      const staleAuthor = Filters.reconcilePick(
-        sharedState,
-        "author",
-        authorOffered.map((c) => c.value),
-        holdPicks,
-      );
-      authorChoicesNow = authorOffered;
-      authorFilter?.render(
-        authorOffered,
-        parseLabels(sharedState.shared.author),
       );
       if (!skipTitleSuggestions) offerTitles();
-      // The Label filter holds several labels; the ones this page does not
-      // offer are set aside, the rest stay picked.
-      const labelChoices = Filters.distinctValues(
-        (item) => (item.labels || []).map((l) => l.name),
-        sharedPoolExcluding("label"),
-      );
-      const staleLabel = Filters.reconcileLabels(
-        sharedState,
-        labelChoices,
-        holdPicks,
-      );
-      labelFilter?.render(labelChoices, parseLabels(sharedState.shared.label));
       // The fixed choices offer only what the results have too (#1427): the
       // age ranges something falls in.
       const staleCreated = populateEvery(
@@ -5930,12 +5887,7 @@
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
       const cleared =
-        !holdPicks &&
-        (staleRepo ||
-          staleAuthor ||
-          staleLabel ||
-          staleCreated ||
-          staleUpdated);
+        !holdPicks && (stalePicks || staleCreated || staleUpdated);
       if (cleared) Filters.saveState(sharedState);
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
@@ -6042,11 +5994,8 @@
     // re-renders both boards — a pick in the control, a chip click on either
     // board's rows or a removed filter chip all land here, so they affect the
     // other board too. The saved value is lowercase, like every saved pick.
-    type PickKey = "label" | "repo" | "author";
     function applyPicks(key: PickKey, next: string[]) {
-      sharedState.shared[key] = joinLabels(next);
-      Filters.touchKey("shared", key);
-      Filters.releaseHeld("shared", key);
+      savePick(sharedState, key, next);
       prBoard.resetPage();
       issueBoard.resetPage();
       // The other choices narrow against what is picked (#550), and a pick
@@ -6055,22 +6004,19 @@
       Filters.saveState(sharedState);
       renderBoth();
       const noun = view === "issues" ? "issue" : "pull request";
-      const control =
-        key === "repo"
-          ? repoFilter
-          : key === "author"
-            ? authorFilter
-            : labelFilter;
-      control?.announce(
+      picks.announce(
+        key,
         `${visibleResultCount} ${noun}${visibleResultCount === 1 ? "" : "s"}`,
       );
     }
-    const applyLabels = (next: string[]) => applyPicks("label", next);
 
     // A label chip on a row ticks the label, or unticks it when it is
     // already picked.
     function handleLabelClick(label: string) {
-      applyLabels(toggleLabel(parseLabels(sharedState.shared.label), label));
+      applyPicks(
+        "label",
+        toggleLabel(parseLabels(sharedState.shared.label), label),
+      );
     }
 
     // ---- board state + render ----
@@ -6610,18 +6556,14 @@
         c.addEventListener("change", apply);
       });
 
-    const labelHost = document.getElementById("shared-label-filter");
-    if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
-    const repoHost = document.getElementById("shared-repo-filter");
-    if (repoHost)
-      repoFilter = mountPickFilter(repoHost, REPO_CONFIG, (next) =>
-        applyPicks("repo", next),
-      );
-    const authorHost = document.getElementById("shared-author-filter");
-    if (authorHost)
-      authorFilter = mountPickFilter(authorHost, AUTHOR_CONFIG, (next) =>
-        applyPicks("author", next),
-      );
+    picks.mount(
+      {
+        label: document.getElementById("shared-label-filter"),
+        repo: document.getElementById("shared-repo-filter"),
+        author: document.getElementById("shared-author-filter"),
+      },
+      applyPicks,
+    );
 
     // ---- quick filter pills (#678) ----
     // Toggle buttons with aria-pressed: exactly one is active at a time.
@@ -6899,13 +6841,14 @@
           });
         }
       };
-      pickChips("repo", "Repo", repoChoicesNow);
-      pickChips("author", "Author", authorChoicesNow);
+      pickChips("repo", "Repo", picks.repoChoices);
+      pickChips("author", "Author", picks.authorChoices);
       for (const name of parseLabels(shared.label))
         chips.push({
           label: `Label ${name}`,
           clear: () =>
-            applyLabels(
+            applyPicks(
+              "label",
               toggleLabel(parseLabels(sharedState.shared.label), name),
             ),
         });
@@ -8454,9 +8397,7 @@
       destroyed = true;
       Filters.leavePage(page);
       titleHover.destroy();
-      labelFilter?.destroy();
-      repoFilter?.destroy();
-      authorFilter?.destroy();
+      picks.destroy();
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
       for (const stop of stopListening) stop();

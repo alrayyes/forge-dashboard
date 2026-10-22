@@ -2,16 +2,7 @@
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import * as Filters from "#lib/filters.js";
-  import {
-    AUTHOR_CONFIG,
-    type LabelFilterControl,
-    joinLabels,
-    mountLabelFilter,
-    mountPickFilter,
-    parseLabels,
-    type PickFilterControl,
-    REPO_CONFIG,
-  } from "#lib/label-filter.js";
+  import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
 
@@ -172,12 +163,10 @@
 
   let repoHost: HTMLDivElement | undefined = $state();
   let authorHost: HTMLDivElement | undefined = $state();
-  let repoFilter: PickFilterControl | null = null;
-  let authorFilter: PickFilterControl | null = null;
   // Each repo's own logo, by forge and name, from the snapshot's repo list.
   let repoLogos = new Map<string, string>();
   let labelHost: HTMLDivElement | undefined = $state();
-  let labelFilter: LabelFilterControl | null = null;
+  const picks = new SharedPicks((key) => repoLogos.get(key));
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
   let filterBarEl: HTMLDivElement | undefined = $state();
   // Saved picks this page does not offer, said out loud with a way to drop
@@ -202,39 +191,16 @@
     skipTitleSuggestions = false,
     holdPicks = !sharedControlsRestored,
   ) {
-    const repoOffered = Filters.repoChoices(optionPool("repo"), (key) =>
-      repoLogos.get(key),
-    );
-    const staleRepo = Filters.reconcilePick(
+    const stalePicks = picks.refresh(
       sharedState,
-      "repo",
-      repoOffered.map((c) => c.value),
+      (key) => optionPool(key),
       holdPicks,
     );
-    repoFilter?.render(repoOffered, parseLabels(sharedState.shared.repo));
-    const authorOffered = Filters.authorChoices(optionPool("author"));
-    const staleAuthor = Filters.reconcilePick(
-      sharedState,
-      "author",
-      authorOffered.map((c) => c.value),
-      holdPicks,
-    );
-    authorFilter?.render(authorOffered, parseLabels(sharedState.shared.author));
     if (!skipTitleSuggestions)
       Filters.populateDatalist(
         sharedTitleDatalist ?? null,
         Filters.distinctValues((item) => item.title, optionPool("")),
       );
-    const labelChoices = Filters.distinctValues(
-      (item) => (item.labels || []).map((l) => l.name),
-      optionPool("label"),
-    );
-    const staleLabel = Filters.reconcileLabels(
-      sharedState,
-      labelChoices,
-      holdPicks,
-    );
-    labelFilter?.render(labelChoices, parseLabels(sharedState.shared.label));
     // A forge button is offered only when something here is on that forge.
     if (filterBarEl)
       Filters.offerForges(
@@ -242,8 +208,7 @@
         new Set(optionPool("forge").map((item) => item.forge)),
         sharedState.shared.forge ?? "",
       );
-    if (!holdPicks && (staleRepo || staleAuthor || staleLabel))
-      Filters.saveState(sharedState);
+    if (!holdPicks && stalePicks) Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
   }
 
@@ -271,25 +236,17 @@
 
   let sharedControlsRestored = false;
 
-  function applyPicks(key: "label" | "repo" | "author", next: string[]) {
-    sharedState.shared[key] = joinLabels(next);
-    Filters.touchKey("shared", key);
-    Filters.releaseHeld("shared", key);
+  function applyPicks(key: PickKey, next: string[]) {
+    savePick(sharedState, key, next);
     updateSharedFilterOptions();
     Filters.saveState(sharedState);
   }
-  const applyLabels = (next: string[]) => applyPicks("label", next);
 
   function wireFilterBar() {
-    if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
-    if (repoHost)
-      repoFilter = mountPickFilter(repoHost, REPO_CONFIG, (next) =>
-        applyPicks("repo", next),
-      );
-    if (authorHost)
-      authorFilter = mountPickFilter(authorHost, AUTHOR_CONFIG, (next) =>
-        applyPicks("author", next),
-      );
+    picks.mount(
+      { label: labelHost, repo: repoHost, author: authorHost },
+      applyPicks,
+    );
     filterBarEl
       ?.querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
       .forEach((c) => {
@@ -343,9 +300,7 @@
   let page = -1;
   onDestroy(() => {
     Filters.leavePage(page);
-    labelFilter?.destroy();
-    repoFilter?.destroy();
-    authorFilter?.destroy();
+    picks.destroy();
   });
 
   onMount(() => {

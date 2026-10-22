@@ -481,14 +481,6 @@ export function reconcilePick(
   return true;
 }
 
-export function reconcileLabels(
-  state: SharedFilterState,
-  offered: string[],
-  hold: boolean,
-): boolean {
-  return reconcilePick(state, 'label', offered, hold);
-}
-
 // A repo is saved forge-qualified ("github:acme/api") and read without it.
 function repoName(value: string): string {
   return value.slice(value.indexOf(':') + 1);
