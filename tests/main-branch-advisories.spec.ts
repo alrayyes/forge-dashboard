@@ -52,6 +52,16 @@ const BRANCHES = [
   row('acme/clean', { state: 'known', count: 0 }),
   row('acme/unsure', { state: 'unknown', count: 0 }),
   row('acme/nofield'),
+  {
+    ...row('acme/stale', {
+      state: 'known',
+      count: 2,
+      highest: 'medium',
+      url: 'https://example.com/acme/stale/security/dependabot',
+    }),
+    stale: true,
+    staleSince: new Date(Date.now() - 3_600_000).toISOString(),
+  },
   row('acme/unsafe', {
     state: 'known',
     count: 2,
@@ -166,6 +176,20 @@ test.describe('Branches page advisories pill', () => {
       }
     }
     await setTheme(page, 'light');
+  });
+
+  test('a stale row keeps its pill beside the same stale chip every row gets', async ({
+    page,
+  }) => {
+    await open(page);
+
+    const stale = page.locator('[data-testid="main-branch-row"]', {
+      hasText: 'acme/stale',
+    });
+    await expect(stale.locator('.mb-stale')).toHaveText('stale');
+    await expect(
+      stale.locator('[data-testid="main-branch-advisories"]'),
+    ).toHaveText('2 advisories, medium');
   });
 
   test('a url that is not http(s) leaves the count unlinked', async ({

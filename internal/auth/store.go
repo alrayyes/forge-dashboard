@@ -126,11 +126,17 @@ func (s *Store) dropInviteMachinery(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `DROP TABLE IF EXISTS invites`); err != nil {
 		return fmt.Errorf("auth: drop invites table: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, `ALTER TABLE users DROP COLUMN is_admin`); err != nil {
-		if strings.Contains(err.Error(), "no such column") {
-			return nil
-		}
 
+	var hasColumn int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM pragma_table_info('users') WHERE name = 'is_admin'`).Scan(&hasColumn)
+	if err != nil {
+		return fmt.Errorf("auth: look for users.is_admin: %w", err)
+	}
+	if hasColumn == 0 {
+		return nil
+	}
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE users DROP COLUMN is_admin`); err != nil {
 		return fmt.Errorf("auth: drop users.is_admin: %w", err)
 	}
 
@@ -197,10 +203,14 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*
 // DeleteUnregisteredUser removes username's account if — and only if — it
 // has no credentials attached: an abandoned registration (begun, never
 // finished, so nothing was ever actually attached to the username) rather
-// than a real account. A no-op if the account has since gained a
-// credential, or doesn't exist at all.
-func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ? AND credentials_json = '[]'`, username)
+// than a real account. It also removes every credential-less account created
+// before olderThan under any username: its ceremony has expired, so nothing
+// can finish it, and leaving it would let such rows pile up. A no-op for an
+// account that has since gained a credential.
+func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string, olderThan time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM users WHERE credentials_json = '[]' AND (username = ? OR created_at < ?)`,
+		username, olderThan.UTC())
 	if err != nil {
 		return fmt.Errorf("auth: delete unregistered user: %w", err)
 	}
@@ -231,8 +241,7 @@ func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
 
 // HasAnyRegisteredUser reports whether any account has completed
 // registration — a row with no credentials (BeginRegistration begun,
-// never finished) doesn't count. The first username to make this true
-// is the one that becomes admin.
+// never finished) doesn't count. Once it is true, registration is closed.
 func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 	var exists int
 	err := s.db.QueryRowContext(ctx,
@@ -627,8 +636,8 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 	return s.GetUserByID(ctx, id)
 }
 
-// DeleteSession revokes a session token — logout, or an admin revoking
-// another user's session.
+// DeleteSession revokes a session token — logout, or the owner revoking
+// one of their own sessions.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
 	if err != nil {

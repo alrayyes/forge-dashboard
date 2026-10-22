@@ -98,8 +98,9 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 		Description: "Fetch the CI status of every tracked repo's default branch " +
 			"(newest commit first, with counts per status), the same data the web UI's " +
 			"Main branches page renders, including each repo's open dependency advisories " +
-			"(count, highest severity and a link) when its forge can say; an advisories " +
-			"state of unknown means no answer, never zero. Read-only: this app never writes to either " +
+			"(count, highest severity and a link). The advisories key is absent when no source " +
+			"reads the repository's forge, such as Forgejo. A state of unknown means the forge " +
+			"could not say, never zero. Read-only: this app never writes to either " +
 			"forge through this tool. Reads the snapshot the background refresh " +
 			"already holds, so it costs no forge budget however often you call it.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, mainBranchesResponse, error) {

@@ -1564,10 +1564,11 @@
                 <p>
                   Classic token: the <code>repo</code> scope (or just
                   <code>public_repo</code> if every repo you track is public)
-                  already covers this. To show advisories on the Branches page,
-                  a classic token also needs <code>security_events</code>
-                  (<code>public_repo</code> is enough if every repo is public). Without
-                  it advisories are left out; nothing else breaks.
+                  covers repository access. To show advisories on the Branches
+                  page, the token needs <code>security_events</code>, which
+                  <code>repo</code> already includes. For public repos only,
+                  <code>public_repo</code> is enough. Without it advisories are
+                  left out; nothing else breaks.
                 </p>
                 <p>Fine-grained token, grant all of:</p>
                 <ul>

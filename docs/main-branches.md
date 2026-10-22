@@ -88,8 +88,9 @@ alerts, or alerts are off for it. The API and MCP tools still report that as
 
 - a fine-grained personal access token with **Dependabot alerts: Read-only**
   (a repository permission);
-- a classic token with the `security_events` scope (`public_repo` is enough if
-  every tracked repo is public);
+- a classic token with the `repo` scope (which includes `security_events`), or
+  `security_events` alone; `public_repo` is enough if every tracked repo is
+  public;
 - a GitHub App with **Dependabot alerts: Read-only**. On an App that is already
   installed, GitHub holds a new permission until the owner accepts it: open the
   installation's page and accept the request, or the App keeps its old
@@ -110,12 +111,16 @@ its default branch, the status of the pipeline on the newest commit (`failed`,
 (short SHA, subject, author), the names of the failed jobs, when the pipeline
 finished and how long it ran, a link to the run, and the repository's latest
 published release (`latestRelease`, its tag and the page of its notes, or
-null). The release's title and notes are a separate read, `GET
-/api/releases/details`, made when the dialog opens. The response also counts
-the rows per status. Every row is returned whatever its status, ordered by
-commit time, latest first (rows with no commit time last, then by repo name), so
-a client filters it and its counts always match what it lists. Status is a
-filter, not the order.
+null) and its open dependency advisories (`advisories`: `state`, `count`, the
+`highest` severity and a `url` to the alerts). `advisories` is absent for a repo
+whose forge no source reads, such as Forgejo. `state` is `unknown` when the
+forge could not say, for example alerts switched off or a token without the
+scope, and is never a count of zero. The release's title and notes are a
+separate read, `GET /api/releases/details`, made when the dialog opens. The
+response also counts the rows per status. Every row is returned whatever its
+status, ordered by commit time, latest first (rows with no commit time last,
+then by repo name), so a client filters it and its counts always match what it
+lists. Status is a filter, not the order.
 
 It reads the snapshot the background refresh already holds and never calls a
 forge, so reading it costs no rate-limit budget. The refresh gets the data

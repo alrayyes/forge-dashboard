@@ -201,6 +201,10 @@ describe('WebMCP read tools', () => {
     const description = tool('get_main_branches').description;
     expect(description).toContain('advisories');
     expect(description).toContain('unknown');
+    // Pinned word for word, as internal/api/mcp_test.go pins the MCP side.
+    expect(description).toContain(
+      "The advisories key is absent when no source reads the repository's forge, such as Forgejo. A state of unknown means the forge could not say, never zero.",
+    );
   });
 
   test('numbers and names are bounded in the schema and in the check', async () => {

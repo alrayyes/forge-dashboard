@@ -151,13 +151,22 @@ func markerExists(ctx context.Context, db *sql.DB) (bool, error) {
 	return n > 0, nil
 }
 
+const ownerQuery = `SELECT id, username, created_at FROM users WHERE credentials_json != '[]' ORDER BY created_at, rowid LIMIT 1`
+
+// OwnerUsername is the username of the owner: the oldest user holding a
+// passkey. The cleanup keeps this user, and the e2e reset calls it too, so
+// both agree on who the owner is. found is false until someone has registered.
+func OwnerUsername(ctx context.Context, db *sql.DB) (string, bool, error) {
+	u, found, err := oldestRegistered(ctx, db)
+
+	return u.username, found, err
+}
+
 // oldestRegistered is the keeper: the oldest user holding a passkey. A row
 // with none is an abandoned registration, not the first user.
 func oldestRegistered(ctx context.Context, db *sql.DB) (user, bool, error) {
 	var u user
-	err := db.QueryRowContext(ctx,
-		`SELECT id, username, created_at FROM users WHERE credentials_json != '[]' ORDER BY created_at, rowid LIMIT 1`,
-	).Scan(&u.id, &u.username, &u.createdAt)
+	err := db.QueryRowContext(ctx, ownerQuery).Scan(&u.id, &u.username, &u.createdAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return user{}, false, nil
 	}
@@ -249,6 +258,13 @@ func deleteUserRows(ctx context.Context, tx *sql.Tx, u user) (map[string]int64, 
 // (the removed admin "remove user" action left some behind) go too: only the
 // kept user's rows may remain.
 func deleteLeftovers(ctx context.Context, tx *sql.Tx, keeper user) error {
+	// An old database still has its invites table: auth.Store.Init drops it, but
+	// only after this runs. Each invite points at the user who made it, so with
+	// foreign keys on it would block the user delete below. Nothing reads
+	// invites any more, so it goes first.
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS invites`); err != nil {
+		return fmt.Errorf("single-user cleanup: drop the invites table: %w", err)
+	}
 	for _, t := range owned {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s != ?`, t.name, t.column), keeper.id); err != nil {
 			return fmt.Errorf("single-user cleanup: delete stray %s rows: %w", t.name, err)
