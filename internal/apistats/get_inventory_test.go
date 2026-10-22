@@ -253,6 +253,7 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 		"internal/github/client.go:graphqlExec:NewRequestWithContext": true, // POST
 		"internal/github/client.go:graphqlExec:Do":                    true, // POST
 		"internal/github/client.go:logExcerpt:Do":                     true, // job log download, listed as not conditional
+		"internal/github/job_log.go:fetchLogBlob:Do":                  true, // job log download, listed as not conditional
 
 		"internal/github/hook_check_persist.go:restoreHookChecks:Do": true, // sync.Once, sends nothing
 	}

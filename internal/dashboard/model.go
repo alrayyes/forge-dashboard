@@ -103,6 +103,10 @@ type Check struct {
 	// own details page for the legacy commit-status case — never the
 	// pull request's own page.
 	URL string `json:"url"`
+	// JobID is the Actions job (or check run) id the forge's log endpoint
+	// takes, 0 and omitted for a legacy commit status or a held workflow,
+	// which have no log to read.
+	JobID int64 `json:"jobId,omitempty"`
 	// Required reports whether the base branch's protection makes this
 	// check block the merge. A pointer so "unknown" (nil, omitted from
 	// the JSON) stays distinct from "advisory" (false): a token that

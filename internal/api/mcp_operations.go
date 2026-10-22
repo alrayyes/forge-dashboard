@@ -13,6 +13,7 @@ var mcpToolOperations = map[string]string{
 	"get_dashboard":            "getDashboard",
 	"get_main_branches":        "getMainBranches",
 	"get_main_branch_checks":   "getMainBranchChecks",
+	"get_check_log":            "getCheckLog",
 	"get_pull_request_details": "getPullRequestDetails",
 	"get_pull_request_checks":  "getPullRequestChecks",
 	"list_queued_actions":      "listQueuedActions",
