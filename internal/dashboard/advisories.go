@@ -28,6 +28,9 @@ const (
 	ReasonThrottled   AdvisoryReason = "throttled"
 	ReasonFailed      AdvisoryReason = "failed"
 	ReasonTooMany     AdvisoryReason = "too_many"
+	// ReasonNotEnabled is a source the operator has not switched on, so the
+	// repo was not checked.
+	ReasonNotEnabled AdvisoryReason = "not_enabled"
 )
 
 // AdvisorySeverity is how serious an advisory is, using the four levels
@@ -82,10 +85,11 @@ func UnknownAdvisories() *Advisories {
 }
 
 // AdvisoryReader is a source of dependency advisories for one repo: GitHub's
-// Dependabot alerts today, OSV matches for a Forgejo lockfile later. A new
-// provider implements only this. A source that can't answer (alerts off, no
+// Dependabot alerts implement it. A source that can't answer (alerts off, no
 // permission) returns the unknown state with a nil error; an error is reserved
-// for a read that failed, which the caller also shows as unknown.
+// for a read that failed, which the caller also shows as unknown. The Forgejo
+// client fills its rows' advisories itself, from OSV matches for a lock file,
+// and does not implement this.
 type AdvisoryReader interface {
 	ReadAdvisories(ctx context.Context, owner, name, repoURL string) (Advisories, error)
 }

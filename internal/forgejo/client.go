@@ -91,6 +91,13 @@ type clientState struct {
 	// finishedJobs keeps the job list of each finished run (see finishedJobs).
 	finishedJobs *finishedJobs
 
+	// advisoryScanner, when set, makes ReadMainBranch fill a row's
+	// advisories from the default branch's lockfiles; advisories remembers
+	// each repo's last answer.
+	advisoryScanner AdvisoryScanner
+	advisories      *advisoryCache
+	// advisoryDeadline overrides advisoryDeadline; zero keeps it. For tests.
+	advisoryDeadline time.Duration
 	// excerpts keeps the log excerpt of each finished failed job.
 	excerpts *excerptCache
 	// excerptTimeout bounds one job log read for an excerpt.
@@ -165,6 +172,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		finishedJobs:   newFinishedJobs(maxFinishedJobs),
 		excerpts:       newExcerptCache(maxExcerpts),
 		excerptTimeout: dashboard.ExcerptReadTimeout,
+		advisories:     &advisoryCache{},
 	}}
 }
 
@@ -1482,6 +1490,24 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 // {"message": "..."} error-body convention its own handleResponse
 // decodes) rather than inventing a different one.
 func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Reader) ([]byte, *gitea.Response, error) {
+	return c.rawRequestMax(ctx, method, path, body, 0)
+}
+
+// errResponseTooBig is a response body past the limit a caller set.
+var errResponseTooBig = errors.New("forgejo: response body too big")
+
+// tooBig records a download that went over the limit as the request it was, and
+// returns the error that says so.
+func (c *Client) tooBig(ctx context.Context, method, path string, resp *http.Response, maxBytes int64) error {
+	c.recordRequest(ctx, method, path, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	return fmt.Errorf("%w: more than %d bytes", errResponseTooBig, maxBytes)
+}
+
+// rawRequestMax is rawRequest with a cap on the body it reads: a positive
+// maxBytes turns a longer body into errResponseTooBig instead of reading it
+// all into memory. Zero reads without a cap.
+func (c *Client) rawRequestMax(ctx context.Context, method, path string, body io.Reader, maxBytes int64) ([]byte, *gitea.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.instanceURL+"/api/v1"+path, body)
 	if err != nil {
 		return nil, nil, fmt.Errorf("forgejo: build request: %w", err)
@@ -1497,10 +1523,24 @@ func (c *Client) rawRequest(ctx context.Context, method, path string, body io.Re
 		return nil, nil, fmt.Errorf("forgejo: %s %s: %w", method, path, err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
-	respBody, err := io.ReadAll(httpResp.Body)
+	if maxBytes > 0 && httpResp.ContentLength > maxBytes && httpResp.StatusCode < 300 {
+		// Said up front: don't read a body we will refuse.
+		return nil, nil, c.tooBig(ctx, method, path, httpResp, maxBytes)
+	}
+	var src io.Reader = httpResp.Body
+	if maxBytes > 0 {
+		src = io.LimitReader(httpResp.Body, maxBytes+1)
+	}
+	respBody, err := io.ReadAll(src)
 	resp := &gitea.Response{Response: httpResp}
 	if err != nil {
 		return nil, resp, fmt.Errorf("forgejo: read response body: %w", err)
+	}
+	if maxBytes > 0 && int64(len(respBody)) > maxBytes {
+		if httpResp.StatusCode < 300 {
+			return nil, resp, c.tooBig(ctx, method, path, httpResp, maxBytes)
+		}
+		respBody = respBody[:maxBytes] // a refusal's body is only read for its message
 	}
 	if httpResp.StatusCode >= 300 {
 		msg := rawRequestErrorMessage(respBody)
