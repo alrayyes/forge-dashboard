@@ -17,7 +17,9 @@ type RowStore interface {
 // Writer is the one place request-log rows are written from (#902). Each
 // outbound forge request used to write its own row inline, so a locked
 // database left one goroutine, and one OS thread, waiting per request for
-// up to the busy timeout. Now callers enqueue and move on; a single
+// the whole busy timeout (set in internal/dbdsn). Cancelling the request's
+// context does not shorten that wait: the modernc driver ignores it while
+// SQLite waits on the lock. Now callers enqueue and move on; a single
 // goroutine does the writing, and a full queue drops the row and counts it
 // rather than blocking a request.
 type Writer struct {
