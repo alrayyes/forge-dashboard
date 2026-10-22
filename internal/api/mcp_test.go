@@ -229,7 +229,6 @@ func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 	unknown.Advisories = &dashboard.Advisories{State: dashboard.AdvisoriesUnknown}
 	none := branchRow("acme/none", dashboard.MainBranchPassed)
 	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{known, unknown, none})
-	readMainBranchesFrom(t, srvURL, cookie, 3)
 
 	content := callMainBranchesTool(t, srvURL, cookie, 3)
 
