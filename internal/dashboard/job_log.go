@@ -28,7 +28,7 @@ type JobLogReader interface {
 // jobLogEscape matches a terminal escape: an OSC string (title, hyperlink),
 // a CSI sequence (colour, cursor), or a short ESC sequence such as a charset
 // switch. Stray control characters other than newline and tab go with them.
-var jobLogEscape = regexp.MustCompile(`\x1b\][^\x07\x1b\n]*(?:\x07|\x1b\\)?|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[ -/]*[0-~]?`)
+var jobLogEscape = regexp.MustCompile(`\x1b\][^\x07\x1b\n]*(?:\x07|\x1b\\)?|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[ -/]*[0-~]?`)
 
 var jobLogControl = regexp.MustCompile(`[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]`)
 

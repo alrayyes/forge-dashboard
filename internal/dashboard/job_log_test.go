@@ -90,3 +90,11 @@ func TestNewJobLog_TooLarge_CutOnALineStart_KeepsThatWholeLine(t *testing.T) {
 	assert.True(t, got.Truncated)
 	assert.True(t, strings.HasPrefix(got.Text, "first kept line\n"), "the window starts on a line start")
 }
+
+func TestNewJobLog_StripsCSISequencesWithPrivateParameterBytes(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.NewJobLog([]byte("a\x1b[>1cb\x1b[=3hc\x1b[<5;2Md\n"), false)
+
+	assert.Equal(t, "abcd\n", got.Text)
+}

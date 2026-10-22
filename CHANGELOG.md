@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.5.1](https://github.com/alrayyes/forge-dashboard/compare/v2.5.0...v2.5.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **api:** refuse a job log for a repository the dashboard does not track ([#2509](https://github.com/alrayyes/forge-dashboard/issues/2509)) ([3693c4f](https://github.com/alrayyes/forge-dashboard/commit/3693c4f21b2b8f8f76f0062fc54efb902846c1b6))
+* **dashboard:** strip CSI sequences with &gt; &lt; = parameter bytes from job logs ([#2511](https://github.com/alrayyes/forge-dashboard/issues/2511)) ([c650ec8](https://github.com/alrayyes/forge-dashboard/commit/c650ec8c46b8ad7ff926857d9fb42e3bce03b53b))
+
+## [2.5.0](https://github.com/alrayyes/forge-dashboard/compare/v2.4.1...v2.5.0) (2026-10-22)
+
+
+### Features
+
+* **web:** badge a repo that keeps failing on the repo list ([#2510](https://github.com/alrayyes/forge-dashboard/issues/2510)) ([89adb4b](https://github.com/alrayyes/forge-dashboard/commit/89adb4be3f3d3a73d93f07055f690b907be3e7fa))
+* **web:** show a check's output in the pipeline dialog with a Copy button ([#2507](https://github.com/alrayyes/forge-dashboard/issues/2507)) ([34cb2b3](https://github.com/alrayyes/forge-dashboard/commit/34cb2b3c9b9a912c3eae8a5f5eecc50efd5bdf0a))
+
+## [2.4.1](https://github.com/alrayyes/forge-dashboard/compare/v2.4.0...v2.4.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **dbmigrate:** check ROLLBACK and the tables that reference a rebuilt one ([#2504](https://github.com/alrayyes/forge-dashboard/issues/2504)) ([047d3d6](https://github.com/alrayyes/forge-dashboard/commit/047d3d671a4d7e3bb13ccd26dba157ab1ea6f1df))
+
 ## [2.4.0](https://github.com/alrayyes/forge-dashboard/compare/v2.3.0...v2.4.0) (2026-10-22)
 
 

@@ -38,7 +38,7 @@ func TestContract_JobLog(t *testing.T) {
 	t.Run("a real answer validates against the spec", func(t *testing.T) {
 		t.Parallel()
 
-		source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "ok\n", Truncated: true}}
+		source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, log: dashboard.JobLog{Text: "ok\n", Truncated: true}}
 		srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 		req, got := record(t, http.MethodGet, srvURL+"/api/checks/log?forge=github&fullName=a/b&jobId=5", cookie)
