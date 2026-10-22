@@ -75,6 +75,17 @@ describe('matching any of the picked authors', () => {
   test('a single saved author still matches', () => {
     expect(run({ author: 'ann' }, item('github', 'a/b', 'ann'))).toBe(true);
   });
+  test('one saved login is the whole login, in any case, not a part of one', () => {
+    // The author filter once matched any login containing the saved text.
+    // Both controls now match the whole login, as the list offered it.
+    expect(run({ author: 'ann' }, item('github', 'a/b', 'ANN'))).toBe(true);
+    expect(run({ author: 'ann' }, item('github', 'a/b', 'annabel'))).toBe(
+      false,
+    );
+    expect(run({ author: 'bel' }, item('github', 'a/b', 'annabel'))).toBe(
+      false,
+    );
+  });
 });
 
 describe('choices', () => {

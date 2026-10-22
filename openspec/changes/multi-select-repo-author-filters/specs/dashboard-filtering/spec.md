@@ -20,6 +20,16 @@ The system SHALL let a user pick several repos and several authors in the shared
 - **WHEN** a user ticks two authors
 - **THEN** both boards show items by either author and the control reads "2 authors"
 
+#### Scenario: An author matches as a whole login
+
+- **WHEN** an author is picked or saved, for example `ann`
+- **THEN** items by `ann` show in any case, and items by `annabel` do not, where the filter used to match any login containing the saved text
+
+#### Scenario: A repo on two forges
+
+- **WHEN** a repo name exists on two forges
+- **THEN** each forge is a named group of choices, and one picked repo is named with its forge in the button and the chip
+
 #### Scenario: A single saved value
 
 - **WHEN** the saved filters hold one repo or one author from before there was a list

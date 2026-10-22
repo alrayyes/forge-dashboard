@@ -413,6 +413,31 @@ test.describe('Repo and Author: logos and avatars', () => {
     await expect(dave.locator('.pick-initial')).toHaveText('D');
   });
 
+  test('a plain http repo logo is not loaded', async ({ page }) => {
+    await mock(page, [pr(1, 'dave', 'acme/api')]);
+    // Registered last, so it answers first.
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: NOW,
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [pr(1, 'dave', 'acme/api')],
+          issues: [],
+          openIssueCount: 0,
+          repos: [repoEntry('acme/api', 'http://logos.example.com/api.png')],
+          hiddenDrafts: 0,
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await pickButton(page, 'repo').click();
+    const api = pickPanel(page, 'repo').locator('.label-filter-option');
+    await expect(api.locator('.pick-image img')).toHaveCount(0);
+    await expect(api.locator('.pick-initial')).toHaveText('A');
+  });
+
   test('a ticked value is a chip with its image and its own remove button', async ({
     page,
     baseURL,

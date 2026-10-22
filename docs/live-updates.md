@@ -232,7 +232,13 @@ that match **any** ticked repo and **any** ticked author, and the button names
 one pick or counts several ("2 repos", "2 authors"). Each has a Clear button
 under the choices. A repo is listed with its forge, under a heading per forge
 when more than one forge has a repo on screen, so one name on two forges stays
-two choices.
+two choices. Each heading is a named group for a screen reader, and a single
+picked repo is named with its forge in the button and the chip ("acme/web
+(Forgejo)").
+
+An author matches on the whole login, in any case. The filter used to match
+any login that contained the saved text, so a saved `ann` also showed
+`annabel`; it no longer does, and the list offers whole logins to tick.
 
 Each repo shows its own logo and each author their avatar beside the name, in
 the choices and on the chips below the search on a phone. When there is no
