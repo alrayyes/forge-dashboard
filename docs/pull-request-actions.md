@@ -684,11 +684,11 @@ timing, since its API doesn't serve them. The log is read while the checks are
 listed, so on every pull request's checks and every Main branches poll, not
 only when the panel opens: one request per failed job, for at most five jobs
 per list, each given 15 seconds. The reads run together, so a slow forge can
-delay a checks response by up to about 15 seconds, until the excerpts are kept.
-A log with text is read once per finished job and kept, so a branch that stays
-red costs no more reads. A log that can't be read, or that is empty, is not
-asked for again for a minute, and a token that is refused stops the rest of
-that list's reads. A job whose log can't be read keeps its link.
+delay the answer to a request for checks by up to about 15 seconds, until the
+excerpts are kept. A log with text is read once per finished job and kept, so
+a branch that stays red costs no more reads. A log that can't be read, or that
+is empty, is not asked for again for a minute, and a token that is refused
+stops the rest of that list's reads. A job whose log can't be read keeps its link.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
