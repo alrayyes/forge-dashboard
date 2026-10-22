@@ -54,7 +54,25 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 	}
 
 	if blob.StatusCode == http.StatusRequestedRangeNotSatisfiable {
-		return dashboard.JobLog{}, nil
+		// Only a size of 0 means an empty log. Any other answer means the
+		// range was wrong for a log that has content, so ask for all of it.
+		if emptyUnsatisfiable(blob.Header.Get("Content-Range")) {
+			return dashboard.JobLog{}, nil
+		}
+		_ = blob.Body.Close()
+		cancel()
+		blob, cancel, err = c.fetchLogBlob(ctx, loc, 0)
+		if err != nil {
+			return dashboard.JobLog{}, err
+		}
+		defer cancel()
+		defer func() { _ = blob.Body.Close() }()
+		if err := blobStatusError(blob.StatusCode, id); err != nil {
+			return dashboard.JobLog{}, err
+		}
+		if blob.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+			return dashboard.JobLog{}, nil
+		}
 	}
 	body, skipped, err := readTail(blob.Body, dashboard.MaxJobLogBytes)
 	if err != nil {
@@ -86,6 +104,14 @@ func (c *Client) logRequestError(ctx context.Context, path string, resp *ghsdk.R
 	return asClientError(c.restError(ctx, http.MethodGet, path, err))
 }
 
+// emptyUnsatisfiable reports whether a 416's Content-Range ("bytes */N") says
+// the blob is empty. A missing or unreadable header does not say so.
+func emptyUnsatisfiable(contentRange string) bool {
+	size, ok := strings.CutPrefix(strings.TrimSpace(contentRange), "bytes */")
+
+	return ok && strings.TrimSpace(size) == "0"
+}
+
 // blobStatusError classifies the status the blob host answered with: nil for
 // the two that carry text.
 func blobStatusError(status int, id int64) error {
@@ -108,7 +134,7 @@ func blobStatusError(status int, id int64) error {
 }
 
 // fetchLogBlob asks the short-lived blob URL a logs request redirected to for
-// its last n bytes. The request carries no token. A redirect target must be
+// its last n bytes, or all of it when n is 0. The request carries no token. A redirect target must be
 // https, or the API's own origin (a GitHub Enterprise Server host, a test), so
 // a hostile Location can't make the server fetch from an arbitrary plain-http
 // host. Errors never carry the URL, which is a credential. The returned cancel
@@ -125,7 +151,9 @@ func (c *Client) fetchLogBlob(ctx context.Context, loc *url.URL, n int) (*http.R
 
 		return nil, nil, fmt.Errorf("%w: %w", errJobLogDownload, redactedCause(err))
 	}
-	req.Header.Set("Range", fmt.Sprintf("bytes=-%d", n))
+	if n > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=-%d", n))
+	}
 	blob, err := c.logBlobClient().Do(req)
 	if err != nil {
 		cancel()

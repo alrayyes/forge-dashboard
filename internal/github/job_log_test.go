@@ -286,6 +286,42 @@ func TestJobLog_AnUnsatisfiableRangeIsAnEmptyLog(t *testing.T) {
 	assert.False(t, got.Truncated)
 }
 
+func TestJobLog_AnEmptyLogIsTold_ByAContentRangeOfSizeZero(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Range", "bytes */0")
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+	})
+
+	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.NoError(t, err)
+	assert.Empty(t, got.Text)
+}
+
+func TestJobLog_AnUnsatisfiableRangeOnALogWithContentIsRetriedWithoutRange(t *testing.T) {
+	t.Parallel()
+	var ranges []string
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+		ranges = append(ranges, r.Header.Get("Range"))
+		if r.Header.Get("Range") != "" {
+			w.Header().Set("Content-Range", "bytes */12")
+			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+
+			return
+		}
+		_, _ = io.WriteString(w, "a real log\n")
+	})
+
+	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.NoError(t, err)
+	assert.Equal(t, "a real log\n", got.Text)
+	assert.False(t, got.Truncated)
+	assert.Len(t, ranges, 2)
+	assert.Empty(t, ranges[1])
+}
+
 func TestJobLog_WithAProxyConfigured_ADirectDialToLoopbackIsStillRefused(t *testing.T) {
 	t.Parallel()
 	var hits atomic.Int32
