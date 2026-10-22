@@ -72,9 +72,9 @@ func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name
 
 	var failed []int64
 	if repo.DefaultBranch != "" {
-		runs, err := c.branchRuns(ctx, dashboard.RepoRef{
+		runs, err := c.branchRunsList(ctx, dashboard.RepoRef{
 			FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch,
-		})
+		}, true)
 		if err != nil {
 			return err
 		}

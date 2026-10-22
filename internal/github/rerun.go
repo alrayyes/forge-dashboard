@@ -46,35 +46,29 @@ func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, numb
 var errNothingToRerunOnBranch = errors.New("no failed GitHub Actions job to rerun on this branch")
 
 // RerunFailedDefaultBranchChecks implements dashboard.DefaultBranchRerunner: it
-// finds the newest commit on owner/name's default branch that a check ran on,
-// the commit the Main branches row reports, and reruns the failed Actions jobs
-// of its check runs as RerunFailedChecks does for a pull request.
+// reruns the failed Actions jobs of the check runs on the commit
+// ListDefaultBranchChecks shows, the one the Main branches row reports, as
+// RerunFailedChecks does for a pull request.
 func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error {
-	commitsPath := fmt.Sprintf("/repos/%s/%s/commits", owner, name)
-	slog.Debug("github request", "method", http.MethodGet, "url", commitsPath)
-	opts := &ghsdk.CommitsListOptions{}
-	opts.PerPage = branchCheckCommits
-	commits, resp, err := c.restClient.Repositories.ListCommits(ctx, owner, name, opts)
+	sha, _, err := c.defaultBranchChecks(ctx, owner, name)
 	if err != nil {
-		return asClientError(c.restError(ctx, http.MethodGet, commitsPath, err))
+		return err
 	}
-	c.recordRESTSuccess(ctx, http.MethodGet, commitsPath, resp)
-
-	for _, commit := range commits {
-		sha := commit.GetSHA()
-		runsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
-		slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
-		runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{PerPage: perPage})
-		if err != nil {
-			return asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
-		}
-		c.recordRESTSuccess(ctx, http.MethodGet, runsPath, runsResp)
-		if len(runs.CheckRuns) > 0 {
-			return c.rerunFailedRuns(ctx, owner, name, runs.CheckRuns, errNothingToRerunOnBranch)
-		}
+	if sha == "" {
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerunOnBranch}
 	}
 
-	return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerunOnBranch}
+	runsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
+	slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
+	runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{PerPage: perPage})
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, runsPath, runsResp)
+
+	// A commit whose runs are held for approval has no check run, so nothing
+	// is found to rerun: the held commit is shown, and it is the one refused.
+	return c.rerunFailedRuns(ctx, owner, name, runs.CheckRuns, errNothingToRerunOnBranch)
 }
 
 // rerunFailedRuns maps the failed or timed-out check runs to their workflow

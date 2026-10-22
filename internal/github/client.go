@@ -3762,6 +3762,16 @@ const branchCheckCommits = 10
 // ListChecks. Branch protection is not read: "required" is a pull request's
 // base-branch notion, so the field stays unknown.
 func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string) ([]dashboard.Check, error) {
+	_, checks, err := c.defaultBranchChecks(ctx, owner, name)
+
+	return checks, err
+}
+
+// defaultBranchChecks is the one choice of commit behind both the dialog's job
+// list and its rerun, so the commit that is rerun is the commit that is shown.
+// It returns that commit's SHA with its checks; both are empty when no commit
+// in the newest few has one.
+func (c *Client) defaultBranchChecks(ctx context.Context, owner, name string) (string, []dashboard.Check, error) {
 	commitsPath := fmt.Sprintf("/repos/%s/%s/commits", owner, name)
 	slog.Debug("github request", "method", http.MethodGet, "url", commitsPath)
 	opts := &ghsdk.CommitsListOptions{}
@@ -3770,20 +3780,20 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 	if err != nil {
 		// A repository with no commit yet answers 409: no pipeline, not a failure.
 		if errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err); ok && errResp.Response != nil && errResp.Response.StatusCode == http.StatusConflict {
-			return nil, nil
+			return "", nil, nil
 		}
 
-		return nil, asClientError(c.restError(ctx, http.MethodGet, commitsPath, err))
+		return "", nil, asClientError(c.restError(ctx, http.MethodGet, commitsPath, err))
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, commitsPath, resp)
 
 	for i, commit := range commits {
 		checks, err := c.listChecksForSHA(ctx, owner, name, commit.GetSHA())
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		if len(checks) > 0 {
-			return checks, nil
+			return commit.GetSHA(), checks, nil
 		}
 		// The newest commit's runs may be held for approval. It has no check run
 		// either, but the row reports it as awaiting approval, so the panel lists
@@ -3791,12 +3801,12 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 		// commit: the row looks no further for held runs (#2024).
 		if i == 0 {
 			if held := c.heldWorkflowChecks(ctx, owner, name, commit.GetSHA()); len(held) > 0 {
-				return held, nil
+				return commit.GetSHA(), held, nil
 			}
 		}
 	}
 
-	return nil, nil
+	return "", nil, nil
 }
 
 // heldWorkflowChecks lists the workflow runs held for approval as checks. They

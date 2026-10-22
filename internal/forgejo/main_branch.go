@@ -126,11 +126,19 @@ type branchRun struct {
 // default branch, newest run first. Forgejo ignores the branch filter, so the
 // branch is checked here, and pull request runs, whose ref is "#N", never match.
 func (c *Client) branchRuns(ctx context.Context, repo dashboard.RepoRef) ([]*branchRun, error) {
+	return c.branchRunsList(ctx, repo, false)
+}
+
+// branchRunsList is branchRuns, where strict turns a 404 on the runs list (an
+// instance too old for it, or with Actions off) into an error instead of "no
+// runs". A rerun is strict: "no failed job" would be false when the list could
+// not be read.
+func (c *Client) branchRunsList(ctx context.Context, repo dashboard.RepoRef, strict bool) ([]*branchRun, error) {
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs", repo.Owner, repo.Name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequest(ctx, http.MethodGet, fmt.Sprintf("%s?page=1&limit=%d&branch=%s", path, pageLimit, url.QueryEscape(repo.DefaultBranch)), nil)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if !strict && resp != nil && resp.StatusCode == http.StatusNotFound {
 			// An instance too old for /actions/runs, or one with Actions off.
 			c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, string(dashboard.ForgeErrorNotFound))
 

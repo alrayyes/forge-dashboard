@@ -76,3 +76,19 @@ func TestRerunFailedDefaultBranchChecks_NoFailedRun_IsAConflict(t *testing.T) {
 	assert.Equal(t, "no failed job to rerun on this branch", dashboard.ForgeMessage(err))
 	assert.Empty(t, s.reruns)
 }
+
+func TestRerunFailedDefaultBranchChecks_RunsListMissing_IsAnErrorNotNothingToRerun(t *testing.T) {
+	t.Parallel()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"name": "a", "default_branch": "main"})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "want a ClientError, got %v", err)
+	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}
