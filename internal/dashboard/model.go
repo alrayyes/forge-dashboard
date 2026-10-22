@@ -551,6 +551,12 @@ type Repo struct {
 	// pull requests or issues, and the ones shown are the last good ones,
 	// fetched at this time (#1194). Absent when the repo's data is current.
 	StaleSince *time.Time `json:"staleSince,omitempty"`
+	// FailingSince is when the repo's fetch first failed, kept while it keeps
+	// failing. StaleSince is older: it is when the shown rows were fetched.
+	// Only the refresh schedule reads this, so it is not sent and not saved;
+	// after a restart the clock starts again.
+	// A row rebuilt from another must carry it over.
+	FailingSince *time.Time `json:"-"`
 }
 
 // Snapshot matches components.schemas.Dashboard — the whole body

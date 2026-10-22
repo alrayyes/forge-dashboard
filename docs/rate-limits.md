@@ -62,7 +62,14 @@ refresh tries again.
   path is configured, no repos are tracked yet, a repo has no hook or its hook
   check failed, or you can't manage hooks on a repo (such an account keeps the
   shorter wait). It is also `REFRESH_INTERVAL` when a forge's last fetch failed
-  or a repo could not be fully fetched. One forge being down keeps the shorter
+  or it has not reported, or a repo could not be fully fetched. A repo that has
+  failed to fetch for three times `REFRESH_INTERVAL` of clock time, counted from
+  its first failed fetch, counts as failing for good and stops holding the short
+  wait, so one broken repo (issues disabled, an empty repo, a token without the
+  scope) doesn't cost every other repo the saving. A webhook-driven refresh that
+  fetches a stale repo clears the mark, which also ends its hold; the CI poll
+  fetches no issues and leaves it. A restart forgets how long a repo has been
+  failing, so the count starts again. One forge being down keeps the shorter
   wait for all of them, even a forge whose repos are all covered, until it
   answers again. The same goes for the saved snapshot a restart starts from,
   until a refresh has reached the forge.
