@@ -296,7 +296,7 @@ describe('the No checks quick filter', () => {
   });
 });
 
-// The Issues page's title box also takes a ticket number. Pure, so it runs
+// The title box on the Issues, Pull requests and Bot PRs pages also takes a number. Pure, so it runs
 // without a browser; the page wiring is in issues-number-filter.spec.ts.
 // https://github.com/alrayyes/forge-dashboard/issues/2155
 describe('the title box and ticket numbers', () => {
@@ -329,9 +329,15 @@ describe('the title box and ticket numbers', () => {
     expect(hits(issue(1, 'Dark mode'), 'light')).toBe(false);
   });
 
-  test('a pull request matches on the title alone', () => {
-    expect(hits(issue(1884), '1884', true)).toBe(false);
+  test('a pull request matches numbers the way an issue does', () => {
+    for (const term of ['1884', '#1884', '18', '#18']) {
+      expect(hits(issue(1884), term, true)).toBe(true);
+    }
+    expect(hits(issue(188), '1884', true)).toBe(false);
+    expect(hits(issue(2188), '188', true)).toBe(false);
+    expect(hits(issue(7, 'Roadmap for 2024'), '#2024', true)).toBe(false);
     expect(hits(issue(1, 'Fix 1884'), '1884', true)).toBe(true);
+    expect(hits(issue(1, 'Dark mode'), 'dark', true)).toBe(true);
   });
 });
 

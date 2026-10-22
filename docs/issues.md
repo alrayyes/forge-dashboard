@@ -42,7 +42,8 @@ and `18` lists 18, 180, 1884, and so on. The `#` is optional. The box still
 matches titles too, so `2024` finds an issue with 2024 in its title, and
 `#1884` finds one whose title holds those characters. It is the same box as the
 title search, so it is remembered with the other filters and **Clear filters**
-empties it. The Pull requests page matches titles only.
+empties it. The Pull requests and Bots
+pages take a number in their title box the same way.
 
 ## Who filed it
 
