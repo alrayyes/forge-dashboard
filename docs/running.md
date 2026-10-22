@@ -119,6 +119,7 @@ The command applies any pending schema upgrade first, the same one the server
 runs at start. If the database is not ready for it, the command stops with the
 server's refusal, so a database from an older release is never reset while it
 still has several users.
+
 If the owner still has a passkey, the command refuses until you pass `--yes`.
 With no passkey registered it changes nothing and says registration is already
 open.
@@ -138,9 +139,11 @@ sessions, API tokens, passkey labels and the request log (as an account id). The
 no longer do: an instance has one owner, so the first start of this version
 rebuilds each of those tables without the column and keeps the owner's rows as
 they were. The webhook token and secret are copied unchanged, so a webhook you
-already installed keeps working. Sessions and API tokens are copied as they are,
-so the owner stays signed in and every token still works. The request log keeps
-every row. The `users` table keeps its ids, because a passkey is registered
+already installed keeps working. The owner's sessions and API tokens are
+copied as they are, so the owner stays signed in and those tokens still work.
+Rows of any other user are not kept; the paragraphs below say when that stops
+the start. The request log keeps every row. The `users` table keeps its ids,
+because a passkey is registered
 against that id.
 
 The rebuild runs as two steps, settings first and then sign-in data. Each has its
@@ -165,22 +168,34 @@ Settings rows keyed to a user that is not in the `users` table belong to nobody,
 so that rebuild refuses them, whether or not the owner has rows in the same
 table. The message names the table and the user ids and gives the `DELETE` that
 clears them. Copy the database file, run it, and start again. Nothing is deleted
-for you. Sessions, API tokens and passkey labels of an unknown user are
-different: the earlier release removed them without a word, so the sign-in
-rebuild drops them and logs the table, the count and the user ids.
+for you. The sign-in rebuild treats sessions, API tokens and passkey labels of an
+unknown user the same way, unless the earlier release's cleanup ran on this
+database (it leaves a `single_user_cleanup` table). That cleanup removed such
+rows without a word, so there the rebuild drops them and logs the table, the
+count and the user ids.
 
 Rows of another user who still exists, left beside the owner's by a second
-registration after the extra users were removed, are not an error: the oldest
-user wins, and the log has one `the oldest user's settings win` warning per
-table with the dropped row count and the user ids. Those rows survive only in
-the copy. For sessions, API tokens and passkey labels the log names the table, the
-count and the user ids, never a token or a session value.
+registration after the extra users were removed, are not an error: the owner
+wins, and the log has one warning per table with the dropped row count and the
+user ids. Those rows survive only in the copy. The log never holds a token or a
+session value. The owner is the oldest user who holds a passkey, the same user
+the earlier cleanup keeps, or the oldest user when none holds one.
 
-That release keeps the oldest user who holds a passkey. If the database has
-several users and none holds a passkey, that release has nothing to keep and
-writes no marker, so the rebuild does not wait for it: the oldest user wins, as
-above, and the log names the dropped rows. Those users are abandoned
-registrations. A settings table that already holds rows beside the old one
-stops the upgrade, so nothing is overwritten.
+The earlier release keeps the oldest user who holds a passkey. If the database
+has several users and none holds a passkey, that release has nothing to keep and
+writes no marker, so the rebuild does not wait for it. It goes on only when the
+other users hold no sessions, API tokens or passkey labels: they are abandoned
+registrations, and the oldest user wins. If one of them still holds any, the
+server says which user and table and stops. Delete the users you do not want
+from `users` and their rows (copy the file first), then start again. A settings
+table that already holds rows beside the old one stops the upgrade, so nothing
+is overwritten.
 
-Delete the copy once you are satisfied; the server never does.
+The earlier cleanup deleted a removed user's sessions and API tokens with the
+user. Once this version has rebuilt those tables they carry no user, so a later
+cleanup can no longer revoke them by user. This version has no second user to
+remove, so run the earlier release first, as above.
+
+Delete the copy once you are satisfied; the server never does. A start that
+fails on its first step removes the copy it took, since the database is as it
+was.
