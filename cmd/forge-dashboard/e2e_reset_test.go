@@ -145,6 +145,59 @@ func TestE2EReset_ForgetsTheTabsThePreviousTestLeftReportingVisible(t *testing.T
 	assert.Zero(t, activity.ViewerCount())
 }
 
+// emptySource is a Source that answers every fetch with one reachable forge,
+// enough for the Service to count its first refresh as done.
+type emptySource struct{}
+
+func (emptySource) Fetch(_ context.Context) dashboard.Result {
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
+}
+
+func (emptySource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
+// Stop only halts the refresh loop; clearing the first-refresh mark and the
+// force-refresh cooldown is Reset's job, so the reset route has to call both.
+func TestE2EReset_ReturnsTheServiceToAFreshProcessState(t *testing.T) {
+	ctx := t.Context()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "e2e.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	authStore := auth.NewStore(db)
+	require.NoError(t, authStore.Init(ctx))
+	cipher, err := settings.NewCipher("MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=")
+	require.NoError(t, err)
+	require.NoError(t, settings.NewStore(db, cipher).Init(ctx))
+	_, err = authStore.CreateUser(ctx, "owner", "Owner")
+	require.NoError(t, err)
+	require.NoError(t, authStore.AddCredential(ctx, webauthn.Credential{ID: []byte{1}}))
+
+	manager := dashboard.NewService(time.Hour)
+	t.Cleanup(manager.Stop)
+	manager.Ensure(ctx, []dashboard.Source{emptySource{}})
+	require.Eventually(t, manager.FirstRefreshDone, time.Second, 5*time.Millisecond)
+	_, ok := manager.ForceRefresh(ctx)
+	require.True(t, ok)
+	retryAfter, _ := manager.ForceRefresh(ctx)
+	require.Positive(t, retryAfter, "the warm-up leaves a cooldown behind")
+
+	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Service: manager}
+	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
+	t.Cleanup(srv.Close)
+
+	resp, err := http.Post(srv.URL+"/__e2e/reset", "application/json", nil)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	assert.False(t, manager.FirstRefreshDone(), "the first-refresh mark is forgotten")
+	assert.False(t, manager.Running())
+	manager.Ensure(ctx, []dashboard.Source{emptySource{}})
+	require.Eventually(t, manager.FirstRefreshDone, time.Second, 5*time.Millisecond)
+	retryAfter, ok = manager.ForceRefresh(ctx)
+	assert.True(t, ok)
+	assert.Zero(t, retryAfter, "the force-refresh cooldown is forgotten")
+}
+
 // A reset that arrives while the server is writing waits for the write to end
 // instead of failing. The reset's transaction used to start with a read and
 // only then ask for the write lock; when another writer committed in between,
