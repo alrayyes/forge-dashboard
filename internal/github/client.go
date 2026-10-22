@@ -85,7 +85,7 @@ type Client struct {
 	// logProxy picks the proxy of a log blob download (nil: the environment's);
 	// logBlob is the one client those downloads share.
 	logProxy    func(*http.Request) (*url.URL, error)
-	logBlobOnce sync.Once
+	logBlobMu   sync.Mutex
 	logBlob     *http.Client
 	webhookPath string
 

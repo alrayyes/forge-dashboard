@@ -195,64 +195,80 @@ func dialAddress(u *url.URL) string {
 // localhost; the proxy owns the rest, and the dial to the proxy itself is
 // allowed.
 func (c *Client) logBlobClient() *http.Client {
-	c.logBlobOnce.Do(func() {
-		apiHost := dialAddress(c.restClient.BaseURL)
-		proxyFor := c.logProxy
-		if proxyFor == nil {
-			proxyFor = http.ProxyFromEnvironment
-		}
-		var proxies sync.Map // host:port of each proxy chosen
-		checked := &net.Dialer{
-			Timeout: logFetchTimeout,
-			Control: func(_, address string, _ syscall.RawConn) error {
-				ap, err := netip.ParseAddrPort(address)
-				if err != nil || !publicAddr(ap.Addr()) {
-					return fmt.Errorf("%w: non-public address", errJobLogRedirect)
-				}
-
-				return nil
-			},
-		}
-		open := &net.Dialer{Timeout: logFetchTimeout}
+	c.logBlobMu.Lock()
+	defer c.logBlobMu.Unlock()
+	if c.logBlob == nil {
 		c.logBlob = &http.Client{
-			Timeout: logFetchTimeout,
-			Transport: &http.Transport{
-				Proxy: func(req *http.Request) (*url.URL, error) {
-					pu, err := proxyFor(req)
-					if err != nil || pu == nil {
-						return nil, err
-					}
-					host := req.URL.Hostname()
-					if ip, perr := netip.ParseAddr(host); (perr == nil && !publicAddr(ip)) || strings.EqualFold(host, "localhost") {
-						return nil, fmt.Errorf("%w: non-public address", errJobLogRedirect)
-					}
-					proxies.Store(pu.Host, true)
-
-					return pu, nil
-				},
-				DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-					if strings.ToLower(address) == apiHost {
-						return open.DialContext(ctx, network, address)
-					}
-					if _, ok := proxies.Load(address); ok {
-						return open.DialContext(ctx, network, address)
-					}
-
-					return checked.DialContext(ctx, network, address)
-				},
-				TLSHandshakeTimeout: logFetchTimeout,
-			},
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				if len(via) > maxLogRedirects {
-					return fmt.Errorf("%w: too many redirects", errJobLogRedirect)
-				}
-
-				return c.checkLogTarget(req.URL)
-			},
+			Timeout:       logFetchTimeout,
+			Transport:     c.logTransport(),
+			CheckRedirect: c.checkLogRedirect,
 		}
-	})
+	}
 
 	return c.logBlob
+}
+
+func (c *Client) checkLogRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > maxLogRedirects {
+		return fmt.Errorf("%w: too many redirects", errJobLogRedirect)
+	}
+
+	return c.checkLogTarget(req.URL)
+}
+
+// refusedTarget reports whether a proxied request's own host is one no proxy
+// should be asked to reach: localhost or a literal non-public address.
+func refusedTarget(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+
+	return err == nil && !publicAddr(ip)
+}
+
+func (c *Client) logTransport() *http.Transport {
+	apiHost := dialAddress(c.restClient.BaseURL)
+	proxyFor := c.logProxy
+	if proxyFor == nil {
+		proxyFor = http.ProxyFromEnvironment
+	}
+	var proxies sync.Map // host:port of each proxy chosen
+	checked := &net.Dialer{
+		Timeout: logFetchTimeout,
+		Control: func(_, address string, _ syscall.RawConn) error {
+			ap, err := netip.ParseAddrPort(address)
+			if err != nil || !publicAddr(ap.Addr()) {
+				return fmt.Errorf("%w: non-public address", errJobLogRedirect)
+			}
+
+			return nil
+		},
+	}
+	open := &net.Dialer{Timeout: logFetchTimeout}
+
+	return &http.Transport{
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			pu, err := proxyFor(req)
+			if err != nil || pu == nil {
+				return nil, err
+			}
+			if refusedTarget(req.URL.Hostname()) {
+				return nil, fmt.Errorf("%w: non-public address", errJobLogRedirect)
+			}
+			proxies.Store(pu.Host, true)
+
+			return pu, nil
+		},
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			if _, isProxy := proxies.Load(address); isProxy || strings.EqualFold(address, apiHost) {
+				return open.DialContext(ctx, network, address)
+			}
+
+			return checked.DialContext(ctx, network, address)
+		},
+		TLSHandshakeTimeout: logFetchTimeout,
+	}
 }
 
 // redactedCause is err without the URL a *url.Error carries.

@@ -317,7 +317,7 @@ func TestJobLog_WithAProxyConfigured_ADirectDialToLoopbackIsStillRefused(t *test
 func TestJobLog_WithAProxyConfigured_APrivateAddressTargetIsRefusedBeforeTheProxy(t *testing.T) {
 	t.Parallel()
 	var proxied atomic.Int32
-	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	proxy := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		proxied.Add(1)
 	}))
 	t.Cleanup(proxy.Close)
@@ -362,7 +362,8 @@ func TestJobLog_TheBlobClientIsReusedBetweenCalls(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	assert.Same(t, c.LogBlobClientForTest(), c.LogBlobClientForTest())
+	first, second := c.LogBlobClientForTest(), c.LogBlobClientForTest()
+	assert.Same(t, first, second)
 }
 
 func TestDialAddress_FillsTheDefaultPortAndLowercasesTheHost(t *testing.T) {
