@@ -88,6 +88,11 @@ stale.
   Answers are cached for fifteen minutes, so a fix can take that long to show,
   and longer for a GitHub App. See
   [When advisories can't be read](docs/main-branches.md#when-advisories-cant-be-read).
+  Forgejo has no alerts of its own, so a Forgejo repo's advisories come from its
+  `package-lock.json` and `go.mod` (in the repo root), matched against
+  [OSV](https://osv.dev). **That sends the package names and versions in those
+  files to api.osv.dev**, private repos included, and nothing else. Set
+  `OSV_ADVISORIES=off` to keep them home; Forgejo rows then show no advisories.
 
 ## Documentation
 

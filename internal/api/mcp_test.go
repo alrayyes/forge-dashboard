@@ -212,8 +212,9 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 
 // advisoriesWording is the one sentence both the MCP and the WebMCP tool use
 // for the advisories field. web/src/lib/webmcp-tools.test.ts pins the same text.
-const advisoriesWording = "The advisories key is absent when no source reads the repository's forge, " +
-	"such as Forgejo. A state of unknown means the forge could not say, never zero."
+const advisoriesWording = "The advisories key is absent when no source reads the repository's forge. " +
+	"A state of unknown means the source could not say, never zero; a Forgejo repo " +
+	"with no lockfile it can read is unknown."
 
 func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 	t.Parallel()

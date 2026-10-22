@@ -34,8 +34,8 @@ credential lacks the permission, is never shown as zero: unknown is no answer.
 When every GitHub repo is unknown, one notice above the list says so and links
 to [When advisories can't be read](#when-advisories-cant-be-read), and no row
 repeats it. When only some are unknown, those rows carry a small grey dash
-(read aloud as "Advisories unknown") and no pill. A repo no source reads, such as
-a Forgejo one, shows no pill. A branch whose only trouble is a cancelled run (a
+(read aloud as "Advisories unknown") and no pill. A repo no source reads
+shows no pill. A branch whose only trouble is a cancelled run (a
 newer push or a person stopped it) reads Cancelled, not Failed, with a stop
 glyph; a real
 failure beside a cancelled run is Failed and names only the failed job, and a
@@ -80,6 +80,30 @@ panel here only reads. With every
 default branch passing the page says so, and a filter that matches nothing
 offers **Reset filters**. A repo with no pipeline says no run was found.
 
+## Forgejo advisories
+
+Forgejo has no alerts of its own, so the advisories on a Forgejo row come from
+the repo's lockfiles. The dashboard lists the root of the default branch, reads
+`package-lock.json` (npm lockfile version 2 or 3) and `go.mod` if they are
+there, and asks [OSV](https://google.github.io/osv.dev/post-v1-querybatch/)
+which of the pinned packages have known advisories. The count is the number of
+distinct advisories, with GHSA and CVE twins counted once, and the severity is
+the highest the advisory database states. An advisory that states none still
+counts, and the pill then shows the count alone. The pill does not link
+anywhere, since OSV has no page for a whole repo.
+
+**The package names and versions in those files are sent to api.osv.dev**, for
+private repos too, and nothing else is: no repo name, URL or token. Set
+`OSV_ADVISORIES=off` to turn it off; Forgejo rows then carry no advisories.
+
+A repo with no lockfile the dashboard reads, or one that doesn't parse, is
+`unknown`, never zero, and so is one that matches more advisories than a scan
+reads. An OSV outage keeps the last answer, or shows `unknown` if there is
+none. Answers are cached for fifteen minutes and a failed read is retried after
+five, like the GitHub ones. A read costs one listing of the root plus one read
+per lockfile, counted under the `advisories` kind in
+[Rate limits](rate-limits.md).
+
 ## When advisories can't be read
 
 GitHub answers 403 or 404 when the credential can't read a repo's Dependabot
@@ -122,7 +146,8 @@ finished and how long it ran, a link to the run, and the repository's latest
 published release (`latestRelease`, its tag and the page of its notes, or
 null) and its open dependency advisories (`advisories`: `state`, `count`, the
 `highest` severity and a `url` to the alerts). `advisories` is absent for a repo
-whose forge no source reads, such as Forgejo. `state` is `unknown` when the
+whose forge no source reads (a Forgejo instance with `OSV_ADVISORIES=off`).
+`state` is `unknown` when the
 forge could not say, for example alerts switched off or a token without the
 scope, and is never a count of zero; `reason` then says why when the dashboard
 can tell. The release's title and notes are a
