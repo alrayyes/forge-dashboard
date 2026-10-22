@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -20,21 +19,13 @@ import (
 // actionTarget is the pull request a write endpoint was asked to act on, once
 // its caller and body have been read.
 type actionTarget struct {
-	user        *auth.User
 	req         pullRequestActionRequest
 	owner, name string
 }
 
-// readActionTarget reads who is asking and which pull request, and answers 500
-// or 400 itself when it can't.
+// readActionTarget reads which pull request the caller means and answers 400 itself
+// when it can't.
 func readActionTarget(w http.ResponseWriter, r *http.Request) (actionTarget, bool) {
-	u, ok := auth.UserFromContext(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-		return actionTarget{}, false
-	}
-
 	var req pullRequestActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
@@ -58,7 +49,7 @@ func readActionTarget(w http.ResponseWriter, r *http.Request) (actionTarget, boo
 		return actionTarget{}, false
 	}
 
-	return actionTarget{user: u, req: req, owner: owner, name: name}, true
+	return actionTarget{req: req, owner: owner, name: name}, true
 }
 
 // statusError is a refusal that carries the HTTP status the handler answers

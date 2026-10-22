@@ -496,7 +496,7 @@ func TestService_FirstRefreshDone_StaysTrueWhenTheAggregatorIsReplaced(t *testin
 	assert.True(t, m.FirstRefreshDone(), "a later refresh must not put the loading state back")
 }
 
-func TestService_Stop_ForgetsTheFirstRefresh(t *testing.T) {
+func TestService_Stop_KeepsTheFirstRefresh(t *testing.T) {
 	t.Parallel()
 
 	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
@@ -507,5 +507,98 @@ func TestService_Stop_ForgetsTheFirstRefresh(t *testing.T) {
 
 	m.Stop()
 
-	assert.False(t, m.FirstRefreshDone(), "a stopped Service reads like a fresh process")
+	assert.True(t, m.FirstRefreshDone(), "halting the loop is not a restart")
+	assert.False(t, m.Running())
+}
+
+func TestService_Reset_ForgetsTheFirstRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+	m.Ensure(t.Context(), []dashboard.Source{src})
+	require.Eventually(t, func() bool { return m.FirstRefreshDone() }, time.Second, 5*time.Millisecond)
+
+	m.Stop()
+	m.Reset()
+
+	assert.False(t, m.FirstRefreshDone(), "a reset Service reads like a fresh process")
+}
+
+// A login that read the saved credentials just before a save must not win the
+// swap afterwards: the read happens under the same lock as the swap, so the
+// save's Ensure queues behind it and lands last.
+func TestService_EnsureFrom_ReadsUnderTheSwapLock_SoALaterSaveWins(t *testing.T) {
+	t.Parallel()
+
+	oldSrc := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1}}
+	newSrc := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 2}}
+
+	var saved atomic.Pointer[countingSource]
+	saved.Store(oldSrc)
+
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+
+	readOld := make(chan struct{})
+	release := make(chan struct{})
+	loginDone := make(chan struct{})
+
+	go func() {
+		defer close(loginDone)
+
+		m.EnsureFrom(t.Context(), func() ([]dashboard.Source, bool) {
+			src := saved.Load()
+
+			close(readOld)
+			<-release
+
+			return []dashboard.Source{src}, true
+		})
+	}()
+
+	<-readOld
+
+	saveDone := make(chan struct{})
+	saveStarted := make(chan struct{})
+
+	go func() {
+		defer close(saveDone)
+
+		saved.Store(newSrc)
+		close(saveStarted)
+		m.Ensure(t.Context(), []dashboard.Source{newSrc})
+	}()
+
+	<-saveStarted
+
+	// Give the save time to finish if nothing stops it. It must instead be
+	// parked on the Service lock the login's loader still holds.
+	select {
+	case <-saveDone:
+		t.Fatal("the save swapped the aggregator while the login's read was still in flight")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	<-loginDone
+	<-saveDone
+
+	require.Eventually(t, func() bool { return len(m.Get().Forges) == 1 && m.Get().Forges[0].RepoCount == 2 }, 2*time.Second, 5*time.Millisecond)
+}
+
+func TestService_EnsureFrom_LoaderDeclines_KeepsTheRunningAggregator(t *testing.T) {
+	t.Parallel()
+
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1}}
+
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), []dashboard.Source{src})
+	m.EnsureFrom(t.Context(), func() ([]dashboard.Source, bool) { return nil, false })
+
+	require.True(t, m.Running())
+	require.Eventually(t, func() bool { return len(m.Get().Forges) == 1 }, 2*time.Second, 5*time.Millisecond)
 }

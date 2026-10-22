@@ -219,6 +219,28 @@ func (m *Service) Ensure(ctx context.Context, sources []Source) {
 	m.startLocked(ctx, sources)
 }
 
+// EnsureFrom is Ensure, but load runs under the same lock as the swap. A
+// caller that reads the saved credentials itself and then calls Ensure can be
+// overtaken by a settings save in between, and its older read would then
+// replace the newer Aggregator. load returns the sources and true, or false to
+// leave whatever is running untouched (nothing saved, or the read failed).
+func (m *Service) EnsureFrom(ctx context.Context, load func() ([]Source, bool)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	sources, ok := load()
+	if !ok {
+		return
+	}
+
+	if m.current != nil {
+		m.latchFirstRefreshLocked()
+		m.current.cancel()
+	}
+
+	m.startLocked(ctx, sources)
+}
+
 // EnsureIfAbsent is Ensure, but only takes effect if no Aggregator is running
 // yet. The check and the insert happen under the same lock, unlike a separate
 // Running() check followed by Ensure(), which races when several requests land
@@ -580,11 +602,9 @@ func (m *Service) Subscribe() (<-chan Snapshot, func(), bool) {
 	return ch, unsubscribe, true
 }
 
-// Stop cancels the running refresh loop and returns the Service to how a fresh
-// process starts: no first-refresh marks and no force-refresh cooldown. That is
-// what a restart and the e2e reset both mean. A settings save goes through
-// Ensure instead, which keeps those marks and the cooldown so a save can't be
-// used to dodge the throttle.
+// Stop cancels the running refresh loop and nothing else. The first-refresh
+// marks and the force-refresh cooldown stay, so a pause or shutdown can't hand
+// out a free refresh. Reset puts those back to a fresh process.
 func (m *Service) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -593,6 +613,17 @@ func (m *Service) Stop() {
 		m.current.cancel()
 	}
 	m.current = nil
+}
+
+// Reset returns the Service to how a fresh process starts: no first-refresh
+// marks and no force-refresh cooldown. A restart and the e2e reset both mean
+// that, so they call Stop and then Reset. A settings save goes through Ensure
+// instead, which keeps the marks and the cooldown so a save can't be used to
+// dodge the throttle.
+func (m *Service) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.refreshedOnce = false
 	m.firstRefreshSeen = false
 	m.firstStarted = time.Time{}

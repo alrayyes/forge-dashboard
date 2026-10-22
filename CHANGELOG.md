@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.12.0](https://github.com/alrayyes/forge-dashboard/compare/v2.11.6...v2.12.0) (2026-10-22)
+
+
+### Features
+
+* **web:** filter the Branches page by has or no open advisories ([#2601](https://github.com/alrayyes/forge-dashboard/issues/2601)) ([63a1e32](https://github.com/alrayyes/forge-dashboard/commit/63a1e329b335212698466e33a0bea528649d771e))
+
+## [2.11.6](https://github.com/alrayyes/forge-dashboard/compare/v2.11.5...v2.11.6) (2026-10-22)
+
+
+### Bug Fixes
+
+* **settings:** read credentials under the swap lock so a stale login read can't win ([#2592](https://github.com/alrayyes/forge-dashboard/issues/2592)) ([9c0abed](https://github.com/alrayyes/forge-dashboard/commit/9c0abedf507aff10ca7e6ac49d3f50e412b449fa))
+
 ## [2.11.5](https://github.com/alrayyes/forge-dashboard/compare/v2.11.4...v2.11.5) (2026-10-22)
 
 

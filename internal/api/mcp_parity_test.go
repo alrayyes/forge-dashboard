@@ -48,7 +48,7 @@ func registeredMCPTools(t *testing.T) []string {
 	t.Helper()
 
 	ctx := context.Background()
-	server := newMCPServer(Deps{Version: "test"}, nil, false)
+	server := newMCPServer(Deps{Version: "test"})
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(ctx, serverTransport, nil)
 	require.NoError(t, err)

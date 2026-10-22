@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -44,17 +43,10 @@ type dependabotTarget struct {
 	comment string
 }
 
-// readDependabotTarget reads who is asking, the action and which pull request,
-// and answers 500 or 400 itself when it can't. The action is checked before
+// readDependabotTarget reads the action and which pull request,
+// and answers 400 itself when it can't. The action is checked before
 // the repo name, which is the order this endpoint always had.
 func readDependabotTarget(w http.ResponseWriter, r *http.Request) (dependabotTarget, bool) {
-	u, ok := auth.UserFromContext(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-		return dependabotTarget{}, false
-	}
-
 	var req pullRequestDependabotActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
@@ -86,7 +78,6 @@ func readDependabotTarget(w http.ResponseWriter, r *http.Request) (dependabotTar
 	}
 
 	return dependabotTarget{
-		user:    u,
 		req:     pullRequestActionRequest{Forge: req.Forge, FullName: req.FullName, Number: req.Number},
 		owner:   owner,
 		name:    name,

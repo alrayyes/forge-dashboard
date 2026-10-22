@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -818,8 +817,8 @@ func withRateLimitSeverity(forges []dashboard.ForgeHealth, now time.Time) []dash
 // the same way. Never blocks on either forge: Service.Get reads whatever
 // the background refresh last assembled -- empty, not an error, when no
 // credentials are saved in Settings yet.
-func dashboardFor(ctx context.Context, deps Deps, u *auth.User, view boardView) dashboardResponse {
-	warmUpAggregator(ctx, deps, u.Username)
+func dashboardFor(ctx context.Context, deps Deps, view boardView) dashboardResponse {
+	warmUpAggregator(ctx, deps)
 	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
 
 	return buildDashboardResponse(ctx, deps, deps.Service.Get(), view)
@@ -828,17 +827,7 @@ func dashboardFor(ctx context.Context, deps Deps, u *auth.User, view boardView) 
 // handleDashboard answers the signed-in user's own dashboard.
 func handleDashboard(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			// RequireAuth always sets this before handleDashboard runs;
-			// reaching here with none would be a wiring bug, not a
-			// request this handler can meaningfully answer.
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
-		resp := dashboardFor(r.Context(), deps, u, viewOf(r))
+		resp := dashboardFor(r.Context(), deps, viewOf(r))
 		writeJSON(w, http.StatusOK, resp)
 	}
 }
@@ -855,21 +844,21 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 //
 // The Running() check is a fast path — cheap, and safe even if it races,
 // since a false negative just falls through to EnsureIfAbsent below,
-// which is what actually has to be race-safe: several requests for the
-// same user landing in the same instant right after a restart (several
+// which is what actually has to be race-safe: several requests
+// landing in the same instant right after a restart (several
 // browser tabs and an SSE reconnect, all reconnecting at once) used to
 // each see "not running" from a bare Running() check and each spin up
 // their own Aggregator with its own immediate Refresh — confirmed as a
 // real, if not fully explained, contributor to a request-volume burst
 // live in production.
-func warmUpAggregator(ctx context.Context, deps Deps, username string) {
+func warmUpAggregator(ctx context.Context, deps Deps) {
 	if deps.Service.Running() {
 		return
 	}
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
 		if !errors.Is(err, settings.ErrNotFound) {
-			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
+			slog.Warn("could not load settings to warm up dashboard", "error", err)
 		}
 
 		return
@@ -881,16 +870,21 @@ func warmUpAggregator(ctx context.Context, deps Deps, username string) {
 // Aggregator from them — unconditionally, unlike warmUpAggregator, since
 // startSession calls this on every login regardless of whether one's
 // already running, to pick up whatever was most recently saved.
-func loadAndEnsure(ctx context.Context, deps Deps, username string) {
-	creds, err := deps.SettingsStore.Get(ctx)
-	if err != nil {
-		if !errors.Is(err, settings.ErrNotFound) {
-			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
+func loadAndEnsure(ctx context.Context, deps Deps) {
+	// The read happens under the Service's lock, so a settings save that lands
+	// meanwhile queues behind this swap instead of being overwritten by it.
+	deps.Service.EnsureFrom(deps.AppContext, func() ([]dashboard.Source, bool) {
+		creds, err := deps.SettingsStore.Get(ctx)
+		if err != nil {
+			if !errors.Is(err, settings.ErrNotFound) {
+				slog.Warn("could not load settings to warm up dashboard", "error", err)
+			}
+
+			return nil, false
 		}
 
-		return
-	}
-	deps.Service.Ensure(deps.AppContext, deps.BuildSources(creds))
+		return deps.BuildSources(creds), true
+	})
 }
 
 // handleDashboardRefresh triggers an immediate, out-of-band refresh of
@@ -912,7 +906,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 		if !running {
 			// No Aggregator running yet (Settings has never been saved) —
 			// the same condition and message handleDashboardStream uses.
-			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
+			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet"))
 
 			return
 		}
@@ -938,13 +932,6 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 // benefits from it, rather than the dashboard going stale silently.
 func handleDashboardStream(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("streaming not supported"))
@@ -952,7 +939,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		warmUpAggregator(r.Context(), deps, u.Username)
+		warmUpAggregator(r.Context(), deps)
 
 		ch, unsubscribe, ok := deps.Service.Subscribe()
 		if !ok {
@@ -960,7 +947,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 			// a plain 404 rather than an open connection with nothing to
 			// send. EventSource does not retry a non-200, so the page opens
 			// the stream again itself (Dashboard.svelte, ensureStream).
-			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet for this user"))
+			writeJSON(w, http.StatusNotFound, errorBody("no background refresh is running yet"))
 
 			return
 		}

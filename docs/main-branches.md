@@ -72,6 +72,14 @@ matches the repo, branch, commit, author and failing job names. The filter is
 saved with the other pages' filters, in the shared filter cookie and in the copy
 on the server, so it is still set after a reload and in another browser.
 
+An advisories group (Any, Has advisories, No advisories) sits beside the forge
+toggle once some row has an answer, and follows the same rule: a choice is
+offered only when a row would show under it. **Has** keeps rows with at least
+one open advisory and **No** keeps rows known to have none. A row whose answer
+is unknown, or that no source reads, is under neither, because unknown is never
+zero. The group says how many rows are left out for that reason, so a missing
+row is not read as clean. **Reset filters** sets it back to Any.
+
 Rows from a forge that can't be read, or whose rate limit is spent, keep their
 last known status, are marked **stale**, and sit under one banner. The page
 offers no write at all: there is no Re-run, because the only re-run endpoint
