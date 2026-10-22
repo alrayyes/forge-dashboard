@@ -128,6 +128,7 @@
   } from "#lib/rate-limit.js";
   import {
     type ForgeHealthEntry,
+    dependabotBlockedReason,
     forgeLockReason,
     spentLimit,
   } from "#lib/forge-lock.js";
@@ -3992,13 +3993,7 @@
       const key = `${prKey(item)}:${action}`;
       const entry = dependabotActionState[key] || { phase: "idle" };
 
-      // Blocked only when there is a host and every one of that kind says so,
-      // as the lock is; the first host's reason stands for them all.
-      const hosts = lastForges.filter((f) => f.forge === item.forge);
-      const blockedReason =
-        hosts.length > 0 && hosts.every((f) => f.dependabotCommandsBlocked)
-          ? hosts[0].dependabotCommandsBlocked
-          : undefined;
+      const blockedReason = dependabotBlockedReason(lastForges, item.forge);
       if (blockedReason)
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],

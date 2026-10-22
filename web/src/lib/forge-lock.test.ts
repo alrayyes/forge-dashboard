@@ -3,7 +3,9 @@ import { describe, expect, mock, test } from 'bun:test';
 
 // rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
 mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
-const { forgeLockReason, spentLimit } = await import('./forge-lock');
+const { dependabotBlockedReason, forgeLockReason, spentLimit } = await import(
+  './forge-lock'
+);
 
 const NOW = Date.parse('2026-10-22T12:00:00Z');
 const spent = (resetsAt: string) => ({
@@ -92,5 +94,26 @@ describe('spentLimit', () => {
       host({ rateLimitREST: rest }),
     ];
     expect(spentLimit(forges, 'github', 'rest', NOW)).toBe(rest);
+  });
+});
+
+describe('dependabotBlockedReason', () => {
+  const blocked = (why: string) => host({ dependabotCommandsBlocked: why });
+
+  test('needs a host, and every host of the kind blocked', () => {
+    expect(dependabotBlockedReason([], 'github')).toBeUndefined();
+    expect(dependabotBlockedReason(undefined, 'github')).toBeUndefined();
+    expect(dependabotBlockedReason([blocked('a')], 'github')).toBe('a');
+    expect(
+      dependabotBlockedReason([blocked('a'), host()], 'github'),
+    ).toBeUndefined();
+    expect(
+      dependabotBlockedReason([blocked('a'), blocked('b')], 'github'),
+    ).toBe('a');
+  });
+
+  test('ignores hosts of other kinds', () => {
+    const other = { ...host(), forge: 'forgejo' };
+    expect(dependabotBlockedReason([blocked('a'), other], 'github')).toBe('a');
   });
 });

@@ -89,3 +89,16 @@ export function spentLimit(
     .map((f) => (budget === 'rest' ? f.rateLimitREST : f.rateLimitGraphQL))
     .find((l): l is RateLimit => !!l && Date.parse(l.resetsAt) > now);
 }
+
+// Why Dependabot commands are refused through a kind's credential, or nothing.
+// Rows name the kind, so it holds only when there is a host and every host of
+// the kind is blocked; the first host's reason stands for them all.
+export function dependabotBlockedReason(
+  forges: readonly ForgeHealthEntry[] | undefined,
+  forge: string,
+): string | undefined {
+  const hosts = (forges ?? []).filter((f) => f.forge === forge);
+  return hosts.length > 0 && hosts.every((f) => f.dependabotCommandsBlocked)
+    ? hosts[0].dependabotCommandsBlocked
+    : undefined;
+}
