@@ -308,6 +308,7 @@ func TestAggregator_NextDelay_StretchesAgainAfterAScopedRefreshClearsAStaleRepo(
 	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "b", "o/b"))
 
 	assert.Nil(t, repoNamed(t, agg, "o/b").StaleSince)
+	assert.Nil(t, repoNamed(t, agg, "o/b").FailingSince)
 	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
 }
 

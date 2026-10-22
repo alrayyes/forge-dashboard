@@ -530,7 +530,7 @@ func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string
 // they replace. rows is given the current snapshot under the same hold of mu
 // that writes the result, and returns false to drop the write.
 func (a *Aggregator) mergeRepoFrom(ctx context.Context, forge Forge, fullName string, seq uint64, branch *MainBranch, rows func(current Snapshot) ([]PullRequest, []Issue, bool)) {
-	a.mergeReposFrom(ctx, forge, seq, []repoRows{{fullName: fullName, branch: branch, rows: rows}})
+	a.mergeReposFrom(ctx, forge, seq, []repoRows{{fullName: fullName, branch: branch, rows: rows, fetched: true}})
 }
 
 // repoRows is one repo's share of a merge: its main branch row, if any, and the
@@ -539,6 +539,10 @@ type repoRows struct {
 	fullName string
 	branch   *MainBranch
 	rows     func(current Snapshot) ([]PullRequest, []Issue, bool)
+	// fetched is true when rows came from a fetch of both the repo's pull
+	// requests and its issues, which is what a stale mark is about. A merge
+	// that re-feeds the snapshot's own issues leaves the mark alone.
+	fetched bool
 }
 
 // mergeReposFrom is mergeRepoFrom for several repos of one forge at once: every
@@ -556,6 +560,9 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 			continue
 		}
 		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues)
+		if r.fetched {
+			merged.Repos = withoutStale(merged.Repos, forge, r.fullName)
+		}
 		wrote = true
 	}
 	if !wrote {
@@ -572,10 +579,9 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 }
 
 // mergedRepo is current with forge/fullName's own entries replaced by prs and
-// issues. The caller holds mu and writes the result back. The repo's own row
-// is no longer stale: its pull requests and issues were just fetched.
+// issues. The caller holds mu and writes the result back.
 func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue) Snapshot {
-	merged := Snapshot{Forges: current.Forges, Repos: withoutStale(current.Repos, forge, fullName), MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
+	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
 			continue
@@ -967,8 +973,11 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 // snapshot's own slice is shared with readers.
 func withoutStale(repos []Repo, forge Forge, fullName string) []Repo {
 	for i, r := range repos {
-		if r.Forge != forge || r.FullName != fullName || r.StaleSince == nil {
+		if r.Forge != forge || r.FullName != fullName {
 			continue
+		}
+		if r.StaleSince == nil && r.FailingSince == nil {
+			return repos
 		}
 		out := slices.Clone(repos)
 		out[i].StaleSince = nil

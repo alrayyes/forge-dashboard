@@ -91,3 +91,19 @@ func TestAggregator_FailingSinceStartsAtTheFirstFailureAndSurvivesMore(t *testin
 	agg.Refresh(t.Context())
 	assert.Nil(t, agg.Get().Repos[0].FailingSince)
 }
+
+func TestMergePendingResult_KeepsARepoStaleBecauseItFetchedNoIssues(t *testing.T) {
+	t.Parallel()
+
+	at := time.Now().Add(-time.Hour).UTC()
+	failing := time.Now().Add(-time.Minute).UTC()
+	agg := NewAggregator(nil)
+	agg.snap = staleSnapshot(&at, &failing)
+	agg.snap.PullRequests = []PullRequest{{Forge: ForgeGitHub, Repo: "o/b", Number: 1}}
+
+	agg.mergePendingResult(t.Context(), ForgeGitHub, 1, PendingResult{Closed: []PullRequestRef{{FullName: "o/b", Number: 1}}})
+
+	repo := agg.Get().Repos[1]
+	assert.Equal(t, &at, repo.StaleSince, "a CI poll fetched no issues, so the repo is as stale as before")
+	assert.Equal(t, &failing, repo.FailingSince)
+}

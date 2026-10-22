@@ -555,6 +555,7 @@ type Repo struct {
 	// failing. StaleSince is older: it is when the shown rows were fetched.
 	// Only the refresh schedule reads this, so it is not sent and not saved;
 	// after a restart the clock starts again.
+	// A row rebuilt from another must carry it over.
 	FailingSince *time.Time `json:"-"`
 }
 
