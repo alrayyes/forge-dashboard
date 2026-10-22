@@ -92,7 +92,7 @@ the highest the advisory database states. An advisory that states none still
 counts, and the pill then shows the count alone. The pill does not link
 anywhere, since OSV has no page for a whole repo.
 
-**The package names and versions in those files are sent to api.osv.dev**, for
+**The package names and versions in those files are sent to `api.osv.dev`**, for
 private repos too, and nothing else is: no repo name, URL or token. Set
 `OSV_ADVISORIES=off` to turn it off; Forgejo rows then carry no advisories.
 
