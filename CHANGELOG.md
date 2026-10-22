@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.5.2](https://github.com/alrayyes/forge-dashboard/compare/v2.5.1...v2.5.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* **branches:** end a queued rerun's hold on a timer, not on the next redraw ([#2517](https://github.com/alrayyes/forge-dashboard/issues/2517)) ([6e0d787](https://github.com/alrayyes/forge-dashboard/commit/6e0d78748803db1e44ebe97b91b406a2c2a70dd8))
+
+## [2.5.1](https://github.com/alrayyes/forge-dashboard/compare/v2.5.0...v2.5.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **api:** refuse a job log for a repository the dashboard does not track ([#2509](https://github.com/alrayyes/forge-dashboard/issues/2509)) ([3693c4f](https://github.com/alrayyes/forge-dashboard/commit/3693c4f21b2b8f8f76f0062fc54efb902846c1b6))
+* **dashboard:** strip CSI sequences with &gt; &lt; = parameter bytes from job logs ([#2511](https://github.com/alrayyes/forge-dashboard/issues/2511)) ([c650ec8](https://github.com/alrayyes/forge-dashboard/commit/c650ec8c46b8ad7ff926857d9fb42e3bce03b53b))
+
 ## [2.5.0](https://github.com/alrayyes/forge-dashboard/compare/v2.4.1...v2.5.0) (2026-10-22)
 
 

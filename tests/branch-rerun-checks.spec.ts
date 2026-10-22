@@ -163,6 +163,29 @@ test.describe('main branches rerun failed checks', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('the hold ends on its own when the ten minutes pass with no poll to redraw the dialog', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await page.route('**/api/main-branches/rerun-checks', (route) =>
+      route.fulfill({ status: 204 }),
+    );
+    const dialog = await openPanel(page, 'failed');
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun queued' }),
+    ).toHaveAttribute('aria-disabled', 'true');
+
+    // From here every poll hangs, so only the hold's own timer can redraw.
+    await page.route('**/api/main-branches', () => {});
+    await page.clock.fastForward(10 * 60 * 1000 + 5_000);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(dialog.getByRole('status')).toHaveText('');
+  });
+
   test('a refused rerun shows the forge reason and leaves the button for another try', async ({
     page,
   }) => {

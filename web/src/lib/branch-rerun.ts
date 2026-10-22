@@ -27,6 +27,9 @@ export function createBranchRerun() {
   // when the checks change, so the node a click came from may be gone by the
   // time the request ends: the answer goes to whichever nodes are on screen.
   const views = new Map<string, Set<{ node: HTMLElement; sync: () => void }>>();
+  // One timer per repository, set when a rerun is queued so the control redraws
+  // when the hold ends even if nothing else does.
+  const releases = new Map<string, ReturnType<typeof setTimeout>>();
   const keyOf = (t: RerunTarget) => `${t.forge}\u0000${t.fullName}`;
 
   // A queued rerun is held until the branch's CI moves on or the hold runs out.
@@ -47,7 +50,12 @@ export function createBranchRerun() {
       if (!view.node.isConnected) live.delete(view);
       else view.sync();
     }
-    if (live.size === 0) views.delete(key);
+    if (live.size === 0) {
+      views.delete(key);
+      // No control is left to redraw, so the hold's timer has nothing to do.
+      clearTimeout(releases.get(key));
+      releases.delete(key);
+    }
   }
 
   async function post(t: RerunTarget): Promise<void> {
@@ -132,6 +140,12 @@ export function createBranchRerun() {
             queuedAt: Date.now(),
             signature: sig,
           });
+          clearTimeout(releases.get(key));
+          releases.set(
+            key,
+            // One past the hold, which `held` still counts as held at HOLD_MS.
+            setTimeout(() => syncAll(key), HOLD_MS + 1),
+          );
         })
         .catch((err: ActionRequestError) => {
           states.set(key, {
