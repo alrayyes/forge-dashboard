@@ -2,11 +2,11 @@ package settings
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 )
@@ -16,6 +16,25 @@ import (
 // would merge their settings into one row, so the migration refuses.
 var ErrRunPreviousRelease = errors.New("settings: the database has several users and the single-user cleanup has not run")
 
+// ErrNoPasskeyHolder is returned when the database has several users, none of
+// them holding a passkey. The single-user cleanup keeps the oldest user with a
+// passkey, so it can't pick one here and never writes its marker: running the
+// previous release won't settle it.
+var ErrNoPasskeyHolder = errors.New("settings: the database has several users and none holds a passkey")
+
+// ErrNoOwner is returned when the settings tables hold rows but there is no
+// user to attach them to. Copying nothing and dropping the old tables would
+// lose them.
+var ErrNoOwner = errors.New("settings: the settings tables hold rows but no user owns them")
+
+// ErrCopyIncomplete is returned when a table's rows did not all reach its new
+// shape. The step rolls back, so the old table is still there.
+var ErrCopyIncomplete = errors.New("settings: rows were lost in the copy")
+
+// ErrSettingsTableInTheWay is returned when a settings table already exists
+// beside user_credentials and holds rows. Replacing it would overwrite them.
+var ErrSettingsTableInTheWay = errors.New("settings: a settings table with rows already exists beside user_credentials")
+
 // MigrationSteps are the schema steps for the settings tables, in order. Pass
 // them to dbmigrate.Run before any store creates its tables.
 func MigrationSteps() []dbmigrate.Step {
@@ -24,7 +43,7 @@ func MigrationSteps() []dbmigrate.Step {
 		tables = append(tables, r.new)
 	}
 
-	return []dbmigrate.Step{{Name: "drop the user id from the settings tables", Tables: tables, Run: dropUserID}}
+	return []dbmigrate.Step{{Name: "drop the user id from the settings tables", Tables: tables, Preflight: preflight, Run: dropUserID}}
 }
 
 // rebuild describes one table that loses its user id. The new shape is written
@@ -162,12 +181,31 @@ var legacyColumns = []string{
 	`ALTER TABLE ignored_repos ADD COLUMN ignore_issues BOOLEAN NOT NULL DEFAULT 1`,
 }
 
+// preflight refuses what the step would refuse, before the backup is taken: an
+// owner that can't be chosen, rows with no owner, or a settings table in the
+// way. It only reads.
+func preflight(ctx context.Context, q dbmigrate.Tx) error {
+	pending, err := tablesWithUserID(ctx, q)
+	if err != nil {
+		return err
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+	if err := checkSettingsTableFree(ctx, q, pending); err != nil {
+		return err
+	}
+	_, err = chooseOwner(ctx, q, pending)
+
+	return err
+}
+
 // dropUserID rebuilds each table that still has a user_id column without it,
 // following SQLite's table-rebuild procedure (https://www.sqlite.org/lang_altertable.html#otheralter):
 // the old table is renamed aside, the new one created, the owner's rows copied,
-// the old one dropped. A table that is missing or already has the new shape is
-// skipped, so the step is safe to replay and a table no release created yet is
-// left to the store.
+// the copy counted, the old one dropped. A table that is missing or already has
+// the new shape is skipped, so the step is safe to replay and a table no
+// release created yet is left to the store.
 func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
 	pending, err := tablesWithUserID(ctx, tx)
 	if err != nil {
@@ -176,8 +214,11 @@ func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
 	if len(pending) == 0 {
 		return nil
 	}
+	if err := checkSettingsTableFree(ctx, tx, pending); err != nil {
+		return err
+	}
 
-	owner, err := soleUser(ctx, tx)
+	owner, err := chooseOwner(ctx, tx, pending)
 	if err != nil {
 		return err
 	}
@@ -191,13 +232,65 @@ func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
 	return nil
 }
 
-// rebuild swaps one table for its new shape, copying the owner's rows.
+// checkSettingsTableFree makes room for the new settings table. One can only
+// exist already if something created it in the new shape beside
+// user_credentials. An empty one is dropped; one with rows is not ours to
+// overwrite.
+func checkSettingsTableFree(ctx context.Context, q dbmigrate.Tx, pending []rebuild) error {
+	for _, r := range pending {
+		if r.new == r.old {
+			continue
+		}
+		var exists int
+		if err := q.QueryRowContext(ctx,
+			`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, r.new).Scan(&exists); err != nil {
+			return fmt.Errorf("look for %s: %w", r.new, err)
+		}
+		if exists == 0 {
+			continue
+		}
+		rows, err := countRows(ctx, q, r.new, "")
+		if err != nil {
+			return err
+		}
+		if rows > 0 { // an empty one is dropped by the rebuild
+			return fmt.Errorf("%w: move it aside or restore a backup, then start again", ErrSettingsTableInTheWay)
+		}
+	}
+
+	return nil
+}
+
+// countRows counts a table's rows, those of one user when owner is not empty.
+// Table names are constants of this file, never input.
+func countRows(ctx context.Context, q dbmigrate.Tx, table, owner string) (int, error) {
+	query := `SELECT count(*) FROM ` + table //nolint:gosec // constant table names
+	var args []any
+	if owner != "" {
+		query += ` WHERE user_id = ?`
+		args = append(args, owner)
+	}
+	var n int
+	if err := q.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count %s: %w", table, err)
+	}
+
+	return n, nil
+}
+
+// rebuild swaps one table for its new shape, copying the owner's rows and
+// counting them before the old table goes.
 func (r rebuild) rebuild(ctx context.Context, tx dbmigrate.Tx, owner string) error {
 	if err := addLegacyColumns(ctx, tx, r.old); err != nil {
 		return err
 	}
 	aside := r.old + "_old"
 	// Every name and column list below is a constant of this file, never input.
+	if r.new != r.old {
+		if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS `+r.new); err != nil { // checkSettingsTableFree let only an empty one through
+			return fmt.Errorf("clear %s: %w", r.new, err)
+		}
+	}
 	if _, err := tx.ExecContext(ctx, `ALTER TABLE `+r.old+` RENAME TO `+aside); err != nil {
 		return fmt.Errorf("set %s aside: %w", r.old, err)
 	}
@@ -212,8 +305,34 @@ func (r rebuild) rebuild(ctx context.Context, tx dbmigrate.Tx, owner string) err
 	if _, err := tx.ExecContext(ctx, insert, owner); err != nil {
 		return fmt.Errorf("copy %s: %w", r.old, err)
 	}
+	if err := r.verifyCopy(ctx, tx, aside, owner); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, `DROP TABLE `+aside); err != nil {
 		return fmt.Errorf("drop old %s: %w", r.old, err)
+	}
+
+	return nil
+}
+
+// verifyCopy compares the new table with the owner's rows in the old one, and
+// refuses to go on when a table that held rows copied none. Dropping the old
+// table after that would be unrecoverable inside the step.
+func (r rebuild) verifyCopy(ctx context.Context, tx dbmigrate.Tx, aside, owner string) error {
+	total, err := countRows(ctx, tx, aside, "")
+	if err != nil {
+		return err
+	}
+	want, err := countRows(ctx, tx, aside, owner)
+	if err != nil {
+		return err
+	}
+	got, err := countRows(ctx, tx, r.new, "")
+	if err != nil {
+		return err
+	}
+	if got != want || (total > 0 && got == 0) {
+		return fmt.Errorf("%w: %s had %d rows, %d belong to the owner, %d were copied", ErrCopyIncomplete, r.old, total, want, got)
 	}
 
 	return nil
@@ -250,40 +369,69 @@ func addLegacyColumns(ctx context.Context, tx dbmigrate.Tx, table string) error 
 	return nil
 }
 
-// soleUser returns the id whose rows survive. With several users and no
-// cleanup marker it refuses. With the marker, or one user, the owner is the
-// oldest user holding a passkey, else the oldest user. The empty string, when
-// no user exists, matches no row, so nothing is copied.
-func soleUser(ctx context.Context, tx dbmigrate.Tx) (string, error) {
-	var hasUsers, hasMarker int
-	if err := tx.QueryRowContext(ctx,
-		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'users'`).Scan(&hasUsers); err != nil {
-		return "", fmt.Errorf("look for the users table: %w", err)
+// chooseOwner returns the id whose rows survive. With several users and no
+// cleanup marker it refuses: the previous release's cleanup settles that, unless
+// no user holds a passkey, when it never will. With the marker, or one user, the
+// owner is the one auth.Store.Owner returns. With no user at all and rows to
+// keep it refuses, since copying nothing would lose them.
+func chooseOwner(ctx context.Context, q dbmigrate.Tx, pending []rebuild) (string, error) {
+	users, err := countUsers(ctx, q)
+	if err != nil {
+		return "", err
 	}
-	if hasUsers == 0 {
+	if users == 0 {
+		for _, r := range pending {
+			n, err := countRows(ctx, q, r.old, "")
+			if err != nil {
+				return "", err
+			}
+			if n > 0 {
+				return "", fmt.Errorf("%w: %s holds %d rows and the users table is empty or missing; restore a backup", ErrNoOwner, r.old, n)
+			}
+		}
+
 		return "", nil
 	}
-	if err := tx.QueryRowContext(ctx,
+
+	var hasMarker int
+	if err := q.QueryRowContext(ctx,
 		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, singleuser.MarkerTable).Scan(&hasMarker); err != nil {
 		return "", fmt.Errorf("look for the cleanup marker: %w", err)
 	}
-	var users int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&users); err != nil {
-		return "", fmt.Errorf("count users: %w", err)
-	}
 	if users > 1 && hasMarker == 0 {
+		var holders int
+		if err := q.QueryRowContext(ctx, `SELECT count(*) FROM users WHERE credentials_json != '[]'`).Scan(&holders); err != nil {
+			return "", fmt.Errorf("count users with a passkey: %w", err)
+		}
+		if holders == 0 {
+			return "", fmt.Errorf("%w: the single-user cleanup keeps the oldest user with a passkey, so it can't run and the previous release won't help; keep the one user you want in the users table (take a backup first) or restore a backup", ErrNoPasskeyHolder)
+		}
+
 		return "", fmt.Errorf("%w: run the previous release first, then this one", ErrRunPreviousRelease)
 	}
 
 	var id string
-	err := tx.QueryRowContext(ctx,
-		`SELECT id FROM users ORDER BY (credentials_json = '[]'), created_at, rowid LIMIT 1`).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	if err != nil {
+	if err := q.QueryRowContext(ctx, `SELECT id FROM users `+auth.OwnerOrder).Scan(&id); err != nil {
 		return "", fmt.Errorf("find the owner: %w", err)
 	}
 
 	return id, nil
+}
+
+// countUsers counts the users, zero when the table doesn't exist.
+func countUsers(ctx context.Context, q dbmigrate.Tx) (int, error) {
+	var has int
+	if err := q.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'users'`).Scan(&has); err != nil {
+		return 0, fmt.Errorf("look for the users table: %w", err)
+	}
+	if has == 0 {
+		return 0, nil
+	}
+	var n int
+	if err := q.QueryRowContext(ctx, `SELECT count(*) FROM users`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count users: %w", err)
+	}
+
+	return n, nil
 }

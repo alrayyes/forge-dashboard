@@ -3,11 +3,13 @@ package settings_test
 import (
 	"database/sql"
 	_ "embed"
+	"encoding/base64"
 	"io"
 	"log/slog"
 	"path/filepath"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -204,4 +206,139 @@ func TestMigrate_DatabaseOlderThanTheLaterColumns_StillMigrates(t *testing.T) {
 	assert.Equal(t, "sealed-gh", scalar[string](t, db, `SELECT github_token FROM settings`))
 	assert.Equal(t, 1, scalar[int](t, db, `SELECT ignore_issues FROM ignored_repos`))
 	assert.Equal(t, "{}", scalar[string](t, db, `SELECT filter_state FROM settings`))
+}
+
+func backupFiles(t *testing.T, path string) []string {
+	t.Helper()
+	found, err := filepath.Glob(path + ".before-migration-*")
+	require.NoError(t, err)
+
+	return found
+}
+
+func TestMigrate_NoUsersTable_WithSettingsToKeep_RefusesInsteadOfDroppingThem(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `DROP TABLE users`)
+
+	_, err := migrate(t, db, path)
+
+	require.ErrorIs(t, err, settings.ErrNoOwner)
+	assert.True(t, hasColumn(t, db, "user_credentials", "user_id"), "the old tables must be untouched")
+	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM user_credentials`))
+}
+
+func TestMigrate_EmptyUsersTable_WithSettingsToKeep_RefusesInsteadOfDroppingThem(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `DELETE FROM users`)
+
+	_, err := migrate(t, db, path)
+
+	require.ErrorIs(t, err, settings.ErrNoOwner)
+	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM ignored_repos`))
+}
+
+func TestMigrate_NoUsersAndNothingToKeep_Migrates(t *testing.T) {
+	db, path := openMigrationDB(t)
+	mustExec(t, db, oldSchema)
+
+	_, err := migrate(t, db, path)
+
+	require.NoError(t, err)
+	assert.False(t, hasColumn(t, db, "settings", "user_id"))
+}
+
+func TestMigrate_RowsKeyedToSomeoneElse_AbortsRatherThanCopyNothing(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `UPDATE user_credentials SET user_id = 'someone-else'`)
+	mustExec(t, db, `UPDATE ignored_repos SET user_id = 'someone-else'`)
+
+	_, err := migrate(t, db, path)
+
+	require.ErrorIs(t, err, settings.ErrCopyIncomplete)
+	assert.Contains(t, err.Error(), "user_credentials")
+	assert.True(t, hasColumn(t, db, "user_credentials", "user_id"), "the whole step rolls back")
+	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM ignored_repos`))
+	assert.False(t, tableExists(t, db, "settings"))
+}
+
+func TestMigrate_ARefusedStart_TakesNoBackup(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `INSERT INTO users (id, username, credentials_json, created_at) VALUES ('other', 'sam', '[{}]', '2026-06-01 00:00:00')`)
+
+	for range 3 {
+		_, err := migrate(t, db, path)
+		require.ErrorIs(t, err, settings.ErrRunPreviousRelease)
+	}
+
+	assert.Empty(t, backupFiles(t, path))
+	assert.False(t, tableExists(t, db, "schema_version"))
+}
+
+func TestMigrate_SeveralUsersNoneWithAPasskey_SaysThePreviousReleaseWillNotHelp(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `UPDATE users SET credentials_json = '[]'`)
+	mustExec(t, db, `INSERT INTO users (id, username, credentials_json, created_at) VALUES ('other', 'sam', '[]', '2026-06-01 00:00:00')`)
+
+	_, err := migrate(t, db, path)
+
+	require.ErrorIs(t, err, settings.ErrNoPasskeyHolder)
+	require.NotErrorIs(t, err, settings.ErrRunPreviousRelease)
+	assert.NotContains(t, err.Error(), "run the previous release")
+	assert.Contains(t, err.Error(), "passkey")
+	assert.Empty(t, backupFiles(t, path))
+}
+
+func TestMigrate_TheOwnerIsTheUserAuthCallsTheOwner(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT ''`)
+	mustExec(t, db, `CREATE TABLE single_user_cleanup (ran_at TIMESTAMP NOT NULL, kept_username TEXT NOT NULL, removed_users INTEGER NOT NULL)`)
+	// Two rows the owner rule must tell apart: an older one without a passkey
+	// and a newer one with. Auth.Owner takes the oldest row either way.
+	mustExec(t, db, `DELETE FROM users`)
+	mustExec(t, db, `INSERT INTO users (id, username, credentials_json, created_at) VALUES ('b2xk', 'old', '[]', '2025-01-01 00:00:00'), ('bmV3', 'new', '[{}]', '2026-01-01 00:00:00')`)
+	for _, table := range []string{"webhook_deliveries", "ignored_repos", "auto_update_branch_repos", "auto_merge_intents", "hidden_pull_requests", "queued_actions", "pull_request_auto_update"} {
+		mustExec(t, db, `UPDATE `+table+` SET user_id = 'b2xk'`)
+	}
+	mustExec(t, db, `UPDATE user_credentials SET user_id = 'bmV3'`)
+	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES ('b2xk', 'old-token', '2026-02-02 00:00:00')`)
+	owner, err := auth.NewStore(db).OwnerID(t.Context())
+	require.NoError(t, err)
+
+	_, err = migrate(t, db, path)
+
+	require.NoError(t, err)
+	want := scalar[string](t, db, `SELECT webhook_token FROM settings`)
+	assert.Equal(t, "old-token", want)
+	assert.Equal(t, "b2xk", base64.RawURLEncoding.EncodeToString(owner), "the test must really compare the two rules")
+}
+
+func TestMigrate_ASettingsTableAlreadyThere_IsReplacedWhenEmpty(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK (id = 1), github_token TEXT NOT NULL DEFAULT '')`)
+
+	_, err := migrate(t, db, path)
+
+	require.NoError(t, err)
+	assert.Equal(t, "hook-token", scalar[string](t, db, `SELECT webhook_token FROM settings`))
+}
+
+func TestMigrate_ASettingsTableAlreadyThereWithRows_RefusesRatherThanOverwrite(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK (id = 1), github_token TEXT NOT NULL DEFAULT '')`)
+	mustExec(t, db, `INSERT INTO settings (id, github_token) VALUES (1, 'kept')`)
+
+	_, err := migrate(t, db, path)
+
+	require.ErrorIs(t, err, settings.ErrSettingsTableInTheWay)
+	assert.Equal(t, "kept", scalar[string](t, db, `SELECT github_token FROM settings`))
+	assert.True(t, hasColumn(t, db, "user_credentials", "user_id"))
+	assert.Empty(t, backupFiles(t, path))
 }
