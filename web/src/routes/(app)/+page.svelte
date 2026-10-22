@@ -11,8 +11,10 @@
     branchesAwaitingFlag,
     firstRefreshJustFinished,
     firstRefreshLoading,
+    firstRefreshPending,
   } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
+  import { setBranchNavCount } from "#lib/nav-counts.svelte.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
@@ -49,6 +51,7 @@
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
+    branchNavCount,
     CI_SLOT,
     SEGMENTED_STATUSES,
     STATUS_LABEL,
@@ -223,6 +226,9 @@
       if (!res.ok) throw new Error(String(res.status));
       data = (await res.json()) as MainBranches;
       failed = false;
+      // The pill in the header is the same tally as the chips below it.
+      if (!firstRefreshPending(firstRefresh.done))
+        setBranchNavCount(branchNavCount(data.counts));
       // An open pipeline panel reads again if its own row's CI changed.
       const row = openRow;
       const now = row
@@ -257,7 +263,10 @@
   // the first paint, the server copy for another browser. The search box is
   // free text, so it takes the debounced path the other pages' title boxes use.
   let page = -1;
-  onDestroy(() => leavePage(page));
+  onDestroy(() => {
+    leavePage(page);
+    setBranchNavCount(null);
+  });
   let saved: SharedFilterState = {
     shared: {},
     pr: {},

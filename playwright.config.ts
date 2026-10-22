@@ -144,6 +144,7 @@ const singleUserSpecs = [
   '**/main-branch-advisories.spec.ts',
   '**/ci-status-pulldown-gone.spec.ts',
   '**/main-branch-pill-counts.spec.ts',
+  '**/nav-branches-pill-matches-page.spec.ts',
   '**/branch-pipeline-panel-live.spec.ts',
   '**/branch-rerun-checks.spec.ts',
   '**/in-place-dialogs.spec.ts',
