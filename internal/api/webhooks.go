@@ -24,8 +24,8 @@ const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 // handleGitHubWebhook verifies a GitHub repository webhook delivery
 // against its X-Hub-Signature-256 header and triggers an immediate
 // refresh when webhookToken matches.
-func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, dashboard.ForgeGitHub,
+func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
+	return handleWebhook(appCtx, store, manager, warmUp, dashboard.ForgeGitHub,
 		func(h http.Header) string {
 			const prefix = "sha256="
 			sig := h.Get("X-Hub-Signature-256")
@@ -44,8 +44,8 @@ func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager 
 // Which header carries the signature depends on whether the webhook was
 // set up with the "Forgejo" type or the legacy "Gitea" one — both are the
 // same raw hex HMAC-SHA256, no prefix.
-func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, dashboard.ForgeForgejo,
+func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
+	return handleWebhook(appCtx, store, manager, warmUp, dashboard.ForgeForgejo,
 		func(h http.Header) string {
 			if sig := h.Get("X-Forgejo-Signature"); sig != "" {
 				return sig
@@ -251,7 +251,7 @@ func settleFromDelivery(manager *dashboard.Service, forge dashboard.Forge, body 
 // forge fetch along with it. The delivery is acknowledged as soon as it's
 // verified; the refresh it triggers survives the delivery ending either
 // way.
-func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service, forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
+func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("webhookToken")
 		delivery, event := deliveryOf(r.Header)
@@ -291,19 +291,22 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 			}
 		}
 
-		acknowledgeDelivery(appCtx, w, manager, forge, delivery, event, body)
+		acknowledgeDelivery(appCtx, w, manager, warmUp, forge, delivery, event, body)
 	}
 }
 
 // acknowledgeDelivery answers a verified delivery and starts the refresh it
-// asks for on the dashboard. With no dashboard running there is nothing to
-// refresh, and the delivery is still acknowledged: the sender can't act on that.
-func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, manager *dashboard.Service, forge dashboard.Forge, delivery, event string, body []byte) {
+// asks for on the dashboard. With no dashboard running (a delivery landing
+// after a restart, before any page load or login), it first builds one from the
+// saved settings, as a page load does, because the forge won't redeliver a 204.
+// With no settings saved nothing starts and the delivery is still acknowledged.
+func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, manager *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, delivery, event string, body []byte) {
 	slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
 	if !manager.Running() {
-		// Nothing is scheduled until a page load, a stream connection or a
-		// login starts the dashboard, and the forge won't redeliver a 204.
-		slog.Warn("webhook delivery acknowledged but ignored: no dashboard is running yet", "forge", forge, "delivery", delivery)
+		warmUp(appCtx)
+	}
+	if !manager.Running() {
+		slog.Warn("webhook delivery acknowledged but ignored: no dashboard could be started", "forge", forge, "delivery", delivery)
 		w.WriteHeader(http.StatusNoContent)
 
 		return

@@ -129,6 +129,12 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
+  import { isReadOnlyLock, type LockInfo } from "#lib/lock-info.js";
+  import {
+    DEPENDABOT_ACTION_LABELS,
+    dependabotActionKey,
+    dependabotButtonDecision,
+  } from "#lib/dependabot-action.js";
   import {
     type ForgeHealthEntry,
     dependabotBlockedReason,
@@ -2476,6 +2482,10 @@
 
     let actionLockReasonCounter = 0;
 
+    function lockOf(entry: ActionState): LockInfo {
+      return { reason: entry.reason ?? "", code: entry.code };
+    }
+
     // Same aria-disabled + visible, wired-up reason shape webhooks.js's
     // own lockedButton uses, not a native disabled attribute or a
     // title-only tooltip — native disabled would drop it from the tab
@@ -2485,15 +2495,6 @@
     // of a dead end. Left undefined for the actions that don't pass it
     // (Dependabot/Renovate), which keep today's plain disabled-button
     // behavior.
-    // Why an action is locked, and the code that says what kind of wait it is
-    // when one is known: "rate_limited" and "permission" don't clear by
-    // clicking; anything else may.
-    type LockInfo = { reason: string; code?: string; resetsAt?: string };
-
-    function lockOf(entry: ActionState): LockInfo {
-      return { reason: entry.reason ?? "", code: entry.code };
-    }
-
     function lockedActionButton(
       label: string,
       lock: string | LockInfo,
@@ -2688,11 +2689,7 @@
     // failed click (a 429 the snapshot hadn't shown yet) still draws, with
     // its reason.
     function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
-      return (
-        reason?.code === "rate_limited" ||
-        reason?.code === "forge_unreachable" ||
-        reason?.code === "forge_starting"
-      );
+      return isReadOnlyLock(reason);
     }
 
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
@@ -3929,11 +3926,6 @@
     // still being clickable.
     const dependabotActionState: Record<string, ActionState> = {};
 
-    const DEPENDABOT_ACTION_LABELS: Record<string, string> = {
-      rebase: "Dependabot: Rebase",
-      recreate: "Dependabot: Recreate",
-    };
-
     // What the row line needs to talk about the bot (#707).
     function botLineInfo(
       bot: "Dependabot" | "Renovate",
@@ -3954,7 +3946,7 @@
       action: "rebase" | "recreate",
       button: HTMLButtonElement,
     ) {
-      const key = `${prKey(item)}:${action}`;
+      const key = dependabotActionKey(prKey(item), action);
       dependabotActionState[key] = {
         phase: "queued",
         queued: queuedRequestInfo(item),
@@ -4037,27 +4029,6 @@
         });
     }
 
-    // The reason a Dependabot command can't be sent right now because the
-    // other one is pending, or undefined. Local state answers first, so the
-    // lock is there the moment a click queues the other command; the server's
-    // own entry covers a request made elsewhere or before a reload.
-    function dependabotPendingReason(
-      item: PullRequestItem,
-      action: "rebase" | "recreate",
-    ): string | undefined {
-      const other = action === "rebase" ? "recreate" : "rebase";
-      const phase = dependabotActionState[`${prKey(item)}:${other}`]?.phase;
-      if (phase === "queued" || phase === "rebasing")
-        return `A Dependabot ${other === "rebase" ? "Rebase" : "Recreate"} is pending on this pull request.`;
-      const entry = findAction(
-        item,
-        action === "rebase" ? "dependabot_rebase" : "dependabot_recreate",
-      );
-      return entry?.blocked?.code === "already_requested"
-        ? entry.blocked.message
-        : undefined;
-    }
-
     function dependabotActionButton(
       item: PullRequestItem,
       action: "rebase" | "recreate",
@@ -4065,50 +4036,31 @@
       // hover bubble would be clipped and a touch screen has no hover.
       printReason = false,
     ): HTMLElement | null {
-      const key = `${prKey(item)}:${action}`;
-      const entry = dependabotActionState[key] || { phase: "idle" };
-
-      const blockedReason = dependabotBlockedReason(lastForges, item.forge);
-      if (blockedReason)
+      const decision = dependabotButtonDecision({
+        prKey: prKey(item),
+        action,
+        states: dependabotActionState,
+        blockedReason: dependabotBlockedReason(lastForges, item.forge),
+        serverEntry: () =>
+          findAction(
+            item,
+            action === "rebase" ? "dependabot_rebase" : "dependabot_recreate",
+          ),
+        proactive: () => proactiveActionLockReason(item.forge),
+        confirmingRecreate: recreateState[prKey(item)]?.phase === "confirming",
+        printReason,
+      });
+      if (decision.kind === "hidden") return null;
+      if (decision.kind === "confirm") return recreateConfirmCell(item);
+      if (decision.kind === "locked")
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],
-          blockedReason,
+          decision.lock,
+          undefined,
+          decision.printNote ? "" : undefined,
         );
 
-      if (entry.phase === "locked")
-        return lockedActionButton(
-          DEPENDABOT_ACTION_LABELS[action],
-          lockOf(entry),
-        );
-
-      if (entry.phase === "idle") {
-        const pending = dependabotPendingReason(item, action);
-        if (pending)
-          return lockedActionButton(
-            DEPENDABOT_ACTION_LABELS[action],
-            pending,
-            undefined,
-            printReason ? "" : undefined,
-          );
-        const proactiveReason = proactiveActionLockReason(item.forge);
-        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
-        if (proactiveReason)
-          return lockedActionButton(
-            DEPENDABOT_ACTION_LABELS[action],
-            proactiveReason,
-            undefined,
-            printReason ? "" : undefined,
-          );
-      }
-
-      if (
-        action === "recreate" &&
-        entry.phase === "idle" &&
-        recreateState[prKey(item)]?.phase === "confirming"
-      )
-        return recreateConfirmCell(item);
-
-      const queued = entry.phase === "queued" || entry.phase === "rebasing";
+      const queued = decision.queued;
       const button = buttonEl(
         "row-action",
         queued

@@ -585,7 +585,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('a GitHub App with no personal token locks both buttons with the reason, and clicking sends nothing (#666)', async ({
+  test('a GitHub App with no personal token locks both buttons and describes them with the reason, and clicking sends nothing (#666)', async ({
     page,
   }) => {
     const reason =
