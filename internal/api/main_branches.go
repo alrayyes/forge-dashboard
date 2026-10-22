@@ -24,7 +24,10 @@ type mainBranchView struct {
 type mainBranchesResponse struct {
 	GeneratedAt time.Time                  `json:"generatedAt"`
 	Counts      dashboard.MainBranchCounts `json:"counts"`
-	Branches    []mainBranchView           `json:"branches"`
+	// Forges is each forge's health, as the dashboard snapshot carries it, so
+	// the page can lock a control the forge would only refuse.
+	Forges   []dashboard.ForgeHealth `json:"forges"`
+	Branches []mainBranchView        `json:"branches"`
 }
 
 // mainBranchRows is snap's default branches without the repos the user ignored
@@ -39,7 +42,7 @@ func (b boardSettings) mainBranchRows(rows []dashboard.MainBranch) []dashboard.M
 // buildMainBranchesResponse orders the rows newest commit first and counts
 // them. A row the caller passes is never left out, whatever its status: the
 // client filters, and its pill counts then always match what each pill lists.
-func buildMainBranchesResponse(generatedAt time.Time, branches []dashboard.MainBranch) mainBranchesResponse {
+func buildMainBranchesResponse(generatedAt time.Time, forges []dashboard.ForgeHealth, branches []dashboard.MainBranch) mainBranchesResponse {
 	rows := slices.Clone(branches)
 	dashboard.SortMainBranches(rows)
 
@@ -54,6 +57,7 @@ func buildMainBranchesResponse(generatedAt time.Time, branches []dashboard.MainB
 	return mainBranchesResponse{
 		GeneratedAt: generatedAt,
 		Counts:      dashboard.CountMainBranches(rows),
+		Forges:      withRateLimitSeverity(forges, time.Now()),
 		Branches:    views,
 	}
 }
@@ -70,7 +74,7 @@ func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBr
 	snap := deps.Manager.Get(u.ID)
 	board := loadBoardSettings(ctx, deps.SettingsStore)
 
-	return buildMainBranchesResponse(snap.GeneratedAt, board.mainBranchRows(snap.MainBranches))
+	return buildMainBranchesResponse(snap.GeneratedAt, snap.Forges, board.mainBranchRows(snap.MainBranches))
 }
 
 // handleMainBranches serves resolveMainBranchesFor over HTTP.
