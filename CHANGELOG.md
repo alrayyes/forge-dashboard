@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.0](https://github.com/alrayyes/forge-dashboard/compare/v2.10.1...v2.11.0) (2026-10-22)
+
+
+### Features
+
+* **forgejo:** advisory counts from lock files via OSV ([#2552](https://github.com/alrayyes/forge-dashboard/issues/2552)) ([43b5691](https://github.com/alrayyes/forge-dashboard/commit/43b5691bf743b03021fcdc5ab3051979607e8977))
+
 ## [2.10.1](https://github.com/alrayyes/forge-dashboard/compare/v2.10.0...v2.10.1) (2026-10-22)
 
 
