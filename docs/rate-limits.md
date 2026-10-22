@@ -475,9 +475,9 @@ server and was not measured live.
   changed, which costs far less than a full refresh. A burst of deliveries for one
   repo, which is what a push sends, is merged into one refresh that runs 2
   seconds after the last of them (never more than 5 seconds after the first).
-  With working webhooks the
-  full refresh is a safety net, and it runs four times less often on its own
-  (80 minutes at the default) while every repo has one. See
-  [Webhooks](webhooks.md).
+  With working webhooks the full refresh is a safety net, and it runs four
+  times less often on its own (80 minutes at the default) while every repo has
+  a healthy webhook and every forge's last fetch worked. A repo the forge could
+  not fully fetch keeps the shorter wait too. See [Webhooks](webhooks.md).
 - **Wait.** The reset time is in the banner and the header. The page recovers by
   itself, with no reload.
