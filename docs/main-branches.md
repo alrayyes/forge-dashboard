@@ -94,12 +94,19 @@ alerts, or alerts are off for it. The API and MCP tools still report that as
 - a GitHub App with **Dependabot alerts: Read-only**. On an App that is already
   installed, GitHub holds a new permission until the owner accepts it: open the
   installation's page and accept the request, or the App keeps its old
-  permissions. A permission accepted later reaches the dashboard when its
-  installation token next refreshes, up to an hour; saving Settings or
-  restarting the dashboard picks it up at once.
+  permissions. A permission accepted later only counts once the dashboard
+  holds a new installation token, which GitHub issues for up to an hour (see
+  [Generating an installation access token for a GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)),
+  and a refusal read with the old token is remembered too. Allow up to an hour
+  and a quarter. To skip the wait, save Settings (any save will do) or restart
+  the dashboard; either starts with a new token and no remembered answers.
+  There is no separate refresh button.
 
 Dependabot alerts must also be enabled on the repo. Answers are cached for
-fifteen minutes, and a failed read is retried after five. GitHub's reference:
+fifteen minutes. A failed read, or the first refusal, is retried after five
+minutes; the same refusal again waits the full fifteen. A rate limit or a
+GitHub error shows as unknown too, so an unknown row does not always mean a
+missing permission. GitHub's reference:
 [List Dependabot alerts for a repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
 
 ## Main branches API
