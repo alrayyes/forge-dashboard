@@ -752,6 +752,7 @@
         class="col-filter"
         data-col="title"
         type="text"
+        maxlength="200"
         placeholder="Title"
         aria-label="Filter by title"
         list="shared-title-options"

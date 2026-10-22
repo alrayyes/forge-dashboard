@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   applyServerState,
   loadState,
+  MAX_TITLE,
   releaseAllHeld,
   type SharedFilterState,
   saveState,
@@ -167,5 +168,18 @@ describe('the three picks together stay inside the cookie', () => {
     const nameAndValue = written.split(';')[0];
     // 4096 is what a browser keeps; 500 is left for the other filters.
     expect(nameAndValue.length).toBeLessThanOrEqual(3600);
+  });
+});
+
+describe('the title search in the cookie', () => {
+  test('a saved title is cut to MAX_TITLE characters when it loads', () => {
+    const value = JSON.stringify({
+      shared: { title: 'x'.repeat(5000) },
+      rev: 1,
+    });
+    Object.assign(globalThis, {
+      document: { cookie: `forge-board-filters=${encodeURIComponent(value)}` },
+    });
+    expect(loadState().shared.title).toHaveLength(MAX_TITLE);
   });
 });

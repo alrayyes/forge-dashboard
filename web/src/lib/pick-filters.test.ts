@@ -153,6 +153,20 @@ describe('pickSummary and initialOf', () => {
   });
 });
 
+describe('a hand-edited partial login', () => {
+  test('is set aside and named in the held note, not matched by part', () => {
+    const s: SharedFilterState = {
+      shared: { author: 'ren' },
+      pr: {},
+      issue: {},
+      view: {},
+    };
+    expect(reconcilePick(s, 'author', ['renovate[bot]'], true)).toBe(true);
+    expect(s.shared.author).toBe('');
+    expect(heldPicks().map((h) => h.text)).toEqual(['ren']);
+  });
+});
+
 describe('picks the page does not offer', () => {
   const state = (shared: Record<string, string>): SharedFilterState => ({
     shared,

@@ -411,10 +411,17 @@ function dropNonStringTitleRule(state: SharedFilterState): void {
     delete state.issue.hideTitleRegex;
 }
 
+// Longest title search kept. The search box stops at this many characters, and
+// a longer saved one is cut as the cookie is read.
+export const MAX_TITLE = 200;
+
 // A saved Label pick over the limits the server holds it to (a cookie from an
 // earlier build, or a hand-edited one) would make every later save a 400 that
 // drops the other filters with it. It is cut down to what fits as it is read.
 function trimLabelPick(state: SharedFilterState): void {
+  // The title search shares the cookie with the picks, so it is capped too.
+  if (typeof state.shared.title === 'string')
+    state.shared.title = state.shared.title.slice(0, MAX_TITLE);
   // The Repo and Author picks are held to the same limits as the Label's.
   for (const key of ['label', 'repo', 'author']) {
     const pick = state.shared[key];

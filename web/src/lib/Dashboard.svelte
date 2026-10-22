@@ -6525,20 +6525,13 @@
           issueBoard.resetPage();
           // Repo/Author/Label options (and "Group by forge") are scoped
           // to the other active shared facets (leave-one-out, #550), so
-          // a change to any of the three — plus Forge, which narrows all
-          // three unconditionally — has to re-narrow the others right
+          // a change to Forge, which narrows all three unconditionally, or
+          // to Created or Updated has to re-narrow them right
           // away rather than waiting for the next poll's setItems
           // (#112). Title stays out of this: it's debounced free text
           // and deliberately suggestions-only, not a restrictive facet.
           // Created and Updated narrow the pool as well (#1427).
-          if (
-            col === "forge" ||
-            col === "repo" ||
-            col === "author" ||
-            col === "label" ||
-            col === "created" ||
-            col === "updated"
-          )
+          if (col === "forge" || col === "created" || col === "updated")
             updateSharedFilterOptions();
           // The title narrows the pool too, so the choices follow it as it is
           // typed (#1427). Only the suggestions wait: they are rebuilt on the
@@ -6996,6 +6989,12 @@
       // pull-request ones live in sharedState.pr, the rest in shared.
       const prKeys = ["status", "quick", "autoMerge", "closes"];
       for (const filter of failing) {
+        if (filter === "label" || filter === "repo" || filter === "author") {
+          // A pick control is cleared through the pick itself, so its ticks
+          // go with it whether or not the page is still reconciling.
+          savePick(sharedState, filter, []);
+          continue;
+        }
         const group = prKeys.includes(filter) ? "pr" : "shared";
         Filters.touchKey(group, filter);
         sharedState[group][filter] = "";
@@ -8647,6 +8646,7 @@
           class="col-filter"
           data-col="title"
           type="text"
+          maxlength="200"
           placeholder="Title or #number"
           aria-label="Filter by title"
           aria-keyshortcuts="/"
