@@ -265,7 +265,6 @@ test.describe('update branch request from the server', () => {
   test('a refresh answer older than a pushed snapshot cannot undo it', async ({
     page,
   }) => {
-    await page.goto('/pull-requests.html');
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -281,6 +280,7 @@ test.describe('update branch request from the server', () => {
       });
     });
 
+    await page.goto('/pull-requests.html');
     await row(page).getByRole('button', { name: 'Update branch' }).click();
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
@@ -330,7 +330,6 @@ test.describe('update branch request from the server', () => {
   test('a refresh already in flight at the click does not clear Queued, the next one does', async ({
     page,
   }) => {
-    await page.goto('/pull-requests.html');
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => {
       release = resolve;
@@ -354,6 +353,7 @@ test.describe('update branch request from the server', () => {
       });
     });
 
+    await page.goto('/pull-requests.html');
     // The refresh starts first and stays in flight across the click.
     await page.locator('#force-refresh-button').click();
     await row(page).getByRole('button', { name: 'Update branch' }).click();
