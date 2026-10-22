@@ -27,6 +27,8 @@ export interface FilterableItem {
   number?: number;
   title: string;
   author?: string;
+  // The author's avatar on their forge, for the Author filter's choices.
+  authorAvatarUrl?: string;
   createdAt: string;
   updatedAt: string;
   ci?: string;
@@ -191,7 +193,9 @@ import { FORGE_LABELS } from './forges';
 import {
   carriesAny,
   joinLabels,
+  labelKey,
   narrowLabels,
+  type PickChoice,
   parseLabels,
   unionLabels,
 } from './label-filter';
@@ -411,10 +415,13 @@ function dropNonStringTitleRule(state: SharedFilterState): void {
 // earlier build, or a hand-edited one) would make every later save a 400 that
 // drops the other filters with it. It is cut down to what fits as it is read.
 function trimLabelPick(state: SharedFilterState): void {
-  const label = state.shared.label;
-  if (label === undefined) return;
-  if (typeof label !== 'string') delete state.shared.label;
-  else state.shared.label = joinLabels(parseLabels(label));
+  // The Repo and Author picks are held to the same limits as the Label's.
+  for (const key of ['label', 'repo', 'author']) {
+    const pick = state.shared[key];
+    if (pick === undefined) continue;
+    if (typeof pick !== 'string') delete state.shared[key];
+    else state.shared[key] = joinLabels(parseLabels(pick));
+  }
 }
 
 // A pick the page being shown does not offer (an author who wrote no pull
@@ -425,6 +432,8 @@ function trimLabelPick(state: SharedFilterState): void {
 // the same control ends the hold.
 type StateGroup = 'shared' | 'pr' | 'issue' | 'view';
 const held: { group: StateGroup; key: string; value: string }[] = [];
+
+const PICK_KEYS = ['label', 'repo', 'author'];
 
 function heldValue(group: StateGroup, key: string): string | undefined {
   return held.find((h) => h.group === group && h.key === key)?.value;
@@ -449,26 +458,40 @@ export function holdStale(
 // them. The ones it does not offer are set aside (held, when the page is
 // reconciling its saved picks; dropped for good after the user's own change)
 // and the rest stay picked. True if any were set aside.
+export function reconcilePick(
+  state: SharedFilterState,
+  key: 'label' | 'repo' | 'author',
+  offered: string[],
+  hold: boolean,
+): boolean {
+  const { kept, dropped } = narrowLabels(
+    parseLabels(state.shared[key]),
+    offered,
+  );
+  if (dropped.length === 0) return false;
+  const before = heldValue('shared', key) ?? '';
+  releaseHeld('shared', key);
+  if (hold)
+    held.push({
+      group: 'shared',
+      key,
+      value: unionLabels(before, joinLabels(dropped)),
+    });
+  state.shared[key] = joinLabels(kept);
+  return true;
+}
+
 export function reconcileLabels(
   state: SharedFilterState,
   offered: string[],
   hold: boolean,
 ): boolean {
-  const { kept, dropped } = narrowLabels(
-    parseLabels(state.shared.label),
-    offered,
-  );
-  if (dropped.length === 0) return false;
-  const before = heldValue('shared', 'label') ?? '';
-  releaseHeld('shared', 'label');
-  if (hold)
-    held.push({
-      group: 'shared',
-      key: 'label',
-      value: unionLabels(before, joinLabels(dropped)),
-    });
-  state.shared.label = joinLabels(kept);
-  return true;
+  return reconcilePick(state, 'label', offered, hold);
+}
+
+// A repo is saved forge-qualified ("github:acme/api") and read without it.
+function repoName(value: string): string {
+  return value.slice(value.indexOf(':') + 1);
 }
 
 // The user chose something else for this control (or cleared it): the held
@@ -496,7 +519,8 @@ export type HeldPick = {
 export function heldPicks(): HeldPick[] {
   return held.map((h) => {
     let text = h.value;
-    if (h.key === 'repo') text = h.value.slice(h.value.indexOf(':') + 1);
+    if (h.key === 'repo') text = parseLabels(h.value).map(repoName).join(', ');
+    if (h.key === 'author') text = parseLabels(h.value).join(', ');
     const choices =
       h.key === 'created' || h.key === 'updated' ? AGE_RANGES : [];
     text = choices.find((c) => c.value === h.value)?.label ?? text;
@@ -608,10 +632,10 @@ function savedCopy(state: SharedFilterState): SharedFilterState {
   };
   for (const h of held) {
     if (!copy[h.group][h.key]) copy[h.group][h.key] = h.value;
-    // The Label filter holds several: what this page set aside joins what is
-    // picked here.
-    else if (h.group === 'shared' && h.key === 'label')
-      copy.shared.label = unionLabels(copy.shared.label, h.value);
+    // The Label, Repo and Author filters hold several: what this page set
+    // aside joins what is picked here.
+    else if (h.group === 'shared' && PICK_KEYS.includes(h.key))
+      copy.shared[h.key] = unionLabels(copy.shared[h.key], h.value);
   }
   return copy;
 }
@@ -991,14 +1015,10 @@ export function failingFilters(
   const repoKey = `${item.forge}:${item.repo}`.toLowerCase();
   const failing: string[] = [];
   if (shared.forge && item.forge !== shared.forge) failing.push('forge');
-  if (shared.repo && repoKey !== shared.repo) failing.push('repo');
+  if (!pickedHas(shared.repo, repoKey)) failing.push('repo');
   if (shared.title && !matchesTitleTerm(item, shared.title))
     failing.push('title');
-  if (
-    shared.author &&
-    !(item.author || '').toLowerCase().includes(shared.author)
-  )
-    failing.push('author');
+  if (!pickedHas(shared.author, item.author || '')) failing.push('author');
   if (shared.created && minutesAgo(item.createdAt) > Number(shared.created))
     failing.push('created');
   if (shared.updated && minutesAgo(item.updatedAt) > Number(shared.updated))
@@ -1546,6 +1566,62 @@ export function populateRepoSelect(
   }
   select.value = '';
   return Boolean(previous);
+}
+
+// Does the item's value (a repo key, an author) match any of the picked ones?
+// Nothing picked lets it through.
+function pickedHas(saved: string | undefined, value: string): boolean {
+  const picked = parseLabels(saved);
+  return picked.length === 0 || picked.includes(labelKey(value));
+}
+
+// What the Repo filter offers: forge-qualified so one name on two forges is
+// two choices, listed under the forge's name only when several forges show,
+// each with its logo when it has one.
+export function repoChoices(
+  items: FilterableItem[],
+  logoFor: (repoKey: string) => string | undefined,
+): PickChoice[] {
+  const forges = new Set(items.map((i) => i.forge));
+  const grouped = forges.size > 1;
+  const seen = new Set<string>();
+  const out: (PickChoice & { forge: string })[] = [];
+  for (const item of items) {
+    const value = `${item.forge}:${item.repo}`;
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push({
+      forge: item.forge,
+      value,
+      text: item.repo,
+      group: grouped ? FORGE_LABELS[item.forge] || item.forge : undefined,
+      imageUrl: logoFor(value.toLowerCase()) ?? logoFor(value),
+      imageKind: 'logo',
+    });
+  }
+  return out.sort(
+    (a, b) => a.forge.localeCompare(b.forge) || a.text.localeCompare(b.text),
+  );
+}
+
+// What the Author filter offers: each login once, with the first avatar seen.
+export function authorChoices(items: FilterableItem[]): PickChoice[] {
+  const byKey = new Map<string, PickChoice>();
+  for (const item of items) {
+    if (!item.author) continue;
+    const key = item.author.toLowerCase();
+    const have = byKey.get(key);
+    if (!have)
+      byKey.set(key, {
+        value: key,
+        text: item.author,
+        imageUrl: item.authorAvatarUrl || undefined,
+        imageKind: 'avatar',
+      });
+    else if (!have.imageUrl && item.authorAvatarUrl)
+      have.imageUrl = item.authorAvatarUrl;
+  }
+  return [...byKey.values()].sort((a, b) => a.value.localeCompare(b.value));
 }
 
 // ---- stable rows (#710) ----
