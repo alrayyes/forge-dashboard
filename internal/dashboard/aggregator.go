@@ -575,6 +575,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 		return
 	}
 	merged.Repos = withoutStale(merged.Repos, forge, fetched)
+	merged.Forges = clearStartingWhenFresh(merged.Forges, merged.Repos, forge)
 	a.snap = merged
 	a.mu.Unlock()
 
@@ -1123,6 +1124,27 @@ func keepRows(repos, current []Repo, newer map[repoKey]bool) []Repo {
 			out[i] = row
 		}
 	}
+
+	return out
+}
+
+// clearStartingWhenFresh ends a forge's start-up mark once a scoped refresh has
+// replaced every saved repo it showed: the forge answered, and nothing on
+// screen is from the last run any more. While another repo still carries its
+// saved rows the mark stays, since those rows are still old. forges is never
+// edited in place; a reader may hold it.
+func clearStartingWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) []ForgeHealth {
+	i := slices.IndexFunc(forges, func(h ForgeHealth) bool { return h.Forge == forge && h.Starting })
+	if i < 0 {
+		return forges
+	}
+	if slices.ContainsFunc(repos, func(r Repo) bool { return r.Forge == forge && r.StaleSince != nil }) {
+		return forges
+	}
+	out := slices.Clone(forges)
+	out[i].Starting = false
+	out[i].Reachable = true
+	out[i].StaleSince = nil
 
 	return out
 }

@@ -89,6 +89,8 @@ func TestAggregator_AfterARestart_ServesTheSavedSnapshotMarkedStale(t *testing.T
 	require.NotNil(t, snap.Repos[0].StaleSince, "the repo says when its rows were fetched")
 	h := health(snap, dashboard.ForgeGitHub)
 	assert.False(t, h.Reachable)
+	assert.True(t, h.Starting, "no forge has been asked yet, so the mark says starting")
+	assert.Empty(t, h.ErrorKind, "a start-up gap is not an outage")
 	require.NotNil(t, h.StaleSince)
 	assert.False(t, restarted.FirstRefreshDone(), "readiness still waits for a real refresh")
 }
@@ -107,6 +109,7 @@ func TestAggregator_AfterARestart_TheFirstGoodRefreshClearsTheStaleMark(t *testi
 	assert.Equal(t, []int{3}, numbers(snap))
 	h := health(snap, dashboard.ForgeGitHub)
 	assert.True(t, h.Reachable)
+	assert.False(t, h.Starting)
 	assert.Nil(t, h.StaleSince)
 	require.Len(t, snap.Repos, 1)
 	assert.Nil(t, snap.Repos[0].StaleSince)
@@ -123,7 +126,10 @@ func TestAggregator_AfterARestart_AFailedFirstRefreshKeepsTheSavedSnapshot(t *te
 
 	snap := restarted.Get()
 	assert.ElementsMatch(t, []int{1, 2}, numbers(snap))
-	assert.NotNil(t, health(snap, dashboard.ForgeGitHub).StaleSince)
+	h := health(snap, dashboard.ForgeGitHub)
+	assert.NotNil(t, h.StaleSince)
+	assert.False(t, h.Starting, "a fetch that failed is an outage, not a start-up")
+	assert.False(t, h.Reachable)
 }
 
 func TestAggregator_AfterARestart_APageDoesNotWaitForTheFirstRefresh(t *testing.T) {
@@ -276,4 +282,27 @@ func TestAggregator_AfterARestart_AnUnchangedRepoIsNotRewritten(t *testing.T) {
 
 	after, _ := cache.writes()
 	assert.Len(t, after, len(before), "what the database holds is already right")
+}
+
+// repoSource adds the one-repo refresh a webhook uses.
+type repoSource struct{ *flakySource }
+
+func (s repoSource) FetchRepo(context.Context, string, string, string) ([]dashboard.PullRequest, []dashboard.Issue, error) {
+	return []dashboard.PullRequest{{Forge: s.forge, Repo: "o/r", Number: 9}}, nil, nil
+}
+
+func TestAggregator_AfterARestart_AWebhookRefreshOfTheOnlyRepoClearsStarting(t *testing.T) {
+	t.Parallel()
+	cache := savedByAFirstRun(t)
+	restarted := dashboard.NewAggregator(
+		[]dashboard.Source{repoSource{&flakySource{forge: dashboard.ForgeGitHub, prs: []int{1, 2}}}},
+		dashboard.WithSnapshotCache(cache),
+	)
+
+	require.True(t, restarted.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "r", "o/r"))
+
+	h := health(restarted.Get(), dashboard.ForgeGitHub)
+	assert.False(t, h.Starting, "every saved repo of the forge now has fresh rows")
+	assert.Nil(t, h.StaleSince)
+	assert.True(t, h.Reachable)
 }
