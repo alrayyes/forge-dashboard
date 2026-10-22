@@ -88,3 +88,14 @@ func (c *Client) UseETagStoreLimits(maxEntries, maxBytes int) {
 
 // MaxETagBodyBytes is the largest body the ETag cache keeps.
 const MaxETagBodyBytes = maxETagBodyBytes
+
+// AdvisoriesRetry is how long a refused or failed alerts read waits to be asked again.
+const AdvisoriesRetry = advisoriesRetry
+
+// AdvisoryTTLForTest is how long a repo's cached advisory answer has left.
+func (c *Client) AdvisoryTTLForTest(repo string) time.Duration {
+	c.advisories.mu.Lock()
+	defer c.advisories.mu.Unlock()
+
+	return time.Until(c.advisories.entries[repo].expires) + time.Second/2
+}
