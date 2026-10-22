@@ -1349,7 +1349,12 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				JobID: j.ID,
 			})
 			probes = append(probes, workflowContext(run, j.Name))
-			keys = append(keys, fmt.Sprintf("%d@%d", j.ID, j.CompletedAt.UnixNano()))
+			// A job with no finish time may still be going: not cached ("").
+			key := ""
+			if !j.CompletedAt.IsZero() {
+				key = fmt.Sprintf("%d@%d", j.ID, j.CompletedAt.UnixNano())
+			}
+			keys = append(keys, key)
 		}
 	}
 	c.addFailureExcerpts(ctx, owner, name, checks, keys)

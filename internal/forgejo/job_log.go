@@ -112,14 +112,14 @@ const excerptReadTimeout = 15 * time.Second
 // It is best effort: a job with no id, or a log the token can't read, keeps its
 // check as it was, with the link to the run. Newest first (the highest job id),
 // so jobs of superseded runs don't use up the budget. The reads run together,
-// each under excerptReadTimeout; the first refusal for a missing permission or
-// log cancels the rest, since they would be refused the same way.
+// each under excerptReadTimeout; the first refusal for a missing permission
+// cancels the rest, since they would be refused the same way.
 func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, keys []string) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
 	for _, i := range newestFailures(checks) {
-		if text, ok := c.excerpts.get(keys[i]); ok {
+		if text, ok := c.excerpts.get(keys[i]); ok && keys[i] != "" {
 			checks[i].Excerpt = text
 
 			continue
@@ -128,15 +128,18 @@ func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, che
 			text, err := c.readExcerpt(ctx, owner, name, checks[i].JobID)
 			if err != nil {
 				slog.Debug("forgejo job log unavailable", "job", checks[i].JobID, "err", err)
-				if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok &&
-					(clientErr.Kind == dashboard.ForgeErrorUnauthorized || clientErr.Kind == dashboard.ForgeErrorNotFound) {
+				// A refused token fails every sibling alike; a missing log is
+				// only that job's.
+				if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
 					cancel()
 				}
 
 				return
 			}
 			checks[i].Excerpt = text
-			c.excerpts.put(keys[i], text)
+			if keys[i] != "" {
+				c.excerpts.put(keys[i], text)
+			}
 		})
 	}
 	wg.Wait()

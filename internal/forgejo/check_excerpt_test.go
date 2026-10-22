@@ -187,3 +187,94 @@ func TestListDefaultBranchChecks_FailedJobCarriesItsExcerpt(t *testing.T) {
 	require.Len(t, checks, 1)
 	assert.Equal(t, "FAIL internal/api", checks[0].Excerpt)
 }
+
+func TestListChecks_AMissingLogDoesNotStopTheOtherReads(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	jobs := []map[string]any{}
+	logs := map[int]string{}
+	for id := 1; id <= 4; id++ {
+		jobs = append(jobs, map[string]any{"id": id, "name": fmt.Sprintf("job %d", id), "status": "failure"})
+		logs[id] = "boom\n"
+	}
+	delete(logs, 4) // the newest job's log expired: 404
+	client := excerptServer(t, jobs, logs, &calls)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Empty(t, checks[3].Excerpt)
+	for _, c := range checks[:3] {
+		assert.Equal(t, "boom", c.Excerpt, c.Name)
+	}
+}
+
+func TestListChecks_ARefusedLogStopsTheOtherReads(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": []map[string]any{
+			{"id": 1, "name": "old", "status": "failure"},
+			{"id": 2, "name": "new", "status": "failure"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/2/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/1/logs", func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // answers only when the read is cancelled
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	start := time.Now()
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second, "the 403 cancels the slow read")
+	assert.Empty(t, checks[0].Excerpt)
+	assert.Empty(t, checks[1].Excerpt)
+}
+
+func TestListChecks_AJobWithNoFinishTimeIsNeverCached(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	logs := map[int]string{7: "first\n"}
+	client := excerptServer(t, []map[string]any{{"id": 7, "name": "build", "status": "failure"}}, logs, &calls)
+
+	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	logs[7] = "second\n"
+	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+
+	assert.Equal(t, "first", first[0].Excerpt)
+	assert.Equal(t, "second", second[0].Excerpt)
+}
+
+func TestListChecks_AFailedReadIsNotCached(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	logs := map[int]string{}
+	client := excerptServer(t, []map[string]any{{"id": 7, "name": "build", "status": "failure", "completed_at": "2026-10-10T09:05:00Z"}}, logs, &calls)
+
+	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	logs[7] = "boom\n"
+	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+
+	assert.Empty(t, first[0].Excerpt)
+	assert.Equal(t, "boom", second[0].Excerpt)
+}
