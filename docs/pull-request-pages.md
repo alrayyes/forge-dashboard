@@ -88,6 +88,16 @@ text already inside a link stay as written. The page builds these addresses
 from the pull request's own address, so they follow whichever forge it came
 from.
 
+## Finding a pull request by its number
+
+The title box (`Title or #number`) on the Pull requests, Bots and Releases
+pages also takes a pull request number. `2509` or `#2509` lists the pull
+requests whose number starts with it, one per repo that has it, and `25` lists
+25, 250, 2509, and so on. The `#` is optional. The box still matches titles
+too, so `2024` finds a pull request with 2024 in its title. It is the same box
+as the title search, so it is remembered with the other filters and **Clear
+filters** empties it.
+
 ## Issues a pull request closes
 
 A pull request that will close issues shows a "Closes" link for each, after
