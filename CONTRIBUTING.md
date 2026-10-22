@@ -223,9 +223,9 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   new action or code there, in the spec, and where the server emits it.
 - `internal/dashboard` is the domain: the `PullRequest`/`Issue`/`Snapshot`
   model, the `Source`/`ForgeClient` interfaces, the `Aggregator` that
-  refreshes one user's snapshot in the background so a request never
-  blocks on either forge, and the `Manager` that owns one `Aggregator`
-  (and its refresh goroutine) per signed-in user.
+  refreshes the snapshot in the background so a request never
+  blocks on either forge, and the `Service` that owns the one `Aggregator`
+  (and its refresh goroutine) and rebuilds it on a settings save.
 - `internal/github` and `internal/forgejo` are the two adapters — thin,
   handwritten REST clients, each wrapped in a `dashboard.GenericSource`
   rather than duplicating the concurrency/error-handling logic per forge.
@@ -263,9 +263,9 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   their own tokens and theme. There is no admin page.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store, and the
-  dashboard manager, and serves the API and static files. A session's
-  own `AppContext` (not the request's — see `internal/api.Deps`'s own
-  comment) roots each user's background refresh goroutine so it outlives
+  dashboard service, and serves the API and static files. The
+  process's own `AppContext` (not the request's — see `internal/api.Deps`'s own
+  comment) roots the background refresh goroutine so it outlives
   the HTTP request that started it.
 
 ## Commit messages

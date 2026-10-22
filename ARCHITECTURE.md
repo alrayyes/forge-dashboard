@@ -13,8 +13,8 @@ GitHub, Forgejo
 internal/github, internal/forgejo      adapters: each forge's shape mapped to ours
       │  dashboard.Source
       ▼
-internal/dashboard                     domain: the model, the rules, one Aggregator per user
-      │  Manager.Get (never waits on a forge)
+internal/dashboard                     domain: the model, the rules, one Aggregator
+      │  Service.Get (never waits on a forge)
       ▼
 internal/api                           HTTP, written against api/openapi.yaml
       │  JSON, SSE, MCP
