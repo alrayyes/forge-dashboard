@@ -14,12 +14,10 @@ import (
 	"time"
 )
 
-// MarkerTable is the table whose existence says the cleanup has settled.
+// MarkerTable is the table whose existence says the cleanup has settled. It
+// records that the cleanup ran, so it never runs again on a database that has
+// settled on one user.
 const MarkerTable = "single_user_cleanup"
-
-// markerTable records that the cleanup has run, so it never runs again on a
-// database that has settled on one user.
-const markerTable = MarkerTable
 
 // ownedTable is a table whose rows belong to a user, found through column.
 type ownedTable struct {
@@ -30,9 +28,11 @@ type ownedTable struct {
 // owned lists every table holding a user's data. The test that lists
 // sqlite_master fails when a table exists that is neither here nor handled by
 // hand below (users, ceremonies, the marker). The settings tables hold no user
-// since the schema step that merged them into one owner (dbmigrate runs it
-// before this does, and refuses a database with several users and no marker,
-// so by then this cleanup has already run). The cache tables (http_etags,
+// since the schema step that merged them into one owner. That step runs at
+// startup, before this cleanup does, and it refuses a database with several
+// users and no marker. So a database that reaches the step with several users
+// was cleaned up by an earlier release, and this function never sees the old
+// per-user settings tables. The cache tables (http_etags,
 // snapshot_cache, hook_checks, webhook_seen) are keyed by credential and repo,
 // hold no user, and are left alone.
 var owned = []ownedTable{
@@ -141,7 +141,7 @@ func backUp(ctx context.Context, db *sql.DB, dbPath string) (string, error) {
 
 func markerExists(ctx context.Context, db *sql.DB) (bool, error) {
 	var n int
-	err := db.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, markerTable).Scan(&n)
+	err := db.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, MarkerTable).Scan(&n)
 	if err != nil {
 		return false, fmt.Errorf("single-user cleanup: look for the marker: %w", err)
 	}
@@ -273,7 +273,7 @@ func deleteLeftovers(ctx context.Context, tx *sql.Tx, keeper user) error {
 // too, because such an instance never held several users from before the
 // upgrade.
 func WriteMarker(ctx context.Context, tx *sql.Tx, keptUsername string, removedUsers int) error {
-	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS `+markerTable+` (
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS `+MarkerTable+` (
 		ran_at TIMESTAMP NOT NULL,
 		kept_username TEXT NOT NULL,
 		removed_users INTEGER NOT NULL
@@ -281,7 +281,7 @@ func WriteMarker(ctx context.Context, tx *sql.Tx, keptUsername string, removedUs
 		return fmt.Errorf("single-user cleanup: create the marker table: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO `+markerTable+` (ran_at, kept_username, removed_users) VALUES (?, ?, ?)`,
+		`INSERT INTO `+MarkerTable+` (ran_at, kept_username, removed_users) VALUES (?, ?, ?)`,
 		time.Now().UTC(), keptUsername, removedUsers,
 	); err != nil {
 		return fmt.Errorf("single-user cleanup: write the marker: %w", err)
