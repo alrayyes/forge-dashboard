@@ -19,7 +19,7 @@ function input(
     states: {},
     blockedReason: undefined,
     serverEntry: undefined,
-    proactive: NO_PROACTIVE,
+    proactive: () => NO_PROACTIVE,
     confirmingRecreate: false,
     printReason: false,
     ...over,
@@ -135,22 +135,49 @@ describe('dependabotButtonDecision', () => {
     ).toEqual({ kind: 'locked', lock: 'Already asked.', printNote: false });
   });
 
+  test('the forge-wide lock is looked up only for an idle action', () => {
+    let asked = 0;
+    const proactive = () => {
+      asked++;
+      return null;
+    };
+    dependabotButtonDecision(input({ blockedReason: 'no token', proactive }));
+    dependabotButtonDecision(
+      input({
+        states: { [dependabotActionKey(KEY, 'rebase')]: { phase: 'locked' } },
+        proactive,
+      }),
+    );
+    dependabotButtonDecision(
+      input({
+        states: { [dependabotActionKey(KEY, 'rebase')]: { phase: 'queued' } },
+        proactive,
+      }),
+    );
+    expect(asked).toBe(0);
+    dependabotButtonDecision(input({ proactive }));
+    expect(asked).toBe(1);
+  });
+
   test('a spent rate limit draws nothing, and another proactive lock draws a locked button', () => {
     expect(
       dependabotButtonDecision(
-        input({ proactive: { reason: 'spent', code: 'rate_limited' } }),
+        input({ proactive: () => ({ reason: 'spent', code: 'rate_limited' }) }),
       ),
     ).toEqual({ kind: 'hidden' });
     expect(
       dependabotButtonDecision(
         input({
-          proactive: { reason: 'unreachable', code: 'forge_unreachable' },
+          proactive: () => ({
+            reason: 'unreachable',
+            code: 'forge_unreachable',
+          }),
         }),
       ),
     ).toEqual({ kind: 'hidden' });
     expect(
       dependabotButtonDecision(
-        input({ proactive: { reason: 'other', code: 'something' } }),
+        input({ proactive: () => ({ reason: 'other', code: 'something' }) }),
       ),
     ).toEqual({
       kind: 'locked',

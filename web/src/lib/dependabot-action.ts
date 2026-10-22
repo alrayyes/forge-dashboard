@@ -1,14 +1,15 @@
 // Which Dependabot command buttons a pull request gets, and which of them are
 // locked. Pure: Dashboard.svelte hands in what it knows and draws the answer.
 
+import { isReadOnlyLock, type LockInfo } from './lock-info';
+
+export type { LockInfo };
 export type DependabotAction = 'rebase' | 'recreate';
 
 export const DEPENDABOT_ACTION_LABELS: Record<DependabotAction, string> = {
   rebase: 'Dependabot: Rebase',
   recreate: 'Dependabot: Recreate',
 };
-
-export type LockInfo = { reason: string; code?: string; resetsAt?: string };
 
 // The slice of the page's per-action state this reads.
 export type DependabotActionEntry = {
@@ -58,8 +59,9 @@ export type DependabotButtonInput = {
   // personal token), or undefined.
   blockedReason: string | undefined;
   serverEntry: DependabotServerEntry | undefined;
-  // The forge-wide lock from the latest snapshot, or null.
-  proactive: LockInfo | null;
+  // The forge-wide lock from the latest snapshot, or null. Asked only when the
+  // action is idle, the one case that reads it.
+  proactive: () => LockInfo | null;
   confirmingRecreate: boolean;
   // Print the reason beside a pending or proactive lock, for the menu and
   // dialog, where a hover bubble would be clipped.
@@ -100,13 +102,10 @@ export function dependabotButtonDecision(
       return { kind: 'locked', lock: pending, printNote: i.printReason };
     // A forge that is spent or unreachable is read-only: one banner says so,
     // and no button is drawn on every row.
-    if (
-      i.proactive?.code === 'rate_limited' ||
-      i.proactive?.code === 'forge_unreachable'
-    )
-      return { kind: 'hidden' };
-    if (i.proactive)
-      return { kind: 'locked', lock: i.proactive, printNote: i.printReason };
+    const proactive = i.proactive();
+    if (isReadOnlyLock(proactive)) return { kind: 'hidden' };
+    if (proactive)
+      return { kind: 'locked', lock: proactive, printNote: i.printReason };
     if (i.action === 'recreate' && i.confirmingRecreate)
       return { kind: 'confirm' };
   }

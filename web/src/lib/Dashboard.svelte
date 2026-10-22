@@ -129,6 +129,7 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
+  import { isReadOnlyLock, type LockInfo } from "#lib/lock-info.js";
   import {
     DEPENDABOT_ACTION_LABELS,
     dependabotActionKey,
@@ -2421,11 +2422,6 @@
     // of a dead end. Left undefined for the actions that don't pass it
     // (Dependabot/Renovate), which keep today's plain disabled-button
     // behavior.
-    // Why an action is locked, and the code that says what kind of wait it is
-    // when one is known: "rate_limited" and "permission" don't clear by
-    // clicking; anything else may.
-    type LockInfo = { reason: string; code?: string; resetsAt?: string };
-
     function lockOf(entry: ActionState): LockInfo {
       return { reason: entry.reason ?? "", code: entry.code };
     }
@@ -2624,9 +2620,7 @@
     // failed click (a 429 the snapshot hadn't shown yet) still draws, with
     // its reason.
     function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
-      return (
-        reason?.code === "rate_limited" || reason?.code === "forge_unreachable"
-      );
+      return isReadOnlyLock(reason);
     }
 
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
@@ -3982,7 +3976,7 @@
           item,
           action === "rebase" ? "dependabot_rebase" : "dependabot_recreate",
         ),
-        proactive: proactiveActionLockReason(item.forge),
+        proactive: () => proactiveActionLockReason(item.forge),
         confirmingRecreate: recreateState[prKey(item)]?.phase === "confirming",
         printReason,
       });
