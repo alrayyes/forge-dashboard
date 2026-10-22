@@ -5,6 +5,10 @@
 // the start of a log past this.
 const KEPT_KB = 256;
 
+// How long a log read may take, answer and body, before it counts as failed.
+// Without a bound a stalled read would leave a copy waiting for good.
+const LOG_TIMEOUT_MS = 30_000;
+
 export type LogResult =
   | { ok: true; text: string; truncated: boolean }
   | { ok: false; message: string; signedOut?: boolean };
@@ -32,15 +36,33 @@ export async function loadRunLog(
   url: string,
   forgeName: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = LOG_TIMEOUT_MS,
 ): Promise<LogResult> {
-  let res: Response;
+  const signal = AbortSignal.timeout(timeoutMs);
   try {
-    res = await fetchImpl(url, { headers: { Accept: 'application/json' } });
+    return await readRunLog(url, forgeName, fetchImpl, signal);
   } catch (err) {
-    const why = err instanceof Error ? err.message : String(err);
+    const why =
+      err instanceof Error && err.name === 'TimeoutError'
+        ? 'the forge took too long to answer'
+        : err instanceof Error
+          ? err.message
+          : String(err);
 
     return { ok: false, message: `Couldn't load the output (${why}).` };
   }
+}
+
+async function readRunLog(
+  url: string,
+  forgeName: string,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal,
+): Promise<LogResult> {
+  const res = await fetchImpl(url, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
   if (res.status === 401) {
     return {
       ok: false,
@@ -49,7 +71,12 @@ export async function loadRunLog(
     };
   }
   if (res.ok) {
-    const body = await res.json().catch(() => null);
+    const body = await res.json().catch((err) => {
+      // A body cut off by the timeout is a stalled read, not a bad answer.
+      if (signal.aborted) throw err;
+
+      return null;
+    });
     if (typeof body?.text === 'string') {
       return { ok: true, text: body.text, truncated: body.truncated === true };
     }
@@ -105,4 +132,154 @@ export async function copyLog(
   }
 
   return deps.select() ? 'copied' : 'selected';
+}
+
+// Where a check's full log is read from, and why there is no address when
+// there is none: no job to read, or a checks address that names no repository.
+export function logSource(
+  checksUrl: string,
+  jobId: number | undefined,
+): { url: string | null; why?: string } {
+  if (!jobId) return { url: null };
+  const url = logUrl(checksUrl, jobId);
+
+  return url
+    ? { url }
+    : {
+        url: null,
+        why: "Couldn't tell which repository this check belongs to.",
+      };
+}
+
+// Whether a check has a log worth a Copy log button: a failure or timeout
+// (a cancelled run is not a failure to debug) that carries an excerpt, or that
+// has a job whose log the checks url can name. A checks url that names no
+// repository gives no log address, so a job alone isn't enough.
+export function canCopyLog(
+  check: { state: string; excerpt?: string; jobId?: number },
+  checksUrl: string | undefined,
+): boolean {
+  if (check.state !== 'failure' && check.state !== 'timed_out') return false;
+  if (check.excerpt) return true;
+
+  return !!check.jobId && !!checksUrl && !!logUrl(checksUrl, check.jobId);
+}
+
+// What a failed check's Copy button puts on the clipboard: the whole log when
+// the log endpoint answers, else the excerpt the list already carries. `kind`
+// says which landed ("cut" is a whole log the server trimmed to its last
+// KEPT_KB), and `why` says in words why only the excerpt did, when it is that.
+export type Prepared = {
+  text: string;
+  kind: 'whole' | 'cut' | 'excerpt';
+  why: string;
+};
+
+export async function logToCopy(
+  url: string | null,
+  excerpt: string,
+  forgeName: string,
+  fetchImpl: typeof fetch = fetch,
+  noUrlWhy = 'This check has no job to read a full log from.',
+): Promise<Prepared> {
+  if (!url) return { text: excerpt, kind: 'excerpt', why: noUrlWhy };
+  const got = await loadRunLog(url, forgeName, fetchImpl);
+  // A signed-out answer is not about the log: copy nothing, so the clipboard
+  // keeps what it held, and say to sign in.
+  if (!got.ok && got.signedOut) {
+    return { text: '', kind: 'excerpt', why: got.message };
+  }
+  if (got.ok && got.text) {
+    return { text: got.text, kind: got.truncated ? 'cut' : 'whole', why: '' };
+  }
+  if (got.ok) {
+    return { text: excerpt, kind: 'excerpt', why: 'The job wrote no output.' };
+  }
+
+  return { text: excerpt, kind: 'excerpt', why: got.message };
+}
+
+// The sentence a copy earns, true to what is on the clipboard (or not).
+export function copyStatus(
+  outcome: CopyOutcome,
+  prepared: Prepared,
+  forgeName: string,
+  // What was copied, for the sentences that name it.
+  noun = 'log',
+): string {
+  const only = prepared.kind === 'excerpt';
+  const lost = only ? ` ${prepared.why}` : '';
+  if (outcome === 'nothing') return `Nothing was copied.${lost}`;
+  if (outcome === 'selected') {
+    const press = 'press Ctrl+C (Cmd+C on a Mac) to copy it';
+    if (only) {
+      return `Couldn't copy automatically. The excerpt is selected below: ${press}.${lost}`;
+    }
+    const cut =
+      prepared.kind === 'cut'
+        ? ` It is the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`
+        : '';
+
+    return `Couldn't copy automatically. The ${noun} is selected below: ${press}.${cut}`;
+  }
+  if (only) return `Copied the excerpt only.${lost}`;
+  if (prepared.kind === 'cut') {
+    return `Copied the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`;
+  }
+
+  return 'Copied';
+}
+
+// 'nothing' is a copy that had no text to put on the clipboard; it never
+// touches the clipboard.
+export type CopyOutcome = 'copied' | 'selected' | 'nothing';
+
+export type PendingCopyDeps = {
+  clipboard?: {
+    writeText(text: string): Promise<void>;
+    write?(items: unknown[]): Promise<void>;
+  };
+  // A clipboard item whose text is still being read, so the write starts inside
+  // the click and the browser waits for the text (Safari drops a write that
+  // comes after an awaited fetch).
+  makeItem?: (text: Promise<string>) => unknown;
+  // Copies `text` through the page selection; true when the browser did it.
+  select(text: string): boolean;
+};
+
+// Copies what `pending` resolves to. The clipboard write is handed the promise
+// first; where that is missing or refused, the same text is copied once known.
+// That second try runs after the read, outside the click's user activation, so
+// a browser that needs the activation may refuse it and leave the text selected.
+export async function copyPending(
+  pending: Promise<Prepared>,
+  deps: PendingCopyDeps,
+): Promise<{ outcome: CopyOutcome; prepared: Prepared }> {
+  if (deps.clipboard?.write && deps.makeItem) {
+    try {
+      // An empty answer rejects the item, so the write fails and the clipboard
+      // keeps what it held.
+      const text = pending.then((p) => {
+        if (!p.text) throw new Error('nothing to copy');
+
+        return p.text;
+      });
+      // If makeItem or write throws before anything awaits `text`, its
+      // rejection would go unhandled; the fallback below reads `pending` itself.
+      text.catch(() => {});
+      await deps.clipboard.write([deps.makeItem(text)]);
+
+      return { outcome: 'copied', prepared: await pending };
+    } catch {
+      // fall through to the plain copy of the same text
+    }
+  }
+  const prepared = await pending;
+  if (!prepared.text) return { outcome: 'nothing', prepared };
+  const outcome = await copyLog(prepared.text, {
+    clipboard: deps.clipboard,
+    select: () => deps.select(prepared.text),
+  });
+
+  return { outcome, prepared };
 }

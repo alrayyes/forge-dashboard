@@ -56,6 +56,7 @@ const singleUserSpecs = [
   '**/issue-author-avatar.spec.ts',
   '**/pr-author-avatar.spec.ts',
   '**/repo-logo.spec.ts',
+  '**/repo-author-multi-select.spec.ts',
   '**/pr-details-dialog.spec.ts',
   '**/pr-details-task-lists.spec.ts',
   '**/pr-dialog-actions.spec.ts',

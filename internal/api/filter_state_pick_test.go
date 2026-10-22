@@ -1,23 +1,36 @@
 package api_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// The Label filter's pick is saved as lowercase labels separated by a newline.
+// The Label, Repo and Author filters' picks are saved as lowercase labels separated by a newline.
 // The save is refused when it is longer than a cookie should carry, or when a
 // label holds a control character, which could split it into two picks.
-func TestFilterStatePut_LabelPick(t *testing.T) {
+func TestFilterStatePut_Pick(t *testing.T) {
 	t.Parallel()
+
+	for _, key := range []string{"label", "repo", "author"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			runPickCases(t, key)
+		})
+	}
+}
+
+func runPickCases(t *testing.T, key string) {
+	t.Helper()
 
 	labels := func(n int) string { return strings.TrimSuffix(strings.Repeat(`l\n`, n), `\n`) }
 	cases := map[string]struct {
-		label string
-		want  int
+		pick string
+		want int
 	}{
 		"one label":               {`bug`, http.StatusNoContent},
 		"several labels":          {`bug\nsecurity`, http.StatusNoContent},
@@ -39,12 +52,20 @@ func TestFilterStatePut_LabelPick(t *testing.T) {
 
 			srv := newTestServer(t)
 			sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-			body := `{"shared":{"label":"` + tc.label + `"}}`
+			body := `{"shared":{"` + key + `":"` + tc.pick + `"}}`
 
 			resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", body, sessionCookie)
 			defer func() { _ = resp.Body.Close() }()
 
 			assert.Equal(t, tc.want, resp.StatusCode)
+
+			if tc.want == http.StatusBadRequest {
+				var out struct {
+					Error string `json:"error"`
+				}
+				require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
+				assert.Contains(t, out.Error, `"`+key+`"`, "the refusal names the filter that failed")
+			}
 		})
 	}
 }

@@ -3,6 +3,7 @@
 // the page component stays the one place that touches elements.
 
 import type { CheckCounts } from './check-counts';
+import type { ForgeHealthEntry } from './forge-lock';
 
 export type MainBranchStatus =
   | 'failed'
@@ -32,7 +33,8 @@ export type AdvisoryReason =
   | 'switched_off'
   | 'throttled'
   | 'failed'
-  | 'too_many';
+  | 'too_many'
+  | 'not_enabled';
 export type Advisories = {
   state: 'known' | 'unknown';
   // Why the answer is unknown, when the server knows.
@@ -78,6 +80,7 @@ export function statusCount(counts: MainBranchCounts, key: StatusPill): number {
 export type MainBranches = {
   generatedAt: string;
   counts: MainBranchCounts;
+  forges: ForgeHealthEntry[];
   branches: MainBranch[];
 };
 
@@ -292,7 +295,9 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
 // How much of the list's advisory data was readable. 'none': every row that
 // has an answer says unknown, so the page shows one notice about the cause.
 // 'partial': a mix, so only the unknown rows get a quiet cue. 'full': nothing
-// to say. Rows with no field (no source reads that forge) don't count.
+// to say. Rows with no field (no source reads that forge) don't count, and
+// neither do Forgejo rows: their unknown is usually a repo with no lockfile,
+// and the notice is about the GitHub credential.
 export type AdvisoryCoverage = 'full' | 'partial' | 'none';
 
 export function advisoryCoverage(
@@ -301,6 +306,7 @@ export function advisoryCoverage(
   let unknown = 0;
   let known = 0;
   for (const b of branches) {
+    if (b.forge === 'forgejo') continue;
     if (b.advisories?.state === 'unknown') unknown++;
     else if (b.advisories) known++;
   }
@@ -312,12 +318,13 @@ export function advisoryCoverage(
 // the server named none. The page notice names a cause only when it is sure.
 export function advisoryUnknownReason(
   branches: readonly MainBranch[],
-): AdvisoryReason | null {
-  let shared: AdvisoryReason | null = null;
+): Exclude<AdvisoryReason, 'not_enabled'> | null {
+  let shared: Exclude<AdvisoryReason, 'not_enabled'> | null = null;
   for (const b of branches) {
+    if (b.forge === 'forgejo') continue;
     if (b.advisories?.state !== 'unknown') continue;
     const r = b.advisories.reason;
-    if (!r) return null;
+    if (!r || r === 'not_enabled') return null;
     if (shared && shared !== r) return null;
     shared = r;
   }
@@ -326,7 +333,10 @@ export function advisoryUnknownReason(
 
 // What the notice says for a cause. Whether the owner has anything to do
 // differs by cause: a rate limit clears by itself, a refusal needs a token.
-export const ADVISORY_REASON_TEXT: Record<AdvisoryReason, string> = {
+export const ADVISORY_REASON_TEXT: Record<
+  Exclude<AdvisoryReason, 'not_enabled'>,
+  string
+> = {
   refused:
     'GitHub refused the read: the credential lacks the Dependabot alerts permission (read-only).',
   switched_off:
@@ -340,6 +350,8 @@ export const ADVISORY_REASON_TEXT: Record<AdvisoryReason, string> = {
 };
 
 // Only a refusal or switched-off alerts are fixed with the permission steps.
-export function advisoryReasonNeedsGrant(r: AdvisoryReason): boolean {
+export function advisoryReasonNeedsGrant(
+  r: Exclude<AdvisoryReason, 'not_enabled'>,
+): boolean {
   return r === 'refused' || r === 'switched_off';
 }

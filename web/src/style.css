@@ -1021,6 +1021,50 @@ select.col-filter {
   height: 16px;
   accent-color: var(--accent);
 }
+/* The picture beside a repo or author: the initial is always there and the
+   image sits over it, so a missing or blocked image changes nothing. Both
+   are decorative. The initial's ink is --ink on --surface-sunken. */
+.pick-image {
+  position: relative;
+  flex: none;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+.pick-avatar {
+  border-radius: 50%;
+}
+.pick-logo {
+  border-radius: 4px;
+}
+.pick-image img {
+  position: absolute;
+  inset: -1px;
+  width: 16px;
+  height: 16px;
+  object-fit: cover;
+}
+.pick-group {
+  display: block;
+}
+.pick-group-heading {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.filter-chip .pick-image {
+  margin-right: -2px;
+}
 .label-filter-clear {
   margin-top: 6px;
   min-height: 32px;
@@ -3446,6 +3490,22 @@ footer a.mono:focus-visible {
   font-size: 12px;
   color: var(--ink-2);
 }
+.pipeline-check-manual {
+  flex: 1 1 100%;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: inherit;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  resize: vertical;
+}
+
 .pipeline-check-excerpt {
   flex: 1 1 100%;
   margin: 0;
@@ -3755,6 +3815,10 @@ button.pipeline-check-link:disabled {
     display: flex;
     flex-wrap: nowrap;
     gap: 8px;
+    /* The strip scrolls; it must not push the page wider than the window
+       when the chips add up to more than the width. */
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -4538,4 +4602,24 @@ footer a[aria-current="page"] {
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
+}
+
+/* The Copy log button under a failed check's excerpt, and what a copy said. */
+.pipeline-check-copy {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.pipeline-check-copy [aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.pipeline-check-copy-status {
+  flex: 1 1 14em;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
 }

@@ -28,6 +28,8 @@
     // A control drawn above the list, such as the pull request board's rerun
     // button. Drawn again whenever the checks change; `failed` says whether any
     // check failed or timed out.
+    // The call is untracked, so the control must redraw itself when anything
+    // else it reads changes (the Main branches page does, after each poll).
     controls?: (failed: boolean) => HTMLElement | null;
   };
 </script>
@@ -38,11 +40,13 @@
   // follow() with the row's signature from each snapshot it reads: the dialog
   // reads again only when its own row's CI changed, so a finished pipeline
   // costs no more requests.
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
+  import CopyCheckLog from "#lib/CopyCheckLog.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
+  import { canCopyLog } from "#lib/run-log.js";
   import {
     blockingFirst,
     CHECK_STATE_LABELS,
@@ -189,6 +193,14 @@
     if (event.target === dialog) dialog.close();
   }
 
+  // Copy log is for a failed or timed-out check that has something to copy:
+  // an excerpt, or a job whose full log the board's checks url can name. Only
+  // those two states carry an excerpt from the server, and a cancelled run is
+  // not a failure to debug (View run still opens its output).
+  function copyableLog(check: Check): boolean {
+    return canCopyLog(check, target?.checksUrl);
+  }
+
   // The forge's name for a board that doesn't name it: the checks url carries
   // the forge.
   function forgeLabel(t: PipelineTarget): string {
@@ -213,17 +225,33 @@
   // control the keyboard was on keeps focus.
   function controls(host: HTMLElement) {
     void checks;
-    const node = target?.controls?.(failed) ?? null;
+    // Untracked: the control reads the page's snapshot (its lock, its row) and
+    // redraws itself when that changes, so a poll must not rebuild it.
+    // The target itself stays tracked, so pointing the dialog at another row
+    // draws that row's control.
+    const isFailed = failed;
+    const current = target;
+    const node = untrack(() => current?.controls?.(isFailed)) ?? null;
     // The button the keyboard was on, by its place among the control's buttons
     // (Rerun, then a failure's Copy), so it keeps focus when the control is drawn
     // again.
     const buttons = () =>
       Array.from(host.querySelectorAll<HTMLElement>("button"));
     const was = buttons().indexOf(document.activeElement as HTMLElement);
+    // Focus the control itself held, when its button had gone (a lock).
+    const onControl = was < 0 && host.contains(document.activeElement);
     host.replaceChildren(...(node ? [node] : []));
     if (node && was >= 0) {
       const now = buttons();
       (now[was] ?? now[0])?.focus({ preventScroll: true });
+    } else if (node && onControl) {
+      // A control with a button again gets the focus on it, not on its wrapper.
+      const button = buttons()[0];
+      if (button) button.focus({ preventScroll: true });
+      else {
+        node.tabIndex = -1;
+        node.focus({ preventScroll: true });
+      }
     }
   }
 </script>
@@ -233,6 +261,7 @@
     <!-- Keyed by name, and the nth of a shared name: two jobs can share a name
          with no page. -->
     {#each items as check (keyOf.get(check))}
+      {@const copyable = copyableLog(check)}
       <li class="pipeline-check">
         <span class="pipeline-check-status {check.state}">
           {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}
@@ -287,15 +316,16 @@
         {#if check.failedStep}
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
         {/if}
-        {#if check.excerpt}
-          <!-- Text only: the log is never parsed as markup. It scrolls, so it
-               takes focus to be reachable from the keyboard. -->
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-          <pre
-            class="pipeline-check-excerpt"
-            tabindex="0"
-            aria-label="Log excerpt: {check.name}">{check.excerpt}</pre>
-        {/if}
+        <CopyCheckLog
+          name={check.name}
+          jobId={check.jobId}
+          checksUrl={target?.checksUrl ?? ""}
+          excerpt={check.excerpt ?? ""}
+          forgeName={target ? forgeLabel(target) : "the forge"}
+          {copyable}
+          runKey="{check.url}|{check.durationSeconds ?? ''}|{check.runAttempt ??
+            ''}"
+        />
       </li>
     {/each}
   </ul>

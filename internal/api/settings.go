@@ -407,7 +407,7 @@ func mergeSettings(req settingsPutRequest, existing settings.Credentials) settin
 func settingsFieldError(merged settings.Credentials, req settingsPutRequest, githubAppConfigured bool) (field, message string) {
 	switch {
 	case merged.ForgejoURL == "" && (merged.ForgejoToken != "" || merged.ForgejoUsername != ""):
-		// buildSourcesForUser skips Forgejo entirely once ForgejoURL is
+		// buildSources skips Forgejo entirely once ForgejoURL is
 		// empty, token or username notwithstanding — so a token/username
 		// saved without a URL wouldn't just be incomplete, it'd silently
 		// do nothing.

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1427: the Created and Updated ranges and the forge
@@ -93,7 +94,7 @@ test.describe('age choices on the pull request page (#1427)', () => {
       pr(2, { ci: 'failure' }),
     ]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    await page.selectOption('#shared-author-select', 'claude');
+    await pickOnly(page, 'author', 'claude');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -123,7 +124,7 @@ test.describe('forge buttons on Insights (#1427)', () => {
     ]);
     await expect(forgeLabel(page, 'forgejo')).toBeVisible();
 
-    await page.selectOption('#shared-repo-select', 'github:alrayyes/app');
+    await pickOnly(page, 'repo', 'github:alrayyes/app');
 
     await expect(forgeLabel(page, 'github')).toBeVisible();
     await expect(forgeLabel(page, 'forgejo')).toBeHidden();

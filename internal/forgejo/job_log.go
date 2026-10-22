@@ -1,12 +1,17 @@
 package forgejo
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -30,6 +35,19 @@ const jobLogErrorBody = 64 << 10
 // keeps only the last jobLogReadWindow bytes. Memory stays fixed however
 // large the log is.
 func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dashboard.JobLog, error) {
+	return c.jobLog(ctx, owner, name, id, jobLogReadWindow, false)
+}
+
+// excerptReadWindow is how much of a log's end an excerpt read keeps: the
+// excerpt is 20 lines or 2 KB, so a small window holds it with room for the
+// colour codes, and five reads at once stay light. It is the tail the GitHub
+// client keeps for the same excerpt.
+const excerptReadWindow = 16 << 10
+
+// jobLog is JobLog with the size of the window kept from the end of the log.
+// missingIsOrdinary logs a 404 as a request made, not as an error: an excerpt
+// read asks for logs nobody requested, and a pruned one is expected.
+func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, window int, missingIsOrdinary bool) (dashboard.JobLog, error) {
 	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/logs", owner, name, id)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.instanceURL+"/api/v1"+path, nil)
@@ -41,6 +59,12 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 	}
 	httpResp, err := c.httpClient.Do(req)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			// The caller gave up (a sibling read was refused, or the caller left):
+			// that is not this request failing, so it is not recorded as one.
+			return dashboard.JobLog{}, fmt.Errorf("forgejo: read job log: %w", err)
+		}
+
 		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, nil, err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
@@ -52,11 +76,25 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 			reason = httpResp.Status
 		}
 
-		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, fmt.Errorf("%w: %s", errForgeRefused, reason))
+		refusal := fmt.Errorf("%w: %s", errForgeRefused, reason)
+		if missingIsOrdinary && httpResp.StatusCode == http.StatusNotFound {
+			// A log that was pruned, or a job that keeps none, is an ordinary
+			// answer: the request is logged as made, not as an error.
+			clientErr, status := classifyForgejoError(http.MethodGet, path, resp, refusal)
+			c.recordRequest(ctx, http.MethodGet, path, status, requestlog.OutcomeSuccess)
+
+			return dashboard.JobLog{}, clientErr
+		}
+
+		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, refusal)
 	}
 
-	tail, cut, err := readTail(httpResp.Body, jobLogReadWindow)
+	tail, cut, err := readTail(httpResp.Body, window)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return dashboard.JobLog{}, fmt.Errorf("forgejo: read job log: %w", err)
+		}
+
 		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
 	c.recordRequest(ctx, http.MethodGet, path, httpResp.StatusCode, requestlog.OutcomeSuccess)
@@ -68,7 +106,7 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 // anything before them was dropped. It never holds more than 2*window bytes.
 func readTail(r io.Reader, window int) ([]byte, bool, error) {
 	buf := make([]byte, 0, 2*window)
-	chunk := make([]byte, 32<<10)
+	chunk := make([]byte, min(32<<10, window))
 	cut := false
 	for {
 		n, err := r.Read(chunk)
@@ -91,4 +129,152 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 	}
 
 	return buf, cut, nil
+}
+
+// excerptKey names one check's job for the excerpt cache: its id, attempt, start
+// and finish time, so a rerun reads afresh even if the forge reuses the id. A
+// job missing a time is named by what it has. finished is when it finished,
+// zero if unknown.
+type excerptKey struct {
+	key      string
+	finished time.Time
+}
+
+// newExcerptKey names job j of owner/name, by whichever of its attempt, start
+// and finish time the forge sent.
+func newExcerptKey(owner, name string, j *gitea.ActionWorkflowJob) excerptKey {
+	key := fmt.Sprintf("%s/%s#%d", owner, name, j.ID)
+	if j.RunAttempt != 0 {
+		key = fmt.Sprintf("%s.%d", key, j.RunAttempt)
+	}
+	if !j.StartedAt.IsZero() {
+		key = fmt.Sprintf("%s+%d", key, j.StartedAt.UnixNano())
+	}
+	if !j.CompletedAt.IsZero() {
+		key = fmt.Sprintf("%s@%d", key, j.CompletedAt.UnixNano())
+	}
+
+	return excerptKey{key: key, finished: j.CompletedAt}
+}
+
+// settled reports whether the job's log is final: it has been finished a while,
+// since a read just after the finish may have missed lines the runner had yet
+// to flush.
+func (k excerptKey) settled(now time.Time) bool {
+	return !k.finished.IsZero() && now.Sub(k.finished) >= excerptSettleDelay
+}
+
+// addFailureExcerpts fills Excerpt on the newest few failed or timed-out Actions
+// jobs among checks, from the end of their logs, as the GitHub client does. A
+// pull request's list and a branch's list both come through here, so the two
+// boards agree. jobs[i] names check i's job. A job's log stops changing a
+// moment after it finishes, so an excerpt read from a settled log is kept for
+// good and a red default branch costs no log read per poll. One read before
+// that, or for a job with no finish time, is kept for a minute only, so a log
+// that was still being flushed is read once more. A read that failed, or found
+// the log empty, is remembered briefly too, so such a log isn't asked for on
+// every poll.
+//
+// It is best effort: a job with no id, or a log the token can't read, keeps its
+// check as it was, with the link to the run. Newest first (the highest job id),
+// so jobs of superseded runs don't use up the budget; only reads count against
+// dashboard.MaxExcerptJobs, not excerpts already kept. The reads run together,
+// each under dashboard.ExcerptReadTimeout; the first refusal for a missing
+// permission, or for a rate limit, cancels the rest and remembers the whole
+// batch as failed, since they would be refused the same way.
+func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, jobs []excerptKey) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var wg sync.WaitGroup
+	var refused atomic.Bool
+	var tried []string
+	reads := 0
+	for _, i := range newestFailures(checks) {
+		key := jobs[i].key
+		if text, ok := c.excerpts.get(key); ok {
+			checks[i].Excerpt = text
+
+			continue
+		}
+		if c.excerpts.recentlyFailed(key) || reads == dashboard.MaxExcerptJobs {
+			// Older jobs may still have a kept excerpt, so keep looking.
+			continue
+		}
+		tried = append(tried, key)
+		// A refusal elsewhere in the list (or a gone caller) dooms every read
+		// not yet started; sending it would only record a failed request.
+		if ctx.Err() != nil {
+			continue
+		}
+		reads++
+		settled := jobs[i].settled(c.excerpts.now())
+		wg.Go(func() { c.fillExcerpt(ctx, cancel, &refused, owner, name, &checks[i], key, settled) })
+	}
+	wg.Wait()
+	if refused.Load() {
+		// The reads the refusal cancelled were never tried, so without this
+		// each later list would send them again.
+		for _, key := range tried {
+			c.excerpts.fail(key)
+		}
+	}
+}
+
+// fillExcerpt reads one failed job's log into check.Excerpt and keeps the result
+// under key.
+func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, refused *atomic.Bool, owner, name string, check *dashboard.Check, key string, settled bool) {
+	text, err := c.readExcerpt(ctx, owner, name, check.JobID)
+	if err != nil {
+		slog.Debug("forgejo job log unavailable", "job", check.JobID, "err", err)
+		// A sibling's cancel says nothing about this log; the read's own error
+		// does, even when it lands just after the cancel.
+		if !errors.Is(err, context.Canceled) {
+			c.excerpts.fail(key)
+		}
+		// A refused token or a limited forge fails every sibling alike; a
+		// missing log is only that job's.
+		if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && (clientErr.Kind == dashboard.ForgeErrorUnauthorized || clientErr.Kind == dashboard.ForgeErrorRateLimited) {
+			refused.Store(true)
+			cancel()
+		}
+
+		return
+	}
+	check.Excerpt = text
+	if text == "" {
+		// An empty log may only not have been flushed yet: ask again after the
+		// same short wait as a failed read, not on every poll, so it doesn't
+		// hold one of the read slots each time.
+		c.excerpts.fail(key)
+
+		return
+	}
+	c.excerpts.put(key, text, settled)
+}
+
+// newestFailures is the indexes of the failed or timed-out checks that have a
+// job id, newest first (the highest id).
+func newestFailures(checks []dashboard.Check) []int {
+	var picked []int
+	for i := range checks {
+		if checks[i].JobID != 0 && (checks[i].State == dashboard.CheckFailure || checks[i].State == dashboard.CheckTimedOut) {
+			picked = append(picked, i)
+		}
+	}
+	slices.SortStableFunc(picked, func(a, b int) int { return cmp.Compare(checks[b].JobID, checks[a].JobID) })
+
+	return picked
+}
+
+// readExcerpt reads job id's log under c.excerptTimeout and cuts its excerpt.
+func (c *Client) readExcerpt(ctx context.Context, owner, name string, id int64) (string, error) {
+	ctx, done := context.WithTimeout(ctx, c.excerptTimeout)
+	defer done()
+	log, err := c.jobLog(ctx, owner, name, id, excerptReadWindow, true)
+	if err != nil {
+		return "", err
+	}
+
+	// NewJobLog has already dropped a cut log's partial first line.
+	return dashboard.LogExcerpt(log.Text, false), nil
 }

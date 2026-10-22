@@ -205,6 +205,13 @@ time, with a polite "Rate limit reset, actions available again" toast. While the
 forge is read-only the server stops refreshing it until the reset, so the rows
 are the last ones it saw. The header's Refreshed time shows how old they are.
 
+A row names its forge kind, not the host. With several hosts of one kind,
+the controls are held back only when every one of them is unreachable or out
+of budget, and the Dependabot commands only when every one of them can't
+send them. With one host down and another healthy the controls still draw,
+and a click on a row from the down host fails with the forge's own answer. The
+queue button is not offered while any host of the kind is unreachable.
+
 A forge that can't be reached gets the same treatment. Its controls are not
 drawn either, and no row carries a Retry or a pointer to a status line. One
 banner that stays in view while you scroll, on a phone too, says "GitHub is
@@ -672,14 +679,36 @@ the finished checks of the previous commit. The server reads the id of the
 commit the checks belong to, and when it isn't the head of the pull request the
 pill stays pending until they agree.
 
+A check that failed or timed out, and has an excerpt or a job to read, also
+has a `Copy log` button under it. A cancelled check doesn't. The button copies
+the whole log of the job, or the last 256 KB of it when the log is longer, and
+the excerpt alone when the log can't be read; the status line beside the button
+says which of these it copied. A log the forge doesn't send within 30 seconds
+counts as one that can't be read. Where the browser refuses every way of copying,
+the log is put in a text field, selected, for the
+person to copy with Ctrl+C (Cmd+C on a Mac).
+
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
 to three extra requests per failed job (at most five jobs), made only when the
 panel opens. A check that isn't an Actions job, or a log the token can't read
-or that has expired, shows without them and keeps its link. Forgejo's API
-doesn't serve job steps, logs or timing, so a failed Forgejo check offers only
-its link.
+or that has expired, shows without them and keeps its link.
+
+On Forgejo, a failed job carries the same kind of excerpt, but no steps and no
+timing, since its API doesn't serve them. The log is read while the checks are
+listed, so each time the panel loads or refreshes its checks, not only when
+someone asks to see a log: one request per failed job, for at most five jobs
+per list, newest first, each given 15 seconds. The reads run together, so a
+slow forge can delay the answer to a request for checks by up to about 15
+seconds, until the excerpts are kept. A log with text is read once per
+finished job and kept, so a branch that stays red costs no more reads. A log
+that can't be read, or that is empty, is not asked for again for a minute, and
+a token that is refused stops the rest of that list's reads, none of which is
+tried again for a minute. A log that is gone for good is asked for again every
+minute while the panel stays open, and an excerpt of a job with no finish time
+is kept for a minute only; both are bounded by the five reads. A job whose
+log can't be read keeps its link.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each

@@ -58,22 +58,15 @@ var errNothingToRerunOnBranch = errors.New("no failed job to rerun on this branc
 // RerunFailedDefaultBranchChecks implements dashboard.DefaultBranchRerunner: it
 // asks Forgejo to rerun the failed jobs of every failed Actions run on the
 // newest commit of owner/name's default branch that has one, the commit the
-// Main branches row reports.
-func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error {
+// Main branches row reports. The row names the branch, so the repository isn't
+// read to learn it.
+func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, defaultBranch string) error {
 	c = c.withContext(ctx)
 
-	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", repoPath)
-	repo, resp, err := c.sdk.GetRepo(owner, name)
-	if err != nil {
-		return c.forgejoError(ctx, http.MethodGet, repoPath, resp, err)
-	}
-	c.recordRequest(ctx, http.MethodGet, repoPath, resp.StatusCode, requestlog.OutcomeSuccess)
-
 	var failed []int64
-	if repo.DefaultBranch != "" {
+	if defaultBranch != "" {
 		runs, err := c.branchRunsList(ctx, dashboard.RepoRef{
-			FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch,
+			FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: defaultBranch,
 		}, true)
 		if err != nil {
 			return err

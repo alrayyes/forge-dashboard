@@ -1,0 +1,48 @@
+package forgejo
+
+import (
+	"context"
+	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+)
+
+// SetExcerptReadTimeoutForTest shortens how long c waits on one job log.
+func SetExcerptReadTimeoutForTest(c *Client, d time.Duration) {
+	c.excerptTimeout = d
+}
+
+// ExcerptCacheForTest exposes the failure memory with a clock of its own.
+type ExcerptCacheForTest struct{ c *excerptCache }
+
+func NewExcerptCacheForTest(now func() time.Time) *ExcerptCacheForTest {
+	c := newExcerptCache(maxExcerpts)
+	c.now = now
+
+	return &ExcerptCacheForTest{c}
+}
+
+// Put keeps text under key; final false keeps it only for the failure delay.
+func (e *ExcerptCacheForTest) Put(key, text string, final bool) { e.c.put(key, text, final) }
+
+func (e *ExcerptCacheForTest) Get(key string) (string, bool) { return e.c.get(key) }
+
+func (e *ExcerptCacheForTest) Fail(key string) { e.c.fail(key) }
+
+func (e *ExcerptCacheForTest) RecentlyFailed(key string) bool { return e.c.recentlyFailed(key) }
+
+// ExcerptReadWindow is the size of the log tail an excerpt read keeps.
+const ExcerptReadWindow = excerptReadWindow
+
+// AddFailureExcerptsForTest runs the excerpt reads for checks under ctx.
+func AddFailureExcerptsForTest(ctx context.Context, c *Client, owner, name string, checks []dashboard.Check, keys []string) {
+	jobs := make([]excerptKey, len(keys))
+	for i, k := range keys {
+		// Long finished, so the log is settled.
+		jobs[i] = excerptKey{key: k, finished: time.Unix(1, 0)}
+	}
+	c.addFailureExcerpts(ctx, owner, name, checks, jobs)
+}
+
+// MaxExcerptsForTest is how many entries the excerpt cache holds.
+const MaxExcerptsForTest = maxExcerpts

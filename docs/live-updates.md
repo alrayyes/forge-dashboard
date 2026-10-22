@@ -213,15 +213,50 @@ with 44px choices.
 A label saved before the list existed is read as a list of one, so nothing
 needs doing after an upgrade. A pick holds up to 20 labels and 1000
 characters, and the server refuses a longer one. The browser keeps the saved
-filters in one cookie of about 4 KB, so the pick is also held to 2000
-characters as that cookie writes it; labels in a script that takes several
+filters in one cookie of about 4 KB, and label, repo and author each
+take a share of it, so a pick is also held to 1000 characters as that cookie
+writes it; labels in a script that takes several
 bytes a letter run out of room sooner, and the page stops ticking more once
 the room is gone. A saved pick over any of these limits is cut down to fit
-when the page loads. If the server still refuses a save, the page says the
-filter was not saved and does not send it again by itself. The pick is saved
-in the same field as before, the labels in lowercase one after another. A page
-that doesn't offer one of the saved labels leaves it saved and says so, as it
-does for any other filter.
+when the page loads. That includes a pick saved by an earlier build, which
+allowed up to 2000 characters as the cookie writes it: one over 1000 is cut to
+fit without a notice, so tick the rest again. If the server still refuses a
+save, the page says the filter was not saved and does not send it again by
+itself. The pick is saved in the same field as before, the labels in
+lowercase one after another. A page that doesn't offer one of the saved labels
+leaves it saved and says so, as it does for any other filter.
+
+## The repo and author filters
+
+The repo and author filters work like the Label filter: each is a button that
+opens a group of checkboxes, the pull requests and issues shown are the ones
+that match **any** ticked repo and **any** ticked author, and the button names
+one pick or counts several ("2 repos", "2 authors"). Each has a Clear button
+under the choices. A repo is listed with its forge, under a heading per forge
+when more than one forge has a repo on screen, so one name on two forges stays
+two choices. Each heading is a named group for a screen reader, and a single
+picked repo is named with its forge in the button and the chip ("acme/web
+(Forgejo)").
+
+An author matches on the whole login, in any case. The filter used to match
+any login that contained the saved text, so a saved `ann` also showed
+`annabel`; it no longer does, and the list offers whole logins to tick. A
+partial login saved by hand, such as `ren` for `renovate[bot]`, is not on offer
+either, so it is set aside and named under the filter bar with a Clear button,
+and it is dropped for good once you change the author control.
+
+Each repo shows its own logo and each author their avatar beside the name, in
+the choices and on the chips below the search on a phone. When there is no
+image, or it does not load, the first letter of the name stands in. The images
+are decoration for sighted readers; the name beside them is what a screen
+reader speaks. An avatar or logo is shown only over HTTPS.
+
+The choices narrow each other as the Label filter's do, so ticking a repo
+drops an author who has nothing in it. Pick the control you care most about
+last, or tick the other one again afterwards. A value saved before the list
+existed is read as a list of one. A pick holds up to 20 values, and the server
+refuses a longer one. A page that does not offer a saved repo or author leaves
+it saved and says so. The Insights page shows the same two controls.
 
 ## Remembered filters
 
@@ -236,7 +271,10 @@ the page that does. The page says so under the filter bar (`Saved author
 ends the saved choice too. Changing that control on the page ends it as well.
 Text typed in the title search or the hide-titles pattern is sent to the
 server half a second after the last key, and at once when you leave the page
-or switch tab, so a value typed just before leaving is kept.
+or switch tab, so a value typed just before leaving is kept. The title search
+stops at 200 characters to keep it small in the cookie. A title in a script
+that takes several bytes a letter still counts for more there, and with three
+full picks it can pass the cookie's room.
 Each save carries a revision number, in the cookie and in the server copy. When
 a page loads, the server copy is applied unless the cookie holds a newer
 revision, so a value typed just before a reload is not replaced by an older

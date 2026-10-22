@@ -59,13 +59,20 @@ func handleMainBranchChecks(deps Deps) http.HandlerFunc {
 	}
 }
 
-// trackedMainBranch reports whether fullName's default branch is one of the
-// rows the user's Main branches page shows, so the rerun route can't be aimed
-// at a repository the dashboard doesn't follow.
-func trackedMainBranch(ctx context.Context, deps Deps, u *auth.User, forge, fullName string) bool {
-	return slices.ContainsFunc(resolveMainBranchesFor(ctx, deps, u).Branches, func(b mainBranchView) bool {
+// trackedMainBranch finds fullName's row among the ones the user's Main
+// branches page shows, so the rerun route can't be aimed at a repository the
+// dashboard doesn't follow. The row also names the default branch, which saves
+// the forge a lookup.
+func trackedMainBranch(ctx context.Context, deps Deps, u *auth.User, forge, fullName string) (mainBranchView, bool) {
+	rows := resolveMainBranchesFor(ctx, deps, u).Branches
+	i := slices.IndexFunc(rows, func(b mainBranchView) bool {
 		return string(b.Forge) == forge && b.FullName == fullName
 	})
+	if i < 0 {
+		return mainBranchView{}, false
+	}
+
+	return rows[i], true
 }
 
 // handleMainBranchRerunChecks asks the forge to rerun the failed jobs of the
@@ -90,13 +97,14 @@ func handleMainBranchRerunChecks(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		if !trackedMainBranch(r.Context(), deps, u, req.Forge, req.FullName) {
+		row, tracked := trackedMainBranch(r.Context(), deps, u, req.Forge, req.FullName)
+		if !tracked {
 			writeJSON(w, http.StatusNotFound, errorBody("that repository's default branch isn't tracked"))
 
 			return
 		}
 
-		if err := rerunner.RerunFailedDefaultBranchChecks(r.Context(), owner, name); err != nil {
+		if err := rerunner.RerunFailedDefaultBranchChecks(r.Context(), owner, name, row.Branch); err != nil {
 			slog.Warn("default branch checks rerun failed", "forge", req.Forge, "repo", req.FullName, "error", err)
 			writeActionRefusal(r.Context(), w, nil, dashboard.PullRequestActionRerunBranchChecks, owner, name, 0, err)
 

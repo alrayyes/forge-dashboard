@@ -1,9 +1,14 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import {
+  canCopyLog,
   copyLog,
+  copyPending,
+  copyStatus,
   type LogResult,
   loadRunLog,
+  logSource,
+  logToCopy,
   logUrl,
   notePlaces,
 } from './run-log';
@@ -37,6 +42,46 @@ const respond = (status: number, body: unknown) =>
     })) as unknown as typeof fetch;
 
 describe('loadRunLog', () => {
+  test('gives up on a forge that never answers, so a copy cannot hang', async () => {
+    let signal: AbortSignal | undefined;
+    const stalled = ((_url: string, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+
+      return new Promise<Response>((_, reject) => {
+        signal?.addEventListener('abort', () => reject(signal?.reason));
+      });
+    }) as unknown as typeof fetch;
+
+    const got = await loadRunLog('/api/checks/log?x', 'Forgejo', stalled, 20);
+
+    expect(got.ok).toBe(false);
+    if (!got.ok) expect(got.message).toContain('took too long');
+  });
+
+  test('gives up on a body that stops arriving', async () => {
+    const stalledBody = ((_url: string, init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise((_, reject) => {
+            init?.signal?.addEventListener('abort', () =>
+              reject(init.signal?.reason),
+            );
+          }),
+      } as unknown as Response)) as unknown as typeof fetch;
+
+    const got = await loadRunLog(
+      '/api/checks/log?x',
+      'Forgejo',
+      stalledBody,
+      20,
+    );
+
+    expect(got.ok).toBe(false);
+    if (!got.ok) expect(got.message).toContain('took too long');
+  });
+
   test('returns the text and whether it was cut', async () => {
     const got = await loadRunLog(
       '/x',
@@ -138,5 +183,309 @@ describe('copyLog', () => {
       select: () => false,
     });
     expect(got).toBe('selected');
+  });
+});
+
+const URL9 = '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9';
+
+describe('logToCopy', () => {
+  test('is the whole log when the endpoint answers', async () => {
+    const got = await logToCopy(
+      URL9,
+      'tail',
+      'GitHub',
+      respond(200, { text: 'all\n', truncated: false }),
+    );
+
+    expect(got).toEqual({ text: 'all\n', kind: 'whole', why: '' });
+  });
+
+  test('says when the server cut the log', async () => {
+    const got = await logToCopy(
+      URL9,
+      'tail',
+      'GitHub',
+      respond(200, { text: 'end\n', truncated: true }),
+    );
+
+    expect(got.kind).toBe('cut');
+  });
+
+  test('an empty answer falls back to the excerpt and says the job wrote nothing', async () => {
+    const got = await logToCopy(
+      URL9,
+      'tail',
+      'GitHub',
+      respond(200, { text: '', truncated: false }),
+    );
+
+    expect(got).toEqual({
+      text: 'tail',
+      kind: 'excerpt',
+      why: 'The job wrote no output.',
+    });
+  });
+
+  test('gives its own reason when the url cannot be built', async () => {
+    const got = await logToCopy(null, '', 'GitHub', fetch, 'No repo.');
+
+    expect(got.why).toBe('No repo.');
+  });
+
+  test('is the excerpt, with the reason, when the log cannot be read', async () => {
+    const got = await logToCopy(URL9, 'tail', 'GitHub', respond(403, {}));
+
+    expect(got.text).toBe('tail');
+    expect(got.kind).toBe('excerpt');
+    expect(got.why).toContain("can't read this job's output");
+  });
+
+  test('asks for a new sign-in on a 401, with nothing to copy', async () => {
+    const got = await logToCopy(URL9, 'tail', 'GitHub', respond(401, {}));
+
+    expect(got.why).toBe('Your session ended. Sign in again.');
+    expect(got.text).toBe('');
+  });
+
+  test('says there is no job when there is no log url', async () => {
+    const got = await logToCopy(null, 'tail', 'GitHub');
+
+    expect(got).toMatchObject({ text: 'tail', kind: 'excerpt' });
+    expect(got.why).toContain('no job');
+  });
+});
+
+describe('copyStatus', () => {
+  const whole = { text: 'x', kind: 'whole', why: '' } as const;
+  const excerpt = { text: 'x', kind: 'excerpt', why: 'Gone.' } as const;
+
+  test('names the output when that is what was copied', () => {
+    expect(copyStatus('selected', whole, 'GitHub', 'output')).toContain(
+      'The output is selected below',
+    );
+    expect(
+      copyStatus('copied', { ...whole, kind: 'cut' }, 'GitHub', 'output'),
+    ).toContain('KB of the output,');
+  });
+
+  test('plain Copied only for a whole log that landed', () => {
+    expect(copyStatus('copied', whole, 'GitHub')).toBe('Copied');
+  });
+
+  test('a cut log says so', () => {
+    expect(copyStatus('copied', { ...whole, kind: 'cut' }, 'GitHub')).toContain(
+      'last 256 KB',
+    );
+  });
+
+  test('a cut log reads as a copy, not as a view', () => {
+    const said = copyStatus('copied', { ...whole, kind: 'cut' }, 'GitHub');
+
+    expect(said).toContain('Copied the last 256 KB');
+    expect(said).not.toContain('Showing');
+    expect(said).toContain('Open the run on GitHub');
+  });
+
+  test('an excerpt says it is only the excerpt, and why', () => {
+    expect(copyStatus('copied', excerpt, 'GitHub')).toBe(
+      'Copied the excerpt only. Gone.',
+    );
+  });
+
+  test('a copy with nothing to put on the clipboard says so, with the reason', () => {
+    expect(
+      copyStatus('nothing', { text: '', kind: 'excerpt', why: 'Gone.' }, 'X'),
+    ).toBe('Nothing was copied. Gone.');
+  });
+
+  test('a selection fallback points at the field with the log, and names both shortcuts', () => {
+    const said = copyStatus('selected', whole, 'GitHub');
+
+    expect(said).toContain('The log is selected below');
+    expect(said).toContain('Ctrl+C (Cmd+C on a Mac)');
+  });
+
+  test('a selection fallback with only the excerpt says so, and why', () => {
+    expect(copyStatus('selected', excerpt, 'GitHub')).toContain(
+      'The excerpt is selected below',
+    );
+    expect(copyStatus('selected', excerpt, 'GitHub')).toContain('Gone.');
+  });
+});
+
+describe('copyStatus for a cut log copied by hand', () => {
+  test('keeps the caveat that only the last part of the log is there', () => {
+    const cut = { text: 'tail', kind: 'cut' as const, why: '' };
+    const said = copyStatus('selected', cut, 'GitHub');
+
+    expect(said).toContain('The log is selected below');
+    expect(said).toContain('last 256 KB');
+    expect(said).toContain('Open the run on GitHub for the rest');
+  });
+});
+
+describe('logSource', () => {
+  const checks =
+    '/api/pull-requests/checks?forge=github&fullName=a%2Fb&number=4';
+
+  test('gives the address of the job log', () => {
+    expect(logSource(checks, 31).url).toBe(logUrl(checks, 31));
+    expect(logSource(checks, 31).why).toBeUndefined();
+  });
+
+  test('a check with no job has no address and no reason of its own', () => {
+    expect(logSource(checks, undefined)).toEqual({ url: null });
+  });
+
+  test('a checks address naming no repository says so', () => {
+    const none = logSource('/api/pull-requests/checks?number=4', 31);
+
+    expect(none.url).toBeNull();
+    expect(none.why).toContain('which repository');
+  });
+});
+
+describe('copyPending', () => {
+  const ready = Promise.resolve({
+    text: 'full',
+    kind: 'whole' as const,
+    why: '',
+  });
+
+  test('hands the clipboard the promise before the text is known', async () => {
+    const written: unknown[] = [];
+    const out = await copyPending(ready, {
+      clipboard: {
+        writeText: async () => {
+          throw new Error('not used');
+        },
+        write: async (items) => {
+          written.push(...items);
+        },
+      },
+      makeItem: (text) => ({ text }),
+      select: () => false,
+    });
+
+    expect(out.outcome).toBe('copied');
+    expect(written).toHaveLength(1);
+    expect(await (written[0] as { text: Promise<string> }).text).toBe('full');
+  });
+
+  test('copies the same text another way when the item write is refused', async () => {
+    const wrote: string[] = [];
+    const out = await copyPending(ready, {
+      clipboard: {
+        writeText: async (t) => {
+          wrote.push(t);
+        },
+        write: async () => {
+          throw new Error('refused');
+        },
+      },
+      makeItem: (text) => ({ text }),
+      select: () => false,
+    });
+
+    expect(wrote).toEqual(['full']);
+    expect(out.outcome).toBe('copied');
+  });
+
+  test('never writes empty text to the clipboard', async () => {
+    const wrote: string[] = [];
+    const items: Promise<string>[] = [];
+    const empty = Promise.resolve({
+      text: '',
+      kind: 'excerpt' as const,
+      why: 'Gone.',
+    });
+    const out = await copyPending(empty, {
+      clipboard: {
+        writeText: async (t) => {
+          wrote.push(t);
+        },
+        write: async (list) => {
+          for (const item of list)
+            items.push((item as { text: Promise<string> }).text);
+          await Promise.all(items);
+        },
+      },
+      makeItem: (text) => ({ text }),
+      select: () => {
+        throw new Error('not used');
+      },
+    });
+
+    expect(out.outcome).toBe('nothing');
+    expect(wrote).toEqual([]);
+    await expect(items[0]).rejects.toThrow();
+  });
+
+  test('selects the text itself when no clipboard works', async () => {
+    const selected: string[] = [];
+    const out = await copyPending(ready, {
+      select: (t) => {
+        selected.push(t);
+        return true;
+      },
+    });
+
+    expect(selected).toEqual(['full']);
+    expect(out.outcome).toBe('copied');
+  });
+
+  test('an empty answer with a clipboard item that throws leaves no unhandled rejection', async () => {
+    const seen: unknown[] = [];
+    const onUnhandled = (e: unknown) => seen.push(e);
+    process.on('unhandledRejection', onUnhandled);
+    const empty = Promise.resolve({
+      text: '',
+      kind: 'whole' as const,
+      why: '',
+    });
+
+    const result = await copyPending(empty, {
+      clipboard: {
+        writeText: async () => {},
+        write: async () => {},
+      },
+      makeItem: () => {
+        throw new Error('no item');
+      },
+      select: () => false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off('unhandledRejection', onUnhandled);
+
+    expect(result.outcome).toBe('nothing');
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('canCopyLog', () => {
+  const checks = '/api/main-branches/checks?forge=github&fullName=a%2Fb';
+
+  test('a failed job whose log the checks url can name', () => {
+    expect(canCopyLog({ state: 'failure', jobId: 5 }, checks)).toBe(true);
+  });
+
+  test('not a job whose checks url names no repository', () => {
+    expect(
+      canCopyLog({ state: 'failure', jobId: 5 }, '/api/main-branches/checks'),
+    ).toBe(false);
+    expect(
+      canCopyLog({ state: 'failure', jobId: 5 }, '/api/x?forge=github'),
+    ).toBe(false);
+  });
+
+  test('an excerpt is enough without a log address', () => {
+    expect(canCopyLog({ state: 'timed_out', excerpt: 'boom' }, '')).toBe(true);
+  });
+
+  test('not a check that did not fail', () => {
+    expect(
+      canCopyLog({ state: 'cancelled', jobId: 5, excerpt: 'x' }, checks),
+    ).toBe(false);
+    expect(canCopyLog({ state: 'failure' }, checks)).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1427: a quick pill is offered only when clicking it would show something,
@@ -108,7 +109,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     ]);
     await expect(pill(page, 'Failing CI')).toBeVisible();
 
-    await page.selectOption('#shared-author-select', 'claude');
+    await pickOnly(page, 'author', 'claude');
 
     await expect(pill(page, 'Failing CI')).toBeHidden();
     await expect(pill(page, 'Ready to Merge')).toBeVisible();
@@ -176,7 +177,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
       pr(2, { ci: 'success', forge: 'forgejo', repo: 'h/x' }),
     ]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    await page.selectOption('#shared-repo-select', 'forgejo:h/x');
+    await pickOnly(page, 'repo', 'forgejo:h/x');
     // The repo pick leaves only the passing Forgejo pull request.
     await expect(pill(page, 'Failing CI')).toBeHidden();
 
@@ -184,7 +185,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
 
     // Choosing GitHub clears the Forgejo repo pick, so the failing GitHub pull
     // request shows, and its pill is offered without another action.
-    await expect(page.locator('#shared-repo-select')).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'repo')).toEqual([]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     await expect(pill(page, 'Failing CI')).toBeVisible();
   });

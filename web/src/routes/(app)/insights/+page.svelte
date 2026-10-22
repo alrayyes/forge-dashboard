@@ -2,12 +2,7 @@
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import * as Filters from "#lib/filters.js";
-  import {
-    type LabelFilterControl,
-    joinLabels,
-    mountLabelFilter,
-    parseLabels,
-  } from "#lib/label-filter.js";
+  import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
 
@@ -166,10 +161,12 @@
     ];
   }
 
-  let sharedRepoSelect: HTMLSelectElement | undefined = $state();
-  let sharedAuthorSelect: HTMLSelectElement | undefined = $state();
+  let repoHost: HTMLDivElement | undefined = $state();
+  let authorHost: HTMLDivElement | undefined = $state();
+  // Each repo's own logo, by forge and name, from the snapshot's repo list.
+  let repoLogos = new Map<string, string>();
   let labelHost: HTMLDivElement | undefined = $state();
-  let labelFilter: LabelFilterControl | null = null;
+  const picks = new SharedPicks((key) => repoLogos.get(key));
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
   let filterBarEl: HTMLDivElement | undefined = $state();
   // Saved picks this page does not offer, said out loud with a way to drop
@@ -194,31 +191,16 @@
     skipTitleSuggestions = false,
     holdPicks = !sharedControlsRestored,
   ) {
-    const staleRepo = Filters.populateRepoSelect(
-      sharedRepoSelect ?? null,
-      optionPool("repo"),
-      sharedState.shared.repo,
-    );
-    const staleAuthor = Filters.populateSelect(
-      sharedAuthorSelect ?? null,
-      Filters.distinctValues((item) => item.author, optionPool("author")),
-      sharedState.shared.author,
+    const stalePicks = picks.refresh(
+      sharedState,
+      (key) => optionPool(key),
+      holdPicks,
     );
     if (!skipTitleSuggestions)
       Filters.populateDatalist(
         sharedTitleDatalist ?? null,
         Filters.distinctValues((item) => item.title, optionPool("")),
       );
-    const labelChoices = Filters.distinctValues(
-      (item) => (item.labels || []).map((l) => l.name),
-      optionPool("label"),
-    );
-    const staleLabel = Filters.reconcileLabels(
-      sharedState,
-      labelChoices,
-      holdPicks,
-    );
-    labelFilter?.render(labelChoices, parseLabels(sharedState.shared.label));
     // A forge button is offered only when something here is on that forge.
     if (filterBarEl)
       Filters.offerForges(
@@ -226,18 +208,7 @@
         new Set(optionPool("forge").map((item) => item.forge)),
         sharedState.shared.forge ?? "",
       );
-    const clearPick = (stale: boolean, key: string) => {
-      if (!stale) return;
-      if (holdPicks) Filters.holdStale(sharedState, "shared", key);
-      else {
-        Filters.releaseHeld("shared", key);
-        sharedState.shared[key] = "";
-      }
-    };
-    clearPick(staleRepo, "repo");
-    clearPick(staleAuthor, "author");
-    if (!holdPicks && (staleRepo || staleAuthor || staleLabel))
-      Filters.saveState(sharedState);
+    if (!holdPicks && stalePicks) Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
   }
 
@@ -265,16 +236,17 @@
 
   let sharedControlsRestored = false;
 
-  function applyLabels(next: string[]) {
-    sharedState.shared.label = joinLabels(next);
-    Filters.touchKey("shared", "label");
-    Filters.releaseHeld("shared", "label");
+  function applyPicks(key: PickKey, next: string[]) {
+    savePick(sharedState, key, next);
     updateSharedFilterOptions();
     Filters.saveState(sharedState);
   }
 
   function wireFilterBar() {
-    if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
+    picks.mount(
+      { label: labelHost, repo: repoHost, author: authorHost },
+      applyPicks,
+    );
     filterBarEl
       ?.querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
       .forEach((c) => {
@@ -328,7 +300,7 @@
   let page = -1;
   onDestroy(() => {
     Filters.leavePage(page);
-    labelFilter?.destroy();
+    picks.destroy();
   });
 
   onMount(() => {
@@ -374,6 +346,20 @@
       lastSnapshot.pullRequests = (data.pullRequests as FilterableItem[]) || [];
       lastSnapshot.issues = (data.issues as FilterableItem[]) || [];
       lastSnapshot.forges = (data.forges as Forge[]) || [];
+      repoLogos = new Map(
+        (
+          (data.repos as {
+            forge: string;
+            fullName: string;
+            logoUrl?: string;
+          }[]) || []
+        )
+          .filter((r) => r.logoUrl)
+          .map((r) => [
+            Filters.repoKey(r.forge, r.fullName),
+            r.logoUrl as string,
+          ]),
+      );
       updateSharedFilterOptions();
       if (!sharedControlsRestored) {
         sharedControlsRestored = true;
@@ -761,19 +747,12 @@
           <span>Forgejo</span>
         </label>
       </fieldset>
-      <select
-        class="col-filter"
-        data-col="repo"
-        id="shared-repo-select"
-        aria-label="Filter by repo"
-        bind:this={sharedRepoSelect}
-      >
-        <option value="">All repos</option>
-      </select>
+      <div id="shared-repo-filter" bind:this={repoHost}></div>
       <input
         class="col-filter"
         data-col="title"
         type="text"
+        maxlength={Filters.MAX_TITLE}
         placeholder="Title"
         aria-label="Filter by title"
         list="shared-title-options"
@@ -781,15 +760,7 @@
       />
       <datalist id="shared-title-options" bind:this={sharedTitleDatalist}
       ></datalist>
-      <select
-        class="col-filter"
-        data-col="author"
-        id="shared-author-select"
-        aria-label="Filter by author"
-        bind:this={sharedAuthorSelect}
-      >
-        <option value="">All authors</option>
-      </select>
+      <div id="shared-author-filter" bind:this={authorHost}></div>
       <div id="shared-label-filter" bind:this={labelHost}></div>
     </div>
 

@@ -15,6 +15,7 @@ import (
 // mainBranchesBody is GET /api/main-branches as a client reads it.
 type mainBranchesBody struct {
 	Counts   dashboard.MainBranchCounts `json:"counts"`
+	Forges   []dashboard.ForgeHealth    `json:"forges"`
 	Branches []struct {
 		FullName   string     `json:"fullName"`
 		Status     string     `json:"status"`
@@ -27,9 +28,17 @@ type mainBranchesBody struct {
 func newMainBranchesServer(t *testing.T, rows []dashboard.MainBranch) (string, *http.Cookie) {
 	t.Helper()
 
+	return newMainBranchesServerWithHealth(t, dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: len(rows)}, rows)
+}
+
+// newMainBranchesServerWithHealth is newMainBranchesServer for a forge that
+// reports the given health.
+func newMainBranchesServerWithHealth(t *testing.T, health dashboard.ForgeHealth, rows []dashboard.MainBranch) (string, *http.Cookie) {
+	t.Helper()
+
 	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	src := &fakeConfiguredSource{
-		health:   dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: len(rows)},
+		health:   health,
 		branches: rows,
 	}
 	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
@@ -187,4 +196,37 @@ func rawField(t *testing.T, body []byte, name string) json.RawMessage {
 	require.NoError(t, json.Unmarshal(body, &fields))
 
 	return fields[name]
+}
+
+// The page needs the forge's health to lock a control that would only fail:
+// the response carries it, with the REST budget graded as of the request.
+func TestMainBranches_CarryTheForgeHealth(t *testing.T) {
+	t.Parallel()
+
+	resets := time.Now().Add(20 * time.Minute).UTC()
+	srvURL, cookie := newMainBranchesServerWithHealth(t, dashboard.ForgeHealth{
+		Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1,
+		RateLimitREST: &dashboard.RateLimit{Limit: 5000, Remaining: 0, ResetsAt: resets},
+	}, []dashboard.MainBranch{branchRow("acme/kept", dashboard.MainBranchFailed)})
+
+	body := readMainBranchesFrom(t, srvURL, cookie, 1)
+
+	require.Len(t, body.Forges, 1)
+	assert.Equal(t, dashboard.ForgeGitHub, body.Forges[0].Forge)
+	assert.True(t, body.Forges[0].Reachable)
+	require.NotNil(t, body.Forges[0].RateLimitREST)
+	assert.Equal(t, "exceeded", string(body.Forges[0].RateLimitREST.Severity))
+}
+
+func TestMainBranches_SayWhenAForgeCannotBeReached(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := newMainBranchesServerWithHealth(t, dashboard.ForgeHealth{
+		Forge: dashboard.ForgeGitHub, Reachable: false, RepoCount: 1,
+	}, []dashboard.MainBranch{branchRow("acme/kept", dashboard.MainBranchFailed)})
+
+	body := readMainBranchesFrom(t, srvURL, cookie, 1)
+
+	require.Len(t, body.Forges, 1)
+	assert.False(t, body.Forges[0].Reachable)
 }

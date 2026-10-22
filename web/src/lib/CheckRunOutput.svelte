@@ -3,8 +3,9 @@
   // check, with a Copy button beside it, and a link to the run on the forge for
   // when the output is cut or can't be read. Text only: the output is never
   // parsed as markup.
-  import { tick } from "svelte";
-  import { copyLog, loadRunLog, logUrl, notePlaces } from "#lib/run-log.js";
+  import { onDestroy, tick } from "svelte";
+  import { CopyFlow } from "#lib/copy-flow.svelte.js";
+  import { loadRunLog, logUrl, notePlaces } from "#lib/run-log.js";
 
   let {
     name,
@@ -26,60 +27,49 @@
   let text = $state("");
   let truncated = $state(false);
   let message = $state("");
-  // The polite line a copy earns, and a late answer for a closed panel is dropped.
-  let status = $state("");
+  // A late answer for a closed panel is dropped. The one polite line, for the
+  // load and for a copy alike, is the flow's.
+  const flow = new CopyFlow(() => forgeName, "output");
+  onDestroy(() => flow.destroy());
   let ask = 0;
   let output = $state<HTMLPreElement>();
   const panelId = `run-output-${Math.random().toString(36).slice(2, 9)}`;
 
   async function toggle() {
     shown = !shown;
-    status = "";
+    flow.reset();
     if (!shown || !url) {
       ask++;
       return;
     }
     const mine = ++ask;
     phase = "loading";
-    status = "Loading output";
+    flow.status = "Loading output";
     const got = await loadRunLog(url, forgeName);
     if (mine !== ask) return;
     if (got.ok) {
       text = got.text;
       truncated = got.truncated;
       phase = "ready";
-      status = "";
+      flow.status = "";
       // The end of a log is where it failed.
       await tick();
       if (output) output.scrollTop = output.scrollHeight;
     } else {
       message = got.message;
       phase = "error";
-      status = "";
+      flow.status = "";
     }
   }
 
-  async function copy() {
-    const result = await copyLog(text, {
-      clipboard: navigator.clipboard,
-      select() {
-        if (!output) return false;
-        const range = document.createRange();
-        range.selectNodeContents(output);
-        const selection = window.getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-        try {
-          return document.execCommand("copy");
-        } catch {
-          return false;
-        }
-      },
-    });
-    status =
-      result === "copied"
-        ? "Copied"
-        : "Couldn't copy automatically. The output is selected: press Ctrl+C.";
+  function copy() {
+    return flow.copy(() =>
+      Promise.resolve({
+        text,
+        kind: truncated ? ("cut" as const) : ("whole" as const),
+        why: "",
+      }),
+    );
   }
 </script>
 
@@ -106,14 +96,19 @@
     <div class="run-output-bar">
       <span class="run-output-title">Output</span>
       <button
+        bind:this={flow.button}
         type="button"
         class="pipeline-check-link"
         disabled={phase !== "ready"}
+        aria-disabled={flow.busy ? "true" : undefined}
+        aria-busy={flow.busy ? "true" : undefined}
         onclick={copy}
         aria-label="Copy output: {name}">Copy</button
       >
     </div>
-    <p class="run-output-status" aria-live="polite">{status}</p>
+    <p class="run-output-status" aria-live="polite">
+      {flow.busy ? "Copying" : flow.status}
+    </p>
     {#if phase === "error"}
       <p class="run-output-error">{message}</p>
     {:else if phase === "ready"}
@@ -128,6 +123,15 @@
         tabindex="0"
         role="region"
         aria-label="Output: {name}">{text || "This job wrote no output."}</pre>
+    {/if}
+    {#if flow.manual}
+      <textarea
+        bind:this={flow.field}
+        class="pipeline-check-manual"
+        readonly
+        rows="6"
+        aria-label="Output to copy: {name}">{flow.manual}</textarea
+      >
     {/if}
   {/if}
 </div>
