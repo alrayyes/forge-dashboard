@@ -50,7 +50,9 @@ func jobLogFailure(err error) *statusError {
 	case http.StatusTooManyRequests:
 		return &statusError{status, "the forge is limiting requests; try again shortly"}
 	default:
-		return &statusError{status, "the job's log could not be read"}
+		// Anything else, a Conflict kind included, is the forge failing: the
+		// route has no 409 to give.
+		return &statusError{http.StatusBadGateway, "the job's log could not be read"}
 	}
 }
 
