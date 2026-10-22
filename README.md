@@ -80,6 +80,11 @@ stale.
   [Credentials](docs/accounts.md#credentials) for exactly which permissions to
   grant. Nothing forge-related needs setting before
   the process starts.
+- **Read-only access is enough for advisories.** A GitHub credential reads
+  Dependabot alerts with **Dependabot alerts: Read-only** (or the classic
+  `security_events` scope); without it the page shows advisories as unknown, not
+  zero. See [When advisories can't be
+  read](docs/main-branches.md#when-advisories-cant-be-read).
 
 ## Documentation
 
