@@ -143,6 +143,11 @@ export async function logToCopy(
 ): Promise<Prepared> {
   if (!url) return { text: excerpt, kind: 'excerpt', why: noUrlWhy };
   const got = await loadRunLog(url, forgeName, fetchImpl);
+  // A signed-out answer is not about the log: copy nothing, so the clipboard
+  // keeps what it held, and say to sign in.
+  if (!got.ok && got.signedOut) {
+    return { text: '', kind: 'excerpt', why: got.message };
+  }
   if (got.ok && got.text) {
     return { text: got.text, kind: got.truncated ? 'cut' : 'whole', why: '' };
   }

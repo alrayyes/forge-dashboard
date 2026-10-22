@@ -199,10 +199,11 @@ describe('logToCopy', () => {
     expect(got.why).toContain("can't read this job's output");
   });
 
-  test('asks for a new sign-in on a 401', async () => {
+  test('asks for a new sign-in on a 401, with nothing to copy', async () => {
     const got = await logToCopy(URL9, 'tail', 'GitHub', respond(401, {}));
 
     expect(got.why).toBe('Your session ended. Sign in again.');
+    expect(got.text).toBe('');
   });
 
   test('says there is no job when there is no log url', async () => {

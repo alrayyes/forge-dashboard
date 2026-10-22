@@ -9,6 +9,7 @@
     copyStatus,
     logSource,
     logToCopy,
+    type Prepared,
   } from "#lib/run-log.js";
 
   let {
@@ -18,6 +19,7 @@
     excerpt,
     forgeName,
     copyable,
+    runKey,
   }: {
     name: string;
     jobId?: number;
@@ -26,6 +28,9 @@
     forgeName: string;
     // Only a failed check with something to copy shows the button.
     copyable: boolean;
+    // What tells one run of the job from another when the forge reuses the job
+    // id for a rerun.
+    runKey: string;
   } = $props();
 
   // The line a copy earns. "Copying" is not stored: it is shown while busy.
@@ -50,15 +55,25 @@
 
   // The row is keyed by the check's name, so a rerun hands the same component a
   // new job. What was copied or shown for the old one must not stay for the
-  // new one: someone could paste a stale log into a ticket. The job names the
-  // log; a check with no job copies its excerpt, so that names it instead. A
-  // later excerpt of the same job is the same log and changes nothing.
+  // new one: someone could paste a stale log into a ticket. The job and its
+  // run name the log; a check with no job copies its excerpt, so that names it
+  // instead. A check with nothing to copy has no log at all, which drops the
+  // field with the button. A later excerpt of the same run is the same log and
+  // changes nothing.
   let generation = 0;
   let identity: string | undefined;
+  // The log read for the current identity, so pressing again doesn't download
+  // it twice. A whole or cut log only: an excerpt stands for a failed read.
+  let cached: Prepared | undefined;
   $effect.pre(() => {
-    const next = jobId ? `job:${jobId}` : `excerpt:${excerpt}`;
+    const next = !copyable
+      ? "none"
+      : jobId
+        ? `job:${jobId}:${runKey}`
+        : `excerpt:${excerpt}`;
     if (identity !== undefined && next !== identity) {
       generation++;
+      cached = undefined;
       clearTimeout(timer);
       manual = "";
       status = "";
@@ -106,7 +121,10 @@
 
   async function copy() {
     if (busy) return;
-    const host = button?.closest("dialog") ?? document.body;
+    // The field is copied from inside the modal dialog (the page outside it is
+    // inert); outside one, from beside the button.
+    const host =
+      button?.closest("dialog") ?? button?.parentElement ?? document.body;
     const run = generation;
     busy = true;
     clearTimeout(timer);
@@ -120,14 +138,19 @@
       // A check rerun (or its row gone) while the log loads has another log
       // now: the read fails then, so the clipboard write that waits on it
       // writes nothing rather than the old run's log.
-      const pending = logToCopy(
-        source.url,
-        excerpt,
-        forgeName,
-        fetch,
-        source.why,
+      const kept = cached;
+      const pending = (
+        kept
+          ? Promise.resolve(kept)
+          : logToCopy(source.url, excerpt, forgeName, fetch, source.why)
       ).then((prepared) => {
         if (run !== generation || gone) throw new Error("the check was rerun");
+        // A dialog closed while the log loaded has nobody to copy for, on the
+        // clipboard item's path as much as the selection's.
+        if (host instanceof HTMLDialogElement && !host.open) {
+          throw new Error("the dialog was closed");
+        }
+        if (prepared.kind !== "excerpt") cached = prepared;
 
         return prepared;
       });

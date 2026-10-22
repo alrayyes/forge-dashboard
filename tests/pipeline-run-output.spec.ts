@@ -81,6 +81,28 @@ async function setup(
   return asked;
 }
 
+// Holds the next log read until the returned function is called, then answers
+// it with `log`. The route replaces the one `setup` made.
+async function holdLog(
+  page: Page,
+  log: { status: number; body: unknown },
+): Promise<() => void> {
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/checks/log*', async (route: Route) => {
+    await held;
+    await route.fulfill({
+      status: log.status,
+      contentType: 'application/json',
+      body: JSON.stringify(log.body),
+    });
+  });
+
+  return release;
+}
+
 test.describe('a check run output in the pipeline dialog', () => {
   test('View run shows the output with a Copy button, and copies it', async ({
     page,
@@ -338,18 +360,7 @@ test.describe('a check run output in the pipeline dialog', () => {
   }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await setup(page, { status: 401, body: {} });
-    let release: () => void = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await page.route('**/api/checks/log*', async (route) => {
-      await held;
-      await route.fulfill({
-        status: 401,
-        contentType: 'application/json',
-        body: '{}',
-      });
-    });
+    const release = await holdLog(page, { status: 401, body: {} });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     const copy = dialog.getByRole('button', { name: 'Copy log: build' });
 
@@ -374,17 +385,9 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(page, { status: 200, body: { text: 'x', truncated: false } });
     const errors: Error[] = [];
     page.on('pageerror', (e) => errors.push(e));
-    let release: () => void = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await page.route('**/api/checks/log*', async (route) => {
-      await held;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ text: 'x', truncated: false }),
-      });
+    const release = await holdLog(page, {
+      status: 200,
+      body: { text: 'x', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
@@ -421,28 +424,22 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(status).toContainText('Cmd+C');
     await expect(status).toContainText('The log is selected below');
   });
+
   test('pressing Copy log again keeps the field to copy from until the new log arrives', async ({
     page,
   }) => {
     await refuseClipboard(page);
-    await setup(page, {
-      status: 200,
-      body: { text: 'first log\n', truncated: false },
-    });
+    // The first read fails, so the excerpt is what the field holds, and it is
+    // not kept: the second press reads the log again.
+    await setup(page, { status: 404, body: {} });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    await expect(field).toHaveValue('first log\n');
+    await expect(field).toHaveValue('boom: exit 1');
 
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => (release = resolve));
-    await page.route('**/api/checks/log*', async (route: Route) => {
-      await held;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ text: 'second log\n', truncated: false }),
-      });
+    const release = await holdLog(page, {
+      status: 200,
+      body: { text: 'second log\n', truncated: false },
     });
     await field.focus();
     await dialog
@@ -452,7 +449,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
       'Copying',
     );
-    await expect(field).toHaveValue('first log\n');
+    await expect(field).toHaveValue('boom: exit 1');
     release();
     await expect(field).toHaveValue('second log\n');
   });
@@ -484,7 +481,13 @@ async function openBranchFailure(
     stale: false,
     staleSince: null,
   });
-  const state = { failed: 1, jobId: 9, excerpt: 'old boom' };
+  const state = {
+    failed: 1,
+    jobId: 9,
+    excerpt: 'old boom',
+    check: 'failure',
+    seconds: 40,
+  };
   await page.clock.install();
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/main-branches', (route: Route) =>
@@ -514,8 +517,9 @@ async function openBranchFailure(
         checks: [
           {
             name: 'build',
-            state: 'failure',
+            state: state.check,
             url: 'https://example.com/r/1',
+            durationSeconds: state.seconds,
             jobId: state.jobId,
             excerpt: state.excerpt,
           },
@@ -547,6 +551,13 @@ async function openBranchFailure(
       state.failed++;
       await page.clock.runFor(60_000);
     },
+    // The forge kept the job id (a GitHub rerun does) but ran it again.
+    rerunSameJob: async () => {
+      state.failed = 2;
+      state.seconds = 73;
+      state.excerpt = 'new boom';
+      await page.clock.runFor(60_000);
+    },
     rerun: async () => {
       state.failed = 2;
       state.jobId = 10;
@@ -573,6 +584,42 @@ test.describe('a rerun gives a failed check a new job', () => {
     );
     await expect(field).toHaveCount(0);
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText('');
+  });
+
+  test('a rerun that keeps the job id clears the field and the line too', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    const { dialog, rerunSameJob } = await openBranchFailure(page);
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await expect(field).toHaveValue('log of job 9\n');
+
+    await rerunSameJob();
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+      'new boom',
+    );
+    await expect(field).toHaveCount(0);
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText('');
+  });
+
+  test('a check that stops being a failure takes its field with it', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    const { dialog, state, poll } = await openBranchFailure(page);
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await expect(field).toHaveValue('log of job 9\n');
+
+    state.check = 'running';
+    await poll();
+
+    await expect(
+      dialog.getByRole('button', { name: 'Copy log: build' }),
+    ).toHaveCount(0);
+    await expect(field).toHaveCount(0);
   });
 
   test('a later excerpt of the same job keeps the field to copy from', async ({
@@ -663,21 +710,13 @@ test.describe('the copy status line', () => {
         return false;
       };
     });
-    let release: () => void = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
     await setup(page, {
       status: 200,
       body: { text: 'x', truncated: false },
     });
-    await page.route('**/api/checks/log*', async (route) => {
-      await held;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ text: 'x', truncated: false }),
-      });
+    const release = await holdLog(page, {
+      status: 200,
+      body: { text: 'x', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
@@ -689,6 +728,51 @@ test.describe('the copy status line', () => {
     expect(
       await page.evaluate(() => (window as unknown as { tries: number }).tries),
     ).toBe(0);
+  });
+
+  test('a dialog closed while the log loads leaves the clipboard as it was', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, {
+      status: 200,
+      body: { text: 'x', truncated: false },
+    });
+    const release = await holdLog(page, {
+      status: 200,
+      body: { text: 'the log', truncated: false },
+    });
+    await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await page.keyboard.press('Escape');
+    release();
+    await page.waitForTimeout(300);
+
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'SENTINEL',
+    );
+  });
+
+  test('a signed-out read does not put the excerpt on the clipboard', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, { status: 401, body: {} });
+    await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'Sign in again',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'SENTINEL',
+    );
   });
 
   test('a second Copied inside ten seconds is announced again', async ({

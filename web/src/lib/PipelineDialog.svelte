@@ -300,16 +300,15 @@
         {#if check.failedStep}
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
         {/if}
-        {#if check.excerpt || copyable}
-          <CopyCheckLog
-            name={check.name}
-            jobId={check.jobId}
-            checksUrl={target?.checksUrl ?? ""}
-            excerpt={check.excerpt ?? ""}
-            forgeName={target ? forgeLabel(target) : "the forge"}
-            {copyable}
-          />
-        {/if}
+        <CopyCheckLog
+          name={check.name}
+          jobId={check.jobId}
+          checksUrl={target?.checksUrl ?? ""}
+          excerpt={check.excerpt ?? ""}
+          forgeName={target ? forgeLabel(target) : "the forge"}
+          {copyable}
+          runKey="{check.url}|{check.durationSeconds ?? ''}"
+        />
       </li>
     {/each}
   </ul>
