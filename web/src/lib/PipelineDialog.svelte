@@ -42,9 +42,11 @@
   // costs no more requests.
   import { tick, untrack } from "svelte";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
+  import CopyCheckLog from "#lib/CopyCheckLog.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
+  import { canCopyLog } from "#lib/run-log.js";
   import {
     blockingFirst,
     CHECK_STATE_LABELS,
@@ -191,6 +193,14 @@
     if (event.target === dialog) dialog.close();
   }
 
+  // Copy log is for a failed or timed-out check that has something to copy:
+  // an excerpt, or a job whose full log the board's checks url can name. Only
+  // those two states carry an excerpt from the server, and a cancelled run is
+  // not a failure to debug (View run still opens its output).
+  function copyableLog(check: Check): boolean {
+    return canCopyLog(check, target?.checksUrl);
+  }
+
   // The forge's name for a board that doesn't name it: the checks url carries
   // the forge.
   function forgeLabel(t: PipelineTarget): string {
@@ -251,6 +261,7 @@
     <!-- Keyed by name, and the nth of a shared name: two jobs can share a name
          with no page. -->
     {#each items as check (keyOf.get(check))}
+      {@const copyable = copyableLog(check)}
       <li class="pipeline-check">
         <span class="pipeline-check-status {check.state}">
           {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}
@@ -305,15 +316,16 @@
         {#if check.failedStep}
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
         {/if}
-        {#if check.excerpt}
-          <!-- Text only: the log is never parsed as markup. It scrolls, so it
-               takes focus to be reachable from the keyboard. -->
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-          <pre
-            class="pipeline-check-excerpt"
-            tabindex="0"
-            aria-label="Log excerpt: {check.name}">{check.excerpt}</pre>
-        {/if}
+        <CopyCheckLog
+          name={check.name}
+          jobId={check.jobId}
+          checksUrl={target?.checksUrl ?? ""}
+          excerpt={check.excerpt ?? ""}
+          forgeName={target ? forgeLabel(target) : "the forge"}
+          {copyable}
+          runKey="{check.url}|{check.durationSeconds ?? ''}|{check.runAttempt ??
+            ''}"
+        />
       </li>
     {/each}
   </ul>

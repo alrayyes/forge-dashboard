@@ -90,6 +90,11 @@ type clientState struct {
 
 	// finishedJobs keeps the job list of each finished run (see finishedJobs).
 	finishedJobs *finishedJobs
+
+	// excerpts keeps the log excerpt of each finished failed job.
+	excerpts *excerptCache
+	// excerptTimeout bounds one job log read for an excerpt.
+	excerptTimeout time.Duration
 }
 
 // cachedReview is one pull request's review state as of updatedAt.
@@ -149,15 +154,17 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 	}
 
 	return &Client{sdk: sdk, clientState: &clientState{
-		token:        token,
-		username:     username,
-		instanceURL:  strings.TrimSuffix(instanceURL, "/"),
-		httpClient:   httpClient,
-		recorder:     rec,
-		rawTransport: rawTransport,
-		reviews:      map[string]cachedReview{},
-		schedule:     map[string]cachedSchedule{},
-		finishedJobs: newFinishedJobs(maxFinishedJobs),
+		token:          token,
+		username:       username,
+		instanceURL:    strings.TrimSuffix(instanceURL, "/"),
+		httpClient:     httpClient,
+		recorder:       rec,
+		rawTransport:   rawTransport,
+		reviews:        map[string]cachedReview{},
+		schedule:       map[string]cachedSchedule{},
+		finishedJobs:   newFinishedJobs(maxFinishedJobs),
+		excerpts:       newExcerptCache(maxExcerpts),
+		excerptTimeout: dashboard.ExcerptReadTimeout,
 	}}
 }
 
@@ -405,6 +412,15 @@ func upgradeComparedEvents() []string {
 // through, which makes it the natural place to do that rather than
 // repeating the same call at every site.
 func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gitea.Response, err error) error {
+	clientErr, statusCode := classifyForgejoError(method, path, resp, err)
+	c.recordRequest(ctx, method, path, statusCode, string(clientErr.Kind))
+
+	return clientErr
+}
+
+// classifyForgejoError is forgejoError without the request log entry, and the
+// status code it would log.
+func classifyForgejoError(method, path string, resp *gitea.Response, err error) (*dashboard.ClientError, int) {
 	msg := err.Error()
 	kind := dashboard.ForgeErrorUnreachable
 	statusCode := 0
@@ -425,10 +441,9 @@ func (c *Client) forgejoError(ctx context.Context, method, path string, resp *gi
 			rateLimit = rateLimitFromRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 		}
 	}
-	c.recordRequest(ctx, method, path, statusCode, string(kind))
 	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
 
-	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit, UpstreamStatus: upstreamStatus}
+	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit, UpstreamStatus: upstreamStatus}, statusCode
 }
 
 // rateLimitFromRetryAfter turns a Retry-After header (RFC 9110 10.2.3: a
@@ -1329,6 +1344,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 
 	var checks []dashboard.Check
 	var probes []string
+	var excerptKeys []excerptKey
 	for _, run := range runs.WorkflowRuns {
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 		if err != nil {
@@ -1336,14 +1352,17 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		}
 		for _, j := range jobs {
 			checks = append(checks, dashboard.Check{
-				Name:  j.Name,
-				State: checkStateFromWorkflowStatus(j.Status),
-				URL:   j.HTMLURL,
-				JobID: j.ID,
+				Name:       j.Name,
+				State:      checkStateFromWorkflowStatus(j.Status),
+				URL:        j.HTMLURL,
+				JobID:      j.ID,
+				RunAttempt: j.RunAttempt,
 			})
 			probes = append(probes, workflowContext(run, j.Name))
+			excerptKeys = append(excerptKeys, newExcerptKey(owner, name, j))
 		}
 	}
+	c.addFailureExcerpts(ctx, owner, name, checks, excerptKeys)
 
 	return checks, probes, nil
 }
