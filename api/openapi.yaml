@@ -2572,7 +2572,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "404":
-          description: No such queued action for this user.
+          description: No such queued action.
           content:
             application/json:
               schema:
@@ -2755,7 +2755,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "404":
-          description: No background refresh is running yet for this user — Settings has never been saved.
+          description: No background refresh is running yet — Settings has never been saved.
           content:
             application/json:
               schema:
@@ -2879,7 +2879,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "404":
-          description: No background refresh is running yet for this user — Settings has never been saved.
+          description: No background refresh is running yet — Settings has never been saved.
           content:
             application/json:
               schema:

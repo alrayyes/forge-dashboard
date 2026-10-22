@@ -78,7 +78,7 @@ func handleIssueComment(deps Deps) http.HandlerFunc {
 		if !decodeActionBody(w, r, &req) {
 			return
 		}
-		t, ok := validateActionTarget(w, r, req.pullRequestActionRequest)
+		t, ok := validateActionTarget(w, req.pullRequestActionRequest)
 		if !ok {
 			return
 		}
