@@ -255,8 +255,8 @@ banner at the top of the page follows each budget's `severity` (`ok`, `low` or
 
 While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
 or `Renovate: Rebase` to run when its budget comes back, instead of returning to
-click again. `POST /api/queued-actions` stores the choice on the server, per
-user, so it survives a page reload and a server restart. The pull request
+click again. `POST /api/queued-actions` stores the choice on the server,
+so it survives a page reload and a server restart. The pull request
 carries the waiting item as `queued`, for a row to show a waiting chip, `Queued
 · 14:32` with `Resets in 8m` and `Cancel` (the "Queue update" button comes back
 once you cancel), and the dashboard's `queuedActions` list holds the items and,
@@ -277,8 +277,8 @@ and does nothing if you have removed them.
 Merge and Close can't be queued, and the API answers 400. They would act
 unattended on a pull request whose checks or commits may have changed in the
 meantime. To merge once the limit lifts, arm the forge's own auto-merge instead.
-After a restart the server starts the dashboard of every user with a waiting
-item, so the action still runs at the reset without anyone signing in.
+After a restart the server starts the dashboard if an action is waiting, so
+the action still runs at the reset without anyone signing in.
 
 On the page, a pull request that is behind its base on a forge whose REST budget
 is spent gets a button where Update branch would have been: "Queue update for
@@ -684,7 +684,9 @@ has a `Copy log` button under it. A cancelled check doesn't. The button copies
 the whole log of the job, or the last 256 KB of it when the log is longer, and
 the excerpt alone when the log can't be read; the status line beside the button
 says which of these it copied. A log the forge doesn't send within 30 seconds
-counts as one that can't be read. Where the browser refuses every way of copying,
+counts as one that can't be read. Pressing the button again within a minute
+reuses the log it read; after that it reads the log again, since a read just
+after a job finished can miss lines. Where the browser refuses every way of copying,
 the log is put in a text field, selected, for the
 person to copy with Ctrl+C (Cmd+C on a Mac).
 

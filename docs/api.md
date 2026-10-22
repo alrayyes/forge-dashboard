@@ -2,7 +2,7 @@
 
 `api/openapi.yaml` is the contract: `GET /healthz` for liveness, `GET /readyz`
 for readiness,
-`GET /api/dashboard` for the aggregated snapshot of the signed-in user
+`GET /api/dashboard` for the aggregated snapshot
 (`?includeHidden=true` lists the pull requests the user hid, marked
 `hidden`, and `hiddenPullRequests` counts
 them), `POST /api/pull-requests/hide` and `/unhide` to hide one pull request
@@ -15,7 +15,7 @@ requests on Forgejo, which has no batch read), `GET /api/issues/details` for
 one issue's description and comments the same way (without release notes),
 `GET /api/main-branches` for
 the CI status of every default branch, `GET`/`PUT
-/api/settings` for that user's own GitHub/Forgejo configuration — the
+/api/settings` for the GitHub/Forgejo configuration — the
 `PUT` response never echoes a token back, only whether one is now set
 — `GET/PUT /api/settings/timezone` for the zone the user wants times shown
 in (an IANA name such as `Europe/Amsterdam`; empty means the browser's own, and
@@ -32,7 +32,9 @@ The dashboard response carries `readIntervalSeconds`, the server's advice on
 how often to re-read it. `POST /api/dashboard/refresh` fetches from the forges
 right now, but at most once every five seconds. A call inside that
 window skips the fetch and answers 200 with the current snapshot and a
-`Retry-After` header, so a follow-up refresh after an action never fails. The
+`Retry-After` header, so a follow-up refresh after an action never fails. So
+does a call while the first refresh since start-up is still running, which
+would otherwise wait for all of it. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
 

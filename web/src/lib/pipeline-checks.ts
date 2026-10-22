@@ -20,6 +20,24 @@ export type Check = {
   jobId?: number;
 };
 
+// What tells one run of a job from another, for the forge that reuses the job
+// id and page when a run is retried. The attempt number and the duration say it
+// when the forge gives them. A forge that gives neither leaves the log's own
+// tail as the only sign of a rerun that failed again, so that stands in; it
+// then also changes when a still-running job's later lines arrive, which only
+// costs a copy the person has to press again.
+export function checkRunKey(check: Check): string {
+  const known =
+    check.runAttempt !== undefined || check.durationSeconds !== undefined;
+
+  return [
+    check.url,
+    check.durationSeconds ?? '',
+    check.runAttempt ?? '',
+    known ? '' : (check.excerpt ?? ''),
+  ].join('|');
+}
+
 // The per-check status vocabulary of the checks endpoints' CheckState enum.
 // Distinct from the row-level CI labels, which describe a whole pipeline.
 export const CHECK_STATE_LABELS: Record<string, string> = {

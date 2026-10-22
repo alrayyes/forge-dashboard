@@ -406,7 +406,9 @@ func (m *Service) SetForceRefreshCooldown(d time.Duration) {
 // ForceRefresh is RefreshNow for the user's own "refresh now" request, with a
 // cooldown so that call can't be used to spend a forge's API budget. A call
 // inside the window does not fetch: it returns the time left, and the caller
-// serves the current snapshot. A call that fetched returns zero. ok is false
+// serves the current snapshot. So does a call while the first refresh since
+// boot is still running: it returns the cooldown and does not wait. A call that
+// fetched returns zero. ok is false
 // when there is no running Aggregator, as with RefreshNow.
 //
 // Webhooks keep calling RefreshNow: a forge event isn't a user's click, and
@@ -419,6 +421,16 @@ func (m *Service) ForceRefresh(ctx context.Context) (retryAfter time.Duration, o
 		return 0, false
 	}
 	agg := m.current.agg
+	// The first refresh since boot is still running: Refresh would coalesce
+	// onto it and wait for all of it, long enough for a proxy to cut the
+	// request off. Answer with the current snapshot and the cooldown instead.
+	// Nothing is claimed in lastForced, as nothing was fetched.
+	m.latchFirstRefreshLocked()
+	if !m.refreshedOnce {
+		m.mu.Unlock()
+
+		return m.forceRefreshCooldown, true
+	}
 	if left := m.forceRefreshCooldown - time.Since(m.lastForced); !m.lastForced.IsZero() && left > 0 {
 		m.mu.Unlock()
 

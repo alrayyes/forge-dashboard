@@ -67,13 +67,13 @@ stale.
   Safari, Firefox or Edge; a phone counts too. Nothing else to install.
 - **Somewhere writable for the database** (`DB_PATH`, default
   `/data/forge-dashboard.db`) that survives a restart — registered
-  passkeys, sessions, and every user's encrypted forge credentials live
+  passkeys, sessions, and the owner's encrypted forge credentials live
   there. In Docker that means a mounted volume at `/data`; see
   [Docker](docs/running.md#docker).
 - **`ENCRYPTION_KEY`**, a base64-encoded 32-byte key the process refuses
   to start without — see [Configuration](docs/configuration.md) for how to
   generate one.
-  It's what encrypts every user's forge tokens at rest; there's no
+  It's what encrypts the forge tokens at rest; there's no
   sensible default for a secret like this one.
 - You configure your forge credentials from the
   Settings page after registering — see

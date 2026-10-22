@@ -27,16 +27,16 @@ without waiting for the next scheduled background refresh.
 - **THEN** the system reports that no refresh is running for them, rather
   than a silent failure
 
-### Requirement: A triggered refresh is scoped to the requester's own dashboard
+### Requirement: A triggered refresh needs a signed-in session
 
-The system SHALL only ever refresh the requesting user's own dashboard,
-never another user's, regardless of dashboard-sharing permissions.
+The system SHALL refuse a refresh trigger that carries no valid session or
+API token. An instance has one owner and one dashboard, so there is no
+other dashboard to refresh.
 
-#### Scenario: Viewing a shared dashboard offers no refresh trigger
+#### Scenario: Refresh without a session
 
-- **WHEN** a user is viewing a dashboard another user shared with them
-- **THEN** they have no way to trigger a refresh of that other user's
-  dashboard
+- **WHEN** a request without a valid session or API token triggers a refresh
+- **THEN** the system answers 401 and refreshes nothing
 
 ### Requirement: Rapid repeated triggers don't multiply forge requests
 
@@ -48,3 +48,18 @@ one refresh pass already makes.
 
 - **WHEN** a user triggers a refresh twice in quick succession
 - **THEN** the forges are not queried twice as a result
+
+### Requirement: A refresh asked during the first refresh answers at once
+
+While the first refresh since the server started is still running, a
+triggered refresh SHALL NOT wait for it. It SHALL answer within moments with
+the current snapshot and a `Retry-After` header, as a call inside the
+cooldown does.
+
+#### Scenario: Refresh pressed during start-up
+
+- **WHEN** a signed-in user triggers a refresh while the first refresh
+  since start-up is still running
+- **THEN** the answer carries the current snapshot and `Retry-After`, no
+  second fetch starts, and the page keeps its starting-up notice and locks
+  the button for that long

@@ -361,9 +361,9 @@ A few things to know when you read the numbers:
   `repo`. A GitHub full refresh is one query for every repo, so it shows under
   the empty repo too.
 - Rows are matched to the credentials you saved. A GitHub App installation id
-  is a number you type in, so until the dashboard has one user, someone who
-  saves another account's installation id sees that installation's counts.
-  Tokens can't be matched this way without knowing them.
+  is a number you type in, so if you save another account's installation id you
+  see that installation's counts. Tokens can't be matched this way without
+  knowing them.
 - The credential is a label, `app:<installation id>`, `token:<short hash>` or
   `public:<username>`. It holds no secret. Two accounts that connect the same
   token share a row, because they share a budget.

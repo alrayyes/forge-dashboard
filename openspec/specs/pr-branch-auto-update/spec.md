@@ -8,7 +8,7 @@ Lets a user opt a repo, or every tracked repo at once, into automatically bringi
 
 ### Requirement: A repo can be individually opted into automatic branch updates
 
-The system SHALL let a signed-in user enable or disable automatic branch updates for a single tracked repo, persisted per user per repo.
+The system SHALL let a signed-in user enable or disable automatic branch updates for a single tracked repo, persisted per repo.
 
 #### Scenario: Enabling auto-update for one repo
 

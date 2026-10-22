@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.11.5](https://github.com/alrayyes/forge-dashboard/compare/v2.11.4...v2.11.5) (2026-10-22)
+
+
+### Bug Fixes
+
+* **api:** a refresh asked during the first refresh answers at once with the current snapshot ([#2593](https://github.com/alrayyes/forge-dashboard/issues/2593)) ([28936a9](https://github.com/alrayyes/forge-dashboard/commit/28936a9a788205ba24370a66c57885e4f9240215))
+* **osv:** drop npm entries with no resolved source and unquote go.mod paths before comments ([#2585](https://github.com/alrayyes/forge-dashboard/issues/2585)) ([30ce97d](https://github.com/alrayyes/forge-dashboard/commit/30ce97da6da1a04d8af2b5e09e701e0e4ee164eb))
+* **web:** tighten Copy log caching, rerun key and timeout scope ([#2581](https://github.com/alrayyes/forge-dashboard/issues/2581)) ([3412dba](https://github.com/alrayyes/forge-dashboard/commit/3412dbab9548183d114345b29a91745c232f9def))
+
 ## [2.11.4](https://github.com/alrayyes/forge-dashboard/compare/v2.11.3...v2.11.4) (2026-10-22)
 
 
