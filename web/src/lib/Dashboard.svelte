@@ -126,7 +126,11 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
-  import { type ForgeHealthEntry, forgeLockReason } from "#lib/forge-lock.js";
+  import {
+    type ForgeHealthEntry,
+    forgeLockReason,
+    spentLimit,
+  } from "#lib/forge-lock.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -2624,14 +2628,7 @@
       budget: "rest" | "graphql" = "rest",
     ): string {
       // Every entry of the kind, but only the budget the action spends.
-      const limit =
-        known ??
-        lastForges
-          .filter((f) => f.forge === forgeName)
-          .map((f) =>
-            budget === "rest" ? f.rateLimitREST : f.rateLimitGraphQL,
-          )
-          .find((l) => l && Date.parse(l.resetsAt) > Date.now());
+      const limit = known ?? spentLimit(lastForges, forgeName, budget);
       return rateLimitReasonText(
         FORGE_LABELS[forgeName] || forgeName,
         limit?.resetsAt,
@@ -2657,6 +2654,8 @@
       setState: (next: ActionState) => void,
       retryable?: ReadonlySet<ActionCode>,
       actionName?: string,
+      // The budget the action spends, for a refusal that names no reset time.
+      budget: "rest" | "graphql" = "rest",
     ) {
       // The raw answer for Copy, made once for whichever line this ends in.
       const details = failureDetails(
@@ -2671,11 +2670,7 @@
                 FORGE_LABELS[item.forge] || item.forge,
                 resetsAt,
               )
-            : rateLimitedReason(
-                item.forge,
-                undefined,
-                what === "enable auto-merge" ? "graphql" : "rest",
-              ),
+            : rateLimitedReason(item.forge, undefined, budget),
         retryable,
       );
       if (outcome.kind === "settled") {
@@ -3158,6 +3153,8 @@
               autoMergeState[key] = next;
             },
             AUTO_MERGE_RETRYABLE,
+            undefined,
+            "graphql",
           );
         });
     }
@@ -3277,9 +3274,18 @@
             });
         })
         .catch((err: ActionRequestError) => {
-          renderActionRefusal(item, err, fkey, "cancel auto-merge", (next) => {
-            cancelAutoMergeState[key] = next;
-          });
+          renderActionRefusal(
+            item,
+            err,
+            fkey,
+            "cancel auto-merge",
+            (next) => {
+              cancelAutoMergeState[key] = next;
+            },
+            undefined,
+            undefined,
+            "graphql",
+          );
         });
     }
 

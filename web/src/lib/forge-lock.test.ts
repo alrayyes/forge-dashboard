@@ -3,7 +3,7 @@ import { describe, expect, mock, test } from 'bun:test';
 
 // rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
 mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
-const { forgeLockReason } = await import('./forge-lock');
+const { forgeLockReason, spentLimit } = await import('./forge-lock');
 
 const NOW = Date.parse('2026-10-22T12:00:00Z');
 const spent = (resetsAt: string) => ({
@@ -69,5 +69,28 @@ describe('forgeLockReason', () => {
       NOW,
     );
     expect(lock?.code).toBe('rate_limited');
+  });
+});
+
+describe('spentLimit', () => {
+  const rest = spent('2026-10-22T12:10:00Z');
+  const graphql = spent('2026-10-22T13:00:00Z');
+
+  test('reads only the budget it is asked for', () => {
+    const forges = [host({ rateLimitREST: rest, rateLimitGraphQL: graphql })];
+    expect(spentLimit(forges, 'github', 'rest', NOW)).toBe(rest);
+    expect(spentLimit(forges, 'github', 'graphql', NOW)).toBe(graphql);
+    expect(
+      spentLimit([host({ rateLimitGraphQL: graphql })], 'github', 'rest', NOW),
+    ).toBeUndefined();
+  });
+
+  test('skips a limit that has passed, and other forges', () => {
+    const forges = [
+      host({ rateLimitREST: spent('2026-10-22T11:00:00Z') }),
+      { ...host({ rateLimitREST: graphql }), forge: 'forgejo' },
+      host({ rateLimitREST: rest }),
+    ];
+    expect(spentLimit(forges, 'github', 'rest', NOW)).toBe(rest);
   });
 });

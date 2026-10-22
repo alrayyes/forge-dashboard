@@ -65,14 +65,14 @@ type State = { queuedActions: Queued[]; posts: unknown[]; deletes: string[] };
 // Mocks the snapshot with the queue riding along, and the three queue calls.
 async function setup(
   page: Page,
-  forge: Record<string, unknown>,
+  forge: Record<string, unknown> | Record<string, unknown>[],
   pr: Record<string, unknown>,
 ) {
   const state: State = { queuedActions: [], posts: [], deletes: [] };
   const snapshot = () =>
     JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: [forge],
+      forges: Array.isArray(forge) ? forge : [forge],
       pullRequests: [
         {
           ...pr,
@@ -127,6 +127,22 @@ const row = (page: Page) => page.locator('#pr-rows .row').first();
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 test.describe('queue a safe action for the rate limit reset (#756)', () => {
+  test('no Queue button while another host of the kind is unreachable', async ({
+    page,
+  }) => {
+    await setup(
+      page,
+      [{ forge: 'github', reachable: false, repoCount: 1 }, limited()],
+      makePR(),
+    );
+    await page.goto('/pull-requests.html');
+
+    await expect(row(page)).toBeVisible();
+    await expect(
+      row(page).getByRole('button', { name: /^Queue / }),
+    ).toHaveCount(0);
+  });
+
   test('a behind pull request on a limited forge offers Queue for the reset, never Merge or Close', async ({
     page,
   }) => {

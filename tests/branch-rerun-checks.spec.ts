@@ -578,6 +578,29 @@ test.describe('main branches rerun failed checks', () => {
     );
   });
 
+  test('a reset far in the future keeps the button away without looping', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges: [
+        {
+          forge: 'github',
+          reachable: true,
+          rateLimitREST: spentUntil(60 * 24 * 40),
+        },
+      ],
+    });
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+
+    await page.route('**/api/main-branches', () => {});
+    await page.clock.runFor(11 * 60_000);
+
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+    await expect(dialog.getByRole('status')).toContainText('rate limit');
+  });
+
   test('a forge entry that does not say whether it is reachable does not lock', async ({
     page,
   }) => {

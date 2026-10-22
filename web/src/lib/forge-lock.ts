@@ -73,3 +73,19 @@ export function forgeLockReason(
     );
   return limited[0] ?? locks[0];
 }
+
+// The first limit of one budget that is still ahead among the hosts of a
+// kind, for the wording of a refusal that came without its own reset time.
+// Only the budget the action spends counts: a GraphQL reset says nothing
+// about a REST refusal.
+export function spentLimit(
+  forges: readonly ForgeHealthEntry[] | undefined,
+  forge: string,
+  budget: 'rest' | 'graphql',
+  now: number = Date.now(),
+): RateLimit | undefined {
+  return (forges ?? [])
+    .filter((f) => f.forge === forge)
+    .map((f) => (budget === 'rest' ? f.rateLimitREST : f.rateLimitGraphQL))
+    .find((l): l is RateLimit => !!l && Date.parse(l.resetsAt) > now);
+}
