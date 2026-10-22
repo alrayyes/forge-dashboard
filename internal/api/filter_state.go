@@ -9,7 +9,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
@@ -71,13 +70,6 @@ func validLabelPick(body []byte) bool {
 // server change.
 func handleFilterStateGet(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		state, err := store.GetFilterState(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load filter state"))
@@ -97,13 +89,6 @@ func handleFilterStateGet(store *settings.Store) http.HandlerFunc {
 // change here.
 func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxFilterStateBytes))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("request body too large"))

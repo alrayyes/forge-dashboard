@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
@@ -15,13 +14,6 @@ import (
 // idempotent, so a repeat call is a 204 and not an error.
 func handleRepoSetting(deps Deps, apply func(ctx context.Context, store *settings.Store, forge, fullName string) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		var req repoActionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))

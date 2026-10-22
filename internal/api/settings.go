@@ -94,13 +94,6 @@ type ThemeResponse struct {
 
 func handleThemeGet(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		creds, err := store.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
@@ -130,13 +123,6 @@ type themePutRequest struct {
 // not wait on the rest of the form's own Save button.
 func handleThemePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		var req themePutRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
@@ -597,13 +583,6 @@ type TimezoneResponse struct {
 
 func handleTimezoneGet(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		// ErrNotFound leaves creds at its zero value: Timezone "" (the browser's own).
 		creds, err := store.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
@@ -640,13 +619,6 @@ func validTimezone(name string) bool {
 // every other saved setting.
 func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		var req timezonePutRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))

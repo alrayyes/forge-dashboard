@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -22,16 +21,10 @@ type pullRequestHideRequest struct {
 	Days     *int   `json:"days"`
 }
 
-// readHiddenTarget reads and checks who is asking and which pull request, and
-// answers 500 or 400 itself when it can't. A hide is a local write: nothing
+// readHiddenTarget reads and checks which pull request is asked about, and
+// answers 400 itself when it can't. A hide is a local write: nothing
 // here touches a forge, so it needs no credentials and no forge source.
 func readHiddenTarget(w http.ResponseWriter, r *http.Request) (pullRequestHideRequest, bool) {
-	if _, ok := auth.UserFromContext(r.Context()); !ok {
-		writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-		return pullRequestHideRequest{}, false
-	}
-
 	var req pullRequestHideRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))

@@ -26,11 +26,6 @@ type queuedActionRequest struct {
 // queue, waiting and finished. There is one queue per instance.
 func handleQueuedActionsList(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := auth.UserFromContext(r.Context()); !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
 		items, err := resolveQueuedActionsFor(r.Context(), deps)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
