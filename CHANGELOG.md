@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.1](https://github.com/alrayyes/forge-dashboard/compare/v2.11.0...v2.11.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **dashboard:** show a restart as starting up, not as both forges unreachable ([#2573](https://github.com/alrayyes/forge-dashboard/issues/2573)) ([a2ee166](https://github.com/alrayyes/forge-dashboard/commit/a2ee1666b7956badb0676001087b3d72a2612fd7))
+
 ## [2.11.0](https://github.com/alrayyes/forge-dashboard/compare/v2.10.1...v2.11.0) (2026-10-22)
 
 
