@@ -216,38 +216,6 @@ test.describe('stable rows', () => {
     await expect(dialog).toBeVisible();
   });
 
-  test('a changed row updates in place without reordering or moving the scroll position', async ({
-    page,
-  }) => {
-    const many = Array.from({ length: 24 }, (_, i) => makePR(i + 1));
-    await page.route('**/api/dashboard', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(snapshot(many)),
-      }),
-    );
-    await page.reload();
-    await expect(page.locator('#pr-rows .row')).toHaveCount(24);
-    await page.evaluate(() => window.scrollTo(0, 300));
-    const before = await page.evaluate(() => window.scrollY);
-    const order = await titles(page);
-
-    // The last row becomes the most recently active: Last activity would
-    // move it first.
-    const next = many.map((pr) =>
-      pr.number === 20
-        ? { ...pr, ci: 'failure', updatedAt: new Date().toISOString() }
-        : pr,
-    );
-    await push(page, next);
-    await expect(
-      page.locator('#pr-rows .row', { hasText: 'Pull request 20' }),
-    ).toContainText('Failed');
-    expect(await titles(page)).toEqual(order);
-    expect(await page.evaluate(() => window.scrollY)).toBe(before);
-  });
-
   test('keyboard focus on a row survives a snapshot that adds rows', async ({
     page,
   }) => {
@@ -307,6 +275,102 @@ test.describe('stable rows', () => {
     );
     expect(animation).toBe('none');
   });
+  test('a touch holds added rows for a moment, then they land', async ({
+    page,
+  }) => {
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new PointerEvent('pointerup', { pointerType: 'touch', bubbles: true }),
+      ),
+    );
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+  });
+
+  test('a row added that the filters hide is not announced', async ({
+    page,
+  }) => {
+    await page
+      .locator('.filter-bar .col-filter[data-col="title"]')
+      .fill('Pull request 1');
+    await push(page, [makePR(3, { title: 'Something else' }), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await page.waitForTimeout(300);
+    await expect(page.locator('#list-updates-status')).toHaveText('');
+  });
+
+  test('the announcement clears itself after ten seconds', async ({ page }) => {
+    await page.clock.install();
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#list-updates-status')).toHaveText(
+      'List updated: 1 added',
+    );
+    await page.clock.fastForward(10_500);
+    await expect(page.locator('#list-updates-status')).toHaveText('');
+  });
+
+  test('when the pull request in the open dialog left the board, closing it puts focus on the first row, not the page', async ({
+    page,
+  }) => {
+    await page.locator('#pr-rows .row').first().locator('button.title').click();
+    const dialog = page.getByRole('dialog', { name: /Pull request details/ });
+    await expect(dialog).toBeVisible();
+    await push(page, [initial[1]]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('#pr-rows button.title').first()).toBeFocused();
+  });
+
+  test('losing the window clears the pointer hold, so rows land after an alt-tab', async ({
+    page,
+  }) => {
+    await page.locator('#pr-rows .row').first().hover();
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+  });
+
+  test('closing a dialog ends the pointer hold until the mouse moves again', async ({
+    page,
+  }) => {
+    const row = page.locator('#pr-rows .row').first();
+    await row.hover();
+    await row.locator('button.title').click();
+    const dialog = page.getByRole('dialog', { name: /Pull request details/ });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    // The mouse hasn't moved: it no longer claims the list.
+    await push(page, [makePR(3), ...initial]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+  });
+
+  test('a refresh the user asked for lands at once, even with the pointer on the list', async ({
+    page,
+  }) => {
+    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snapshot([makePR(3), ...initial])),
+      }),
+    );
+    await page.locator('#pr-rows .row').first().hover();
+    await page.evaluate(() =>
+      document.getElementById('force-refresh-button')?.click(),
+    );
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+  });
+});
+
+test.describe('stable rows: a long list', () => {
+  test.beforeEach(async ({ page }) => {
+    await stubStream(page);
+  });
 
   // The first row with any part on screen: its key and where its top sits.
   const anchorRow = (page: Page) =>
@@ -330,7 +394,7 @@ test.describe('stable rows', () => {
         body: JSON.stringify(snapshot(many)),
       }),
     );
-    await page.reload();
+    await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-rows .row')).toHaveCount(count);
     return many;
   }
@@ -464,17 +528,27 @@ test.describe('stable rows', () => {
     );
   });
 
-  test('a touch holds added rows for a moment, then they land', async ({
+  test('a changed row updates in place without reordering or moving the scroll position', async ({
     page,
   }) => {
-    await page.evaluate(() =>
-      document.body.dispatchEvent(
-        new PointerEvent('pointerup', { pointerType: 'touch', bubbles: true }),
-      ),
+    const many = await openMany(page);
+    await page.evaluate(() => window.scrollTo(0, 300));
+    const before = await page.evaluate(() => window.scrollY);
+    const order = await titles(page);
+
+    // The last row becomes the most recently active: Last activity would
+    // move it first.
+    const next = many.map((pr) =>
+      pr.number === 20
+        ? { ...pr, ci: 'failure', updatedAt: new Date().toISOString() }
+        : pr,
     );
-    await push(page, [makePR(3), ...initial]);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+    await push(page, next);
+    await expect(
+      page.locator('#pr-rows .row', { hasText: 'Pull request 20' }),
+    ).toContainText('Failed');
+    expect(await titles(page)).toEqual(order);
+    expect(await page.evaluate(() => window.scrollY)).toBe(before);
   });
 
   test('a touch scroll holds added rows until the scroll settles', async ({
@@ -498,84 +572,6 @@ test.describe('stable rows', () => {
     expect(await page.locator('#pr-rows .row').count()).toBe(24);
     await expect(page.locator('#pr-rows .row')).toHaveCount(25);
     expect(Date.now() - t0).toBeGreaterThan(1000);
-  });
-
-  test('a row added that the filters hide is not announced', async ({
-    page,
-  }) => {
-    await page
-      .locator('.filter-bar .col-filter[data-col="title"]')
-      .fill('Pull request 1');
-    await push(page, [makePR(3, { title: 'Something else' }), ...initial]);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
-    await page.waitForTimeout(300);
-    await expect(page.locator('#list-updates-status')).toHaveText('');
-  });
-
-  test('the announcement clears itself after ten seconds', async ({ page }) => {
-    await page.clock.install();
-    await push(page, [makePR(3), ...initial]);
-    await expect(page.locator('#list-updates-status')).toHaveText(
-      'List updated: 1 added',
-    );
-    await page.clock.fastForward(10_500);
-    await expect(page.locator('#list-updates-status')).toHaveText('');
-  });
-
-  test('when the pull request in the open dialog left the board, closing it puts focus on the first row, not the page', async ({
-    page,
-  }) => {
-    await page.locator('#pr-rows .row').first().locator('button.title').click();
-    const dialog = page.getByRole('dialog', { name: /Pull request details/ });
-    await expect(dialog).toBeVisible();
-    await push(page, [initial[1]]);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-    await expect(page.locator('#pr-rows button.title').first()).toBeFocused();
-  });
-
-  test('losing the window clears the pointer hold, so rows land after an alt-tab', async ({
-    page,
-  }) => {
-    await page.locator('#pr-rows .row').first().hover();
-    await push(page, [makePR(3), ...initial]);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
-    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
-    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
-  });
-
-  test('closing a dialog ends the pointer hold until the mouse moves again', async ({
-    page,
-  }) => {
-    const row = page.locator('#pr-rows .row').first();
-    await row.hover();
-    await row.locator('button.title').click();
-    const dialog = page.getByRole('dialog', { name: /Pull request details/ });
-    await expect(dialog).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-
-    // The mouse hasn't moved: it no longer claims the list.
-    await push(page, [makePR(3), ...initial]);
-    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
-  });
-
-  test('a refresh the user asked for lands at once, even with the pointer on the list', async ({
-    page,
-  }) => {
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(snapshot([makePR(3), ...initial])),
-      }),
-    );
-    await page.locator('#pr-rows .row').first().hover();
-    await page.evaluate(() =>
-      document.getElementById('force-refresh-button')?.click(),
-    );
-    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
   });
 });
 
