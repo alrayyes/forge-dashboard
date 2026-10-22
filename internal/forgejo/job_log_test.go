@@ -10,6 +10,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -117,4 +118,24 @@ func TestJobLog_HundredsOfMiB_CostsABoundedAmountOfMemory(t *testing.T) {
 	assert.True(t, got.Truncated)
 	assert.True(t, strings.HasSuffix(got.Text, "last line\n"))
 	assert.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(logBytes/4), "allocation must not scale with the log")
+}
+
+func TestJobLog_Missing_IsAnErrorRowForTheLogEndpoint(t *testing.T) {
+	t.Parallel()
+
+	rec := &fakeRecorder{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/31/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "", rec)
+
+	_, err := client.JobLog(t.Context(), "alrayyes", "a", 31)
+
+	require.Error(t, err)
+	entries := rec.all()
+	require.Len(t, entries, 1)
+	assert.NotEqual(t, requestlog.OutcomeSuccess, entries[0].Outcome, "a person asked for this log, so a missing one is a failed request")
 }

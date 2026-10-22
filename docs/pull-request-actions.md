@@ -693,9 +693,22 @@ failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
 to three extra requests per failed job (at most five jobs), made only when the
 panel opens. A check that isn't an Actions job, or a log the token can't read
-or that has expired, shows without them and keeps its link. Forgejo's API
-doesn't serve job steps, logs or timing, so a failed Forgejo check offers only
-its link.
+or that has expired, shows without them and keeps its link.
+
+On Forgejo, a failed job carries the same kind of excerpt, but no steps and no
+timing, since its API doesn't serve them. The log is read while the checks are
+listed, so each time the panel loads or refreshes its checks, not only when
+someone asks to see a log: one request per failed job, for at most five jobs
+per list, newest first, each given 15 seconds. The reads run together, so a
+slow forge can delay the answer to a request for checks by up to about 15
+seconds, until the excerpts are kept. A log with text is read once per
+finished job and kept, so a branch that stays red costs no more reads. A log
+that can't be read, or that is empty, is not asked for again for a minute, and
+a token that is refused stops the rest of that list's reads, none of which is
+tried again for a minute. A log that is gone for good is asked for again every
+minute while the panel stays open, and an excerpt of a job with no finish time
+is kept for a minute only; both are bounded by the five reads. A job whose
+log can't be read keeps its link.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each

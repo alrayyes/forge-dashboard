@@ -124,7 +124,8 @@ type Check struct {
 	// FailedStep names the step of a failed job that broke, and Excerpt is
 	// the tail of its log as plain text, capped in length (#697). Both are
 	// empty when the forge can't provide them (permission, expired logs, a
-	// check that is not a job); nothing is invented.
+	// check that is not a job); nothing is invented. On Forgejo the failed
+	// step is never set, and the excerpt costs one log read per failed job.
 	FailedStep string `json:"failedStep,omitempty"`
 	Excerpt    string `json:"excerpt,omitempty"`
 }
