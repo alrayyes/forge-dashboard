@@ -215,7 +215,7 @@ func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName
 
 	var id string
 	err = tx.QueryRowContext(ctx,
-		`SELECT id FROM users WHERE credentials_json = '[]' ORDER BY created_at, id LIMIT 1`,
+		`SELECT id FROM users WHERE credentials_json = '[]' `+OwnerOrder,
 	).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := tx.Commit(); err != nil {

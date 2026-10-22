@@ -192,3 +192,27 @@ func TestFinishLogin_ASurvivingNonOwnerUser_NeverMintsAnOwnerSession(t *testing.
 	assert.Nil(t, u)
 	assert.ErrorIs(t, err, auth.ErrNotFound, "the check runs before the assertion is read")
 }
+
+func TestClaimUnregisteredUser_PicksTheRowOwnerOrderPicks(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	// Same created_at, so only the tie-break decides; the later row has the smaller id.
+	for _, stmt := range []string{
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('enp6', 'first', 'F', '[]', '2026-01-01 00:00:00')`,
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('YWFh', 'second', 'S', '[]', '2026-01-01 00:00:00')`,
+	} {
+		_, err := db.ExecContext(t.Context(), stmt)
+		require.NoError(t, err)
+	}
+	owner, err := store.Owner(t.Context())
+	require.NoError(t, err)
+
+	claimed, err := store.ClaimUnregisteredUser(t.Context(), "new", "New", time.Now().Add(-time.Hour))
+
+	require.NoError(t, err)
+	assert.Equal(t, owner.ID, claimed.ID, "a registration must attach to the user the store calls the owner")
+}
