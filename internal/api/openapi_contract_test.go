@@ -239,6 +239,7 @@ func contractBranches(now time.Time) []dashboard.MainBranch {
 		{
 			Forge: dashboard.ForgeGitHub, FullName: "alrayyes/empty", URL: "https://github.com/alrayyes/empty",
 			Status: dashboard.MainBranchNone, FailingJobs: []string{}, RunURL: "https://github.com/alrayyes/empty",
+			Advisories: &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonSwitchedOff},
 		},
 		{
 			Forge: dashboard.ForgeGitHub, FullName: "alrayyes/old", URL: "https://github.com/alrayyes/old", Branch: "main",

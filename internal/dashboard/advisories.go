@@ -14,6 +14,22 @@ const (
 	AdvisoriesUnknown AdvisoryState = "unknown"
 )
 
+// AdvisoryReason says why an advisory answer is unknown. Matches
+// components.schemas.AdvisoryReason.
+type AdvisoryReason string
+
+// The causes the dashboard can tell apart. Refused is a 403 (a credential
+// without the Dependabot alerts permission), SwitchedOff a 404 (alerts off on
+// the repo), Throttled a rate limit that clears by itself, Failed any other
+// error, TooMany a repo with more open alerts than one read pages through.
+const (
+	ReasonRefused     AdvisoryReason = "refused"
+	ReasonSwitchedOff AdvisoryReason = "switched_off"
+	ReasonThrottled   AdvisoryReason = "throttled"
+	ReasonFailed      AdvisoryReason = "failed"
+	ReasonTooMany     AdvisoryReason = "too_many"
+)
+
 // AdvisorySeverity is how serious an advisory is, using the four levels
 // GitHub's Dependabot alerts use. Matches components.schemas.AdvisorySeverity.
 type AdvisorySeverity string
@@ -55,6 +71,9 @@ type Advisories struct {
 	Highest AdvisorySeverity `json:"highest,omitempty"`
 	// URL is where to see the advisories on the forge. Empty when unknown.
 	URL string `json:"url,omitempty"`
+	// Reason says why the state is unknown, when the dashboard knows. Empty
+	// when the state is known or the cause is not known.
+	Reason AdvisoryReason `json:"reason,omitempty"`
 }
 
 // UnknownAdvisories is the answer when a source can't say.

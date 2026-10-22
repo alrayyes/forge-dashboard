@@ -158,7 +158,7 @@ func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, na
 		opts.After = resp.After
 	}
 
-	return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil, nil
+	return dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonTooMany}, nil, nil
 }
 
 // alertsFailure maps a failed alerts listing: a definitive refusal is an
@@ -170,7 +170,13 @@ func alertsFailure(err error) (dashboard.Advisories, *alertsRefusal, error) {
 	case refused(err):
 		errResp, _ := errors.AsType[*ghsdk.ErrorResponse](err)
 
-		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, &alertsRefusal{status: errResp.Response.StatusCode, message: errResp.Message}, nil
+		status := errResp.Response.StatusCode
+		reason := dashboard.ReasonRefused
+		if status == http.StatusNotFound {
+			reason = dashboard.ReasonSwitchedOff
+		}
+
+		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: reason}, &alertsRefusal{status: status, message: errResp.Message}, nil
 	default:
 		return dashboard.Advisories{}, nil, fmt.Errorf("list dependabot alerts: %w", err)
 	}
@@ -220,13 +226,18 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 	ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
 	v, refusal, err := readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
 	if err != nil {
+		reason := dashboard.ReasonFailed
 		if errors.Is(err, errAdvisoriesThrottled) {
+			reason = dashboard.ReasonThrottled
 			c.logger().Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", key)
 		} else {
 			c.logger().Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", key, "error", err)
 		}
 		if !have {
 			old = *dashboard.UnknownAdvisories()
+		}
+		if old.State == dashboard.AdvisoriesUnknown {
+			old.Reason = reason
 		}
 		c.advisories.putFailure(key, old)
 
