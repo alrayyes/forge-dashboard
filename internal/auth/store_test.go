@@ -173,20 +173,36 @@ func TestStore_UnknownSessionToken_ReturnsErrNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
-func TestStore_DeleteUnregisteredUser_RemovesAUserWithNoCredentials(t *testing.T) {
+func TestStore_ClaimUnregisteredUser_NoRowYet_CreatesOne(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	u, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
-	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "ryan"))
+	got, err := store.GetUserByUsername(t.Context(), "ryan")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID)
+}
 
-	_, err = store.GetUserByUsername(t.Context(), "ryan")
+func TestStore_ClaimUnregisteredUser_ADeadEndRowIsReusedAndOthersAreDropped(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	first, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stray", "Stray")
+	require.NoError(t, err)
+
+	claimed, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan K")
+	require.NoError(t, err)
+
+	assert.Equal(t, first.ID, claimed.ID, "the oldest row is the owner's")
+	_, err = store.GetUserByUsername(t.Context(), "stray")
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
-func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
+func TestStore_ClaimUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
@@ -194,7 +210,8 @@ func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "ryan"))
+	_, err = store.ClaimUnregisteredUser(t.Context(), "alex", "Alex")
+	require.NoError(t, err)
 
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
 	require.NoError(t, err)
@@ -207,7 +224,7 @@ func TestStore_AddFirstCredential_NobodyRegisteredYet_AttachesThePasskey(t *test
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
-	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, "ryan", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
 	got, err := store.GetUserByID(t.Context(), u.ID)
 	require.NoError(t, err)
@@ -221,9 +238,9 @@ func TestStore_AddFirstCredential_AnotherUserHoldsAPasskey_ReturnsErrRegistratio
 	require.NoError(t, err)
 	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
-	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	err = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+	err = store.AddFirstCredential(t.Context(), loser.ID, "loser", webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
 
 	assert.ErrorIs(t, err, auth.ErrRegistrationClosed)
 }
@@ -235,12 +252,27 @@ func TestStore_AddFirstCredential_Refused_RemovesThePendingUser(t *testing.T) {
 	require.NoError(t, err)
 	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
-	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	_ = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+	_ = store.AddFirstCredential(t.Context(), loser.ID, "loser", webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
 
 	_, err = store.GetUserByID(t.Context(), loser.ID)
 	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_AddFirstCredential_TakesTheUsernameOfTheFinishingCeremony(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stray", "Stray")
+	require.NoError(t, err)
+
+	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, "stray", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	got, err := store.GetUserByUsername(t.Context(), "stray")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID, "the winner's row takes its username, even one an abandoned attempt held")
 }
 
 func TestStore_HasAnyRegisteredUser_NoUsersYet_ReportsFalse(t *testing.T) {

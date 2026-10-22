@@ -194,18 +194,53 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*
 	return u, nil
 }
 
-// DeleteUnregisteredUser removes username's account if — and only if — it
-// has no credentials attached: an abandoned registration (begun, never
-// finished, so nothing was ever actually attached to the username) rather
-// than a real account. A no-op if the account has since gained a
-// credential, or doesn't exist at all.
-func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ? AND credentials_json = '[]'`, username)
+// ClaimUnregisteredUser returns the account a registration under username
+// attaches its passkey to. An instance has one owner, so a row with no
+// passkey is that owner's: either a first registration begun and never
+// finished, or an owner whose passkeys the operator cleared. Both keep the
+// row, and so its id, which the saved settings and the webhook token hang
+// off, and takes this attempt's display name. The username changes only when
+// a ceremony wins (AddFirstCredential), so ceremonies that race can't break
+// each other's lookup. Any younger passkey-less row is an abandoned attempt
+// and goes. Without such a row a new one is created.
+func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName string) (*User, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("auth: delete unregistered user: %w", err)
+		return nil, fmt.Errorf("auth: begin claim: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var id string
+	err = tx.QueryRowContext(ctx,
+		`SELECT id FROM users WHERE credentials_json = '[]' ORDER BY created_at, id LIMIT 1`,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("auth: commit claim: %w", err)
+		}
+
+		return s.CreateUser(ctx, username, displayName)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("auth: find the unregistered user: %w", err)
 	}
 
-	return nil
+	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE credentials_json = '[]' AND id != ?`, id); err != nil {
+		return nil, fmt.Errorf("auth: drop abandoned registrations: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET display_name = ? WHERE id = ?`, displayName, id); err != nil {
+		return nil, fmt.Errorf("auth: claim the unregistered user: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("auth: commit claim: %w", err)
+	}
+
+	raw, err := decodeID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.GetUserByID(ctx, raw)
 }
 
 // GetUserByUsername returns ErrNotFound when no such user is registered.
@@ -297,7 +332,7 @@ func (s *Store) AddCredential(ctx context.Context, userID []byte, cred webauthn.
 // while no other user holds a passkey, decided by the same statement that
 // writes it, so two ceremonies finishing together cannot both succeed. The
 // loser gets ErrRegistrationClosed and its pending user row is removed.
-func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, cred webauthn.Credential) error {
+func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, username string, cred webauthn.Credential) error {
 	credsJSON, err := json.Marshal([]webauthn.Credential{cred})
 	if err != nil {
 		return fmt.Errorf("auth: encode credentials: %w", err)
@@ -310,11 +345,20 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, cred weba
 	defer func() { _ = tx.Rollback() }()
 
 	id := encodeID(userID)
+	// Passkey-less rows other than this one are abandoned attempts. They go
+	// first so none can hold the username this registration takes. If this
+	// row is itself gone (another ceremony won and cleared it), the update
+	// below matches nothing and the registration is refused.
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM users WHERE id != ? AND credentials_json = '[]'
+		  AND EXISTS (SELECT 1 FROM users WHERE id = ? AND credentials_json = '[]')`, id, id); err != nil {
+		return fmt.Errorf("auth: clear abandoned registrations: %w", err)
+	}
 	res, err := tx.ExecContext(ctx, `
-		UPDATE users SET credentials_json = ?
+		UPDATE users SET credentials_json = ?, username = ?
 		WHERE id = ? AND credentials_json = '[]'
 		  AND NOT EXISTS (SELECT 1 FROM users WHERE id != ? AND credentials_json != '[]')`,
-		string(credsJSON), id, id,
+		string(credsJSON), username, id, id,
 	)
 	if err != nil {
 		return fmt.Errorf("auth: save first credential: %w", err)
@@ -334,10 +378,6 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, cred weba
 		return ErrRegistrationClosed
 	}
 
-	var username string
-	if err := tx.QueryRowContext(ctx, `SELECT username FROM users WHERE id = ?`, id).Scan(&username); err != nil {
-		return fmt.Errorf("auth: read the first user: %w", err)
-	}
 	if err := singleuser.WriteMarker(ctx, tx, username, 0); err != nil {
 		return fmt.Errorf("auth: record the first registration: %w", err)
 	}

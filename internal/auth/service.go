@@ -46,8 +46,7 @@ func NewService(wa *webauthn.WebAuthn, store *Store) *Service {
 // BeginRegistration starts a registration ceremony for username on an
 // instance nobody has registered on yet. An instance has one owner, so once
 // any user holds a passkey this returns ErrRegistrationClosed, whatever the
-// username. A user row with no passkey (a first registration begun and never
-// finished) doesn't count: it is reclaimed here.
+// username. A user row with no passkey doesn't count: it is reused here.
 func (s *Service) BeginRegistration(ctx context.Context, username, displayName string) (*protocol.CredentialCreation, error) {
 	registered, err := s.store.HasAnyRegisteredUser(ctx)
 	if err != nil {
@@ -57,19 +56,12 @@ func (s *Service) BeginRegistration(ctx context.Context, username, displayName s
 		return nil, ErrRegistrationClosed
 	}
 
-	// A registration was begun and never finished, a page reload before the
-	// passkey prompt completed, say. Nothing was ever attached to that
-	// username, so it is free to reclaim rather than a dead end.
-	if err := s.store.DeleteUnregisteredUser(ctx, username); err != nil {
-		return nil, err
-	}
-
-	// A real user row from the first step, not a throwaway in-memory
-	// stand-in — WebAuthnID has to be genuinely random and BeginRegistration
-	// only reads from the User interface, so creating it now (rather than
-	// after the ceremony finishes) means FinishRegistration has a real,
-	// already-persisted ID to attach the credential to.
-	u, err := s.store.CreateUser(ctx, username, displayName)
+	// A row with no passkey is the owner's: a registration begun and never
+	// finished, or the passkeys an operator cleared. It is reused, so what
+	// hangs off its id survives. WebAuthnID has to be genuinely random and
+	// BeginRegistration only reads the User interface, so the row exists from
+	// this first step and FinishRegistration attaches to a persisted ID.
+	u, err := s.store.ClaimUnregisteredUser(ctx, username, displayName)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +87,9 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 	}
 	defer func() { _ = s.store.DeleteCeremony(ctx, username, kindRegister) }()
 
-	u, err := s.store.GetUserByUsername(ctx, username)
+	// The ceremony, not the username, names the row: the owner's row may hold
+	// another username until this registration wins.
+	u, err := s.store.GetUserByID(ctx, session.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -106,12 +100,13 @@ func (s *Service) FinishRegistration(ctx context.Context, username string, r *ht
 	}
 	// The first passkey on an instance is first-wins: two ceremonies that
 	// finish together can't both register an owner.
-	if err := s.store.AddFirstCredential(ctx, u.ID, *cred); err != nil {
+	if err := s.store.AddFirstCredential(ctx, u.ID, username, *cred); err != nil {
 		return nil, err
 	}
 	if err := s.store.SetCredentialLabel(ctx, u.ID, cred.ID, initialCredentialLabel); err != nil {
 		return nil, err
 	}
+	u.Username = username
 	u.Credentials = append(u.Credentials, *cred)
 
 	return u, nil

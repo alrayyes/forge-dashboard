@@ -86,3 +86,24 @@ func TestBeginRegistration_AfterAUserHoldsAPasskey_IsClosed(t *testing.T) {
 	_, getErr := store.GetUserByUsername(t.Context(), "alex")
 	assert.ErrorIs(t, getErr, auth.ErrNotFound, "a refused registration must not create an account")
 }
+
+// After the operator clears the passkeys, the user row is all that is left of
+// the owner, and the saved settings hang off its id. Registering again must
+// attach to that row, not delete it and make a new one, or the settings and
+// the webhook token are orphaned.
+func TestBeginRegistration_PasskeyLessUser_KeepsTheRowAndItsID(t *testing.T) {
+	t.Parallel()
+	svc, store := newTestService(t)
+
+	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+
+	for _, username := range []string{"ryan", "ryan-new"} {
+		_, err = svc.BeginRegistration(t.Context(), username, "Ryan")
+		require.NoError(t, err, username)
+	}
+
+	got, err := store.GetUserByUsername(t.Context(), "ryan")
+	require.NoError(t, err, "no second row appeared, and the username holds until a ceremony wins")
+	assert.Equal(t, owner.ID, got.ID, "the row, and so its id, must survive")
+}
