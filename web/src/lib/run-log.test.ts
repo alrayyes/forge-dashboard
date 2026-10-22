@@ -169,6 +169,27 @@ describe('logToCopy', () => {
     expect(got.kind).toBe('cut');
   });
 
+  test('an empty answer falls back to the excerpt and says the job wrote nothing', async () => {
+    const got = await logToCopy(
+      URL9,
+      'tail',
+      'GitHub',
+      respond(200, { text: '', truncated: false }),
+    );
+
+    expect(got).toEqual({
+      text: 'tail',
+      kind: 'excerpt',
+      why: 'The job wrote no output.',
+    });
+  });
+
+  test('gives its own reason when the url cannot be built', async () => {
+    const got = await logToCopy(null, '', 'GitHub', fetch, 'No repo.');
+
+    expect(got.why).toBe('No repo.');
+  });
+
   test('is the excerpt, with the reason, when the log cannot be read', async () => {
     const got = await logToCopy(URL9, 'tail', 'GitHub', respond(403, {}));
 
@@ -217,6 +238,19 @@ describe('copyStatus', () => {
     expect(copyStatus('copied', excerpt, 'GitHub')).toBe(
       'Copied the excerpt only. Gone.',
     );
+  });
+
+  test('a copy with nothing to put on the clipboard says so, with the reason', () => {
+    expect(
+      copyStatus('nothing', { text: '', kind: 'excerpt', why: 'Gone.' }, 'X'),
+    ).toBe('Nothing was copied. Gone.');
+  });
+
+  test('a selection fallback with no excerpt on screen does not point at one', () => {
+    const said = copyStatus('selected', whole, 'GitHub', false);
+
+    expect(said).not.toContain('excerpt');
+    expect(said).toContain('Open the run on GitHub');
   });
 
   test('a refused copy of a whole log says the full log was not copied', () => {
@@ -270,6 +304,36 @@ describe('copyPending', () => {
 
     expect(wrote).toEqual(['full']);
     expect(out.outcome).toBe('copied');
+  });
+
+  test('never writes empty text to the clipboard', async () => {
+    const wrote: string[] = [];
+    const items: Promise<string>[] = [];
+    const empty = Promise.resolve({
+      text: '',
+      kind: 'excerpt' as const,
+      why: 'Gone.',
+    });
+    const out = await copyPending(empty, {
+      clipboard: {
+        writeText: async (t) => {
+          wrote.push(t);
+        },
+        write: async (list) => {
+          for (const item of list)
+            items.push((item as { text: Promise<string> }).text);
+          await Promise.all(items);
+        },
+      },
+      makeItem: (text) => ({ text }),
+      select: () => {
+        throw new Error('not used');
+      },
+    });
+
+    expect(out.outcome).toBe('nothing');
+    expect(wrote).toEqual([]);
+    await expect(items[0]).rejects.toThrow();
   });
 
   test('selects the text itself when no clipboard works', async () => {

@@ -122,17 +122,15 @@ export async function logToCopy(
   excerpt: string,
   forgeName: string,
   fetchImpl: typeof fetch = fetch,
+  noUrlWhy = 'This check has no job to read a full log from.',
 ): Promise<Prepared> {
-  if (!url) {
-    return {
-      text: excerpt,
-      kind: 'excerpt',
-      why: 'This check has no job to read a full log from.',
-    };
-  }
+  if (!url) return { text: excerpt, kind: 'excerpt', why: noUrlWhy };
   const got = await loadRunLog(url, forgeName, fetchImpl);
-  if (got.ok) {
+  if (got.ok && got.text) {
     return { text: got.text, kind: got.truncated ? 'cut' : 'whole', why: '' };
+  }
+  if (got.ok) {
+    return { text: excerpt, kind: 'excerpt', why: 'The job wrote no output.' };
   }
 
   return { text: excerpt, kind: 'excerpt', why: got.message };
@@ -140,12 +138,17 @@ export async function logToCopy(
 
 // The sentence a copy earns, true to what is on the clipboard (or not).
 export function copyStatus(
-  outcome: 'copied' | 'selected',
+  outcome: CopyOutcome,
   prepared: Prepared,
   forgeName: string,
+  hasExcerpt = true,
 ): string {
   const only = prepared.kind === 'excerpt';
   const lost = only ? ` ${prepared.why}` : '';
+  if (outcome === 'nothing') return `Nothing was copied.${lost}`;
+  if (outcome === 'selected' && !hasExcerpt) {
+    return `Couldn't copy the log automatically. Open the run on ${forgeName} to read it.`;
+  }
   if (outcome === 'selected') {
     return only
       ? `Couldn't copy automatically. The excerpt is selected: press Ctrl+C.${lost}`
@@ -158,6 +161,10 @@ export function copyStatus(
 
   return 'Copied';
 }
+
+// 'nothing' is a copy that had no text to put on the clipboard; it never
+// touches the clipboard.
+export type CopyOutcome = 'copied' | 'selected' | 'nothing';
 
 export type PendingCopyDeps = {
   clipboard?: {
@@ -174,13 +181,22 @@ export type PendingCopyDeps = {
 
 // Copies what `pending` resolves to. The clipboard write is handed the promise
 // first; where that is missing or refused, the same text is copied once known.
+// That second try runs after the read, outside the click's user activation, so
+// a browser that needs the activation may refuse it and leave the text selected.
 export async function copyPending(
   pending: Promise<Prepared>,
   deps: PendingCopyDeps,
-): Promise<{ outcome: 'copied' | 'selected'; prepared: Prepared }> {
+): Promise<{ outcome: CopyOutcome; prepared: Prepared }> {
   if (deps.clipboard?.write && deps.makeItem) {
     try {
-      await deps.clipboard.write([deps.makeItem(pending.then((p) => p.text))]);
+      // An empty answer rejects the item, so the write fails and the clipboard
+      // keeps what it held.
+      const text = pending.then((p) => {
+        if (!p.text) throw new Error('nothing to copy');
+
+        return p.text;
+      });
+      await deps.clipboard.write([deps.makeItem(text)]);
 
       return { outcome: 'copied', prepared: await pending };
     } catch {
@@ -188,6 +204,7 @@ export async function copyPending(
     }
   }
   const prepared = await pending;
+  if (!prepared.text) return { outcome: 'nothing', prepared };
   const outcome = await copyLog(prepared.text, {
     clipboard: deps.clipboard,
     select: () => deps.select(prepared.text),

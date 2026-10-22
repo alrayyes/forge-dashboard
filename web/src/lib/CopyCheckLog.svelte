@@ -26,6 +26,7 @@
   let status = $state("");
   let busy = $state(false);
   let pre = $state<HTMLPreElement>();
+  let button = $state<HTMLButtonElement>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let gone = false;
 
@@ -50,7 +51,9 @@
     field.value = text;
     field.setAttribute("readonly", "");
     field.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-    document.body.append(field);
+    // Inside the modal dialog: the page outside it is inert, and an inert field
+    // can't be copied from.
+    (button?.closest("dialog") ?? document.body).append(field);
     // Selecting the field would take focus from the button; give it back.
     const focused = document.activeElement;
     field.select();
@@ -78,30 +81,42 @@
     if (busy) return;
     busy = true;
     say("Copying", false);
-    // The clipboard write starts here, inside the click, with the log still
-    // being read.
-    const pending = logToCopy(
-      jobId ? logUrl(checksUrl, jobId) : null,
-      excerpt,
-      forgeName,
-    );
-    const { outcome, prepared } = await copyPending(pending, {
-      clipboard: navigator.clipboard,
-      makeItem:
-        typeof ClipboardItem === "undefined"
-          ? undefined
-          : (text) =>
-              new ClipboardItem({
-                "text/plain": text.then(
-                  (t) => new Blob([t], { type: "text/plain" }),
-                ),
-              }),
-      select: selectCopy,
-    });
-    // The check may have gone while the log was read.
-    if (gone) return;
-    busy = false;
-    say(copyStatus(outcome, prepared, forgeName), true);
+    let said = "Couldn't copy the log.";
+    try {
+      // The clipboard write starts here, inside the click, with the log still
+      // being read.
+      const pending = logToCopy(
+        jobId ? logUrl(checksUrl, jobId) : null,
+        excerpt,
+        forgeName,
+        fetch,
+        jobId
+          ? "Couldn't tell which repository this check belongs to."
+          : undefined,
+      );
+      const { outcome, prepared } = await copyPending(pending, {
+        clipboard: navigator.clipboard,
+        makeItem:
+          typeof ClipboardItem === "undefined"
+            ? undefined
+            : (text) =>
+                new ClipboardItem({
+                  "text/plain": text.then(
+                    (t) => new Blob([t], { type: "text/plain" }),
+                  ),
+                }),
+        select: selectCopy,
+      });
+      said = copyStatus(outcome, prepared, forgeName, !!excerpt);
+    } catch {
+      // keep the generic line
+    } finally {
+      // A removed row has no status left to show; there is nothing to announce.
+      if (!gone) {
+        busy = false;
+        say(said, true);
+      }
+    }
   }
 </script>
 
@@ -117,6 +132,7 @@
 {#if copyable}
   <div class="pipeline-check-copy">
     <button
+      bind:this={button}
       type="button"
       class="pipeline-check-link"
       aria-disabled={busy ? "true" : undefined}

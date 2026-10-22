@@ -190,7 +190,9 @@
     if (event.target === dialog) dialog.close();
   }
 
-  // A failed check shows Copy log when there is a log to read (its job) or an
+  // Only failed and timed-out checks carry a log excerpt from the server, and
+  // a cancelled run is not a failure to debug (View run still opens its output),
+  // so those two states alone get the button. A failed check shows Copy log when there is a log to read (its job) or an
   // excerpt to copy, and a board to name the forge for the message.
   function copyableLog(check: Check): boolean {
     return (
@@ -244,6 +246,7 @@
     <!-- Keyed by name, and the nth of a shared name: two jobs can share a name
          with no page. -->
     {#each items as check (keyOf.get(check))}
+      {@const copyable = copyableLog(check)}
       <li class="pipeline-check">
         <span class="pipeline-check-status {check.state}">
           {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}
@@ -298,14 +301,14 @@
         {#if check.failedStep}
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
         {/if}
-        {#if check.excerpt || copyableLog(check)}
+        {#if check.excerpt || copyable}
           <CopyCheckLog
             name={check.name}
             jobId={check.jobId}
             checksUrl={target?.checksUrl ?? ""}
             excerpt={check.excerpt ?? ""}
             forgeName={target ? forgeLabel(target) : "the forge"}
-            copyable={copyableLog(check)}
+            {copyable}
           />
         {/if}
       </li>

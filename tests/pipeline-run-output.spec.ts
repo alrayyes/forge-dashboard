@@ -244,6 +244,30 @@ test.describe('a check run output in the pipeline dialog', () => {
     );
   });
 
+  test('a failed job with no excerpt and an unreadable log copies nothing and says why', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, { status: 404, body: {} }, [
+      { name: 'build', state: 'failure', url: runUrl, jobId: 9 },
+    ]);
+    await page.evaluate(() => navigator.clipboard.writeText('keep me'));
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'Nothing was copied',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'keep me',
+    );
+    await expect(
+      dialog.getByRole('button', { name: 'Copy log: build' }),
+    ).not.toHaveAttribute('aria-disabled');
+  });
+
   test('a failed check with no job and no excerpt has nothing to copy', async ({
     page,
   }) => {
