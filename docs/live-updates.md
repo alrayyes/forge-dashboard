@@ -218,11 +218,13 @@ take a share of it, so a pick is also held to 1000 characters as that cookie
 writes it; labels in a script that takes several
 bytes a letter run out of room sooner, and the page stops ticking more once
 the room is gone. A saved pick over any of these limits is cut down to fit
-when the page loads. If the server still refuses a save, the page says the
-filter was not saved and does not send it again by itself. The pick is saved
-in the same field as before, the labels in lowercase one after another. A page
-that doesn't offer one of the saved labels leaves it saved and says so, as it
-does for any other filter.
+when the page loads. That includes a pick saved by an earlier build, which
+allowed up to 2000 characters as the cookie writes it: one over 1000 is cut to
+fit without a notice, so tick the rest again. If the server still refuses a
+save, the page says the filter was not saved and does not send it again by
+itself. The pick is saved in the same field as before, the labels in
+lowercase one after another. A page that doesn't offer one of the saved labels
+leaves it saved and says so, as it does for any other filter.
 
 ## The repo and author filters
 
@@ -238,7 +240,10 @@ picked repo is named with its forge in the button and the chip ("acme/web
 
 An author matches on the whole login, in any case. The filter used to match
 any login that contained the saved text, so a saved `ann` also showed
-`annabel`; it no longer does, and the list offers whole logins to tick.
+`annabel`; it no longer does, and the list offers whole logins to tick. A
+partial login saved by hand, such as `ren` for `renovate[bot]`, is not on offer
+either, so it is set aside and named under the filter bar with a Clear button,
+and it is dropped for good once you change the author control.
 
 Each repo shows its own logo and each author their avatar beside the name, in
 the choices and on the chips below the search on a phone. When there is no
@@ -266,7 +271,9 @@ the page that does. The page says so under the filter bar (`Saved author
 ends the saved choice too. Changing that control on the page ends it as well.
 Text typed in the title search or the hide-titles pattern is sent to the
 server half a second after the last key, and at once when you leave the page
-or switch tab, so a value typed just before leaving is kept.
+or switch tab, so a value typed just before leaving is kept. The title search
+stops at 200 characters, so a long search cannot crowd the picks out of the
+cookie.
 Each save carries a revision number, in the cookie and in the server copy. When
 a page loads, the server copy is applied unless the cookie holds a newer
 revision, so a value typed just before a reload is not replaced by an older

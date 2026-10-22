@@ -25,6 +25,16 @@ The system SHALL let a user pick several repos and several authors in the shared
 - **WHEN** an author is picked or saved, for example `ann`
 - **THEN** items by `ann` show in any case, and items by `annabel` do not, where the filter used to match any login containing the saved text
 
+#### Scenario: A partial login saved by hand
+
+- **WHEN** the saved author is a part of a login, for example `ren` for `renovate[bot]`
+- **THEN** it is not on offer, so it is set aside and named under the filter bar with a Clear button, and it is dropped once the author control changes
+
+#### Scenario: A saved pick over the new budget
+
+- **WHEN** a pick saved by an earlier build is longer than 1000 characters as the cookie writes it
+- **THEN** it is cut to fit when the page loads, without a notice
+
 #### Scenario: A repo on two forges
 
 - **WHEN** a repo name exists on two forges
