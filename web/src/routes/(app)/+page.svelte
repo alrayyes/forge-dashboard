@@ -45,6 +45,9 @@
     httpHref,
     advisoryPill,
     advisoryCoverage,
+    advisoryCounts,
+    offeredAdvisories,
+    type AdvisoryFilter,
     advisoryUnknownReason,
     advisoryReasonNeedsGrant,
     ADVISORY_REASON_TEXT,
@@ -81,6 +84,8 @@
   // something, and the active one stays (#1427).
   const statusOffered = $derived(offeredStatuses(branches, filter));
   const forgeOffered = $derived(offeredForges(branches, filter));
+  const advisoryOffered = $derived(offeredAdvisories(branches, filter));
+  const advisoryTally = $derived(advisoryCounts(branches));
   const advisoryState = $derived(advisoryCoverage(branches));
   const advisoryReason = $derived(advisoryUnknownReason(branches));
   const staleSplit = $derived(
@@ -293,13 +298,17 @@
     filter.forge = forge;
     save(["forge"]);
   }
+  function setAdvisories(advisories: AdvisoryFilter) {
+    filter.advisories = advisories;
+    save(["advisories"]);
+  }
   function setQuery(event: Event) {
     filter.query = (event.currentTarget as HTMLInputElement).value;
     save(["query"], true);
   }
   function reset() {
     filter = { ...DEFAULT_FILTER };
-    save(["status", "forge", "query"]);
+    save(["status", "forge", "advisories", "query"]);
   }
 
   function listed(b: MainBranch): string {
@@ -443,6 +452,11 @@
     .mb-search:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
+    }
+    .mb-left-out {
+      align-self: center;
+      font-size: 12px;
+      color: var(--ink-muted);
     }
     .mb-count {
       font-size: 12px;
@@ -850,6 +864,36 @@
             >
           {/each}
         </div>
+        {#if advisoryOffered.size > 1}
+          <div class="mb-group" role="group" aria-label="Filter by advisories">
+            <button
+              type="button"
+              class="mb-pill"
+              aria-pressed={filter.advisories === "all"}
+              onclick={() => setAdvisories("all")}>Any advisories</button
+            >
+            {#each [["has", "Has advisories"], ["none", "No advisories"]] as const as [key, label] (key)}
+              {#if advisoryOffered.has(key)}
+                <button
+                  type="button"
+                  class="mb-pill"
+                  aria-pressed={filter.advisories === key}
+                  onclick={() => setAdvisories(key)}
+                  >{label}
+                  <span class="mb-count">{advisoryTally[key]}</span></button
+                >
+              {/if}
+            {/each}
+            {#if advisoryTally.unknown > 0}
+              <span class="mb-left-out" data-testid="advisory-filter-unknown"
+                >{advisoryTally.unknown}
+                {advisoryTally.unknown === 1
+                  ? "branch with unknown advisories is"
+                  : "branches with unknown advisories are"} in neither choice</span
+              >
+            {/if}
+          </div>
+        {/if}
         <input
           type="search"
           class="mb-search"

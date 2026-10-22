@@ -11,7 +11,7 @@ export interface SharedFilterState {
   // paused ('1' = hold live updates). Kept apart from shared/pr/issue so
   // "Clear filters" never resets them.
   view: Record<string, string>;
-  // The Branches page's status, forge and search (#1620). Optional so a
+  // The Branches page's status, forge, advisories and search (#1620). Optional so a
   // state built without it, or a saved copy from before it existed, still
   // reads as "nothing set".
   branches?: Record<string, string>;

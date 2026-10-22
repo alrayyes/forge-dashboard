@@ -47,6 +47,7 @@ describe('the Branches filter as saved state', () => {
     const filter = {
       status: 'failed',
       forge: 'forgejo',
+      advisories: 'has',
       query: 'Wiki',
     } as const;
     expect(filterFromState(filterToState(filter))).toEqual(filter);
@@ -85,7 +86,14 @@ describe('the Branches filter as saved state', () => {
   test('a stale or hand-edited value reads as its default', () => {
     expect(
       filterFromState({ status: 'bogus', forge: 'svn', query: 'x' }),
-    ).toEqual({ status: 'all', forge: 'all', query: 'x' });
+    ).toEqual({ status: 'all', forge: 'all', advisories: 'all', query: 'x' });
+  });
+
+  test('the advisories choice is kept, and a stale one reads as any', () => {
+    expect(filterFromState({ advisories: 'has' }).advisories).toBe('has');
+    expect(filterFromState({ advisories: 'none' }).advisories).toBe('none');
+    expect(filterFromState({ advisories: 'some' }).advisories).toBe('all');
+    expect(filterFromState({}).advisories).toBe('all');
   });
 
   test('a query is kept as typed, mixed case included, up to 200 characters', () => {
@@ -103,6 +111,7 @@ describe('saving and restoring it', () => {
     branches: filterToState({
       status: 'failed',
       forge: 'github',
+      advisories: 'all',
       query: 'api',
     }),
   });
@@ -112,6 +121,7 @@ describe('saving and restoring it', () => {
     expect(loadState().branches).toEqual({
       status: 'failed',
       forge: 'github',
+      advisories: 'all',
       query: 'api',
     });
     expect(puts).toHaveLength(1);
@@ -133,6 +143,7 @@ describe('saving and restoring it', () => {
     expect(filterFromState(state.branches)).toEqual({
       status: 'running',
       forge: 'all',
+      advisories: 'all',
       query: 'x',
     });
   });
