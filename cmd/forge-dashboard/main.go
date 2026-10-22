@@ -29,6 +29,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/osv"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/alrayyes/forge-dashboard/internal/singleuser"
@@ -531,6 +532,8 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 // change that follows.
 
 func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(userID []byte, c settings.Credentials) []dashboard.Source {
+	scanner := newAdvisoryScanner(os.Getenv("OSV_ADVISORIES"))
+
 	return func(_ []byte, c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
@@ -544,6 +547,7 @@ func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Wri
 			// nothing configured for Forgejo at all
 		case c.ForgejoToken != "":
 			client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "", recorder)
+			client.SetAdvisoryScanner(scanner)
 			client.SetStats(stats, apistats.TokenCredential(c.ForgejoToken))
 			if c.WebhookToken != "" {
 				client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
@@ -551,12 +555,29 @@ func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Wri
 			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 		case c.ForgejoUsername != "":
 			client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, recorder)
+			client.SetAdvisoryScanner(scanner)
 			client.SetStats(stats, apistats.AccountCredential(c.ForgejoUsername))
 			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 		}
 
 		return sources
 	}
+}
+
+// newAdvisoryScanner returns the OSV client that matches Forgejo lockfiles
+// against known advisories, or nil when OSV_ADVISORIES switches it off (off,
+// false or 0). Leaving it on sends the package names and versions in each
+// repo's lockfiles to api.osv.dev; nothing else leaves. It is one client for
+// every source, so what it learns about an advisory is kept across refreshes.
+// A nil result is a plain nil, not a typed one, so the forge client sees no
+// scanner at all.
+func newAdvisoryScanner(setting string) forgejo.AdvisoryScanner {
+	switch strings.ToLower(strings.TrimSpace(setting)) {
+	case "off", "false", "0":
+		return nil
+	}
+
+	return osv.NewClient(osv.BaseURL, nil)
 }
 
 // schemaPinger is /readyz's database check: the connection answers and the
