@@ -169,8 +169,8 @@ so that rebuild refuses them, whether or not the owner has rows in the same
 table. The message names the table and the user ids and gives the `DELETE` that
 clears them. Copy the database file, run it, and start again. Nothing is deleted
 for you. The sign-in rebuild treats sessions, API tokens and passkey labels of an
-unknown user the same way, unless the earlier release's cleanup ran on this
-database (it leaves a `single_user_cleanup` table). That cleanup removed such
+unknown user the same way, unless the earlier release's clean-up ran on this
+database (it leaves a `single_user_cleanup` table). That clean-up removed such
 rows without a word, so there the rebuild drops them and logs the table, the
 count and the user ids.
 
@@ -179,7 +179,7 @@ registration after the extra users were removed, are not an error: the owner
 wins, and the log has one warning per table with the dropped row count and the
 user ids. Those rows survive only in the copy. The log never holds a token or a
 session value. The owner is the oldest user who holds a passkey, the same user
-the earlier cleanup keeps, or the oldest user when none holds one.
+the earlier clean-up keeps, or the oldest user when none holds one.
 
 The earlier release keeps the oldest user who holds a passkey. If the database
 has several users and none holds a passkey, that release has nothing to keep and
@@ -191,9 +191,9 @@ from `users` and their rows (copy the file first), then start again. A settings
 table that already holds rows beside the old one stops the upgrade, so nothing
 is overwritten.
 
-The earlier cleanup deleted a removed user's sessions and API tokens with the
+The earlier clean-up deleted a removed user's sessions and API tokens with the
 user. Once this version has rebuilt those tables they carry no user, so a later
-cleanup can no longer revoke them by user. This version has no second user to
+clean-up can no longer revoke them by user. This version has no second user to
 remove, so run the earlier release first, as above.
 
 Delete the copy once you are satisfied; the server never does. A start that
