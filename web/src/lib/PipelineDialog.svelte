@@ -190,6 +190,16 @@
     if (event.target === dialog) dialog.close();
   }
 
+  // A failed check shows Copy log when there is a log to read (its job) or an
+  // excerpt to copy, and a board to name the forge for the message.
+  function copyableLog(check: Check): boolean {
+    return (
+      (check.state === "failure" || check.state === "timed_out") &&
+      !!target?.checksUrl &&
+      (!!check.jobId || !!check.excerpt)
+    );
+  }
+
   // The forge's name for a board that doesn't name it: the checks url carries
   // the forge.
   function forgeLabel(t: PipelineTarget): string {
@@ -288,14 +298,14 @@
         {#if check.failedStep}
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
         {/if}
-        {#if check.excerpt}
+        {#if check.excerpt || copyableLog(check)}
           <CopyCheckLog
             name={check.name}
             jobId={check.jobId}
             checksUrl={target?.checksUrl ?? ""}
-            excerpt={check.excerpt}
+            excerpt={check.excerpt ?? ""}
             forgeName={target ? forgeLabel(target) : "the forge"}
-            copyable={check.state === "failure" || check.state === "timed_out"}
+            copyable={copyableLog(check)}
           />
         {/if}
       </li>

@@ -19,7 +19,7 @@
     checksUrl: string;
     excerpt: string;
     forgeName: string;
-    // Only a failed check has a log worth copying.
+    // Only a failed check with something to copy shows the button.
     copyable: boolean;
   } = $props();
 
@@ -27,15 +27,21 @@
   let busy = $state(false);
   let pre = $state<HTMLPreElement>();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let gone = false;
 
-  function say(text: string) {
-    status = text;
+  // The line a finished copy earns goes stale after a while; the check may have
+  // changed since. A copy still under way is not timed, and starting one drops
+  // the older line's timer, so it can never clear the newer line.
+  function say(text: string, final: boolean) {
     clearTimeout(timer);
-    // A line from a copy goes stale; the check may have changed since.
-    timer = setTimeout(() => (status = ""), 10000);
+    status = text;
+    if (final) timer = setTimeout(() => (status = ""), 10000);
   }
 
-  onDestroy(() => clearTimeout(timer));
+  onDestroy(() => {
+    gone = true;
+    clearTimeout(timer);
+  });
 
   // Copies `text` through the page selection, in a field of its own so the
   // whole text lands whatever the excerpt on screen holds.
@@ -45,6 +51,8 @@
     field.setAttribute("readonly", "");
     field.style.cssText = "position:fixed;top:0;left:0;opacity:0";
     document.body.append(field);
+    // Selecting the field would take focus from the button; give it back.
+    const focused = document.activeElement;
     field.select();
     let done = false;
     try {
@@ -53,6 +61,7 @@
       done = false;
     }
     field.remove();
+    if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
     if (!done && pre) {
       // Leave the excerpt selected for the person to copy by hand.
       const range = document.createRange();
@@ -68,7 +77,7 @@
   async function copy() {
     if (busy) return;
     busy = true;
-    say("Copying");
+    say("Copying", false);
     // The clipboard write starts here, inside the click, with the log still
     // being read.
     const pending = logToCopy(
@@ -89,25 +98,29 @@
               }),
       select: selectCopy,
     });
+    // The check may have gone while the log was read.
+    if (gone) return;
     busy = false;
-    say(copyStatus(outcome, prepared, forgeName));
+    say(copyStatus(outcome, prepared, forgeName), true);
   }
 </script>
 
-<!-- It scrolls, so it takes focus to be reachable from the keyboard. -->
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-<pre
-  bind:this={pre}
-  class="pipeline-check-excerpt"
-  tabindex="0"
-  aria-label="Log excerpt: {name}">{excerpt}</pre>
+{#if excerpt}
+  <!-- It scrolls, so it takes focus to be reachable from the keyboard. -->
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <pre
+    bind:this={pre}
+    class="pipeline-check-excerpt"
+    tabindex="0"
+    aria-label="Log excerpt: {name}">{excerpt}</pre>
+{/if}
 {#if copyable}
   <div class="pipeline-check-copy">
     <button
       type="button"
       class="pipeline-check-link"
-      aria-disabled={busy}
-      aria-busy={busy}
+      aria-disabled={busy ? "true" : undefined}
+      aria-busy={busy ? "true" : undefined}
       onclick={copy}
       aria-label="Copy log: {name}">Copy log</button
     >

@@ -205,6 +205,14 @@ describe('copyStatus', () => {
     );
   });
 
+  test('a cut log reads as a copy, not as a view', () => {
+    const said = copyStatus('copied', { ...whole, kind: 'cut' }, 'GitHub');
+
+    expect(said).toContain('Copied the last 256 KB');
+    expect(said).not.toContain('Showing');
+    expect(said).toContain('Open the run on GitHub');
+  });
+
   test('an excerpt says it is only the excerpt, and why', () => {
     expect(copyStatus('copied', excerpt, 'GitHub')).toBe(
       'Copied the excerpt only. Gone.',

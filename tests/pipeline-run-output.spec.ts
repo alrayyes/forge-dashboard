@@ -23,6 +23,16 @@ const runUrl = 'https://github.com/alrayyes/forge-dashboard/runs/9';
 async function setup(
   page: Page,
   log: { status: number; body: unknown },
+  checks: unknown[] = [
+    {
+      name: 'build',
+      state: 'failure',
+      url: runUrl,
+      jobId: 9,
+      excerpt: 'boom: exit 1',
+    },
+    { name: 'lint', state: 'success', url: `${runUrl}0` },
+  ],
 ): Promise<string[]> {
   const asked: string[] = [];
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -42,18 +52,7 @@ async function setup(
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        checks: [
-          {
-            name: 'build',
-            state: 'failure',
-            url: runUrl,
-            jobId: 9,
-            excerpt: 'boom: exit 1',
-          },
-          { name: 'lint', state: 'success', url: `${runUrl}0` },
-        ],
-      }),
+      body: JSON.stringify({ checks }),
     }),
   );
   await page.route('**/api/checks/log*', (route: Route) => {
@@ -220,6 +219,42 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       'boom: exit 1',
     );
+  });
+
+  test('a failed job with no excerpt still has Copy log, and no excerpt box', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(
+      page,
+      { status: 200, body: { text: 'whole log\n', truncated: false } },
+      [{ name: 'build', state: 'failure', url: runUrl, jobId: 9 }],
+    );
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      'Copied',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'whole log\n',
+    );
+  });
+
+  test('a failed check with no job and no excerpt has nothing to copy', async ({
+    page,
+  }) => {
+    await setup(page, { status: 200, body: {} }, [
+      { name: 'build', state: 'failure', url: runUrl },
+    ]);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(
+      dialog.getByRole('button', { name: 'Copy log: build' }),
+    ).toHaveCount(0);
   });
 
   test('a passed check has no Copy log button', async ({ page }) => {

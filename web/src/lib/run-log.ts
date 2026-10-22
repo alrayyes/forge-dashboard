@@ -153,7 +153,7 @@ export function copyStatus(
   }
   if (only) return `Copied the excerpt only.${lost}`;
   if (prepared.kind === 'cut') {
-    return `Copied the last ${KEPT_KB} KB of the log. ${notePlaces(forgeName)}`;
+    return `Copied the last ${KEPT_KB} KB of the log, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`;
   }
 
   return 'Copied';
