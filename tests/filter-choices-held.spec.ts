@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { choicesOf } from './label-filter-helper';
+import { choicesOf, pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1427: the Author, Repo and Label choices name only what the list on screen
@@ -121,14 +121,14 @@ test('choices stay with the list on screen while updates are paused', async ({
   await expect(page.locator('#updates-paused-hint')).toBeVisible();
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
-  expect(await choices(page, 'shared-author-select')).toEqual(['alrayyes']);
-  expect(await choices(page, 'shared-repo-select')).toEqual(['alrayyes/app']);
+  expect(await choices(page, 'shared-author-filter')).toEqual(['alrayyes']);
+  expect(await choices(page, 'shared-repo-filter')).toEqual(['alrayyes/app']);
   expect(await choices(page, 'shared-label-filter')).toEqual(['bug']);
 
   // Resuming lands the new row, and its choices arrive with it.
   await page.getByRole('button', { name: 'Pause live updates' }).click();
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-  expect(await choices(page, 'shared-author-select')).toEqual([
+  expect(await choices(page, 'shared-author-filter')).toEqual([
     'alrayyes',
     'claude',
   ]);
@@ -145,7 +145,7 @@ test('choices follow the list when a held list lands by a sort change', async ({
   // Sorting applies what waited, and the choices describe it.
   await page.getByLabel('Sort pull requests by').selectOption('created');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-  expect(await choices(page, 'shared-author-select')).toEqual([
+  expect(await choices(page, 'shared-author-filter')).toEqual([
     'alrayyes',
     'claude',
   ]);
@@ -158,11 +158,11 @@ test('choices follow the list when the pointer leaves a held list', async ({
   await page.locator('#pr-rows .row').first().hover();
   await page.evaluate((data) => window.__push(data), snapshot(NEWER));
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  expect(await choices(page, 'shared-author-select')).toEqual(['alrayyes']);
+  expect(await choices(page, 'shared-author-filter')).toEqual(['alrayyes']);
 
   await page.mouse.move(2, 2);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-  expect(await choices(page, 'shared-author-select')).toEqual([
+  expect(await choices(page, 'shared-author-filter')).toEqual([
     'alrayyes',
     'claude',
   ]);
@@ -180,12 +180,12 @@ test('the Issues page keeps its choices with the list while updates are paused',
   await expect(page.locator('#updates-paused-hint')).toBeVisible();
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
-  expect(await choices(page, 'shared-author-select')).toEqual(['alrayyes']);
-  expect(await choices(page, 'shared-repo-select')).toEqual(['alrayyes/app']);
+  expect(await choices(page, 'shared-author-filter')).toEqual(['alrayyes']);
+  expect(await choices(page, 'shared-repo-filter')).toEqual(['alrayyes/app']);
 
   await page.getByRole('button', { name: 'Pause live updates' }).click();
   await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
-  expect(await choices(page, 'shared-author-select')).toEqual([
+  expect(await choices(page, 'shared-author-filter')).toEqual([
     'alrayyes',
     'claude',
   ]);
@@ -223,7 +223,7 @@ test('a saved pick only the held list has is kept when the saved copy arrives', 
   // The copy lands the held list, claude's pull request is in it, so the pick
   // stays and is not saved as cleared.
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  await expect(page.locator('#shared-author-select')).toHaveValue('claude');
+  await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
 });
 
 test('the Issues list lands too when the saved copy meets a paused view', async ({
@@ -263,14 +263,14 @@ test('the Issues list lands too when the saved copy meets a paused view', async 
   // page: claude's issue is only in it, so the pick stays and shows it.
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
   await expect(page.locator('#issue-rows')).toContainText('Issue 2');
-  await expect(page.locator('#shared-author-select')).toHaveValue('claude');
+  await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
 });
 
 test('a pick the landed list no longer offers is cleared and the list shows again', async ({
   page,
 }) => {
   await open(page, '/pull-requests.html', NEWER);
-  await page.locator('#shared-author-select').selectOption('claude');
+  await pickOnly(page, 'author', 'claude');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   await page.getByRole('button', { name: 'Pause live updates' }).click();
 
@@ -278,7 +278,7 @@ test('a pick the landed list no longer offers is cleared and the list shows agai
   await expect(page.locator('#updates-paused-hint')).toBeVisible();
   await page.getByRole('button', { name: 'Pause live updates' }).click();
 
-  await expect(page.locator('#shared-author-select')).toHaveValue('');
+  await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 });
 

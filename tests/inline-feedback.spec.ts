@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
@@ -607,7 +608,7 @@ test.describe('inline feedback and a saved filter', () => {
   }) => {
     await setup(page, [makePR(1), makePR(2, { author: 'alice' }), makePR(3)]);
     await updateBranch(rowFor(page, 2));
-    await page.selectOption('#shared-author-select', 'claude');
+    await pickOnly(page, 'author', 'claude');
     await expect(rowFor(page, 2)).toHaveCount(0);
 
     await toasts(page)
@@ -615,7 +616,7 @@ test.describe('inline feedback and a saved filter', () => {
       .getByRole('button', { name: 'Show row' })
       .click();
 
-    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     await expect(rowFor(page, 2)).toBeFocused();
     await expect(page.locator('#feedback-live')).toContainText(
       'Cleared the Author filter',

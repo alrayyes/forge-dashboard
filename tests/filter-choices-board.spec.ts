@@ -81,7 +81,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
   }) => {
     await open(page);
 
-    expect(await choices(page, 'shared-author-select')).toEqual([
+    expect(await choices(page, 'shared-author-filter')).toEqual([
       'alice',
       'bob',
     ]);
@@ -96,9 +96,9 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     await pill(page, 'Failing CI').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
-    expect(await choices(page, 'shared-author-select')).toEqual(['alice']);
+    expect(await choices(page, 'shared-author-filter')).toEqual(['alice']);
     expect(await choices(page, 'shared-label-filter')).toEqual(['bug']);
-    expect(await choices(page, 'shared-repo-select')).toEqual(['alrayyes/app']);
+    expect(await choices(page, 'shared-repo-filter')).toEqual(['alrayyes/app']);
   });
 
   test('the Passing CI pill leaves out what its other states have', async ({
@@ -109,9 +109,9 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     await pill(page, 'Passing CI').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
-    expect(await choices(page, 'shared-author-select')).toEqual(['bob']);
+    expect(await choices(page, 'shared-author-filter')).toEqual(['bob']);
     expect(await choices(page, 'shared-label-filter')).toEqual(['docs']);
-    expect(await choices(page, 'shared-repo-select')).toEqual(['alrayyes/lib']);
+    expect(await choices(page, 'shared-repo-filter')).toEqual(['alrayyes/lib']);
   });
 
   test('the Auto-merge filter leaves out what pull requests without it have', async ({
@@ -122,7 +122,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     await page.locator('.filter-bar > .am-group [data-am="on"]').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
-    expect(await choices(page, 'shared-author-select')).toEqual(['alice']);
+    expect(await choices(page, 'shared-author-filter')).toEqual(['alice']);
     expect(await choices(page, 'shared-label-filter')).toEqual(['bug']);
   });
 
@@ -136,7 +136,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
     await pill(page, 'All').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-    expect(await choices(page, 'shared-author-select')).toEqual([
+    expect(await choices(page, 'shared-author-filter')).toEqual([
       'alice',
       'bob',
     ]);

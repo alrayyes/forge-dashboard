@@ -1,5 +1,12 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { clearLabels, pickedLabels, toggleLabels } from './label-filter-helper';
+import {
+  clearLabels,
+  pickedLabels,
+  pickedValues,
+  pickOnly,
+  toggleLabels,
+  togglePicks,
+} from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1713: the saved filters come from the cookie, read at once, and from the
@@ -95,7 +102,7 @@ async function expectCopyApplied(
 ) {
   await expect.poll(() => pickedLabels(page)).toEqual(['bug']);
   if (edited !== 'author')
-    await expect(page.locator('#shared-author-select')).toHaveValue('ryan');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual(['ryan']);
   if (edited !== 'title')
     await expect(page.locator('input[data-col="title"]')).toHaveValue('issue');
   if (edited !== 'regex')
@@ -164,11 +171,13 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     await page.goto('/issues.html');
     await expect(issueRows(page)).toHaveCount(3);
     await copy.requested;
-    await page.locator('#shared-author-select').selectOption('');
+    // Ticked and unticked: the person's own change, so the copy leaves it.
+    await togglePicks(page, 'author', 'ryan');
+    await togglePicks(page, 'author', 'ryan');
     copy.release();
 
     await expectCopyApplied(page, 'author');
-    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     await expect
       .poll(async () => {
         const saved = await savedCopy(page);
@@ -245,7 +254,7 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     copy.release();
 
     await expect.poll(() => pickedLabels(page)).toEqual([]);
-    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     await expect(issueRows(page)).toHaveCount(3);
     await expect
       .poll(async () => {

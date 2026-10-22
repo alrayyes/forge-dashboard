@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { toggleLabels } from './label-filter-helper';
+import { pickOnly, toggleLabels } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // A filter save the server turns away used to vanish without a word. The page
@@ -50,7 +50,7 @@ test('a refused filter save is reported on the page', async ({ page }) => {
     return route.fulfill({ status: 400, body: '{"error":"too many labels"}' });
   });
 
-  await page.locator('#shared-author-select').selectOption('ryan');
+  await pickOnly(page, 'author', 'ryan');
   await expect(page.locator('#filter-save-refused')).toBeVisible();
   await expect(page.locator('#filter-save-refused')).toContainText('not saved');
 });

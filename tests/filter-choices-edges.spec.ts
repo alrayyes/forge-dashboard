@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { choicesOf } from './label-filter-helper';
+import { choicesOf, pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // The edges of #1427 the first review of its fix found: the choices must match
@@ -142,15 +142,15 @@ test('a held list that emptied offers no choices from the newer snapshot', async
   // The sheet holds the list: it still shows nothing.
   await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
 
-  expect(await choices(page, 'shared-author-select')).toEqual([]);
-  expect(await choices(page, 'shared-repo-select')).toEqual([]);
+  expect(await choices(page, 'shared-author-filter')).toEqual([]);
+  expect(await choices(page, 'shared-repo-filter')).toEqual([]);
 });
 
 test('a pick the sort-landed list lacks is cleared once, and the rows agree', async ({
   page,
 }) => {
   await open(page, TWO);
-  await page.locator('#shared-author-select').selectOption('claude');
+  await pickOnly(page, 'author', 'claude');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   await page.getByRole('button', { name: 'Pause live updates' }).click();
   await push(page, ONE);
@@ -167,7 +167,7 @@ test('a pick the sort-landed list lacks is cleared once, and the rows agree', as
   });
   await page.getByLabel('Sort pull requests by').selectOption('created');
 
-  await expect(page.locator('#shared-author-select')).toHaveValue('');
+  await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   await expect(page.locator('#pr-rows .row').first()).toContainText(
     'Pull request 1',
@@ -202,9 +202,9 @@ test('a saved pick the first list lacks is set aside and the list shows', async 
   });
   await open(page);
 
-  await expect(page.locator('#shared-author-select')).toHaveValue('');
+  await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  expect(await choices(page, 'shared-author-select')).toEqual(['alrayyes']);
+  expect(await choices(page, 'shared-author-filter')).toEqual(['alrayyes']);
 });
 
 test('a first snapshot held by the open Filters sheet still offers its choices', async ({
@@ -230,7 +230,7 @@ test('a first snapshot held by the open Filters sheet still offers its choices',
   // The sheet holds the list, so nothing is drawn yet, and nothing has
   // landed for the choices to follow: they come from the snapshot.
   await expect
-    .poll(() => choices(page, 'shared-author-select'))
+    .poll(() => choices(page, 'shared-author-filter'))
     .toEqual(['alrayyes', 'claude']);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(0);
 });

@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // Show row on a pull request that the CI pill or auto-merge filter hides
@@ -70,9 +71,7 @@ async function queueOnFirst(page: Page) {
 }
 
 async function filtersByAuthor(page: Page) {
-  await page
-    .locator('.filter-bar .col-filter[data-col="author"]')
-    .selectOption('claude');
+  await pickOnly(page, 'author', 'claude');
 }
 
 async function showRow(page: Page) {
@@ -109,9 +108,7 @@ test.describe('Show row clears the filter that hides the row', () => {
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(titles(page)).toHaveCount(2);
     // Only what hid the row is cleared.
-    await expect(
-      page.locator('.filter-bar .col-filter[data-col="author"]'),
-    ).toHaveValue('claude');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
     await expect(async () => {
       const { cookie, server } = await savedCopies(page);
       expect(cookie?.pr?.quick || '').toBe('');
@@ -135,9 +132,7 @@ test.describe('Show row clears the filter that hides the row', () => {
     await expect(
       page.locator('.filter-bar > .am-group [data-am="any"]'),
     ).toHaveAttribute('aria-pressed', 'true');
-    await expect(
-      page.locator('.filter-bar .col-filter[data-col="author"]'),
-    ).toHaveValue('claude');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
     await expect(async () => {
       const { cookie, server } = await savedCopies(page);
       expect(cookie?.pr?.autoMerge || '').toBe('');
