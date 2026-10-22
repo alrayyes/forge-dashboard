@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/alrayyes/forge-dashboard/compare/v1.9.0...v2.0.0) (2026-10-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **auth:** remove invites and the admin user endpoints, close registration ([#2445](https://github.com/alrayyes/forge-dashboard/issues/2445))
+
+### Features
+
+* **auth:** remove invites and the admin user endpoints, close registration ([#2445](https://github.com/alrayyes/forge-dashboard/issues/2445)) ([e314bab](https://github.com/alrayyes/forge-dashboard/commit/e314bab3c4987f154409ebda49c736810f401b31))
+
 ## [1.9.0](https://github.com/alrayyes/forge-dashboard/compare/v1.8.2...v1.9.0) (2026-10-22)
 
 
