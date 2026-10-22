@@ -28,13 +28,6 @@ func tokenOf(t *auth.APIToken) Token {
 
 func handleTokensGet(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		tokens, err := store.ListAPITokens(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load api tokens"))
@@ -74,13 +67,6 @@ const maxAPITokenLifetime = 366 * 24 * time.Hour
 
 func handleTokensPost(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		var req apiTokenCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
@@ -127,13 +113,6 @@ func handleTokensPost(store *auth.Store) http.HandlerFunc {
 
 func handleTokensDelete(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		id := r.PathValue("id")
 		if err := store.DeleteAPIToken(r.Context(), id); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not revoke api token"))
