@@ -60,7 +60,7 @@ func handleForgeAPIStats(deps Deps) http.HandlerFunc {
 // resolveForgeAPIStatsFor answers u's counters and budgets. Shared by the HTTP
 // handler and the MCP get_forge_api_stats tool so the two can't drift.
 func resolveForgeAPIStatsFor(ctx context.Context, deps Deps, u *auth.User) (forgeAPIStatsResponse, error) {
-	creds, err := deps.SettingsStore.Get(ctx, u.ID)
+	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {
 		return forgeAPIStatsResponse{}, fmt.Errorf("read credentials: %w", err)
 	}

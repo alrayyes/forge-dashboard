@@ -26,7 +26,7 @@ const DefaultWebhookUpgradeJitter = 500 * time.Millisecond
 // secret, which an upgrade needs to rebuild the hook's target URL and config.
 // settings.Store satisfies it.
 type WebhookCredentialSource interface {
-	EnsureWebhookCredentials(ctx context.Context, userID []byte) (token, secret string, err error)
+	EnsureWebhookCredentials(ctx context.Context) (token, secret string, err error)
 }
 
 // WebhookUpgrades remembers, for the life of the process, which repos have had
@@ -63,7 +63,6 @@ func (w *WebhookUpgrades) release(key string) {
 
 type webhookUpgradeConfig struct {
 	ctx     context.Context
-	userID  []byte
 	creds   WebhookCredentialSource
 	origin  string
 	state   *WebhookUpgrades
@@ -74,8 +73,8 @@ type webhookUpgradeConfig struct {
 // EnableWebhookUpgrade turns on the once-per-process-start upgrade of this
 // user's app-created webhooks (#1555). ctx outlives any one refresh, so a
 // refresh a request started doesn't cancel the upgrade when it returns.
-func (a *Aggregator) EnableWebhookUpgrade(ctx context.Context, userID []byte, creds WebhookCredentialSource, origin string, state *WebhookUpgrades) {
-	a.webhookUpgrade = &webhookUpgradeConfig{ctx: ctx, userID: userID, creds: creds, origin: strings.TrimRight(origin, "/"), state: state}
+func (a *Aggregator) EnableWebhookUpgrade(ctx context.Context, creds WebhookCredentialSource, origin string, state *WebhookUpgrades) {
+	a.webhookUpgrade = &webhookUpgradeConfig{ctx: ctx, creds: creds, origin: strings.TrimRight(origin, "/"), state: state}
 }
 
 // WaitWebhookUpgrade blocks until an upgrade pass in flight has finished.
@@ -121,7 +120,7 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 		}
 		if token == "" {
 			var err error
-			if token, secret, err = cfg.creds.EnsureWebhookCredentials(cfg.ctx, cfg.userID); err != nil {
+			if token, secret, err = cfg.creds.EnsureWebhookCredentials(cfg.ctx); err != nil {
 				slog.Warn("webhook upgrade: could not load webhook credentials", "error", err)
 
 				return
@@ -167,7 +166,7 @@ func upgradeForge(cfg *webhookUpgradeConfig, forge Forge, upgrader WebhookUpgrad
 			if stopped.Load() || cfg.ctx.Err() != nil {
 				return
 			}
-			key := string(cfg.userID) + "|" + string(forge) + "|" + fullName
+			key := string(forge) + "|" + fullName
 			if !cfg.state.claim(key) {
 				return
 			}

@@ -154,7 +154,7 @@ func (r *queueRig) newAggregator(t *testing.T) *dashboard.Aggregator {
 	t.Helper()
 
 	agg := dashboard.NewAggregator([]dashboard.Source{r.src}, dashboard.WithClock(r.clock.now), dashboard.WithQueuedActionBuffer(0))
-	agg.EnableQueuedActions(queueUser, r.store)
+	agg.EnableQueuedActions(r.store)
 
 	return agg
 }
@@ -162,7 +162,7 @@ func (r *queueRig) newAggregator(t *testing.T) *dashboard.Aggregator {
 func (r *queueRig) enqueue(t *testing.T, action dashboard.ActionName, number int) dashboard.QueuedAction {
 	t.Helper()
 
-	q, _, err := r.store.EnqueueQueuedAction(t.Context(), queueUser, dashboard.QueuedAction{
+	q, _, err := r.store.EnqueueQueuedAction(t.Context(), dashboard.QueuedAction{
 		Action: action, Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: number,
 		Status: dashboard.QueuedWaiting, RunAt: queueReset, CreatedAt: queueT0,
 	})
@@ -181,7 +181,7 @@ func (r *queueRig) resetPasses() {
 func (r *queueRig) only(t *testing.T) dashboard.QueuedAction {
 	t.Helper()
 
-	items, err := r.store.QueuedActions(t.Context(), queueUser)
+	items, err := r.store.QueuedActions(t.Context())
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 
@@ -377,7 +377,7 @@ func TestQueuedActions_NeverMergeOrClose(t *testing.T) {
 	rig.agg.ProcessQueuedActions(t.Context())
 
 	assert.Empty(t, rig.src.writes())
-	items, err := rig.store.QueuedActions(t.Context(), queueUser)
+	items, err := rig.store.QueuedActions(t.Context())
 	require.NoError(t, err)
 	for _, q := range items {
 		assert.Equal(t, dashboard.QueuedFailed, q.Status, q.Action)
@@ -388,7 +388,7 @@ func TestQueuedActions_CancelledBeforeTheReset_NothingRuns(t *testing.T) {
 	t.Parallel()
 	rig := newQueueRig(t, behindPR(5, "alice"))
 	q := rig.enqueue(t, dashboard.ActionUpdateBranch, 5)
-	found, err := rig.store.CancelQueuedAction(t.Context(), queueUser, q.ID)
+	found, err := rig.store.CancelQueuedAction(t.Context(), q.ID)
 	require.NoError(t, err)
 	require.True(t, found)
 	rig.resetPasses()
@@ -502,7 +502,7 @@ func TestQueuedActions_TheUserLostTheirCredentials_NothingRunsWithoutThem(t *tes
 	rig.resetPasses()
 	// The user removed their GitHub token: the rebuilt aggregator has no source.
 	agg := dashboard.NewAggregator(nil, dashboard.WithClock(rig.clock.now), dashboard.WithQueuedActionBuffer(0))
-	agg.EnableQueuedActions(queueUser, rig.store)
+	agg.EnableQueuedActions(rig.store)
 
 	agg.ProcessQueuedActions(t.Context())
 
@@ -510,20 +510,6 @@ func TestQueuedActions_TheUserLostTheirCredentials_NothingRunsWithoutThem(t *tes
 	got := rig.only(t)
 	assert.Equal(t, dashboard.QueuedSkipped, got.Status)
 	assert.Equal(t, dashboard.ActionPermission, got.Code)
-}
-
-func TestQueuedActions_AnotherUsersAggregator_LeavesTheItemAlone(t *testing.T) {
-	t.Parallel()
-	rig := newQueueRig(t, behindPR(5, "alice"))
-	rig.enqueue(t, dashboard.ActionUpdateBranch, 5)
-	rig.resetPasses()
-	other := dashboard.NewAggregator([]dashboard.Source{rig.src}, dashboard.WithClock(rig.clock.now), dashboard.WithQueuedActionBuffer(0))
-	other.EnableQueuedActions([]byte("user-2"), rig.store)
-
-	other.ProcessQueuedActions(t.Context())
-
-	assert.Empty(t, rig.src.writes())
-	assert.Equal(t, dashboard.QueuedWaiting, rig.only(t).Status)
 }
 
 func TestQueuedActions_OldFinishedOnesAreForgottenAfterADay(t *testing.T) {
@@ -539,7 +525,7 @@ func TestQueuedActions_OldFinishedOnesAreForgottenAfterADay(t *testing.T) {
 
 	rig.agg.ProcessQueuedActions(t.Context())
 
-	items, err := rig.store.QueuedActions(t.Context(), queueUser)
+	items, err := rig.store.QueuedActions(t.Context())
 	require.NoError(t, err)
 	for _, q := range items {
 		assert.NotEqual(t, dashboard.QueuedDone, q.Status, "the day-old outcome is gone")
@@ -551,7 +537,7 @@ func TestQueuedActions_TheSchedulerRunsItWithoutBeingAsked(t *testing.T) {
 	src := &queueSource{health: healthyHealth(), prs: []dashboard.PullRequest{behindPR(5, "alice")}}
 	store := openQueueStore(t, filepath.Join(t.TempDir(), "app.db"))
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithQueuedActionBuffer(0))
-	agg.EnableQueuedActions(queueUser, store)
+	agg.EnableQueuedActions(store)
 	agg.Refresh(t.Context())
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -559,7 +545,7 @@ func TestQueuedActions_TheSchedulerRunsItWithoutBeingAsked(t *testing.T) {
 
 	// Queued after the scheduler started, with a reset already due: the wake-up
 	// is what makes it notice.
-	_, _, err := store.EnqueueQueuedAction(t.Context(), queueUser, dashboard.QueuedAction{
+	_, _, err := store.EnqueueQueuedAction(t.Context(), dashboard.QueuedAction{
 		Action: dashboard.ActionUpdateBranch, Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: 5,
 		Status: dashboard.QueuedWaiting, RunAt: time.Now().Add(-time.Second), CreatedAt: time.Now(),
 	})

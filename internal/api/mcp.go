@@ -136,7 +136,7 @@ func addStoreTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 			return nil, queuedActionsResponse{}, errNoAuthenticatedUser
 		}
 
-		items, err := resolveQueuedActionsFor(ctx, deps, u)
+		items, err := resolveQueuedActionsFor(ctx, deps)
 		if err != nil {
 			return nil, queuedActionsResponse{}, err
 		}

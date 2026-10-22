@@ -11,12 +11,10 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
-// queuedActionsSchema is the table Init adds to the rest of the schema. Rows
-// of every user share it, told apart by user_id, like the other per-user tables.
+// queuedActionsSchema is the table Init adds to the rest of the schema.
 const queuedActionsSchema = `
 	CREATE TABLE IF NOT EXISTS queued_actions (
 		id TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL,
 		action TEXT NOT NULL,
 		forge TEXT NOT NULL,
 		repo_full_name TEXT NOT NULL,
@@ -28,25 +26,22 @@ const queuedActionsSchema = `
 		code TEXT NOT NULL DEFAULT '',
 		message TEXT NOT NULL DEFAULT ''
 	);
-	CREATE INDEX IF NOT EXISTS queued_actions_user ON queued_actions (user_id);
 `
 
 // queuedActionColumns is the column list every queued-action read selects, in
 // the order scanQueuedAction reads them.
 const queuedActionColumns = `id, action, forge, repo_full_name, number, status, run_at, created_at, finished_at, code, message`
 
-// EnqueueQueuedAction stores a safe action for userID to run once a forge's
+// EnqueueQueuedAction stores a safe action to run once a forge's
 // rate limit resets (#756) and returns it with its new ID and true. Idempotent: a
 // second request for the same action on the same pull request while the first
 // still waits returns the first, unchanged, and false, rather than stacking a
 // duplicate.
-func (s *Store) EnqueueQueuedAction(ctx context.Context, userID []byte, q dashboard.QueuedAction) (dashboard.QueuedAction, bool, error) {
-	encodedID := encodeUserID(userID)
-
+func (s *Store) EnqueueQueuedAction(ctx context.Context, q dashboard.QueuedAction) (dashboard.QueuedAction, bool, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT `+queuedActionColumns+` FROM queued_actions
-		 WHERE user_id = ? AND action = ? AND forge = ? AND repo_full_name = ? AND number = ? AND status = ?`,
-		encodedID, string(q.Action), string(q.Forge), q.Repo, q.Number, string(dashboard.QueuedWaiting),
+		 WHERE action = ? AND forge = ? AND repo_full_name = ? AND number = ? AND status = ?`,
+		string(q.Action), string(q.Forge), q.Repo, q.Number, string(dashboard.QueuedWaiting),
 	)
 	existing, err := scanQueuedAction(row)
 	switch {
@@ -63,9 +58,9 @@ func (s *Store) EnqueueQueuedAction(ctx context.Context, userID []byte, q dashbo
 	q.ID = id
 	q.Status = dashboard.QueuedWaiting
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO queued_actions (id, user_id, action, forge, repo_full_name, number, status, run_at, created_at, code, message)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', '')`,
-		q.ID, encodedID, string(q.Action), string(q.Forge), q.Repo, q.Number, string(q.Status), q.RunAt.UTC(), q.CreatedAt.UTC(),
+		`INSERT INTO queued_actions (id, action, forge, repo_full_name, number, status, run_at, created_at, code, message)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '')`,
+		q.ID, string(q.Action), string(q.Forge), q.Repo, q.Number, string(q.Status), q.RunAt.UTC(), q.CreatedAt.UTC(),
 	)
 	if err != nil {
 		return dashboard.QueuedAction{}, false, fmt.Errorf("settings: enqueue queued action: %w", err)
@@ -74,11 +69,11 @@ func (s *Store) EnqueueQueuedAction(ctx context.Context, userID []byte, q dashbo
 	return q, true, nil
 }
 
-// QueuedActions returns every queued action userID has, waiting or finished,
-// oldest first — empty, never nil or an error, for a user with none.
-func (s *Store) QueuedActions(ctx context.Context, userID []byte) ([]dashboard.QueuedAction, error) {
+// QueuedActions returns every queued action, waiting or finished, oldest
+// first — empty, never nil or an error, when there are none.
+func (s *Store) QueuedActions(ctx context.Context) ([]dashboard.QueuedAction, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT `+queuedActionColumns+` FROM queued_actions WHERE user_id = ? ORDER BY created_at, id`, encodeUserID(userID),
+		`SELECT `+queuedActionColumns+` FROM queued_actions ORDER BY created_at, id`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("settings: list queued actions: %w", err)
@@ -100,11 +95,10 @@ func (s *Store) QueuedActions(ctx context.Context, userID []byte) ([]dashboard.Q
 	return out, nil
 }
 
-// CancelQueuedAction removes userID's queued action id, waiting or finished,
-// and reports whether there was one. Another user's id is not found, so one
-// account can neither see nor cancel another's queue.
-func (s *Store) CancelQueuedAction(ctx context.Context, userID []byte, id string) (bool, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM queued_actions WHERE user_id = ? AND id = ?`, encodeUserID(userID), id)
+// CancelQueuedAction removes the queued action id, waiting or finished, and
+// reports whether there was one.
+func (s *Store) CancelQueuedAction(ctx context.Context, id string) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM queued_actions WHERE id = ?`, id)
 	if err != nil {
 		return false, fmt.Errorf("settings: cancel queued action: %w", err)
 	}

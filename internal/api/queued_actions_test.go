@@ -325,20 +325,6 @@ func TestQueuedActions_RequireASession(t *testing.T) {
 	}
 }
 
-func TestQueuedActions_AnotherUser_NeitherSeesNorCancelsThem(t *testing.T) {
-	t.Parallel()
-	srv, _, owner := queueBoard(t, true, time.Now().Add(time.Hour))
-	_, created := queueUpdate(t, srv, owner, 5)
-	other := registerExtraUser(t, srv, testOtherUser, "Alex")
-
-	assert.Empty(t, listQueued(t, srv, other), "the other user's list")
-	assert.Empty(t, fetchDashboard(t, srv.URL, other)["queuedActions"], "the other user's dashboard")
-	resp := doJSON(t, http.MethodDelete, srv.URL+"/api/queued-actions/"+created["id"].(string), "", other)
-	_ = resp.Body.Close()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "cancelling someone else's")
-	assert.Len(t, listQueued(t, srv, owner), 1, "the owner's item is untouched")
-}
-
 func TestQueuedActions_AnotherUser_CannotQueueOnTheOwnersBoard(t *testing.T) {
 	t.Parallel()
 	srv, _, _ := queueBoard(t, true, time.Now().Add(time.Hour))

@@ -25,9 +25,10 @@ import (
 const e2eResetPath = "/__e2e/reset"
 
 // keptTables hold the owner and their first passkey, which a reset keeps (the
-// extra users, passkeys and labels inside them go). Every other table is
+// extra users, passkeys and labels inside them go), and the schema version,
+// which a reset must not forget or the next start would migrate again. Every other table is
 // emptied, so a table added later is reset without anyone remembering to list it.
-var keptTables = map[string]bool{"users": true, "credential_metadata": true}
+var keptTables = map[string]bool{"users": true, "credential_metadata": true, "schema_version": true}
 
 // withE2EHooks mounts the reset route ahead of next. It needs the raw database
 // handle that /readyz's pinger wraps; without it there is nothing to reset.

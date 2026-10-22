@@ -125,3 +125,26 @@ site straight away, and register. If a stranger finishes first, they become the
 owner of your settings. Run the command again, then register yours.
 Restrict who can reach the instance while the window is open if it is exposed
 to the internet.
+
+## Schema upgrades
+
+Saved settings, ignored repositories, hidden pull requests, queued actions and
+the other per-board tables used to carry a user id on every row. They no longer
+do: an instance has one owner, so the first start of this version rebuilds each
+of those tables without the column and keeps the owner's rows as they were. The
+webhook token and secret are copied unchanged, so a webhook you already installed
+keeps working.
+
+Before the first rebuild the server copies the database next to the original,
+as `<DB_PATH>.before-migration-<UTC timestamp>`, readable only by the owner
+because it holds every secret. The rebuild is one transaction: if it fails, the
+database is as it was, the log says why, and the server does not start. Restore
+the copy, or fix the cause and start again. A new instance has nothing to
+rebuild and takes no copy. To go back to an older release, restore the copy
+first: the older release would not find its tables and would start from empty
+settings.
+
+A database that still holds several users from before the single-user release
+stops with `run the previous release first`. Start the release that removes
+the extra users first, then this one. Delete the copy once you are satisfied;
+the server never does.

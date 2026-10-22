@@ -29,7 +29,7 @@ func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 		}
 		key := dependabotPRKey(pr)
 		if pr.Forge == ForgeForgejo && intents == nil && !intentsFailed {
-			loaded, err := cfg.store.AutoMergeIntents(ctx, cfg.userID)
+			loaded, err := cfg.store.AutoMergeIntents(ctx)
 			if err != nil {
 				// A Forgejo pull request can't be told to be armed without the
 				// set; GitHub's own state is on the pull request, so go on.
@@ -88,7 +88,7 @@ func (a *Aggregator) cancelAutoMerge(ctx context.Context, pr PullRequest, key st
 			return
 		}
 	default:
-		if err := cfg.store.CancelAutoMerge(ctx, cfg.userID, string(pr.Forge), pr.Repo, pr.Number); err != nil {
+		if err := cfg.store.CancelAutoMerge(ctx, string(pr.Forge), pr.Repo, pr.Number); err != nil {
 			cfg.cancelFailed(pr)
 			slog.Warn("auto-merge: could not drop the intent on an empty pull request", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
 

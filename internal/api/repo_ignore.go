@@ -34,7 +34,7 @@ type repoIgnoreRequest struct {
 // with a different scope replaces it rather than merging.
 func handleRepoIgnore(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
@@ -61,7 +61,7 @@ func handleRepoIgnore(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		if err := deps.SettingsStore.IgnoreRepo(r.Context(), u.ID, req.Forge, req.FullName, req.PRs, req.Issues); err != nil {
+		if err := deps.SettingsStore.IgnoreRepo(r.Context(), req.Forge, req.FullName, req.PRs, req.Issues); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save"))
 
 			return
@@ -73,7 +73,7 @@ func handleRepoIgnore(deps Deps) http.HandlerFunc {
 // handleRepoUnignore implements POST /api/repos/unignore — the reverse of
 // handleRepoIgnore, same request shape, same idempotence.
 func handleRepoUnignore(deps Deps) http.HandlerFunc {
-	return handleRepoSetting(deps, func(ctx context.Context, store *settings.Store, userID []byte, forge, fullName string) error {
-		return store.UnignoreRepo(ctx, userID, forge, fullName)
+	return handleRepoSetting(deps, func(ctx context.Context, store *settings.Store, forge, fullName string) error {
+		return store.UnignoreRepo(ctx, forge, fullName)
 	})
 }

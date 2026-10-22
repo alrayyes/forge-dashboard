@@ -7,5 +7,5 @@ INSERT INTO auto_update_branch_repos VALUES ('owner', 'forgejo', 'a/d');
 INSERT INTO auto_merge_intents VALUES ('owner', 'github', 'a/e', 7, '2026-04-04 00:00:00');
 INSERT INTO hidden_pull_requests VALUES ('owner', 'github', 'a/f', 8, NULL);
 INSERT INTO queued_actions (id, user_id, action, forge, repo_full_name, number, status, run_at, created_at, code, message)
-	VALUES ('abc123', 'owner', 'merge', 'github', 'a/g', 9, 'waiting', '2026-05-05 00:00:00', '2026-05-04 00:00:00', '', '');
+	VALUES ('abc123', 'owner', 'merge', 'github', 'a/g', 9, 'queued', '2026-05-05 00:00:00', '2026-05-04 00:00:00', '', '');
 INSERT INTO pull_request_auto_update VALUES ('owner', 'github', 'a/h', 10, 0);

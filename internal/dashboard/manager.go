@@ -218,7 +218,7 @@ func (m *Manager) Ensure(ctx context.Context, userID []byte, sources []Source) {
 		existing.cancel()
 	}
 
-	m.startLocked(ctx, key, userID, sources)
+	m.startLocked(ctx, key, sources)
 }
 
 // EnsureIfAbsent is Ensure, but only takes effect if userID has no
@@ -241,12 +241,12 @@ func (m *Manager) EnsureIfAbsent(ctx context.Context, userID []byte, sources []S
 		return
 	}
 
-	m.startLocked(ctx, key, userID, sources)
+	m.startLocked(ctx, key, sources)
 }
 
-// startLocked builds userID's Aggregator from sources, with every hook this
+// startLocked builds the Aggregator stored under key from sources, with every hook this
 // Manager has been given, and starts its background loops. The caller holds m.mu.
-func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, sources []Source) {
+func (m *Manager) startLocked(ctx context.Context, key string, sources []Source) {
 	runCtx, cancel := context.WithCancel(ctx)
 	opts := []AggregatorOption{WithDebounceOwner(runCtx), WithActivity(m.activity)}
 	if m.debounceTimer != nil {
@@ -260,13 +260,13 @@ func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, so
 	}
 	agg := NewAggregator(sources, opts...)
 	if m.autoUpdateBranchLister != nil {
-		agg.EnableAutoUpdateBranch(userID, m.autoUpdateBranchLister)
+		agg.EnableAutoUpdateBranch(m.autoUpdateBranchLister)
 	}
 	if m.autoMergeStore != nil {
-		agg.EnableAutoMerge(userID, m.autoMergeStore)
+		agg.EnableAutoMerge(m.autoMergeStore)
 	}
 	if m.webhookCreds != nil {
-		agg.EnableWebhookUpgrade(runCtx, userID, m.webhookCreds, m.webhookOrigin, m.webhookUpgrade)
+		agg.EnableWebhookUpgrade(runCtx, m.webhookCreds, m.webhookOrigin, m.webhookUpgrade)
 	}
 	m.users[key] = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
 	go agg.Run(runCtx, m.refreshInterval)
@@ -274,7 +274,7 @@ func (m *Manager) startLocked(ctx context.Context, key string, userID []byte, so
 		go agg.RunCIPoll(runCtx, m.ciPollInterval)
 	}
 	if m.queuedActionStore != nil {
-		agg.EnableQueuedActions(userID, m.queuedActionStore)
+		agg.EnableQueuedActions(m.queuedActionStore)
 		go agg.RunQueuedActions(runCtx)
 	}
 }

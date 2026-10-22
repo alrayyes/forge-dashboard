@@ -25,10 +25,10 @@ func TestStore_EnqueueQueuedAction_ThenQueuedActions_ReturnsItWithAnID(t *testin
 	store := newTestStore(t)
 	runAt := time.Date(2026, 10, 11, 14, 32, 0, 0, time.UTC)
 
-	saved, created, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(runAt))
+	saved, created, err := store.EnqueueQueuedAction(t.Context(), queuedUpdate(runAt))
 	require.NoError(t, err)
 
-	got, err := store.QueuedActions(t.Context(), []byte("user-1"))
+	got, err := store.QueuedActions(t.Context())
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.True(t, created)
@@ -42,72 +42,46 @@ func TestStore_EnqueueQueuedAction_ThenQueuedActions_ReturnsItWithAnID(t *testin
 func TestStore_EnqueueQueuedAction_SameActionTwice_KeepsTheFirst(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	first, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	first, _, err := store.EnqueueQueuedAction(t.Context(), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
-	second, created, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(2*time.Hour)))
+	second, created, err := store.EnqueueQueuedAction(t.Context(), queuedUpdate(time.Now().Add(2*time.Hour)))
 	require.NoError(t, err)
 
 	assert.Equal(t, first.ID, second.ID)
 	assert.False(t, created, "the second request created nothing")
-	got, _ := store.QueuedActions(t.Context(), []byte("user-1"))
+	got, _ := store.QueuedActions(t.Context())
 	assert.Len(t, got, 1)
 }
 
 func TestStore_QueuedActions_NoneQueued_ReturnsEmptyNotNil(t *testing.T) {
 	t.Parallel()
 
-	got, err := newTestStore(t).QueuedActions(t.Context(), []byte("user-1"))
+	got, err := newTestStore(t).QueuedActions(t.Context())
 
 	require.NoError(t, err)
 	assert.NotNil(t, got)
 	assert.Empty(t, got)
 }
 
-func TestStore_QueuedActions_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	_, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
-	require.NoError(t, err)
-
-	got, err := store.QueuedActions(t.Context(), []byte("user-2"))
-
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}
-
 func TestStore_CancelQueuedAction_RemovesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	saved, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	saved, _, err := store.EnqueueQueuedAction(t.Context(), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
-	found, err := store.CancelQueuedAction(t.Context(), []byte("user-1"), saved.ID)
+	found, err := store.CancelQueuedAction(t.Context(), saved.ID)
 
 	require.NoError(t, err)
 	assert.True(t, found)
-	got, _ := store.QueuedActions(t.Context(), []byte("user-1"))
+	got, _ := store.QueuedActions(t.Context())
 	assert.Empty(t, got)
-}
-
-func TestStore_CancelQueuedAction_AnotherUsersItem_LeavesItAlone(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	saved, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
-	require.NoError(t, err)
-
-	found, err := store.CancelQueuedAction(t.Context(), []byte("user-2"), saved.ID)
-
-	require.NoError(t, err)
-	assert.False(t, found)
-	got, _ := store.QueuedActions(t.Context(), []byte("user-1"))
-	assert.Len(t, got, 1)
 }
 
 func TestStore_CancelQueuedAction_UnknownID_ReportsNotFound(t *testing.T) {
 	t.Parallel()
 
-	found, err := newTestStore(t).CancelQueuedAction(t.Context(), []byte("user-1"), "nope")
+	found, err := newTestStore(t).CancelQueuedAction(t.Context(), "nope")
 
 	require.NoError(t, err)
 	assert.False(t, found)
@@ -127,24 +101,34 @@ func TestStore_QueuedActions_SurviveReopeningTheDatabase(t *testing.T) {
 
 		return store
 	}
-	saved, _, err := open().EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+	saved, _, err := open().EnqueueQueuedAction(t.Context(), queuedUpdate(time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 
-	got, err := open().QueuedActions(t.Context(), []byte("user-1"))
+	got, err := open().QueuedActions(t.Context())
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, saved.ID, got[0].ID)
 }
 
-func TestStore_Delete_RemovesQueuedActions(t *testing.T) {
+func TestStore_HasWaitingQueuedActions(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	_, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
+
+	none, err := store.HasWaitingQueuedActions(t.Context())
 	require.NoError(t, err)
+	assert.False(t, none)
 
-	require.NoError(t, store.Delete(t.Context(), []byte("user-1")))
+	saved, _, err := store.EnqueueQueuedAction(t.Context(), queuedUpdate(time.Now().Add(time.Hour)))
+	require.NoError(t, err)
+	waiting, err := store.HasWaitingQueuedActions(t.Context())
+	require.NoError(t, err)
+	assert.True(t, waiting)
 
-	got, _ := store.QueuedActions(t.Context(), []byte("user-1"))
-	assert.Empty(t, got)
+	saved.Status = dashboard.QueuedDone
+	_, err = store.UpdateQueuedAction(t.Context(), saved)
+	require.NoError(t, err)
+	done, err := store.HasWaitingQueuedActions(t.Context())
+	require.NoError(t, err)
+	assert.False(t, done)
 }

@@ -110,22 +110,6 @@ func TestFilterStatePut_DoesNotDisturbAlreadySavedSettings(t *testing.T) {
 	assert.Contains(t, body, "octocat")
 }
 
-func TestFilterStateGet_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	aCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
-	bCookie := registerExtraUser(t, srv, testUser, testDisplay)
-
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", `{"shared":{"forge":"github"}}`, aCookie)
-	_ = putResp.Body.Close()
-	require.Equal(t, http.StatusNoContent, putResp.StatusCode)
-
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", bCookie)
-	defer func() { _ = getResp.Body.Close() }()
-	assert.JSONEq(t, "{}", readAll(t, getResp))
-}
-
 // createTestAPIToken makes a personal API token the way Settings does, over
 // the signed-in session, and returns the secret.
 func createTestAPIToken(t *testing.T, srvURL string, sessionCookie *http.Cookie) string {

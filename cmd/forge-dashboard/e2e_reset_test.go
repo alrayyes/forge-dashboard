@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
+	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -35,6 +37,8 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "e2e.db")))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
+	_, err = dbmigrate.Run(ctx, db, filepath.Join(t.TempDir(), "e2e.db"), settings.MigrationSteps(), slog.Default())
+	require.NoError(t, err)
 	authStore := auth.NewStore(db)
 	require.NoError(t, authStore.Init(ctx))
 	cipher, err := settings.NewCipher("MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=")
@@ -52,7 +56,7 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	require.NoError(t, err)
 	_, _, err = authStore.CreateAPIToken(ctx, user.ID, "ci", time.Now().Add(time.Hour))
 	require.NoError(t, err)
-	require.NoError(t, settingsStore.HidePullRequest(ctx, user.ID, "github", "alrayyes/a", 1, time.Now().Add(time.Hour)))
+	require.NoError(t, settingsStore.HidePullRequest(ctx, "github", "alrayyes/a", 1, time.Now().Add(time.Hour)))
 
 	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Manager: dashboard.NewManager(time.Minute)}
 	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
@@ -87,6 +91,7 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 		}
 		assert.Zero(t, rowCount(t, db, name), "every other table is empty: "+name)
 	}
+	assert.Equal(t, 1, rowCount(t, db, "schema_version"), "the schema version stays, or the migration would run again")
 	assert.Equal(t, 1, rowCount(t, db, "users"), "the first user stays")
 	assert.Equal(t, 1, rowCount(t, db, "credential_metadata"), "only the first passkey's label stays")
 	kept, err := authStore.GetUserByID(ctx, user.ID)
@@ -169,7 +174,7 @@ func TestE2EReset_WaitsForAConcurrentWriteInsteadOfFailing(t *testing.T) {
 	require.NoError(t, err)
 	_, err = conn.ExecContext(ctx, "BEGIN IMMEDIATE")
 	require.NoError(t, err)
-	_, err = conn.ExecContext(ctx, "INSERT INTO hidden_pull_requests (user_id, forge, repo_full_name, number) VALUES ('x', 'github', 'a/b', 1)")
+	_, err = conn.ExecContext(ctx, "INSERT INTO hidden_pull_requests (forge, repo_full_name, number) VALUES ('github', 'a/b', 1)")
 	require.NoError(t, err)
 	committed := make(chan error, 1)
 	go func() {

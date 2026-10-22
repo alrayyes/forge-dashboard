@@ -29,7 +29,10 @@ type ownedTable struct {
 
 // owned lists every table holding a user's data. The test that lists
 // sqlite_master fails when a table exists that is neither here nor handled by
-// hand below (users, ceremonies, the marker). The cache tables (http_etags,
+// hand below (users, ceremonies, the marker). The settings tables hold no user
+// since the schema step that merged them into one owner (dbmigrate runs it
+// before this does, and refuses a database with several users and no marker,
+// so by then this cleanup has already run). The cache tables (http_etags,
 // snapshot_cache, hook_checks, webhook_seen) are keyed by credential and repo,
 // hold no user, and are left alone.
 var owned = []ownedTable{
@@ -37,14 +40,6 @@ var owned = []ownedTable{
 	{"api_tokens", "user_id"},
 	{"credential_metadata", "user_id"},
 	{"request_log", "account_id"},
-	{"user_credentials", "user_id"},
-	{"webhook_deliveries", "user_id"},
-	{"ignored_repos", "user_id"},
-	{"auto_update_branch_repos", "user_id"},
-	{"auto_merge_intents", "user_id"},
-	{"hidden_pull_requests", "user_id"},
-	{"queued_actions", "user_id"},
-	{"pull_request_auto_update", "user_id"},
 }
 
 // Result says what Run did.

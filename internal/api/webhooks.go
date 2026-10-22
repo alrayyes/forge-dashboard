@@ -21,11 +21,18 @@ import (
 // guards.
 const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 
+// ownerFinder names the one user a verified webhook delivery acts for. The
+// delivery carries no session, and the dashboard it refreshes is still keyed by
+// user id.
+type ownerFinder interface {
+	OwnerID(ctx context.Context) ([]byte, error)
+}
+
 // handleGitHubWebhook verifies a GitHub repository webhook delivery
 // against its X-Hub-Signature-256 header and triggers an immediate
-// refresh for the user webhookToken identifies.
-func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, dashboard.ForgeGitHub,
+// refresh for the one user when webhookToken matches.
+func handleGitHubWebhook(appCtx context.Context, store *settings.Store, owners ownerFinder, manager *dashboard.Manager) http.HandlerFunc {
+	return handleWebhook(appCtx, store, owners, manager, dashboard.ForgeGitHub,
 		func(h http.Header) string {
 			const prefix = "sha256="
 			sig := h.Get("X-Hub-Signature-256")
@@ -40,12 +47,12 @@ func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager 
 }
 
 // handleForgejoWebhook verifies a Forgejo repository webhook delivery and
-// triggers an immediate refresh for the user webhookToken identifies.
+// triggers an immediate refresh for the one user when webhookToken matches.
 // Which header carries the signature depends on whether the webhook was
 // set up with the "Forgejo" type or the legacy "Gitea" one — both are the
 // same raw hex HMAC-SHA256, no prefix.
-func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, dashboard.ForgeForgejo,
+func handleForgejoWebhook(appCtx context.Context, store *settings.Store, owners ownerFinder, manager *dashboard.Manager) http.HandlerFunc {
+	return handleWebhook(appCtx, store, owners, manager, dashboard.ForgeForgejo,
 		func(h http.Header) string {
 			if sig := h.Get("X-Forgejo-Signature"); sig != "" {
 				return sig
@@ -251,12 +258,12 @@ func settleFromDelivery(manager *dashboard.Manager, userID []byte, forge dashboa
 // forge fetch along with it. The delivery is acknowledged as soon as it's
 // verified; the refresh it triggers survives the delivery ending either
 // way.
-func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Manager, forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
+func handleWebhook(appCtx context.Context, store *settings.Store, owners ownerFinder, manager *dashboard.Manager, forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("webhookToken")
 		delivery, event := deliveryOf(r.Header)
 
-		userID, secret, err := store.FindByWebhookToken(r.Context(), token)
+		secret, err := store.WebhookSecretFor(r.Context(), token)
 		if errors.Is(err, settings.ErrNotFound) {
 			slog.Warn("webhook token unknown", "forge", forge, "event", event, "delivery", delivery)
 			writeJSON(w, http.StatusNotFound, errorBody("unknown webhook token"))
@@ -286,19 +293,35 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 		}
 
 		if _, _, fullName, ok := repoFromPayload(body); ok {
-			if err := store.RecordWebhookDelivery(r.Context(), userID, string(forge), fullName); err != nil {
+			if err := store.RecordWebhookDelivery(r.Context(), string(forge), fullName); err != nil {
 				slog.Warn("recording webhook delivery failed", "forge", forge, "repo", fullName, "error", err)
 			}
 		}
 
-		slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
-		if _, _, fullName, ok := repoFromPayload(body); ok {
-			recordDelivery(manager, userID, forge, fullName, event, body)
-		}
-		settleFromDelivery(manager, userID, forge, body)
-		w.WriteHeader(http.StatusNoContent)
-		go triggerRefresh(appCtx, manager, userID, forge, delivery, body)
+		acknowledgeDelivery(appCtx, r, w, owners, manager, forge, delivery, event, body)
 	}
+}
+
+// acknowledgeDelivery answers a verified delivery and starts the refresh it
+// asks for on the owner's dashboard. With nobody registered there is no
+// dashboard to refresh, and the delivery is still acknowledged: the sender
+// can't act on that.
+func acknowledgeDelivery(appCtx context.Context, r *http.Request, w http.ResponseWriter, owners ownerFinder, manager *dashboard.Manager, forge dashboard.Forge, delivery, event string, body []byte) {
+	userID, err := owners.OwnerID(r.Context())
+	if err != nil {
+		slog.Warn("webhook accepted but no owner to refresh", "forge", forge, "event", event, "delivery", delivery, "error", err)
+		w.WriteHeader(http.StatusNoContent)
+
+		return
+	}
+
+	slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
+	if _, _, fullName, ok := repoFromPayload(body); ok {
+		recordDelivery(manager, userID, forge, fullName, event, body)
+	}
+	settleFromDelivery(manager, userID, forge, body)
+	w.WriteHeader(http.StatusNoContent)
+	go triggerRefresh(appCtx, manager, userID, forge, delivery, body)
 }
 
 // triggerRefresh scopes a webhook-triggered refresh to just the repo the

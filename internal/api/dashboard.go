@@ -367,11 +367,11 @@ type boardView struct {
 // and counted in HiddenPullRequests. Hides come before drafts, so a hidden
 // draft is only in the hidden count.
 func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap dashboard.Snapshot, view boardView) dashboardResponse {
-	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
+	board := loadBoardSettings(ctx, deps.SettingsStore)
 	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
-	board.forgetClosedHides(ctx, deps.SettingsStore, userID, snap)
+	board.forgetClosedHides(ctx, deps.SettingsStore, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
-	filter := loadIssueFilter(ctx, deps.SettingsStore, userID)
+	filter := loadIssueFilter(ctx, deps.SettingsStore)
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
 
 	done := firstRefreshDone(deps.Manager, userID)
@@ -436,42 +436,42 @@ type boardSettings struct {
 // loadBoardSettings reads boardSettings. Each store failure degrades that one
 // piece, to no delivery signal, nothing ignored, auto-update off or no login,
 // and never fails the response.
-func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte) boardSettings {
-	deliveries, err := store.WebhookDeliveries(ctx, userID)
+func loadBoardSettings(ctx context.Context, store *settings.Store) boardSettings {
+	deliveries, err := store.WebhookDeliveries(ctx)
 	if err != nil {
 		slog.Warn("could not load webhook deliveries for dashboard response", "error", err)
 		deliveries = nil
 	}
-	ignored, err := store.IgnoredRepos(ctx, userID)
+	ignored, err := store.IgnoredRepos(ctx)
 	if err != nil {
 		slog.Warn("could not load ignored repos for dashboard response", "error", err)
 		ignored = nil
 	}
-	autoUpdateBranch, err := store.AutoUpdateBranchRepos(ctx, userID)
+	autoUpdateBranch, err := store.AutoUpdateBranchRepos(ctx)
 	if err != nil {
 		slog.Warn("could not load auto-update-branch repos for dashboard response", "error", err)
 		autoUpdateBranch = nil
 	}
 
-	autoUpdateChoices, err := store.PullRequestAutoUpdates(ctx, userID)
+	autoUpdateChoices, err := store.PullRequestAutoUpdates(ctx)
 	if err != nil {
 		slog.Warn("could not load pull request auto-update choices for dashboard response", "error", err)
 		autoUpdateChoices = nil
 	}
 
-	queued, err := store.QueuedActions(ctx, userID)
+	queued, err := store.QueuedActions(ctx)
 	if err != nil {
 		slog.Warn("could not load queued actions for dashboard response", "error", err)
 		queued = nil
 	}
 
-	autoMerge, err := store.AutoMergeIntents(ctx, userID)
+	autoMerge, err := store.AutoMergeIntents(ctx)
 	if err != nil {
 		slog.Warn("could not load auto-merge intents for dashboard response", "error", err)
 		autoMerge = nil
 	}
 
-	hidden, err := store.HiddenPullRequests(ctx, userID, time.Now())
+	hidden, err := store.HiddenPullRequests(ctx, time.Now())
 	if err != nil {
 		slog.Warn("could not load hidden pull requests for dashboard response", "error", err)
 		hidden = nil
@@ -481,7 +481,7 @@ func loadBoardSettings(ctx context.Context, store *settings.Store, userID []byte
 	// failure degrades to "no login", so nothing is marked as requested.
 	logins := map[dashboard.Forge]string{}
 	var renovateAuthors []string
-	if creds, err := store.Get(ctx, userID); err == nil {
+	if creds, err := store.Get(ctx); err == nil {
 		renovateAuthors = creds.RenovateAuthors
 		logins[dashboard.ForgeGitHub] = creds.GitHubUsername
 		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
@@ -577,7 +577,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 // request counts as closed only when its forge answered and its repo is still
 // tracked: an outage returns no pull requests, and that isn't a close. A
 // failure to delete is logged and leaves the record for the next snapshot.
-func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.Store, userID []byte, snap dashboard.Snapshot) {
+func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.Store, snap dashboard.Snapshot) {
 	if len(b.hidden) == 0 {
 		return
 	}
@@ -592,7 +592,7 @@ func (b *boardSettings) forgetClosedHides(ctx context.Context, store *settings.S
 	if len(gone) == 0 {
 		return
 	}
-	if err := store.ForgetHiddenPullRequests(ctx, userID, gone); err != nil {
+	if err := store.ForgetHiddenPullRequests(ctx, gone); err != nil {
 		slog.Warn("could not forget hidden pull requests that closed", "error", err)
 
 		return
@@ -714,8 +714,8 @@ func (f issueFilter) hides(issue dashboard.Issue, housekeeping bool) bool {
 // loadIssueFilter reads userID's issue settings. A store failure, or a saved
 // pattern that no longer compiles, degrades to showing more, never to failing
 // the response.
-func loadIssueFilter(ctx context.Context, store *settings.Store, userID []byte) issueFilter {
-	creds, err := store.Get(ctx, userID)
+func loadIssueFilter(ctx context.Context, store *settings.Store) issueFilter {
+	creds, err := store.Get(ctx)
 	if err != nil {
 		if !errors.Is(err, settings.ErrNotFound) {
 			slog.Warn("could not load issue settings for dashboard response", "error", err)
@@ -856,7 +856,7 @@ func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username st
 	if deps.Manager.Running(userID) {
 		return
 	}
-	creds, err := deps.SettingsStore.Get(ctx, userID)
+	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
 		if !errors.Is(err, settings.ErrNotFound) {
 			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
@@ -872,7 +872,7 @@ func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username st
 // startSession calls this on every login regardless of whether one's
 // already running, to pick up whatever was most recently saved.
 func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username string) {
-	creds, err := deps.SettingsStore.Get(ctx, userID)
+	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
 		if !errors.Is(err, settings.ErrNotFound) {
 			slog.Warn("could not load settings to warm up dashboard", "user", username, "error", err)
