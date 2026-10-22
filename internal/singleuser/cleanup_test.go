@@ -42,9 +42,6 @@ var ownedBy = map[string]string{
 	"pull_request_auto_update": "user_id",
 }
 
-// emptied are the tables the cleanup empties for everyone, kept user included.
-var emptied = []string{"invites"}
-
 // seedRow inserts one row owned by the user with this encoded id.
 var seedRow = map[string]string{ //nolint:gosec // G101: SQL fixtures, no credentials
 	"sessions":                 `INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES ('tok-' || ?1, ?1, '2099-01-01', '2026-01-01')`,
@@ -95,7 +92,7 @@ func newFixture(t *testing.T) *fixture {
 // addUser registers a user, with a passkey or as an abandoned registration.
 func (f *fixture) addUser(t *testing.T, name string, passkey bool) *auth.User {
 	t.Helper()
-	u, err := f.auth.CreateUser(t.Context(), name, name, len(f.users) == 0)
+	u, err := f.auth.CreateUser(t.Context(), name, name)
 	require.NoError(t, err)
 	if passkey {
 		require.NoError(t, f.auth.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-" + name), PublicKey: []byte("pk")}))
@@ -106,8 +103,7 @@ func (f *fixture) addUser(t *testing.T, name string, passkey bool) *auth.User {
 	return u
 }
 
-// giveData puts a row in every per-user table for u, plus a ceremony,
-// and an invite.
+// giveData puts a row in every per-user table for u, plus a ceremony.
 func (f *fixture) giveData(t *testing.T, u *auth.User) {
 	t.Helper()
 	id := base64.RawURLEncoding.EncodeToString(u.ID)
@@ -116,8 +112,6 @@ func (f *fixture) giveData(t *testing.T, u *auth.User) {
 		require.NoError(t, err, table)
 	}
 	require.NoError(t, f.auth.SaveCeremony(t.Context(), u.Username, "login", webauthn.SessionData{Challenge: "c"}, time.Hour))
-	_, _, err := f.auth.CreateInvite(t.Context(), "invitee-"+u.Username, "Invitee", u.ID, time.Hour)
-	require.NoError(t, err)
 }
 
 // threeUsers is the multi-user database the upgrade has to fix: the oldest
@@ -219,9 +213,6 @@ func TestRun_EveryTableIsClassified(t *testing.T) {
 	for table := range ownedBy {
 		known[table] = true
 	}
-	for _, table := range emptied {
-		known[table] = true
-	}
 	for _, table := range f.tables(t) {
 		assert.True(t, known[table], "table %q is new: decide what the single-user cleanup does with it, then classify it here and in singleuser", table)
 	}
@@ -244,7 +235,7 @@ func TestRun_ThreeUsers_OnlyTheOldestUsersRowsRemain(t *testing.T) {
 	}
 }
 
-func TestRun_ThreeUsers_ClearsTheirCeremoniesAndInvites(t *testing.T) {
+func TestRun_ThreeUsers_ClearsTheirCeremonies(t *testing.T) {
 	t.Parallel()
 	f := threeUsers(t)
 
@@ -253,7 +244,6 @@ func TestRun_ThreeUsers_ClearsTheirCeremoniesAndInvites(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, f.count(t, `SELECT count(*) FROM ceremonies WHERE username != 'ryan'`))
 	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM ceremonies WHERE username = 'ryan'`))
-	assert.Equal(t, 0, f.count(t, `SELECT count(*) FROM invites`))
 }
 
 func TestRun_ThreeUsers_WritesTheMarkerRow(t *testing.T) {
@@ -334,7 +324,7 @@ func TestRun_SecondStart_ChangesNothing(t *testing.T) {
 	f := threeUsers(t)
 	_, err := f.run(t)
 	require.NoError(t, err)
-	// A user invited between the two starts must survive: the marker says
+	// A user added between the two starts must survive: the marker says
 	// the cleanup already happened.
 	f.addUser(t, "late", true)
 	f.logbuf.Reset()
@@ -372,20 +362,6 @@ func TestRun_OldestUserHasNoPasskey_KeepsTheOldestRegisteredOne(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM users WHERE username = 'second'`))
 	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM users`))
-}
-
-func TestRun_KeeperIsNotTheAdmin_WarnsNamingBoth(t *testing.T) {
-	t.Parallel()
-	f := newFixture(t)
-	f.addUser(t, "boss", false) // created first, so the admin flag, but no passkey
-	f.addUser(t, "second", true)
-
-	_, err := f.run(t)
-
-	require.NoError(t, err)
-	log := f.logbuf.String()
-	assert.Contains(t, log, "keeper=second")
-	assert.Contains(t, log, "admin=boss")
 }
 
 func TestRun_BackupCannotBeWritten_DeletesNothingAndReturnsAnError(t *testing.T) {

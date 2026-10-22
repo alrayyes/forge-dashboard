@@ -51,7 +51,6 @@ const schema = `
 		id TEXT PRIMARY KEY,
 		username TEXT NOT NULL UNIQUE,
 		display_name TEXT NOT NULL,
-		is_admin INTEGER NOT NULL DEFAULT 0,
 		credentials_json TEXT NOT NULL DEFAULT '[]',
 		created_at TIMESTAMP NOT NULL
 	);
@@ -89,15 +88,6 @@ const schema = `
 		PRIMARY KEY (user_id, credential_id)
 	);
 
-	CREATE TABLE IF NOT EXISTS invites (
-		token_hash TEXT PRIMARY KEY,
-		username TEXT NOT NULL,
-		display_name TEXT NOT NULL,
-		created_by TEXT NOT NULL REFERENCES users(id),
-		expires_at TIMESTAMP NOT NULL,
-		consumed_at TIMESTAMP
-	);
-
 	CREATE TABLE IF NOT EXISTS request_log (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		logged_at TIMESTAMP NOT NULL,
@@ -121,7 +111,30 @@ func (s *Store) Init(ctx context.Context) error {
 		return fmt.Errorf("auth: create schema: %w", err)
 	}
 
-	return s.addColumnsIfMissing(ctx)
+	if err := s.addColumnsIfMissing(ctx); err != nil {
+		return err
+	}
+
+	return s.dropInviteMachinery(ctx)
+}
+
+// dropInviteMachinery removes what invites and the admin flag left in a
+// database created before an instance became single-user: the invites table
+// and users.is_admin. Safe on every start: a database without them is left
+// alone. is_admin is a plain column with no key or index, so DROP COLUMN works.
+func (s *Store) dropInviteMachinery(ctx context.Context) error {
+	if _, err := s.db.ExecContext(ctx, `DROP TABLE IF EXISTS invites`); err != nil {
+		return fmt.Errorf("auth: drop invites table: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE users DROP COLUMN is_admin`); err != nil {
+		if strings.Contains(err.Error(), "no such column") {
+			return nil
+		}
+
+		return fmt.Errorf("auth: drop users.is_admin: %w", err)
+	}
+
+	return nil
 }
 
 // addColumnsIfMissing exists for a database that already had api_tokens
@@ -151,7 +164,7 @@ func (s *Store) addColumnsIfMissing(ctx context.Context) error {
 // CreateUser registers a brand-new account with no credentials yet —
 // AddCredential attaches the first one once the registration ceremony
 // that follows actually succeeds.
-func (s *Store) CreateUser(ctx context.Context, username, displayName string, isAdmin bool) (*User, error) {
+func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*User, error) {
 	id := make([]byte, 32)
 	if _, err := rand.Read(id); err != nil {
 		return nil, fmt.Errorf("auth: generate user id: %w", err)
@@ -161,7 +174,6 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 		ID:          id,
 		Username:    username,
 		DisplayName: displayName,
-		IsAdmin:     isAdmin,
 		Credentials: []webauthn.Credential{},
 		CreatedAt:   time.Now().UTC(),
 	}
@@ -172,8 +184,8 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string, is
 	}
 
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO users (id, username, display_name, is_admin, credentials_json, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		encodeID(id), username, displayName, boolToInt(isAdmin), string(credsJSON), u.CreatedAt,
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES (?, ?, ?, ?, ?)`,
+		encodeID(id), username, displayName, string(credsJSON), u.CreatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("auth: insert user: %w", err)
@@ -199,7 +211,7 @@ func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string) err
 // GetUserByUsername returns ErrNotFound when no such user is registered.
 func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, username, display_name, is_admin, credentials_json, created_at FROM users WHERE username = ?`,
+		`SELECT id, username, display_name, credentials_json, created_at FROM users WHERE username = ?`,
 		username,
 	)
 
@@ -210,7 +222,7 @@ func (s *Store) GetUserByUsername(ctx context.Context, username string) (*User, 
 // the raw WebAuthn user handle, the same bytes User.ID holds.
 func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, username, display_name, is_admin, credentials_json, created_at FROM users WHERE id = ?`,
+		`SELECT id, username, display_name, credentials_json, created_at FROM users WHERE id = ?`,
 		encodeID(id),
 	)
 
@@ -236,34 +248,8 @@ func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 	}
 }
 
-// ListUsers returns every registered account, for the admin area.
-func (s *Store) ListUsers(ctx context.Context) ([]*User, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, username, display_name, is_admin, credentials_json, created_at FROM users ORDER BY username`,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("auth: list users: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var users []*User
-	for rows.Next() {
-		u, err := scanUser(rows)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, u)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("auth: list users: %w", err)
-	}
-
-	return users, nil
-}
-
 // rowScanner is the common surface of *sql.Row and *sql.Rows that scanUser
-// needs — one field-mapping function shared by a single-row lookup and a
-// ListUsers loop.
+// needs.
 type rowScanner interface {
 	Scan(dest ...any) error
 }
@@ -272,9 +258,8 @@ func scanUser(row rowScanner) (*User, error) {
 	var (
 		idStr, credsJSON string
 		u                User
-		isAdmin          int
 	)
-	if err := row.Scan(&idStr, &u.Username, &u.DisplayName, &isAdmin, &credsJSON, &u.CreatedAt); err != nil {
+	if err := row.Scan(&idStr, &u.Username, &u.DisplayName, &credsJSON, &u.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -287,7 +272,6 @@ func scanUser(row rowScanner) (*User, error) {
 		return nil, err
 	}
 	u.ID = id
-	u.IsAdmin = isAdmin != 0
 
 	if err := json.Unmarshal([]byte(credsJSON), &u.Credentials); err != nil {
 		return nil, fmt.Errorf("auth: decode stored credentials: %w", err)
@@ -654,51 +638,6 @@ func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	return nil
 }
 
-// RevokeUser signs userID out everywhere and clears every registered
-// passkey, without deleting the account itself — they have to register a
-// new passkey from scratch to get back in, same as BeginRegistration
-// reclaiming an abandoned one. Also revokes every API token: "signed out
-// everywhere" has to mean everywhere a request can authenticate as this
-// user, not just the session-cookie path.
-func (s *Store) RevokeUser(ctx context.Context, userID []byte) error {
-	if _, err := s.db.ExecContext(ctx, `UPDATE users SET credentials_json = '[]' WHERE id = ?`, encodeID(userID)); err != nil {
-		return fmt.Errorf("auth: clear credentials: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return fmt.Errorf("auth: delete credential metadata: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return fmt.Errorf("auth: delete sessions: %w", err)
-	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID))
-	if err != nil {
-		return fmt.Errorf("auth: delete api tokens: %w", err)
-	}
-
-	return nil
-}
-
-// DeleteUser removes the account and every session it holds — irreversible,
-// and the caller's job to also clean up anything outside this store (saved
-// forge credentials, a running dashboard refresh).
-func (s *Store) DeleteUser(ctx context.Context, userID []byte) error {
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return fmt.Errorf("auth: delete sessions: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM api_tokens WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return fmt.Errorf("auth: delete api tokens: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, encodeID(userID)); err != nil {
-		return fmt.Errorf("auth: delete credential metadata: %w", err)
-	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, encodeID(userID))
-	if err != nil {
-		return fmt.Errorf("auth: delete user: %w", err)
-	}
-
-	return nil
-}
-
 // apiTokenPrefix marks a generated token as forge-dashboard's own at a
 // glance, the same recognizability GitHub's ghp_/github_pat_ prefixes
 // give a secret scanner — nothing here ever parses it back out, since
@@ -840,179 +779,6 @@ func (s *Store) DeleteAPIToken(ctx context.Context, userID []byte, id string) er
 	}
 
 	return nil
-}
-
-// hashInviteToken is invites' own version of hashAPIToken — same
-// operation (SHA-256 hex, safe against a leaked database dump for the
-// same reason: the input is already a uniformly random 256-bit secret,
-// never a human-chosen value), kept as its own function rather than
-// sharing api_tokens' so each domain's hashing stays self-contained, the
-// same way each already has its own token-generation code.
-func hashInviteToken(raw string) string {
-	sum := sha256.Sum256([]byte(raw))
-
-	return hex.EncodeToString(sum[:])
-}
-
-// CreateInvite generates a brand-new single-use registration invite for
-// username/displayName, issued by createdBy (an admin's own user ID),
-// valid for ttl. raw is the only time the actual token is ever returned —
-// only its hash is stored, so a leaked database dump can't be replayed
-// into a registration (the same reasoning CreateAPIToken's own doc
-// comment gives).
-func (s *Store) CreateInvite(ctx context.Context, username, displayName string, createdBy []byte, ttl time.Duration) (raw string, invite *Invite, err error) {
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return "", nil, fmt.Errorf("auth: generate invite token: %w", err)
-	}
-	raw = base64.RawURLEncoding.EncodeToString(secret)
-	hash := hashInviteToken(raw)
-
-	invite = &Invite{
-		ID:          hash,
-		Username:    username,
-		DisplayName: displayName,
-		CreatedBy:   createdBy,
-		ExpiresAt:   time.Now().UTC().Add(ttl),
-	}
-	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO invites (token_hash, username, display_name, created_by, expires_at) VALUES (?, ?, ?, ?, ?)`,
-		hash, username, displayName, encodeID(createdBy), invite.ExpiresAt,
-	)
-	if err != nil {
-		return "", nil, fmt.Errorf("auth: create invite: %w", err)
-	}
-
-	return raw, invite, nil
-}
-
-// ConsumeInviteIfValid atomically checks that token hashes to an
-// outstanding (unconsumed, unexpired) invite issued for exactly username,
-// and marks it consumed in the same statement — a single UPDATE with
-// every validity condition in its WHERE clause, so a concurrent attempt to
-// spend the same token twice can never both succeed: SQLite serializes
-// writes, and only the first one actually matches consumed_at IS NULL.
-// Returns ErrNotFound uniformly for an unknown token, a username
-// mismatch, an already-consumed invite, or an expired one — deliberately
-// not distinguishing which, the same "don't leak which check failed"
-// reasoning ErrInvalidInvite's own doc comment gives at the Service layer
-// that wraps this.
-func (s *Store) ConsumeInviteIfValid(ctx context.Context, token, username string) (*Invite, error) {
-	hash := hashInviteToken(token)
-	now := time.Now().UTC()
-
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE invites SET consumed_at = ? WHERE token_hash = ? AND username = ? AND consumed_at IS NULL AND expires_at > ?`,
-		now, hash, username, now,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("auth: consume invite: %w", err)
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return nil, fmt.Errorf("auth: consume invite: %w", err)
-	}
-	if affected == 0 {
-		return nil, ErrNotFound
-	}
-
-	row := s.db.QueryRowContext(ctx,
-		`SELECT token_hash, username, display_name, created_by, expires_at, consumed_at FROM invites WHERE token_hash = ?`,
-		hash,
-	)
-
-	return scanInvite(row)
-}
-
-// ListOutstandingInvites returns every invite that's neither consumed nor
-// expired, soonest-expiring first — for the admin area's own list.
-func (s *Store) ListOutstandingInvites(ctx context.Context) ([]*Invite, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT token_hash, username, display_name, created_by, expires_at, consumed_at
-		 FROM invites WHERE consumed_at IS NULL AND expires_at > ? ORDER BY expires_at`,
-		time.Now().UTC(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("auth: list outstanding invites: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var invites []*Invite
-	for rows.Next() {
-		inv, err := scanInvite(rows)
-		if err != nil {
-			return nil, err
-		}
-		invites = append(invites, inv)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("auth: list outstanding invites: %w", err)
-	}
-
-	return invites, nil
-}
-
-// RevokeInvite marks id (an invite's own ID — its stored token_hash, from
-// CreateInvite/ListOutstandingInvites, never the raw token) consumed so
-// it can never be used to register — the row itself is kept, the same
-// "lingers, but harmlessly" trade-off design.md accepts for a genuinely
-// consumed invite, rather than a DELETE. Unlike DeleteAPIToken's own
-// idempotent delete, revoking an id that's already gone, already
-// consumed, or was never issued is ErrNotFound, not a silent no-op: an
-// admin revoking from a list they're looking at should be told when the
-// row they clicked isn't outstanding anymore, rather than have the button
-// silently do nothing.
-func (s *Store) RevokeInvite(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE invites SET consumed_at = ? WHERE token_hash = ? AND consumed_at IS NULL`,
-		time.Now().UTC(), id,
-	)
-	if err != nil {
-		return fmt.Errorf("auth: revoke invite: %w", err)
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("auth: revoke invite: %w", err)
-	}
-	if affected == 0 {
-		return ErrNotFound
-	}
-
-	return nil
-}
-
-func scanInvite(row rowScanner) (*Invite, error) {
-	var (
-		hash, username, displayName, createdByStr string
-		expiresAt                                 time.Time
-		consumedAt                                sql.NullTime
-	)
-	if err := row.Scan(&hash, &username, &displayName, &createdByStr, &expiresAt, &consumedAt); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-
-		return nil, fmt.Errorf("auth: scan invite row: %w", err)
-	}
-
-	createdBy, err := decodeID(createdByStr)
-	if err != nil {
-		return nil, err
-	}
-
-	inv := &Invite{
-		ID:          hash,
-		Username:    username,
-		DisplayName: displayName,
-		CreatedBy:   createdBy,
-		ExpiresAt:   expiresAt,
-	}
-	if consumedAt.Valid {
-		t := consumedAt.Time
-		inv.ConsumedAt = &t
-	}
-
-	return inv, nil
 }
 
 // RequestLogRow is one outbound-forge-request record, in the plain,
@@ -1162,12 +928,4 @@ func decodeID(s string) ([]byte, error) {
 	}
 
 	return id, nil
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-
-	return 0
 }

@@ -2,19 +2,6 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from './server-fixture';
 
 test.describe('passkey login', () => {
-  test('an invite link shows sign-in only once a user exists', async ({
-    page,
-    context,
-  }) => {
-    await context.clearCookies();
-
-    await page.goto('/login.html?invite=anything&username=someone');
-
-    await expect(page.locator('#login-form')).toBeVisible();
-    await expect(page.locator('#register-form')).toHaveCount(0);
-    await expect(page.locator('#show-register')).toHaveCount(0);
-  });
-
   test('has no axe-core violations at desktop width', async ({ page }) => {
     await page.goto('/login.html');
 

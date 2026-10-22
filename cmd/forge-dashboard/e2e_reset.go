@@ -49,28 +49,35 @@ func withE2EHooks(next http.Handler, deps api.Deps) http.Handler {
 
 var errNoOwner = errors.New("no user is registered yet")
 
-// oldestUser is the owner: the first account registered. ListUsers orders by
-// username, so the creation time decides.
-func oldestUser(users []*auth.User) *auth.User {
-	var owner *auth.User
-	for _, u := range users {
-		if owner == nil || u.CreatedAt.Before(owner.CreatedAt) {
-			owner = u
-		}
+// findOwner is the first account registered: the oldest user holding a
+// passkey, as the single-user cleanup picks it.
+func findOwner(ctx context.Context, db *sql.DB, store *auth.Store) (*auth.User, error) {
+	var username string
+	err := db.QueryRowContext(ctx,
+		`SELECT username FROM users WHERE credentials_json != '[]' ORDER BY created_at, rowid LIMIT 1`).Scan(&username)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, errNoOwner
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find owner: %w", err)
 	}
 
-	return owner
+	owner, err := store.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, fmt.Errorf("load owner: %w", err)
+	}
+
+	return owner, nil
 }
 
 // resetForE2E empties per-user state, keeps the owner and their first passkey,
 // drops the in-memory aggregators, and answers 204 with a fresh session cookie.
 func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.ResponseWriter) error {
-	users, err := deps.AuthStore.ListUsers(ctx)
+	owner, err := findOwner(ctx, db, deps.AuthStore)
 	if err != nil {
-		return fmt.Errorf("list users: %w", err)
+		return err
 	}
-	owner := oldestUser(users)
-	if owner == nil || len(owner.Credentials) == 0 {
+	if len(owner.Credentials) == 0 {
 		return errNoOwner
 	}
 	// The passkey as it was when registered: a login since then bumped its

@@ -20,11 +20,8 @@ the CI status of every default branch, `GET`/`PUT
 — `GET/PUT /api/settings/timezone` for the zone the user wants times shown
 in (an IANA name such as `Europe/Amsterdam`; empty means the browser's own, and
 it exists for browsers that report UTC to every page, such as Firefox with
-fingerprint resistance) — and `GET /api/admin/users` plus the revoke/delete
-endpoints, alongside `GET/POST /api/admin/invites` and
-`POST /api/admin/invites/{token}/revoke` for generating, listing, and
-revoking registration invites, every one of them refusing anyone but the
-designated admin. `redocly lint` validates it, and Go contract tests in
+fingerprint resistance).
+`redocly lint` validates it, and Go contract tests in
 `internal/api` check recorded responses against it (see
 [CONTRIBUTING.md](../CONTRIBUTING.md#how-it-fits-together)). Rendered docs
 live at `docs/api/index.html` (Scalar, zero-build), published

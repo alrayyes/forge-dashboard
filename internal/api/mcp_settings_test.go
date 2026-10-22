@@ -149,8 +149,7 @@ func TestMCP_GetSettings_AnotherUserSeesOnlyTheirOwn(t *testing.T) {
 	owner, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	status, _ := putSettings(t, srv.URL, seededSettings, owner)
 	require.Equal(t, http.StatusOK, status)
-	invite := createInviteViaAdmin(t, srv, owner, testOtherUser, "Alex")
-	other, _, _ := registerViaRealCeremony(t, srv, testOtherUser, "Alex", invite)
+	other := registerExtraUser(t, srv, testOtherUser, "Alex")
 
 	theirs := settingsContent(t, callSettingsTool(t, srv.URL, other))
 	assert.Empty(t, theirs["githubUsername"])

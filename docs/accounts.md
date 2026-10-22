@@ -11,8 +11,7 @@ HTML shell has a matching `<meta name="robots">` tag, and `robots.txt` allows
 crawling on purpose: a crawler that can't fetch a page never reads its
 `noindex`. The real barrier is the passkey login below.
 
-The first visit registers a passkey and becomes the instance's admin;
-every registration after that needs an invite link the admin generates —
+The first visit registers a passkey and becomes the instance's only user —
 no password anywhere, and no separate account system. `POST
 /api/auth/register/begin` and `.../finish` run the WebAuthn registration
 ceremony, `.../login/begin`/`.../finish` run the login ceremony, and a
@@ -21,25 +20,17 @@ request arrived over HTTPS) is what actually gates `/` and
 `/api/dashboard` afterward — see `internal/auth` and `api/openapi.yaml`'s
 `auth` tag.
 
-- **Whoever registers first becomes admin, and self-registration closes
-  the moment they do.** No environment variable to set or get wrong, and
-  no reliance on a deployment's own network boundary either — the first
-  completed registration is what `Service.BeginRegistration` checks
-  server-side, and every registration after that is rejected
-  unless it presents a valid invite. New accounts only ever exist because
-  the admin decided to add one, regardless of who else can reach the
-  login page. See [Invites](#invites) for generating, listing, and
-  revoking them.
-- **An invite is a single-use, one-hour link.** The admin picks the
-  username and display name up front through `POST /api/admin/invites`. The
-  login page no longer has a form for it: it only lets you sign in, and the
-  registration button appears only on an instance with no users. A token
-  that expires or completes one registration can never be used again.
-- **Losing every admin passkey with no other admin and no outstanding
-  invite is a hard lockout.** There's no email/SMS channel here to build
-  a self-service account-recovery flow on top of — the only way back in
-  is restoring the SQLite database (`DB_PATH`) from a backup taken before
-  the loss.
+- **Registration closes for good once a passkey exists.** No environment
+  variable to set or get wrong, and no reliance on a deployment's own
+  network boundary either: `Service.BeginRegistration` checks server-side
+  whether any user already holds a passkey and answers 403 `registration is
+closed` if so. The login page only shows the registration button on an
+  instance with no users. More passkeys for the same account are added from
+  Settings, signed in.
+- **Losing every passkey is a hard lockout.** There's no email/SMS channel
+  here to build a self-service account-recovery flow on top of — the only
+  way back in is restoring the SQLite database (`DB_PATH`) from a backup
+  taken before the loss.
 - **`RP_ID`** / **`RP_ORIGIN`** configure the WebAuthn relying party.
   They default to `localhost` / `http://localhost:8080` for a local run;
   a real deployment **must** set both to its real domain, or every
@@ -69,30 +60,6 @@ is stored, so losing it means generating a new one, same as any other
 bearer credential. Settings lists every live token (label, created date,
 last-used date) with a one-click **Revoke** that stops it authenticating
 immediately.
-
-## Invites
-
-The dashboard has no admin page. The user list and the invites are reachable
-through the API only: `GET /api/admin/users`, with
-`POST .../{username}/revoke` or `DELETE .../{username}` to remove a user,
-and `GET`/`POST /api/admin/invites` with
-`POST /api/admin/invites/{token}/revoke`. All of them refuse anyone but the
-admin, and a signed-in session or an API token reaches them like any other
-endpoint.
-
-An invite is a single-use registration link: send the username and display
-name up front, and the invitee only ever completes the WebAuthn ceremony. The
-link comes back exactly once. Only the token's hash is stored server-side, so
-losing it means creating a new one, the same "show once" handling a personal
-API token gets. Every invite expires after one hour, fixed and not
-configurable: long enough to hand a link off and have the invitee act on it in
-one sitting, short enough that a forgotten invite isn't a standing credential.
-
-Revoking a user signs them out everywhere, clearing every passkey and API
-token, and leaves the account and its saved forge credentials alone. Removing
-one deletes the account outright, along with its passkeys, sessions, tokens and
-saved credentials, and frees the username. Neither works on the admin's own
-account; the backend refuses it with a 400.
 
 ## Credentials
 

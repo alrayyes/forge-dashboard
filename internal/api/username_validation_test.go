@@ -15,7 +15,7 @@ func TestUsername_ABlankOneIsRefusedByTheServer(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	adminCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, testDisplay)
+	registerViaRealCeremony(t, srv, testAdmin, testDisplay)
 
 	for name, call := range map[string]func() *http.Response{
 		"register begin": func() *http.Response {
@@ -29,9 +29,6 @@ func TestUsername_ABlankOneIsRefusedByTheServer(t *testing.T) {
 			require.NoError(t, err)
 
 			return resp
-		},
-		"invite create": func() *http.Response {
-			return doJSON(t, http.MethodPost, srv.URL+"/api/admin/invites", `{"username":"   ","displayName":"Someone"}`, adminCookie)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -26,7 +26,7 @@ func handlerEchoingUsername() http.Handler {
 func TestRequireAuth_SessionCookie_Authenticates(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestRequireAuth_SessionCookie_Authenticates(t *testing.T) {
 func TestRequireAuth_BearerToken_AuthenticatesWithNoSessionCookie(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	rawToken, _, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -63,12 +63,12 @@ func TestRequireAuth_BearerToken_AuthenticatesWithNoSessionCookie(t *testing.T) 
 func TestRequireAuth_SessionCookiePreferredOverBearerWhenBothPresent(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	cookieUser, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	cookieUser, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	token, err := store.CreateSession(t.Context(), cookieUser.ID, time.Hour)
 	require.NoError(t, err)
 
-	bearerUser, err := store.CreateUser(t.Context(), "mallory", "Mallory", false)
+	bearerUser, err := store.CreateUser(t.Context(), "mallory", "Mallory")
 	require.NoError(t, err)
 	rawToken, _, err := store.CreateAPIToken(t.Context(), bearerUser.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestRequireAuth_InvalidBearerToken_Returns401(t *testing.T) {
 func TestRequireAuth_RevokedBearerToken_Returns401(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	rawToken, tok, err := store.CreateAPIToken(t.Context(), u.ID, "laptop", time.Now().Add(30*24*time.Hour))
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestRequireAuth_RevokedBearerToken_Returns401(t *testing.T) {
 func TestWithAccessLogUsername_RequireAuthFillsTheSlot(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	u, err := store.CreateUser(t.Context(), "ryan", "Ryan", false)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	token, err := store.CreateSession(t.Context(), u.ID, time.Hour)
 	require.NoError(t, err)

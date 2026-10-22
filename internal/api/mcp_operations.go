@@ -53,11 +53,5 @@ var mcpPending = []string{
 	"postPullRequestRenovateRebase",
 	"queueAction",
 	"cancelQueuedAction",
-	"listUsers",
-	"revokeUser",
-	"deleteUser",
-	"createInvite",
-	"listInvites",
-	"revokeInvite",
 	"refreshDashboard",
 }

@@ -41,11 +41,17 @@ func countsServer(t *testing.T, byToken map[string][]dashboard.Issue) *httptest.
 }
 
 // signInWithBoard registers a user, saves their token and waits for the board
-// to hold want issues, so the viewer has a snapshot.
-func signInWithBoard(t *testing.T, srv *httptest.Server, username, token string, want int, invite ...string) *http.Cookie {
+// to hold want issues, so the viewer has a snapshot. Pass extra for a second
+// user on the same server, which no public flow can register any more.
+func signInWithBoard(t *testing.T, srv *httptest.Server, username, token string, want int, extra ...bool) *http.Cookie {
 	t.Helper()
 
-	cookie, _, _ := registerViaRealCeremony(t, srv, username, username, invite...)
+	var cookie *http.Cookie
+	if len(extra) > 0 && extra[0] {
+		cookie = registerExtraUser(t, srv, username, username)
+	} else {
+		cookie, _, _ = registerViaRealCeremony(t, srv, username, username)
+	}
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+token+`"}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool {
@@ -198,7 +204,7 @@ func TestSettingsGet_IgnoredTitleCounts_CountOnlyTheViewersOwnIssues(t *testing.
 		"token-b": {countIssue(1, "b/y", "Weekly one"), countIssue(2, "b/y", "Weekly two"), countIssue(3, "b/y", "Weekly three")},
 	})
 	cookieA := signInWithBoard(t, srv, "alice", "token-a", 1)
-	cookieB := signInWithBoard(t, srv, "bob", "token-b", 3, createInviteViaAdmin(t, srv, cookieA, "bob", "bob"))
+	cookieB := signInWithBoard(t, srv, "bob", "token-b", 3, true)
 	for _, c := range []struct {
 		cookie *http.Cookie
 		token  string

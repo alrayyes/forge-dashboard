@@ -50,11 +50,6 @@ rules:
       field: maxItems
       function: truthy
 
-  # One bearer scheme for everyone, with the admin check on the server
-  # (auth.RequireAdmin). A second scheme would add nothing the server doesn't
-  # already enforce.
-  owasp:api5:2023-admin-security-unique: off
-
   # Public on purpose: the passkey ceremony, logout, health and version, and
   # the webhooks. Those declare `security: []` and the rule still flags
   # them, so it can't be satisfied from the spec.
@@ -62,6 +57,5 @@ rules:
   owasp:api2:2023-write-restricted: off
 
   # The webhook path token only says whose webhook it is. What proves the
-  # request came from the forge is its HMAC signature, and the invite token in
-  # the revoke path is an identifier, not the one an invitee registers with.
+  # request came from the forge is its HMAC signature.
   owasp:api2:2023-no-credentials-in-url: off
