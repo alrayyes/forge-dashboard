@@ -1052,6 +1052,9 @@ select.col-filter {
   height: 16px;
   object-fit: cover;
 }
+.pick-group {
+  display: block;
+}
 .pick-group-heading {
   display: block;
   margin-top: 6px;

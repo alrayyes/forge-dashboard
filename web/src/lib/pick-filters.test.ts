@@ -120,6 +120,18 @@ describe('pickSummary and initialOf', () => {
       pickSummary(['github:acme/web', 'github:acme/api'], repos, words),
     ).toBe('2 repos');
   });
+  test('one repo on two forges is named with its forge', () => {
+    const both = repoChoices(
+      [item('github', 'acme/api', 'x'), item('forgejo', 'acme/api', 'x')],
+      () => undefined,
+    );
+    expect(pickSummary(['forgejo:acme/api'], both, words)).toBe(
+      'acme/api (Forgejo)',
+    );
+    expect(pickSummary(['github:acme/api'], both, words)).toBe(
+      'acme/api (GitHub)',
+    );
+  });
   test('a pick nothing offers is named from its value', () => {
     expect(pickSummary(['github:gone/x'], repos, words)).toBe('gone/x');
   });

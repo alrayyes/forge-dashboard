@@ -35,6 +35,7 @@
     joinLabels,
     AUTHOR_CONFIG,
     labelKey,
+    choiceText,
     mountLabelFilter,
     mountPickFilter,
     type PickChoice,
@@ -6880,9 +6881,9 @@
         const picked = parseLabels(shared[key]);
         for (const value of picked) {
           const choice = choices.find((c) => labelKey(c.value) === value);
-          const text =
-            choice?.text ??
-            value.slice(key === "repo" ? value.indexOf(":") + 1 : 0);
+          const text = choice
+            ? choiceText(choice)
+            : value.slice(key === "repo" ? value.indexOf(":") + 1 : 0);
           chips.push({
             label: `${noun} ${text}`,
             choice: choice ?? {

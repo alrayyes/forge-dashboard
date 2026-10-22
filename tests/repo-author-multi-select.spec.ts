@@ -461,11 +461,51 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
     await expect(
       pickPanel(page, 'repo').locator('.pick-group-heading'),
     ).toHaveText(['Forgejo', 'GitHub']);
+    // Each heading is a real group, so the box under it is named by it.
+    for (const forge of ['Forgejo', 'GitHub']) {
+      await expect(
+        pickPanel(page, 'repo').getByRole('group', { name: forge }),
+      ).toHaveCount(1);
+      await expect(
+        pickPanel(page, 'repo')
+          .getByRole('group', { name: forge })
+          .getByRole('checkbox', { name: 'acme/api' }),
+      ).toHaveCount(1);
+    }
     await pickButton(page, 'repo').click();
+
+    // One of them alone still says which forge it is on.
+    await togglePicks(page, 'repo', 'forgejo:acme/api');
+    await expect(pickButton(page, 'repo')).toHaveText('acme/api (Forgejo)');
+    await expect(pickButton(page, 'repo')).toHaveAccessibleName(
+      'Filter by repo: acme/api (Forgejo)',
+    );
+    await togglePicks(page, 'repo', 'forgejo:acme/api');
 
     await togglePicks(page, 'repo', 'forgejo:acme/api', 'github:acme/api');
     await expect(prRows(page)).toHaveCount(2);
     await expect(pickButton(page, 'repo')).toHaveText('2 repos');
+  });
+
+  test('has no axe violations with two forges open, light and dark', async ({
+    page,
+  }) => {
+    await mock(
+      page,
+      [
+        pr(1, 'alice', 'acme/api'),
+        pr(2, 'bob', 'acme/api', { forge: 'forgejo' }),
+      ],
+      [
+        { forge: 'github', reachable: true, repoCount: 1 },
+        { forge: 'forgejo', reachable: true, repoCount: 1 },
+      ],
+    );
+    await page.goto('/pull-requests.html');
+    await pickButton(page, 'repo').click();
+    await axe(page);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await axe(page);
   });
 
   test('stops at twenty authors: the other boxes are disabled', async ({

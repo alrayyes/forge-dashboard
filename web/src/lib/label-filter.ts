@@ -113,6 +113,13 @@ export interface PickWords {
   many: string;
 }
 
+// A choice's name as one phrase. A repo offered under a forge heading carries
+// the forge, since the same name can sit on two forges and a lone button or
+// chip has no heading beside it.
+export function choiceText(choice: PickChoice): string {
+  return choice.group ? `${choice.text} (${choice.group})` : choice.text;
+}
+
 export function pickSummary(
   picked: string[],
   choices: PickChoice[],
@@ -121,7 +128,8 @@ export function pickSummary(
   if (picked.length === 0) return words.all;
   if (picked.length > 1) return `${picked.length} ${words.many}`;
   const found = choices.find((c) => labelKey(c.value) === picked[0]);
-  if (found) return found.text;
+  // A repo named on several forges needs its forge, or two read the same.
+  if (found) return choiceText(found);
   // Not on this page: a repo is still named without its forge.
   const colon = picked[0].indexOf(':');
   return colon >= 0 ? picked[0].slice(colon + 1) : picked[0];
@@ -316,6 +324,10 @@ export function mountPickFilter(
     button.focus();
   });
 
+  const groupBoxes = new Map<string, HTMLElement>();
+  const groupId = `${host.id || 'pick'}-group`;
+  let groupCount = 0;
+
   function render(offered: PickChoice[], picked: string[]) {
     // One box per choice, whatever its case.
     const seen = new Set<string>();
@@ -328,31 +340,49 @@ export function mountPickFilter(
     pickedNow = picked;
 
     const rows = new Map<string, HTMLElement>();
-    for (const child of Array.from(options.children)) {
-      const row = child as HTMLElement;
+    for (const row of Array.from(
+      options.querySelectorAll<HTMLElement>('.label-filter-option'),
+    )) {
       rows.set(row.dataset.label ?? '', row);
     }
-    let previous: Element | null = null;
-    const place = (row: HTMLElement) => {
-      const wanted: Node | null = previous
-        ? previous.nextElementSibling
-        : options.firstChild;
-      if (wanted !== row) options.insertBefore(row, wanted);
-      previous = row;
+    // Put `child` as the next child of `parent` after `prev`.
+    const placeAfter = (
+      parent: HTMLElement,
+      child: HTMLElement,
+      prev: Element | null,
+    ): HTMLElement => {
+      const wanted: Node | null = prev
+        ? prev.nextElementSibling
+        : parent.firstElementChild;
+      if (wanted !== child) parent.insertBefore(child, wanted);
+      return child;
     };
-    let lastGroup: string | undefined;
+    let topPrev: Element | null = null;
+    const used = new Set<string>();
+    const inGroup = new Map<string, Element | null>();
     for (const choice of offeredNow) {
-      if (choice.group && choice.group !== lastGroup) {
-        const key = `\u0000group:${choice.group}`;
-        let heading = rows.get(key);
-        if (!heading) {
-          heading = node('span', 'pick-group-heading', choice.group);
-          heading.dataset.label = key;
+      let parent: HTMLElement = options;
+      let prev: Element | null = topPrev;
+      if (choice.group) {
+        let box = groupBoxes.get(choice.group);
+        if (!box) {
+          // A named group, so a reader hears which forge a repo is under.
+          box = node('div', 'pick-group');
+          box.setAttribute('role', 'group');
+          const heading = node('span', 'pick-group-heading', choice.group);
+          heading.id = `${groupId}-${++groupCount}`;
+          box.setAttribute('aria-labelledby', heading.id);
+          box.append(heading);
+          groupBoxes.set(choice.group, box);
         }
-        rows.delete(key);
-        place(heading);
+        if (!used.has(choice.group)) {
+          used.add(choice.group);
+          topPrev = placeAfter(options, box, topPrev);
+          inGroup.set(choice.group, box.querySelector('.pick-group-heading'));
+        }
+        parent = box;
+        prev = inGroup.get(choice.group) ?? null;
       }
-      lastGroup = choice.group;
       const key = labelKey(choice.value);
       const sig = `${choice.imageKind ?? ''}|${choice.imageUrl ?? ''}`;
       let row = rows.get(key) as HTMLLabelElement | undefined;
@@ -383,7 +413,15 @@ export function mountPickFilter(
         // At the most, only a ticked box can still be changed.
         box.disabled = !box.checked && !toggleLabel(picked, key).includes(key);
       }
-      place(row);
+      const placed = placeAfter(parent, row, prev);
+      if (choice.group) inGroup.set(choice.group, placed);
+      else topPrev = placed;
+    }
+    for (const [name, box] of Array.from(groupBoxes)) {
+      if (!used.has(name)) {
+        box.remove();
+        groupBoxes.delete(name);
+      }
     }
     for (const row of rows.values()) row.remove();
 
