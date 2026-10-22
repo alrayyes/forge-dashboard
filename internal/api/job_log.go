@@ -4,17 +4,61 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
+// repoSegment is what a forge allows in an owner or repository name. Anything
+// else (a dot-only segment, a query or fragment mark, a percent escape, a
+// slash) could rewrite the path of the request made with the user's token.
+var repoSegment = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$`)
+
+func validRepoSegment(s string) bool {
+	return repoSegment.MatchString(s) && strings.Trim(s, ".") != ""
+}
+
+// parseJobID reads a decimal job id; ok is false for anything but plain
+// digits that fit an int64.
+func parseJobID(s string) (int64, bool) {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+	id, err := strconv.ParseInt(s, 10, 64)
+
+	if err != nil || id <= 0 {
+		return 0, false
+	}
+
+	return id, true
+}
+
+// jobLogFailure is what a caller is told about a failed read: a fixed
+// sentence per kind, never the error itself, which can carry a signed URL.
+func jobLogFailure(err error) *statusError {
+	status := clientErrorStatus(err)
+	switch status {
+	case http.StatusForbidden:
+		return &statusError{status, "the forge refused to show this job's log"}
+	case http.StatusNotFound:
+		return &statusError{status, "the forge has no log for this job"}
+	case http.StatusTooManyRequests:
+		return &statusError{status, "the forge is limiting requests; try again shortly"}
+	default:
+		return &statusError{status, "the job's log could not be read"}
+	}
+}
+
 // resolveJobLogFor reads the output of one Actions job for u. Shared by
 // handleJobLog and the MCP get_check_log tool so the two can't drift.
 func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
 	owner, name, ok := splitFullName(fullName)
-	if !ok {
+	if !ok || !validRepoSegment(owner) || !validRepoSegment(name) {
 		return dashboard.JobLog{}, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
 	}
 	if jobID <= 0 {
@@ -32,9 +76,9 @@ func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullN
 
 	log, err := reader.JobLog(ctx, owner, name, jobID)
 	if err != nil {
-		slog.Warn("job log fetch failed", "forge", forge, "repo", fullName, "job", jobID, "error", err)
+		slog.Warn("job log fetch failed", "forge", forge, "repo", fullName, "job", jobID, "error", redactURLs(err))
 
-		return dashboard.JobLog{}, &statusError{clientErrorStatus(err), err.Error()}
+		return dashboard.JobLog{}, jobLogFailure(err)
 	}
 
 	return log, nil
@@ -52,7 +96,7 @@ func handleJobLog(deps Deps) http.HandlerFunc {
 		}
 
 		q := r.URL.Query()
-		jobID, _ := strconv.ParseInt(q.Get("jobId"), 10, 64)
+		jobID, _ := parseJobID(q.Get("jobId"))
 		log, serr := resolveJobLogFor(r.Context(), deps, u, q.Get("forge"), q.Get("fullName"), jobID)
 		if serr != nil {
 			serr.write(w)
@@ -60,6 +104,16 @@ func handleJobLog(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		writeJSON(w, http.StatusOK, log)
 	}
+}
+
+var urlInText = regexp.MustCompile(`https?://\S+`)
+
+// redactURLs is err's text with every URL taken out, for the log: a signed
+// blob URL in it would put a working credential there.
+func redactURLs(err error) string {
+	return urlInText.ReplaceAllString(err.Error(), "<url>")
 }
