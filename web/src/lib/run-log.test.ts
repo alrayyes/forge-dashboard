@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import {
+  canCopyLog,
   copyLog,
   copyPending,
   copyStatus,
@@ -41,6 +42,46 @@ const respond = (status: number, body: unknown) =>
     })) as unknown as typeof fetch;
 
 describe('loadRunLog', () => {
+  test('gives up on a forge that never answers, so a copy cannot hang', async () => {
+    let signal: AbortSignal | undefined;
+    const stalled = ((_url: string, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+
+      return new Promise<Response>((_, reject) => {
+        signal?.addEventListener('abort', () => reject(signal?.reason));
+      });
+    }) as unknown as typeof fetch;
+
+    const got = await loadRunLog('/api/checks/log?x', 'Forgejo', stalled, 20);
+
+    expect(got.ok).toBe(false);
+    if (!got.ok) expect(got.message).toContain('took too long');
+  });
+
+  test('gives up on a body that stops arriving', async () => {
+    const stalledBody = ((_url: string, init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise((_, reject) => {
+            init?.signal?.addEventListener('abort', () =>
+              reject(init.signal?.reason),
+            );
+          }),
+      } as unknown as Response)) as unknown as typeof fetch;
+
+    const got = await loadRunLog(
+      '/api/checks/log?x',
+      'Forgejo',
+      stalledBody,
+      20,
+    );
+
+    expect(got.ok).toBe(false);
+    if (!got.ok) expect(got.message).toContain('took too long');
+  });
+
   test('returns the text and whether it was cut', async () => {
     const got = await loadRunLog(
       '/x',
@@ -409,5 +450,33 @@ describe('copyPending', () => {
 
     expect(result.outcome).toBe('nothing');
     expect(seen).toEqual([]);
+  });
+});
+
+describe('canCopyLog', () => {
+  const checks = '/api/main-branches/checks?forge=github&fullName=a%2Fb';
+
+  test('a failed job whose log the checks url can name', () => {
+    expect(canCopyLog({ state: 'failure', jobId: 5 }, checks)).toBe(true);
+  });
+
+  test('not a job whose checks url names no repository', () => {
+    expect(
+      canCopyLog({ state: 'failure', jobId: 5 }, '/api/main-branches/checks'),
+    ).toBe(false);
+    expect(
+      canCopyLog({ state: 'failure', jobId: 5 }, '/api/x?forge=github'),
+    ).toBe(false);
+  });
+
+  test('an excerpt is enough without a log address', () => {
+    expect(canCopyLog({ state: 'timed_out', excerpt: 'boom' }, '')).toBe(true);
+  });
+
+  test('not a check that did not fail', () => {
+    expect(
+      canCopyLog({ state: 'cancelled', jobId: 5, excerpt: 'x' }, checks),
+    ).toBe(false);
+    expect(canCopyLog({ state: 'failure' }, checks)).toBe(false);
   });
 });

@@ -5,6 +5,10 @@
 // the start of a log past this.
 const KEPT_KB = 256;
 
+// How long a log read may take, answer and body, before it counts as failed.
+// Without a bound a stalled read would leave a copy waiting for good.
+const LOG_TIMEOUT_MS = 30_000;
+
 export type LogResult =
   | { ok: true; text: string; truncated: boolean }
   | { ok: false; message: string; signedOut?: boolean };
@@ -32,15 +36,33 @@ export async function loadRunLog(
   url: string,
   forgeName: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = LOG_TIMEOUT_MS,
 ): Promise<LogResult> {
-  let res: Response;
+  const signal = AbortSignal.timeout(timeoutMs);
   try {
-    res = await fetchImpl(url, { headers: { Accept: 'application/json' } });
+    return await readRunLog(url, forgeName, fetchImpl, signal);
   } catch (err) {
-    const why = err instanceof Error ? err.message : String(err);
+    const why =
+      err instanceof Error && err.name === 'TimeoutError'
+        ? 'the forge took too long to answer'
+        : err instanceof Error
+          ? err.message
+          : String(err);
 
     return { ok: false, message: `Couldn't load the output (${why}).` };
   }
+}
+
+async function readRunLog(
+  url: string,
+  forgeName: string,
+  fetchImpl: typeof fetch,
+  signal: AbortSignal,
+): Promise<LogResult> {
+  const res = await fetchImpl(url, {
+    headers: { Accept: 'application/json' },
+    signal,
+  });
   if (res.status === 401) {
     return {
       ok: false,
@@ -49,7 +71,12 @@ export async function loadRunLog(
     };
   }
   if (res.ok) {
-    const body = await res.json().catch(() => null);
+    const body = await res.json().catch((err) => {
+      // A body cut off by the timeout is a stalled read, not a bad answer.
+      if (signal.aborted) throw err;
+
+      return null;
+    });
     if (typeof body?.text === 'string') {
       return { ok: true, text: body.text, truncated: body.truncated === true };
     }
@@ -122,6 +149,20 @@ export function logSource(
         url: null,
         why: "Couldn't tell which repository this check belongs to.",
       };
+}
+
+// Whether a check has a log worth a Copy log button: a failure or timeout
+// (a cancelled run is not a failure to debug) that carries an excerpt, or that
+// has a job whose log the checks url can name. A checks url that names no
+// repository gives no log address, so a job alone isn't enough.
+export function canCopyLog(
+  check: { state: string; excerpt?: string; jobId?: number },
+  checksUrl: string | undefined,
+): boolean {
+  if (check.state !== 'failure' && check.state !== 'timed_out') return false;
+  if (check.excerpt) return true;
+
+  return !!check.jobId && !!checksUrl && !!logUrl(checksUrl, check.jobId);
 }
 
 // What a failed check's Copy button puts on the clipboard: the whole log when

@@ -75,6 +75,11 @@
       generation++;
       cached = undefined;
       clearTimeout(timer);
+      // Someone reading the field would lose their place when it goes: focus
+      // would fall to the page. Hand it to the button, which stays.
+      if (manualField && document.activeElement === manualField) {
+        button?.focus({ preventScroll: true });
+      }
       manual = "";
       status = "";
       busy = false;

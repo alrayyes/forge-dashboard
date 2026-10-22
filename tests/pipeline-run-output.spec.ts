@@ -81,6 +81,41 @@ async function setup(
   return asked;
 }
 
+type ReadCount = { __logReads?: number };
+
+// Counts the log reads whose body the page has fully received, so a test can
+// wait for the page to have the answer instead of sleeping.
+async function watchLogReads(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as ReadCount & { fetch: typeof fetch };
+    w.__logReads = 0;
+    const original = w.fetch.bind(window);
+    w.fetch = async (...args: Parameters<typeof fetch>) => {
+      const res = await original(...args);
+      if (String(args[0]).includes('/api/checks/log')) {
+        void res
+          .clone()
+          .text()
+          .finally(() => {
+            w.__logReads = (w.__logReads ?? 0) + 1;
+          });
+      }
+
+      return res;
+    };
+  });
+}
+
+async function logWasRead(page: Page): Promise<void> {
+  // Polled from here: a page clock faked by the test would stall the page's
+  // own timers.
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as ReadCount).__logReads ?? 0),
+    )
+    .toBeGreaterThan(0);
+}
+
 // Holds the next log read until the returned function is called, then answers
 // it with `log`. The route replaces the one `setup` made.
 async function holdLog(
@@ -99,6 +134,7 @@ async function holdLog(
       body: JSON.stringify(log.body),
     });
   });
+  await watchLogReads(page);
 
   return release;
 }
@@ -394,7 +430,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
     await page.keyboard.press('Escape');
     release();
-    await page.waitForTimeout(200);
+    await logWasRead(page);
 
     expect(errors).toEqual([]);
   });
@@ -486,7 +522,8 @@ async function openBranchFailure(
     jobId: 9,
     excerpt: 'old boom',
     check: 'failure',
-    seconds: 40,
+    seconds: 40 as number | undefined,
+    attempt: undefined as number | undefined,
   };
   await page.clock.install();
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -520,6 +557,7 @@ async function openBranchFailure(
             state: state.check,
             url: 'https://example.com/r/1',
             durationSeconds: state.seconds,
+            runAttempt: state.attempt,
             jobId: state.jobId,
             excerpt: state.excerpt,
           },
@@ -558,11 +596,20 @@ async function openBranchFailure(
       state.excerpt = 'new boom';
       await page.clock.runFor(60_000);
     },
-    rerun: async () => {
+    // Forgejo keeps the job id, the page and has no duration: only the
+    // attempt number says it ran again.
+    retryAttempt: async () => {
+      state.failed++;
+      state.seconds = undefined;
+      state.attempt = 2;
+      state.excerpt = 'new boom';
+      await page.clock.runFor(60_000);
+    },
+    rerun: async (ms = 60_000) => {
       state.failed = 2;
       state.jobId = 10;
       state.excerpt = 'new boom';
-      await page.clock.runFor(60_000);
+      await page.clock.runFor(ms);
     },
   };
 }
@@ -602,6 +649,42 @@ test.describe('a rerun gives a failed check a new job', () => {
     );
     await expect(field).toHaveCount(0);
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText('');
+  });
+
+  test('a retry that changes only the attempt number clears the field too', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    const { dialog, state, poll, retryAttempt } = await openBranchFailure(page);
+    state.seconds = undefined;
+    state.attempt = 1;
+    await poll();
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await expect(field).toHaveValue('log of job 9\n');
+
+    await retryAttempt();
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+      'new boom',
+    );
+    await expect(field).toHaveCount(0);
+  });
+
+  test('the person keeps their place when the field they are in goes away', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    const { dialog, rerun } = await openBranchFailure(page);
+    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+    await copy.click();
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await expect(field).toBeFocused();
+
+    await rerun();
+
+    await expect(field).toHaveCount(0);
+    await expect(copy).toBeFocused();
   });
 
   test('a check that stops being a failure takes its field with it', async ({
@@ -648,18 +731,22 @@ test.describe('a rerun gives a failed check a new job', () => {
     let release!: () => void;
     const held = new Promise<void>((resolve) => (release = resolve));
     const { dialog, rerun } = await openBranchFailure(page, () => held);
+    await watchLogReads(page);
     await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
 
+    // The page gives up on a log read after 30 seconds, and this page's clock
+    // is faked: start the read late enough that the next poll lands first.
+    await page.clock.runFor(40_000);
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
       'Copying',
     );
-    await rerun();
+    await rerun(21_000);
     await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
       'new boom',
     );
     release();
-    await page.waitForTimeout(300);
+    await logWasRead(page);
 
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       'SENTINEL',
@@ -723,7 +810,7 @@ test.describe('the copy status line', () => {
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
     await page.keyboard.press('Escape');
     release();
-    await page.waitForTimeout(200);
+    await logWasRead(page);
 
     expect(
       await page.evaluate(() => (window as unknown as { tries: number }).tries),
@@ -749,7 +836,7 @@ test.describe('the copy status line', () => {
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
     await page.keyboard.press('Escape');
     release();
-    await page.waitForTimeout(300);
+    await logWasRead(page);
 
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       'SENTINEL',

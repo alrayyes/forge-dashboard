@@ -676,7 +676,8 @@ A check that failed or timed out, and has an excerpt or a job to read, also
 has a `Copy log` button under it. A cancelled check doesn't. The button copies
 the whole log of the job, or the last 256 KB of it when the log is longer, and
 the excerpt alone when the log can't be read; the status line beside the button
-says which of these it copied. Where the browser refuses every way of copying,
+says which of these it copied. A log the forge doesn't send within 30 seconds
+counts as one that can't be read. Where the browser refuses every way of copying,
 the log is put in a text field, selected, for the
 person to copy with Ctrl+C (Cmd+C on a Mac).
 

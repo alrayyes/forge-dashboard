@@ -12,6 +12,8 @@ export type Check = {
   url: string;
   required?: boolean;
   durationSeconds?: number;
+  // Which attempt of its run the job is (Forgejo), so a retry reads as new.
+  runAttempt?: number;
   failedStep?: string;
   excerpt?: string;
   // The forge's job id, which the output is read by; absent when it has none.

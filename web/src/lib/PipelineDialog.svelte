@@ -44,6 +44,7 @@
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
+  import { canCopyLog } from "#lib/run-log.js";
   import {
     blockingFirst,
     CHECK_STATE_LABELS,
@@ -195,10 +196,7 @@
   // those two states carry an excerpt from the server, and a cancelled run is
   // not a failure to debug (View run still opens its output).
   function copyableLog(check: Check): boolean {
-    return (
-      (check.state === "failure" || check.state === "timed_out") &&
-      (!!check.excerpt || (!!check.jobId && !!target?.checksUrl))
-    );
+    return canCopyLog(check, target?.checksUrl);
   }
 
   // The forge's name for a board that doesn't name it: the checks url carries
@@ -307,7 +305,8 @@
           excerpt={check.excerpt ?? ""}
           forgeName={target ? forgeLabel(target) : "the forge"}
           {copyable}
-          runKey="{check.url}|{check.durationSeconds ?? ''}"
+          runKey="{check.url}|{check.durationSeconds ?? ''}|{check.runAttempt ??
+            ''}"
         />
       </li>
     {/each}
