@@ -45,7 +45,7 @@ func eligibilityBoard(t *testing.T, pr dashboard.PullRequest) (*httptest.Server,
 		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1},
 		prs:    []dashboard.PullRequest{pr},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

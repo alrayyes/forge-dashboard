@@ -27,7 +27,7 @@ func TestDashboard_PullRequest_SerializesReviewState(t *testing.T) {
 		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1},
 		prs:    []dashboard.PullRequest{known, unknown},
 	}
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

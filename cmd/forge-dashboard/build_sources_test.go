@@ -37,15 +37,6 @@ func newTestAuthStore(t *testing.T) *auth.Store {
 	return store
 }
 
-// TestBuildSourcesForUser_TwoUsers_RecordUnderTwoDistinctAccountIDs is
-// task 2.5's own acceptance criterion: each account's forge clients
-// have to record under that account's own ID, not a shared or empty
-// one, since correlating a shared-credential problem (#435's suspected
-// cause) is the entire reason #482 exists. Forgejo, not GitHub, because
-// its instanceURL is configurable per-user (settings.Credentials.
-// ForgejoURL) — this is what lets the test point real clients at an
-// httptest server and observe a genuine recorded request, rather than
-// only inspecting how the client was constructed.
 // testGitHubAppPrivateKeyPEM is a throwaway RSA key generated once and
 // reused across every #620 precedence test in this file.
 var testGitHubAppPrivateKeyPEM = generateTestGitHubAppPrivateKeyPEM()

@@ -60,8 +60,8 @@ func writeActionRefusal(ctx context.Context, w http.ResponseWriter, src any, act
 // message the board shows and reports true, so the caller never asks the
 // forge. A pull request the board doesn't hold is left to the forge, which
 // has the final say either way.
-func refuseIfNotAllowed(ctx context.Context, w http.ResponseWriter, deps Deps, userID []byte, action dashboard.ActionName, forge, fullName string, number int) bool {
-	pr, found := deps.Manager.FindPullRequest(userID, dashboard.Forge(forge), fullName, number)
+func refuseIfNotAllowed(ctx context.Context, w http.ResponseWriter, deps Deps, action dashboard.ActionName, forge, fullName string, number int) bool {
+	pr, found := deps.Service.FindPullRequest(dashboard.Forge(forge), fullName, number)
 	if !found {
 		return false
 	}

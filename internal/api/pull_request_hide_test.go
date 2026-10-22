@@ -64,7 +64,7 @@ func newHideServer(t *testing.T) (srvURL string, cookie *http.Cookie, src *hideS
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	src = &hideSource{}
 	src.set(true, 1, 2)
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

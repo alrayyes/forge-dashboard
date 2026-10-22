@@ -178,15 +178,15 @@ func TestWebhookUpgrade_NotEnabled_DoesNothing(t *testing.T) {
 	require.Empty(t, src.called())
 }
 
-func TestManager_SetWebhookUpgrade_EnablesItOnTheAggregatorsItBuilds(t *testing.T) {
+func TestService_SetWebhookUpgrade_EnablesItOnTheAggregatorsItBuilds(t *testing.T) {
 	t.Parallel()
 
 	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, covered(dashboard.ForgeGitHub, "me/a")...)
-	mgr := dashboard.NewManager(time.Hour)
+	mgr := dashboard.NewService(time.Hour)
 	t.Cleanup(mgr.Stop)
 	mgr.SetWebhookUpgrade(fakeCreds{}, "https://dash.example")
 
-	mgr.Ensure(t.Context(), []byte("u1"), []dashboard.Source{src})
+	mgr.Ensure(t.Context(), []dashboard.Source{src})
 
 	assert.Eventually(t, func() bool { return len(src.called()) == 1 }, 5*time.Second, 10*time.Millisecond)
 }

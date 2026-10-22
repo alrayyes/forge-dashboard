@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI is
+// TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI is
 // a regression test for a real incident: forge-dashboard's GitHub account
 // burned through its entire 5000/hour REST budget in under a minute,
 // repeatedly. Nothing in Aggregator.Refresh or Manager.RefreshNow
@@ -25,7 +25,7 @@ import (
 // github.Client against a real httptest.Server counting POST /graphql
 // calls, rather than asserting on the code's shape, so it proves the
 // actual number of requests a burst of concurrent triggers produces.
-func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *testing.T) {
+func TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int64
@@ -69,11 +69,10 @@ func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	// An hour-long ticker means the only refreshes in this test are the
 	// one Ensure triggers immediately and the ones the test fires itself
 	// — nothing from the background schedule racing in unpredictably.
-	manager := dashboard.NewManager(time.Hour)
+	manager := dashboard.NewService(time.Hour)
 	t.Cleanup(manager.Stop)
 
-	userID := []byte("user-1")
-	manager.Ensure(t.Context(), userID, []dashboard.Source{client})
+	manager.Ensure(t.Context(), []dashboard.Source{client})
 
 	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond,
 		"Ensure's own initial refresh should have completed")
@@ -86,7 +85,7 @@ func TestManager_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	var wg sync.WaitGroup
 	for range triggers {
 		wg.Go(func() {
-			manager.RefreshNow(t.Context(), userID)
+			manager.RefreshNow(t.Context())
 		})
 	}
 	// Deterministic window for the burst to actually reach coalescer.do

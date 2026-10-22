@@ -78,21 +78,21 @@ func (e *statusError) write(w http.ResponseWriter) {
 
 // lookupForgeSource finds the user's source for forge, with the settings it was
 // built from. The *statusError is a 500 or 400, nil on success.
-func lookupForgeSource(ctx context.Context, deps Deps, userID []byte, forge string) (dashboard.Source, settings.Credentials, *statusError) {
+func lookupForgeSource(ctx context.Context, deps Deps, forge string) (dashboard.Source, settings.Credentials, *statusError) {
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
 		return nil, settings.Credentials{}, &statusError{http.StatusInternalServerError, "could not load settings"}
 	}
 
-	src, serr := pickForgeSource(deps, userID, creds, forge)
+	src, serr := pickForgeSource(deps, creds, forge)
 
 	return src, creds, serr
 }
 
 // pickForgeSource picks the source for forge out of the ones creds builds, or a
 // 400 when the user has none.
-func pickForgeSource(deps Deps, userID []byte, creds settings.Credentials, forge string) (dashboard.Source, *statusError) {
-	for _, src := range deps.BuildSources(userID, creds) {
+func pickForgeSource(deps Deps, creds settings.Credentials, forge string) (dashboard.Source, *statusError) {
+	for _, src := range deps.BuildSources(creds) {
 		if string(src.Forge()) == forge {
 			return src, nil
 		}
@@ -103,8 +103,8 @@ func pickForgeSource(deps Deps, userID []byte, creds settings.Credentials, forge
 
 // forgeSource finds the signed-in user's source for forge, with the settings it
 // was built from, and answers 500 or 400 itself when it can't.
-func forgeSource(w http.ResponseWriter, r *http.Request, deps Deps, userID []byte, forge string) (dashboard.Source, settings.Credentials, bool) {
-	src, creds, serr := lookupForgeSource(r.Context(), deps, userID, forge)
+func forgeSource(w http.ResponseWriter, r *http.Request, deps Deps, forge string) (dashboard.Source, settings.Credentials, bool) {
+	src, creds, serr := lookupForgeSource(r.Context(), deps, forge)
 	if serr != nil {
 		serr.write(w)
 
@@ -118,8 +118,8 @@ func forgeSource(w http.ResponseWriter, r *http.Request, deps Deps, userID []byt
 // answers 400 itself when the user has none. It is forgeSource's second half,
 // for a handler that has to do something between loading the settings and
 // looking for the source.
-func findForgeSource(w http.ResponseWriter, deps Deps, userID []byte, creds settings.Credentials, forge string) (dashboard.Source, bool) {
-	src, serr := pickForgeSource(deps, userID, creds, forge)
+func findForgeSource(w http.ResponseWriter, deps Deps, creds settings.Credentials, forge string) (dashboard.Source, bool) {
+	src, serr := pickForgeSource(deps, creds, forge)
 	if serr != nil {
 		serr.write(w)
 
@@ -183,10 +183,10 @@ func handleGuardedAction[T any](deps Deps, a guardedAction[T]) http.HandlerFunc 
 // serveGuardedAction is handleGuardedAction once the target is read, for a
 // handler that sends some forges elsewhere first.
 func serveGuardedAction[T any](w http.ResponseWriter, r *http.Request, deps Deps, a guardedAction[T], t actionTarget) {
-	if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, a.allowed, t.req.Forge, t.req.FullName, t.req.Number) {
+	if refuseIfNotAllowed(r.Context(), w, deps, a.allowed, t.req.Forge, t.req.FullName, t.req.Number) {
 		return
 	}
-	src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+	src, _, ok := forgeSource(w, r, deps, t.req.Forge)
 	if !ok {
 		return
 	}

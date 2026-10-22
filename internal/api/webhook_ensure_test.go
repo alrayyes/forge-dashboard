@@ -69,7 +69,7 @@ const testPublicOrigin = "https://dashboard.example"
 // called with.
 func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source dashboard.Source) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if forge == dashboard.ForgeGitHub && c.GitHubToken == "" {
 			return nil
 		}
@@ -100,7 +100,7 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	manager := dashboard.NewManager(time.Hour)
+	manager := dashboard.NewService(time.Hour)
 	t.Cleanup(manager.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())
@@ -111,7 +111,7 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		Manager:       manager,
+		Service:       manager,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
 		PublicOrigin:  testPublicOrigin,

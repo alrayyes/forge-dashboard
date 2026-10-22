@@ -30,7 +30,7 @@ type WebhookCredentialSource interface {
 }
 
 // WebhookUpgrades remembers, for the life of the process, which repos have had
-// their one hooks listing (#1555). Shared by every Aggregator a Manager
+// their one hooks listing (#1555). Shared by every Aggregator a Service
 // builds, so saving credentials, which rebuilds one, doesn't repeat the work.
 type WebhookUpgrades struct {
 	mu     sync.Mutex

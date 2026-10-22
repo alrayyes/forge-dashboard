@@ -41,7 +41,7 @@ const firstRefreshToken = "first-refresh-token" // #nosec G101 -- a fake test fi
 func firstRefreshServer(t *testing.T, src dashboard.Source) (url string, cookie *http.Cookie, apiToken string) {
 	t.Helper()
 
-	srv, _, _ := newTestServerWithFirstLoadWait(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, _, _ := newTestServerWithFirstLoadWait(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != firstRefreshToken {
 			return nil
 		}
@@ -182,7 +182,7 @@ func TestDashboard_FirstRefreshDone_StaysTrueAcrossASettingsSaveRebuild(t *testi
 	const heldToken = "held-token" // #nosec G101 -- a fake test fixture, not a real credential
 	held := &holdSource{release: make(chan struct{})}
 	t.Cleanup(func() { close(held.release) })
-	srv, _, _ := newTestServerWithFirstLoadWait(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, _, _ := newTestServerWithFirstLoadWait(t, func(c settingspkg.Credentials) []dashboard.Source {
 		switch c.GitHubToken {
 		case firstRefreshToken:
 			return []dashboard.Source{&holdSource{release: closedChan(), reachable: true}}
@@ -221,7 +221,7 @@ func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEn
 	t.Parallel()
 
 	src := &holdSource{release: make(chan struct{}), reachable: true}
-	srv, manager, _ := newTestServerWithFirstLoadWait(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, manager, _ := newTestServerWithFirstLoadWait(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != firstRefreshToken {
 			return nil
 		}

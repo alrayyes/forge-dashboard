@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -68,12 +67,6 @@ func resolveQueuedActionsFor(ctx context.Context, deps Deps) ([]dashboard.Queued
 // must be on this user's board and offer the action now.
 func handleQueuedActionsCreate(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
 		var req queuedActionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
@@ -84,7 +77,7 @@ func handleQueuedActionsCreate(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		pr, runAt, ok := queueableTarget(r, w, deps, u.ID, req)
+		pr, runAt, ok := queueableTarget(r, w, deps, req)
 		if !ok {
 			return
 		}
@@ -106,29 +99,29 @@ func handleQueuedActionsCreate(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Manager.QueuedActionsChanged(u.ID)
+		deps.Service.QueuedActionsChanged()
 		writeJSON(w, http.StatusCreated, item)
 	}
 }
 
-// queueableTarget finds the pull request on userID's board and checks it can
+// queueableTarget finds the pull request on the board and checks it can
 // wait for the reset: its forge really is limited, it is behind, and it offers
 // the action. It answers 404 or 409 itself when not, and gives back when the
 // forge's budget returns.
-func queueableTarget(r *http.Request, w http.ResponseWriter, deps Deps, userID []byte, req queuedActionRequest) (dashboard.PullRequest, time.Time, bool) {
-	pr, found := deps.Manager.FindPullRequest(userID, dashboard.Forge(req.Forge), req.FullName, req.Number)
+func queueableTarget(r *http.Request, w http.ResponseWriter, deps Deps, req queuedActionRequest) (dashboard.PullRequest, time.Time, bool) {
+	pr, found := deps.Service.FindPullRequest(dashboard.Forge(req.Forge), req.FullName, req.Number)
 	if !found {
 		writeJSON(w, http.StatusNotFound, errorBody("that pull request isn't on your board"))
 
 		return dashboard.PullRequest{}, time.Time{}, false
 	}
-	runAt, limited := dashboard.RateLimitedUntil(deps.Manager.Get(userID), pr.Forge, time.Now())
+	runAt, limited := dashboard.RateLimitedUntil(deps.Service.Get(), pr.Forge, time.Now())
 	switch {
 	case !limited:
 		writeQueueRefusal(w, dashboard.ActionNotRateLimited, "The forge isn't rate limited. Do this now instead of queueing it.")
 	case !pr.Behind:
 		writeQueueRefusal(w, dashboard.ActionAlreadyUpToDate, "Already up to date with the base branch.")
-	case refuseIfNotAllowed(r.Context(), w, deps, userID, req.Action, req.Forge, req.FullName, req.Number):
+	case refuseIfNotAllowed(r.Context(), w, deps, req.Action, req.Forge, req.FullName, req.Number):
 	default:
 		return pr, runAt, true
 	}
@@ -172,12 +165,6 @@ func writeQueueRefusal(w http.ResponseWriter, code dashboard.ActionCode, message
 // is someone else's is indistinguishable from one that doesn't exist.
 func handleQueuedActionsCancel(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
 		found, err := deps.SettingsStore.CancelQueuedAction(r.Context(), r.PathValue("id"))
 		if err != nil {
 			slog.Error("could not cancel queued action", "error", err)
@@ -191,7 +178,7 @@ func handleQueuedActionsCancel(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Manager.QueuedActionsChanged(u.ID)
+		deps.Service.QueuedActionsChanged()
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

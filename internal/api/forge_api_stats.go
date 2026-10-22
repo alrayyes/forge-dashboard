@@ -65,9 +65,9 @@ func resolveForgeAPIStatsFor(ctx context.Context, deps Deps, u *auth.User) (forg
 		return forgeAPIStatsResponse{}, fmt.Errorf("read credentials: %w", err)
 	}
 
-	warmUpAggregator(ctx, deps, u.ID, u.Username)
-	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
-	snap := deps.Manager.Get(u.ID)
+	warmUpAggregator(ctx, deps, u.Username)
+	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
+	snap := deps.Service.Get()
 
 	return forgeAPIStatsResponse{
 		Since:   deps.APIStats.Since(),

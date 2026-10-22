@@ -79,7 +79,7 @@ type Aggregator struct {
 
 	// firstRefreshed flips once, when the first refreshOnce finishes —
 	// every source answered or reported itself unreachable. Readiness
-	// (Manager.FirstRefreshComplete) reads it; it never flips back.
+	// (Service.FirstRefreshComplete) reads it; it never flips back.
 	firstRefreshed atomic.Bool
 	// firstRefreshedCh is closed with it, for a reader that would rather wait
 	// than answer from the empty snapshot (WaitFirstRefresh).

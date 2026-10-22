@@ -369,15 +369,15 @@ type boardView struct {
 // A pull request the user hid (#841) is left out unless view.includeHidden,
 // and counted in HiddenPullRequests. Hides come before drafts, so a hidden
 // draft is only in the hidden count.
-func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap dashboard.Snapshot, view boardView) dashboardResponse {
+func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snapshot, view boardView) dashboardResponse {
 	board := loadBoardSettings(ctx, deps.SettingsStore)
-	board.autoMergeReport = deps.Manager.AutoMergeReport(userID)
+	board.autoMergeReport = deps.Service.AutoMergeReport()
 	board.forgetClosedHides(ctx, deps.SettingsStore, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
 
-	done := firstRefreshDone(deps.Manager, userID)
+	done := firstRefreshDone(deps.Service)
 	// A snapshot with forges in it was either refreshed or restored from the
 	// last run, and either way there is something to show instead of a
 	// loading state. The short read interval still follows the real flag.
@@ -407,14 +407,14 @@ func buildDashboardResponse(ctx context.Context, deps Deps, userID []byte, snap 
 	}
 }
 
-// firstRefreshDone is the snapshot's flag for userID. A user with no
+// firstRefreshDone is the snapshot's flag. With no
 // Aggregator after warmUpAggregator has no saved settings, so nothing will
 // ever refresh for them and nothing is loading: report true, or a page waiting
 // on the flag would show its skeleton forever. Ensuring an empty Aggregator
 // instead would change the stream and refresh endpoints, which answer 404
 // while none runs.
-func firstRefreshDone(m *dashboard.Manager, userID []byte) bool {
-	return m.FirstRefreshDone(userID) || !m.Running(userID)
+func firstRefreshDone(m *dashboard.Service) bool {
+	return m.FirstRefreshDone() || !m.Running()
 }
 
 // boardSettings is what the response is built with besides the snapshot: the
@@ -815,14 +815,14 @@ func withRateLimitSeverity(forges []dashboard.ForgeHealth, now time.Time) []dash
 
 // dashboardFor returns the dashboard data u's account currently has. Shared
 // by handleDashboard and the MCP get_dashboard tool (mcp.go) so both read it
-// the same way. Never blocks on either forge: Manager.Get reads whatever
+// the same way. Never blocks on either forge: Service.Get reads whatever
 // that user's background refresh last assembled -- empty, not an error, for a
 // user who hasn't saved any credentials in Settings yet.
 func dashboardFor(ctx context.Context, deps Deps, u *auth.User, view boardView) dashboardResponse {
-	warmUpAggregator(ctx, deps, u.ID, u.Username)
-	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
+	warmUpAggregator(ctx, deps, u.Username)
+	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
 
-	return buildDashboardResponse(ctx, deps, u.ID, deps.Manager.Get(u.ID), view)
+	return buildDashboardResponse(ctx, deps, deps.Service.Get(), view)
 }
 
 // handleDashboard answers the signed-in user's own dashboard.
@@ -843,15 +843,15 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 	}
 }
 
-// warmUpAggregator re-establishes userID's Aggregator from whatever they
-// last saved in Settings, if the Manager doesn't already have one
-// running for them. The Manager holds no state across a process restart
+// warmUpAggregator re-establishes the Aggregator from whatever was
+// last saved in Settings, if the Service doesn't already have one
+// running. The Service holds no state across a process restart
 // — every deploy wipes it — and a request against an already-valid
 // session cookie never goes through startSession's own warm-up again the
 // way a fresh login does, so without this a dashboard that survived a
 // restart would show the zero-value empty snapshot forever, not just
-// until the next scheduled refresh. A user with nothing saved yet is a
-// no-op, same as Manager.Get's empty-snapshot default.
+// until the next scheduled refresh. Nothing saved yet is a
+// no-op, same as Service.Get's empty-snapshot default.
 //
 // The Running() check is a fast path — cheap, and safe even if it races,
 // since a false negative just falls through to EnsureIfAbsent below,
@@ -862,8 +862,8 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 // their own Aggregator with its own immediate Refresh — confirmed as a
 // real, if not fully explained, contributor to a request-volume burst
 // live in production.
-func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username string) {
-	if deps.Manager.Running(userID) {
+func warmUpAggregator(ctx context.Context, deps Deps, username string) {
+	if deps.Service.Running() {
 		return
 	}
 	creds, err := deps.SettingsStore.Get(ctx)
@@ -874,14 +874,14 @@ func warmUpAggregator(ctx context.Context, deps Deps, userID []byte, username st
 
 		return
 	}
-	deps.Manager.EnsureIfAbsent(deps.AppContext, userID, deps.BuildSources(userID, creds))
+	deps.Service.EnsureIfAbsent(deps.AppContext, deps.BuildSources(creds))
 }
 
-// loadAndEnsure loads userID's saved Settings and (re)builds their
+// loadAndEnsure loads the saved Settings and (re)builds the
 // Aggregator from them — unconditionally, unlike warmUpAggregator, since
 // startSession calls this on every login regardless of whether one's
 // already running, to pick up whatever was most recently saved.
-func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username string) {
+func loadAndEnsure(ctx context.Context, deps Deps, username string) {
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
 		if !errors.Is(err, settings.ErrNotFound) {
@@ -890,15 +890,15 @@ func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username strin
 
 		return
 	}
-	deps.Manager.Ensure(deps.AppContext, userID, deps.BuildSources(userID, creds))
+	deps.Service.Ensure(deps.AppContext, deps.BuildSources(creds))
 }
 
 // handleDashboardRefresh triggers an immediate, out-of-band refresh of
 // the signed-in user's own dashboard and blocks until it completes,
 // returning the resulting snapshot — for retrying right away after a
 // forge was only briefly unreachable, instead of waiting out the rest of
-// the scheduled REFRESH_INTERVAL. A call inside the per-user cooldown
-// (Manager.ForceRefresh) skips the fetch and says so with Retry-After.
+// the scheduled REFRESH_INTERVAL. A call inside the cooldown
+// (Service.ForceRefresh) skips the fetch and says so with Retry-After.
 //
 // Passes deps.AppContext to RefreshNow, not r.Context(): coalescer.do
 // only threads the *first* caller's context into the shared fetch — every
@@ -908,14 +908,7 @@ func loadAndEnsure(ctx context.Context, deps Deps, userID []byte, username strin
 // another tab's own force-refresh click, is depending on.
 func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
-		retryAfter, running := deps.Manager.ForceRefresh(deps.AppContext, u.ID)
+		retryAfter, running := deps.Service.ForceRefresh(deps.AppContext)
 		if !running {
 			// No Aggregator running yet (Settings has never been saved) —
 			// the same condition and message handleDashboardStream uses.
@@ -929,14 +922,14 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 			// a refusal would leave the row stale (#809).
 			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
 		}
-		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, u.ID, deps.Manager.Get(u.ID), viewOf(r)))
+		writeJSON(w, http.StatusOK, buildDashboardResponse(r.Context(), deps, deps.Service.Get(), viewOf(r)))
 	}
 }
 
 // handleDashboardStream pushes the signed-in user's own dashboard
 // snapshot over Server-Sent Events every time their Aggregator produces
 // a new one — most notably right after a verified webhook delivery
-// triggers Manager.RefreshNow, which is what turns that into a live
+// triggers Service.RefreshNow, which is what turns that into a live
 // update instead of something only the next scheduled refresh picks up.
 //
 // The frontend's own poll against GET
@@ -959,9 +952,9 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		warmUpAggregator(r.Context(), deps, u.ID, u.Username)
+		warmUpAggregator(r.Context(), deps, u.Username)
 
-		ch, unsubscribe, ok := deps.Manager.Subscribe(u.ID)
+		ch, unsubscribe, ok := deps.Service.Subscribe()
 		if !ok {
 			// No Aggregator running yet (Settings has never been saved) —
 			// a plain 404 rather than an open connection with nothing to
@@ -984,7 +977,7 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		flusher.Flush()
 
 		streamSnapshots(r.Context(), deps.Drain.streamsStopped(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
-			return buildDashboardResponse(r.Context(), deps, u.ID, snap, view)
+			return buildDashboardResponse(r.Context(), deps, snap, view)
 		})
 	}
 }

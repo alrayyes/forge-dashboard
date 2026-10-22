@@ -26,7 +26,7 @@ func handleStateAction[C any](deps Deps, a stateAction[C]) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		src, _, ok := forgeSource(w, r, deps, t.req.Forge)
 		if !ok {
 			return
 		}

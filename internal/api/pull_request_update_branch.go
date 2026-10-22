@@ -18,10 +18,10 @@ func handlePullRequestUpdateBranch(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dashboard.ActionUpdateBranch, t.req.Forge, t.req.FullName, t.req.Number) {
+		if refuseIfNotAllowed(r.Context(), w, deps, dashboard.ActionUpdateBranch, t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
-		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		src, _, ok := forgeSource(w, r, deps, t.req.Forge)
 		if !ok {
 			return
 		}
@@ -40,7 +40,7 @@ func handlePullRequestUpdateBranch(deps Deps) http.HandlerFunc {
 
 		// Accepted or done inline, the pull request carries the request until
 		// a snapshot shows it no longer behind (#982).
-		deps.Manager.RecordUpdateRequest(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
+		deps.Service.RecordUpdateRequest(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
 
 		if accepted {
 			w.WriteHeader(http.StatusAccepted)

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -16,13 +15,13 @@ import (
 // notes for a release pull request. Shared by handlePullRequestDetails and the
 // MCP get_pull_request_details tool so the two can't drift. The *statusError
 // carries the HTTP status the handler answers with.
-func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string, number int) (dashboard.PullRequestDetails, *statusError) {
+func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, forge, fullName string, number int) (dashboard.PullRequestDetails, *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok {
 		return dashboard.PullRequestDetails{}, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
 	}
 
-	src, _, serr := lookupForgeSource(ctx, deps, u.ID, forge)
+	src, _, serr := lookupForgeSource(ctx, deps, forge)
 	if serr != nil {
 		return dashboard.PullRequestDetails{}, serr
 	}
@@ -38,8 +37,8 @@ func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, u *auth.User, 
 		return dashboard.PullRequestDetails{}, &statusError{clientErrorStatus(err), err.Error()}
 	}
 
-	details.ReleaseNotes = releaseNotesOf(deps, u.ID, dashboard.Forge(forge), fullName, number, details.Description)
-	linkCommenters(details.Comments, dashboard.Forge(forge), boardWebBase(deps, u.ID, dashboard.Forge(forge), fullName))
+	details.ReleaseNotes = releaseNotesOf(deps, dashboard.Forge(forge), fullName, number, details.Description)
+	linkCommenters(details.Comments, dashboard.Forge(forge), boardWebBase(deps, dashboard.Forge(forge), fullName))
 
 	return details, nil
 }
@@ -50,13 +49,6 @@ func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, u *auth.User, 
 // costs no budget.
 func handlePullRequestDetails(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		number, err := strconv.Atoi(r.URL.Query().Get("number"))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("number must be an integer"))
@@ -64,7 +56,7 @@ func handlePullRequestDetails(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		details, serr := resolvePullRequestDetailsFor(r.Context(), deps, u, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"), number)
+		details, serr := resolvePullRequestDetailsFor(r.Context(), deps, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"), number)
 		if serr != nil {
 			serr.write(w)
 
@@ -80,8 +72,8 @@ func handlePullRequestDetails(deps Deps) http.HandlerFunc {
 // changelog it publishes. Nil for any other kind, for an empty description, and for a pull
 // request the board doesn't list, since the kind is the board's rule and not worth a second
 // copy here.
-func releaseNotesOf(deps Deps, userID []byte, forge dashboard.Forge, fullName string, number int, description dashboard.DetailsBody) *dashboard.DetailsBody {
-	pr, found := deps.Manager.FindPullRequest(userID, forge, fullName, number)
+func releaseNotesOf(deps Deps, forge dashboard.Forge, fullName string, number int, description dashboard.DetailsBody) *dashboard.DetailsBody {
+	pr, found := deps.Service.FindPullRequest(forge, fullName, number)
 	if !found || dashboard.KindOf(pr, nil) != dashboard.KindRelease || description.Text == "" {
 		return nil
 	}

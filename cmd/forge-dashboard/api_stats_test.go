@@ -39,7 +39,7 @@ func TestBuildGitHubSource_CountsATokenClientUnderItsLabel(t *testing.T) {
 	assert.Contains(t, countedCredentials(counters, "github"), apistats.TokenCredential("pat-value"))
 }
 
-func TestBuildSourcesForUser_CountsAForgejoClientUnderItsLabel(t *testing.T) {
+func TestBuildSources_CountsAForgejoClientUnderItsLabel(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -48,7 +48,7 @@ func TestBuildSourcesForUser_CountsAForgejoClientUnderItsLabel(t *testing.T) {
 	defer srv.Close()
 	counters := apistats.New()
 
-	sources := buildSourcesForUser(newTestAuthStore(t), nil, 0, nil, counters)([]byte("user"), settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "fj-value"})
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, counters)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "fj-value"})
 	require.Len(t, sources, 1)
 	sources[0].Fetch(t.Context())
 

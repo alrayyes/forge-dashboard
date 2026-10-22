@@ -164,7 +164,7 @@ type DatabasePinger interface {
 }
 
 // FirstRefreshGate reports whether the dashboard has finished its first
-// refresh. *dashboard.Manager satisfies it.
+// refresh. *dashboard.Service satisfies it.
 type FirstRefreshGate interface {
 	FirstRefreshComplete() bool
 }

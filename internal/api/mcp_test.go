@@ -116,7 +116,7 @@ func TestMCP_GetDashboard_ReturnsTheSameAggregatedDataAsTheHTTPEndpoint(t *testi
 	const secretToken = "sekrit-mcp-token" // #nosec G101 -- a fake test fixture, not a real credential
 	wantHealth := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 4}
 
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

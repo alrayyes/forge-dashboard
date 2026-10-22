@@ -14,19 +14,14 @@ type queuedWaiter interface {
 	HasWaitingQueuedActions(ctx context.Context) (bool, error)
 }
 
-// ownerFinder names the one user.
-type ownerFinder interface {
-	OwnerID(ctx context.Context) ([]byte, error)
-}
-
 // credentialsGetter reads the saved settings.
 type credentialsGetter interface {
 	Get(ctx context.Context) (settings.Credentials, error)
 }
 
-// dashboardStarter starts a user's dashboard unless it is already running.
+// dashboardStarter starts the dashboard unless it is already running.
 type dashboardStarter interface {
-	EnsureIfAbsent(ctx context.Context, userID []byte, sources []dashboard.Source)
+	EnsureIfAbsent(ctx context.Context, sources []dashboard.Source)
 }
 
 // resumeQueuedActions starts the dashboard when a queued action still waits
@@ -36,7 +31,7 @@ type dashboardStarter interface {
 // survives a restart and still runs at the reset. A failure is logged and
 // starts nothing: the action stays stored, and runs once the dashboard starts
 // some other way.
-func resumeQueuedActions(ctx context.Context, queue queuedWaiter, owners ownerFinder, creds credentialsGetter, build func([]byte, settings.Credentials) []dashboard.Source, starter dashboardStarter) {
+func resumeQueuedActions(ctx context.Context, queue queuedWaiter, creds credentialsGetter, build func(settings.Credentials) []dashboard.Source, starter dashboardStarter) {
 	waiting, err := queue.HasWaitingQueuedActions(ctx)
 	if err != nil {
 		slog.Warn("could not look for queued actions", "error", err)
@@ -44,12 +39,6 @@ func resumeQueuedActions(ctx context.Context, queue queuedWaiter, owners ownerFi
 		return
 	}
 	if !waiting {
-		return
-	}
-	id, err := owners.OwnerID(ctx)
-	if err != nil {
-		slog.Warn("could not find the owner to resume queued actions", "error", err)
-
 		return
 	}
 	c, err := creds.Get(ctx)
@@ -60,5 +49,5 @@ func resumeQueuedActions(ctx context.Context, queue queuedWaiter, owners ownerFi
 
 		return
 	}
-	starter.EnsureIfAbsent(ctx, id, build(id, c))
+	starter.EnsureIfAbsent(ctx, build(c))
 }

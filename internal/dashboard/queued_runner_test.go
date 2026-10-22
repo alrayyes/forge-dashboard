@@ -85,7 +85,6 @@ func (s *queueSource) writes() []string {
 }
 
 var (
-	queueUser = []byte("user-1")
 	// queueT0 is the fake clock's start; the limit resets 32 minutes later.
 	queueT0    = time.Date(2026, 10, 11, 14, 0, 0, 0, time.UTC)
 	queueReset = queueT0.Add(32 * time.Minute)

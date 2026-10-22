@@ -58,7 +58,7 @@ func TestE2EReset_ClearsPerUserStateAndKeepsTheFirstUserAndPasskey(t *testing.T)
 	require.NoError(t, err)
 	require.NoError(t, settingsStore.HidePullRequest(ctx, "github", "alrayyes/a", 1, time.Now().Add(time.Hour)))
 
-	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Manager: dashboard.NewManager(time.Minute)}
+	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Manager: dashboard.NewService(time.Minute)}
 	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
 	t.Cleanup(srv.Close)
 
@@ -127,7 +127,7 @@ func TestE2EReset_ForgetsTheTabsThePreviousTestLeftReportingVisible(t *testing.T
 	require.NoError(t, err)
 	require.NoError(t, authStore.AddCredential(ctx, webauthn.Credential{ID: []byte{1}}))
 
-	manager := dashboard.NewManager(time.Minute)
+	manager := dashboard.NewService(time.Minute)
 	activity := dashboard.NewActivity(time.Minute, nil)
 	manager.SetActivity(activity)
 	activity.Present("left-open-tab", true)
@@ -184,7 +184,7 @@ func TestE2EReset_WaitsForAConcurrentWriteInsteadOfFailing(t *testing.T) {
 		committed <- commitErr
 	}()
 
-	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Manager: dashboard.NewManager(time.Minute)}
+	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Manager: dashboard.NewService(time.Minute)}
 	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
 	t.Cleanup(srv.Close)
 

@@ -15,13 +15,13 @@ import (
 // resolvePullRequestChecksFor and shares its response shape, so the pipeline
 // panel that renders one renders the other. Shared by handleMainBranchChecks
 // and the MCP get_main_branch_checks tool so the two can't drift.
-func resolveMainBranchChecksFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string) ([]dashboard.Check, *statusError) {
+func resolveMainBranchChecksFor(ctx context.Context, deps Deps, forge, fullName string) ([]dashboard.Check, *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok {
 		return nil, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
 	}
 
-	src, _, serr := lookupForgeSource(ctx, deps, u.ID, forge)
+	src, _, serr := lookupForgeSource(ctx, deps, forge)
 	if serr != nil {
 		return nil, serr
 	}
@@ -48,14 +48,7 @@ func resolveMainBranchChecksFor(ctx context.Context, deps Deps, u *auth.User, fo
 // part of the dashboard snapshot.
 func handleMainBranchChecks(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
-		checks, serr := resolveMainBranchChecksFor(r.Context(), deps, u, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"))
+		checks, serr := resolveMainBranchChecksFor(r.Context(), deps, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"))
 		if serr != nil {
 			serr.write(w)
 
@@ -88,7 +81,7 @@ func handleMainBranchRerunChecks(deps Deps) http.HandlerFunc {
 		u := t.user
 		owner, name := t.owner, t.name
 
-		src, _, ok := forgeSource(w, r, deps, u.ID, req.Forge)
+		src, _, ok := forgeSource(w, r, deps, req.Forge)
 		if !ok {
 			return
 		}

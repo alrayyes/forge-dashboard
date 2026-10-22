@@ -64,10 +64,10 @@ func buildMainBranchesResponse(generatedAt time.Time, branches []dashboard.MainB
 // read. Shared by handleMainBranches and the MCP get_main_branches tool so the
 // two can't drift.
 func resolveMainBranchesFor(ctx context.Context, deps Deps, u *auth.User) mainBranchesResponse {
-	warmUpAggregator(ctx, deps, u.ID, u.Username)
-	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
+	warmUpAggregator(ctx, deps, u.Username)
+	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
 
-	snap := deps.Manager.Get(u.ID)
+	snap := deps.Service.Get()
 	board := loadBoardSettings(ctx, deps.SettingsStore)
 
 	return buildMainBranchesResponse(snap.GeneratedAt, board.mainBranchRows(snap.MainBranches))

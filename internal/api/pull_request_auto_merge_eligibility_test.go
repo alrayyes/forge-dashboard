@@ -43,7 +43,7 @@ func autoMergeBoard(t *testing.T, prs ...dashboard.PullRequest) (*httptest.Serve
 	src := &autoMergeCountingSource{}
 	src.health = dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1}
 	src.prs = prs
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

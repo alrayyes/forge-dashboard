@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -15,13 +14,6 @@ import (
 // no budget.
 func handleIssueDetails(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		number, err := strconv.Atoi(r.URL.Query().Get("number"))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("number must be an integer"))
@@ -36,7 +28,7 @@ func handleIssueDetails(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		src, _, serr := lookupForgeSource(r.Context(), deps, u.ID, forge)
+		src, _, serr := lookupForgeSource(r.Context(), deps, forge)
 		if serr != nil {
 			serr.write(w)
 
@@ -57,7 +49,7 @@ func handleIssueDetails(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		linkCommenters(details.Comments, dashboard.Forge(forge), boardWebBase(deps, u.ID, dashboard.Forge(forge), fullName))
+		linkCommenters(details.Comments, dashboard.Forge(forge), boardWebBase(deps, dashboard.Forge(forge), fullName))
 		writeJSON(w, http.StatusOK, details)
 	}
 }

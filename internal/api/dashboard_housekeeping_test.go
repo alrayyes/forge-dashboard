@@ -26,7 +26,7 @@ func TestDashboard_FlagsHousekeepingIssuesAndCountsTheRest(t *testing.T) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3, Title: "Another real bug"},
 		},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

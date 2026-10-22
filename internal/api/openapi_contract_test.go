@@ -189,7 +189,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		},
 		branches: contractBranches(now),
 	}
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

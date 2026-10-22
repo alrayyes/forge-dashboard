@@ -47,7 +47,7 @@ func TestDashboard_ACancelledAutoMergeOnAnEmptyPullRequestSaysWhy(t *testing.T) 
 		Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Title: "t", Author: "ryan",
 		Empty: true, AutoMergeEnabled: &on, CI: dashboard.CIPending, MergeStatus: dashboard.MergeBlocked,
 	}}
-	srv, _, _ := newTestServerWithAutoMerge(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, _, _ := newTestServerWithAutoMerge(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

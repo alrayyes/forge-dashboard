@@ -25,31 +25,30 @@ func (s *countingSource) Fetch(_ context.Context) dashboard.Result {
 
 func (s *countingSource) Forge() dashboard.Forge { return s.health.Forge }
 
-func TestManager_Ensure_ThenGet_ReturnsThatUsersSnapshot(t *testing.T) {
+func TestService_Ensure_ThenGet_ReturnsItsSnapshot(t *testing.T) {
 	t.Parallel()
 
-	userA := []byte("user-a")
 	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 5}}
 
-	m := dashboard.NewManager(10 * time.Millisecond)
+	m := dashboard.NewService(10 * time.Millisecond)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), userA, []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool {
-		snap := m.Get(userA)
+		snap := m.Get()
 
 		return len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 5
 	}, time.Second, 5*time.Millisecond)
 }
 
-func TestManager_Get_UnknownUser_ReturnsEmptySnapshotNotNil(t *testing.T) {
+func TestService_Get_NothingEnsured_ReturnsEmptySnapshotNotNil(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Minute)
+	m := dashboard.NewService(time.Minute)
 	t.Cleanup(m.Stop)
 
-	snap := m.Get([]byte("nobody"))
+	snap := m.Get()
 
 	require.NotNil(t, snap.Forges)
 	require.NotNil(t, snap.PullRequests)
@@ -57,20 +56,19 @@ func TestManager_Get_UnknownUser_ReturnsEmptySnapshotNotNil(t *testing.T) {
 	assert.Empty(t, snap.Forges)
 }
 
-func TestManager_Ensure_ReplacingAUser_StopsTheOldRefreshLoop(t *testing.T) {
+func TestService_Ensure_Replacing_StopsTheOldRefreshLoop(t *testing.T) {
 	t.Parallel()
 
-	user := []byte("user-a")
 	first := &countingSource{}
 	second := &countingSource{}
 
-	m := dashboard.NewManager(5 * time.Millisecond)
+	m := dashboard.NewService(5 * time.Millisecond)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{first})
+	m.Ensure(t.Context(), []dashboard.Source{first})
 	require.Eventually(t, func() bool { return first.calls.Load() >= 2 }, time.Second, 5*time.Millisecond)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{second})
+	m.Ensure(t.Context(), []dashboard.Source{second})
 	require.Eventually(t, func() bool { return second.calls.Load() >= 2 }, time.Second, 5*time.Millisecond)
 
 	callsAtSwitch := first.calls.Load()
@@ -78,85 +76,82 @@ func TestManager_Ensure_ReplacingAUser_StopsTheOldRefreshLoop(t *testing.T) {
 	assert.LessOrEqual(t, first.calls.Load(), callsAtSwitch+1, "the first source's refresh loop should have stopped, not kept running alongside the second")
 }
 
-func TestManager_RefreshNow_KnownUser_RefreshesImmediatelyAndReturnsTrue(t *testing.T) {
+func TestService_RefreshNow_Running_RefreshesImmediatelyAndReturnsTrue(t *testing.T) {
 	t.Parallel()
 
-	user := []byte("user-a")
 	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 7}}
 
 	// An interval long enough that the assertion below would fail on its
 	// own timing if RefreshNow weren't doing real, immediate work.
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 	require.Eventually(t, func() bool { return src.calls.Load() >= 1 }, time.Second, 5*time.Millisecond, "the initial refresh Ensure starts")
 
-	ok := m.RefreshNow(t.Context(), user)
+	ok := m.RefreshNow(t.Context())
 
 	assert.True(t, ok)
 	assert.Equal(t, int32(2), src.calls.Load(), "RefreshNow should have triggered one more fetch on top of Ensure's initial one")
 }
 
-func TestManager_RefreshNow_UnknownUser_ReturnsFalse(t *testing.T) {
+func TestService_RefreshNow_NothingEnsured_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Minute)
+	m := dashboard.NewService(time.Minute)
 	t.Cleanup(m.Stop)
 
-	ok := m.RefreshNow(t.Context(), []byte("nobody"))
+	ok := m.RefreshNow(t.Context())
 
 	assert.False(t, ok)
 }
 
-func TestManager_RefreshRepo_KnownUser_DelegatesToTheirAggregator(t *testing.T) {
+func TestService_RefreshRepo_Running_DelegatesToTheirAggregator(t *testing.T) {
 	t.Parallel()
 
-	user := []byte("user-a")
 	src := newFakeRepoRefresherSource()
 	src.setRepo("alrayyes/a", []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1}})
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 	require.Eventually(t, func() bool { return src.fetchCallCount() >= 1 }, time.Second, 5*time.Millisecond)
 
-	ok := m.RefreshRepo(t.Context(), user, dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	ok := m.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
 
 	assert.True(t, ok)
 	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/a"))
 	assert.Equal(t, 1, src.fetchCallCount(), "a scoped refresh should not also trigger a full account-wide fetch")
 }
 
-func TestManager_RefreshRepo_UnknownUser_ReturnsFalse(t *testing.T) {
+func TestService_RefreshRepo_NothingEnsured_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Minute)
+	m := dashboard.NewService(time.Minute)
 	t.Cleanup(m.Stop)
 
-	ok := m.RefreshRepo(t.Context(), []byte("nobody"), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	ok := m.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
 
 	assert.False(t, ok)
 }
 
-func TestManager_Subscribe_KnownUser_ReceivesUpdatesFromRefreshNow(t *testing.T) {
+func TestService_Subscribe_Running_ReceivesUpdatesFromRefreshNow(t *testing.T) {
 	t.Parallel()
 
-	user := []byte("user-a")
 	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 3}}
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 	require.Eventually(t, func() bool { return src.calls.Load() >= 1 }, time.Second, 5*time.Millisecond)
 
-	updates, unsubscribe, ok := m.Subscribe(user)
+	updates, unsubscribe, ok := m.Subscribe()
 	require.True(t, ok)
 	defer unsubscribe()
 
-	m.RefreshNow(t.Context(), user)
+	m.RefreshNow(t.Context())
 
 	select {
 	case snap := <-updates:
@@ -167,39 +162,18 @@ func TestManager_Subscribe_KnownUser_ReceivesUpdatesFromRefreshNow(t *testing.T)
 	}
 }
 
-func TestManager_Subscribe_UnknownUser_ReturnsFalse(t *testing.T) {
+func TestService_Subscribe_NothingEnsured_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Minute)
+	m := dashboard.NewService(time.Minute)
 	t.Cleanup(m.Stop)
 
-	_, _, ok := m.Subscribe([]byte("nobody"))
+	_, _, ok := m.Subscribe()
 
 	assert.False(t, ok)
 }
 
-func TestManager_TwoUsers_HaveIndependentSnapshots(t *testing.T) {
-	t.Parallel()
-
-	userA, userB := []byte("user-a"), []byte("user-b")
-	srcA := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, RepoCount: 1}}
-	srcB := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, RepoCount: 2}}
-
-	m := dashboard.NewManager(10 * time.Millisecond)
-	t.Cleanup(m.Stop)
-
-	m.Ensure(t.Context(), userA, []dashboard.Source{srcA})
-	m.Ensure(t.Context(), userB, []dashboard.Source{srcB})
-
-	require.Eventually(t, func() bool {
-		return len(m.Get(userA).Forges) == 1 && len(m.Get(userB).Forges) == 1
-	}, time.Second, 5*time.Millisecond)
-
-	assert.Equal(t, 1, m.Get(userA).Forges[0].RepoCount)
-	assert.Equal(t, 2, m.Get(userB).Forges[0].RepoCount)
-}
-
-// TestManager_EnsureIfAbsent_ConcurrentCallsForNewUser_OnlyCreateOneAggregator
+// TestService_EnsureIfAbsent_ConcurrentCalls_OnlyCreateOneAggregator
 // is a regression test for a real race: warmUpAggregator used to check
 // Running() and, if false, separately call Ensure() - two unlocked
 // operations with a DB read in between. Several requests for the same
@@ -207,19 +181,18 @@ func TestManager_TwoUsers_HaveIndependentSnapshots(t *testing.T) {
 // all arriving right after a restart wipes the Manager clean) each saw
 // "not running" and each spun up their own brand-new Aggregator with its
 // own immediate Refresh.
-func TestManager_EnsureIfAbsent_ConcurrentCallsForNewUser_OnlyCreateOneAggregator(t *testing.T) {
+func TestService_EnsureIfAbsent_ConcurrentCalls_OnlyCreateOneAggregator(t *testing.T) {
 	t.Parallel()
 
-	user := []byte("user-new")
 	src := &countingSource{}
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
 	const callers = 10
 	var wg sync.WaitGroup
 	for range callers {
 		wg.Go(func() {
-			m.EnsureIfAbsent(t.Context(), user, []dashboard.Source{src})
+			m.EnsureIfAbsent(t.Context(), []dashboard.Source{src})
 		})
 	}
 	wg.Wait()
@@ -229,26 +202,25 @@ func TestManager_EnsureIfAbsent_ConcurrentCallsForNewUser_OnlyCreateOneAggregato
 	assert.Equal(t, int32(1), src.calls.Load(), "only one of the concurrent callers should have actually created an Aggregator and refreshed")
 }
 
-func TestManager_EnsureIfAbsent_AlreadyRunning_NeverReplaces(t *testing.T) {
+func TestService_EnsureIfAbsent_AlreadyRunning_NeverReplaces(t *testing.T) {
 	t.Parallel()
 
-	user := []byte("user-a")
 	original := &countingSource{}
 	replacement := &countingSource{}
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{original})
+	m.Ensure(t.Context(), []dashboard.Source{original})
 	require.Eventually(t, func() bool { return original.calls.Load() >= 1 }, time.Second, 5*time.Millisecond)
 
-	m.EnsureIfAbsent(t.Context(), user, []dashboard.Source{replacement})
+	m.EnsureIfAbsent(t.Context(), []dashboard.Source{replacement})
 
 	time.Sleep(20 * time.Millisecond)
 	assert.Equal(t, int32(0), replacement.calls.Load(), "an already-running Aggregator should never be replaced by EnsureIfAbsent")
 }
 
-func TestManager_SetAutoUpdateBranchLister_ThenEnsure_WiresItIntoTheAggregator(t *testing.T) {
+func TestService_SetAutoUpdateBranchLister_ThenEnsure_WiresItIntoTheAggregator(t *testing.T) {
 	t.Parallel()
 
 	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
@@ -261,18 +233,18 @@ func TestManager_SetAutoUpdateBranchLister_ThenEnsure_WiresItIntoTheAggregator(t
 		enabled: map[string]struct{}{"github/alrayyes/a": {}},
 	}
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 	m.SetAutoUpdateBranchLister(lister)
 
-	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool {
 		return len(src.updatedBranches()) == 1
 	}, time.Second, 5*time.Millisecond)
 }
 
-func TestManager_Ensure_NoAutoUpdateBranchListerSet_NeverCallsUpdateBranch(t *testing.T) {
+func TestService_Ensure_NoAutoUpdateBranchListerSet_NeverCallsUpdateBranch(t *testing.T) {
 	t.Parallel()
 
 	src := &fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeBranchUpdaterSource also carries mu/updated; an unkeyed literal would need every field, not just the embedded one
@@ -282,27 +254,27 @@ func TestManager_Ensure_NoAutoUpdateBranchListerSet_NeverCallsUpdateBranch(t *te
 		},
 	}}}
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 	// SetAutoUpdateBranchLister never called.
 
-	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool {
-		forges := m.Get([]byte("user-1")).Forges
+		forges := m.Get().Forges
 
 		return len(forges) == 1 && forges[0].Reachable
 	}, time.Second, 5*time.Millisecond)
 	assert.Empty(t, src.updatedBranches())
 }
 
-// TestManager_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator is
+// TestService_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator is
 // #177's own fix, at the Manager level: SetCIPollInterval has to
 // actually reach the Aggregator Ensure builds, not just be recorded
 // and forgotten. A long Run interval (time.Hour) isolates PollCI's own
 // scoped fetches from Run's full ones — repoFetchCallCount only moves
 // on a PollCI tick.
-func TestManager_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator(t *testing.T) {
+func TestService_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator(t *testing.T) {
 	t.Parallel()
 
 	src := newFakeRepoRefresherSource()
@@ -310,18 +282,18 @@ func TestManager_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator(t *testin
 		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, CI: dashboard.CIPending},
 	})
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 	m.SetCIPollInterval(10 * time.Millisecond)
 
-	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool {
 		return src.repoFetchCallCount("alrayyes/a") >= 1
 	}, time.Second, 5*time.Millisecond)
 }
 
-func TestManager_Ensure_NoCIPollIntervalSet_NeverPolls(t *testing.T) {
+func TestService_Ensure_NoCIPollIntervalSet_NeverPolls(t *testing.T) {
 	t.Parallel()
 
 	src := newFakeRepoRefresherSource()
@@ -329,11 +301,11 @@ func TestManager_Ensure_NoCIPollIntervalSet_NeverPolls(t *testing.T) {
 		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, CI: dashboard.CIPending},
 	})
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 	// SetCIPollInterval never called.
 
-	m.Ensure(t.Context(), []byte("user-1"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool {
 		return src.fetchCallCount() >= 1
@@ -359,23 +331,23 @@ func (s *gatedSource) Fetch(ctx context.Context) dashboard.Result {
 
 func (s *gatedSource) Forge() dashboard.Forge { return s.health.Forge }
 
-func TestManager_FirstRefreshComplete_NoAggregatorYet_IsTrue(t *testing.T) {
+func TestService_FirstRefreshComplete_NoAggregatorYet_IsTrue(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
 	assert.True(t, m.FirstRefreshComplete(), "nothing has signed in, so there is no first refresh to wait for")
 }
 
-func TestManager_FirstRefreshComplete_FalseUntilTheFirstRefreshFinishes(t *testing.T) {
+func TestService_FirstRefreshComplete_FalseUntilTheFirstRefreshFinishes(t *testing.T) {
 	t.Parallel()
 
 	src := &gatedSource{release: make(chan struct{})}
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 	assert.False(t, m.FirstRefreshComplete())
 
 	close(src.release)
@@ -383,134 +355,117 @@ func TestManager_FirstRefreshComplete_FalseUntilTheFirstRefreshFinishes(t *testi
 	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
 }
 
-func TestManager_FirstRefreshComplete_UnreachableForgeStillCounts(t *testing.T) {
+func TestService_FirstRefreshComplete_UnreachableForgeStillCounts(t *testing.T) {
 	t.Parallel()
 
 	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: false}}
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
 }
 
-func TestManager_FirstRefreshComplete_StaysTrueWhenAnotherAggregatorStarts(t *testing.T) {
+func TestService_FirstRefreshComplete_StaysTrueWhenAnotherAggregatorStarts(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{&countingSource{}})
+	m.Ensure(t.Context(), []dashboard.Source{&countingSource{}})
 	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
 
-	m.Ensure(t.Context(), []byte("user-b"), []dashboard.Source{&gatedSource{release: make(chan struct{})}})
+	m.Ensure(t.Context(), []dashboard.Source{&gatedSource{release: make(chan struct{})}})
 
-	assert.True(t, m.FirstRefreshComplete(), "a later sign-in must not flip a serving container back to unready")
+	assert.True(t, m.FirstRefreshComplete(), "a later replacement must not flip a serving container back to unready")
 }
 
 // A first refresh that is slow, or never finishes because a forge doesn't
 // answer, must not keep the service unready (#893): readiness says it can
 // serve, and how fast a forge answers is only how fresh the data is.
-func TestManager_FirstRefreshComplete_ReadyAfterTheGraceEvenIfTheRefreshIsStillRunning(t *testing.T) {
+func TestService_FirstRefreshComplete_ReadyAfterTheGraceEvenIfTheRefreshIsStillRunning(t *testing.T) {
 	t.Parallel()
 
 	src := &gatedSource{release: make(chan struct{})}
 	t.Cleanup(func() { close(src.release) })
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 	m.SetFirstRefreshGrace(30 * time.Millisecond)
 
-	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 	require.False(t, m.FirstRefreshComplete(), "not ready the moment the refresh starts")
 
 	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond,
 		"the refresh is still blocked, but the grace has passed")
 }
 
-func TestManager_FirstRefreshComplete_AnAggregatorAddedLaterGetsItsOwnGraceButCannotUnreadyAServingProcess(t *testing.T) {
+func TestService_FirstRefreshComplete_AnAggregatorAddedLaterGetsItsOwnGraceButCannotUnreadyAServingProcess(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 	m.SetFirstRefreshGrace(time.Hour)
-	m.Ensure(t.Context(), []byte("user-a"), []dashboard.Source{&countingSource{}})
+	m.Ensure(t.Context(), []dashboard.Source{&countingSource{}})
 	require.Eventually(t, m.FirstRefreshComplete, time.Second, 5*time.Millisecond)
 
 	blocked := &gatedSource{release: make(chan struct{})}
 	t.Cleanup(func() { close(blocked.release) })
-	m.Ensure(t.Context(), []byte("user-b"), []dashboard.Source{blocked})
+	m.Ensure(t.Context(), []dashboard.Source{blocked})
 
 	assert.True(t, m.FirstRefreshComplete())
 }
 
-// firstRefreshDone is the per-viewer flag the snapshot carries (#1673).
+// firstRefreshDone is the flag the snapshot carries (#1673).
 
-func TestManager_FirstRefreshDone_NoAggregatorYet_IsFalse(t *testing.T) {
+func TestService_FirstRefreshDone_NoAggregatorYet_IsFalse(t *testing.T) {
 	t.Parallel()
 
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	assert.False(t, m.FirstRefreshDone([]byte("nobody")))
+	assert.False(t, m.FirstRefreshDone())
 }
 
-func TestManager_FirstRefreshDone_FalseWhileTheFirstRefreshRuns_TrueOnceItEnds(t *testing.T) {
+func TestService_FirstRefreshDone_FalseWhileTheFirstRefreshRuns_TrueOnceItEnds(t *testing.T) {
 	t.Parallel()
 
 	src := &gatedSource{release: make(chan struct{})}
-	user := []byte("user-a")
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{src})
-	assert.False(t, m.FirstRefreshDone(user))
+	m.Ensure(t.Context(), []dashboard.Source{src})
+	assert.False(t, m.FirstRefreshDone())
 
 	close(src.release)
 
-	require.Eventually(t, func() bool { return m.FirstRefreshDone(user) }, time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return m.FirstRefreshDone() }, time.Second, 5*time.Millisecond)
 }
 
-func TestManager_FirstRefreshDone_UnreachableForgeStillCounts(t *testing.T) {
+func TestService_FirstRefreshDone_UnreachableForgeStillCounts(t *testing.T) {
 	t.Parallel()
 
 	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: false}}
-	user := []byte("user-a")
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
-	require.Eventually(t, func() bool { return m.FirstRefreshDone(user) }, time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return m.FirstRefreshDone() }, time.Second, 5*time.Millisecond)
 }
 
-func TestManager_FirstRefreshDone_StaysTrueWhenTheAggregatorIsReplaced(t *testing.T) {
+func TestService_FirstRefreshDone_StaysTrueWhenTheAggregatorIsReplaced(t *testing.T) {
 	t.Parallel()
 
-	user := []byte("user-a")
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
 
-	m.Ensure(t.Context(), user, []dashboard.Source{&countingSource{}})
+	m.Ensure(t.Context(), []dashboard.Source{&countingSource{}})
 	// Wait without reading the flag: the replacement itself must carry the mark.
-	m.WaitFirstRefresh(t.Context(), user, time.Second)
+	m.WaitFirstRefresh(t.Context(), time.Second)
 
 	// A settings save rebuilds the Aggregator, and its first refresh is pending.
-	m.Ensure(t.Context(), user, []dashboard.Source{&gatedSource{release: make(chan struct{})}})
+	m.Ensure(t.Context(), []dashboard.Source{&gatedSource{release: make(chan struct{})}})
 
-	assert.True(t, m.FirstRefreshDone(user), "a later refresh must not put the loading state back")
-}
-
-func TestManager_FirstRefreshDone_IsPerViewer(t *testing.T) {
-	t.Parallel()
-
-	userA, userB := []byte("user-a"), []byte("user-b")
-	m := dashboard.NewManager(time.Hour)
-	t.Cleanup(m.Stop)
-
-	m.Ensure(t.Context(), userA, []dashboard.Source{&countingSource{}})
-	m.Ensure(t.Context(), userB, []dashboard.Source{&gatedSource{release: make(chan struct{})}})
-	require.Eventually(t, func() bool { return m.FirstRefreshDone(userA) }, time.Second, 5*time.Millisecond)
-
-	assert.False(t, m.FirstRefreshDone(userB), "another user's refresh must not flip this one")
+	assert.True(t, m.FirstRefreshDone(), "a later refresh must not put the loading state back")
 }

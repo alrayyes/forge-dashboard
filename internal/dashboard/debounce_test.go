@@ -301,27 +301,27 @@ func TestRefreshRepoDebounced_TwoAggregatorsEachRefreshTheSameRepo(t *testing.T)
 	assert.Equal(t, 1, two.src.repoFetchCallCount("alrayyes/a"), "the debouncer belongs to each Aggregator, so one user's event never drops another's")
 }
 
-func newManagedDebounce(t *testing.T) (*dashboard.Manager, *fakeTimers, *fakeRepoRefresherSource) {
+func newManagedDebounce(t *testing.T) (*dashboard.Service, *fakeTimers, *fakeRepoRefresherSource) {
 	t.Helper()
 
 	clock := newFakeTimers()
 	src := newFakeRepoRefresherSource()
 	src.setRepo("alrayyes/a", nil)
-	m := dashboard.NewManager(time.Hour)
+	m := dashboard.NewService(time.Hour)
 	m.SetWebhookDebounceTimer(clock.After)
 	t.Cleanup(m.Stop)
-	m.Ensure(t.Context(), []byte("u1"), []dashboard.Source{src})
+	m.Ensure(t.Context(), []dashboard.Source{src})
 	require.Eventually(t, func() bool { return src.fetchCallCount() >= 1 }, 5*time.Second, time.Millisecond, "the first full refresh")
 
 	return m, clock, src
 }
 
-func TestManager_EnsureRebuildDropsAPendingDebouncedRefreshOfTheOldAggregator(t *testing.T) {
+func TestService_EnsureRebuildDropsAPendingDebouncedRefreshOfTheOldAggregator(t *testing.T) {
 	t.Parallel()
 	m, clock, src := newManagedDebounce(t)
 
-	require.True(t, m.RefreshRepoDebounced(t.Context(), []byte("u1"), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a"))
-	m.Ensure(t.Context(), []byte("u1"), []dashboard.Source{src})
+	require.True(t, m.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a"))
+	m.Ensure(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool { return clock.pending() == 0 }, 5*time.Second, time.Millisecond, "the replaced Aggregator's timer is stopped")
 	clock.Advance(10 * time.Second)

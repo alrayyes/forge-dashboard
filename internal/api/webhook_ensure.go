@@ -85,7 +85,7 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		src, ok := findForgeSource(w, deps, t.user.ID, creds, t.req.Forge)
+		src, ok := findForgeSource(w, deps, creds, t.req.Forge)
 		if !ok {
 			return
 		}

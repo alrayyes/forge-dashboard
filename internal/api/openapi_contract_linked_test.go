@@ -82,7 +82,7 @@ func linkedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		},
 		repos: []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a", URL: "https://github.com/alrayyes/a"}},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

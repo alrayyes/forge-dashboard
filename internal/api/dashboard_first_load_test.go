@@ -41,7 +41,7 @@ func TestDashboard_ReadBeforeTheFirstRefreshFinishes_WaitsForItInsteadOfAnswerin
 	t.Parallel()
 
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

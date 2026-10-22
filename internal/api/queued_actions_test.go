@@ -20,7 +20,7 @@ import (
 // #5 a plain behind one, #6 a behind Dependabot one, #7 a behind Renovate one
 // and #8 one that is up to date. limited says whether GitHub's REST budget is
 // spent until reset.
-func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, *dashboard.Manager, *http.Cookie) {
+func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, *dashboard.Service, *http.Cookie) {
 	t.Helper()
 
 	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
@@ -49,7 +49,7 @@ func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, 
 			pr(5, "alice", true), pr(6, "dependabot[bot]", true), pr(7, "renovate[bot]", true), pr(8, "alice", false), waiting(pr(9, "alice", true)),
 		},
 	}
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

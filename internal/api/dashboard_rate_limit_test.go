@@ -24,7 +24,7 @@ func TestDashboard_RateLimitsCarryTheirSeverity(t *testing.T) {
 		RateLimitGraphQL: &dashboard.RateLimit{Limit: 5000, Remaining: 0, ResetsAt: reset},
 		RateLimitREST:    &dashboard.RateLimit{Limit: 5000, Remaining: 100, ResetsAt: reset},
 	}}
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

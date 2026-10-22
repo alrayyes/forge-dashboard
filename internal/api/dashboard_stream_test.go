@@ -138,7 +138,7 @@ func TestDashboardStream_EndsWhenTheDrainStopsStreams(t *testing.T) {
 	t.Parallel()
 
 	drain := &api.Drain{}
-	srvURL, sessionCookie, _, _ := newTestServerWithDrain(t, &countingSource{calls: &atomic.Int64{}}, func(_ time.Duration, f func()) func() bool { return time.AfterFunc(time.Millisecond, f).Stop }, drain)
+	srvURL, sessionCookie, _ := newTestServerWithDrain(t, &countingSource{calls: &atomic.Int64{}}, func(_ time.Duration, f func()) func() bool { return time.AfterFunc(time.Millisecond, f).Stop }, drain)
 	// open starts a stream and returns a channel that yields once it ends.
 	open := func() <-chan error {
 		req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)

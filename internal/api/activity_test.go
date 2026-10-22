@@ -39,7 +39,7 @@ func (c *apiClock) advance(d time.Duration) {
 
 // idleActivity is an Activity that has been left alone past its idle period,
 // wired into manager.
-func idleActivity(t *testing.T, manager *dashboard.Manager) *dashboard.Activity {
+func idleActivity(t *testing.T, manager *dashboard.Service) *dashboard.Activity {
 	t.Helper()
 
 	clock := newAPIClock()
@@ -100,11 +100,9 @@ func TestActivity_AHealthProbeIsNotUse(t *testing.T) {
 func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, authStore := newTestServerWithSourcesAndManager(t, noSources)
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	user, err := authStore.UserForSession(t.Context(), cookie.Value)
-	require.NoError(t, err)
-	manager.EnsureIfAbsent(t.Context(), user.ID, nil)
+	manager.EnsureIfAbsent(t.Context(), nil)
 	act := idleActivity(t, manager)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)

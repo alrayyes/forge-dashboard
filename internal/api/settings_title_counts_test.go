@@ -27,7 +27,7 @@ func countIssue(n int, repo, title string) dashboard.Issue {
 func countsServer(t *testing.T, byToken map[string][]dashboard.Issue) *httptest.Server {
 	t.Helper()
 
-	return newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	return newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		issues, ok := byToken[c.GitHubToken]
 		if !ok {
 			return nil
@@ -140,7 +140,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullUntilTheFirstRefreshFinishes(t *t
 	t.Parallel()
 	release := make(chan struct{})
 	src := &gatedSource{release: release, issues: []dashboard.Issue{countIssue(1, "a/x", "Weekly one")}}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != countsToken {
 			return nil
 		}
@@ -161,7 +161,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullUntilTheFirstRefreshFinishes(t *t
 
 func TestSettingsGet_IgnoredTitleCounts_AreNullWithNoSnapshotAndEmptyWithNoPatterns(t *testing.T) {
 	t.Parallel()
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, func([]byte, settingspkg.Credentials) []dashboard.Source { return nil })
+	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(settingspkg.Credentials) []dashboard.Source { return nil })
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":["weekly"]}`, cookie)
@@ -195,7 +195,7 @@ func TestSettingsPut_IgnoredTitleCounts_FollowTheListJustSaved(t *testing.T) {
 // That is not "no issues match": the answer is still unknown.
 func TestSettingsGet_IgnoredTitleCounts_AreNullWhenTheOnlyForgeIsUnreachable(t *testing.T) {
 	t.Parallel()
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != countsToken {
 			return nil
 		}

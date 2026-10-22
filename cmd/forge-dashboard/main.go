@@ -1,5 +1,5 @@
 // Command forge-dashboard is the composition root: it wires the SQLite
-// database, the passkey auth service, and the per-user dashboard.Manager,
+// database, the passkey auth service, and the dashboard.Service,
 // then serves the API and static frontend. See docs/configuration.md
 // for the environment variables that configure it.
 package main
@@ -167,7 +167,7 @@ const minCIPollInterval = 10 * time.Second
 // resolveCIPollInterval is resolveRefreshInterval's counterpart for
 // CI_POLL_INTERVAL. An empty, unparseable or negative value falls back to the
 // default. "0s" is a real zero, not an error: it turns the poll off
-// (Manager.SetCIPollInterval treats zero as "off"). A positive value below
+// (Service.SetCIPollInterval treats zero as "off"). A positive value below
 // minCIPollInterval is raised to it.
 func resolveCIPollInterval(v string) time.Duration {
 	if v == "" {
@@ -300,7 +300,7 @@ func runHealthcheck() error {
 // instead of calling os.Exit directly — os.Exit skips every deferred
 // call on the way out (gocritic's exitAfterDefer), which would have
 // silently dropped the signal-context cancellation and, on any startup
-// error past dashboard.NewManager, its own Stop too. Returning lets every
+// error past dashboard.NewService, its own Stop too. Returning lets every
 // defer here run before main decides whether to exit non-zero.
 func run() error {
 	addr := envOr("ADDR", ":8080")
@@ -333,7 +333,7 @@ func run() error {
 		return fmt.Errorf("github app setup failed: %w", err)
 	}
 
-	manager := newManager(settingsStore, refreshInterval, ciPollInterval)
+	manager := newService(settingsStore, refreshInterval, ciPollInterval)
 	defer manager.Stop()
 
 	// One writer for every request-log row (#902). On the way out it flushes
@@ -349,7 +349,7 @@ func run() error {
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		Manager:       manager,
+		Service:       manager,
 		Database:      schemaPinger{db: db},
 		Dashboard:     manager,
 		APIStats:      apistats.New(),
@@ -359,9 +359,9 @@ func run() error {
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
 		GitHubAppConfigured: githubAppID != 0,
 	}
-	deps.BuildSources = buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
+	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
 
-	resumeQueuedActions(ctx, settingsStore, authStore, settingsStore, deps.BuildSources, manager)
+	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 
 	return listenAndServe(ctx, newServer(addr, deps), &drain)
@@ -391,10 +391,10 @@ func keepGitHubAnswersAcrossRestarts(store *settings.Store) {
 	github.SetHookCheckStore(store)
 }
 
-// newManager is the per-user refresh manager, with the settings store as its
+// newService is the refresh service, with the settings store as its
 // list of repos to keep up to date.
-func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) *dashboard.Manager {
-	manager := dashboard.NewManager(refreshInterval)
+func newService(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) *dashboard.Service {
+	manager := dashboard.NewService(refreshInterval)
 	manager.SetActivity(dashboard.NewActivity(resolveIdleAfter(os.Getenv("IDLE_AFTER")), nil))
 	// Existing app-created webhooks get new events without a click on
 	// "Add a webhook" (#1555); same origin the ensure endpoint builds URLs from.
@@ -478,7 +478,7 @@ func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Dr
 // per refresh) rather than going through GenericSource's
 // one-REST-call-per-repo model.
 //
-// baseURL is always "" (the real GitHub API) from buildSourcesForUser;
+// baseURL is always "" (the real GitHub API) from buildSources;
 // it's a parameter purely so a test can override it, the same testability
 // NewClient/NewAppClient's own baseURL parameters already provide.
 func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters) dashboard.Source {
@@ -524,14 +524,11 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	}
 }
 
-// buildSourcesForUser returns the dashboard.Source builder Deps.BuildSources
+// buildSources returns the dashboard.Source builder Deps.BuildSources
 // needs, a closure over authStore so every forge client it builds records its
-// requests in the request log. The user id it is called with names nobody the
-// log cares about any more; the manager stops passing it with the aggregator
-// change that follows.
-
-func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(userID []byte, c settings.Credentials) []dashboard.Source {
-	return func(_ []byte, c settings.Credentials) []dashboard.Source {
+// requests in the request log.
+func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(c settings.Credentials) []dashboard.Source {
+	return func(c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 

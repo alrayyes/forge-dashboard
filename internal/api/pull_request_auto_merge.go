@@ -56,11 +56,11 @@ func armForgejoAutoMerge(w http.ResponseWriter, r *http.Request, deps Deps, t ac
 
 		return
 	}
-	if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dashboard.ActionAutoMerge, forge, t.req.FullName, t.req.Number) {
+	if refuseIfNotAllowed(r.Context(), w, deps, dashboard.ActionAutoMerge, forge, t.req.FullName, t.req.Number) {
 		return
 	}
 	// Merging later needs a Forgejo token to merge with.
-	if _, _, ok := forgeSource(w, r, deps, t.user.ID, forge); !ok {
+	if _, _, ok := forgeSource(w, r, deps, forge); !ok {
 		return
 	}
 
@@ -108,7 +108,7 @@ func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
 
 		// A merge scheduled on the forge itself (#1571) is cancelled there too.
 		// A source that can't cancel has nothing scheduled to cancel.
-		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		src, _, ok := forgeSource(w, r, deps, t.req.Forge)
 		if !ok {
 			return
 		}

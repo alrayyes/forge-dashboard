@@ -19,10 +19,10 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dashboard.ActionRenovateRebase, t.req.Forge, t.req.FullName, t.req.Number) {
+		if refuseIfNotAllowed(r.Context(), w, deps, dashboard.ActionRenovateRebase, t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
-		src, creds, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		src, creds, ok := forgeSource(w, r, deps, t.req.Forge)
 		if !ok {
 			return
 		}
@@ -46,7 +46,7 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Manager.RecordBotRequest(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotRenovate, dashboard.BotRebase)
+		deps.Service.RecordBotRequest(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotRenovate, dashboard.BotRebase)
 
 		w.WriteHeader(http.StatusNoContent)
 	}

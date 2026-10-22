@@ -62,7 +62,7 @@ func rerunBoardFor(t *testing.T, forge dashboard.Forge, rerunErr error, prs ...d
 	if forge == dashboard.ForgeForgejo {
 		settingsBody = `{"forgejoUrl":"https://git.example","forgejoToken":"` + token + `"}`
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token && c.ForgejoToken != token {
 			return nil
 		}

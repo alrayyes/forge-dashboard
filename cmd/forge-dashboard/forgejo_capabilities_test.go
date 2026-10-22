@@ -169,7 +169,7 @@ func TestForgejoSource_ExposesEveryCapabilityItsClientHas(t *testing.T) {
 	t.Parallel()
 
 	creds := settings.Credentials{ForgejoURL: "https://forge.example", ForgejoToken: "t"}
-	sources := buildSourcesForUser(newTestAuthStore(t), nil, 0, nil, nil)([]byte("user"), creds)
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil)(creds)
 	require.Len(t, sources, 1)
 	source := sources[0]
 	require.Equal(t, dashboard.ForgeForgejo, source.Forge())

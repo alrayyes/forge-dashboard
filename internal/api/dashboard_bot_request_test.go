@@ -45,7 +45,7 @@ func botBoardAs(t *testing.T, author string, fail error) (*httptest.Server, *htt
 		prs:    []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Author: author, Behind: true}},
 		fail:   fail,
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}
