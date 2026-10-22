@@ -14,6 +14,10 @@ import (
 // the end of it when it is long. A forge that does not serve job logs, a job
 // the token cannot read and a job with no log answer with a classified client
 // error, never with text.
+//
+// The SDK buffers the whole log before returning it, so a very large log
+// costs that much memory for the length of the call; the SDK offers no
+// ranged or streaming read to bound it. NewJobLog keeps only the end.
 func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dashboard.JobLog, error) {
 	c = c.withContext(ctx)
 	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/logs", owner, name, id)
