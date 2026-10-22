@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -158,9 +159,30 @@ func (s *Service) FinishAddCredential(ctx context.Context, u *User, label string
 	return &Credential{ID: credentialIDKey(cred.ID), Label: label, CreatedAt: createdAt}, nil
 }
 
+// loginUser finds the user a login names and requires it to be the owner. The
+// credential update and the session act on the owner, so a second user row that
+// survived the single-user cleanup must not log in: a valid assertion from it
+// would bump the owner's credentials, or fail on them, and mint an owner session.
+// To a caller it is the same as no account at all.
+func (s *Service) loginUser(ctx context.Context, username string) (*User, error) {
+	u, err := s.store.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	owner, err := s.store.Owner(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(u.ID, owner.ID) {
+		return nil, ErrNotFound
+	}
+
+	return u, nil
+}
+
 // BeginLogin starts a login ceremony for an existing username.
 func (s *Service) BeginLogin(ctx context.Context, username string) (*protocol.CredentialAssertion, error) {
-	u, err := s.store.GetUserByUsername(ctx, username)
+	u, err := s.loginUser(ctx, username)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +214,7 @@ func (s *Service) FinishLogin(ctx context.Context, username string, r *http.Requ
 	}
 	defer func() { _ = s.store.DeleteCeremony(ctx, username, kindLogin) }()
 
-	u, err := s.store.GetUserByUsername(ctx, username)
+	u, err := s.loginUser(ctx, username)
 	if err != nil {
 		return nil, err
 	}

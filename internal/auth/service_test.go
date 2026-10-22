@@ -2,6 +2,8 @@ package auth_test
 
 import (
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -144,4 +146,49 @@ func TestBeginRegistration_ClearsExpiredAbandonedRowsOfOtherUsernames(t *testing
 	require.ErrorIs(t, err, auth.ErrNotFound)
 	_, err = store.GetUserByUsername(t.Context(), "recent")
 	require.NoError(t, err)
+}
+
+// newServiceWithASurvivingSecondUser is a database the single-user cleanup left
+// two users in: the owner, and a newer row holding a passkey (a registration
+// that finished after the cleanup ran).
+func newServiceWithASurvivingSecondUser(t *testing.T) (*auth.Service, *auth.Store) {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	_, err = store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	time.Sleep(2 * time.Millisecond)
+	_, err = store.CreateUser(t.Context(), "sam", "Sam")
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `UPDATE users SET credentials_json = '[{"id":"AQID"}]' WHERE username = 'sam'`)
+	require.NoError(t, err)
+
+	wa, err := webauthn.New(&webauthn.Config{RPID: "localhost", RPDisplayName: "Forge Board Test", RPOrigins: []string{"http://localhost"}})
+	require.NoError(t, err)
+
+	return auth.NewService(wa, store), store
+}
+
+func TestBeginLogin_ASurvivingNonOwnerUser_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	svc, _ := newServiceWithASurvivingSecondUser(t)
+
+	_, err := svc.BeginLogin(t.Context(), "sam")
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestFinishLogin_ASurvivingNonOwnerUser_NeverMintsAnOwnerSession(t *testing.T) {
+	t.Parallel()
+	svc, store := newServiceWithASurvivingSecondUser(t)
+	require.NoError(t, store.SaveCeremony(t.Context(), "sam", "login", webauthn.SessionData{}, time.Minute))
+
+	u, err := svc.FinishLogin(t.Context(), "sam", httptest.NewRequest(http.MethodPost, "/", nil))
+
+	assert.Nil(t, u)
+	assert.ErrorIs(t, err, auth.ErrNotFound, "the check runs before the assertion is read")
 }
