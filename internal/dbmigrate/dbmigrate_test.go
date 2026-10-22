@@ -353,3 +353,41 @@ func TestRun_APassingPreflightLetsTheBackupAndTheStepRun(t *testing.T) {
 	assert.NotEmpty(t, res.BackupPath)
 	assert.Equal(t, 1, version(t, db))
 }
+
+func TestRun_AFailedRollbackIsReportedAlongsideTheStepError(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	boom := errors.New("injected")
+	// A step that ends the transaction itself leaves nothing for ROLLBACK to undo,
+	// so the rollback fails.
+	step := dbmigrate.Step{Name: "commits early", Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		if _, err := tx.ExecContext(ctx, `COMMIT`); err != nil {
+			return err //nolint:wrapcheck // test step
+		}
+
+		return boom
+	}}
+
+	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.ErrorIs(t, err, boom)
+	assert.ErrorContains(t, err, "rollback")
+}
+
+func TestRun_ADanglingKeyInATableThatReferencesANamedOneRollsTheStepBack(t *testing.T) {
+	db, path := open(t)
+	exec(t, db, `CREATE TABLE parent (id INTEGER PRIMARY KEY)`)
+	exec(t, db, `CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))`)
+	exec(t, db, `INSERT INTO parent (id) VALUES (1)`)
+	exec(t, db, `INSERT INTO child (id, parent_id) VALUES (1, 1)`)
+	step := dbmigrate.Step{Name: "rebuilds parent", Tables: []string{"parent"}, Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		_, err := tx.ExecContext(ctx, `DELETE FROM parent`)
+
+		return err //nolint:wrapcheck // test step
+	}}
+
+	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{step}, quiet)
+
+	require.ErrorIs(t, err, dbmigrate.ErrDanglingForeignKey)
+	assert.Equal(t, 1, count(t, db, `SELECT count(*) FROM parent`))
+}
