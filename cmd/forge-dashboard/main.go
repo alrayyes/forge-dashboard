@@ -88,11 +88,11 @@ func resolveRefreshInterval(v string) time.Duration {
 // out of rotation first. Docker's default stop grace is 10s, and Shutdown
 // and the request-log flush take up to 5 each after the drain, so the grace
 // period needs to be the drain plus 10s.
+const defaultShutdownDrain = 5 * time.Second
+
 // requestLogQueueSize is how many request-log rows wait for the single
 // writer before a full queue starts dropping them.
 const requestLogQueueSize = 256
-
-const defaultShutdownDrain = 5 * time.Second
 
 // shutdownTimeout is how long Shutdown waits for in-flight requests once the
 // drain delay is over; a request still running then is cut.
@@ -418,9 +418,9 @@ func listenAndServe(ctx context.Context, srv *http.Server, drain *api.Drain) err
 }
 
 // serve runs srv on ln until ctx is cancelled, then drains readiness, ends
-// the open event streams (stopStreams, which runs as Shutdown begins), and waits up to timeout for the rest. A server that is still busy
-// then is closed. It answers whatever stopped the server that wasn't that
-// shutdown.
+// the open event streams (stopStreams, which runs as Shutdown begins), and
+// waits up to timeout for the rest. A server that is still busy then is
+// closed. It answers whatever stopped the server that wasn't that shutdown.
 func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Drain, timeout time.Duration, stopStreams func()) error {
 	if stopStreams != nil {
 		srv.RegisterOnShutdown(stopStreams)
