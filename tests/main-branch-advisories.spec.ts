@@ -157,6 +157,13 @@ test.describe('Branches page advisories pill', () => {
     const notice = page.getByTestId('advisories-notice');
     await expect(notice).toHaveCount(1);
     await expect(notice).toContainText('Dependabot alerts permission');
+    // A rate limit or an outage reads as unknown too, and a new permission
+    // takes a while to show: the notice owns up to both and names the way out.
+    await expect(notice).toContainText(/rate\s+limit/i);
+    await expect(notice).toContainText(
+      /up\s+to\s+an\s+hour\s+and\s+a\s+quarter/i,
+    );
+    await expect(notice).toContainText(/saving\s+Settings/i);
     await expect(
       notice.getByRole('link', { name: /How to grant it/ }),
     ).toHaveAttribute(
