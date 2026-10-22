@@ -14,9 +14,12 @@ import (
 	"time"
 )
 
+// MarkerTable is the table whose existence says the cleanup has settled.
+const MarkerTable = "single_user_cleanup"
+
 // markerTable records that the cleanup has run, so it never runs again on a
 // database that has settled on one user.
-const markerTable = "single_user_cleanup"
+const markerTable = MarkerTable
 
 // ownedTable is a table whose rows belong to a user, found through column.
 type ownedTable struct {
