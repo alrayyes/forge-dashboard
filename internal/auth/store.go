@@ -237,8 +237,7 @@ func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
 
 // HasAnyRegisteredUser reports whether any account has completed
 // registration — a row with no credentials (BeginRegistration begun,
-// never finished) doesn't count. The first username to make this true
-// is the one that becomes admin.
+// never finished) doesn't count. Once it is true, registration is closed.
 func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 	var exists int
 	err := s.db.QueryRowContext(ctx,
@@ -633,8 +632,8 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 	return s.GetUserByID(ctx, id)
 }
 
-// DeleteSession revokes a session token — logout, or an admin revoking
-// another user's session.
+// DeleteSession revokes a session token — logout, or the owner revoking
+// one of their own sessions.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
 	if err != nil {
