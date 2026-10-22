@@ -215,7 +215,11 @@ func (l *logCapture) WithGroup(string) slog.Handler            { return l }
 func (l *logCapture) Handle(_ context.Context, r slog.Record) error {
 	var b strings.Builder
 	b.WriteString(r.Level.String() + " " + r.Message)
-	r.Attrs(func(a slog.Attr) bool { b.WriteString(" " + a.Key + "=" + a.Value.String()); return true })
+	r.Attrs(func(a slog.Attr) bool {
+		b.WriteString(" " + a.Key + "=" + a.Value.String())
+
+		return true
+	})
 	l.mu.Lock()
 	l.lines = append(l.lines, b.String())
 	l.mu.Unlock()
