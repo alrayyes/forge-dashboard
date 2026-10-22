@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"strings"
 	"testing"
@@ -69,9 +70,7 @@ func postIssueAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, ac
 
 func issuePayload(extra map[string]any) map[string]any {
 	p := map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 12}
-	for k, v := range extra {
-		p[k] = v
-	}
+	maps.Copy(p, extra)
 
 	return p
 }
