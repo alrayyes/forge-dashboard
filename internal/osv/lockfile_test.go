@@ -147,3 +147,18 @@ func TestParseGoMod_ReadsQuotedPaths(t *testing.T) {
 		{Ecosystem: "Go", Name: "github.com/e/f", Version: "0.2.0"},
 	}, got, "a quoted path is the same module, and quotes never reach OSV or the host match")
 }
+
+func TestParseGoMod_ACommentMarkerInsideAQuotedPathIsNotAComment(t *testing.T) {
+	t.Parallel()
+
+	mod := "module example.com/x\n" +
+		"require \"example.com//odd\" v1.0.0 // indirect\n" +
+		"require `example.com//raw` v2.0.0\n"
+
+	got, err := osv.ParseGoMod([]byte(mod))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []osv.Package{
+		{Ecosystem: "Go", Name: "example.com//odd", Version: "1.0.0"},
+		{Ecosystem: "Go", Name: "example.com//raw", Version: "2.0.0"},
+	}, got, "a comment starts at the first // outside quotes")
+}
