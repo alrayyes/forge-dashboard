@@ -27,7 +27,7 @@ The system SHALL continue to trigger an immediate refresh on a verified webhook 
 #### Scenario: Webhook refresh still fires immediately
 
 - **WHEN** a signature-verified webhook delivery arrives
-- **THEN** an immediate refresh happens for the owning user, independent of the background poll's own schedule
+- **THEN** an immediate refresh happens for the instance's dashboard, independent of the background poll's own schedule
 
 ### Requirement: A critically low rate-limit budget delays the next scheduled poll
 

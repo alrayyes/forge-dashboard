@@ -234,7 +234,7 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   WebAuthn ceremonies against `Store` and refuses registration once a user
   holds a passkey, and `RequireAuth` is the middleware that gates a handler
   on a valid session.
-- `internal/settings` is each user's own GitHub/Forgejo configuration —
+- `internal/settings` is the owner's GitHub/Forgejo configuration —
   `Cipher` is AES-256-GCM encryption keyed off `ENCRYPTION_KEY`, and
   `Store` persists it to SQLite with the tokens encrypted, never in
   plaintext.
@@ -259,8 +259,8 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   page's own script runs at all. `web/src/routes/login` is the one page
   genuinely outside `(app)` — no persistent nav chrome to inherit before
   a session exists. Settings
-  (`web/src/routes/(app)/settings`) is where a signed-in user sets
-  their own tokens and theme. There is no admin page.
+  (`web/src/routes/(app)/settings`) is where the signed-in owner sets
+  their tokens and theme. There is no admin page.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store, and the
   dashboard service, and serves the API and static files. The

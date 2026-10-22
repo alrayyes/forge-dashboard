@@ -29,15 +29,15 @@ One Go binary serves all of it. `web/` builds to static files that
 
 - **Adapters** turn a forge's answer into `dashboard.PullRequest`, `Issue` and
   `Repo`. Nothing outside them knows what a GraphQL node looks like.
-- **The aggregator** refreshes one user's snapshot in the background, so a
-  request reads the last good snapshot and never blocks on a forge. A webhook
-  from a forge refreshes one repo early.
+- **The aggregator** refreshes the instance's one snapshot in the
+  background, so a request reads the last good snapshot and never blocks on a
+  forge. A webhook from a forge refreshes one repo early.
 - **The API** is `api/openapi.yaml`, written first and reviewed as the design.
-  Go tests validate the handlers against it, and the client libraries are generated
-  from it.
-- **Auth and settings** (`internal/auth`, `internal/settings`) keep users,
-  passkeys and encrypted credentials in SQLite. A credential never reaches the
-  browser.
+  Go tests validate the handlers against it, and the client libraries are
+  generated from it.
+- **Auth and settings** (`internal/auth`, `internal/settings`) keep the one
+  user, its passkeys and its encrypted credentials in SQLite. A credential
+  never reaches the browser.
 
 ## Where logic lives
 
@@ -49,6 +49,13 @@ was told. The test is whether a second client, a client library or an agent,
 would need the same answer. The reasons, and what it costs, are in
 [ADR 0001](docs/adr/0001-business-rules-live-behind-the-api.md).
 
+## One user per instance
+
+An instance has exactly one user, the owner. There are no invites, no admin
+area and no sharing, and one aggregator serves the whole instance. The options
+and the cost are in
+[ADR 0002](docs/adr/0002-one-user-per-instance.md).
+
 ## Design
 
 - **Passkey login, no passwords anywhere.** Registration and sign-in are
@@ -58,8 +65,8 @@ would need the same answer. The reasons, and what it costs, are in
   ever stored or transmitted.
 - **You configure your own forges.** The GitHub/Forgejo tokens are set from
   the Settings page and never leave the backend.
-- **Credentials never reach the browser.** The Go backend holds every
-  user's tokens server-side, encrypted at rest, and only ever hands the
+- **Credentials never reach the browser.** The Go backend holds the
+  owner's tokens server-side, encrypted at rest, and only ever hands the
   frontend its own already-filtered JSON. Confirm this yourself: open the
   browser's network tab and watch it call only this app's own routes (`/api/...`
   and the static `/changelog.json`), never a forge — and that

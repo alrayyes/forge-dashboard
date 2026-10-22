@@ -27,16 +27,16 @@ without waiting for the next scheduled background refresh.
 - **THEN** the system reports that no refresh is running for them, rather
   than a silent failure
 
-### Requirement: A triggered refresh is scoped to the requester's own dashboard
+### Requirement: A triggered refresh needs a signed-in session
 
-The system SHALL only ever refresh the requesting user's own dashboard,
-never another user's, regardless of dashboard-sharing permissions.
+The system SHALL refuse a refresh trigger that carries no valid session or
+API token. An instance has one owner and one dashboard, so there is no
+other dashboard to refresh.
 
-#### Scenario: Viewing a shared dashboard offers no refresh trigger
+#### Scenario: Refresh without a session
 
-- **WHEN** a user is viewing a dashboard another user shared with them
-- **THEN** they have no way to trigger a refresh of that other user's
-  dashboard
+- **WHEN** a request without a valid session or API token triggers a refresh
+- **THEN** the system answers 401 and refreshes nothing
 
 ### Requirement: Rapid repeated triggers don't multiply forge requests
 
