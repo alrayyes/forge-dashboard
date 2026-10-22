@@ -5,7 +5,11 @@ import {
   clearLabels,
   labelButton,
   labelChoices,
+  offeredValues,
   pickedLabels,
+  pickedValues,
+  pickOnly,
+  pickTexts,
   toggleLabels,
 } from './label-filter-helper';
 import { landOnPullRequests, test } from './server-fixture';
@@ -1370,34 +1374,32 @@ test.describe('dashboard page', () => {
     }) => {
       // Only one forge represented here, so options stay flat — no
       // <optgroup> — but the value is still forge-qualified (#112).
-      const options = page.locator('#shared-repo-select option');
-      await expect(options).toHaveCount(3); // "All repos" plus the two.
-      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(0);
+      const options = page.locator('#shared-repo-filter-panel input');
+      await expect(options).toHaveCount(2);
       await expect(
-        page.locator(
-          '#shared-repo-select option[value="github:alrayyes/wiki"]',
-        ),
-      ).toHaveCount(1);
-      await expect(
-        page.locator(
-          '#shared-repo-select option[value="github:alrayyes/wiki"]',
-        ),
-      ).toHaveText('alrayyes/wiki');
+        page.locator('#shared-repo-filter-panel .pick-group-heading'),
+      ).toHaveCount(0);
+      expect(await offeredValues(page, 'repo')).toContain(
+        'github:alrayyes/wiki',
+      );
+      expect(await pickTexts(page, 'repo')).toContain('alrayyes/wiki');
 
-      await page.selectOption('#shared-repo-select', 'github:alrayyes/wiki');
+      await pickOnly(page, 'repo', 'github:alrayyes/wiki');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
 
-      await page.selectOption('#shared-repo-select', '');
+      await pickOnly(page, 'repo', '');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
     test('the author select lists authors actually on screen, and picking one filters to it', async ({
       page,
     }) => {
-      await expect(page.locator('#shared-author-select option')).toHaveCount(3); // "All authors" plus the two.
+      await expect(
+        page.locator('#shared-author-filter-panel .label-filter-option'),
+      ).toHaveCount(2); // "All authors" plus the two.
 
-      await page.selectOption('#shared-author-select', 'ryan');
+      await pickOnly(page, 'author', 'ryan');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
     });
@@ -1480,18 +1482,20 @@ test.describe('dashboard page', () => {
     test('the repo select groups options by forge when a repo name is shared, and resolves each to exactly one forge', async ({
       page,
     }) => {
-      const groups = page.locator('#shared-repo-select optgroup');
+      const groups = page.locator(
+        '#shared-repo-filter-panel .pick-group-heading',
+      );
       await expect(groups).toHaveCount(2);
       // Alphabetical by display label, same as group-by-forge's headings:
       // "Forgejo" before "GitHub".
-      await expect(groups.nth(0)).toHaveAttribute('label', 'Forgejo');
-      await expect(groups.nth(1)).toHaveAttribute('label', 'GitHub');
+      await expect(groups.nth(0)).toHaveText('Forgejo');
+      await expect(groups.nth(1)).toHaveText('GitHub');
 
-      await page.selectOption('#shared-repo-select', 'github:shared/tools');
+      await pickOnly(page, 'repo', 'github:shared/tools');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
 
-      await page.selectOption('#shared-repo-select', 'forgejo:shared/tools');
+      await pickOnly(page, 'repo', 'forgejo:shared/tools');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
     });
@@ -1501,10 +1505,18 @@ test.describe('dashboard page', () => {
     }) => {
       await selectForge(page, 'forgejo');
 
-      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(0);
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(2); // All repos + shared/tools.
-      await expect(page.locator('#shared-author-select option')).toHaveCount(2); // All authors + ryan.
-      await expect(page.locator('.label-filter-option')).toHaveCount(1); // enhancement.
+      await expect(
+        page.locator('#shared-repo-filter-panel .pick-group-heading'),
+      ).toHaveCount(0);
+      await expect(
+        page.locator('#shared-repo-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // All repos + shared/tools.
+      await expect(
+        page.locator('#shared-author-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // All authors + ryan.
+      await expect(
+        page.locator('#shared-label-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // enhancement.
     });
 
     test('clearing the forge filter widens the repo, author, and label options back out', async ({
@@ -1513,18 +1525,21 @@ test.describe('dashboard page', () => {
       await selectForge(page, 'forgejo');
       await selectForge(page, '');
 
-      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(2);
-      await expect(page.locator('#shared-author-select option')).toHaveCount(3); // All + claude + ryan.
-      await expect(page.locator('.label-filter-option')).toHaveCount(2); // bug + enhancement.
+      await expect(
+        page.locator('#shared-repo-filter-panel .pick-group-heading'),
+      ).toHaveCount(2);
+      await expect(
+        page.locator('#shared-author-filter-panel .label-filter-option'),
+      ).toHaveCount(2); // All + claude + ryan.
+      await expect(
+        page.locator('#shared-label-filter-panel .label-filter-option'),
+      ).toHaveCount(2); // bug + enhancement.
     });
 
     test('a repo selection that no longer exists once the forge filter narrows clears itself, not just the control', async ({
       page,
     }) => {
-      await page.selectOption(
-        '#shared-repo-select',
-        'github:alrayyes/only-here',
-      );
+      await pickOnly(page, 'repo', 'github:alrayyes/only-here');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
       await selectForge(page, 'forgejo');
@@ -1532,7 +1547,7 @@ test.describe('dashboard page', () => {
       // "alrayyes/only-here" doesn't exist under Forgejo — the stale
       // selection has to clear, or this would silently show zero rows
       // with no visible reason why.
-      await expect(page.locator('#shared-repo-select')).toHaveValue('');
+      await expect.poll(() => pickedValues(page, 'repo')).toEqual([]);
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
     });
@@ -1540,12 +1555,12 @@ test.describe('dashboard page', () => {
     test('an author selection that no longer exists once the forge filter narrows clears itself', async ({
       page,
     }) => {
-      await page.selectOption('#shared-author-select', 'claude');
+      await pickOnly(page, 'author', 'claude');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
       await selectForge(page, 'forgejo');
 
-      await expect(page.locator('#shared-author-select')).toHaveValue('');
+      await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
     });
@@ -1579,42 +1594,52 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await selectForge(page, 'github');
-      await page.selectOption('#shared-repo-select', 'github:shared/tools');
+      await pickOnly(page, 'repo', 'github:shared/tools');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
 
       // Only "GitHub A" (author claude, label bug) is under github:shared/tools —
       // "GitHub only" (alrayyes/only-here) and "Forgejo A" (ryan/enhancement)
       // are excluded by forge and repo respectively.
-      await expect(page.locator('#shared-author-select option')).toHaveCount(2); // All + claude.
       await expect(
-        page.locator('#shared-author-select option[value="claude"]'),
-      ).toHaveCount(1);
-      await expect(page.locator('.label-filter-option')).toHaveCount(1); // bug.
+        page.locator('#shared-author-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // All + claude.
+      expect(await offeredValues(page, 'author')).toEqual(['claude']);
       await expect(
-        page.locator('.label-filter-option input[value="bug"]'),
+        page.locator('#shared-label-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // bug.
+      await expect(
+        page.locator(
+          '#shared-label-filter-panel .label-filter-option input[value="bug"]',
+        ),
       ).toHaveCount(1);
     });
 
     test('picking an author narrows the repo and label selects to that author only', async ({
       page,
     }) => {
-      await page.selectOption('#shared-author-select', 'claude');
+      await pickOnly(page, 'author', 'claude');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
       // claude has "GitHub A" (github:shared/tools, label bug) and
       // "GitHub only" (github:alrayyes/only-here, no label) — ryan's
       // forgejo:shared/tools and its "enhancement" label are excluded.
-      await expect(page.locator('#shared-repo-select optgroup')).toHaveCount(0);
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(3); // All + the two claude repos.
+      await expect(
+        page.locator('#shared-repo-filter-panel .pick-group-heading'),
+      ).toHaveCount(0);
+      await expect(
+        page.locator('#shared-repo-filter-panel .label-filter-option'),
+      ).toHaveCount(2); // All + the two claude repos.
+      expect(await offeredValues(page, 'repo')).not.toContain(
+        'forgejo:shared/tools',
+      );
+      await expect(
+        page.locator('#shared-label-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // bug.
       await expect(
         page.locator(
-          '#shared-repo-select option[value="forgejo:shared/tools"]',
+          '#shared-label-filter-panel .label-filter-option input[value="enhancement"]',
         ),
-      ).toHaveCount(0);
-      await expect(page.locator('.label-filter-option')).toHaveCount(1); // bug.
-      await expect(
-        page.locator('.label-filter-option input[value="enhancement"]'),
       ).toHaveCount(0);
     });
 
@@ -1626,14 +1651,16 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toContainText('GitHub A');
 
       // Only "GitHub A" (github:shared/tools, author claude) carries "bug".
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(2); // All + github:shared/tools.
       await expect(
-        page.locator('#shared-repo-select option[value="github:shared/tools"]'),
-      ).toHaveCount(1);
-      await expect(page.locator('#shared-author-select option')).toHaveCount(2); // All + claude.
+        page.locator('#shared-repo-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // All + github:shared/tools.
+      expect(await offeredValues(page, 'repo')).toEqual([
+        'github:shared/tools',
+      ]);
       await expect(
-        page.locator('#shared-author-select option[value="ryan"]'),
-      ).toHaveCount(0);
+        page.locator('#shared-author-filter-panel .label-filter-option'),
+      ).toHaveCount(1); // All + claude.
+      expect(await offeredValues(page, 'author')).not.toContain('ryan');
     });
 
     test('a repo+author combination that stops co-occurring clears both selections, not just one', async ({
@@ -1641,8 +1668,8 @@ test.describe('dashboard page', () => {
     }) => {
       // Both picks are valid together at the time they're made: the
       // Forgejo shared/tools repo really is authored by ryan.
-      await page.selectOption('#shared-repo-select', 'forgejo:shared/tools');
-      await page.selectOption('#shared-author-select', 'ryan');
+      await pickOnly(page, 'repo', 'forgejo:shared/tools');
+      await pickOnly(page, 'author', 'ryan');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
       // The underlying data changes under the still-active filters (a
@@ -1708,8 +1735,8 @@ test.describe('dashboard page', () => {
       );
       await page.click('#force-refresh-button');
 
-      await expect(page.locator('#shared-repo-select')).toHaveValue('');
-      await expect(page.locator('#shared-author-select')).toHaveValue('');
+      await expect.poll(() => pickedValues(page, 'repo')).toEqual([]);
+      await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
     });
 
@@ -1768,15 +1795,8 @@ test.describe('dashboard page', () => {
       // replaces the earlier expectation that board filters stay out of the
       // shared choices, which broke the rule that every choice matches
       // something in the list being shown.
-      const optionValues = (id: string) =>
-        page
-          .locator(`#${id} option`)
-          .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
-      expect(await optionValues('shared-repo-select')).toHaveLength(2); // All + team/two.
-      expect(await optionValues('shared-repo-select')).toContain(
-        'github:team/two',
-      );
-      expect(await optionValues('shared-author-select')).toEqual(['', 'ryan']);
+      expect(await offeredValues(page, 'repo')).toEqual(['github:team/two']);
+      expect(await offeredValues(page, 'author')).toEqual(['ryan']);
       expect(await labelChoices(page)).toEqual(['enhancement']);
     });
   });
@@ -2602,7 +2622,9 @@ test.describe('dashboard page', () => {
     test('the label select lists labels actually on screen, and picking one filters and marks the matching chip active', async ({
       page,
     }) => {
-      const options = page.locator('.label-filter-option');
+      const options = page.locator(
+        '#shared-label-filter-panel .label-filter-option',
+      );
       await expect(options).toHaveCount(2); // The two on screen.
 
       await toggleLabels(page, 'kind/bug');

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1630: what the two Settings values do to the Issues page and to Insights.
@@ -267,8 +268,7 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect(rows(page)).toHaveCount(2);
     await expect(patternBox(page)).toBeHidden();
     await nav('pull-requests').click();
-    const author = page.locator('#shared-author-select');
-    await author.selectOption('claude');
+    await pickOnly(page, 'author', 'claude');
     await nav('issues').click();
     await expect(rows(page)).toHaveCount(2);
 
@@ -286,7 +286,7 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect(patternBox(page)).toHaveValue('^Add');
     await nav('pull-requests').click();
     await page.waitForLoadState('networkidle');
-    await expect(author).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     // What the account keeps, which another browser would read.
     const keptFilters = await (
       await page.request.get('/api/settings/filter-state')

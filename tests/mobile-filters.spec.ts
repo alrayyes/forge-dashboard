@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickedValues, togglePicks } from './label-filter-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
@@ -171,9 +172,7 @@ for (const size of [
       page,
     }) => {
       await filtersButton(page).click();
-      await sheet(page).getByLabel('Filter by repo').selectOption({
-        label: 'alrayyes/two',
-      });
+      await togglePicks(page, 'repo', 'github:alrayyes/two');
 
       await expect(
         sheet(page).getByRole('button', { name: 'Show 2 results' }),
@@ -189,7 +188,7 @@ for (const size of [
       page,
     }) => {
       await filtersButton(page).click();
-      await sheet(page).getByLabel('Filter by author').selectOption('claude');
+      await togglePicks(page, 'author', 'claude');
       await page.keyboard.press('Escape');
 
       const chip = page.getByRole('button', {
@@ -207,9 +206,7 @@ for (const size of [
 
     test('Clear all resets the filters', async ({ page }) => {
       await filtersButton(page).click();
-      await sheet(page).getByLabel('Filter by repo').selectOption({
-        label: 'homelab/three',
-      });
+      await togglePicks(page, 'repo', 'forgejo:homelab/three');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
       await sheet(page).getByRole('button', { name: 'Clear all' }).click();
@@ -223,9 +220,7 @@ for (const size of [
       page,
     }) => {
       await filtersButton(page).click();
-      await sheet(page).getByLabel('Filter by repo').selectOption({
-        label: 'alrayyes/two',
-      });
+      await togglePicks(page, 'repo', 'github:alrayyes/two');
 
       await page.evaluate((data) => {
         const w = window as unknown as { __streams: EventSource[] };
@@ -235,9 +230,7 @@ for (const size of [
       await settle(page);
 
       await expect(sheet(page)).toBeVisible();
-      await expect(sheet(page).getByLabel('Filter by repo')).toHaveValue(
-        'github:alrayyes/two',
-      );
+      expect(await pickedValues(page, 'repo')).toEqual(['github:alrayyes/two']);
     });
 
     for (const state of ['closed', 'open'] as const) {

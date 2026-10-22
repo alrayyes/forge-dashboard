@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1620: a saved pick the page you are on does not offer is kept for the page
@@ -107,7 +108,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
   test.beforeEach(async ({ page }) => {
     await open(page, '/issues.html');
     await expect(issueRows(page)).toHaveCount(3);
-    await page.locator('#shared-author-select').selectOption('ryan');
+    await pickOnly(page, 'author', 'ryan');
     await expect(issueRows(page)).toHaveCount(2);
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
@@ -129,7 +130,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
     page,
   }) => {
     await expect(note(page)).toBeVisible();
-    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     await expect(page.locator('#clear-filters-button')).toBeEnabled();
     await expect.poll(() => savedAuthor(page)).toBe('ryan');
 
@@ -151,7 +152,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
 
     await nav(page, 'issues').click();
     await expect(issueRows(page)).toHaveCount(3);
-    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
   });
 
   test('the note has its own button that names what it removes', async ({

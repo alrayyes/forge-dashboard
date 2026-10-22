@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   heldPicks,
   matchesFilters,
-  reconcileLabels,
+  reconcilePick,
   releaseAllHeld,
   type SharedFilterState,
   saveState,
@@ -53,7 +53,7 @@ describe('the size of a pick', () => {
   });
 
   test('keeps at most a thousand characters, skipping a label that would pass it', () => {
-    const big = 'a'.repeat(990);
+    const big = 'a'.repeat(980);
     expect(parseLabels(`${big}\n${'b'.repeat(20)}\nc`)).toEqual([big, 'c']);
   });
 
@@ -192,7 +192,7 @@ describe('labels the page does not offer', () => {
   test('are set aside and the rest stay picked', () => {
     releaseAllHeld();
     const s = state('bug\ngone');
-    expect(reconcileLabels(s, ['Bug', 'docs'], true)).toBe(true);
+    expect(reconcilePick(s, 'label', ['Bug', 'docs'], true)).toBe(true);
     expect(s.shared.label).toBe('bug');
     expect(heldPicks().map((p) => p.text)).toEqual(['gone']);
     releaseAllHeld();
@@ -208,7 +208,7 @@ describe('labels the page does not offer', () => {
       return Promise.resolve(new Response('{}'));
     }) as typeof fetch;
     const s = state('bug\ngone');
-    reconcileLabels(s, ['bug'], true);
+    reconcilePick(s, 'label', ['bug'], true);
     saveState(s);
     globalThis.fetch = realFetch;
     expect(puts[0].shared.label).toBe('bug\ngone');
@@ -218,14 +218,14 @@ describe('labels the page does not offer', () => {
   test('are dropped for good when the user, not the page, narrowed them', () => {
     releaseAllHeld();
     const s = state('bug\ngone');
-    expect(reconcileLabels(s, ['bug'], false)).toBe(true);
+    expect(reconcilePick(s, 'label', ['bug'], false)).toBe(true);
     expect(s.shared.label).toBe('bug');
     expect(heldPicks()).toEqual([]);
   });
 
   test('nothing is set aside when every pick is on offer', () => {
     const s = state('bug');
-    expect(reconcileLabels(s, ['Bug'], true)).toBe(false);
+    expect(reconcilePick(s, 'label', ['Bug'], true)).toBe(false);
     expect(s.shared.label).toBe('bug');
   });
 });

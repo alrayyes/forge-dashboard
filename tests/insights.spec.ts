@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { pickedValues, pickOnly, pickTexts } from './label-filter-helper';
 import { landOnPullRequests, test } from './server-fixture';
 import { rateLimit } from './severity-stand-in';
 
@@ -511,10 +512,7 @@ test.describe('insights page', () => {
         2,
       );
 
-      await page.selectOption(
-        '.filter-bar [data-col="repo"]',
-        'github:alrayyes/one',
-      );
+      await pickOnly(page, 'repo', 'github:alrayyes/one');
 
       // Repo is shared — narrowing it scopes both entity types together,
       // not just the one whose chart happens to visualize it.
@@ -559,7 +557,7 @@ test.describe('insights page', () => {
       );
       await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(2);
 
-      await page.selectOption('.filter-bar [data-col="author"]', 'alice');
+      await pickOnly(page, 'author', 'alice');
 
       await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
         1,
@@ -590,15 +588,15 @@ test.describe('insights page', () => {
       await page.goto('/insights.html');
       await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(1);
 
+      await expect
+        .poll(() => pickTexts(page, 'repo'))
+        .toEqual(['alrayyes/one', 'alrayyes/two']);
+      await expect
+        .poll(() => pickTexts(page, 'author'))
+        .toEqual(['alice', 'bob']);
       await expect(
-        page.locator('.filter-bar [data-col="repo"] option'),
-      ).toHaveText(['All repos', 'alrayyes/one', 'alrayyes/two']);
-      await expect(
-        page.locator('.filter-bar [data-col="author"] option'),
-      ).toHaveText(['All authors', 'alice', 'bob']);
-      await expect(page.locator('.filter-bar .label-filter-option')).toHaveText(
-        ['bug'],
-      );
+        page.locator('#shared-label-filter-panel .label-filter-option'),
+      ).toHaveText(['bug']);
     });
 
     test('a filter set on the main dashboard already applies here — the same cookie, not a separate preference', async ({
@@ -626,9 +624,9 @@ test.describe('insights page', () => {
       await expect(page.locator('#repo-pr-ranking .rank-row')).toContainText(
         'alrayyes/one',
       );
-      await expect(page.locator('.filter-bar [data-col="repo"]')).toHaveValue(
-        'github:alrayyes/one',
-      );
+      await expect
+        .poll(() => pickedValues(page, 'repo'))
+        .toEqual(['github:alrayyes/one']);
     });
 
     test('a status/created/updated filter left in the cookie by the main dashboard has no effect here', async ({
