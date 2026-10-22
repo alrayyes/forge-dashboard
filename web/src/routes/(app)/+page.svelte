@@ -38,6 +38,7 @@
     filterFromState,
     filterToState,
     releaseHref,
+    advisoryPill,
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
@@ -514,6 +515,38 @@
         min-height: 44px;
       }
     }
+    /* Open dependency advisories: the word carries the severity, the tint
+       echoes it. 44px tall on a phone when it is a link. */
+    .mb-advisory {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      box-sizing: border-box;
+      padding: 1px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 999px;
+      white-space: nowrap;
+      background: var(--neutral-bg);
+      color: var(--ink-2);
+    }
+    .mb-advisory[data-tone="critical"],
+    .mb-advisory[data-tone="high"] {
+      background: var(--critical-bg);
+      color: var(--critical);
+    }
+    .mb-advisory[data-tone="medium"] {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+    a.mb-advisory {
+      text-decoration: underline;
+    }
+    @media (max-width: 760px) {
+      a.mb-advisory {
+        min-height: 44px;
+      }
+    }
     .mb-stale {
       background: var(--warning-bg);
       color: var(--warning);
@@ -822,6 +855,29 @@
                         /></svg
                       ><span class="mb-release-tag">{release.tag}</span></button
                     >
+                  {/if}
+                  {#if advisoryPill(b.advisories)}
+                    {@const adv = advisoryPill(b.advisories)!}
+                    <!-- Severity is the word beside the count; the colour
+                      only echoes it. Unknown is words, never a zero. -->
+                    {#if adv.href}
+                      <a
+                        class="mb-advisory"
+                        data-tone={adv.tone}
+                        data-testid="main-branch-advisories"
+                        href={adv.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="{adv.text} (opens in a new tab)"
+                        >{adv.text}</a
+                      >
+                    {:else}
+                      <span
+                        class="mb-advisory"
+                        data-tone={adv.tone}
+                        data-testid="main-branch-advisories">{adv.text}</span
+                      >
+                    {/if}
                   {/if}
                 </div>
                 <p class="mb-meta">
