@@ -197,7 +197,7 @@ One policy covers the URL a GitHub job-log request redirects to (Forgejo
 answers the log itself). The guard lives in `logBlobClient` in
 `internal/github/job_log.go`; any new fetch of a URL a forge supplies should
 go through it. The request carries no token, times out after 15 seconds, and
-reads at most 64 MiB.
+reads at most 64 megabytes.
 
 The rule is public addresses only, with exceptions:
 
@@ -206,7 +206,7 @@ The rule is public addresses only, with exceptions:
 - A direct dial is checked on the resolved address, so DNS rebinding doesn't
   get around it. It is refused for local (127.0.0.0/8, ::1), private,
   link-local, shared (100.64.0.0/10), group-address, unspecified and NAT64
-  (64:ff9b::/96) addresses.
+  (its well-known prefix) addresses.
   Other reserved ranges are not on that list.
 - The first exception is the API's own host and port, dialled without the
   check, so a GitHub Enterprise Server instance on a private network works
