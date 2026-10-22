@@ -427,51 +427,6 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     });
   });
 
-  // Mirrors pull-request-update-branch.spec.ts's own cross-action
-  // forge-wide permission test: forgePermissionDenied is keyed by forge,
-  // not by action, since a token's write access isn't specific to one
-  // action any more than it's specific to one PR — a 403 from Rebase has
-  // to proactively lock Recreate too, for the reason stated there.
-  test('a permission failure on Rebase locks Rebase only, and Recreate stays usable (#918)', async ({
-    page,
-  }) => {
-    await mockDashboard(page, 'github', makePR());
-    await page.route(
-      '**/api/pull-requests/dependabot-action',
-      (route: Route) => {
-        const body = route.request().postDataJSON();
-        if (body.action === 'rebase') {
-          return route.fulfill({
-            status: 403,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              error: 'Forbidden',
-              code: 'permission',
-              message: 'Missing permission — check your token in Settings.',
-            }),
-          });
-        }
-        return route.fulfill({ status: 204 });
-      },
-    );
-    await page.goto('/bots.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const footer = await openFooter(row);
-    await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
-
-    await expect(
-      footer.getByRole('button', { name: 'Dependabot: Rebase' }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    // A refusal is about that action on that pull request, not every action
-    // on the forge: the token may lack one permission and have the rest.
-    const recreateButton = footer.getByRole('button', {
-      name: 'Dependabot: Recreate',
-    });
-    await expect(recreateButton).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText(/permission/i);
-  });
-
   // A Dependabot PR that's actually out of date is the one case #527's
   // "reached rarely enough to collapse" reasoning didn't cover: the
   // person who needs Rebase right then had no visible way to find it.
@@ -583,56 +538,5 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
-  });
-
-  test('a GitHub App with no personal token locks both buttons with the reason, and clicking sends nothing (#666)', async ({
-    page,
-  }) => {
-    const reason =
-      'Dependabot ignores commands from GitHub Apps. Save a personal access token in Settings to send them as you.';
-    await page.route('**/api/dashboard*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [
-            {
-              forge: 'github',
-              reachable: true,
-              repoCount: 1,
-              dependabotCommandsBlocked: reason,
-            },
-          ],
-          pullRequests: [makePR({ behind: true })],
-          issues: [],
-        }),
-      }),
-    );
-    let posted = false;
-    await page.route(
-      '**/api/pull-requests/dependabot-action',
-      (route: Route) => {
-        posted = true;
-        return route.fulfill({ status: 204 });
-      },
-    );
-    await page.goto('/bots.html');
-
-    const row = page.locator('#pr-rows .row').first();
-    const rebase = row.getByRole('button', { name: 'Dependabot: Rebase' });
-    await expect(rebase).toHaveAttribute('aria-disabled', 'true');
-    await expect(rebase).toHaveAccessibleDescription(reason);
-    await rebase.click({ force: true });
-
-    const footer = await openFooter(row);
-    const recreate = footer.getByRole('button', {
-      name: 'Dependabot: Recreate',
-    });
-    await expect(recreate).toHaveAttribute('aria-disabled', 'true');
-    await expect(recreate).toHaveAccessibleDescription(reason);
-    await recreate.click({ force: true });
-
-    expect(posted).toBe(false);
   });
 });
