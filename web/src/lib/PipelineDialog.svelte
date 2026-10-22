@@ -289,22 +289,14 @@
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
         {/if}
         {#if check.excerpt}
-          <!-- Text only: the log is never parsed as markup. It scrolls, so it
-               takes focus to be reachable from the keyboard. -->
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-          <pre
-            class="pipeline-check-excerpt"
-            tabindex="0"
-            aria-label="Log excerpt: {check.name}">{check.excerpt}</pre>
-          {#if target?.checksUrl}
-            <CopyCheckLog
-              name={check.name}
-              jobId={check.jobId}
-              checksUrl={target.checksUrl}
-              excerpt={check.excerpt}
-              forgeName={forgeLabel(target)}
-            />
-          {/if}
+          <CopyCheckLog
+            name={check.name}
+            jobId={check.jobId}
+            checksUrl={target?.checksUrl ?? ""}
+            excerpt={check.excerpt}
+            forgeName={target ? forgeLabel(target) : "the forge"}
+            copyable={check.state === "failure" || check.state === "timed_out"}
+          />
         {/if}
       </li>
     {/each}

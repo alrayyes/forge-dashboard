@@ -2,6 +2,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
   copyLog,
+  copyPending,
+  copyStatus,
   type LogResult,
   loadRunLog,
   logToCopy,
@@ -142,32 +144,136 @@ describe('copyLog', () => {
   });
 });
 
+const URL9 = '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9';
+
 describe('logToCopy', () => {
   test('is the whole log when the endpoint answers', async () => {
     const got = await logToCopy(
-      '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9',
+      URL9,
       'tail',
       'GitHub',
-      respond(200, { text: 'all of it\n', truncated: false }),
+      respond(200, { text: 'all\n', truncated: false }),
     );
 
-    expect(got).toEqual({ text: 'all of it\n', whole: true });
+    expect(got).toEqual({ text: 'all\n', kind: 'whole', why: '' });
   });
 
-  test('is the excerpt when the full log cannot be read', async () => {
+  test('says when the server cut the log', async () => {
     const got = await logToCopy(
-      '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9',
+      URL9,
       'tail',
       'GitHub',
-      respond(404, { error: 'gone' }),
+      respond(200, { text: 'end\n', truncated: true }),
     );
 
-    expect(got).toEqual({ text: 'tail', whole: false });
+    expect(got.kind).toBe('cut');
   });
 
-  test('is the excerpt when the check has no log url', async () => {
+  test('is the excerpt, with the reason, when the log cannot be read', async () => {
+    const got = await logToCopy(URL9, 'tail', 'GitHub', respond(403, {}));
+
+    expect(got.text).toBe('tail');
+    expect(got.kind).toBe('excerpt');
+    expect(got.why).toContain("can't read this job's output");
+  });
+
+  test('asks for a new sign-in on a 401', async () => {
+    const got = await logToCopy(URL9, 'tail', 'GitHub', respond(401, {}));
+
+    expect(got.why).toBe('Your session ended. Sign in again.');
+  });
+
+  test('says there is no job when there is no log url', async () => {
     const got = await logToCopy(null, 'tail', 'GitHub');
 
-    expect(got).toEqual({ text: 'tail', whole: false });
+    expect(got).toMatchObject({ text: 'tail', kind: 'excerpt' });
+    expect(got.why).toContain('no job');
+  });
+});
+
+describe('copyStatus', () => {
+  const whole = { text: 'x', kind: 'whole', why: '' } as const;
+  const excerpt = { text: 'x', kind: 'excerpt', why: 'Gone.' } as const;
+
+  test('plain Copied only for a whole log that landed', () => {
+    expect(copyStatus('copied', whole, 'GitHub')).toBe('Copied');
+  });
+
+  test('a cut log says so', () => {
+    expect(copyStatus('copied', { ...whole, kind: 'cut' }, 'GitHub')).toContain(
+      'last 256 KB',
+    );
+  });
+
+  test('an excerpt says it is only the excerpt, and why', () => {
+    expect(copyStatus('copied', excerpt, 'GitHub')).toBe(
+      'Copied the excerpt only. Gone.',
+    );
+  });
+
+  test('a refused copy of a whole log says the full log was not copied', () => {
+    expect(copyStatus('selected', whole, 'GitHub')).toContain(
+      'full log was not copied',
+    );
+  });
+});
+
+describe('copyPending', () => {
+  const ready = Promise.resolve({
+    text: 'full',
+    kind: 'whole' as const,
+    why: '',
+  });
+
+  test('hands the clipboard the promise before the text is known', async () => {
+    const written: unknown[] = [];
+    const out = await copyPending(ready, {
+      clipboard: {
+        writeText: async () => {
+          throw new Error('not used');
+        },
+        write: async (items) => {
+          written.push(...items);
+        },
+      },
+      makeItem: (text) => ({ text }),
+      select: () => false,
+    });
+
+    expect(out.outcome).toBe('copied');
+    expect(written).toHaveLength(1);
+    expect(await (written[0] as { text: Promise<string> }).text).toBe('full');
+  });
+
+  test('copies the same text another way when the item write is refused', async () => {
+    const wrote: string[] = [];
+    const out = await copyPending(ready, {
+      clipboard: {
+        writeText: async (t) => {
+          wrote.push(t);
+        },
+        write: async () => {
+          throw new Error('refused');
+        },
+      },
+      makeItem: (text) => ({ text }),
+      select: () => false,
+    });
+
+    expect(wrote).toEqual(['full']);
+    expect(out.outcome).toBe('copied');
+  });
+
+  test('selects the text itself when no clipboard works', async () => {
+    const selected: string[] = [];
+    const out = await copyPending(ready, {
+      select: (t) => {
+        selected.push(t);
+        return true;
+      },
+    });
+
+    expect(selected).toEqual(['full']);
+    expect(out.outcome).toBe('copied');
   });
 });

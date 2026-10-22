@@ -215,7 +215,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
-      'Copied the excerpt (the full log could not be read)',
+      /^Copied the excerpt only\. .*no output for this job/,
     );
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       'boom: exit 1',
@@ -228,5 +228,61 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(
       dialog.getByRole('button', { name: 'Copy log: lint' }),
     ).toHaveCount(0);
+  });
+
+  test('when the clipboard refuses, the status does not claim the full log was copied', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      document.execCommand = () => false;
+    });
+    await setup(page, {
+      status: 200,
+      body: { text: 'whole\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'the full log was not copied',
+    );
+  });
+
+  test('a log the server cut says so when copied', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, {
+      status: 200,
+      body: { text: 'tail\n', truncated: true },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'Copied the last 256 KB',
+    );
+  });
+
+  test('a signed-out session says to sign in, and the button keeps focus while loading', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, { status: 401, body: {} });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+
+    await copy.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'Sign in again',
+    );
+    await expect(copy).toBeFocused();
   });
 });

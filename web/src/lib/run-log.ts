@@ -108,18 +108,90 @@ export async function copyLog(
 }
 
 // What a failed check's Copy button puts on the clipboard: the whole log when
-// the log endpoint answers, else the excerpt the list already carries. `whole`
-// says which, so the button can tell the person.
+// the log endpoint answers, else the excerpt the list already carries. `kind`
+// says which landed ("cut" is a whole log the server trimmed to its last
+// KEPT_KB), and `why` says in words why only the excerpt did, when it is that.
+export type Prepared = {
+  text: string;
+  kind: 'whole' | 'cut' | 'excerpt';
+  why: string;
+};
+
 export async function logToCopy(
   url: string | null,
   excerpt: string,
   forgeName: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ text: string; whole: boolean }> {
-  if (url) {
-    const got = await loadRunLog(url, forgeName, fetchImpl);
-    if (got.ok) return { text: got.text, whole: true };
+): Promise<Prepared> {
+  if (!url) {
+    return {
+      text: excerpt,
+      kind: 'excerpt',
+      why: 'This check has no job to read a full log from.',
+    };
+  }
+  const got = await loadRunLog(url, forgeName, fetchImpl);
+  if (got.ok) {
+    return { text: got.text, kind: got.truncated ? 'cut' : 'whole', why: '' };
   }
 
-  return { text: excerpt, whole: false };
+  return { text: excerpt, kind: 'excerpt', why: got.message };
+}
+
+// The sentence a copy earns, true to what is on the clipboard (or not).
+export function copyStatus(
+  outcome: 'copied' | 'selected',
+  prepared: Prepared,
+  forgeName: string,
+): string {
+  const only = prepared.kind === 'excerpt';
+  const lost = only ? ` ${prepared.why}` : '';
+  if (outcome === 'selected') {
+    return only
+      ? `Couldn't copy automatically. The excerpt is selected: press Ctrl+C.${lost}`
+      : "Couldn't copy automatically, so the full log was not copied. The excerpt is selected: press Ctrl+C to copy just that.";
+  }
+  if (only) return `Copied the excerpt only.${lost}`;
+  if (prepared.kind === 'cut') {
+    return `Copied the last ${KEPT_KB} KB of the log. ${notePlaces(forgeName)}`;
+  }
+
+  return 'Copied';
+}
+
+export type PendingCopyDeps = {
+  clipboard?: {
+    writeText(text: string): Promise<void>;
+    write?(items: unknown[]): Promise<void>;
+  };
+  // A clipboard item whose text is still being read, so the write starts inside
+  // the click and the browser waits for the text (Safari drops a write that
+  // comes after an awaited fetch).
+  makeItem?: (text: Promise<string>) => unknown;
+  // Copies `text` through the page selection; true when the browser did it.
+  select(text: string): boolean;
+};
+
+// Copies what `pending` resolves to. The clipboard write is handed the promise
+// first; where that is missing or refused, the same text is copied once known.
+export async function copyPending(
+  pending: Promise<Prepared>,
+  deps: PendingCopyDeps,
+): Promise<{ outcome: 'copied' | 'selected'; prepared: Prepared }> {
+  if (deps.clipboard?.write && deps.makeItem) {
+    try {
+      await deps.clipboard.write([deps.makeItem(pending.then((p) => p.text))]);
+
+      return { outcome: 'copied', prepared: await pending };
+    } catch {
+      // fall through to the plain copy of the same text
+    }
+  }
+  const prepared = await pending;
+  const outcome = await copyLog(prepared.text, {
+    clipboard: deps.clipboard,
+    select: () => deps.select(prepared.text),
+  });
+
+  return { outcome, prepared };
 }

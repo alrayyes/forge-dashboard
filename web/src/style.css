@@ -4541,7 +4541,21 @@ footer a[aria-current="page"] {
 }
 
 /* The Copy log button under a failed check's excerpt, and what a copy said. */
+.pipeline-check-copy {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.pipeline-check-copy [aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
 .pipeline-check-copy-status {
+  flex: 1 1 14em;
+  min-width: 0;
   font-size: 12px;
   color: var(--ink-2);
+  overflow-wrap: anywhere;
 }
