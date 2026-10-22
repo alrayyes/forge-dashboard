@@ -92,6 +92,7 @@ func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.Response
 
 	if deps.Service != nil {
 		deps.Service.Stop()
+		deps.Service.Reset()
 		deps.Service.Activity().Reset()
 	}
 	token, err := deps.AuthStore.CreateSession(ctx, auth.SessionTTL)
