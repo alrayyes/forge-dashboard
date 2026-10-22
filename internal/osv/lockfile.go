@@ -89,13 +89,9 @@ var publicRegistries = []string{"https://registry.npmjs.org/", "https://registry
 // public npm registry (".../name/-/name-1.0.0.tgz"). A private registry's
 // package names stay out of the request, and a git, file or plain tarball
 // source is not the registry package of that name and version, so matching it
-// against OSV could flag the wrong code. An entry with no resolved source is
-// kept.
+// against OSV could flag the wrong code. An entry with no resolved source (a
+// bundled dependency, say) can't be shown to be public, so it stays out too.
 func fromRegistry(resolved string) bool {
-	if resolved == "" {
-		return true
-	}
-
 	return strings.Contains(resolved, "/-/") && slices.ContainsFunc(publicRegistries, func(host string) bool {
 		return strings.HasPrefix(resolved, host)
 	})
@@ -129,12 +125,35 @@ func goModFields(line string) []string {
 	return fields
 }
 
+// stripGoModComment drops a trailing "//" comment, ignoring any "//" inside a
+// quoted path ("example.com//m" or a raw string in backticks).
+func stripGoModComment(line string) string {
+	var quote byte
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quote == '"' && c == '\\':
+			i++ // an escaped character, possibly a quote
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '`':
+			quote = c
+		case c == '/' && i+1 < len(line) && line[i+1] == '/':
+			return line[:i]
+		}
+	}
+
+	return line
+}
+
 // goModLines splits a go.mod into its require and replace lines (the fields
 // after the keyword, block or not) and says whether it has a module directive.
 func goModLines(data []byte) (requires, replaces [][]string, hasModule bool) {
 	block := ""
 	for line := range strings.SplitSeq(string(data), "\n") {
-		line, _, _ = strings.Cut(line, "//")
+		line = stripGoModComment(line)
 		fields := goModFields(line)
 		switch {
 		case len(fields) == 0:
