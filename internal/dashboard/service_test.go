@@ -519,13 +519,25 @@ func TestService_EnsureFrom_ReadsUnderTheSwapLock_SoALaterSaveWins(t *testing.T)
 	<-readOld
 
 	saveDone := make(chan struct{})
+	saveStarted := make(chan struct{})
 
 	go func() {
 		defer close(saveDone)
 
 		saved.Store(newSrc)
+		close(saveStarted)
 		m.Ensure(t.Context(), []dashboard.Source{newSrc})
 	}()
+
+	<-saveStarted
+
+	// Give the save time to finish if nothing stops it. It must instead be
+	// parked on the Service lock the login's loader still holds.
+	select {
+	case <-saveDone:
+		t.Fatal("the save swapped the aggregator while the login's read was still in flight")
+	case <-time.After(100 * time.Millisecond):
+	}
 
 	close(release)
 	<-loginDone
