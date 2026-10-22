@@ -142,6 +142,7 @@ const singleUserSpecs = [
   '**/filter-save-refused.spec.ts',
   '**/main-branch-release-link.spec.ts',
   '**/main-branch-advisories.spec.ts',
+  '**/main-branches-advisory-filter.spec.ts',
   '**/ci-status-pulldown-gone.spec.ts',
   '**/main-branch-pill-counts.spec.ts',
   '**/nav-branches-pill-matches-page.spec.ts',
