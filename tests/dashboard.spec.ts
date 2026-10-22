@@ -1421,10 +1421,6 @@ test.describe('dashboard page', () => {
 
   test.describe('the repo/author/label filters and group-by stay consistent with the active forge', () => {
     test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
-    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1477,7 +1473,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
     });
 
@@ -1757,6 +1753,8 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
+      // The describe's own mock has already loaded; this test needs the
+      // passing and failing pair instead, so it loads the page again.
       await page.reload();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
@@ -1894,10 +1892,6 @@ test.describe('dashboard page', () => {
 
   test.describe('CI status click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
-    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1935,7 +1929,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     });
 
@@ -2434,10 +2428,6 @@ test.describe('dashboard page', () => {
 
   test.describe('label click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
-    test.beforeEach(async ({ page }) => {
       await page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -2700,10 +2690,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('label colors', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     test('a label chip renders with its real background color and a contrasting text color', async ({
       page,
     }) => {
