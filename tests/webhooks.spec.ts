@@ -85,7 +85,7 @@ test.describe('webhook-triggered live updates', () => {
   }) => {
     // .invalid is reserved (RFC 2606) to never resolve — a real, fast
     // failure from the forge client, not a hang, which is the point: this
-    // proves the push fires off Manager.RefreshNow itself, not off
+    // proves the push fires off Service.RefreshNow itself, not off
     // whichever forge actually answered.
     // settings.js populates the form from a fetch that fires as part of
     // navigation, not after it — waiting for the response only after

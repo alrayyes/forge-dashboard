@@ -121,7 +121,7 @@ func (s *repoCountingSource) repoFetchCallCount(fullName string) int64 {
 }
 
 // newTestServerWithCountingSource registers a user, saves a throwaway
-// GitHub token so a countingSource is wired into their Manager
+// GitHub token so a countingSource is wired into the Service
 // Aggregator (RefreshNow is a no-op against a user nothing ever called
 // Ensure for), and returns the server URL, the shared fetch counter a
 // successful webhook delivery should advance, and the session cookie.
@@ -139,7 +139,7 @@ func newTestServerWithCountingSource(t *testing.T) (srv string, calls *atomic.In
 // same setup.
 //
 // Deliberately builds its own server rather than using the shared
-// newTestServerWithSources helper: that one's Manager ticks every
+// newTestServerWithSources helper: that one's Service ticks every
 // testRefreshInterval (10ms), which would tick during a test's own
 // assertion window and make "a webhook delivery caused a fetch" and "the
 // background timer happened to fire" indistinguishable. An interval far
@@ -165,7 +165,7 @@ func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after
 }
 
 // newTestServerWithManager is newTestServerWithDebounceTimer that also hands
-// back the Manager and a func answering the registered user's id, for a test
+// back the Service, for a test
 // that reads state a webhook delivery left in the Aggregator.
 func newTestServerWithManager(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie, manager *dashboard.Service) {
 	t.Helper()

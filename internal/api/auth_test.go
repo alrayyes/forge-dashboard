@@ -63,7 +63,7 @@ func newTestServerWithSources(tb testing.TB, buildSources func(settingspkg.Crede
 // newTestServerWithSourcesAndManager is newTestServerWithSources plus
 // the *dashboard.Service itself — for a test that needs to simulate a
 // process restart (manager.Stop(), which cancels every running loop and
-// clears its map, the same effect on Manager state a real restart has)
+// clears it, the same effect on Service state a real restart has)
 // without tearing down the rest of the server — and the *auth.Store,
 // for a test that needs to seed state (like a request-log row) with no
 // HTTP endpoint of its own to create one through.

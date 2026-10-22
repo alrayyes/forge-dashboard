@@ -30,7 +30,7 @@ to <https://alrayyes.github.io/forge-dashboard/docs/api/> on every push to
 
 The dashboard response carries `readIntervalSeconds`, the server's advice on
 how often to re-read it. `POST /api/dashboard/refresh` fetches from the forges
-right now, but at most once every five seconds per user. A call inside that
+right now, but at most once every five seconds. A call inside that
 window skips the fetch and answers 200 with the current snapshot and a
 `Retry-After` header, so a follow-up refresh after an action never fails. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks

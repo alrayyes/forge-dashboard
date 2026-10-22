@@ -18,8 +18,8 @@ import (
 // TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI is
 // a regression test for a real incident: forge-dashboard's GitHub account
 // burned through its entire 5000/hour REST budget in under a minute,
-// repeatedly. Nothing in Aggregator.Refresh or Manager.RefreshNow
-// prevents two overlapping triggers for the same user — a webhook
+// repeatedly. Nothing in Aggregator.Refresh or Service.RefreshNow
+// prevents two overlapping triggers — a webhook
 // delivery, a scheduled tick, another webhook — from each running their
 // own full fetch against the real API concurrently. This drives a real
 // github.Client against a real httptest.Server counting POST /graphql

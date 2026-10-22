@@ -52,7 +52,7 @@ type Deps struct {
 	// Service holds the one Aggregator, built from the saved Credentials via
 	// BuildSources.
 	Service *dashboard.Service
-	// FirstLoadWait is how long a read waits for a user's first refresh; zero
+	// FirstLoadWait is how long a read waits for the first refresh; zero
 	// means the default. Only tests set it.
 	FirstLoadWait time.Duration
 	// BuildSources makes the forge sources from the saved Credentials.

@@ -37,11 +37,11 @@ The work is for the open-source, single-user version. An enterprise version is p
 
 ## Impact
 
-- `internal/dashboard`: `aggregator.go` (`Refresh`, `RefreshRepo`, `PollCI`, `Run`, `RunCIPoll`, `NextRefreshDelay`), `coalesce.go`, `manager.go`, `source.go` (new optional capability interfaces).
+- `internal/dashboard`: `aggregator.go` (`Refresh`, `RefreshRepo`, `PollCI`, `Run`, `RunCIPoll`, `NextRefreshDelay`), `coalesce.go`, `service.go`, `source.go` (new optional capability interfaces).
 - `internal/github`: `client.go` (`fetchViaGraphQL`, `checkWebhooks`, `FetchRepo`, `graphqlDo`, `recordRequest`), `etag_transport.go`.
 - `internal/forgejo`: `client.go`, `pull_request_details.go`.
 - `internal/api`: `webhooks.go` (`triggerRefresh`), a new stats handler and its OpenAPI path under `api/`, and generated SDKs.
 - `internal/settings`: new SQLite tables, keyed by credential and repo.
 - New package `internal/apistats`.
-- Depends on, and must not collide with, the single-user cleanup in [#1876](https://github.com/alrayyes/forge-dashboard/issues/1876): the admin-only request-log endpoints are going away, and `Manager` is still keyed by user id there.
+- Depends on, and must not collide with, the single-user cleanup in [#1876](https://github.com/alrayyes/forge-dashboard/issues/1876): the admin-only request-log endpoints are going away, and the per-user `Manager` it describes is now the single-aggregator `Service`.
 - Docs and OpenAPI as above. No new third-party dependency.

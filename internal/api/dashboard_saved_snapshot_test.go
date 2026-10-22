@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// savedRows is a SnapshotCache that outlives a Manager, the way the database
+// savedRows is a SnapshotCache that outlives a Service, the way the database
 // outlives a restart.
 type savedRows struct {
 	mu   sync.Mutex

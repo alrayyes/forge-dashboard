@@ -184,8 +184,8 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		return status == http.StatusOK && len(snap.Forges) == 1 && snap.Forges[0].RepoCount == 3
 	}, pollBudget, 10*time.Millisecond, "settings should have started a background refresh before simulating a restart")
 
-	// Simulate a process restart: Manager.Stop cancels every running
-	// refresh loop and clears its map, the same effect on Manager state a
+	// Simulate a process restart: Service.Stop cancels the running
+	// refresh loop and clears it, the same effect on Service state a
 	// real restart has — the session cookie (stored in the auth DB) and
 	// the saved Settings (stored in the settings DB) both survive it,
 	// only the in-memory Aggregator doesn't.
@@ -196,7 +196,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 	// snapshot forever the way it did before this fix. Real bug reported
 	// live: "no PRs or issues are shown" with a "Refreshed 739872d ago"
 	// footer, matching Go's zero-value time.Time serialized and diffed
-	// against now. The rewarm itself is async (Manager.Ensure starts a
+	// against now. The rewarm itself is async (Service.Ensure starts a
 	// background refresh rather than blocking this request on it, same
 	// as handleDashboard's own doc comment promises), so this asserts
 	// eventual convergence, not an instant one.
