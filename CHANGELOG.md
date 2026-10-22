@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.14](https://github.com/alrayyes/forge-dashboard/compare/v1.7.13...v1.7.14) (2026-10-22)
+
+
+### Bug Fixes
+
+* **dashboard:** a permanently failing repo no longer holds the stretched wait short ([#2425](https://github.com/alrayyes/forge-dashboard/issues/2425)) ([042804b](https://github.com/alrayyes/forge-dashboard/commit/042804b94f5972a39b4c35d2ba4df394629ad70c))
+
 ## [1.7.13](https://github.com/alrayyes/forge-dashboard/compare/v1.7.12...v1.7.13) (2026-10-22)
 
 
