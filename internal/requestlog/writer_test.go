@@ -2,6 +2,9 @@ package requestlog_test
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +14,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 // gatedStore holds every write until release is closed, standing in for a
@@ -80,4 +84,51 @@ func TestWriter_CloseDrainsWhatIsQueued(t *testing.T) {
 
 	assert.Equal(t, 5, store.count())
 	assert.Zero(t, w.Dropped())
+}
+
+// lockedStore writes through a real SQLite connection while another holds the
+// write lock, so RecordRequest really waits out the busy timeout.
+type lockedStore struct{ db *sql.DB }
+
+func (l lockedStore) RecordRequest(ctx context.Context, _ auth.RequestLogRow, _ int) error {
+	if _, err := l.db.ExecContext(ctx, `INSERT INTO t VALUES (1)`); err != nil {
+		return fmt.Errorf("insert: %w", err)
+	}
+
+	return nil
+}
+
+func TestWriter_CloseWithin_GivesUpOnADatabaseLockedPastTheLimit(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db")+"?_busy_timeout=3000&_journal_mode=WAL")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	_, err = db.Exec(`CREATE TABLE t (n INTEGER)`)
+	require.NoError(t, err)
+	holder, err := db.Conn(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = holder.Close() })
+	_, err = holder.ExecContext(t.Context(), `BEGIN IMMEDIATE`)
+	require.NoError(t, err)
+
+	w := requestlog.NewWriter(lockedStore{db: db}, 8)
+	rec := requestlog.NewSQLiteRecorder(nil, "acct", requestlog.WithWriter(w))
+	for range 3 {
+		require.NoError(t, rec.Record(t.Context(), requestlog.Entry{Outcome: requestlog.OutcomeSuccess}))
+	}
+
+	start := time.Now()
+	flushed := w.CloseWithin(200 * time.Millisecond)
+
+	assert.False(t, flushed, "the queue could not drain while the lock was held")
+	assert.Less(t, time.Since(start), time.Second, "Close must not sit out the busy timeout")
+}
+
+func TestWriter_CloseWithin_ReportsAFlushThatFinishedInTime(t *testing.T) {
+	t.Parallel()
+	store := &gatedStore{release: make(chan struct{})}
+	close(store.release)
+	w := requestlog.NewWriter(store, 8)
+
+	assert.True(t, w.CloseWithin(time.Second))
 }

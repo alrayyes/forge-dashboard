@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 )
@@ -83,4 +84,22 @@ func (w *Writer) Dropped() int64 { return w.dropped.Load() }
 func (w *Writer) Close() {
 	w.once.Do(func() { close(w.stop) })
 	<-w.done
+}
+
+// CloseWithin is Close that gives up after limit, so a locked database can't
+// hold a shutdown past its grace period: each queued row would otherwise wait
+// out the busy timeout in turn. It reports whether the queue was flushed. A
+// row still queued when it gives up is lost, like one dropped by a full queue.
+func (w *Writer) CloseWithin(limit time.Duration) bool {
+	w.once.Do(func() { close(w.stop) })
+
+	timer := time.NewTimer(limit)
+	defer timer.Stop()
+
+	select {
+	case <-w.done:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
