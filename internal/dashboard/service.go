@@ -48,7 +48,7 @@ type Service struct {
 	// firstStarted is when the Service first started an Aggregator, which is
 	// what the grace runs from. A replacement doesn't move it, so repeated
 	// logins or saves during a slow first refresh can't keep restarting the
-	// grace. Stop clears it.
+	// grace. Reset clears it.
 	firstStarted time.Time
 	// refreshedOnce is set once the first refresh since this process started
 	// has finished, whether it succeeded or failed (#1673). It lives here and
