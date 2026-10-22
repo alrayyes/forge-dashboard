@@ -35,9 +35,9 @@ One Go binary serves all of it. `web/` builds to static files that
 - **The API** is `api/openapi.yaml`, written first and reviewed as the design.
   Go tests validate the handlers against it, and the client libraries are
   generated from it.
-- **Auth and settings** (`internal/auth`, `internal/settings`) keep the one user,
-  its passkeys and its encrypted credentials in SQLite. A credential never
-  reaches the browser.
+- **Auth and settings** (`internal/auth`, `internal/settings`) keep the one
+  user, its passkeys and its encrypted credentials in SQLite. A credential
+  never reaches the browser.
 
 ## Where logic lives
 
