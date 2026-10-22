@@ -286,7 +286,7 @@ func TestJobLog_AnUnsatisfiableRangeIsAnEmptyLog(t *testing.T) {
 
 func TestJobLog_ABodyWithoutEndIsReadOnlyUpToACap(t *testing.T) {
 	t.Parallel()
-	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
 		line := strings.Repeat("y", 1023) + "\n"
 		for range 70 * 1024 {
 			if _, err := io.WriteString(w, line); err != nil {
