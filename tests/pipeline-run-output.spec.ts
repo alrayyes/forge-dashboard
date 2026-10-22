@@ -200,6 +200,39 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(dialog.locator('.run-output-status')).toContainText('Cmd+C');
   });
 
+  test('Copy output on a cut log says it copied the last part of the output', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, {
+      status: 200,
+      body: { text: 'tail\n', truncated: true },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+
+    await expect(dialog.locator('.run-output-status')).toHaveText(
+      'Copied the last 256 KB of the output, which is all the dashboard keeps. Open the run on GitHub for the rest.',
+    );
+  });
+
+  test('Copy output on an empty output says nothing was copied', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, { status: 200, body: { text: '', truncated: false } });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+
+    await expect(dialog.locator('.run-output-status')).toHaveText(
+      'Nothing was copied.',
+    );
+  });
+
   test('the output is reachable from the keyboard and hides again', async ({
     page,
   }) => {

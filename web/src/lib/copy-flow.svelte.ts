@@ -5,6 +5,38 @@
 import { tick } from 'svelte';
 import { copyPending, copyStatus, type Prepared } from '#lib/run-log.js';
 
+// Copies `text` through the page selection, in a field of its own so the
+// whole text lands whatever is on screen. `host` is the modal
+// dialog the button sat in when it was clicked: the page outside it is
+// inert, and an inert field can't be copied from.
+function selectCopy(text: string, host: HTMLElement): boolean {
+  // A dialog closed while the log loaded has nobody to copy for.
+  if (host instanceof HTMLDialogElement && !host.open) return false;
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.setAttribute('readonly', '');
+  field.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  host.append(field);
+  // Selecting the field would take focus from the button; give it back.
+  const focused = document.activeElement;
+  let done = false;
+  try {
+    field.select();
+    // iOS Safari ignores select() on a readonly field.
+    field.setSelectionRange(0, text.length);
+    done = document.execCommand('copy');
+  } catch {
+    done = false;
+  } finally {
+    field.remove();
+    if (focused instanceof HTMLElement) {
+      focused.focus({ preventScroll: true });
+    }
+  }
+
+  return done;
+}
+
 export class CopyFlow {
   // The line a copy earns. "Copying" is not stored: it is shown while busy.
   status = $state('');
@@ -20,8 +52,13 @@ export class CopyFlow {
   #timer: ReturnType<typeof setTimeout> | undefined;
   readonly #forgeName: () => string;
 
-  constructor(forgeName: () => string) {
+  readonly #noun: string;
+
+  // `noun` is what the person is copying ("log", "output"), for the lines
+  // that name it.
+  constructor(forgeName: () => string, noun = 'log') {
     this.#forgeName = forgeName;
+    this.#noun = noun;
   }
 
   // A "Copied" line goes stale after a while; the check may have changed since.
@@ -54,38 +91,6 @@ export class CopyFlow {
     clearTimeout(this.#timer);
   }
 
-  // Copies `text` through the page selection, in a field of its own so the
-  // whole text lands whatever the view on screen holds. `host` is the modal
-  // dialog the button sat in when it was clicked: the page outside it is
-  // inert, and an inert field can't be copied from.
-  static selectCopy(text: string, host: HTMLElement): boolean {
-    // A dialog closed while the log loaded has nobody to copy for.
-    if (host instanceof HTMLDialogElement && !host.open) return false;
-    const field = document.createElement('textarea');
-    field.value = text;
-    field.setAttribute('readonly', '');
-    field.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
-    host.append(field);
-    // Selecting the field would take focus from the button; give it back.
-    const focused = document.activeElement;
-    let done = false;
-    try {
-      field.select();
-      // iOS Safari ignores select() on a readonly field.
-      field.setSelectionRange(0, text.length);
-      done = document.execCommand('copy');
-    } catch {
-      done = false;
-    } finally {
-      field.remove();
-      if (focused instanceof HTMLElement) {
-        focused.focus({ preventScroll: true });
-      }
-    }
-
-    return done;
-  }
-
   // `prepare` yields the text to copy. It runs inside the click, and is handed
   // a `guard` to call once the text is known: it throws when the copy no
   // longer has anybody to copy for (the log changed, the row went, the dialog
@@ -102,7 +107,7 @@ export class CopyFlow {
     this.busy = true;
     clearTimeout(this.#timer);
     this.status = '';
-    let said = "Couldn't copy the log.";
+    let said = `Couldn't copy the ${this.#noun}.`;
     let stale = false;
     try {
       const pending = prepare(() => {
@@ -126,11 +131,11 @@ export class CopyFlow {
                     (t) => new Blob([t], { type: 'text/plain' }),
                   ),
                 }),
-        select: (text) => CopyFlow.selectCopy(text, host),
+        select: (text) => selectCopy(text, host),
       });
       // The log changed meanwhile: this log is not its log any more.
       if (run !== this.#generation) return;
-      said = copyStatus(outcome, prepared, forgeName);
+      said = copyStatus(outcome, prepared, forgeName, this.#noun);
       stale = outcome === 'copied';
       // The field from an earlier press stays until there is a new result, so
       // pressing the button again never takes away what the person is copying.

@@ -27,10 +27,9 @@
   let text = $state("");
   let truncated = $state(false);
   let message = $state("");
-  // The polite line while the output loads, and a late answer for a closed
-  // panel is dropped. A copy's own line comes from the shared flow.
-  let status = $state("");
-  const flow = new CopyFlow(() => forgeName);
+  // A late answer for a closed panel is dropped. The one polite line, for the
+  // load and for a copy alike, is the flow's.
+  const flow = new CopyFlow(() => forgeName, "output");
   onDestroy(() => flow.destroy());
   let ask = 0;
   let output = $state<HTMLPreElement>();
@@ -38,7 +37,6 @@
 
   async function toggle() {
     shown = !shown;
-    status = "";
     flow.reset();
     if (!shown || !url) {
       ask++;
@@ -46,30 +44,32 @@
     }
     const mine = ++ask;
     phase = "loading";
-    status = "Loading output";
+    flow.status = "Loading output";
     const got = await loadRunLog(url, forgeName);
     if (mine !== ask) return;
     if (got.ok) {
       text = got.text;
       truncated = got.truncated;
       phase = "ready";
-      status = "";
+      flow.status = "";
       // The end of a log is where it failed.
       await tick();
       if (output) output.scrollTop = output.scrollHeight;
     } else {
       message = got.message;
       phase = "error";
-      status = "";
+      flow.status = "";
     }
   }
 
   function copy() {
-    return flow.copy(async (guard) => {
-      guard();
-
-      return { text, kind: truncated ? "cut" : "whole", why: "" };
-    });
+    return flow.copy(() =>
+      Promise.resolve({
+        text,
+        kind: truncated ? ("cut" as const) : ("whole" as const),
+        why: "",
+      }),
+    );
   }
 </script>
 
@@ -100,12 +100,14 @@
         type="button"
         class="pipeline-check-link"
         disabled={phase !== "ready"}
+        aria-disabled={flow.busy ? "true" : undefined}
+        aria-busy={flow.busy ? "true" : undefined}
         onclick={copy}
         aria-label="Copy output: {name}">Copy</button
       >
     </div>
     <p class="run-output-status" aria-live="polite">
-      {flow.busy ? "Copying" : flow.status || status}
+      {flow.busy ? "Copying" : flow.status}
     </p>
     {#if phase === "error"}
       <p class="run-output-error">{message}</p>
