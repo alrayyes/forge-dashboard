@@ -128,3 +128,20 @@ func TestParsePackageLock_NothingLeftAfterFilteringIsAnError(t *testing.T) {
 	require.NoError(t, err, "a lock file with no dependencies at all is a real, empty one")
 	assert.Empty(t, got)
 }
+
+func TestParseGoMod_ReadsQuotedPaths(t *testing.T) {
+	t.Parallel()
+
+	mod := "module \"example.com/x\"\n\n" +
+		"require \"git.example.com/team/lib\" v1.0.0\n" +
+		"require (\n\t\"github.com/a/b\" v1.2.3\n\t`github.com/c/d` v0.1.0\n)\n" +
+		"replace \"github.com/c/d\" => \"github.com/e/f\" v0.2.0\n"
+
+	got, err := osv.ParseGoMod([]byte(mod))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []osv.Package{
+		{Ecosystem: "Go", Name: "git.example.com/team/lib", Version: "1.0.0"},
+		{Ecosystem: "Go", Name: "github.com/a/b", Version: "1.2.3"},
+		{Ecosystem: "Go", Name: "github.com/e/f", Version: "0.2.0"},
+	}, got, "a quoted path is the same module, and quotes never reach OSV or the host match")
+}

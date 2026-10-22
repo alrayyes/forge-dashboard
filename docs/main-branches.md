@@ -93,14 +93,15 @@ none still counts, and the pill then shows the count alone. The pill does not
 link anywhere, since OSV has no page for a whole repo.
 
 This is off by default, because **the package names and versions in those files
-are sent to `api.osv.dev`**, for private repos too. A `go.mod` module path can
-name an internal host or project, so modules whose path starts with the Forgejo
-host itself are left out, and only npm packages the lock file resolves to the
-public registry are sent: a private registry's names stay home. Nothing else is
-sent: no repo name, URL or token. Set `OSV_ADVISORIES=on` to turn it on; a line
-in the log at startup says so, and a value that is neither `on` nor `off` logs a
-warning and leaves it off. While it is off, every Forgejo row is `unknown` with
-the reason `not_enabled`: not checked, never zero.
+are sent to `api.osv.dev`**, for private repos too. Only two things are kept
+out: Go modules whose path starts with the Forgejo host itself, and npm packages
+that don't resolve to the public npm registry. A private Go module on another
+host, or a private scoped package on the public npm registry, is still sent by
+name, which is why this is off by default. Nothing else is sent: no repo name,
+URL or token. Set `OSV_ADVISORIES=on` to turn it on; a line in the log at
+startup says so, and a value that is neither `on` nor `off` logs a warning and
+leaves it off. While it is off, every Forgejo row is `unknown` with the reason
+`not_enabled`: not checked, never zero.
 
 With it on, a repo with no lock file the dashboard reads is `unknown`, never
 zero. So is a repo where any lock file is over 8 megabytes, doesn't parse or,

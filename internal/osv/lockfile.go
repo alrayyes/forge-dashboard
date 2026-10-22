@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -115,13 +116,26 @@ func ParseGoMod(data []byte) ([]Package, error) {
 	return applyReplaces(requires, replaces), nil
 }
 
+// goModFields splits a go.mod line into words, taking the quotes off a path or
+// version written as a Go string ("example.com/m" or a raw string in backticks).
+func goModFields(line string) []string {
+	fields := strings.Fields(line)
+	for i, f := range fields {
+		if u, err := strconv.Unquote(f); err == nil {
+			fields[i] = u
+		}
+	}
+
+	return fields
+}
+
 // goModLines splits a go.mod into its require and replace lines (the fields
 // after the keyword, block or not) and says whether it has a module directive.
 func goModLines(data []byte) (requires, replaces [][]string, hasModule bool) {
 	block := ""
 	for line := range strings.SplitSeq(string(data), "\n") {
 		line, _, _ = strings.Cut(line, "//")
-		fields := strings.Fields(line)
+		fields := goModFields(line)
 		switch {
 		case len(fields) == 0:
 			continue

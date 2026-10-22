@@ -620,3 +620,17 @@ func TestReadMainBranch_TooManyAdvisoriesIsNotReadAgainForAnHour(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, forge.requests.Load(), "the same answer is not downloaded again every fifteen minutes")
 }
+
+func TestReadAdvisories_AQuotedOwnHostModuleIsNotSent(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{}
+	forge := &lockfileServer{}
+	client := forge.start(t, scanner)
+	host := strings.TrimPrefix(forge.url, "http://")
+	forge.files = map[string]string{"go.mod": "module x\n\nrequire \"" + host + "/team/lib\" v1.0.0\nrequire github.com/a/b v1.2.3\n"}
+
+	_, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
+	require.NoError(t, err)
+	require.Equal(t, 1, scanner.calls())
+	assert.Equal(t, []osv.Package{{Ecosystem: "Go", Name: "github.com/a/b", Version: "1.2.3"}}, scanner.asked[0])
+}

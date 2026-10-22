@@ -101,15 +101,15 @@ That is off by default. Set `OSV_ADVISORIES=on` to turn it on.
 
 When it is on, **the package names and versions in each Forgejo repo's root
 `package-lock.json` and `go.mod` are sent to `api.osv.dev`**, private repos
-included. A `go.mod` module path can name an internal host or project: modules
-on the Forgejo host itself are left out, but a private host elsewhere is not, so
-think before enabling it on a server that holds private repos. Only npm packages
-the lock file resolves to the public npm registry are sent; a private registry's
-package names stay home. Nothing else is sent: no repo name, URL or token. The
-dashboard logs a line at startup when it is on, and a warning when the value is
-neither `on` nor `off`, which leaves it off. While it is off, Forgejo rows say
-the repo was not checked. GitHub repos are not affected: they read Dependabot
-alerts from GitHub. See [Main
+included. Only two things are kept out: Go modules on the Forgejo host itself,
+and npm packages that don't resolve to the public npm registry. A private Go
+module on another host, or a private scoped package on the public npm registry,
+is still sent by name, which is why this is off by default, so think before
+enabling it on a server that holds private repos. Nothing else is sent: no repo
+name, URL or token. The dashboard logs a line at startup when it is on, and a
+warning when the value is neither `on` nor `off`, which leaves it off. While it
+is off, Forgejo rows say the repo was not checked. GitHub repos are not
+affected: they read Dependabot alerts from GitHub. See [Main
 branches](docs/main-branches.md#forgejo-advisories).
 
 ## Documentation
