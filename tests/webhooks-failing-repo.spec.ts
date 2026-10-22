@@ -44,6 +44,7 @@ test.describe('failing repo badge', () => {
     await expect(broken.locator('.failing-badge')).toContainText(
       'Failing since',
     );
+    await expect(broken.locator('.failing-note')).toBeVisible();
     await expect(
       page
         .locator('tr', { hasText: 'alrayyes/fine' })

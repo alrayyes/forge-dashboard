@@ -80,9 +80,19 @@ func TestDashboard_RepoStatus_SerializesFailingSince(t *testing.T) {
 	failing := repoStatusJSON(t, dashboard.Repo{
 		Forge:        dashboard.ForgeGitHub,
 		FullName:     "alrayyes/a",
+		StaleSince:   &since,
 		FailingSince: &since,
 	})
 	assert.Equal(t, "2026-10-22T08:00:00Z", failing["failingSince"])
+
+	// A scoped refresh clears StaleSince but keeps the clock for the schedule;
+	// the row's data is fresh again, so it must not say it is failing.
+	refreshed := repoStatusJSON(t, dashboard.Repo{
+		Forge:        dashboard.ForgeGitHub,
+		FullName:     "alrayyes/c",
+		FailingSince: &since,
+	})
+	assert.NotContains(t, refreshed, "failingSince")
 
 	plain := repoStatusJSON(t, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b"})
 	assert.NotContains(t, plain, "failingSince")

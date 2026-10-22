@@ -499,6 +499,12 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 	out := make([]repoStatus, 0, len(repos))
 	for _, r := range repos {
 		key := settings.WebhookDeliveryKey(string(r.Forge), r.FullName)
+		// A scoped refresh clears StaleSince but keeps the clock for the
+		// refresh schedule, so only a still-stale row says it is failing.
+		var failingSince *time.Time
+		if r.StaleSince != nil {
+			failingSince = r.FailingSince
+		}
 		hasWebhook := r.HasWebhook
 		if !hasWebhook {
 			_, hasWebhook = b.deliveries[key]
@@ -519,7 +525,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 
 			WebhookLockedByConnection: r.WebhookLockedByConnection,
 			WebhookNeedsToken:         r.WebhookNeedsToken,
-			FailingSince:              r.FailingSince,
+			FailingSince:              failingSince,
 		})
 	}
 

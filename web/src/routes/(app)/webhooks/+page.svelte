@@ -765,6 +765,11 @@
     .repo-link {
       color: inherit;
     }
+    .failing-note {
+      display: block;
+      font-size: 12px;
+      color: var(--ink-3);
+    }
     .failing-badge {
       display: inline-block;
       margin-left: 8px;
@@ -1224,10 +1229,11 @@
                       target="_blank"
                       rel="noopener noreferrer">{repo.fullName}</a
                     >{:else}{repo.fullName}{/if}{#if repo.failingSince}
-                    <span
-                      class="failing-badge"
-                      title="The dashboard can't fetch this repo, so its pull requests and issues are the last ones it could read."
+                    <span class="failing-badge"
                       >Failing since {formatTime(repo.failingSince)}</span
+                    ><span class="failing-note"
+                      >The dashboard can't fetch this repo, so its pull requests
+                      and issues are the last ones it could read.</span
                     >{/if}</td
                 >
                 <td
