@@ -25,6 +25,15 @@ export type MainBranchRelease = {
   url: string;
 };
 
+// Matches api/openapi.yaml's Advisories. `unknown` is no answer, never zero.
+export type AdvisorySeverity = 'low' | 'medium' | 'high' | 'critical';
+export type Advisories = {
+  state: 'known' | 'unknown';
+  count: number;
+  highest?: AdvisorySeverity;
+  url?: string;
+};
+
 // Matches api/openapi.yaml's MainBranch.
 export type MainBranch = {
   forge: string;
@@ -39,6 +48,7 @@ export type MainBranch = {
   runUrl: string;
   checks: CheckCounts;
   latestRelease: MainBranchRelease | null;
+  advisories?: Advisories;
   stale: boolean;
   staleSince: string | null;
 };
@@ -246,4 +256,39 @@ export function filterToState(
   filter: MainBranchFilter,
 ): Record<string, string> {
   return { status: filter.status, forge: filter.forge, query: filter.query };
+}
+
+export type AdvisoryPill = {
+  // The severity, 'counted' for a count with no severity, or 'unknown'.
+  tone: AdvisorySeverity | 'counted' | 'unknown';
+  text: string;
+  label: string;
+  href: string | null;
+};
+
+// What the advisories pill on a row says, or null for no pill: no field means
+// no source reads this forge, and a known zero is not worth an alarm. An
+// unknown answer says so in words. The severity is a word too, so colour is
+// never the only carrier (WCAG 1.4.1).
+export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
+  if (!a) return null;
+  if (a.state === 'unknown') {
+    return {
+      tone: 'unknown',
+      text: 'Advisories unknown',
+      label: 'Dependency advisories unknown',
+      href: null,
+    };
+  }
+  if (a.count <= 0) return null;
+  const noun = a.count === 1 ? 'advisory' : 'advisories';
+  const href = a.url ? releaseHref(a.url) : null;
+  return {
+    tone: a.highest ?? 'counted',
+    text: a.highest ? `${a.count} ${noun}, ${a.highest}` : `${a.count} ${noun}`,
+    label: a.highest
+      ? `${a.count} open dependency ${noun}, highest severity ${a.highest}`
+      : `${a.count} open dependency ${noun}`,
+    href,
+  };
 }
