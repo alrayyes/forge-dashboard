@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -24,6 +25,7 @@ var (
 
 	errJobLogDownload = errors.New("github: job log download failed")
 	errJobLogRedirect = errors.New("github: refused job log redirect")
+	errJobLogTooLarge = errors.New("github: job log download is larger than the read cap")
 )
 
 // JobLog reads the output of Actions job id, the end of it when it is long.
@@ -152,51 +154,105 @@ func (c *Client) checkLogTarget(target *url.URL) error {
 	return fmt.Errorf("%w: the log redirect is not https", errJobLogRedirect)
 }
 
-// logBlobClient is the token-free client for a blob download. It checks every
-// redirect hop with checkLogTarget, follows at most maxLogRedirects, and dials
-// only public addresses, except the API's own host (a GitHub Enterprise Server
-// instance, a test), so a redirect can't reach loopback, private, link-local
-// or metadata addresses.
-func (c *Client) logBlobClient() *http.Client {
-	apiHost := c.restClient.BaseURL.Host
-	// Behind a proxy the dial goes to the proxy, which then owns the question
-	// of where a request may go.
-	proxy, _ := http.ProxyFromEnvironment(&http.Request{URL: &url.URL{Scheme: "https", Host: "logs.invalid"}})
-	dialer := &net.Dialer{
-		Timeout: logFetchTimeout,
-		Control: func(_, address string, _ syscall.RawConn) error {
-			if proxy != nil || address == apiHost || hostOnly(address) == hostOnly(apiHost) {
-				return nil
-			}
-			ip, err := netip.ParseAddrPort(address)
-			if err != nil || ip.Addr().IsLoopback() || ip.Addr().IsPrivate() || ip.Addr().IsLinkLocalUnicast() ||
-				ip.Addr().IsLinkLocalMulticast() || ip.Addr().IsUnspecified() || ip.Addr().IsMulticast() {
-				return fmt.Errorf("%w: non-public address", errJobLogRedirect)
-			}
-
-			return nil
-		},
+// publicAddr reports whether ip is one a log download may dial: not loopback,
+// private, link-local, shared (100.64.0.0/10), multicast, unspecified, or the
+// NAT64 prefix (64:ff9b::/96), which can name a private IPv4 address.
+func publicAddr(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsUnspecified() || ip.IsMulticast() || !ip.IsValid() {
+		return false
 	}
 
-	return &http.Client{
-		Timeout:   logFetchTimeout,
-		Transport: &http.Transport{DialContext: dialer.DialContext, Proxy: http.ProxyFromEnvironment, TLSHandshakeTimeout: logFetchTimeout},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) > maxLogRedirects {
-				return fmt.Errorf("%w: too many redirects", errJobLogRedirect)
-			}
-
-			return c.checkLogTarget(req.URL)
-		},
-	}
+	return !cgnat.Contains(ip) && !nat64.Contains(ip)
 }
 
-func hostOnly(hostport string) string {
-	if h, _, err := net.SplitHostPort(hostport); err == nil {
-		return h
+var (
+	cgnat = netip.MustParsePrefix("100.64.0.0/10")
+	nat64 = netip.MustParsePrefix("64:ff9b::/96")
+)
+
+// dialAddress is the host:port a dial to u's host carries, with the scheme's
+// default port filled in, so it matches what the transport asks to dial.
+func dialAddress(u *url.URL) string {
+	port := u.Port()
+	if port == "" {
+		port = "80"
+		if u.Scheme == "https" {
+			port = "443"
+		}
 	}
 
-	return hostport
+	return net.JoinHostPort(strings.ToLower(u.Hostname()), port)
+}
+
+// logBlobClient is the one token-free client every blob download shares, so
+// its connections are reused. It checks every redirect hop with checkLogTarget
+// and follows at most maxLogRedirects. A direct dial goes only to a public
+// address, except the API's own host (a GitHub Enterprise Server instance, a
+// test), compared by name and port before it resolves. A proxied request is
+// refused up front when its target is a literal non-public address or
+// localhost; the proxy owns the rest, and the dial to the proxy itself is
+// allowed.
+func (c *Client) logBlobClient() *http.Client {
+	c.logBlobOnce.Do(func() {
+		apiHost := dialAddress(c.restClient.BaseURL)
+		proxyFor := c.logProxy
+		if proxyFor == nil {
+			proxyFor = http.ProxyFromEnvironment
+		}
+		var proxies sync.Map // host:port of each proxy chosen
+		checked := &net.Dialer{
+			Timeout: logFetchTimeout,
+			Control: func(_, address string, _ syscall.RawConn) error {
+				ap, err := netip.ParseAddrPort(address)
+				if err != nil || !publicAddr(ap.Addr()) {
+					return fmt.Errorf("%w: non-public address", errJobLogRedirect)
+				}
+
+				return nil
+			},
+		}
+		open := &net.Dialer{Timeout: logFetchTimeout}
+		c.logBlob = &http.Client{
+			Timeout: logFetchTimeout,
+			Transport: &http.Transport{
+				Proxy: func(req *http.Request) (*url.URL, error) {
+					pu, err := proxyFor(req)
+					if err != nil || pu == nil {
+						return nil, err
+					}
+					host := req.URL.Hostname()
+					if ip, perr := netip.ParseAddr(host); (perr == nil && !publicAddr(ip)) || strings.EqualFold(host, "localhost") {
+						return nil, fmt.Errorf("%w: non-public address", errJobLogRedirect)
+					}
+					proxies.Store(pu.Host, true)
+
+					return pu, nil
+				},
+				DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+					if strings.ToLower(address) == apiHost {
+						return open.DialContext(ctx, network, address)
+					}
+					if _, ok := proxies.Load(address); ok {
+						return open.DialContext(ctx, network, address)
+					}
+
+					return checked.DialContext(ctx, network, address)
+				},
+				TLSHandshakeTimeout: logFetchTimeout,
+			},
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) > maxLogRedirects {
+					return fmt.Errorf("%w: too many redirects", errJobLogRedirect)
+				}
+
+				return c.checkLogTarget(req.URL)
+			},
+		}
+	})
+
+	return c.logBlob
 }
 
 // redactedCause is err without the URL a *url.Error carries.
@@ -224,17 +280,23 @@ func readTail(r io.Reader, n int) (tail []byte, skipped bool, err error) {
 			skipped = true
 		}
 		if rerr == io.EOF {
-			break
+			return finishTail(buf, n, skipped), skipped || len(buf) > n, nil
 		}
 		if rerr != nil {
 			return nil, false, fmt.Errorf("read log: %w", rerr)
 		}
 	}
+	// The cap came before the end: what is held is the middle of the body, not
+	// its tail, so it is not shown as the end of the log.
+	return nil, false, errJobLogTooLarge
+}
+
+func finishTail(buf []byte, n int, _ bool) []byte {
 	if len(buf) > n {
-		buf, skipped = buf[len(buf)-n:], true
+		return buf[len(buf)-n:]
 	}
 
-	return buf, skipped, nil
+	return buf
 }
 
 // startsAtZero reports whether a Content-Range header ("bytes 0-99/100")
