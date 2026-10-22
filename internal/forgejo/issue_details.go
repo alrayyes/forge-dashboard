@@ -6,8 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"code.gitea.io/sdk/gitea"
-
+	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
