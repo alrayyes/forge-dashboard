@@ -105,8 +105,10 @@ func NewClient(base string, httpClient *http.Client) *Client {
 		httpClient = &http.Client{Timeout: httpTimeout}
 	}
 
-	return &Client{base: strings.TrimSuffix(base, "/"), http: httpClient, records: map[string]cachedRecord{},
-		inflight: map[string]*flight{}, sem: make(chan struct{}, detailConcurrency), now: time.Now}
+	return &Client{
+		base: strings.TrimSuffix(base, "/"), http: httpClient, records: map[string]cachedRecord{},
+		inflight: map[string]*flight{}, sem: make(chan struct{}, detailConcurrency), now: time.Now,
+	}
 }
 
 type query struct {

@@ -108,7 +108,7 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 			"Main branches page renders, including each repo's open dependency advisories " +
 			"(count, highest severity and a link). The advisories key is absent when no source " +
 			"reads the repository's forge. A state of unknown means the source could not say, " +
-			"never zero; a Forgejo repo with no lockfile it can read is unknown. Read-only: this app never writes to either " +
+			"never zero; a Forgejo repo is unknown unless the operator switched lockfile checking on (reason not_enabled). Read-only: this app never writes to either " +
 			"forge through this tool. Reads the snapshot the background refresh " +
 			"already holds, so it costs no forge budget however often you call it.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, mainBranchesResponse, error) {

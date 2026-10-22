@@ -32,7 +32,8 @@ export type AdvisoryReason =
   | 'switched_off'
   | 'throttled'
   | 'failed'
-  | 'too_many';
+  | 'too_many'
+  | 'not_enabled';
 export type Advisories = {
   state: 'known' | 'unknown';
   // Why the answer is unknown, when the server knows.
@@ -341,6 +342,8 @@ export const ADVISORY_REASON_TEXT: Record<AdvisoryReason, string> = {
     'GitHub returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.',
   too_many:
     'A repository has more open alerts than the dashboard reads in one go, so it shows no count rather than a short one.',
+  not_enabled:
+    'Checking Forgejo lock files is switched off on this server, so those repositories are not checked.',
 };
 
 // Only a refusal or switched-off alerts are fixed with the permission steps.

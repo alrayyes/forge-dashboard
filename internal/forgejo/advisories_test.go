@@ -2,6 +2,7 @@ package forgejo_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -337,7 +338,7 @@ type blockingScanner struct{}
 func (blockingScanner) Scan(ctx context.Context, _ []osv.Package) (osv.Summary, error) {
 	<-ctx.Done()
 
-	return osv.Summary{}, ctx.Err()
+	return osv.Summary{}, fmt.Errorf("scan: %w", ctx.Err())
 }
 
 func TestReadMainBranch_AFailedFirstReadIsUnknown(t *testing.T) {

@@ -565,19 +565,21 @@ func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Wri
 }
 
 // newAdvisoryScanner returns the OSV client that matches Forgejo lockfiles
-// against known advisories, or nil when OSV_ADVISORIES switches it off (off,
-// false or 0). Leaving it on sends the package names and versions in each
-// repo's lockfiles to api.osv.dev; nothing else leaves. It is one client for
-// every source, so what it learns about an advisory is kept across refreshes.
-// A nil result is a plain nil, not a typed one, so the forge client sees no
-// scanner at all.
+// against known advisories, or nil unless OSV_ADVISORIES is on (on, true or 1).
+// It is off by default: turning it on sends the package names and versions in
+// each repo's lockfiles, private repos included, to api.osv.dev; nothing else
+// leaves. It is one client for every source, so what it learns about an
+// advisory is kept across refreshes. A nil result is a plain nil, not a typed
+// one, so the forge client sees no scanner at all.
 func newAdvisoryScanner(setting string) forgejo.AdvisoryScanner {
 	switch strings.ToLower(strings.TrimSpace(setting)) {
-	case "off", "false", "0":
-		return nil
+	case "on", "true", "1":
+		slog.Info("OSV advisories are on: package names and versions from Forgejo lockfiles are sent to api.osv.dev", "host", osv.BaseURL)
+
+		return osv.NewClient(osv.BaseURL, nil)
 	}
 
-	return osv.NewClient(osv.BaseURL, nil)
+	return nil
 }
 
 // schemaPinger is /readyz's database check: the connection answers and the

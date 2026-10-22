@@ -214,7 +214,7 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 // for the advisories field. web/src/lib/webmcp-tools.test.ts pins the same text.
 const advisoriesWording = "The advisories key is absent when no source reads the repository's forge. " +
 	"A state of unknown means the source could not say, never zero; a Forgejo repo " +
-	"with no lockfile it can read is unknown."
+	"is unknown unless the operator switched lockfile checking on (reason not_enabled)."
 
 func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 	t.Parallel()

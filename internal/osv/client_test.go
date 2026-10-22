@@ -48,7 +48,7 @@ func (s *osvServer) start(t *testing.T) *osv.Client {
 
 			return
 		}
-		s.queries.Add(int32(len(req.Queries)))
+		s.queries.Add(int32(len(req.Queries))) //nolint:gosec // a test batch is far below int32
 		results := make([]map[string]any, len(req.Queries))
 		for i, q := range req.Queries {
 			var vulns []map[string]string

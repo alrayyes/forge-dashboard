@@ -88,11 +88,25 @@ stale.
   Answers are cached for fifteen minutes, so a fix can take that long to show,
   and longer for a GitHub App. See
   [When advisories can't be read](docs/main-branches.md#when-advisories-cant-be-read).
-  Forgejo has no alerts of its own, so a Forgejo repo's advisories come from its
-  `package-lock.json` and `go.mod` (in the repo root), matched against
-  [OSV](https://osv.dev). **That sends the package names and versions in those
-  files to `api.osv.dev`**, private repos included, and nothing else. Set
-  `OSV_ADVISORIES=off` to keep them home; Forgejo rows then show no advisories.
+  Forgejo has no alerts of its own. Its advisories come from the repo's lock
+  files, matched against [OSV](https://osv.dev), and only if you switch that on:
+  see [Privacy](#privacy).
+
+## Privacy
+
+The dashboard talks to your forges and to nothing else, with one opt-in
+exception. Forgejo has no dependency alerts, so the dashboard can match a
+repo's lock files against the public [OSV](https://osv.dev) database instead.
+That is off by default. Set `OSV_ADVISORIES=on` to turn it on.
+
+When it is on, **the package names and versions in each Forgejo repo's root
+`package-lock.json` and `go.mod` are sent to `api.osv.dev`**, private repos
+included. A `go.mod` module path can name an internal host or project, so think
+before enabling it on a server that holds private repos. Nothing else is sent:
+no repo name, URL or token. The dashboard logs a line at startup when it is on.
+While it is off, Forgejo rows say the repo was not checked. GitHub repos are
+not affected: they read Dependabot alerts from GitHub. See
+[Main branches](docs/main-branches.md#forgejo-advisories).
 
 ## Documentation
 

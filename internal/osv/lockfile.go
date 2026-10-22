@@ -95,39 +95,57 @@ func ParseGoMod(data []byte) ([]Package, error) {
 	return applyReplaces(requires, replaces), nil
 }
 
-// applyReplaces turns require lines (module, version) into packages, after the
-// replace lines (old [version] => new [version]).
-func applyReplaces(requires, replaces [][]string) []Package {
-	type target struct{ module, version string }
-	all := map[string]target{}      // replaces every version of a module
-	exact := map[[2]string]target{} // replaces one version
-	for _, f := range replaces {
+// replacement is what a replace directive swaps a module for.
+type replacement struct{ module, version string }
+
+// replacements indexes replace lines (old [version] => new [version]): one that
+// names a version applies to that version only.
+type replacements struct {
+	all   map[string]replacement
+	exact map[[2]string]replacement
+}
+
+func parseReplaces(lines [][]string) replacements {
+	r := replacements{all: map[string]replacement{}, exact: map[[2]string]replacement{}}
+	for _, f := range lines {
 		arrow := slices.Index(f, "=>")
 		if arrow < 1 || arrow == len(f)-1 || arrow > 2 {
 			continue
 		}
-		to := target{module: f[arrow+1]}
+		to := replacement{module: f[arrow+1]}
 		if len(f) > arrow+2 {
 			to.version = f[arrow+2]
 		}
 		if arrow == 2 {
-			exact[[2]string{f[0], f[1]}] = to
+			r.exact[[2]string{f[0], f[1]}] = to
 		} else {
-			all[f[0]] = to
+			r.all[f[0]] = to
 		}
 	}
 
+	return r
+}
+
+func (r replacements) find(module, version string) (replacement, bool) {
+	if to, ok := r.exact[[2]string{module, version}]; ok {
+		return to, true
+	}
+	to, ok := r.all[module]
+
+	return to, ok
+}
+
+// applyReplaces turns require lines (module, version) into packages, after the
+// replace lines.
+func applyReplaces(requires, replaces [][]string) []Package {
+	repl := parseReplaces(replaces)
 	var out []Package
 	for _, f := range requires {
 		if len(f) < 2 {
 			continue
 		}
 		module, version := f[0], f[1]
-		to, ok := exact[[2]string{module, version}]
-		if !ok {
-			to, ok = all[module]
-		}
-		if ok {
+		if to, ok := repl.find(module, version); ok {
 			if to.version == "" {
 				continue // a local path: not a published module
 			}
