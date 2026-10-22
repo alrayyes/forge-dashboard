@@ -554,6 +554,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 	a.mu.Lock()
 	merged := a.snap
 	wrote := false
+	var fetched map[string]bool
 	for _, r := range repos {
 		prs, issues, ok := r.rows(merged)
 		if !ok {
@@ -561,7 +562,10 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 		}
 		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues)
 		if r.fetched {
-			merged.Repos = withoutStale(merged.Repos, forge, r.fullName)
+			if fetched == nil {
+				fetched = make(map[string]bool, len(repos))
+			}
+			fetched[r.fullName] = true
 		}
 		wrote = true
 	}
@@ -570,6 +574,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 
 		return
 	}
+	merged.Repos = withoutStale(merged.Repos, forge, fetched)
 	a.snap = merged
 	a.mu.Unlock()
 
@@ -968,26 +973,28 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	return res
 }
 
-// withoutStale is repos with StaleSince cleared on forge/fullName's row. It
-// leaves FailingSince: a scoped refresh fetches what a webhook told it about,
-// not what the full refresh keeps failing on, so only a good full refresh ends
-// the failure. It copies the slice only when there is a mark to clear, since
-// the snapshot's own slice is shared with readers.
-func withoutStale(repos []Repo, forge Forge, fullName string) []Repo {
+// withoutStale is repos with StaleSince cleared on the rows of forge's repos
+// named in fullNames. It leaves FailingSince: a scoped refresh fetches what a
+// webhook told it about, not what the full refresh keeps failing on, so only a
+// good full refresh ends the failure. It copies the slice once, and only when
+// there is a mark to clear, since the snapshot's own slice is shared with
+// readers.
+func withoutStale(repos []Repo, forge Forge, fullNames map[string]bool) []Repo {
+	var out []Repo
 	for i, r := range repos {
-		if r.Forge != forge || r.FullName != fullName {
+		if r.Forge != forge || !fullNames[r.FullName] || r.StaleSince == nil {
 			continue
 		}
-		if r.StaleSince == nil {
-			return repos
+		if out == nil {
+			out = slices.Clone(repos)
 		}
-		out := slices.Clone(repos)
 		out[i].StaleSince = nil
-
-		return out
+	}
+	if out == nil {
+		return repos
 	}
 
-	return repos
+	return out
 }
 
 // keepFailedRepos puts back what the forge had for each repo it answered but
