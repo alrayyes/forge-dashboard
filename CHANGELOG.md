@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/alrayyes/forge-dashboard/compare/v1.8.2...v1.9.0) (2026-10-22)
+
+
+### Features
+
+* **web:** show open dependency advisories on each Branches row ([#2441](https://github.com/alrayyes/forge-dashboard/issues/2441)) ([3f0f011](https://github.com/alrayyes/forge-dashboard/commit/3f0f01118bc4e4bd2d1230b4b35f84909bbe025c))
+
 ## [1.8.2](https://github.com/alrayyes/forge-dashboard/compare/v1.8.1...v1.8.2) (2026-10-22)
 
 
