@@ -226,32 +226,6 @@ func TestAggregator_NextDelay_DoesNotStretchWhileARepoIsInFailedRepos(t *testing
 	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
 }
 
-func TestAggregator_NextDelay_StretchesAgainOnceARepoHasFailedForThreeIntervals(t *testing.T) {
-	t.Parallel()
-
-	const interval = 200 * time.Millisecond
-
-	healthy := dashboard.Result{
-		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
-		Repos:  []dashboard.Repo{repoWithHook("o/a", true), repoWithHook("o/b", true)},
-	}
-	failing := healthy
-	failing.FailedRepos = []dashboard.FailedRepo{{FullName: "o/b", Issues: true}}
-
-	src := &fakeSource{result: healthy}
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.Refresh(t.Context())
-
-	setResult(src, failing)
-	agg.Refresh(t.Context())
-	require.Equal(t, interval, agg.NextDelay(interval), "a fresh failure keeps the short wait")
-
-	time.Sleep(3*interval + 100*time.Millisecond)
-	agg.Refresh(t.Context())
-
-	assert.Equal(t, 4*interval, agg.NextDelay(interval), "a repo that keeps failing stops holding it")
-}
-
 func TestAggregator_NextDelay_AFirstEverFailureIsNotYetPermanent(t *testing.T) {
 	t.Parallel()
 

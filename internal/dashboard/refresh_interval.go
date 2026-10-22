@@ -64,12 +64,20 @@ func webhooksCover(snap Snapshot, interval time.Duration, now time.Time) bool {
 		if !repo.HasWebhook || !reachable[repo.Forge] {
 			return false
 		}
-		if repo.StaleSince != nil && now.Sub(*repo.StaleSince) < permanentFailureIntervals*interval {
+		if repo.StaleSince != nil && !failingForGood(repo, interval, now) {
 			return false
 		}
 	}
 
 	return true
+}
+
+// failingForGood reports whether a stale repo has kept failing for
+// permanentFailureIntervals configured intervals of clock time since its first
+// failed fetch. A repo with no recorded failure time, such as one restored from
+// the saved snapshot, has not shown that yet.
+func failingForGood(repo Repo, interval time.Duration, now time.Time) bool {
+	return repo.FailingSince != nil && now.Sub(*repo.FailingSince) >= permanentFailureIntervals*interval
 }
 
 // NextDelay is how long Run waits before the next scheduled full refresh:

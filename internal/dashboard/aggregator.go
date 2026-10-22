@@ -972,6 +972,7 @@ func withoutStale(repos []Repo, forge Forge, fullName string) []Repo {
 		}
 		out := slices.Clone(repos)
 		out[i].StaleSince = nil
+		out[i].FailingSince = nil
 
 		return out
 	}
@@ -1010,21 +1011,31 @@ func keepFailedRepos(res Result, earlier Snapshot, forge Forge) Result {
 }
 
 // markRepoStale sets StaleSince on key's repo in repos: when its rows were
-// last fetched, which is the earlier snapshot unless that was stale already.
+// last fetched, which is the earlier snapshot unless that was stale already,
+// and FailingSince: when the failure began, kept from the earlier snapshot while
+// the repo keeps failing.
 func markRepoStale(repos []Repo, earlier Snapshot, key repoKey) {
 	since := earlier.GeneratedAt
-	if since.IsZero() {
-		// Nothing was fetched before, so the failure starts now.
-		since = time.Now().UTC()
-	}
+	failing := time.Now().UTC()
 	for _, r := range earlier.Repos {
-		if (repoKey{r.Forge, r.FullName}) == key && r.StaleSince != nil {
+		if (repoKey{r.Forge, r.FullName}) != key {
+			continue
+		}
+		if r.StaleSince != nil {
 			since = *r.StaleSince
 		}
+		if r.FailingSince != nil {
+			failing = *r.FailingSince
+		}
+	}
+	if since.IsZero() {
+		// Nothing was fetched before, so the rows date from the failure.
+		since = failing
 	}
 	for i := range repos {
 		if (repoKey{repos[i].Forge, repos[i].FullName}) == key {
 			repos[i].StaleSince = &since
+			repos[i].FailingSince = &failing
 		}
 	}
 }
