@@ -450,3 +450,28 @@ func TestRun_ForeignKeysOn_AnInviteByADeletedUserDoesNotBlockCleanupOrInit(t *te
 	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM users`))
 	assert.Zero(t, f.count(t, `SELECT count(*) FROM sqlite_master WHERE name = 'invites'`))
 }
+
+func TestOwnerUsername_IsTheOldestUserHoldingAPasskey(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.addUser(t, "half", false)
+	f.addUser(t, "ryan", true)
+	f.addUser(t, "sam", true)
+
+	name, found, err := singleuser.OwnerUsername(t.Context(), f.db)
+
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "ryan", name)
+}
+
+func TestOwnerUsername_NoPasskeyYet_ReportsNotFound(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.addUser(t, "half", false)
+
+	_, found, err := singleuser.OwnerUsername(t.Context(), f.db)
+
+	require.NoError(t, err)
+	assert.False(t, found)
+}
