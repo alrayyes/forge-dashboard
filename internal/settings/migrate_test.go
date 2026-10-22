@@ -370,7 +370,7 @@ func TestMigrate_TheOwnerIsTheUserAuthCallsTheOwner(t *testing.T) {
 	}
 	mustExec(t, db, `UPDATE user_credentials SET user_id = 'bmV3'`)
 	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES ('b2xk', 'old-token', '2026-02-02 00:00:00')`)
-	owner, err := auth.NewStore(db).OwnerID(t.Context())
+	owner, err := auth.NewStore(db).Owner(t.Context())
 	require.NoError(t, err)
 
 	_, err = migrate(t, db, path)
@@ -378,7 +378,7 @@ func TestMigrate_TheOwnerIsTheUserAuthCallsTheOwner(t *testing.T) {
 	require.NoError(t, err)
 	want := scalar[string](t, db, `SELECT webhook_token FROM settings`)
 	assert.Equal(t, "hook-token", want, "the passkey holder's settings win, not the older row's")
-	assert.Equal(t, "bmV3", base64.RawURLEncoding.EncodeToString(owner), "the store must pick the holder")
+	assert.Equal(t, "bmV3", base64.RawURLEncoding.EncodeToString(owner.ID), "the store must pick the holder")
 }
 
 func TestMigrate_ASettingsTableAlreadyThere_IsReplacedWhenEmpty(t *testing.T) {
