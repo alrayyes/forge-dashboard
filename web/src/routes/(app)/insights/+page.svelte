@@ -3,10 +3,14 @@
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import * as Filters from "#lib/filters.js";
   import {
+    AUTHOR_CONFIG,
     type LabelFilterControl,
     joinLabels,
     mountLabelFilter,
+    mountPickFilter,
     parseLabels,
+    type PickFilterControl,
+    REPO_CONFIG,
   } from "#lib/label-filter.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
@@ -166,8 +170,12 @@
     ];
   }
 
-  let sharedRepoSelect: HTMLSelectElement | undefined = $state();
-  let sharedAuthorSelect: HTMLSelectElement | undefined = $state();
+  let repoHost: HTMLDivElement | undefined = $state();
+  let authorHost: HTMLDivElement | undefined = $state();
+  let repoFilter: PickFilterControl | null = null;
+  let authorFilter: PickFilterControl | null = null;
+  // Each repo's own logo, by forge and name, from the snapshot's repo list.
+  let repoLogos = new Map<string, string>();
   let labelHost: HTMLDivElement | undefined = $state();
   let labelFilter: LabelFilterControl | null = null;
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
@@ -194,16 +202,24 @@
     skipTitleSuggestions = false,
     holdPicks = !sharedControlsRestored,
   ) {
-    const staleRepo = Filters.populateRepoSelect(
-      sharedRepoSelect ?? null,
-      optionPool("repo"),
-      sharedState.shared.repo,
+    const repoOffered = Filters.repoChoices(optionPool("repo"), (key) =>
+      repoLogos.get(key),
     );
-    const staleAuthor = Filters.populateSelect(
-      sharedAuthorSelect ?? null,
-      Filters.distinctValues((item) => item.author, optionPool("author")),
-      sharedState.shared.author,
+    const staleRepo = Filters.reconcilePick(
+      sharedState,
+      "repo",
+      repoOffered.map((c) => c.value),
+      holdPicks,
     );
+    repoFilter?.render(repoOffered, parseLabels(sharedState.shared.repo));
+    const authorOffered = Filters.authorChoices(optionPool("author"));
+    const staleAuthor = Filters.reconcilePick(
+      sharedState,
+      "author",
+      authorOffered.map((c) => c.value),
+      holdPicks,
+    );
+    authorFilter?.render(authorOffered, parseLabels(sharedState.shared.author));
     if (!skipTitleSuggestions)
       Filters.populateDatalist(
         sharedTitleDatalist ?? null,
@@ -226,16 +242,6 @@
         new Set(optionPool("forge").map((item) => item.forge)),
         sharedState.shared.forge ?? "",
       );
-    const clearPick = (stale: boolean, key: string) => {
-      if (!stale) return;
-      if (holdPicks) Filters.holdStale(sharedState, "shared", key);
-      else {
-        Filters.releaseHeld("shared", key);
-        sharedState.shared[key] = "";
-      }
-    };
-    clearPick(staleRepo, "repo");
-    clearPick(staleAuthor, "author");
     if (!holdPicks && (staleRepo || staleAuthor || staleLabel))
       Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
@@ -265,16 +271,25 @@
 
   let sharedControlsRestored = false;
 
-  function applyLabels(next: string[]) {
-    sharedState.shared.label = joinLabels(next);
-    Filters.touchKey("shared", "label");
-    Filters.releaseHeld("shared", "label");
+  function applyPicks(key: "label" | "repo" | "author", next: string[]) {
+    sharedState.shared[key] = joinLabels(next);
+    Filters.touchKey("shared", key);
+    Filters.releaseHeld("shared", key);
     updateSharedFilterOptions();
     Filters.saveState(sharedState);
   }
+  const applyLabels = (next: string[]) => applyPicks("label", next);
 
   function wireFilterBar() {
     if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
+    if (repoHost)
+      repoFilter = mountPickFilter(repoHost, REPO_CONFIG, (next) =>
+        applyPicks("repo", next),
+      );
+    if (authorHost)
+      authorFilter = mountPickFilter(authorHost, AUTHOR_CONFIG, (next) =>
+        applyPicks("author", next),
+      );
     filterBarEl
       ?.querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
       .forEach((c) => {
@@ -329,6 +344,8 @@
   onDestroy(() => {
     Filters.leavePage(page);
     labelFilter?.destroy();
+    repoFilter?.destroy();
+    authorFilter?.destroy();
   });
 
   onMount(() => {
@@ -374,6 +391,20 @@
       lastSnapshot.pullRequests = (data.pullRequests as FilterableItem[]) || [];
       lastSnapshot.issues = (data.issues as FilterableItem[]) || [];
       lastSnapshot.forges = (data.forges as Forge[]) || [];
+      repoLogos = new Map(
+        (
+          (data.repos as {
+            forge: string;
+            fullName: string;
+            logoUrl?: string;
+          }[]) || []
+        )
+          .filter((r) => r.logoUrl)
+          .map((r) => [
+            Filters.repoKey(r.forge, r.fullName),
+            r.logoUrl as string,
+          ]),
+      );
       updateSharedFilterOptions();
       if (!sharedControlsRestored) {
         sharedControlsRestored = true;
@@ -761,15 +792,7 @@
           <span>Forgejo</span>
         </label>
       </fieldset>
-      <select
-        class="col-filter"
-        data-col="repo"
-        id="shared-repo-select"
-        aria-label="Filter by repo"
-        bind:this={sharedRepoSelect}
-      >
-        <option value="">All repos</option>
-      </select>
+      <div id="shared-repo-filter" bind:this={repoHost}></div>
       <input
         class="col-filter"
         data-col="title"
@@ -781,15 +804,7 @@
       />
       <datalist id="shared-title-options" bind:this={sharedTitleDatalist}
       ></datalist>
-      <select
-        class="col-filter"
-        data-col="author"
-        id="shared-author-select"
-        aria-label="Filter by author"
-        bind:this={sharedAuthorSelect}
-      >
-        <option value="">All authors</option>
-      </select>
+      <div id="shared-author-filter" bind:this={authorHost}></div>
       <div id="shared-label-filter" bind:this={labelHost}></div>
     </div>
 

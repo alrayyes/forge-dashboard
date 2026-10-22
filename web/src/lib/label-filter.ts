@@ -9,6 +9,8 @@
 // a comma or a space. Picks are lowercase, like every saved pick, and the page
 // matches without regard to case.
 
+import { avatarSrc } from './avatar';
+
 const SEPARATOR = '\n';
 const HINT = 'Shows items with any of the ticked labels.';
 
@@ -191,6 +193,33 @@ function node<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
+// The picture beside a name: an initial that stays, and the image over it
+// when there is one that loads. Decorative, the name beside it says it all.
+export function pickImageNode(
+  choice: PickChoice,
+  imageSrc?: (url: string | undefined) => string | null,
+): HTMLElement | null {
+  if (!choice.imageKind) return null;
+  const wrap = node('span', `pick-image pick-${choice.imageKind}`);
+  wrap.setAttribute('aria-hidden', 'true');
+  wrap.appendChild(
+    node('span', 'pick-initial', initialOf(choice.text.split('/').pop() ?? '')),
+  );
+  const src = imageSrc ? imageSrc(choice.imageUrl) : null;
+  if (src) {
+    const img = node('img');
+    img.src = src;
+    img.alt = '';
+    img.width = 16;
+    img.height = 16;
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', () => img.remove());
+    wrap.appendChild(img);
+  }
+  return wrap;
+}
+
 // A group of checkboxes behind a disclosure button, not a native
 // <select multiple> or an ARIA listbox: those have tested poorly with screen
 // readers and on phones for years, while checkboxes in a fieldset are plain
@@ -286,34 +315,6 @@ export function mountPickFilter(
     button.focus();
   });
 
-  // The picture beside a name: an initial that stays, and the image over it
-  // when there is one that loads. Decorative, the name beside it says it all.
-  function pickImage(choice: PickChoice): HTMLElement | null {
-    if (!choice.imageKind) return null;
-    const wrap = node('span', `pick-image pick-${choice.imageKind}`);
-    wrap.setAttribute('aria-hidden', 'true');
-    wrap.appendChild(
-      node(
-        'span',
-        'pick-initial',
-        initialOf(choice.text.split('/').pop() ?? ''),
-      ),
-    );
-    const src = cfg.imageSrc ? cfg.imageSrc(choice.imageUrl) : null;
-    if (src) {
-      const img = node('img');
-      img.src = src;
-      img.alt = '';
-      img.width = 16;
-      img.height = 16;
-      img.loading = 'lazy';
-      img.referrerPolicy = 'no-referrer';
-      img.addEventListener('error', () => img.remove());
-      wrap.appendChild(img);
-    }
-    return wrap;
-  }
-
   function render(offered: PickChoice[], picked: string[]) {
     // One box per choice, whatever its case.
     const seen = new Set<string>();
@@ -367,7 +368,7 @@ export function mountPickFilter(
         box.type = 'checkbox';
         box.value = key;
         row.append(box);
-        const image = pickImage(choice);
+        const image = pickImageNode(choice, cfg.imageSrc);
         if (image) row.append(image);
         row.append(node('span', 'pick-name', choice.text));
       }
@@ -440,3 +441,23 @@ export function mountLabelFilter(
       ),
   };
 }
+
+export const REPO_CONFIG: PickFilterConfig = {
+  legend: 'Repo',
+  hint: 'Shows items from any of the ticked repos.',
+  words: { all: 'All repos', many: 'repos' },
+  clearText: 'Clear repos',
+  emptyText: 'No repos on this page.',
+  ariaName: 'Filter by repo',
+  imageSrc: avatarSrc,
+};
+
+export const AUTHOR_CONFIG: PickFilterConfig = {
+  legend: 'Author',
+  hint: 'Shows items by any of the ticked authors.',
+  words: { all: 'All authors', many: 'authors' },
+  clearText: 'Clear authors',
+  emptyText: 'No authors on this page.',
+  ariaName: 'Filter by author',
+  imageSrc: avatarSrc,
+};

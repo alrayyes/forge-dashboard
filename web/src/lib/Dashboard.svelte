@@ -33,7 +33,14 @@
   import {
     type LabelFilterControl,
     joinLabels,
+    AUTHOR_CONFIG,
+    labelKey,
     mountLabelFilter,
+    mountPickFilter,
+    type PickChoice,
+    type PickFilterControl,
+    pickImageNode,
+    REPO_CONFIG,
     parseLabels,
     toggleLabel,
   } from "#lib/label-filter.js";
@@ -5835,6 +5842,10 @@
     // user's own, and clears it for good.
     // The Label filter's control, mounted once the shared bar exists.
     let labelFilter: LabelFilterControl | null = null;
+    let repoFilter: PickFilterControl | null = null;
+    let authorFilter: PickFilterControl | null = null;
+    let repoChoicesNow: PickChoice[] = [];
+    let authorChoicesNow: PickChoice[] = [];
 
     function offerTitles() {
       Filters.populateDatalist(
@@ -5849,22 +5860,33 @@
       skipTitleSuggestions = false,
       holdPicks = !sharedControlsRestored,
     ): boolean {
-      const staleRepo = Filters.populateRepoSelect(
-        document.getElementById(
-          "shared-repo-select",
-        ) as HTMLSelectElement | null,
+      // Repo and Author hold several picks, like Label: the ones this page
+      // does not offer are set aside, the rest stay picked.
+      const repoOffered = Filters.repoChoices(
         sharedPoolExcluding("repo"),
-        sharedState.shared.repo,
+        (key) => reposByKey.get(key)?.logoUrl,
       );
-      const staleAuthor = Filters.populateSelect(
-        document.getElementById(
-          "shared-author-select",
-        ) as HTMLSelectElement | null,
-        Filters.distinctValues(
-          (item) => item.author,
-          sharedPoolExcluding("author"),
-        ),
-        sharedState.shared.author,
+      const staleRepo = Filters.reconcilePick(
+        sharedState,
+        "repo",
+        repoOffered.map((c) => c.value),
+        holdPicks,
+      );
+      repoChoicesNow = repoOffered;
+      repoFilter?.render(repoOffered, parseLabels(sharedState.shared.repo));
+      const authorOffered = Filters.authorChoices(
+        sharedPoolExcluding("author"),
+      );
+      const staleAuthor = Filters.reconcilePick(
+        sharedState,
+        "author",
+        authorOffered.map((c) => c.value),
+        holdPicks,
+      );
+      authorChoicesNow = authorOffered;
+      authorFilter?.render(
+        authorOffered,
+        parseLabels(sharedState.shared.author),
       );
       if (!skipTitleSuggestions) offerTitles();
       // The Label filter holds several labels; the ones this page does not
@@ -5904,8 +5926,6 @@
           sharedState[group][key] = "";
         }
       };
-      clearPick(staleRepo, "shared", "repo");
-      clearPick(staleAuthor, "shared", "author");
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
       const cleared =
@@ -6021,22 +6041,30 @@
     // re-renders both boards — a pick in the control, a chip click on either
     // board's rows or a removed filter chip all land here, so they affect the
     // other board too. The saved value is lowercase, like every saved pick.
-    function applyLabels(next: string[]) {
-      sharedState.shared.label = joinLabels(next);
-      Filters.touchKey("shared", "label");
-      Filters.releaseHeld("shared", "label");
+    type PickKey = "label" | "repo" | "author";
+    function applyPicks(key: PickKey, next: string[]) {
+      sharedState.shared[key] = joinLabels(next);
+      Filters.touchKey("shared", key);
+      Filters.releaseHeld("shared", key);
       prBoard.resetPage();
       issueBoard.resetPage();
-      // The other choices narrow against the labels picked (#550), and a
-      // label that no longer matches anything is set aside.
+      // The other choices narrow against what is picked (#550), and a pick
+      // that no longer matches anything is set aside.
       updateSharedFilterOptions();
       Filters.saveState(sharedState);
       renderBoth();
       const noun = view === "issues" ? "issue" : "pull request";
-      labelFilter?.announce(
+      const control =
+        key === "repo"
+          ? repoFilter
+          : key === "author"
+            ? authorFilter
+            : labelFilter;
+      control?.announce(
         `${visibleResultCount} ${noun}${visibleResultCount === 1 ? "" : "s"}`,
       );
     }
+    const applyLabels = (next: string[]) => applyPicks("label", next);
 
     // A label chip on a row ticks the label, or unticks it when it is
     // already picked.
@@ -6583,6 +6611,16 @@
 
     const labelHost = document.getElementById("shared-label-filter");
     if (labelHost) labelFilter = mountLabelFilter(labelHost, applyLabels);
+    const repoHost = document.getElementById("shared-repo-filter");
+    if (repoHost)
+      repoFilter = mountPickFilter(repoHost, REPO_CONFIG, (next) =>
+        applyPicks("repo", next),
+      );
+    const authorHost = document.getElementById("shared-author-filter");
+    if (authorHost)
+      authorFilter = mountPickFilter(authorHost, AUTHOR_CONFIG, (next) =>
+        applyPicks("author", next),
+      );
 
     // ---- quick filter pills (#678) ----
     // Toggle buttons with aria-pressed: exactly one is active at a time.
@@ -6816,7 +6854,12 @@
       select.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
-    type FilterChip = { label: string; clear: () => void };
+    type FilterChip = {
+      label: string;
+      // A repo or author chip also shows the logo or avatar.
+      choice?: PickChoice;
+      clear: () => void;
+    };
 
     function activeFilterChips(): FilterChip[] {
       const chips: FilterChip[] = [];
@@ -6829,16 +6872,34 @@
               .querySelector<HTMLButtonElement>('.quick-pill[data-pill="all"]')
               ?.click(),
         });
-      if (shared.repo)
-        chips.push({
-          label: `Repo ${shared.repo.slice(shared.repo.indexOf(":") + 1)}`,
-          clear: () => clearSelect("repo"),
-        });
-      if (shared.author)
-        chips.push({
-          label: `Author ${shared.author}`,
-          clear: () => clearSelect("author"),
-        });
+      const pickChips = (
+        key: "repo" | "author",
+        noun: string,
+        choices: PickChoice[],
+      ) => {
+        const picked = parseLabels(shared[key]);
+        for (const value of picked) {
+          const choice = choices.find((c) => labelKey(c.value) === value);
+          const text =
+            choice?.text ??
+            value.slice(key === "repo" ? value.indexOf(":") + 1 : 0);
+          chips.push({
+            label: `${noun} ${text}`,
+            choice: choice ?? {
+              value,
+              text,
+              imageKind: key === "repo" ? "logo" : "avatar",
+            },
+            clear: () =>
+              applyPicks(
+                key,
+                picked.filter((p) => p !== value),
+              ),
+          });
+        }
+      };
+      pickChips("repo", "Repo", repoChoicesNow);
+      pickChips("author", "Author", authorChoicesNow);
       for (const name of parseLabels(shared.label))
         chips.push({
           label: `Label ${name}`,
@@ -6909,7 +6970,9 @@
 
       // Only rebuilt when what's shown would change, so a chip the reader
       // is about to tap isn't replaced under their finger by a refresh.
-      const signature = chips.map((c) => c.label).join("|");
+      const signature = chips
+        .map((c) => `${c.label}|${c.choice?.imageUrl ?? ""}`)
+        .join("|");
       if (!activeFiltersEl || signature === renderedChips) return;
       renderedChips = signature;
       activeFiltersEl.replaceChildren();
@@ -6918,6 +6981,10 @@
         const button = el("button", "filter-chip");
         button.setAttribute("type", "button");
         button.setAttribute("aria-label", `Remove filter: ${chip.label}`);
+        const image = chip.choice
+          ? pickImageNode(chip.choice, avatarSrc)
+          : null;
+        if (image) button.appendChild(image);
         button.appendChild(el("span", "filter-chip-label", chip.label));
         const x = el("span", "filter-chip-x", "×");
         x.setAttribute("aria-hidden", "true");
@@ -8387,6 +8454,8 @@
       Filters.leavePage(page);
       titleHover.destroy();
       labelFilter?.destroy();
+      repoFilter?.destroy();
+      authorFilter?.destroy();
       stopTimezone();
       document.removeEventListener("keydown", onSlashShortcut);
       for (const stop of stopListening) stop();
@@ -8736,22 +8805,8 @@
         <option value="repo">Group by repository</option>
         <option value="forge">Group by forge</option>
       </select>
-      <select
-        class="col-filter"
-        data-col="repo"
-        id="shared-repo-select"
-        aria-label="Filter by repo"
-      >
-        <option value="">All repos</option>
-      </select>
-      <select
-        class="col-filter"
-        data-col="author"
-        id="shared-author-select"
-        aria-label="Filter by author"
-      >
-        <option value="">All authors</option>
-      </select>
+      <div id="shared-repo-filter"></div>
+      <div id="shared-author-filter"></div>
       <div id="shared-label-filter"></div>
       <select
         class="col-filter"
