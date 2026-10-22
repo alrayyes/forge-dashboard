@@ -70,6 +70,7 @@ type excerptCache struct {
 	// failed is when each key's read last failed, so a log that can't be read
 	// isn't asked for again within failedExcerptDelay.
 	failed map[string]time.Time
+	now    func() time.Time
 }
 
 // failedExcerptDelay is how long a failed read is remembered.
@@ -79,7 +80,7 @@ const failedExcerptDelay = time.Minute
 const maxExcerpts = 500
 
 func newExcerptCache(limit int) *excerptCache {
-	return &excerptCache{max: limit, text: map[string]string{}, failed: map[string]time.Time{}}
+	return &excerptCache{max: limit, text: map[string]string{}, failed: map[string]time.Time{}, now: time.Now}
 }
 
 func (e *excerptCache) get(key string) (string, bool) {
@@ -114,11 +115,14 @@ func (e *excerptCache) touch(key string) {
 	}
 }
 
-// fail remembers that key's log couldn't be read just now.
+// fail remembers that key's log couldn't be read just now. Expired entries are
+// swept on each call, which is cheap at maxExcerpts; if the memory is full of
+// live entries a new failure is not remembered, and that log is asked for again
+// next poll, which is all that costs.
 func (e *excerptCache) fail(key string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	now := time.Now()
+	now := e.now()
 	for k, at := range e.failed {
 		if now.Sub(at) >= failedExcerptDelay {
 			delete(e.failed, k)
@@ -135,5 +139,5 @@ func (e *excerptCache) recentlyFailed(key string) bool {
 	defer e.mu.Unlock()
 	at, ok := e.failed[key]
 
-	return ok && time.Since(at) < failedExcerptDelay
+	return ok && e.now().Sub(at) < failedExcerptDelay
 }

@@ -103,7 +103,9 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 // so a rerun reads afresh), or "" for a job that isn't finished: a finished
 // job's log never changes, so an excerpt read once is kept and a red default
 // branch costs no log read per poll. A read that failed is remembered briefly
-// too, so a log that can't be read isn't asked for on every poll.
+// too, so a log that can't be read isn't asked for on every poll. A job with no
+// finish time has no key, so it is neither kept nor remembered: it is read on
+// every poll and counts against the budget.
 //
 // It is best effort: a job with no id, or a log the token can't read, keeps its
 // check as it was, with the link to the run. Newest first (the highest job id),
@@ -184,5 +186,6 @@ func (c *Client) readExcerpt(ctx context.Context, owner, name string, id int64) 
 		return "", err
 	}
 
-	return dashboard.LogExcerpt(log.Text, log.Truncated), nil
+	// NewJobLog has already dropped a cut log's partial first line.
+	return dashboard.LogExcerpt(log.Text, false), nil
 }

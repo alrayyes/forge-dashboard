@@ -370,3 +370,73 @@ func TestListChecks_AFailedReadIsNotRetriedAtOnce(t *testing.T) {
 
 	assert.Equal(t, int32(1), calls.Load(), "a log that failed to read waits out the retry delay")
 }
+
+func TestListChecks_ACutLogKeepsItsLastLineWhenTheCutLandedInALongOne(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	// One line longer than the read window, then the line that matters.
+	log := strings.Repeat("x", 600*1024) + "\nFAIL: the real error\n"
+	client := excerptServer(t, []map[string]any{{"id": 7, "name": "build", "status": "failure"}}, map[int]string{7: log}, &calls)
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, "FAIL: the real error", checks[0].Excerpt)
+}
+
+func TestExcerptCache_AFailureIsForgottenAfterTheDelay(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	cache := forgejo.NewExcerptCacheForTest(func() time.Time { return now })
+	cache.Fail("7@1")
+	require.True(t, cache.RecentlyFailed("7@1"))
+
+	now = now.Add(2 * time.Minute)
+
+	assert.False(t, cache.RecentlyFailed("7@1"))
+}
+
+func TestListChecks_ASiblingsCancelIsNotRememberedAsAFailure(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": finishedFailures(2)})
+	})
+	refused := make(chan struct{})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/2/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		close(refused)
+	})
+	var oldReads atomic.Int32
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/1/logs", func(w http.ResponseWriter, r *http.Request) {
+		if oldReads.Add(1) > 1 {
+			_, _ = io.WriteString(w, "boom\n")
+
+			return
+		}
+		select {
+		case <-refused:
+			<-r.Context().Done()
+		case <-r.Context().Done():
+		}
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	_, err = client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(2), oldReads.Load(), "job 1 was cancelled, never tried, so it is read again")
+}
