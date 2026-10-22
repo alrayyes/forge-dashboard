@@ -113,3 +113,18 @@ func TestParseGoMod_AnEmptyOrGarbageFileIsAnError(t *testing.T) {
 	require.NoError(t, err, "a module with no requirements is a real, empty go.mod")
 	assert.Empty(t, got)
 }
+
+func TestParsePackageLock_NothingLeftAfterFilteringIsAnError(t *testing.T) {
+	t.Parallel()
+
+	lock := `{"packages":{"":{},
+		"node_modules/a":{"version":"1.0.0","resolved":"https://npm.example.com/a/-/a-1.0.0.tgz"},
+		"node_modules/b":{"version":"1.0.0","resolved":"git+ssh://git@example.com/o/b.git#abc"}}}`
+
+	_, err := osv.ParsePackageLock([]byte(lock))
+	require.ErrorIs(t, err, osv.ErrNoPublicPackages, "nothing was checked, so the repo must not read as a clean zero")
+
+	got, err := osv.ParsePackageLock([]byte(`{"packages":{"":{}}}`))
+	require.NoError(t, err, "a lock file with no dependencies at all is a real, empty one")
+	assert.Empty(t, got)
+}

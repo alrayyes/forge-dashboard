@@ -25,6 +25,10 @@ const (
 	EcosystemGo  = "Go"
 )
 
+// ErrNoPublicPackages is a package-lock whose dependencies all come from
+// somewhere other than the public registry, so nothing in it was checked.
+var ErrNoPublicPackages = errors.New("osv: lockfile has no packages from the public registry")
+
 var (
 	errNoPackages = errors.New("osv: lockfile has no packages map")
 	errNoModule   = errors.New("osv: go.mod has no module directive")
@@ -52,16 +56,25 @@ func ParsePackageLock(data []byte) ([]Package, error) {
 
 	const marker = "node_modules/"
 	var out []Package
+	left := 0 // installed packages kept out because they are not from the public registry
 	for key, p := range lock.Packages {
 		i := strings.LastIndex(key, marker) //nolint:modernize // CutLast needs a newer Go than this module pins
-		if i < 0 || p.Link || p.Version == "" || !fromRegistry(p.Resolved) {
+		if i < 0 || p.Link || p.Version == "" {
 			continue // the root, a workspace folder or a symlink
+		}
+		if !fromRegistry(p.Resolved) {
+			left++
+
+			continue
 		}
 		name := key[i+len(marker):]
 		if p.Name != "" {
 			name = p.Name // an aliased install ("my-lodash": npm:lodash) is the real package
 		}
 		out = append(out, Package{Ecosystem: EcosystemNPM, Name: name, Version: p.Version})
+	}
+	if left > 0 && len(out) == 0 {
+		return nil, ErrNoPublicPackages
 	}
 
 	return out, nil
