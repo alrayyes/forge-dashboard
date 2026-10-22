@@ -98,11 +98,12 @@ private repos too, and nothing else is: no repo name, URL or token. Set
 
 A repo with no lockfile the dashboard reads, or one that doesn't parse, is
 `unknown`, never zero, and so is one that matches more advisories than a scan
-reads. An OSV outage keeps the last answer, or shows `unknown` if there is
-none. Answers are cached for fifteen minutes and a failed read is retried after
-five, like the GitHub ones. A read costs one listing of the root plus one read
-per lockfile, counted under the `advisories` kind in
-[Rate limits](rate-limits.md).
+reads. The page does not flag an unknown Forgejo row, since most repos have no
+lockfile: neither the notice above the list nor the grey dash is about them.
+An OSV outage keeps the last answer, or shows `unknown` if there is none.
+Answers are cached for fifteen minutes and a failed read is retried after five,
+like the GitHub ones. A read costs one listing of the root plus one read per
+lockfile, counted under the `advisories` kind in [Rate limits](rate-limits.md).
 
 ## When advisories can't be read
 

@@ -103,6 +103,18 @@ describe('advisoryCoverage', () => {
     expect(advisoryCoverage([b(unknown), b(known)])).toBe('partial');
   });
 
+  test('Forgejo rows never raise the GitHub notice or a cue', () => {
+    const fj = (a?: Advisories) =>
+      ({ forge: 'forgejo', advisories: a }) as MainBranch;
+    const gh = (a?: Advisories) =>
+      ({ forge: 'github', advisories: a }) as MainBranch;
+    // A Forgejo repo with no lockfile is unknown, and says nothing about GitHub.
+    expect(advisoryCoverage([fj(unknown), fj(unknown)])).toBe('full');
+    expect(advisoryCoverage([gh(known), fj(unknown)])).toBe('full');
+    expect(advisoryCoverage([gh(unknown), fj(known)])).toBe('none');
+    expect(advisoryUnknownReason([fj(unknown), gh(unknown)])).toBeNull();
+  });
+
   test('all known, or no source at all, has nothing to say', () => {
     expect(advisoryCoverage([b(known), b()])).toBe('full');
     expect(advisoryCoverage([b(), b()])).toBe('full');

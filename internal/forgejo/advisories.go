@@ -144,6 +144,7 @@ func (c *Client) ReadAdvisories(ctx context.Context, owner, name, _ string) (das
 // small enough to read.
 func (c *Client) rootLockfiles(ctx context.Context, owner, name string) ([]string, error) {
 	path := fmt.Sprintf("/repos/%s/%s/contents", url.PathEscape(owner), url.PathEscape(name))
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
@@ -173,6 +174,7 @@ func (c *Client) rootLockfiles(ctx context.Context, owner, name string) ([]strin
 // rawFile reads one file of the default branch.
 func (c *Client) rawFile(ctx context.Context, owner, name, file string) ([]byte, error) {
 	path := fmt.Sprintf("/repos/%s/%s/raw/%s", url.PathEscape(owner), url.PathEscape(name), url.PathEscape(file))
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)

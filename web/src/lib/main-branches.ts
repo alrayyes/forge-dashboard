@@ -292,7 +292,9 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
 // How much of the list's advisory data was readable. 'none': every row that
 // has an answer says unknown, so the page shows one notice about the cause.
 // 'partial': a mix, so only the unknown rows get a quiet cue. 'full': nothing
-// to say. Rows with no field (no source reads that forge) don't count.
+// to say. Rows with no field (no source reads that forge) don't count, and
+// neither do Forgejo rows: their unknown is usually a repo with no lockfile,
+// and the notice is about the GitHub credential.
 export type AdvisoryCoverage = 'full' | 'partial' | 'none';
 
 export function advisoryCoverage(
@@ -301,6 +303,7 @@ export function advisoryCoverage(
   let unknown = 0;
   let known = 0;
   for (const b of branches) {
+    if (b.forge === 'forgejo') continue;
     if (b.advisories?.state === 'unknown') unknown++;
     else if (b.advisories) known++;
   }
@@ -315,6 +318,7 @@ export function advisoryUnknownReason(
 ): AdvisoryReason | null {
   let shared: AdvisoryReason | null = null;
   for (const b of branches) {
+    if (b.forge === 'forgejo') continue;
     if (b.advisories?.state !== 'unknown') continue;
     const r = b.advisories.reason;
     if (!r) return null;
