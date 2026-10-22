@@ -107,3 +107,29 @@ func TestMergePendingResult_KeepsARepoStaleBecauseItFetchedNoIssues(t *testing.T
 	assert.Equal(t, &at, repo.StaleSince, "a CI poll fetched no issues, so the repo is as stale as before")
 	assert.Equal(t, &failing, repo.FailingSince)
 }
+
+func TestKeepNewerScopedRepos_AFullRefreshDoesNotWriteBackAMarkAScopedRefreshCleared(t *testing.T) {
+	t.Parallel()
+
+	at := time.Now().Add(-time.Hour).UTC()
+	agg := NewAggregator(nil)
+	agg.scopedSeq[repoKey{ForgeGitHub, "o/b"}] = 2
+	started := staleSnapshot(&at, &at)
+	cleared := staleSnapshot(nil, &at)
+
+	got := agg.keepNewerScopedRepos(started, cleared, 1)
+
+	assert.Nil(t, got.Repos[1].StaleSince, "the scoped refresh landed after this full one started")
+}
+
+func TestKeepNewerScopedRepos_TakesTheFullRefreshsRowForARepoNoScopedRefreshTouched(t *testing.T) {
+	t.Parallel()
+
+	at := time.Now().Add(-time.Hour).UTC()
+	agg := NewAggregator(nil)
+	agg.scopedSeq[repoKey{ForgeGitHub, "o/a"}] = 2
+
+	got := agg.keepNewerScopedRepos(staleSnapshot(&at, &at), staleSnapshot(nil, nil), 1)
+
+	assert.NotNil(t, got.Repos[1].StaleSince)
+}

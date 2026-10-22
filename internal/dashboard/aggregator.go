@@ -1062,7 +1062,7 @@ type repoKey struct {
 // meanwhile is already gone from the snapshot, while the full refresh, which
 // read the forge before the merge, still lists it. For every repo a scoped
 // refresh merged after this full one started (a larger seq), the snapshot's
-// current entries win. Every other repo takes the full refresh's data.
+// current entries win, the repo's own row included. Every other repo takes the full refresh's data.
 func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Snapshot {
 	newer := make(map[repoKey]bool)
 	for key, scopedSeq := range a.scopedSeq {
@@ -1091,9 +1091,31 @@ func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Sn
 		}
 	}
 
-	snap.PullRequests, snap.Issues = prs, issues
+	repos := keepRows(snap.Repos, current.Repos, newer)
+
+	snap.PullRequests, snap.Issues, snap.Repos = prs, issues, repos
 	AnnotateStacks(snap.PullRequests)
 	sortByRecency(snap.PullRequests, snap.Issues)
 
 	return snap
+}
+
+// keepRows is repos with the row of each repo in newer replaced by current's.
+// The row carries the stale mark, which a scoped refresh may have cleared;
+// taking the full refresh's row would write the mark back.
+func keepRows(repos, current []Repo, newer map[repoKey]bool) []Repo {
+	kept := make(map[repoKey]Repo, len(newer))
+	for _, r := range current {
+		if key := (repoKey{r.Forge, r.FullName}); newer[key] {
+			kept[key] = r
+		}
+	}
+	out := slices.Clone(repos)
+	for i, r := range out {
+		if row, ok := kept[repoKey{r.Forge, r.FullName}]; ok {
+			out[i] = row
+		}
+	}
+
+	return out
 }
