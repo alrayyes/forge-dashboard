@@ -180,6 +180,26 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('when every copy route is refused, View run puts the output in a field to copy by hand', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    await setup(page, {
+      status: 200,
+      body: { text: 'step 1\nboom: exit 1\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
+    await expect(field).toHaveValue('step 1\nboom: exit 1\n');
+    await expect(field).toBeFocused();
+    await expect(dialog.locator('.run-output-status')).toContainText('Cmd+C');
+  });
+
   test('the output is reachable from the keyboard and hides again', async ({
     page,
   }) => {
