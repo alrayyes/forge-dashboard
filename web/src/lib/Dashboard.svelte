@@ -8636,7 +8636,7 @@
           class="col-filter"
           data-col="title"
           type="text"
-          placeholder={view === "issues" ? "Title or #number" : "Title"}
+          placeholder="Title or #number"
           aria-label="Filter by title"
           aria-keyshortcuts="/"
           list="shared-title-options"
