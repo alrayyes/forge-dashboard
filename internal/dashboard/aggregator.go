@@ -995,6 +995,10 @@ func keepFailedRepos(res Result, earlier Snapshot, forge Forge) Result {
 // last fetched, which is the earlier snapshot unless that was stale already.
 func markRepoStale(repos []Repo, earlier Snapshot, key repoKey) {
 	since := earlier.GeneratedAt
+	if since.IsZero() {
+		// Nothing was fetched before, so the failure starts now.
+		since = time.Now().UTC()
+	}
 	for _, r := range earlier.Repos {
 		if (repoKey{r.Forge, r.FullName}) == key && r.StaleSince != nil {
 			since = *r.StaleSince

@@ -9,6 +9,11 @@ const (
 	// maxStretchedInterval caps the stretch. A configured interval already past
 	// it is kept as it is: the stretch never shortens anything.
 	maxStretchedInterval = 2 * time.Hour
+	// permanentFailureIntervals is how many refresh intervals a repo may stay
+	// stale before it counts as failing for good. A repo that fails the same
+	// way on every refresh (issues disabled, an empty repo, a token without
+	// the scope) would otherwise hold the short wait for every other repo.
+	permanentFailureIntervals = 3
 )
 
 // StretchedInterval is how long the full refresh waits while every tracked
@@ -30,12 +35,15 @@ func StretchedInterval(interval time.Duration) time.Duration {
 // is only a safety net. No repos at all is not coverage: there is nothing to
 // rely on yet. Neither are the repos of a forge whose last fetch failed, or a repo
 // the forge could not fully fetch: their rows are the earlier ones, stale, so
-// the full refresh should retry sooner.
+// the full refresh should retry sooner. A repo that has been stale for
+// permanentFailureIntervals refresh intervals is failing for good and no longer
+// counts: retrying sooner has not helped, and it would keep the short wait for
+// everyone else.
 //
 // Only the live hook check counts, not the recorded deliveries the Webhooks
 // page ORs in. A delivery that arrived once does not show the hook is still
 // there, and the wait should not stretch on that.
-func webhooksCover(snap Snapshot) bool {
+func webhooksCover(snap Snapshot, interval time.Duration, now time.Time) bool {
 	if len(snap.Repos) == 0 {
 		return false
 	}
@@ -48,9 +56,12 @@ func webhooksCover(snap Snapshot) bool {
 		}
 	}
 	// A reachable forge can still have failed on one repo. That repo is the
-	// earlier one, marked stale, so retry sooner.
+	// earlier one, marked stale, so retry sooner, until it has failed for good.
 	for _, repo := range snap.Repos {
-		if !repo.HasWebhook || repo.StaleSince != nil {
+		if !repo.HasWebhook {
+			return false
+		}
+		if repo.StaleSince != nil && now.Sub(*repo.StaleSince) < permanentFailureIntervals*interval {
 			return false
 		}
 	}
@@ -63,7 +74,7 @@ func webhooksCover(snap Snapshot) bool {
 // further by NextRefreshDelay if a forge's budget is critically low.
 func (a *Aggregator) NextDelay(interval time.Duration) time.Duration {
 	snap := a.Get()
-	if webhooksCover(snap) {
+	if webhooksCover(snap, interval, time.Now()) {
 		interval = StretchedInterval(interval)
 	}
 
