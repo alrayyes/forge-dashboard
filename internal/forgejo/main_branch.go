@@ -44,8 +44,9 @@ func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (da
 		return row, nil
 	}
 
-	row.Status = mainBranchStatus(runs)
 	jobs := c.runJobs(ctx, repo, runs)
+	runs = settledRuns(runs, jobs)
+	row.Status = mainBranchStatus(runs)
 	row.Checks = jobCounts(runs, jobs)
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
@@ -189,6 +190,69 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 		return dashboard.MainBranchPassed
 	}
 }
+
+// settledRuns is runs with each run the list still calls running, but whose jobs
+// have all finished, read as finished. The runs list is read before the jobs, so
+// a run can end in between; folding the status from the stale list would leave
+// the row running beside counts that show nothing running. The run takes the
+// state its jobs give it: failed if any failed, else cancelled if any was, else
+// passed. A run with no readable jobs, or a job still going, is left as listed.
+// The settled run takes its stop time from the latest job to complete, so the
+// row keeps a finish time and duration. A job list as long as the forge's
+// default page (jobsPageSize) may have been cut short, and a run can't be
+// called over from a part of its jobs, so it is left as listed.
+func settledRuns(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) []*branchRun {
+	out := make([]*branchRun, len(runs))
+	for i, r := range runs {
+		out[i] = r
+		list := jobs[r.ID]
+		if len(list) == 0 || len(list) >= jobsPageSize || checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning {
+			continue
+		}
+		status, stopped, over := jobsOutcome(list)
+		if !over {
+			continue
+		}
+		settled := *r
+		settled.StoppedAt = stopped
+		settled.Status = status
+		out[i] = &settled
+	}
+
+	return out
+}
+
+// jobsOutcome reads a run's finished jobs as the status the run ends in, and the
+// latest time one completed. over is false while any job is running or queued.
+func jobsOutcome(list []*gitea.ActionWorkflowJob) (status string, stopped time.Time, over bool) {
+	var failed, cancelled bool
+	for _, j := range list {
+		if j.CompletedAt.After(stopped) {
+			stopped = j.CompletedAt
+		}
+		switch checkStateFromWorkflowStatus(j.Status) {
+		case dashboard.CheckRunning, dashboard.CheckQueued:
+			return "", time.Time{}, false
+		case dashboard.CheckFailure:
+			failed = true
+		case dashboard.CheckCancelled:
+			cancelled = true
+		case dashboard.CheckSuccess, dashboard.CheckSkipped:
+		}
+	}
+	switch {
+	case failed:
+		return "failure", stopped, true
+	case cancelled:
+		return "cancelled", stopped, true
+	}
+
+	return "success", stopped, true
+}
+
+// jobsPageSize is how many jobs Forgejo answers with when no page size is asked
+// for, the most a job list can hold before it is cut short.
+const jobsPageSize = 30
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be
 // read is left out, and counts as one check (see jobCounts). A finished run's

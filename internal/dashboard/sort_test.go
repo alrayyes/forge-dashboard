@@ -121,3 +121,34 @@ func TestAggregator_RefreshRepo_MergedResultStaysSortedGlobally(t *testing.T) {
 	assert.Equal(t, 1, snap.PullRequests[0].Number, "repo a's newer PR should still sort first after refreshing repo b")
 	assert.Equal(t, 2, snap.PullRequests[1].Number)
 }
+
+func TestAggregator_RefreshRepo_ANewIssueSortsAheadOfOlderIssuesOfAnotherRepo(t *testing.T) {
+	t.Parallel()
+
+	old := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	fresh := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
+
+	src := newFakeRepoRefresherSource()
+	// Thirty older issues fill more than a page of the board. A merge that
+	// appended the refreshed repo's issues at the tail would push a new one
+	// to page 2, so the snapshot has to put it first.
+	var older []dashboard.Issue
+	for i := 1; i <= 30; i++ {
+		older = append(older, dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: i, UpdatedAt: old})
+	}
+	src.issues["alrayyes/a"] = older
+	src.setRepo("alrayyes/a", nil)
+	src.setRepo("alrayyes/b", nil)
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	src.issues["alrayyes/b"] = []dashboard.Issue{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/b", Number: 31, UpdatedAt: fresh}}
+
+	ok := agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "b", "alrayyes/b")
+	require.True(t, ok)
+
+	snap := agg.Get()
+	require.Len(t, snap.Issues, 31)
+	assert.Equal(t, 31, snap.Issues[0].Number, "the new issue should sort to the front, not the tail")
+}

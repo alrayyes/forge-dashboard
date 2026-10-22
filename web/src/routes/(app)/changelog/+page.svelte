@@ -33,9 +33,10 @@
   // rendered by the same safe renderer as the pull request dialog: raw HTML
   // stays text, only http(s) and mailto links are links, images are off. A
   // link labelled with a pull request number or a commit hash gets the mono
-  // class. Each release is rendered once. Until the renderer's chunk loads, or if
-  // it never does, the card shows the notes as plain text, so it has its height
-  // from the first paint and the swap does not push the cards below.
+  // class. Each release is rendered once. The first page of cards waits for its
+  // notes to render, up to RENDER_WAIT_MS, so the usual load shows rendered
+  // cards from the first paint and nothing moves. If the renderer's chunk is
+  // slow or never loads, the cards show the notes as plain text and swap later.
   let rendered = $state<Record<string, string>>({});
   const requestNotes = createNoteRenderer(
     (text) => renderMarkdown(text, { monoReferences: true }),
@@ -45,8 +46,9 @@
   );
 
   $effect(() => {
-    requestNotes(shown);
+    void requestNotes(shown);
   });
+  const RENDER_WAIT_MS = 1500;
   // A render that failed is asked for again a few seconds later, for as long
   // as the page is open.
   $effect(() => () => requestNotes.stop());
@@ -73,9 +75,18 @@
         if (!res.ok) throw new Error(`changelog answered ${res.status}`);
         return res.json();
       })
-      .then((data: { releases?: Release[] }) => {
+      .then(async (data: { releases?: Release[] }) => {
+        const all = data.releases ?? [];
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          requestNotes(all.slice(0, PAGE_SIZE)),
+          new Promise((resolve) => {
+            timer = setTimeout(resolve, RENDER_WAIT_MS);
+          }),
+        ]);
+        clearTimeout(timer);
         status = "";
-        releases = data.releases ?? [];
+        releases = all;
         loaded = true;
       })
       .catch(() => {
