@@ -6072,6 +6072,15 @@ components:
             signed-in user's role. Saving a token with the webhook scope in
             Settings is the fix. Absent when a token is saved, whatever
             role it holds. Set today for Forgejo only.
+        failingSince:
+          type: string
+          format: date-time
+          description: |
+            Present when the last fetch of this repository failed, and the
+            time of the first failure in the run it is still part of. Its
+            pull requests and issues are then the last good ones. Absent
+            when the repository is fetching fine. It is not saved, so it
+            restarts from the first failure after a restart.
         autoUpdateBranch:
           type: boolean
           description: |

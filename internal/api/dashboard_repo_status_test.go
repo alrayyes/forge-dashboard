@@ -71,6 +71,23 @@ func TestDashboard_RepoStatus_SerializesWebhookNeedsToken(t *testing.T) {
 	assert.NotContains(t, plain, "webhookNeedsToken")
 }
 
+// A repo whose fetch keeps failing says since when, so the page can show it;
+// a repo that isn't failing has no such field.
+func TestDashboard_RepoStatus_SerializesFailingSince(t *testing.T) {
+	t.Parallel()
+
+	since := time.Date(2026, 10, 22, 8, 0, 0, 0, time.UTC)
+	failing := repoStatusJSON(t, dashboard.Repo{
+		Forge:        dashboard.ForgeGitHub,
+		FullName:     "alrayyes/a",
+		FailingSince: &since,
+	})
+	assert.Equal(t, "2026-10-22T08:00:00Z", failing["failingSince"])
+
+	plain := repoStatusJSON(t, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/b"})
+	assert.NotContains(t, plain, "failingSince")
+}
+
 // repoStatusJSON serves repo through the real handler and returns the JSON
 // object /api/dashboard wrote for it.
 func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {

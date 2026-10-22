@@ -42,6 +42,9 @@ type repoStatus struct {
 	// WebhookNeedsToken: no credential is saved, so CanManageWebhooks is
 	// false for lack of a token, not of a role (see dashboard.Repo).
 	WebhookNeedsToken bool `json:"webhookNeedsToken,omitempty"`
+	// FailingSince: when the repo's fetch first failed, while it keeps failing
+	// (see dashboard.Repo). Absent for a repo that isn't failing.
+	FailingSince *time.Time `json:"failingSince,omitempty"`
 }
 
 // dashboardResponse is the wire shape for /api/dashboard and its SSE
@@ -516,6 +519,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 
 			WebhookLockedByConnection: r.WebhookLockedByConnection,
 			WebhookNeedsToken:         r.WebhookNeedsToken,
+			FailingSince:              r.FailingSince,
 		})
 	}
 
