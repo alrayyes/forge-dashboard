@@ -61,7 +61,7 @@ func (s *Service) BeginRegistration(ctx context.Context, username, displayName s
 	// hangs off its id survives. WebAuthnID has to be genuinely random and
 	// BeginRegistration only reads the User interface, so the row exists from
 	// this first step and FinishRegistration attaches to a persisted ID.
-	u, err := s.store.ClaimUnregisteredUser(ctx, username, displayName)
+	u, err := s.store.ClaimUnregisteredUser(ctx, username, displayName, time.Now().Add(-ceremonyTTL))
 	if err != nil {
 		return nil, err
 	}

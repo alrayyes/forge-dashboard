@@ -126,11 +126,17 @@ func (s *Store) dropInviteMachinery(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `DROP TABLE IF EXISTS invites`); err != nil {
 		return fmt.Errorf("auth: drop invites table: %w", err)
 	}
-	if _, err := s.db.ExecContext(ctx, `ALTER TABLE users DROP COLUMN is_admin`); err != nil {
-		if strings.Contains(err.Error(), "no such column") {
-			return nil
-		}
 
+	var hasColumn int
+	err := s.db.QueryRowContext(ctx,
+		`SELECT count(*) FROM pragma_table_info('users') WHERE name = 'is_admin'`).Scan(&hasColumn)
+	if err != nil {
+		return fmt.Errorf("auth: look for users.is_admin: %w", err)
+	}
+	if hasColumn == 0 {
+		return nil
+	}
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE users DROP COLUMN is_admin`); err != nil {
 		return fmt.Errorf("auth: drop users.is_admin: %w", err)
 	}
 
@@ -201,9 +207,11 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*
 // row, and so its id, which the saved settings and the webhook token hang
 // off, and takes this attempt's display name. The username changes only when
 // a ceremony wins (AddFirstCredential), so ceremonies that race can't break
-// each other's lookup. Any younger passkey-less row is an abandoned attempt
-// and goes. Without such a row a new one is created.
-func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName string) (*User, error) {
+// each other's lookup. Any other passkey-less row created before olderThan
+// is an abandoned attempt whose ceremony has expired, so nothing can finish
+// it and it goes; a newer one may still be mid-ceremony and stays. Without a
+// passkey-less row a new one is created.
+func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName string, olderThan time.Time) (*User, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("auth: begin claim: %w", err)
@@ -225,7 +233,7 @@ func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName
 		return nil, fmt.Errorf("auth: find the unregistered user: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE credentials_json = '[]' AND id != ?`, id); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE credentials_json = '[]' AND id != ? AND created_at < ?`, id, olderThan.UTC()); err != nil {
 		return nil, fmt.Errorf("auth: drop abandoned registrations: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE users SET display_name = ? WHERE id = ?`, displayName, id); err != nil {
@@ -266,8 +274,7 @@ func (s *Store) GetUserByID(ctx context.Context, id []byte) (*User, error) {
 
 // HasAnyRegisteredUser reports whether any account has completed
 // registration — a row with no credentials (BeginRegistration begun,
-// never finished) doesn't count. The first username to make this true
-// is the one that becomes admin.
+// never finished) doesn't count. Once it is true, registration is closed.
 func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 	var exists int
 	err := s.db.QueryRowContext(ctx,
@@ -745,8 +752,8 @@ func (s *Store) UserForSession(ctx context.Context, token string) (*User, error)
 	return s.GetUserByID(ctx, id)
 }
 
-// DeleteSession revokes a session token — logout, or an admin revoking
-// another user's session.
+// DeleteSession revokes a session token — logout, or the owner revoking
+// one of their own sessions.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token = ?`, token)
 	if err != nil {

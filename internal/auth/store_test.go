@@ -1,9 +1,13 @@
 package auth_test
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/base64"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,7 +16,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 )
 
 // credentialIDKeyForTest mirrors the unexported encoding
@@ -177,7 +181,7 @@ func TestStore_ClaimUnregisteredUser_NoRowYet_CreatesOne(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	u, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan")
+	u, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan", time.Time{})
 	require.NoError(t, err)
 
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
@@ -194,7 +198,7 @@ func TestStore_ClaimUnregisteredUser_ADeadEndRowIsReusedAndOthersAreDropped(t *t
 	_, err = store.CreateUser(t.Context(), "stray", "Stray")
 	require.NoError(t, err)
 
-	claimed, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan K")
+	claimed, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan K", time.Now().Add(time.Minute))
 	require.NoError(t, err)
 
 	assert.Equal(t, first.ID, claimed.ID, "the oldest row is the owner's")
@@ -210,7 +214,7 @@ func TestStore_ClaimUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	_, err = store.ClaimUnregisteredUser(t.Context(), "alex", "Alex")
+	_, err = store.ClaimUnregisteredUser(t.Context(), "alex", "Alex", time.Time{})
 	require.NoError(t, err)
 
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
@@ -782,4 +786,66 @@ func TestStore_ResetPasskeys_NoUser_ReturnsErrNotFound(t *testing.T) {
 	_, err := store.ResetPasskeys(t.Context(), false)
 
 	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+// execRecorder wraps the SQLite driver and notes every statement executed.
+type execRecorder struct {
+	dsn  string
+	mu   *sync.Mutex
+	seen *[]string
+}
+
+type recordingConn struct {
+	driver.Conn
+	rec execRecorder
+}
+
+func (c recordingConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	c.rec.mu.Lock()
+	*c.rec.seen = append(*c.rec.seen, query)
+	c.rec.mu.Unlock()
+
+	res, err := c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
+	if err != nil {
+		return nil, fmt.Errorf("exec: %w", err)
+	}
+
+	return res, nil
+}
+
+func (r execRecorder) Driver() driver.Driver { return &sqlite.Driver{} }
+
+func (r execRecorder) Connect(context.Context) (driver.Conn, error) {
+	conn, err := (&sqlite.Driver{}).Open(r.dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open: %w", err)
+	}
+
+	return recordingConn{Conn: conn, rec: r}, nil
+}
+
+// A database that already lost is_admin is not asked to drop it again: Init
+// looks at the table first instead of running the ALTER and reading the error.
+func TestStore_Init_DoesNotAttemptToDropAColumnThatIsGone(t *testing.T) {
+	t.Parallel()
+	dsn := dbdsn.For(filepath.Join(t.TempDir(), "auth.db"))
+	var (
+		mu   sync.Mutex
+		seen []string
+	)
+	db := sql.OpenDB(execRecorder{dsn: dsn, mu: &mu, seen: &seen})
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+
+	mu.Lock()
+	seen = nil
+	mu.Unlock()
+	require.NoError(t, store.Init(t.Context()))
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, q := range seen {
+		assert.NotContains(t, q, "DROP COLUMN", "a second start has nothing to drop")
+	}
 }

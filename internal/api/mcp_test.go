@@ -207,7 +207,13 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 	assert.Contains(t, found.Description, "no forge")
 	assert.Contains(t, found.Description, "advisories")
 	assert.Contains(t, found.Description, "unknown")
+	assert.Contains(t, found.Description, advisoriesWording)
 }
+
+// advisoriesWording is the one sentence both the MCP and the WebMCP tool use
+// for the advisories field. web/src/lib/webmcp-tools.test.ts pins the same text.
+const advisoriesWording = "The advisories key is absent when no source reads the repository's forge, " +
+	"such as Forgejo. A state of unknown means the forge could not say, never zero."
 
 func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 	t.Parallel()
@@ -223,7 +229,6 @@ func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 	unknown.Advisories = &dashboard.Advisories{State: dashboard.AdvisoriesUnknown}
 	none := branchRow("acme/none", dashboard.MainBranchPassed)
 	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{known, unknown, none})
-	readMainBranchesFrom(t, srvURL, cookie, 3)
 
 	content := callMainBranchesTool(t, srvURL, cookie, 3)
 

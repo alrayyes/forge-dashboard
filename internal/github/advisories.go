@@ -49,6 +49,9 @@ type advisoryCache struct {
 type advisoryEntry struct {
 	value   dashboard.Advisories
 	expires time.Time
+	// refusal is the last 403 or 404 logged for this repo, so the same
+	// refusal is said once and a changed one is said again.
+	refusal string
 }
 
 // get returns the cached answer and whether it is still fresh.
@@ -60,13 +63,18 @@ func (c *advisoryCache) get(repo string) (v dashboard.Advisories, fresh, ok bool
 	return e.value, ok && time.Now().Before(e.expires), ok
 }
 
-func (c *advisoryCache) put(repo string, v dashboard.Advisories, ttl time.Duration) {
+// put stores an answer. refusal is the 403 or 404 behind an unknown one, or
+// empty; it returns whether that refusal differs from the one stored before.
+func (c *advisoryCache) put(repo string, v dashboard.Advisories, ttl time.Duration, refusal string) (changed bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.entries == nil {
 		c.entries = map[string]advisoryEntry{}
 	}
-	c.entries[repo] = advisoryEntry{value: v, expires: time.Now().Add(ttl)}
+	changed = refusal != "" && c.entries[repo].refusal != refusal
+	c.entries[repo] = advisoryEntry{value: v, expires: time.Now().Add(ttl), refusal: refusal}
+
+	return changed
 }
 
 // ReadAdvisories implements dashboard.AdvisoryReader from the repository's open
@@ -76,10 +84,20 @@ func (c *advisoryCache) put(repo string, v dashboard.Advisories, ttl time.Durati
 // the Dependabot alerts permission); both are "unknown", never a zero count. So
 // is a repo with more alerts than maxAlertPages hold. A rate limit is an error.
 func (c *Client) ReadAdvisories(ctx context.Context, owner, name, repoURL string) (dashboard.Advisories, error) {
-	return readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
+	v, _, err := readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
+
+	return v, err
 }
 
-func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, name, repoURL string) (dashboard.Advisories, error) {
+// alertsRefusal is what GitHub said when it refused the alerts listing.
+type alertsRefusal struct {
+	status  int
+	message string
+}
+
+func (r *alertsRefusal) String() string { return fmt.Sprintf("%d %s", r.status, r.message) }
+
+func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, name, repoURL string) (dashboard.Advisories, *alertsRefusal, error) {
 	state := "open"
 	opts := &ghsdk.ListAlertsOptions{State: &state, ListOptions: ghsdk.ListOptions{PerPage: perPage}}
 	out := dashboard.Advisories{State: dashboard.AdvisoriesKnown}
@@ -101,24 +119,26 @@ func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, na
 				out.URL = repoURL + "/security/dependabot"
 			}
 
-			return out, nil
+			return out, nil, nil
 		}
 		opts.After = resp.After
 	}
 
-	return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil
+	return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil, nil
 }
 
 // alertsFailure maps a failed alerts listing: a definitive refusal is an
 // unknown answer, anything else an error.
-func alertsFailure(err error) (dashboard.Advisories, error) {
+func alertsFailure(err error) (dashboard.Advisories, *alertsRefusal, error) {
 	switch {
 	case throttled(err):
-		return dashboard.Advisories{}, fmt.Errorf("list dependabot alerts: %w", errAdvisoriesThrottled)
+		return dashboard.Advisories{}, nil, fmt.Errorf("list dependabot alerts: %w", errAdvisoriesThrottled)
 	case refused(err):
-		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, nil
+		errResp, _ := errors.AsType[*ghsdk.ErrorResponse](err)
+
+		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, &alertsRefusal{status: errResp.Response.StatusCode, message: errResp.Message}, nil
 	default:
-		return dashboard.Advisories{}, fmt.Errorf("list dependabot alerts: %w", err)
+		return dashboard.Advisories{}, nil, fmt.Errorf("list dependabot alerts: %w", err)
 	}
 }
 
@@ -164,7 +184,7 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 		return &old
 	}
 	ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
-	v, err := c.ReadAdvisories(ctx, owner, name, repoURL)
+	v, refusal, err := readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
 	if err != nil {
 		if errors.Is(err, errAdvisoriesThrottled) {
 			slog.Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", key)
@@ -174,11 +194,21 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 		if !have {
 			old = *dashboard.UnknownAdvisories()
 		}
-		c.advisories.put(key, old, advisoriesRetry)
+		c.advisories.put(key, old, advisoriesRetry, "")
 
 		return &old
 	}
-	c.advisories.put(key, v, advisoriesTTL)
+	if refusal != nil {
+		// A refusal is asked again soon: the owner may be fixing the permission,
+		// and an unknown that outlives the fix reads as if it did not work.
+		if c.advisories.put(key, v, advisoriesRetry, refusal.String()) {
+			slog.Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", key,
+				"status", refusal.status, "message", refusal.message)
+		}
+
+		return &v
+	}
+	c.advisories.put(key, v, advisoriesTTL, "")
 
 	return &v
 }

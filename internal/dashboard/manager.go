@@ -640,9 +640,8 @@ func (m *Manager) Subscribe(userID []byte) (<-chan Snapshot, func(), bool) {
 }
 
 // Remove stops userID's refresh loop and evicts their snapshot — a no-op
-// if they had none running. Used when an admin revokes or deletes an
-// account, so a locked-out user's background refresh doesn't keep polling
-// either forge for no one.
+// if they had none running. Used when an account is deleted, so a removed
+// user's background refresh doesn't keep polling either forge for no one.
 func (m *Manager) Remove(userID []byte) {
 	key := string(userID)
 

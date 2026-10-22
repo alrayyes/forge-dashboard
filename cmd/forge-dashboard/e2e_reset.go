@@ -15,6 +15,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -50,16 +51,14 @@ func withE2EHooks(next http.Handler, deps api.Deps) http.Handler {
 var errNoOwner = errors.New("no user is registered yet")
 
 // findOwner is the first account registered: the oldest user holding a
-// passkey, as the single-user cleanup picks it.
+// passkey, found by the query the single-user cleanup uses.
 func findOwner(ctx context.Context, db *sql.DB, store *auth.Store) (*auth.User, error) {
-	var username string
-	err := db.QueryRowContext(ctx,
-		`SELECT username FROM users WHERE credentials_json != '[]' ORDER BY created_at, rowid LIMIT 1`).Scan(&username)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errNoOwner
-	}
+	username, found, err := singleuser.OwnerUsername(ctx, db)
 	if err != nil {
 		return nil, fmt.Errorf("find owner: %w", err)
+	}
+	if !found {
+		return nil, errNoOwner
 	}
 
 	owner, err := store.GetUserByUsername(ctx, username)

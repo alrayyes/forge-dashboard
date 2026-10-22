@@ -80,9 +80,9 @@ delete the oldest rows past a fixed cap (e.g. 10,000 entries) in the same
 transaction. Simpler than a time-based sweep needing its own scheduled
 job, and bounds storage regardless of how bursty traffic gets.
 
-**Admin-only, cross-account, via the existing `auth.RequireAdmin`
-middleware** — the same composition `internal/api/admin.go`'s other
-handlers already use (`auth.RequireAuth(store)(auth.RequireAdmin(...))`).
+**Behind `auth.RequireAuth`** — the instance has one owner, so the signed-in
+user is the only person who can read the log (this began as an admin-only
+endpoint, from when an instance could hold several accounts).
 The list/query endpoint takes optional `forge`/`account` filter query
 params; the CSV export endpoint takes the same filters and streams
 `text/csv` instead of JSON, mirroring the shape of GitHub's own CSV
@@ -90,7 +90,7 @@ export endpoints (content-disposition attachment, one header row).
 
 **UI: a new "Requests" section on the existing admin page**
 (`web/src/routes/(app)/admin/+page.svelte`), not a standalone route —
-it's another admin-only table alongside Users/Invites, following that
+it's another table on the page that held the user list, following that
 same fetch-and-render pattern, with a filter row and an "Export CSV"
 link/button that hits the export endpoint directly (a plain navigation
 to a same-origin authenticated URL, the standard way to trigger a file

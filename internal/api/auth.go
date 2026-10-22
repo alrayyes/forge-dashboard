@@ -68,13 +68,13 @@ type registrationStatusResponse struct {
 // definition.
 func handleRegistrationStatus(svc *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		hasAdmin, err := svc.HasAnyRegisteredUser(r.Context())
+		registered, err := svc.HasAnyRegisteredUser(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not check registration status"))
 
 			return
 		}
-		writeJSON(w, http.StatusOK, registrationStatusResponse{Open: !hasAdmin})
+		writeJSON(w, http.StatusOK, registrationStatusResponse{Open: !registered})
 	}
 }
 

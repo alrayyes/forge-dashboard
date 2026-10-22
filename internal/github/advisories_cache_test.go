@@ -1,10 +1,15 @@
 package github_test
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -196,4 +201,92 @@ func TestFetch_CountsAdvisoryReadsUnderTheirOwnKind(t *testing.T) {
 		}
 	}
 	assert.Equal(t, int64(1), advisoryReads)
+}
+
+// logCapture swaps slog's default for a handler that records every line.
+type logCapture struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (l *logCapture) Enabled(context.Context, slog.Level) bool { return true }
+func (l *logCapture) WithAttrs([]slog.Attr) slog.Handler       { return l }
+func (l *logCapture) WithGroup(string) slog.Handler            { return l }
+func (l *logCapture) Handle(_ context.Context, r slog.Record) error {
+	var b strings.Builder
+	b.WriteString(r.Level.String() + " " + r.Message)
+	r.Attrs(func(a slog.Attr) bool {
+		b.WriteString(" " + a.Key + "=" + a.Value.String())
+
+		return true
+	})
+	l.mu.Lock()
+	l.lines = append(l.lines, b.String())
+	l.mu.Unlock()
+
+	return nil
+}
+
+func captureLogs(t *testing.T) *logCapture {
+	t.Helper()
+	c := &logCapture{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(c))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	return c
+}
+
+func (l *logCapture) matching(sub string) []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var out []string
+	for _, line := range l.lines {
+		if strings.Contains(line, sub) {
+			out = append(out, line)
+		}
+	}
+
+	return out
+}
+
+func TestFetch_ARefusedAlertsReadLogsStatusAndMessageOncePerChange(t *testing.T) {
+	logs := captureLogs(t)
+	var hits atomic.Int32
+	status := atomic.Int32{}
+	status.Store(http.StatusForbidden)
+	client := advisoryFetchServer(t, &hits, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(int(status.Load()))
+		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
+	})
+
+	advisoriesOf(t, client)
+	client.ExpireAdvisories()
+	advisoriesOf(t, client)
+
+	got := logs.matching("dependency advisories refused")
+	require.Len(t, got, 1, "the same refusal is logged once")
+	assert.Contains(t, got[0], "status=403")
+	assert.Contains(t, got[0], "Resource not accessible by integration")
+	assert.Contains(t, got[0], "repo=alrayyes/a")
+	assert.NotContains(t, got[0], "test-token")
+
+	status.Store(http.StatusNotFound)
+	client.ExpireAdvisories()
+	advisoriesOf(t, client)
+
+	got = logs.matching("dependency advisories refused")
+	require.Len(t, got, 2, "a changed answer is logged again")
+	assert.Contains(t, got[1], "status=404")
+}
+
+func TestFetch_ARefusedAnswerIsAskedAgainAfterTheRetryDelay(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+	client := advisoryFetchServer(t, &hits, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) })
+
+	advisoriesOf(t, client)
+
+	assert.Equal(t, github.AdvisoriesRetry, client.AdvisoryTTLForTest("alrayyes/a").Round(time.Minute))
 }

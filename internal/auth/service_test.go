@@ -1,12 +1,17 @@
 package auth_test
 
 import (
+	"database/sql"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func newTestService(t *testing.T) (*auth.Service, *auth.Store) {
@@ -106,4 +111,37 @@ func TestBeginRegistration_PasskeyLessUser_KeepsTheRowAndItsID(t *testing.T) {
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
 	require.NoError(t, err, "no second row appeared, and the username holds until a ceremony wins")
 	assert.Equal(t, owner.ID, got.ID, "the row, and so its id, must survive")
+}
+
+// Rows from earlier attempts under other usernames pile up while no passkey
+// exists. Once their ceremony has expired nothing can finish them, so a new
+// attempt clears them. A recent one may still be mid-ceremony and stays.
+func TestBeginRegistration_ClearsExpiredAbandonedRowsOfOtherUsernames(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	wa, err := webauthn.New(&webauthn.Config{RPID: "localhost", RPDisplayName: "Test", RPOrigins: []string{"http://localhost"}})
+	require.NoError(t, err)
+	svc := auth.NewService(wa, store)
+	for _, name := range []string{"owner", "stale", "recent"} {
+		_, err = store.CreateUser(t.Context(), name, name)
+		require.NoError(t, err)
+	}
+	_, err = db.ExecContext(t.Context(), `UPDATE users SET created_at = ? WHERE username = 'owner'`, time.Now().UTC().Add(-2*time.Hour))
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `UPDATE users SET created_at = ? WHERE username = 'stale'`, time.Now().UTC().Add(-time.Hour))
+	require.NoError(t, err)
+
+	_, err = svc.BeginRegistration(t.Context(), "third", "Third")
+	require.NoError(t, err)
+
+	_, err = store.GetUserByUsername(t.Context(), "owner")
+	require.NoError(t, err, "the oldest row is the owner's and is claimed, not dropped")
+	_, err = store.GetUserByUsername(t.Context(), "stale")
+	require.ErrorIs(t, err, auth.ErrNotFound)
+	_, err = store.GetUserByUsername(t.Context(), "recent")
+	require.NoError(t, err)
 }

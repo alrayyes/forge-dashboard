@@ -72,9 +72,9 @@
       `text/csv` response), both tagged `admin`. Verify with
       `bun run lint:api`.
 - [x] 3.2 Implement `handleAdminListRequests` and
-      `handleAdminExportRequests` in `internal/api/admin.go`, wired in
-      `internal/api/server.go` behind the existing
-      `auth.RequireAuth(store)(auth.RequireAdmin(...))` composition.
+      `handleAdminExportRequests`, wired in `internal/api/server.go` behind
+      `auth.RequireAuth(store)` (they were admin-only until an instance became
+      single-user).
       `handleAdminExportRequests` writes `Content-Type: text/csv` and a
       `Content-Disposition: attachment` header, one row per entry with a
       header row naming each column. Verify with

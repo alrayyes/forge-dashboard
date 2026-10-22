@@ -346,7 +346,7 @@ The kind says why the request was made:
 | `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.   |
 | `details`          | A pull request, issue or check list you opened.                                      |
 | `hook_maintenance` | Checking, adding or upgrading webhooks.                                              |
-| `advisories`       | Reading a repo's open Dependabot alerts, once per repo every 15 minutes at most.     |
+| `advisories`       | Reading a repo's open Dependabot alerts, every 15 minutes (5 once refused).          |
 | `user_action`      | A button you pressed, a queued action, or auto-merge and auto-update acting for you. |
 | `unknown`          | A request nobody tagged. That is a bug in the dashboard; please report it.           |
 

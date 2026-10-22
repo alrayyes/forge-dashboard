@@ -2749,10 +2749,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('Dependency Dashboard filter', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     var DEPENDENCY_DASHBOARD_ISSUE = {
       forge: 'github',
       repo: 'alrayyes/forge-dashboard',
@@ -2876,10 +2872,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('Clear filters button (#354)', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     var PR_ONE = {
       forge: 'github',
       repo: 'alrayyes/forge-dashboard',
@@ -2935,7 +2927,7 @@ test.describe('dashboard page', () => {
 
     test.beforeEach(async ({ page }) => {
       await mockDashboard(page);
-      await page.reload();
+      await page.goto('/pull-requests.html');
     });
 
     test('is visible but disabled with no filters active', async ({ page }) => {
