@@ -190,6 +190,27 @@ func TestStore_DeleteUnregisteredUser_RemovesAUserWithNoCredentials(t *testing.T
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
+func TestStore_DeleteUnregisteredUser_SweepsTheCeremoniesOfEveryUserItRemoves(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	session := webauthn.SessionData{Challenge: "c"}
+
+	_, err := store.CreateUser(t.Context(), "stale", "Stale")
+	require.NoError(t, err)
+	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "registration", session, time.Minute))
+	kept, err := store.CreateUser(t.Context(), "kept", "Kept")
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), kept.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SaveCeremony(t.Context(), "kept", "login", session, time.Minute))
+
+	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "someone-else", time.Now().Add(time.Hour)))
+
+	_, err = store.LoadCeremony(t.Context(), "stale", "registration")
+	require.ErrorIs(t, err, auth.ErrNotFound, "a removed user's ceremony must not outlive it")
+	_, err = store.LoadCeremony(t.Context(), "kept", "login")
+	assert.NoError(t, err, "a registered user's ceremony is not touched")
+}
+
 func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
