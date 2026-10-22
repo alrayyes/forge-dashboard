@@ -75,7 +75,7 @@ describe('advisoryPill', () => {
     expect(advisoryPill({ state: 'known', count: -1 })).toBeNull();
   });
 
-  test('unknown ignores a stray count, severity and url', () => {
+  test('unknown draws no pill, whatever count, severity and url it carries', () => {
     expect(
       advisoryPill({
         state: 'unknown',
@@ -83,7 +83,7 @@ describe('advisoryPill', () => {
         highest: 'critical',
         url: URL,
       }),
-    ).toEqual({ tone: 'unknown', text: 'Advisories unknown', href: null });
+    ).toBeNull();
   });
 });
 
