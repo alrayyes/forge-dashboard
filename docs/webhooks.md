@@ -2,7 +2,8 @@
 
 Optional. Without one set up, the dashboard still refreshes on its own schedule
 (`REFRESH_INTERVAL`, 20 minutes by default, longer while every repo has a
-webhook) and the browser tab polls it every 30 seconds — a webhook just closes
+healthy webhook, every forge's last fetch worked and every repo was fully
+fetched) and the browser tab polls it every 30 seconds — a webhook just closes
 that gap, so a new pull request, a closed issue, or a CI status change on a repo
 you're tracking shows up within seconds instead of at the next poll. Nothing
 about this is required for the dashboard to work; skip this page entirely and

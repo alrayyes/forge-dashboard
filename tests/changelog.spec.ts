@@ -55,12 +55,16 @@ async function interceptRendererChunk(page: Page, mode: 'abort' | 'hold') {
     release = r;
   });
   await page.route('**/_app/immutable/**/*.js', async (route) => {
-    const response = await route.fetch();
-    if ((await response.text()).includes(RENDERER_MARKER)) {
-      if (mode === 'abort') return route.abort();
-      await held;
+    try {
+      const response = await route.fetch();
+      if ((await response.text()).includes(RENDERER_MARKER)) {
+        if (mode === 'abort') return await route.abort();
+        await held;
+      }
+      return await route.fulfill({ response });
+    } catch {
+      // The page closed while the chunk was in flight.
     }
-    return route.fulfill({ response });
   });
   return release;
 }
@@ -349,7 +353,13 @@ test.describe('release history page', () => {
       await page.goto('/changelog.html');
       await expect(page.locator('.release-notes li').first()).toBeVisible();
       await expect(page.locator('.plain-notes')).toHaveCount(0);
-      await page.waitForTimeout(300);
+      // Two frames after the notes are in, so a late move would be sampled.
+      await page.evaluate(
+        () =>
+          new Promise((r) =>
+            requestAnimationFrame(() => requestAnimationFrame(r)),
+          ),
+      );
       const ys = await page.evaluate(
         () => (window as unknown as { __ys: number[] }).__ys,
       );
@@ -357,6 +367,45 @@ test.describe('release history page', () => {
       expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(8);
     });
   }
+
+  // The wait for the renderer is bounded. A page clock stands in for the 1.5s,
+  // so the test neither sleeps nor races a real timer.
+  test('a renderer chunk that never arrives shows the plain notes after 1500ms', async ({
+    page,
+  }) => {
+    await serveNotes(page, '### Features\n* **web:** a held note');
+    // The wait starts when the chunk is first asked for, so wait for that.
+    let asked: () => void = () => {};
+    const chunkAsked = new Promise<void>((r) => (asked = r));
+    await page.route('**/_app/immutable/**/*.js', async (route) => {
+      const response = await route.fetch();
+      if ((await response.text()).includes(RENDERER_MARKER)) {
+        asked();
+        return new Promise(() => {});
+      }
+      return route.fulfill({ response });
+    });
+    await page.clock.install();
+    await page.clock.pauseAt(Date.now() + 1000);
+    await page.goto('/changelog.html');
+    await chunkAsked;
+    await page.clock.runFor(1400);
+    await expect(page.locator('.release')).toHaveCount(0);
+    await page.clock.runFor(200);
+    await expect(page.locator('.plain-notes')).toContainText('a held note');
+  });
+
+  // A chunk that fails fast needs no wait: the page can tell it from a render.
+  test('a renderer chunk that fails shows the plain notes without waiting', async ({
+    page,
+  }) => {
+    await serveNotes(page, '### Features\n* **web:** a failed note');
+    await interceptRendererChunk(page, 'abort');
+    await page.clock.install();
+    await page.clock.pauseAt(Date.now() + 1000);
+    await page.goto('/changelog.html');
+    await expect(page.locator('.plain-notes')).toContainText('a failed note');
+  });
 
   // A long URL in plain text has no break point. It wraps inside the card at
   // phone width instead of pushing the page sideways.

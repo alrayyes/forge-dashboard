@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.11](https://github.com/alrayyes/forge-dashboard/compare/v1.7.10...v1.7.11) (2026-10-22)
+
+
+### Bug Fixes
+
+* **db:** wait up to 30s for a busy SQLite lock ([#2416](https://github.com/alrayyes/forge-dashboard/issues/2416)) ([fbc0173](https://github.com/alrayyes/forge-dashboard/commit/fbc0173f96e87a55d12d98d39e2a2f5345c003fa))
+* **web:** tell a failed note render from a rendered one before showing cards ([#2417](https://github.com/alrayyes/forge-dashboard/issues/2417)) ([a2641e9](https://github.com/alrayyes/forge-dashboard/commit/a2641e936e67975ad80384a67bf5e4c6b221ab4e))
+
 ## [1.7.10](https://github.com/alrayyes/forge-dashboard/compare/v1.7.9...v1.7.10) (2026-10-22)
 
 
