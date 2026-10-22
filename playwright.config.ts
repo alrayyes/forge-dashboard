@@ -89,6 +89,7 @@ const singleUserSpecs = [
   '**/unreachable-forge.spec.ts',
   '**/update-branch-request.spec.ts',
   '**/wait-chip.spec.ts',
+  '**/webhooks-failing-repo.spec.ts',
   '**/webhooks-filter-choices.spec.ts',
   '**/webmcp.spec.ts',
   '**/actions-dialog-helper.spec.ts',
