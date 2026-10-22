@@ -249,6 +249,13 @@ func deleteUserRows(ctx context.Context, tx *sql.Tx, u user) (map[string]int64, 
 // (the removed admin "remove user" action left some behind) go too: only the
 // kept user's rows may remain.
 func deleteLeftovers(ctx context.Context, tx *sql.Tx, keeper user) error {
+	// An old database still has its invites table: auth.Store.Init drops it, but
+	// only after this runs. Each invite points at the user who made it, so with
+	// foreign keys on it would block the user delete below. Nothing reads
+	// invites any more, so it goes first.
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS invites`); err != nil {
+		return fmt.Errorf("single-user cleanup: drop the invites table: %w", err)
+	}
 	for _, t := range owned {
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s != ?`, t.name, t.column), keeper.id); err != nil {
 			return fmt.Errorf("single-user cleanup: delete stray %s rows: %w", t.name, err)
