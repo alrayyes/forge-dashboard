@@ -11,6 +11,7 @@ import {
 import { copyButton } from './copy-details';
 import type { FailureDetails } from './feedback';
 import type { ForgeLock } from './forge-lock';
+import { msUntilReset } from './rate-limit';
 
 // How long a queued rerun is held, so the same rerun can't be queued twice.
 const HOLD_MS = 10 * 60 * 1000;
@@ -31,6 +32,9 @@ export function createBranchRerun() {
   // One timer per repository, set when a rerun is queued so the control redraws
   // when the hold ends even if nothing else does.
   const releases = new Map<string, ReturnType<typeof setTimeout>>();
+  // One timer per repository while its forge's rate limit holds the control
+  // back, so the button returns when the limit lifts even with no poll.
+  const unlocks = new Map<string, ReturnType<typeof setTimeout>>();
   const keyOf = (t: RerunTarget) => `${t.forge}\u0000${t.fullName}`;
 
   // A queued rerun is held until the branch's CI moves on or the hold runs out.
@@ -56,6 +60,8 @@ export function createBranchRerun() {
       // No control is left to redraw, so the hold's timer has nothing to do.
       clearTimeout(releases.get(key));
       releases.delete(key);
+      clearTimeout(unlocks.get(key));
+      unlocks.delete(key);
     }
   }
 
@@ -113,18 +119,30 @@ export function createBranchRerun() {
       // Pending, not disabled, so the button keeps focus.
       if (isHeld || sending) button.setAttribute('aria-disabled', 'true');
       else button.removeAttribute('aria-disabled');
-      status.textContent = locked
-        ? locked.reason
-        : isHeld
+      // The lock adds to what the status already says; it never replaces it.
+      status.textContent = [
+        isHeld
           ? 'Rerun queued. The new results show here after the next refresh.'
           : sending
             ? 'Queuing the rerun…'
-            : '';
+            : '',
+        locked?.reason ?? '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      clearTimeout(unlocks.get(key));
+      unlocks.delete(key);
+      const wait = locked?.resetsAt ? msUntilReset(locked.resetsAt) : null;
+      if (wait !== null)
+        unlocks.set(
+          key,
+          setTimeout(() => syncAll(key), wait),
+        );
       for (const extra of failureBox.querySelectorAll(
         '.pipeline-rerun-copy, .feedback-details',
       ))
         extra.remove();
-      if (state?.phase === 'failed') {
+      if (state?.phase === 'failed' && !locked) {
         failure.textContent = state.message;
         failureBox.hidden = false;
         failureBox.appendChild(
@@ -135,7 +153,6 @@ export function createBranchRerun() {
         failure.textContent = '';
       }
     };
-    sync();
     const view = { node: wrap, sync };
     const live = views.get(key) ?? new Set();
     views.set(key, live);

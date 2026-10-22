@@ -126,6 +126,7 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
+  import { forgeLockReason } from "#lib/forge-lock.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -2605,29 +2606,11 @@
       forgeName: string,
       budget: "rest" | "graphql" = "rest",
     ): LockInfo | null {
-      const health = lastForges.find((f) => f.forge === forgeName);
-      if (health && health.reachable === false) {
-        // The forge can't be reached, so nothing here can work (#1199). The
-        // controls are not drawn (see readOnlyBecauseRateLimited), and one
-        // banner says why, once (#360, #755).
-        return {
-          reason: "This forge can't be reached right now.",
-          code: "forge_unreachable",
-        };
-      }
       // #361: Merge, Update branch, Close and the bot commands are REST
       // calls, so REST's budget decides them; auto-merge is a GraphQL
-      // mutation and asks for that budget instead. The two are separate
-      // allowances, and one saying nothing about the other would leave a
-      // row looking clickable until the click itself failed.
-      const spent =
-        health?.[budget === "rest" ? "rateLimitREST" : "rateLimitGraphQL"];
-      if (isRateLimited(spent))
-        return {
-          reason: rateLimitedReason(forgeName, spent),
-          code: "rate_limited",
-        };
-      return null;
+      // mutation and asks for that budget instead. An unreachable forge
+      // (#1199) draws no controls, and one banner says why, once (#360, #755).
+      return forgeLockReason(lastForges, forgeName, Date.now(), budget);
     }
 
     // A forge whose budget is spent, or that can't be reached, is read-only

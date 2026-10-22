@@ -82,6 +82,17 @@ async function openPanel(
   return dialog;
 }
 
+// Steps the page's clock until its own poll of the branches has gone out,
+// whatever the interval is, then lets the answer land.
+async function runUntilPolled(page: Page) {
+  let polled = false;
+  page.on('request', (req) => {
+    if (req.url().endsWith('/api/main-branches')) polled = true;
+  });
+  for (let i = 0; i < 120 && !polled; i++) await page.clock.runFor(5_000);
+  expect(polled).toBe(true);
+}
+
 test.describe('main branches rerun failed checks', () => {
   test('a poll that redraws the control mid-request still shows the in-flight state, then the refusal', async ({
     page,
@@ -282,7 +293,85 @@ test.describe('main branches rerun failed checks', () => {
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
     forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
-    await page.clock.runFor(60_000);
+
+    // Step the clock until the page's own poll has run, whatever its interval.
+    await runUntilPolled(page);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
+  });
+
+  test('the button comes back when the rate limit resets between polls', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const resetsAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges: [
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 1,
+          rateLimitREST: {
+            limit: 5000,
+            remaining: 0,
+            resetsAt,
+            severity: 'exceeded',
+          },
+        },
+      ],
+    });
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+
+    // No poll answers from here, so only the reset itself can bring it back.
+    await page.route('**/api/main-branches', () => {});
+    await page.clock.runFor(5 * 60_000 + 1_000);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('status')).toHaveText('');
+  });
+
+  test('a lock keeps the queued status and hides an earlier failure', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.route('**/api/main-branches/rerun-checks', (route) =>
+      route.fulfill({ status: 204 }),
+    );
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      "This forge can't be reached right now.",
+    );
+  });
+
+  test('a second host of the same forge kind that is healthy keeps the button', async ({
+    page,
+  }) => {
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges: [
+        { forge: 'github', reachable: false, repoCount: 1 },
+        { forge: 'github', reachable: true, repoCount: 2 },
+      ],
+    });
 
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),

@@ -1,6 +1,7 @@
-// Whether a forge would only refuse a write: it can't be reached, or its REST
-// budget is spent. The pull request board and the Main branches page lock a
-// control on this, with the same wording, instead of letting a click fail.
+// Whether a forge would only refuse a write: it can't be reached, or the
+// budget the write spends is gone. The pull request board and the Main
+// branches page lock a control on this, with the same wording, instead of
+// letting a click fail.
 
 import { FORGE_LABELS } from './forges';
 import {
@@ -9,6 +10,8 @@ import {
   rateLimitReasonText,
 } from './rate-limit';
 
+// The part of a forge's health this reads; the dashboard's and the Main
+// branches responses both carry entries of this shape.
 export type ForgeHealthEntry = {
   forge: string;
   reachable: boolean;
@@ -19,29 +22,45 @@ export type ForgeHealthEntry = {
 export type ForgeLock = {
   code: 'forge_unreachable' | 'rate_limited';
   reason: string;
+  // When a rate limit lifts, so a caller can look again then.
+  resetsAt?: string;
 };
 
-export function forgeLockReason(
-  forges: readonly ForgeHealthEntry[] | undefined,
-  forge: string,
-  now: number = Date.now(),
+function lockOf(
+  health: ForgeHealthEntry,
+  budget: 'rest' | 'graphql',
+  now: number,
 ): ForgeLock | null {
-  const health = forges?.find((f) => f.forge === forge);
-  if (!health) return null;
   if (health.reachable === false)
     return {
       code: 'forge_unreachable',
       reason: "This forge can't be reached right now.",
     };
-  const spent = health.rateLimitREST;
-  if (isRateLimited(spent, now))
-    return {
-      code: 'rate_limited',
-      reason: rateLimitReasonText(
-        FORGE_LABELS[forge] || forge,
-        spent.resetsAt,
-        now,
-      ),
-    };
-  return null;
+  const spent =
+    budget === 'rest' ? health.rateLimitREST : health.rateLimitGraphQL;
+  if (!isRateLimited(spent, now)) return null;
+  return {
+    code: 'rate_limited',
+    reason: rateLimitReasonText(
+      FORGE_LABELS[health.forge] || health.forge,
+      spent.resetsAt,
+      now,
+    ),
+    resetsAt: spent.resetsAt,
+  };
+}
+
+// A row names its forge kind, not the host, so with several entries of one
+// kind the control is locked only when every one of them would refuse it.
+export function forgeLockReason(
+  forges: readonly ForgeHealthEntry[] | undefined,
+  forge: string,
+  now: number = Date.now(),
+  budget: 'rest' | 'graphql' = 'rest',
+): ForgeLock | null {
+  const locks = (forges ?? [])
+    .filter((f) => f.forge === forge)
+    .map((f) => lockOf(f, budget, now));
+  if (locks.length === 0 || locks.some((l) => l === null)) return null;
+  return locks[0];
 }
