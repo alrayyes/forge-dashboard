@@ -452,7 +452,8 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 
 			return
 		}
-		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName))
+		branch, branchOK := a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName)
+		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, branch, branchOK)
 	})
 
 	return true
@@ -497,20 +498,22 @@ func (a *Aggregator) repoRefresherFor(forge Forge) RepoRefresher {
 
 // fetchMainBranch re-reads fullName's default branch when the source can, or
 // returns nil, which leaves the row as it was. A failed read is logged and also
-// leaves it, so one flaky call never blanks the row.
-func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, forge Forge, owner, name, fullName string) *MainBranch {
+// leaves it, so one flaky call never blanks the row. The bool is false only for
+// a failed read: a source that never reads the branch has nothing to be stale
+// about.
+func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, forge Forge, owner, name, fullName string) (*MainBranch, bool) {
 	refresher, ok := src.(MainBranchRefresher)
 	if !ok {
-		return nil
+		return nil, true
 	}
 	branch, err := refresher.FetchMainBranch(ctx, owner, name, fullName)
 	if err != nil {
 		slog.Warn("scoped default branch refresh failed", "forge", forge, "repo", fullName, "error", err)
 
-		return nil
+		return nil, false
 	}
 
-	return &branch
+	return &branch, true
 }
 
 // mergeRepo replaces forge/fullName's own entries in the current snapshot
@@ -520,17 +523,13 @@ func (a *Aggregator) fetchMainBranch(ctx context.Context, src RepoRefresher, for
 // scoped refreshes of different repos run side by side, and a read taken
 // before the lock was released let the later write drop the earlier one's
 // repo (#966).
-func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue, branch *MainBranch) {
-	a.mergeRepoFrom(ctx, forge, fullName, seq, branch, func(Snapshot) ([]PullRequest, []Issue, bool) {
+//
+// branchOK is false when the branch read failed: the repo's stale mark then
+// stays, since the branch row is still the old one.
+func (a *Aggregator) mergeRepo(ctx context.Context, forge Forge, fullName string, seq uint64, prs []PullRequest, issues []Issue, branch *MainBranch, branchOK bool) {
+	a.mergeReposFrom(ctx, forge, seq, []repoRows{{fullName: fullName, branch: branch, rows: func(Snapshot) ([]PullRequest, []Issue, bool) {
 		return prs, issues, true
-	})
-}
-
-// mergeRepoFrom is mergeRepo for a caller whose rows depend on the snapshot
-// they replace. rows is given the current snapshot under the same hold of mu
-// that writes the result, and returns false to drop the write.
-func (a *Aggregator) mergeRepoFrom(ctx context.Context, forge Forge, fullName string, seq uint64, branch *MainBranch, rows func(current Snapshot) ([]PullRequest, []Issue, bool)) {
-	a.mergeReposFrom(ctx, forge, seq, []repoRows{{fullName: fullName, branch: branch, rows: rows, fetched: true}})
+	}, fetched: branchOK}})
 }
 
 // repoRows is one repo's share of a merge: its main branch row, if any, and the
@@ -539,13 +538,14 @@ type repoRows struct {
 	fullName string
 	branch   *MainBranch
 	rows     func(current Snapshot) ([]PullRequest, []Issue, bool)
-	// fetched is true when rows came from a fetch of both the repo's pull
-	// requests and its issues, which is what a stale mark is about. A merge
-	// that re-feeds the snapshot's own issues leaves the mark alone.
+	// fetched is true when rows came from a fetch of the repo's pull requests,
+	// its issues and, where it reads one, its main branch, which is what a stale
+	// mark is about. A merge that re-feeds the snapshot's own issues leaves the
+	// mark alone.
 	fetched bool
 }
 
-// mergeReposFrom is mergeRepoFrom for several repos of one forge at once: every
+// mergeReposFrom merges several repos of one forge at once: every
 // repo is merged into the snapshot under one hold of mu, and the subscribers are
 // told and the after-merge sweeps run once for the lot, not once per repo.
 func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64, repos []repoRows) {

@@ -67,7 +67,8 @@ refresh tries again.
   its first failed fetch, counts as failing for good and stops holding the short
   wait, so one broken repo (issues disabled, an empty repo, a token without the
   scope) doesn't cost every other repo the saving. A webhook-driven refresh that
-  fetches a stale repo clears the mark, which also ends its hold; the CI poll
+  fetches a stale repo clears the mark, which also ends its hold, unless its
+  default branch read failed, since that row is still the old one; the CI poll
   fetches no issues and leaves it. The count belongs to the full refresh, so a
   webhook refresh doesn't restart it: only a full refresh that fetches the repo
   does. A restart forgets how long a repo has been failing, so the count starts

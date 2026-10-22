@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -359,4 +360,32 @@ func TestAggregator_AScopedRefreshDoesNotResetHowLongAFullRefreshHasBeenFailing(
 
 	assert.Equal(t, first, repoNamed(t, agg, "o/b").FailingSince, "the full refresh has failed since the first time")
 	assert.Nil(t, repoNamed(t, agg, "o/a").FailingSince, "and a repo that never failed has no clock")
+}
+
+// failingBranchSource answers a full fetch with a stale repo and a scoped
+// refresh whose default branch read fails.
+type failingBranchSource struct {
+	*branchRefreshingSource
+	result dashboard.Result
+}
+
+func (s *failingBranchSource) Fetch(context.Context) dashboard.Result { return s.result }
+
+func TestAggregator_AScopedRefreshThatCannotReadTheBranchLeavesTheRepoStale(t *testing.T) {
+	t.Parallel()
+
+	result := dashboard.Result{
+		Health:      dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:       []dashboard.Repo{repoWithHook("o/b", true)},
+		FailedRepos: []dashboard.FailedRepo{{FullName: "o/b", MainBranch: true}},
+	}
+	inner := newBranchRefreshingSource()
+	inner.err = errors.New("branch read failed")
+	agg := dashboard.NewAggregator([]dashboard.Source{&failingBranchSource{branchRefreshingSource: inner, result: result}})
+	agg.Refresh(t.Context())
+	require.NotNil(t, repoNamed(t, agg, "o/b").StaleSince)
+
+	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "b", "o/b"))
+
+	assert.NotNil(t, repoNamed(t, agg, "o/b").StaleSince, "the branch row is still the old one")
 }
