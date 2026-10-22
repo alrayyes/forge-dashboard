@@ -145,9 +145,14 @@ first: the older release would not find its tables and would start from empty
 settings.
 
 A database that still holds several users from before the single-user release
-stops with `run the previous release first`. Start the release that removes
-the extra users first, then this one. A refused start writes nothing and takes
-no copy.
+stops with `run the previous release first`. Upgrading takes two releases: start
+the release that removes the extra users first, let it finish, then start this
+one. A refused start writes nothing and takes no copy.
+
+Rows keyed to a user that is not in the `users` table belong to nobody, so the
+rebuild refuses them too, whether or not the owner has rows in the same table.
+The message names the table and the user ids and gives the `DELETE` that clears
+them. Copy the database file, run it, and start again. Nothing is deleted for you.
 
 That release keeps the oldest user who holds a passkey. If the database has
 several users and none holds a passkey, it can't choose and the previous

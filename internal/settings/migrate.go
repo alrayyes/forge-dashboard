@@ -31,6 +31,11 @@ var ErrNoOwner = errors.New("settings: the settings tables hold rows but no user
 // shape. The step rolls back, so the old table is still there.
 var ErrCopyIncomplete = errors.New("settings: rows were lost in the copy")
 
+// ErrOrphanRows is returned when a settings table holds rows keyed to a user id
+// that is not in users. Nobody can reach them, and copying only the owner's rows
+// would drop them without a word, so the migration stops and says which ids.
+var ErrOrphanRows = errors.New("settings: rows belong to a user that does not exist")
+
 // ErrSettingsTableInTheWay is returned when a settings table already exists
 // beside user_credentials and holds rows. Replacing it would overwrite them.
 var ErrSettingsTableInTheWay = errors.New("settings: a settings table with rows already exists beside user_credentials")
@@ -239,9 +244,13 @@ func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
 	return nil
 }
 
-// checkOwnerHasRows refuses a table that holds rows when none of them belong to
-// the owner: copying would leave it empty and the old rows would be dropped. It
-// runs in the preflight so that the refusal happens before the backup.
+// checkOwnerHasRows refuses rows the copy would lose without anyone choosing
+// that. A table that holds rows, none of them the owner's, would end up empty.
+// Rows keyed to a user id that is not in users belong to nobody and could never
+// be reached again, so they stop the migration too, even beside the owner's own.
+// Rows of another user who still exists are different: the owner wins, and the
+// step logs what it drops. It runs in the preflight so that a refusal happens
+// before the backup.
 func checkOwnerHasRows(ctx context.Context, q dbmigrate.Tx, pending []rebuild, owner string) error {
 	for _, r := range pending {
 		total, err := countRows(ctx, q, r.old, "")
@@ -253,11 +262,65 @@ func checkOwnerHasRows(ctx context.Context, q dbmigrate.Tx, pending []rebuild, o
 			return err
 		}
 		if total > 0 && mine == 0 {
-			return fmt.Errorf("%w: %s had %d rows, %d belong to the owner, 0 were copied", ErrCopyIncomplete, r.old, total, mine)
+			ids, err := foreignUserIDs(ctx, q, r.old, owner, "")
+			if err != nil {
+				return err
+			}
+
+			return fmt.Errorf("%w: %s had %d rows, none belong to the owner (user ids %s)%s",
+				ErrCopyIncomplete, r.old, total, strings.Join(ids, ", "), r.cleanUpAdvice(ids))
+		}
+		orphans, err := foreignUserIDs(ctx, q, r.old, owner, "NOT")
+		if err != nil {
+			return err
+		}
+		if len(orphans) > 0 {
+			return fmt.Errorf("%w: %s has rows for user ids that are not in users (%s)%s",
+				ErrOrphanRows, r.old, strings.Join(orphans, ", "), r.cleanUpAdvice(orphans))
 		}
 	}
 
 	return nil
+}
+
+// cleanUpAdvice is the way out of a refusal over rows that belong to nobody
+// useful. The migration never deletes them itself.
+func (r rebuild) cleanUpAdvice(ids []string) string {
+	quoted := make([]string, 0, len(ids))
+	for _, id := range ids {
+		quoted = append(quoted, "'"+strings.ReplaceAll(id, "'", "''")+"'")
+	}
+
+	return fmt.Sprintf("; copy the database file, delete them with DELETE FROM %s WHERE user_id IN (%s), then start again, or restore a backup",
+		r.old, strings.Join(quoted, ", "))
+}
+
+// foreignUserIDs lists the user ids in a table other than the owner's, or only
+// those missing from the users table when not is "NOT".
+func foreignUserIDs(ctx context.Context, q dbmigrate.Tx, table, owner, not string) ([]string, error) {
+	query := `SELECT DISTINCT user_id FROM ` + table + ` WHERE user_id != ?`
+	if not != "" {
+		query += ` AND user_id NOT IN (SELECT id FROM users)`
+	}
+	rows, err := q.QueryContext(ctx, query+` ORDER BY user_id`, owner)
+	if err != nil {
+		return nil, fmt.Errorf("list the other user ids in %s: %w", table, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("list the other user ids in %s: %w", table, err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list the other user ids in %s: %w", table, err)
+	}
+
+	return ids, nil
 }
 
 // checkSettingsTableFree makes room for the new settings table. One can only

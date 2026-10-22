@@ -64,7 +64,13 @@ func seedOldShape(t *testing.T, db *sql.DB) {
 func migrate(t *testing.T, db *sql.DB, path string) (dbmigrate.Result, error) {
 	t.Helper()
 
-	return dbmigrate.Run(t.Context(), db, path, settings.MigrationSteps(), quietLog) //nolint:wrapcheck // test helper
+	return migrateLogged(t, db, path, quietLog)
+}
+
+func migrateLogged(t *testing.T, db *sql.DB, path string, log *slog.Logger) (dbmigrate.Result, error) {
+	t.Helper()
+
+	return dbmigrate.Run(t.Context(), db, path, settings.MigrationSteps(), log) //nolint:wrapcheck // test helper
 }
 
 func hasUserID(t *testing.T, db *sql.DB, table string) bool {
@@ -182,13 +188,31 @@ func TestMigrate_SeveralUsersButCleanupMarker_KeepsOnlyTheOwnersRows(t *testing.
 	mustExec(t, db, `INSERT INTO single_user_cleanup VALUES ('2026-07-01 00:00:00', 'ryan', 1)`)
 	mustExec(t, db, `INSERT INTO users (id, username, credentials_json, created_at) VALUES ('other', 'sam', '[{}]', '2026-06-01 00:00:00')`)
 	mustExec(t, db, `INSERT INTO ignored_repos VALUES ('other', 'github', 'z/z', 1, 1)`)
-	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES ('ghost', 'ghost-token', '2026-02-02 00:00:00')`)
+	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES ('other', 'other-token', '2026-02-02 00:00:00')`)
 
 	_, err := migrate(t, db, path)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM ignored_repos`))
 	assert.Equal(t, "hook-token", scalar[string](t, db, `SELECT webhook_token FROM settings`))
+}
+
+func TestMigrate_RowsOfAUnknownUserBesideTheOwners_AbortsAndSaysWhatToDo(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES ('ghost', 'ghost-token', '2026-02-02 00:00:00')`)
+
+	for range 2 {
+		_, err := migrate(t, db, path)
+
+		require.ErrorIs(t, err, settings.ErrOrphanRows)
+		assert.Contains(t, err.Error(), "user_credentials")
+		assert.Contains(t, err.Error(), "ghost")
+		assert.Contains(t, err.Error(), "DELETE FROM user_credentials WHERE user_id")
+	}
+
+	assert.Empty(t, backupFiles(t, path))
+	assert.True(t, hasUserID(t, db, "user_credentials"))
 }
 
 func TestMigrate_DatabaseOlderThanTheLaterColumns_StillMigrates(t *testing.T) {
