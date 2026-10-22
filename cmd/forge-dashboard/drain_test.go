@@ -7,15 +7,18 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"net"
 	"net/http"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func TestDrainThenShutdown_FlipsUnreadyBeforeShutdownAndWaitsTheDelay(t *testing.T) {
@@ -193,4 +196,55 @@ func TestServe_ListenerFails_ReturnsTheErrorAndDoesNotLeakTheShutdownWaiter(t *t
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "server stopped")
+}
+
+// A request stuck on a locked database must not hold the stop past the drain:
+// serve returns once the shutdown timeout is up, whatever a handler waits on.
+func TestServe_ExitsWithinTheTimeoutWhileAHandlerWaitsOnALockedDatabase(t *testing.T) {
+	t.Setenv("SHUTDOWN_DRAIN", "100ms")
+
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "app.db")+"?_busy_timeout=10000&_journal_mode=WAL")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	_, err = db.Exec(`CREATE TABLE t (n INTEGER)`)
+	require.NoError(t, err)
+	holder, err := db.Conn(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = holder.Close() })
+	_, err = holder.ExecContext(t.Context(), `BEGIN IMMEDIATE`)
+	require.NoError(t, err)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := ln.Addr().String()
+	inHandler := make(chan struct{})
+	srv := &http.Server{
+		ReadHeaderTimeout: time.Second,
+		Handler: http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			close(inHandler)
+			_, _ = db.ExecContext(r.Context(), `INSERT INTO t VALUES (1)`)
+		}),
+	}
+	ctx, stop := context.WithCancel(t.Context())
+	served := make(chan error, 1)
+	go func() { served <- serve(ctx, srv, ln, &api.Drain{}, 200*time.Millisecond, nil) }()
+
+	go func() {
+		resp, err := http.Get("http://" + addr)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	<-inHandler
+
+	start := time.Now()
+	stop()
+
+	select {
+	case err := <-served:
+		require.NoError(t, err)
+		assert.Less(t, time.Since(start), 2*time.Second, "exit should follow the drain and the 200ms timeout, not the lock wait")
+	case <-time.After(5 * time.Second):
+		t.Fatal("serve did not return while a handler waited on the lock")
+	}
 }
