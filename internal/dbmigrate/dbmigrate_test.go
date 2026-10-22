@@ -53,7 +53,7 @@ func version(t *testing.T, db *sql.DB) int {
 // a column being dropped, the way SQLite's documented procedure does.
 var rebuild = dbmigrate.Step{
 	Name: "drop user_id from notes",
-	Run: func(ctx context.Context, tx *sql.Tx) error {
+	Run: func(ctx context.Context, tx dbmigrate.Tx) error {
 		for _, q := range []string{
 			`CREATE TABLE notes_new (title TEXT NOT NULL PRIMARY KEY, body TEXT NOT NULL)`,
 			`INSERT INTO notes_new (title, body) SELECT title, body FROM notes`,
@@ -146,7 +146,7 @@ func TestRun_AFailingStepLeavesEveryTableAndTheVersionAlone(t *testing.T) {
 	boom := errors.New("injected")
 	failing := dbmigrate.Step{
 		Name: "fails after rebuilding",
-		Run: func(ctx context.Context, tx *sql.Tx) error {
+		Run: func(ctx context.Context, tx dbmigrate.Tx) error {
 			if err := rebuild.Run(ctx, tx); err != nil {
 				return err //nolint:wrapcheck // test step
 			}
@@ -167,7 +167,7 @@ func TestRun_AFailingStepLeavesEveryTableAndTheVersionAlone(t *testing.T) {
 func TestRun_EarlierStepsStayWhenALaterOneFails(t *testing.T) {
 	db, path := open(t)
 	seedOld(t, db)
-	failing := dbmigrate.Step{Name: "second", Run: func(context.Context, *sql.Tx) error { return errors.New("no") }}
+	failing := dbmigrate.Step{Name: "second", Run: func(context.Context, dbmigrate.Tx) error { return errors.New("no") }}
 
 	_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{rebuild, failing}, quiet)
 
@@ -179,7 +179,7 @@ func TestRun_EarlierStepsStayWhenALaterOneFails(t *testing.T) {
 func TestRun_AFreshDatabaseIsStampedWithoutRunningAStep(t *testing.T) {
 	db, path := open(t)
 	ran := false
-	step := dbmigrate.Step{Name: "x", Run: func(context.Context, *sql.Tx) error {
+	step := dbmigrate.Step{Name: "x", Run: func(context.Context, dbmigrate.Tx) error {
 		ran = true
 
 		return nil
@@ -212,7 +212,7 @@ func TestRun_ADanglingForeignKeyRollsTheStepBack(t *testing.T) {
 	exec(t, db, `CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id))`)
 	exec(t, db, `INSERT INTO parent (id) VALUES (1)`)
 	exec(t, db, `INSERT INTO child (id, parent_id) VALUES (1, 1)`)
-	orphan := dbmigrate.Step{Name: "orphans the child", Run: func(ctx context.Context, tx *sql.Tx) error {
+	orphan := dbmigrate.Step{Name: "orphans the child", Run: func(ctx context.Context, tx dbmigrate.Tx) error {
 		_, err := tx.ExecContext(ctx, `DELETE FROM parent`)
 
 		return err //nolint:wrapcheck // test step
@@ -236,4 +236,27 @@ func TestRun_LeavesForeignKeysAsItFoundThem(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, count(t, db, `PRAGMA foreign_keys`))
+}
+
+func TestRun_AStepHoldsTheWriteLockFromItsFirstStatement(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	other, err := sql.Open("sqlite", path) // no busy timeout: a held lock fails at once
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = other.Close() })
+	var writeErr error
+	readOnly := dbmigrate.Step{Name: "reads first", Run: func(ctx context.Context, tx dbmigrate.Tx) error {
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM notes`).Scan(&n); err != nil {
+			return err //nolint:wrapcheck // test step
+		}
+		_, writeErr = other.ExecContext(ctx, `INSERT INTO notes (user_id, title, body) VALUES ('u', 'x', 'y')`)
+
+		return nil
+	}}
+
+	_, err = dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{readOnly}, quiet)
+
+	require.NoError(t, err)
+	require.Error(t, writeErr, "another connection must not get a write in once the step has begun")
 }

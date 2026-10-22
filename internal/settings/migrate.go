@@ -163,7 +163,7 @@ var legacyColumns = []string{
 // the old one dropped. A table that is missing or already has the new shape is
 // skipped, so the step is safe to replay and a table no release created yet is
 // left to the store.
-func dropUserID(ctx context.Context, tx *sql.Tx) error {
+func dropUserID(ctx context.Context, tx dbmigrate.Tx) error {
 	pending, err := tablesWithUserID(ctx, tx)
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func dropUserID(ctx context.Context, tx *sql.Tx) error {
 }
 
 // rebuild swaps one table for its new shape, copying the owner's rows.
-func (r rebuild) rebuild(ctx context.Context, tx *sql.Tx, owner string) error {
+func (r rebuild) rebuild(ctx context.Context, tx dbmigrate.Tx, owner string) error {
 	if err := addLegacyColumns(ctx, tx, r.old); err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func (r rebuild) rebuild(ctx context.Context, tx *sql.Tx, owner string) error {
 	return nil
 }
 
-func tablesWithUserID(ctx context.Context, tx *sql.Tx) ([]rebuild, error) {
+func tablesWithUserID(ctx context.Context, tx dbmigrate.Tx) ([]rebuild, error) {
 	var pending []rebuild
 	for _, r := range rebuilds {
 		var n int
@@ -232,7 +232,7 @@ func tablesWithUserID(ctx context.Context, tx *sql.Tx) ([]rebuild, error) {
 	return pending, nil
 }
 
-func addLegacyColumns(ctx context.Context, tx *sql.Tx, table string) error {
+func addLegacyColumns(ctx context.Context, tx dbmigrate.Tx, table string) error {
 	for _, stmt := range legacyColumns {
 		if !strings.HasPrefix(stmt, `ALTER TABLE `+table+` `) {
 			continue
@@ -249,7 +249,7 @@ func addLegacyColumns(ctx context.Context, tx *sql.Tx, table string) error {
 // cleanup marker it refuses. With the marker, or one user, the owner is the
 // oldest user holding a passkey, else the oldest user. The empty string, when
 // no user exists, matches no row, so nothing is copied.
-func soleUser(ctx context.Context, tx *sql.Tx) (string, error) {
+func soleUser(ctx context.Context, tx dbmigrate.Tx) (string, error) {
 	var hasUsers, hasMarker int
 	if err := tx.QueryRowContext(ctx,
 		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'users'`).Scan(&hasUsers); err != nil {

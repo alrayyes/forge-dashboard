@@ -21,11 +21,18 @@ var ErrNewerDatabase = errors.New("database is newer than this release")
 // ErrDanglingForeignKey is returned when a step leaves a row pointing at nothing.
 var ErrDanglingForeignKey = errors.New("foreign key check failed: a row points at nothing")
 
-// Step is one schema change. Run gets the transaction the step commits in and
-// must not commit or roll it back itself.
+// Tx is what a step runs its statements through. It is the open transaction
+// the step commits in; a step must not commit or roll it back itself.
+type Tx interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// Step is one schema change.
 type Step struct {
 	Name string
-	Run  func(ctx context.Context, tx *sql.Tx) error
+	Run  func(ctx context.Context, tx Tx) error
 }
 
 // Result says what Run did.
@@ -122,22 +129,10 @@ func readVersion(ctx context.Context, conn *sql.Conn) (version int, fresh bool, 
 }
 
 func setVersion(ctx context.Context, conn *sql.Conn, version int) error {
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("migrate: begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := writeVersion(ctx, tx, version); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("migrate: commit: %w", err)
-	}
-
-	return nil
+	return inTransaction(ctx, conn, "stamp", func() error { return writeVersion(ctx, conn, version) })
 }
 
-func writeVersion(ctx context.Context, tx *sql.Tx, version int) error {
+func writeVersion(ctx context.Context, tx Tx, version int) error {
 	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
 		return fmt.Errorf("migrate: create schema_version: %w", err)
 	}
@@ -154,29 +149,46 @@ func writeVersion(ctx context.Context, tx *sql.Tx, version int) error {
 // apply runs one step, checks no foreign key dangles, and records the version,
 // all in one transaction.
 func apply(ctx context.Context, conn *sql.Conn, version int, step Step) error {
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("migrate: begin %q: %w", step.Name, err)
-	}
-	defer func() { _ = tx.Rollback() }()
+	return inTransaction(ctx, conn, step.Name, func() error {
+		if err := step.Run(ctx, conn); err != nil {
+			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		}
+		if err := checkForeignKeys(ctx, conn); err != nil {
+			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		}
 
-	if err := step.Run(ctx, tx); err != nil {
-		return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		return writeVersion(ctx, conn, version)
+	})
+}
+
+// inTransaction runs fn between BEGIN IMMEDIATE and COMMIT on conn. IMMEDIATE
+// takes the write lock up front. A deferred transaction that read first and
+// wrote later could fail with SQLITE_BUSY_SNAPSHOT when another connection
+// wrote in between, halfway through a rebuild. database/sql's BeginTx can't
+// ask for it, so the statements go through the connection directly.
+func inTransaction(ctx context.Context, conn *sql.Conn, name string, fn func() error) (err error) {
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("migrate: begin %q: %w", name, err)
 	}
-	if err := checkForeignKeys(ctx, tx); err != nil {
-		return fmt.Errorf("migrate: step %q: %w", step.Name, err)
-	}
-	if err := writeVersion(ctx, tx, version); err != nil {
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+		}
+	}()
+
+	if err := fn(); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("migrate: commit %q: %w", step.Name, err)
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("migrate: commit %q: %w", name, err)
 	}
+	committed = true
 
 	return nil
 }
 
-func checkForeignKeys(ctx context.Context, tx *sql.Tx) error {
+func checkForeignKeys(ctx context.Context, tx Tx) error {
 	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
 	if err != nil {
 		return fmt.Errorf("foreign key check: %w", err)
