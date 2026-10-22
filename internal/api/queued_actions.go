@@ -23,8 +23,7 @@ type queuedActionRequest struct {
 }
 
 // handleQueuedActionsList implements GET /api/queued-actions: the signed-in
-// user's own queue, waiting and finished. The store scopes it by account, so
-// there is no other user's row to leak.
+// queue, waiting and finished. There is one queue per instance.
 func handleQueuedActionsList(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := auth.UserFromContext(r.Context()); !ok {
@@ -50,8 +49,8 @@ type queuedActionsResponse struct {
 	QueuedActions []dashboard.QueuedAction `json:"queuedActions"`
 }
 
-// resolveQueuedActionsFor is the user's own queue, shared by the HTTP handler
-// and the MCP tool so both answer the same. The store scopes it by account.
+// resolveQueuedActionsFor is the instance's queue, shared by the HTTP handler
+// and the MCP tool so both answer the same.
 // The store returns an empty, never nil, slice, so nothing queued encodes as [].
 func resolveQueuedActionsFor(ctx context.Context, deps Deps) ([]dashboard.QueuedAction, error) {
 	items, err := deps.SettingsStore.QueuedActions(ctx)

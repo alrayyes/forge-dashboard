@@ -341,7 +341,7 @@ type boardView struct {
 	includeHidden bool
 }
 
-// buildDashboardResponse merges snap's tracked-repo list with userID's
+// buildDashboardResponse merges snap's tracked-repo list with the
 // recorded webhook deliveries and ignored repos. HasWebhook is an OR of
 // two signals: r's own live check (dashboard.WebhookChecker, against the
 // forge's actual webhook list — see #238) and the delivery table below,
@@ -711,7 +711,7 @@ func (f issueFilter) hides(issue dashboard.Issue, housekeeping bool) bool {
 	return (f.hideHousekeeping && housekeeping) || f.titles.Matches(issue.Title)
 }
 
-// loadIssueFilter reads userID's issue settings. A store failure, or a saved
+// loadIssueFilter reads the saved issue settings. A store failure, or a saved
 // pattern that no longer compiles, degrades to showing more, never to failing
 // the response.
 func loadIssueFilter(ctx context.Context, store *settings.Store) issueFilter {
