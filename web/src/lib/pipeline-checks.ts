@@ -14,6 +14,8 @@ export type Check = {
   durationSeconds?: number;
   failedStep?: string;
   excerpt?: string;
+  // The forge's job id, which the output is read by; absent when it has none.
+  jobId?: number;
 };
 
 // The per-check status vocabulary of the checks endpoints' CheckState enum.
