@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/alrayyes/forge-dashboard/compare/v1.8.0...v1.8.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **dashboard:** clear a repo's stale mark only for what was refetched ([#2437](https://github.com/alrayyes/forge-dashboard/issues/2437)) ([2f85149](https://github.com/alrayyes/forge-dashboard/commit/2f851493e27e61703e6e9db6a32217fd2910d307))
+
 ## [1.8.0](https://github.com/alrayyes/forge-dashboard/compare/v1.7.14...v1.8.0) (2026-10-22)
 
 
