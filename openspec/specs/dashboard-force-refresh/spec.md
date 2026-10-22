@@ -48,3 +48,18 @@ one refresh pass already makes.
 
 - **WHEN** a user triggers a refresh twice in quick succession
 - **THEN** the forges are not queried twice as a result
+
+### Requirement: A refresh asked during the first refresh answers at once
+
+While the first refresh since the server started is still running, a
+triggered refresh SHALL NOT wait for it. It SHALL answer within moments with
+the current snapshot and a `Retry-After` header, as a call inside the
+cooldown does.
+
+#### Scenario: Refresh pressed during start-up
+
+- **WHEN** a signed-in user triggers a refresh while the first refresh
+  since start-up is still running
+- **THEN** the answer carries the current snapshot and `Retry-After`, no
+  second fetch starts, and the page keeps its starting-up notice and locks
+  the button for that long

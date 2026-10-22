@@ -32,7 +32,9 @@ The dashboard response carries `readIntervalSeconds`, the server's advice on
 how often to re-read it. `POST /api/dashboard/refresh` fetches from the forges
 right now, but at most once every five seconds. A call inside that
 window skips the fetch and answers 200 with the current snapshot and a
-`Retry-After` header, so a follow-up refresh after an action never fails. The
+`Retry-After` header, so a follow-up refresh after an action never fails. So
+does a call while the first refresh since start-up is still running, which
+would otherwise wait for all of it. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
 
