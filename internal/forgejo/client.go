@@ -164,7 +164,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		schedule:       map[string]cachedSchedule{},
 		finishedJobs:   newFinishedJobs(maxFinishedJobs),
 		excerpts:       newExcerptCache(maxExcerpts),
-		excerptTimeout: excerptReadTimeout,
+		excerptTimeout: dashboard.ExcerptReadTimeout,
 	}}
 }
 

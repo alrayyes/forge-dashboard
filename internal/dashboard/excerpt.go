@@ -3,6 +3,7 @@ package dashboard
 import (
 	"regexp"
 	"strings"
+	"time"
 )
 
 // The excerpt shown for a failed check in the pipeline dialog is capped in
@@ -53,3 +54,7 @@ func LogExcerpt(tail string, partial bool) string {
 
 	return out
 }
+
+// ExcerptReadTimeout bounds each failed job's log read for its excerpt, on both
+// forges. The reads run together, so it also bounds the whole step.
+const ExcerptReadTimeout = 15 * time.Second

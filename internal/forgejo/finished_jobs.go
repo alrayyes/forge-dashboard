@@ -3,6 +3,7 @@ package forgejo
 import (
 	"slices"
 	"sync"
+	"time"
 
 	"code.gitea.io/sdk/gitea"
 )
@@ -66,13 +67,19 @@ type excerptCache struct {
 	max   int
 	text  map[string]string
 	order []string // keys, least recently read first
+	// failed is when each key's read last failed, so a log that can't be read
+	// isn't asked for again within failedExcerptDelay.
+	failed map[string]time.Time
 }
+
+// failedExcerptDelay is how long a failed read is remembered.
+const failedExcerptDelay = time.Minute
 
 // maxExcerpts bounds a client's excerptCache; an excerpt is at most 2 KB.
 const maxExcerpts = 500
 
 func newExcerptCache(limit int) *excerptCache {
-	return &excerptCache{max: limit, text: map[string]string{}}
+	return &excerptCache{max: limit, text: map[string]string{}, failed: map[string]time.Time{}}
 }
 
 func (e *excerptCache) get(key string) (string, bool) {
@@ -105,4 +112,28 @@ func (e *excerptCache) touch(key string) {
 	if i := slices.Index(e.order, key); i >= 0 {
 		e.order = append(slices.Delete(e.order, i, i+1), key)
 	}
+}
+
+// fail remembers that key's log couldn't be read just now.
+func (e *excerptCache) fail(key string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	now := time.Now()
+	for k, at := range e.failed {
+		if now.Sub(at) >= failedExcerptDelay {
+			delete(e.failed, k)
+		}
+	}
+	if len(e.failed) < e.max {
+		e.failed[key] = now
+	}
+}
+
+// recentlyFailed reports whether key's read failed within failedExcerptDelay.
+func (e *excerptCache) recentlyFailed(key string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	at, ok := e.failed[key]
+
+	return ok && time.Since(at) < failedExcerptDelay
 }

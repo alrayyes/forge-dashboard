@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"slices"
 	"sync"
-	"time"
 
 	"code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -97,56 +96,73 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 	return buf, cut, nil
 }
 
-// excerptReadTimeout bounds each failed job's log read for its excerpt, as the
-// GitHub client bounds its own (logFetchTimeout). The reads run together, so it
-// also bounds the whole step.
-const excerptReadTimeout = 15 * time.Second
-
 // addFailureExcerpts fills Excerpt on the newest few failed or timed-out Actions
 // jobs among checks, from the end of their logs, as the GitHub client does. A
 // pull request's list and a branch's list both come through here, so the two
 // boards agree. keys[i] names check i's finished job (its id and finish time,
-// so a rerun reads afresh): a finished job's log never changes, so an excerpt
-// read once is kept and a red default branch costs no log read per poll.
+// so a rerun reads afresh), or "" for a job that isn't finished: a finished
+// job's log never changes, so an excerpt read once is kept and a red default
+// branch costs no log read per poll. A read that failed is remembered briefly
+// too, so a log that can't be read isn't asked for on every poll.
 //
 // It is best effort: a job with no id, or a log the token can't read, keeps its
 // check as it was, with the link to the run. Newest first (the highest job id),
-// so jobs of superseded runs don't use up the budget. The reads run together,
-// each under excerptReadTimeout; the first refusal for a missing permission
-// cancels the rest, since they would be refused the same way.
+// so jobs of superseded runs don't use up the budget; only reads count against
+// dashboard.MaxExcerptJobs, not excerpts already kept. The reads run together,
+// each under dashboard.ExcerptReadTimeout; the first refusal for a missing
+// permission cancels the rest, since they would be refused the same way.
 func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, keys []string) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
+	reads := 0
 	for _, i := range newestFailures(checks) {
-		if text, ok := c.excerpts.get(keys[i]); ok && keys[i] != "" {
-			checks[i].Excerpt = text
+		if keys[i] != "" {
+			if text, ok := c.excerpts.get(keys[i]); ok {
+				checks[i].Excerpt = text
 
-			continue
+				continue
+			}
+			if c.excerpts.recentlyFailed(keys[i]) {
+				continue
+			}
 		}
-		wg.Go(func() {
-			text, err := c.readExcerpt(ctx, owner, name, checks[i].JobID)
-			if err != nil {
-				slog.Debug("forgejo job log unavailable", "job", checks[i].JobID, "err", err)
-				// A refused token fails every sibling alike; a missing log is
-				// only that job's.
-				if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
-					cancel()
-				}
-
-				return
-			}
-			checks[i].Excerpt = text
-			if keys[i] != "" {
-				c.excerpts.put(keys[i], text)
-			}
-		})
+		if reads == dashboard.MaxExcerptJobs {
+			break
+		}
+		reads++
+		wg.Go(func() { c.fillExcerpt(ctx, cancel, owner, name, &checks[i], keys[i]) })
 	}
 	wg.Wait()
 }
 
+// fillExcerpt reads one failed job's log into check.Excerpt and keeps the result
+// under key, when it has one.
+func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, owner, name string, check *dashboard.Check, key string) {
+	text, err := c.readExcerpt(ctx, owner, name, check.JobID)
+	if err != nil {
+		slog.Debug("forgejo job log unavailable", "job", check.JobID, "err", err)
+		// A sibling's cancel says nothing about this log.
+		if key != "" && ctx.Err() == nil {
+			c.excerpts.fail(key)
+		}
+		// A refused token fails every sibling alike; a missing log is only
+		// that job's.
+		if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
+			cancel()
+		}
+
+		return
+	}
+	check.Excerpt = text
+	// An empty log may only not have been flushed yet; read it again.
+	if key != "" && text != "" {
+		c.excerpts.put(key, text)
+	}
+}
+
 // newestFailures is the indexes of the failed or timed-out checks that have a
-// job id, newest first (the highest id), at most dashboard.MaxExcerptJobs.
+// job id, newest first (the highest id).
 func newestFailures(checks []dashboard.Check) []int {
 	var picked []int
 	for i := range checks {
@@ -156,7 +172,7 @@ func newestFailures(checks []dashboard.Check) []int {
 	}
 	slices.SortStableFunc(picked, func(a, b int) int { return cmp.Compare(checks[b].JobID, checks[a].JobID) })
 
-	return picked[:min(len(picked), dashboard.MaxExcerptJobs)]
+	return picked
 }
 
 // readExcerpt reads job id's log under c.excerptTimeout and cuts its excerpt.

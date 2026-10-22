@@ -4098,7 +4098,7 @@ func restRequestedReviewerLogins(users []*ghsdk.User) []string {
 // at the end, and a full log can be megabytes.
 const logTailBytes = 16 * 1024
 
-var logFetchTimeout = 15 * time.Second
+var logFetchTimeout = dashboard.ExcerptReadTimeout
 
 // runDurationSeconds is how long a completed check run ran, nil otherwise.
 func runDurationSeconds(r *ghsdk.CheckRun) *int {

@@ -191,23 +191,52 @@ func TestListDefaultBranchChecks_FailedJobCarriesItsExcerpt(t *testing.T) {
 func TestListChecks_AMissingLogDoesNotStopTheOtherReads(t *testing.T) {
 	t.Parallel()
 
-	var calls atomic.Int32
-	jobs := []map[string]any{}
-	logs := map[int]string{}
-	for id := 1; id <= 4; id++ {
-		jobs = append(jobs, map[string]any{"id": id, "name": fmt.Sprintf("job %d", id), "status": "failure"})
-		logs[id] = "boom\n"
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": []map[string]any{
+			{"id": 1, "name": "old", "status": "failure"},
+			{"id": 2, "name": "mid", "status": "failure"},
+			{"id": 3, "name": "new", "status": "failure"},
+		}})
+	})
+	notFound := make(chan struct{})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/3/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		close(notFound)
+	})
+	// The siblings answer only after the 404 has gone out and had time to be
+	// acted on, so a cancel on 404 would reach them first.
+	sibling := func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-notFound:
+		case <-r.Context().Done():
+			return
+		}
+		select {
+		case <-time.After(300 * time.Millisecond):
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = io.WriteString(w, "boom\n")
 	}
-	delete(logs, 4) // the newest job's log expired: 404
-	client := excerptServer(t, jobs, logs, &calls)
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/1/logs", sibling)
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/2/logs", sibling)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
 
 	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
 
 	require.NoError(t, err)
-	assert.Empty(t, checks[3].Excerpt)
-	for _, c := range checks[:3] {
-		assert.Equal(t, "boom", c.Excerpt, c.Name)
-	}
+	assert.Equal(t, "boom", checks[0].Excerpt)
+	assert.Equal(t, "boom", checks[1].Excerpt)
+	assert.Empty(t, checks[2].Excerpt)
 }
 
 func TestListChecks_ARefusedLogStopsTheOtherReads(t *testing.T) {
@@ -267,7 +296,7 @@ func TestListChecks_AFailedReadIsNotCached(t *testing.T) {
 
 	var calls atomic.Int32
 	logs := map[int]string{}
-	client := excerptServer(t, []map[string]any{{"id": 7, "name": "build", "status": "failure", "completed_at": "2026-10-10T09:05:00Z"}}, logs, &calls)
+	client := excerptServer(t, []map[string]any{{"id": 7, "name": "build", "status": "failure"}}, logs, &calls)
 
 	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
 	require.NoError(t, err)
@@ -277,4 +306,67 @@ func TestListChecks_AFailedReadIsNotCached(t *testing.T) {
 
 	assert.Empty(t, first[0].Excerpt)
 	assert.Equal(t, "boom", second[0].Excerpt)
+}
+
+func finishedFailures(n int) []map[string]any {
+	jobs := make([]map[string]any, 0, n)
+	for id := 1; id <= n; id++ {
+		jobs = append(jobs, map[string]any{"id": id, "name": fmt.Sprintf("job %d", id), "status": "failure", "completed_at": "2026-10-10T09:05:00Z"})
+	}
+
+	return jobs
+}
+
+func TestListChecks_CachedExcerptsDoNotUseUpTheReadBudget(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	logs := map[int]string{}
+	for id := 3; id <= 7; id++ {
+		logs[id] = "boom\n"
+	}
+	client := excerptServer(t, finishedFailures(7), logs, &calls)
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	require.Equal(t, int32(5), calls.Load())
+	logs[1], logs[2] = "older\n", "older\n"
+
+	checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(7), calls.Load(), "only the two uncached jobs were read")
+	assert.Equal(t, "older", checks[0].Excerpt)
+	assert.Equal(t, "older", checks[1].Excerpt)
+	assert.Equal(t, "boom", checks[6].Excerpt)
+}
+
+func TestListChecks_AnEmptyLogIsNotCached(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	logs := map[int]string{7: ""}
+	client := excerptServer(t, finishedFailures(7)[6:], logs, &calls)
+	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+	logs[7] = "boom\n"
+
+	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Empty(t, first[0].Excerpt)
+	assert.Equal(t, "boom", second[0].Excerpt)
+}
+
+func TestListChecks_AFailedReadIsNotRetriedAtOnce(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	client := excerptServer(t, finishedFailures(7)[6:], map[int]string{}, &calls)
+
+	for range 3 {
+		_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, int32(1), calls.Load(), "a log that failed to read waits out the retry delay")
 }
