@@ -323,7 +323,7 @@ func TestMigrate_RowsKeyedToSomeoneElse_TwoRefusedStartsLeaveNoBackup(t *testing
 	assert.True(t, hasUserID(t, db, "user_credentials"))
 }
 
-func TestMigrate_SeveralUsersNoneWithAPasskey_SaysThePreviousReleaseWillNotHelp(t *testing.T) {
+func TestMigrate_SeveralUsersNoneWithAPasskey_KeepsTheOldestAndWarns(t *testing.T) {
 	db, path := openMigrationDB(t)
 	seedOldShape(t, db)
 	mustExec(t, db, `UPDATE users SET credentials_json = '[]'`)
@@ -331,11 +331,9 @@ func TestMigrate_SeveralUsersNoneWithAPasskey_SaysThePreviousReleaseWillNotHelp(
 
 	_, err := migrate(t, db, path)
 
-	require.ErrorIs(t, err, settings.ErrNoPasskeyHolder)
-	require.NotErrorIs(t, err, settings.ErrRunPreviousRelease)
-	assert.NotContains(t, err.Error(), "run the previous release")
-	assert.Contains(t, err.Error(), "passkey")
-	assert.Empty(t, backupFiles(t, path))
+	require.NoError(t, err, "the previous release can't settle this database, so the upgrade must not wait for it")
+	assert.False(t, hasUserID(t, db, "user_credentials"))
+	assert.NotEmpty(t, backupFiles(t, path))
 }
 
 func TestMigrate_TheOwnerIsTheUserAuthCallsTheOwner(t *testing.T) {

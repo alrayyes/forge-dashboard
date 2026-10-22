@@ -17,12 +17,6 @@ import (
 // would merge their settings into one row, so the migration refuses.
 var ErrRunPreviousRelease = errors.New("settings: the database has several users and the single-user cleanup has not run")
 
-// ErrNoPasskeyHolder is returned when the database has several users, none of
-// them holding a passkey. The single-user cleanup keeps the oldest user with a
-// passkey, so it can't pick one here and never writes its marker: running the
-// previous release won't settle it.
-var ErrNoPasskeyHolder = errors.New("settings: the database has several users and none holds a passkey")
-
 // ErrNoOwner is returned when the settings tables hold rows but there is no
 // user to attach them to. Copying nothing and dropping the old tables would
 // lose them.
@@ -488,8 +482,8 @@ func addLegacyColumns(ctx context.Context, tx dbmigrate.Tx, table string) error 
 }
 
 // chooseOwner returns the id whose rows survive. With several users and no
-// cleanup marker it refuses: the previous release's cleanup settles that, unless
-// no user holds a passkey, when it never will. With the marker, or one user, the
+// cleanup marker it refuses when one holds a passkey, since the previous
+// release's cleanup settles that; with none it never will, so the oldest wins. With the marker, or one user, the
 // owner is the one auth.Store.Owner returns. With no user at all and rows to
 // keep it refuses, since copying nothing would lose them.
 func chooseOwner(ctx context.Context, q dbmigrate.Tx, pending []rebuild) (string, error) {
@@ -531,7 +525,7 @@ func requireNoRows(ctx context.Context, q dbmigrate.Tx, pending []rebuild) error
 }
 
 // requireCleanupDone refuses several users until the single-user cleanup has
-// settled them, and says which way out applies.
+// settled them, unless none holds a passkey and the cleanup can't run.
 func requireCleanupDone(ctx context.Context, q dbmigrate.Tx) error {
 	var hasMarker int
 	if err := q.QueryRowContext(ctx,
@@ -546,7 +540,11 @@ func requireCleanupDone(ctx context.Context, q dbmigrate.Tx) error {
 		return fmt.Errorf("count users with a passkey: %w", err)
 	}
 	if holders == 0 {
-		return fmt.Errorf("%w: the single-user cleanup keeps the oldest user with a passkey, so it can't run and the previous release won't help; keep the one user you want in the users table (take a backup first) or restore a backup", ErrNoPasskeyHolder)
+		// The cleanup keeps the oldest user with a passkey, so with none it never
+		// runs and never writes its marker. Waiting for it would never end. Every
+		// row here is an abandoned registration: the oldest wins, as it does once
+		// the marker exists, and the rest is logged and kept in the backup.
+		return nil
 	}
 
 	return fmt.Errorf("%w: run the previous release first, then this one", ErrRunPreviousRelease)

@@ -197,6 +197,22 @@ func TestMigrate_SeveralUsersAndNoCleanupMarker_RefusesWithoutABackup(t *testing
 	assert.False(t, tableExists(t, db, "schema_version"))
 }
 
+func TestMigrate_SeveralUsersNoneWithAPasskeyAndNoMarker_KeepsTheOldestAndWarns(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `UPDATE users SET credentials_json = '[]'`)
+	mustExec(t, db, `INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('other', 'sam', 'Sam', '[]', '2026-06-01 00:00:00')`)
+	mustExec(t, db, `INSERT INTO sessions VALUES ('other-session', 'other', '2099-01-01 00:00:00', '2026-02-01 00:00:00')`)
+
+	var logs strings.Builder
+	_, err := migrateLogged(t, db, path, slog.New(slog.NewTextHandler(&logs, nil)))
+
+	require.NoError(t, err, "the previous release writes no marker here, so waiting for it never ends")
+	assert.False(t, hasColumn(t, db, "sessions", "user_id"))
+	assert.Contains(t, logs.String(), "user_id=other")
+	assert.NotEmpty(t, backupFiles(t, path))
+}
+
 func TestMigrate_SeveralUsersButCleanupMarker_KeepsTheOwnersRowsAndWarnsAboutTheRest(t *testing.T) {
 	db, path := openMigrationDB(t)
 	seedOldShape(t, db)

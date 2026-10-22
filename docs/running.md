@@ -171,10 +171,10 @@ the copy. For sessions, API tokens and passkey labels the log names the table, t
 count and the user ids, never a token or a session value.
 
 That release keeps the oldest user who holds a passkey. If the database has
-several users and none holds a passkey, it can't choose and the previous
-release won't help. The server says so and stops. Keep the one user you want
-in the `users` table (copy the file first) and start again. A settings table
-that already holds rows beside the old one stops the upgrade the same way, so
-nothing is overwritten.
+several users and none holds a passkey, that release has nothing to keep and
+writes no marker, so the rebuild does not wait for it: the oldest user wins, as
+above, and the log names the dropped rows. Those users are abandoned
+registrations. A settings table that already holds rows beside the old one
+stops the upgrade, so nothing is overwritten.
 
 Delete the copy once you are satisfied; the server never does.

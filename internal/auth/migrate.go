@@ -191,7 +191,16 @@ func chooseAuthOwner(ctx context.Context, q dbmigrate.Tx, pending []authRebuild)
 			return "", fmt.Errorf("look for the cleanup marker: %w", err)
 		}
 		if marker == 0 {
-			return "", fmt.Errorf("%w: run the previous release first, then this one", ErrSeveralUsers)
+			// With no passkey holder the cleanup never runs and writes no marker, so
+			// waiting for it never ends: the oldest wins, the rest is logged.
+			var holders int
+			if err := q.QueryRowContext(ctx,
+				`SELECT count(*) FROM users WHERE credentials_json != '[]'`).Scan(&holders); err != nil {
+				return "", fmt.Errorf("count users with a passkey: %w", err)
+			}
+			if holders > 0 {
+				return "", fmt.Errorf("%w: run the previous release first, then this one", ErrSeveralUsers)
+			}
 		}
 	}
 
