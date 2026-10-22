@@ -336,6 +336,26 @@ func TestMigrate_SeveralUsersNoneWithAPasskey_KeepsTheOldestAndWarns(t *testing.
 	assert.NotEmpty(t, backupFiles(t, path))
 }
 
+func TestMigrate_SeveralUsersNoneWithAPasskeyAndNoMarker_RefusesWhenAnotherUserHoldsSettings(t *testing.T) {
+	db, path := openMigrationDB(t)
+	seedOldShape(t, db)
+	mustExec(t, db, `UPDATE users SET credentials_json = '[]'`)
+	mustExec(t, db, `INSERT INTO users (id, username, credentials_json, created_at) VALUES ('other', 'sam', '[]', '2026-06-01 00:00:00')`)
+	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, github_token, updated_at) VALUES ('other', 'sam-hook', 'sam-gh', '2026-02-02 00:00:00')`)
+
+	for range 2 {
+		_, err := migrate(t, db, path)
+
+		require.ErrorIs(t, err, settings.ErrOthersHoldData)
+		assert.Contains(t, err.Error(), "sam")
+		assert.Contains(t, err.Error(), "user_credentials")
+		assert.NotContains(t, err.Error(), "sam-gh", "a token is a secret")
+	}
+
+	assert.Empty(t, backupFiles(t, path))
+	assert.True(t, hasUserID(t, db, "user_credentials"))
+}
+
 func TestMigrate_TheOwnerIsTheUserAuthCallsTheOwner(t *testing.T) {
 	db, path := openMigrationDB(t)
 	seedOldShape(t, db)

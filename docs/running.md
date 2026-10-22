@@ -184,8 +184,9 @@ the earlier clean-up keeps, or the oldest user when none holds one.
 The earlier release keeps the oldest user who holds a passkey. If the database
 has several users and none holds a passkey, that release has nothing to keep and
 writes no marker, so the rebuild does not wait for it. It goes on only when the
-other users hold no sessions, API tokens or passkey labels: they are abandoned
-registrations, and the oldest user wins. If one of them still holds any, the
+other users hold no settings (forge tokens, webhook secret and so on), sessions,
+API tokens or passkey labels: they are abandoned registrations, and the oldest
+user wins. If one of them still holds any, the
 server says which user and table and stops. Delete the users you do not want
 from `users` and their rows (copy the file first), then start again. A settings
 table that already holds rows beside the old one stops the upgrade, so nothing
