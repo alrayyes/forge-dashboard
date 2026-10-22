@@ -18,6 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// advisoryTestToken is distinctive so a log line that leaks it is easy to spot.
+const advisoryTestToken = "ghp_advisorysecret0123456789" //nolint:gosec // a fake token for a test
+
 // advisoryFetchServer serves one repo and the alerts handler, counting alert reads.
 func advisoryFetchServer(t *testing.T, hits *atomic.Int32, handler http.HandlerFunc) *github.Client {
 	t.Helper()
@@ -35,7 +38,7 @@ func advisoryFetchServer(t *testing.T, hits *atomic.Int32, handler http.HandlerF
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	return github.NewClient("test-token", "", srv.URL)
+	return github.NewClient(advisoryTestToken, "", srv.URL)
 }
 
 func advisoriesOf(t *testing.T, client *github.Client) *dashboard.Advisories {
@@ -203,7 +206,7 @@ func TestFetch_CountsAdvisoryReadsUnderTheirOwnKind(t *testing.T) {
 	assert.Equal(t, int64(1), advisoryReads)
 }
 
-// logCapture swaps slog's default for a handler that records every line.
+// logCapture is a slog handler that records every line.
 type logCapture struct {
 	mu    sync.Mutex
 	lines []string
@@ -227,14 +230,19 @@ func (l *logCapture) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-func captureLogs(t *testing.T) *logCapture {
-	t.Helper()
+// captureLogs gives the client its own logger, so no test touches slog's default.
+func captureLogs(client *github.Client) *logCapture {
 	c := &logCapture{}
-	previous := slog.Default()
-	slog.SetDefault(slog.New(c))
-	t.Cleanup(func() { slog.SetDefault(previous) })
+	client.SetLogger(slog.New(c))
 
 	return c
+}
+
+func (l *logCapture) all() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return append([]string(nil), l.lines...)
 }
 
 func (l *logCapture) matching(sub string) []string {
@@ -251,7 +259,8 @@ func (l *logCapture) matching(sub string) []string {
 }
 
 func TestFetch_ARefusedAlertsReadLogsStatusAndMessageOncePerChange(t *testing.T) {
-	logs := captureLogs(t)
+	t.Parallel()
+
 	var hits atomic.Int32
 	status := atomic.Int32{}
 	status.Store(http.StatusForbidden)
@@ -259,6 +268,7 @@ func TestFetch_ARefusedAlertsReadLogsStatusAndMessageOncePerChange(t *testing.T)
 		w.WriteHeader(int(status.Load()))
 		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
 	})
+	logs := captureLogs(client)
 
 	advisoriesOf(t, client)
 	client.ExpireAdvisories()
@@ -269,7 +279,6 @@ func TestFetch_ARefusedAlertsReadLogsStatusAndMessageOncePerChange(t *testing.T)
 	assert.Contains(t, got[0], "status=403")
 	assert.Contains(t, got[0], "Resource not accessible by integration")
 	assert.Contains(t, got[0], "repo=alrayyes/a")
-	assert.NotContains(t, got[0], "test-token")
 
 	status.Store(http.StatusNotFound)
 	client.ExpireAdvisories()
@@ -278,15 +287,62 @@ func TestFetch_ARefusedAlertsReadLogsStatusAndMessageOncePerChange(t *testing.T)
 	got = logs.matching("dependency advisories refused")
 	require.Len(t, got, 2, "a changed answer is logged again")
 	assert.Contains(t, got[1], "status=404")
+
+	for _, line := range logs.all() {
+		assert.NotContains(t, line, advisoryTestToken, "the token never reaches a log line")
+	}
 }
 
-func TestFetch_ARefusedAnswerIsAskedAgainAfterTheRetryDelay(t *testing.T) {
+func TestFetch_ARefusalSurvivesAFailedReadBetweenTwoIdenticalOnes(t *testing.T) {
 	t.Parallel()
 
 	var hits atomic.Int32
-	client := advisoryFetchServer(t, &hits, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) })
+	status := atomic.Int32{}
+	status.Store(http.StatusForbidden)
+	client := advisoryFetchServer(t, &hits, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(int(status.Load()))
+		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
+	})
+	logs := captureLogs(client)
 
 	advisoriesOf(t, client)
+	status.Store(http.StatusBadGateway)
+	client.ExpireAdvisories()
+	advisoriesOf(t, client)
+	status.Store(http.StatusForbidden)
+	client.ExpireAdvisories()
+	advisoriesOf(t, client)
 
-	assert.Equal(t, github.AdvisoriesRetry, client.AdvisoryTTLForTest("alrayyes/a").Round(time.Minute))
+	assert.Len(t, logs.matching("dependency advisories refused"), 1, "403, 5xx, the same 403 says it once")
+	assert.Len(t, logs.matching("dependency advisories read failed"), 1)
+}
+
+func TestFetch_RetryDelayTellsARefusalFromAFailureAndBacksOffOnARepeat(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+	status := atomic.Int32{}
+	status.Store(http.StatusForbidden)
+	client := advisoryFetchServer(t, &hits, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(int(status.Load()))
+		_, _ = w.Write([]byte(`{"message":"Resource not accessible by integration"}`))
+	})
+	left := func() time.Duration { return client.AdvisoryTTLForTest("alrayyes/a").Round(time.Second) }
+
+	advisoriesOf(t, client)
+	assert.Equal(t, github.AdvisoriesRetry, left(), "a first refusal is asked again soon")
+
+	client.ExpireAdvisories()
+	advisoriesOf(t, client)
+	assert.Equal(t, github.AdvisoriesTTL, left(), "the same refusal twice settles at the normal interval")
+
+	status.Store(http.StatusBadGateway)
+	client.ExpireAdvisories()
+	advisoriesOf(t, client)
+	assert.Equal(t, github.AdvisoriesRetry, left(), "a failed read is retried soon")
+
+	status.Store(http.StatusNotFound)
+	client.ExpireAdvisories()
+	advisoriesOf(t, client)
+	assert.Equal(t, github.AdvisoriesRetry, left(), "a changed refusal starts over")
 }

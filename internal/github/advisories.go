@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -19,9 +18,9 @@ import (
 // for every finished check.
 const advisoriesTTL = 15 * time.Minute
 
-// advisoriesRetry is how long a failed read waits before it is tried again, so
-// an outage or a spent rate limit costs one call per repo per interval, not one
-// per refresh.
+// advisoriesRetry is how long a failed read, or a first refusal, waits before it
+// is tried again, so an outage or a spent rate limit costs one call per repo per
+// interval, not one per refresh.
 const advisoriesRetry = 5 * time.Minute
 
 // maxAlertPages bounds the pages read for one repo: 100 alerts a page. A repo
@@ -50,8 +49,10 @@ type advisoryEntry struct {
 	value   dashboard.Advisories
 	expires time.Time
 	// refusal is the last 403 or 404 logged for this repo, so the same
-	// refusal is said once and a changed one is said again.
+	// refusal is said once and a changed one is said again. A failed read keeps it.
 	refusal string
+	// refusals counts how many reads in a row got that same refusal.
+	refusals int
 }
 
 // get returns the cached answer and whether it is still fresh.
@@ -63,18 +64,51 @@ func (c *advisoryCache) get(repo string) (v dashboard.Advisories, fresh, ok bool
 	return e.value, ok && time.Now().Before(e.expires), ok
 }
 
-// put stores an answer. refusal is the 403 or 404 behind an unknown one, or
-// empty; it returns whether that refusal differs from the one stored before.
-func (c *advisoryCache) put(repo string, v dashboard.Advisories, ttl time.Duration, refusal string) (changed bool) {
+// putAnswer stores a definitive answer and forgets any refusal.
+func (c *advisoryCache) putAnswer(repo string, v dashboard.Advisories) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.set(repo, advisoryEntry{value: v, expires: time.Now().Add(advisoriesTTL)})
+}
+
+// putFailure stores the answer to keep after a failed or throttled read, to be
+// retried soon. It leaves the refusal alone: the failure says nothing about it.
+func (c *advisoryCache) putFailure(repo string, v dashboard.Advisories) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e := c.entries[repo]
+	e.value, e.expires = v, time.Now().Add(advisoriesRetry)
+	c.set(repo, e)
+}
+
+// putRefusal stores an unknown answer behind a 403 or 404. It returns whether
+// this refusal differs from the one stored before, and so is worth logging. The
+// first of a kind is asked again soon, since the owner may be fixing the
+// permission; the same one again settles at the normal interval, so a repo that
+// stays refused costs no more than any other.
+func (c *advisoryCache) putRefusal(repo string, v dashboard.Advisories, refusal string) (changed bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e := c.entries[repo]
+	changed = e.refusal != refusal
+	ttl := advisoriesRetry
+	if changed {
+		e.refusals = 1
+	} else {
+		e.refusals++
+		ttl = advisoriesTTL
+	}
+	e.value, e.refusal, e.expires = v, refusal, time.Now().Add(ttl)
+	c.set(repo, e)
+
+	return changed
+}
+
+func (c *advisoryCache) set(repo string, e advisoryEntry) {
 	if c.entries == nil {
 		c.entries = map[string]advisoryEntry{}
 	}
-	changed = refusal != "" && c.entries[repo].refusal != refusal
-	c.entries[repo] = advisoryEntry{value: v, expires: time.Now().Add(ttl), refusal: refusal}
-
-	return changed
+	c.entries[repo] = e
 }
 
 // ReadAdvisories implements dashboard.AdvisoryReader from the repository's open
@@ -174,7 +208,7 @@ func refused(err error) bool {
 
 // advisoriesFor answers a repo's advisories from the cache when fresh, else
 // reads them. A definitive answer (known, or unknown for 403/404) replaces
-// whatever was cached. A failed or rate-limited read keeps the last answer, so
+// whatever was cached. A refusal repeated unchanged waits the full TTL, not the retry delay. A failed or rate-limited read keeps the last answer, so
 // it never turns a known count into unknown or zero, and waits advisoriesRetry
 // before asking again. With nothing cached it answers unknown.
 func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string) *dashboard.Advisories {
@@ -187,28 +221,26 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 	v, refusal, err := readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
 	if err != nil {
 		if errors.Is(err, errAdvisoriesThrottled) {
-			slog.Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", key)
+			c.logger().Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", key)
 		} else {
-			slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", key, "error", err)
+			c.logger().Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", key, "error", err)
 		}
 		if !have {
 			old = *dashboard.UnknownAdvisories()
 		}
-		c.advisories.put(key, old, advisoriesRetry, "")
+		c.advisories.putFailure(key, old)
 
 		return &old
 	}
 	if refusal != nil {
-		// A refusal is asked again soon: the owner may be fixing the permission,
-		// and an unknown that outlives the fix reads as if it did not work.
-		if c.advisories.put(key, v, advisoriesRetry, refusal.String()) {
-			slog.Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", key,
+		if c.advisories.putRefusal(key, v, refusal.String()) {
+			c.logger().Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", key,
 				"status", refusal.status, "message", refusal.message)
 		}
 
 		return &v
 	}
-	c.advisories.put(key, v, advisoriesTTL, "")
+	c.advisories.putAnswer(key, v)
 
 	return &v
 }
