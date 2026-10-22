@@ -343,7 +343,6 @@ for (const b of bots) {
     test('a refresh already in flight at the click does not clear the queued state, the next one does', async ({
       page,
     }) => {
-      await page.goto('/bots.html');
       let release: () => void = () => {};
       const gate = new Promise<void>((resolve) => {
         release = resolve;
@@ -378,6 +377,7 @@ for (const b of bots) {
         });
       });
 
+      await page.goto('/bots.html');
       // The refresh starts first and stays in flight across the click.
       await page.locator('#force-refresh-button').click();
       await row(page).getByRole('button', { name: b.button }).click();
