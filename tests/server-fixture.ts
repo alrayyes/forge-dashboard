@@ -118,6 +118,8 @@ async function startOnce(): Promise<Started> {
       ENCRYPTION_KEY: randomBytes(32).toString('base64'),
       RP_ID: 'localhost',
       RP_ORIGIN: baseURL,
+      // No lockfile contents leave the machine during a test.
+      OSV_ADVISORIES: 'off',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
