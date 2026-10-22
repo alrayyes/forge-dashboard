@@ -419,4 +419,146 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(status).toContainText('Cmd+C');
     await expect(status).toContainText('The log is selected below');
   });
+  test('pressing Copy log again keeps the field to copy from until the new log arrives', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      document.execCommand = () => false;
+    });
+    await setup(page, {
+      status: 200,
+      body: { text: 'first log\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await expect(field).toHaveValue('first log\n');
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route('**/api/checks/log*', async (route: Route) => {
+      await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'second log\n', truncated: false }),
+      });
+    });
+    await field.focus();
+    await dialog
+      .getByRole('button', { name: 'Copy log: build' })
+      .press('Enter');
+
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      'Copying',
+    );
+    await expect(field).toHaveValue('first log\n');
+    release();
+    await expect(field).toHaveValue('second log\n');
+  });
+});
+
+test.describe('a rerun gives a failed check a new job', () => {
+  test('the field to copy from and its instruction go, so the old log cannot be pasted for the new run', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      document.execCommand = () => false;
+    });
+    const row = (failed: number) => ({
+      forge: 'github',
+      fullName: 'acme/auth-service',
+      url: 'https://example.com/acme/auth-service',
+      branch: 'main',
+      status: 'failed',
+      commit: {
+        sha: 'd98f3c2',
+        subject: 'fix: change',
+        author: 'sre-dev',
+        committedAt: new Date(Date.now() - 1800_000).toISOString(),
+      },
+      failingJobs: [],
+      finishedAt: null,
+      durationSeconds: null,
+      runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
+      checks: { passed: 0, running: 0, waiting: 0, failed },
+      stale: false,
+      staleSince: null,
+    });
+    const state = {
+      failed: 1,
+      jobId: 9,
+      excerpt: 'old boom',
+    };
+    await page.clock.install();
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/main-branches', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          counts: {
+            failed: 1,
+            passed: 0,
+            running: 0,
+            cancelled: 0,
+            awaitingApproval: 0,
+            none: 0,
+            total: 1,
+          },
+          branches: [row(state.failed)],
+        }),
+      }),
+    );
+    await page.route('**/api/main-branches/checks*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          checks: [
+            {
+              name: 'build',
+              state: 'failure',
+              url: 'https://example.com/r/1',
+              jobId: state.jobId,
+              excerpt: state.excerpt,
+            },
+          ],
+        }),
+      }),
+    );
+    await page.route('**/api/checks/log*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          text: `log of job ${state.jobId}\n`,
+          truncated: false,
+        }),
+      }),
+    );
+    await page.goto('/');
+    await page
+      .getByRole('button', { name: /open pipeline/i })
+      .first()
+      .click();
+    const dialog = page.getByRole('dialog', { name: /pipeline/i });
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await expect(field).toHaveValue('log of job 9\n');
+
+    state.failed = 2;
+    state.jobId = 10;
+    state.excerpt = 'new boom';
+    await page.clock.runFor(60_000);
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+      'new boom',
+    );
+    await expect(field).toHaveCount(0);
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText('');
+  });
 });

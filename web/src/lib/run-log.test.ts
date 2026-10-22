@@ -6,6 +6,7 @@ import {
   copyStatus,
   type LogResult,
   loadRunLog,
+  logSource,
   logToCopy,
   logUrl,
   notePlaces,
@@ -258,6 +259,38 @@ describe('copyStatus', () => {
       'The excerpt is selected below',
     );
     expect(copyStatus('selected', excerpt, 'GitHub')).toContain('Gone.');
+  });
+});
+
+describe('copyStatus for a cut log copied by hand', () => {
+  test('keeps the caveat that only the last part of the log is there', () => {
+    const cut = { text: 'tail', kind: 'cut' as const, why: '' };
+    const said = copyStatus('selected', cut, 'GitHub');
+
+    expect(said).toContain('The log is selected below');
+    expect(said).toContain('last 256 KB');
+    expect(said).toContain('Open the run on GitHub for the rest');
+  });
+});
+
+describe('logSource', () => {
+  const checks =
+    '/api/pull-requests/checks?forge=github&fullName=a%2Fb&number=4';
+
+  test('gives the address of the job log', () => {
+    expect(logSource(checks, 31).url).toBe(logUrl(checks, 31));
+    expect(logSource(checks, 31).why).toBeUndefined();
+  });
+
+  test('a check with no job has no address and no reason of its own', () => {
+    expect(logSource(checks, undefined)).toEqual({ url: null });
+  });
+
+  test('a checks address naming no repository says so', () => {
+    const none = logSource('/api/pull-requests/checks?number=4', 31);
+
+    expect(none.url).toBeNull();
+    expect(none.why).toContain('which repository');
   });
 });
 

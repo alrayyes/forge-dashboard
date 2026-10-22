@@ -4,7 +4,12 @@
   // read, and the status says which landed. Text only: nothing here is parsed
   // as markup.
   import { onDestroy, tick } from "svelte";
-  import { copyPending, copyStatus, logToCopy, logUrl } from "#lib/run-log.js";
+  import {
+    copyPending,
+    copyStatus,
+    logSource,
+    logToCopy,
+  } from "#lib/run-log.js";
 
   let {
     name,
@@ -43,6 +48,23 @@
     if (stale) timer = setTimeout(() => (status = ""), 10000);
   }
 
+  // The row is keyed by the check's name, so a rerun hands the same component a
+  // new job and excerpt. What was copied or shown for the old one must not stay
+  // for the new one: someone could paste a stale log into a ticket.
+  let generation = 0;
+  let identity: string | undefined;
+  $effect.pre(() => {
+    const next = `${jobId ?? ""}\u0000${excerpt}`;
+    if (identity !== undefined && next !== identity) {
+      generation++;
+      clearTimeout(timer);
+      manual = "";
+      status = "";
+      busy = false;
+    }
+    identity = next;
+  });
+
   onDestroy(() => {
     gone = true;
     clearTimeout(timer);
@@ -78,8 +100,8 @@
   async function copy() {
     if (busy) return;
     const host = button?.closest("dialog") ?? document.body;
+    const run = generation;
     busy = true;
-    manual = "";
     clearTimeout(timer);
     status = "";
     let said = "Couldn't copy the log.";
@@ -87,14 +109,13 @@
     try {
       // The clipboard write starts here, inside the click, with the log still
       // being read.
+      const source = logSource(checksUrl, jobId);
       const pending = logToCopy(
-        jobId ? logUrl(checksUrl, jobId) : null,
+        source.url,
         excerpt,
         forgeName,
         fetch,
-        jobId
-          ? "Couldn't tell which repository this check belongs to."
-          : undefined,
+        source.why,
       );
       const { outcome, prepared } = await copyPending(pending, {
         clipboard: navigator.clipboard,
@@ -109,19 +130,23 @@
                 }),
         select: (text) => selectCopy(text, host),
       });
+      // The check was rerun meanwhile: this log is not its log any more.
+      if (run !== generation) return;
       said = copyStatus(outcome, prepared, forgeName);
       stale = outcome === "copied";
-      if (outcome === "selected") manual = prepared.text;
+      // The field from an earlier press stays until there is a new result, so
+      // pressing the button again never takes away what the person is copying.
+      manual = outcome === "selected" ? prepared.text : "";
     } catch {
       // keep the generic line
     } finally {
       // A removed row has no status left to show; there is nothing to announce.
-      if (!gone) {
+      if (!gone && run === generation) {
         busy = false;
         say(said, stale);
       }
     }
-    if (manual && !gone) {
+    if (manual && !gone && run === generation) {
       await tick();
       manualField?.focus();
       manualField?.select();

@@ -111,6 +111,23 @@ export async function copyLog(
 // the log endpoint answers, else the excerpt the list already carries. `kind`
 // says which landed ("cut" is a whole log the server trimmed to its last
 // KEPT_KB), and `why` says in words why only the excerpt did, when it is that.
+// Where a check's full log is read from, and why there is no address when
+// there is none: no job to read, or a checks address that names no repository.
+export function logSource(
+  checksUrl: string,
+  jobId: number | undefined,
+): { url: string | null; why?: string } {
+  if (!jobId) return { url: null };
+  const url = logUrl(checksUrl, jobId);
+
+  return url
+    ? { url }
+    : {
+        url: null,
+        why: "Couldn't tell which repository this check belongs to.",
+      };
+}
+
 export type Prepared = {
   text: string;
   kind: 'whole' | 'cut' | 'excerpt';
@@ -147,10 +164,15 @@ export function copyStatus(
   if (outcome === 'nothing') return `Nothing was copied.${lost}`;
   if (outcome === 'selected') {
     const press = 'press Ctrl+C (Cmd+C on a Mac) to copy it';
+    if (only) {
+      return `Couldn't copy automatically. The excerpt is selected below: ${press}.${lost}`;
+    }
+    const cut =
+      prepared.kind === 'cut'
+        ? ` It is the last ${KEPT_KB} KB of the log, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`
+        : '';
 
-    return only
-      ? `Couldn't copy automatically. The excerpt is selected below: ${press}.${lost}`
-      : `Couldn't copy automatically. The log is selected below: ${press}.`;
+    return `Couldn't copy automatically. The log is selected below: ${press}.${cut}`;
   }
   if (only) return `Copied the excerpt only.${lost}`;
   if (prepared.kind === 'cut') {

@@ -3452,7 +3452,6 @@ footer a.mono:focus-visible {
   width: 100%;
   margin: 0;
   padding: 8px 10px;
-  font: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   line-height: 1.45;
