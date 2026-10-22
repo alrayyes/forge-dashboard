@@ -38,7 +38,7 @@
   // follow() with the row's signature from each snapshot it reads: the dialog
   // reads again only when its own row's CI changed, so a finished pipeline
   // costs no more requests.
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
@@ -213,7 +213,10 @@
   // control the keyboard was on keeps focus.
   function controls(host: HTMLElement) {
     void checks;
-    const node = target?.controls?.(failed) ?? null;
+    // Untracked: the control reads the page's snapshot (its lock, its row) and
+    // redraws itself when that changes, so a poll must not rebuild it.
+    const isFailed = failed;
+    const node = untrack(() => target?.controls?.(isFailed)) ?? null;
     // The button the keyboard was on, by its place among the control's buttons
     // (Rerun, then a failure's Copy), so it keeps focus when the control is drawn
     // again.

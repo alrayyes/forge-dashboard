@@ -109,13 +109,16 @@ export function createBranchRerun() {
     failure.setAttribute('role', 'alert');
     failureBox.appendChild(failure);
 
+    let shownFailure: unknown = null;
     const sync = () => {
       const isHeld = held(t, signature());
-      const state = states.get(key);
-      const sending = state?.phase === 'requesting';
       // A forge that can't be reached or has no budget left would refuse the
       // click, so there is no button, only the reason.
       const locked = lock();
+      // A refusal from before the lock is stale once the lock lifts.
+      if (locked && states.get(key)?.phase === 'failed') states.delete(key);
+      const state = states.get(key);
+      const sending = state?.phase === 'requesting';
       if (locked) {
         // Take keyboard focus along, or it drops to the page.
         if (document.activeElement === button) {
@@ -129,7 +132,7 @@ export function createBranchRerun() {
       if (isHeld || sending) button.setAttribute('aria-disabled', 'true');
       else button.removeAttribute('aria-disabled');
       // The lock adds to what the status already says; it never replaces it.
-      status.textContent = [
+      const text = [
         isHeld
           ? 'Rerun queued. The new results show here after the next refresh.'
           : sending
@@ -139,6 +142,8 @@ export function createBranchRerun() {
       ]
         .filter(Boolean)
         .join(' ');
+      // A live region: write only a change, or each redraw re-announces it.
+      if (status.textContent !== text) status.textContent = text;
       // Armed once per reset time, so a redraw does not restart it.
       const at = locked?.resetsAt;
       if (unlocks.get(key)?.at !== at) {
@@ -154,19 +159,25 @@ export function createBranchRerun() {
             }, wait),
           });
       }
-      for (const extra of failureBox.querySelectorAll(
-        '.pipeline-rerun-copy, .feedback-details',
-      ))
-        extra.remove();
-      if (state?.phase === 'failed' && !locked) {
-        failure.textContent = state.message;
-        failureBox.hidden = false;
-        failureBox.appendChild(
-          copyButton(state.details, 'row-action pipeline-rerun-copy'),
-        );
-      } else {
-        failureBox.hidden = true;
-        failure.textContent = '';
+      // Drawn once per failure, so a redraw keeps the Copy button's focus and
+      // its "Copied" feedback.
+      const failed = state?.phase === 'failed' ? state : null;
+      if (failed !== shownFailure) {
+        shownFailure = failed;
+        for (const extra of failureBox.querySelectorAll(
+          '.pipeline-rerun-copy, .feedback-details',
+        ))
+          extra.remove();
+        if (failed) {
+          failure.textContent = failed.message;
+          failureBox.hidden = false;
+          failureBox.appendChild(
+            copyButton(failed.details, 'row-action pipeline-rerun-copy'),
+          );
+        } else {
+          failureBox.hidden = true;
+          failure.textContent = '';
+        }
       }
     };
     const view = { node: wrap, sync };

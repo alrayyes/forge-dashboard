@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // The Main branches pipeline dialog offers "Rerun failed checks" on a failed
@@ -469,6 +469,61 @@ test.describe('main branches rerun failed checks', () => {
       ).toBeVisible();
     });
   }
+
+  const refuse = (route: Route) =>
+    route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 'not_mergeable',
+        message: 'no failed job to rerun on this branch',
+        error: 'no failed job to rerun on this branch',
+      }),
+    });
+
+  test('an earlier refusal does not come back after a lock lifts', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.route('**/api/main-branches/rerun-checks', refuse);
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('no failed job');
+
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+
+    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    await runUntilPolled(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('a poll leaves the failure box, and the focus on its Copy button, alone', async ({
+    page,
+  }) => {
+    await page.route('**/api/main-branches/rerun-checks', refuse);
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', { checks: failedCheck });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    const copy = dialog.getByRole('button', { name: 'Copy error details' });
+    await copy.focus();
+    await copy.evaluate((el) => el.setAttribute('data-mark', 'same'));
+
+    await runUntilPolled(page);
+
+    await expect(copy).toBeFocused();
+    await expect(copy).toHaveAttribute('data-mark', 'same');
+  });
 
   test('keyboard focus stays in the dialog when a poll takes the button away', async ({
     page,

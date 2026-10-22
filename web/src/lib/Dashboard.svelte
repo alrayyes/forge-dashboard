@@ -2419,7 +2419,7 @@
     // Why an action is locked, and the code that says what kind of wait it is
     // when one is known: "rate_limited" and "permission" don't clear by
     // clicking; anything else may.
-    type LockInfo = { reason: string; code?: string };
+    type LockInfo = { reason: string; code?: string; resetsAt?: string };
 
     function lockOf(entry: ActionState): LockInfo {
       return { reason: entry.reason ?? "", code: entry.code };
@@ -3985,9 +3985,11 @@
       const key = `${prKey(item)}:${action}`;
       const entry = dependabotActionState[key] || { phase: "idle" };
 
-      const blockedReason = lastForges.find(
-        (f) => f.forge === item.forge,
-      )?.dependabotCommandsBlocked;
+      // Blocked only when every host of the kind says so, as the lock is.
+      const hosts = lastForges.filter((f) => f.forge === item.forge);
+      const blockedReason = hosts.every((f) => f.dependabotCommandsBlocked)
+        ? hosts[0]?.dependabotCommandsBlocked
+        : undefined;
       if (blockedReason)
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],
@@ -5386,9 +5388,7 @@
       if (lock?.code !== "rate_limited") return null;
       const action = queueableAction(item);
       if (!action) return null;
-      const health = lastForges.find((f) => f.forge === item.forge);
-      if (!isRateLimited(health?.rateLimitREST)) return null;
-      const resets = health?.rateLimitREST?.resetsAt ?? "";
+      const resets = lock.resetsAt ?? "";
       const button = buttonEl(
         "row-action",
         `Queue ${QUEUE_VERBS[action]} for ${formatTime(resets)}`,

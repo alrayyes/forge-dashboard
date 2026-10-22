@@ -222,19 +222,17 @@
             (b) => b.forge === row.forge && b.fullName === row.fullName,
           )
         : undefined;
-      if (row) {
-        pipeline?.follow(now ? branchSignature(now) : null);
-        // The forge may have gone down, or come back, since the last poll.
-        rerun.redraw(row);
-      }
+      if (row) pipeline?.follow(now ? branchSignature(now) : null);
     } catch {
       // A refresh that fails keeps the rows already on screen.
       if (initial || !data) failed = true;
-      // The lock still follows the clock while the poll is down.
-      if (openRow) rerun.redraw(openRow);
     } finally {
       loading = false;
     }
+    // The forge may have gone down, or come back, since the last poll; a
+    // failed poll still moves the clock. Outside the try, so a throw here is
+    // not a failed poll.
+    if (openRow) rerun.redraw(openRow);
   }
 
   function retry() {
