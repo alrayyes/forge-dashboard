@@ -58,6 +58,29 @@ func TestGetIssueDetails_ReadsDescriptionCommentsAndReactions(t *testing.T) {
 	assert.Nil(t, got.Comments[1].Author)
 	assert.True(t, got.Comments[1].Edited)
 	assert.Equal(t, 2, got.CommentCount)
+	assert.Equal(t, dashboard.IssueStateOpen, got.State)
+}
+
+func TestGetIssueDetails_ReportsAClosedIssueAsClosed(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "body": "Done.", "state": "closed"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.IssueStateClosed, got.State)
 }
 
 func TestGetIssueDetails_AMissingIssueIsANotFound(t *testing.T) {

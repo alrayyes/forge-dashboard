@@ -4426,9 +4426,16 @@ components:
 
     IssueDetails:
       type: object
-      required: [description, comments, commentCount, commentsTruncated]
+      required: [state, description, comments, commentCount, commentsTruncated]
       description: What the issue dialog shows.
       properties:
+        state:
+          type: string
+          enum: [open, closed]
+          description: |
+            Whether the forge has the issue open or closed right now. The
+            dialog draws its status from this, so an issue closed or reopened
+            while the dialog is open shows the change.
         description:
           $ref: "#/components/schemas/DetailsBody"
         comments:

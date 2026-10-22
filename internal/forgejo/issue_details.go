@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"code.gitea.io/sdk/gitea"
+
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 )
@@ -25,5 +27,14 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	}
 	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
-	return c.threadDetails(ctx, owner, name, number, issue.Body)
+	details, err := c.threadDetails(ctx, owner, name, number, issue.Body)
+	if err != nil {
+		return dashboard.IssueDetails{}, err
+	}
+	details.State = dashboard.IssueStateOpen
+	if issue.State == gitea.StateClosed {
+		details.State = dashboard.IssueStateClosed
+	}
+
+	return details, nil
 }

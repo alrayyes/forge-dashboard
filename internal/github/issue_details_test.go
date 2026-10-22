@@ -36,6 +36,7 @@ func TestGetIssueDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 	var queries []graphqlRequestBody
 	srv := issueDetailsServer(t, map[string]any{
 		"body":         "The page loses its place.",
+		"state":        "CLOSED",
 		"lastEditedAt": "2026-10-02T09:00:00Z",
 		"reactionGroups": []map[string]any{
 			reactionGroup("THUMBS_UP", 2, "demo-a", "demo-b"),
@@ -67,6 +68,7 @@ func TestGetIssueDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 	assert.Equal(t, "The page loses its place.", got.Description.Text)
 	assert.Equal(t, dashboard.FormatMarkdown, got.Description.Format)
 	assert.True(t, got.Description.Edited)
+	assert.Equal(t, dashboard.IssueStateClosed, got.State)
 	assert.Equal(t, 2, got.Description.Reactions.ThumbsUp.Count)
 	assert.Equal(t, []string{"demo-a", "demo-b"}, got.Description.Reactions.ThumbsUp.Logins)
 	require.Len(t, got.Comments, 2)

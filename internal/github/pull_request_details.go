@@ -52,6 +52,8 @@ type graphqlDetailsAuthor struct {
 // graphqlDetailsThread is the part of a pull request and of an issue that the
 // dialog reads: the description, its reactions and the first comments.
 type graphqlDetailsThread struct {
+	// Selected by the issue query only.
+	State          string                 `json:"state"`
 	Body           string                 `json:"body"`
 	LastEditedAt   *string                `json:"lastEditedAt"`
 	ReactionGroups []graphqlReactionGroup `json:"reactionGroups"`
