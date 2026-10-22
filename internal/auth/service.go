@@ -59,8 +59,9 @@ func (s *Service) BeginRegistration(ctx context.Context, username, displayName s
 
 	// A registration was begun and never finished, a page reload before the
 	// passkey prompt completed, say. Nothing was ever attached to that
-	// username, so it is free to reclaim rather than a dead end.
-	if err := s.store.DeleteUnregisteredUser(ctx, username); err != nil {
+	// username, so it is free to reclaim rather than a dead end. Rows under
+	// other usernames go once their ceremony has expired.
+	if err := s.store.DeleteUnregisteredUser(ctx, username, time.Now().Add(-ceremonyTTL)); err != nil {
 		return nil, err
 	}
 

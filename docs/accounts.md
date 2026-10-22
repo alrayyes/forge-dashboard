@@ -23,10 +23,10 @@ request arrived over HTTPS) is what actually gates `/` and
 - **Registration closes for good once a passkey exists.** No environment
   variable to set or get wrong, and no reliance on a deployment's own
   network boundary either: `Service.BeginRegistration` checks server-side
-  whether any user already holds a passkey and answers 403 `registration is
-closed` if so. The login page only shows the registration button on an
-  instance with no users. More passkeys for the same account are added from
-  Settings, signed in.
+  whether any user already holds a passkey and answers 403
+  `registration is closed` if so. The login page only shows the registration
+  button on an instance with no users. More passkeys for the same account are
+  added from Settings, signed in.
 - **Losing every passkey is a hard lockout.** There's no email/SMS channel
   here to build a self-service account-recovery flow on top of — the only
   way back in is restoring the SQLite database (`DB_PATH`) from a backup

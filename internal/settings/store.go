@@ -482,7 +482,7 @@ func randomWebhookValue() (string, error) {
 }
 
 // Delete removes userID's saved credentials — a no-op, not an error, if
-// they never saved any. Used when an admin removes the account outright.
+// they never saved any. Used when an account is removed outright.
 // Also removes their recorded webhook deliveries and per-repo settings,
 // the same store's other tables.
 func (s *Store) Delete(ctx context.Context, userID []byte) error {
