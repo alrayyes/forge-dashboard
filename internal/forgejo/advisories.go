@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,20 @@ const (
 	advisoriesTTL      = 15 * time.Minute
 	advisoriesRetry    = 5 * time.Minute
 	advisoriesRetryMax = 30 * time.Minute
+)
+
+// advisoriesUnreadableRetry is how long a repo whose lock file can't be used
+// (too big, fails to parse, nothing in it to check) waits before it is read
+// again. Such a file rarely changes, so five minutes would read it and log it
+// twelve times an hour for nothing.
+//
+// advisoriesStaleMax is how long a failed read keeps showing the last count:
+// past it the repo reads as unknown, so a number that old can't pass for
+// current. maxAdvisoryEntries bounds the cache.
+const (
+	advisoriesUnreadableRetry = time.Hour
+	advisoriesStaleMax        = 24 * time.Hour
+	maxAdvisoryEntries        = 5000
 )
 
 // advisoryDeadline bounds one repo's advisory read. It runs inline with the
@@ -83,6 +98,7 @@ func NewAdvisoryCache() *AdvisoryCache { return &AdvisoryCache{} }
 type AdvisoryCache = advisoryCache
 
 type advisoryCache struct {
+	max     int // entries kept; zero means maxAdvisoryEntries
 	mu      sync.Mutex
 	entries map[string]advisoryEntry
 	calls   map[string]*advisoryCall
@@ -92,6 +108,11 @@ type advisoryCache struct {
 type advisoryEntry struct {
 	value   dashboard.Advisories
 	expires time.Time
+	// answered is when value was last read successfully, for the age bound.
+	answered time.Time
+	// unreadable marks a settled unknown answer (a lock file that can't be
+	// used), so the warning is logged on the first read and not on every one.
+	unreadable bool
 	// failures counts the failed reads in a row, for the back-off.
 	failures int
 	// pkgs are the packages read from the forge, kept when OSV failed so the
@@ -122,6 +143,9 @@ func (c *advisoryCache) get(repo string) (e advisoryEntry, fresh, ok bool) {
 type advisoryCall struct {
 	done  chan struct{}
 	value dashboard.Advisories
+	// cancelled is set when the leader's read ended only because its own
+	// context did: waiters with a live context read for themselves.
+	cancelled bool
 }
 
 // join returns the repo's read in flight, or starts one and says the caller
@@ -156,6 +180,30 @@ func (c *advisoryCache) put(repo string, e advisoryEntry, ttl time.Duration) {
 	}
 	e.expires = c.clock().Add(ttl)
 	c.entries[repo] = e
+	if len(c.entries) > cmp.Or(c.max, maxAdvisoryEntries) {
+		c.evict(repo)
+	}
+}
+
+// evict makes room: it drops entries that have expired and no longer hold
+// packages for a retry, then, if the cache is still over its limit, others,
+// keeping the entry just written. Call it with the lock held.
+func (c *advisoryCache) evict(keep string) {
+	now := c.clock()
+	limit := cmp.Or(c.max, maxAdvisoryEntries)
+	for k, e := range c.entries {
+		if k != keep && !now.Before(e.expires) && !now.Before(e.pkgsUntil) {
+			delete(c.entries, k)
+		}
+	}
+	for k := range c.entries {
+		if len(c.entries) <= limit {
+			return
+		}
+		if k != keep {
+			delete(c.entries, k)
+		}
+	}
 }
 
 // readAdvisories reads a repo's advisories from the lockfiles in the root of
@@ -211,7 +259,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]os
 		return nil, nil, err
 	}
 	if len(skipped) > 0 {
-		slog.Warn("lockfile too big to read", "forge", dashboard.ForgeForgejo, "repo", repo, "files", skipped)
+		slog.Debug("lockfile too big to read", "forge", dashboard.ForgeForgejo, "repo", repo, "files", skipped)
 
 		return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 	}
@@ -223,7 +271,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]os
 	for _, file := range files {
 		data, err := c.rawFile(ctx, owner, name, file)
 		if errors.Is(err, errResponseTooBig) {
-			slog.Warn("lockfile too big to read", "forge", dashboard.ForgeForgejo, "repo", repo, "files", []string{file})
+			slog.Debug("lockfile too big to read", "forge", dashboard.ForgeForgejo, "repo", repo, "files", []string{file})
 
 			return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 		}
@@ -232,17 +280,43 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]os
 		}
 		got, err := lockfileReaders[file](data)
 		if err != nil {
-			slog.Warn("lockfile unreadable", "forge", dashboard.ForgeForgejo, "repo", repo, "file", file, "error", err)
+			slog.Debug("lockfile unreadable", "forge", dashboard.ForgeForgejo, "repo", repo, "file", file, "error", err)
 
 			return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 		}
 		pkgs = append(pkgs, got...)
+	}
+	pkgs, dropped := c.withoutOwnHost(pkgs)
+	if dropped > 0 && len(pkgs) == 0 {
+		slog.Debug("only modules on the forge's own host", "forge", dashboard.ForgeForgejo, "repo", repo)
+
+		return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 	}
 	if pkgs == nil {
 		pkgs = []osv.Package{} // read, and empty: not "not read yet"
 	}
 
 	return pkgs, nil, nil
+}
+
+// withoutOwnHost drops the Go modules whose path starts with this forge's own
+// host: they are the instance's private modules, and their names stay home. It
+// says how many it dropped.
+func (c *Client) withoutOwnHost(pkgs []osv.Package) (kept []osv.Package, dropped int) {
+	u, err := url.Parse(c.instanceURL)
+	if err != nil || u.Host == "" {
+		return pkgs, 0
+	}
+	for _, p := range pkgs {
+		if p.Ecosystem == osv.EcosystemGo && (p.Name == u.Host || strings.HasPrefix(p.Name, u.Host+"/")) {
+			dropped++
+
+			continue
+		}
+		kept = append(kept, p)
+	}
+
+	return kept, dropped
 }
 
 // rootLockfiles lists the lockfiles in the root of the default branch: the ones
@@ -293,33 +367,53 @@ func (c *Client) rawFile(ctx context.Context, owner, name, file string) ([]byte,
 }
 
 // advisoriesFor answers a repo's advisories from the cache when fresh, else
-// reads them within advisoryDeadline. A failed read keeps the last answer, so
-// it never turns a known count into unknown or zero, and is asked again after
-// a back-off that grows with each failure in a row; the packages already read
-// from the forge are kept for that retry. A lockfile that can't be read in full
-// is asked again after advisoriesRetry, since the repo may fix it. With nothing
-// cached a failure answers unknown. Without a scanner the answer is unknown,
-// with the reason that advisories are not enabled.
+// reads them within advisoryDeadline. A failed read keeps the last answer for
+// up to a day, so a short outage never turns a known count into unknown or
+// zero and an old count never passes for current; it is asked again after a
+// back-off that grows with each failure in a row, and the packages already read
+// from the forge are kept for that retry. A lock file that can't be used is
+// asked again after an hour, since the repo may fix it. With nothing cached a
+// failure answers unknown. Without a scanner the answer is unknown, with the
+// reason that advisories are not enabled.
 func (c *Client) advisoriesFor(ctx context.Context, repo dashboard.RepoRef) *dashboard.Advisories {
 	if c.advisoryScanner == nil {
 		return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonNotEnabled}
 	}
 	key := c.instanceURL + " " + repo.FullName
-	old, fresh, have := c.advisories.get(key)
-	if fresh {
-		return &old.value
-	}
-	call, leader := c.advisories.join(key)
-	if !leader {
+	for {
+		old, fresh, _ := c.advisories.get(key)
+		if fresh {
+			return &old.value
+		}
+		call, leader := c.advisories.join(key)
+		if leader {
+			return c.lead(ctx, key, call, repo)
+		}
 		select {
 		case <-call.done:
-			return &call.value
+			if !call.cancelled || ctx.Err() != nil {
+				return &call.value
+			}
+			// The leader gave up, not the forge: read for ourselves.
 		case <-ctx.Done():
 			return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
 		}
 	}
+}
+
+// lead runs the read the caller won the right to run. Another caller may have
+// finished the same repo between the cache check and the join, so it looks
+// again before reading.
+func (c *Client) lead(ctx context.Context, key string, call *advisoryCall, repo dashboard.RepoRef) *dashboard.Advisories {
 	defer c.advisories.finish(key, call)
-	call.value = *c.refreshAdvisories(ctx, key, repo, old, have)
+	old, fresh, have := c.advisories.get(key)
+	if fresh {
+		call.value = old.value
+
+		return &call.value
+	}
+	v, cancelled := c.refreshAdvisories(ctx, key, repo, old, have)
+	call.value, call.cancelled = *v, cancelled
 
 	return &call.value
 }
@@ -335,7 +429,9 @@ func (*Client) cancelledAnswer(old advisoryEntry, have bool) *dashboard.Advisori
 }
 
 // refreshAdvisories reads a repo's advisories again and remembers the answer.
-func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboard.RepoRef, old advisoryEntry, have bool) *dashboard.Advisories {
+// It says when the read ended only because the caller's context did, in which
+// case nothing is remembered.
+func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboard.RepoRef, old advisoryEntry, have bool) (*dashboard.Advisories, bool) {
 	var known []osv.Package
 	if old.havePkgs && c.advisories.clock().Before(old.pkgsUntil) {
 		known = old.pkgs
@@ -347,29 +443,42 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 	if err != nil && ctx.Err() != nil {
 		// The caller gave up (shutdown, a superseded refresh): the forge and OSV
 		// did nothing wrong, so remember nothing and let the next ask read again.
-		return c.cancelledAnswer(old, have)
+		return c.cancelledAnswer(old, have), true
 	}
 	if err != nil {
-		slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "error", err)
-		e := advisoryEntry{value: old.value, failures: old.failures + 1}
-		if !have {
-			e.value = dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
-		}
-		switch {
-		case known != nil:
-			e.pkgs, e.havePkgs, e.pkgsUntil = old.pkgs, true, old.pkgsUntil
-		case pkgs != nil:
-			e.pkgs, e.havePkgs, e.pkgsUntil = pkgs, true, c.advisories.clock().Add(advisoriesTTL)
-		}
-		c.advisories.put(key, e, min(advisoriesRetry<<min(e.failures-1, 6), advisoriesRetryMax))
-
-		return &e.value
+		return c.failedRead(key, repo, old, have, known, pkgs, err), false
 	}
-	ttl := advisoriesTTL
+	now := c.advisories.clock()
 	if v.State == dashboard.AdvisoriesUnknown && v.Reason == dashboard.ReasonFailed {
-		ttl = advisoriesRetry
-	}
-	c.advisories.put(key, advisoryEntry{value: v}, ttl)
+		// A lock file that can't be used: said once, then asked again later.
+		if !old.unreadable {
+			slog.Warn("lockfile can't be used, so the repo's advisories are unknown", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "retry", advisoriesUnreadableRetry)
+		}
+		c.advisories.put(key, advisoryEntry{value: v, unreadable: true}, advisoriesUnreadableRetry)
 
-	return &v
+		return &v, false
+	}
+	c.advisories.put(key, advisoryEntry{value: v, answered: now}, advisoriesTTL)
+
+	return &v, false
+}
+
+// failedRead remembers a read that failed: the last answer is kept while it is
+// young enough, and the next try waits longer after each failure in a row.
+func (c *Client) failedRead(key string, repo dashboard.RepoRef, old advisoryEntry, have bool, known, pkgs []osv.Package, err error) *dashboard.Advisories {
+	slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "error", err)
+	e := advisoryEntry{value: old.value, answered: old.answered, failures: old.failures + 1}
+	stale := old.value.State == dashboard.AdvisoriesKnown && c.advisories.clock().Sub(old.answered) > advisoriesStaleMax
+	if !have || stale {
+		e.value = dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
+	}
+	switch {
+	case known != nil:
+		e.pkgs, e.havePkgs, e.pkgsUntil = old.pkgs, true, old.pkgsUntil
+	case pkgs != nil:
+		e.pkgs, e.havePkgs, e.pkgsUntil = pkgs, true, c.advisories.clock().Add(advisoriesTTL)
+	}
+	c.advisories.put(key, e, min(advisoriesRetry<<min(e.failures-1, 6), advisoriesRetryMax))
+
+	return &e.value
 }

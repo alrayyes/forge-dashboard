@@ -1507,6 +1507,9 @@ func (c *Client) rawRequestMax(ctx context.Context, method, path string, body io
 		return nil, resp, fmt.Errorf("forgejo: read response body: %w", err)
 	}
 	if maxBytes > 0 && int64(len(respBody)) > maxBytes {
+		// The download happened, so count it like any other.
+		c.recordRequest(ctx, method, path, httpResp.StatusCode, requestlog.OutcomeSuccess)
+
 		return nil, resp, fmt.Errorf("%w: more than %d bytes", errResponseTooBig, maxBytes)
 	}
 	if httpResp.StatusCode >= 300 {

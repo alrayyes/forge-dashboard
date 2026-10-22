@@ -94,31 +94,34 @@ link anywhere, since OSV has no page for a whole repo.
 
 This is off by default, because **the package names and versions in those files
 are sent to `api.osv.dev`**, for private repos too. A `go.mod` module path can
-name an internal host or project. Only npm packages the lock file resolves to
-the public registry are sent, so a private registry's package names stay home.
-Nothing else is sent: no repo name, URL or token. Set `OSV_ADVISORIES=on` to
-turn it on; a line in the log at startup says so, and a value that is neither
-`on` nor `off` logs a warning and leaves it off. While it is off, every Forgejo
-row is `unknown` with the reason `not_enabled`: not checked, never zero.
+name an internal host or project, so modules whose path starts with the Forgejo
+host itself are left out, and only npm packages the lock file resolves to the
+public registry are sent: a private registry's names stay home. Nothing else is
+sent: no repo name, URL or token. Set `OSV_ADVISORIES=on` to turn it on; a line
+in the log at startup says so, and a value that is neither `on` nor `off` logs a
+warning and leaves it off. While it is off, every Forgejo row is `unknown` with
+the reason `not_enabled`: not checked, never zero.
 
 With it on, a repo with no lock file the dashboard reads is `unknown`, never
 zero. So is a repo where any lock file is over 8 megabytes, doesn't parse or,
-for `go.mod`, has no `module` line (it is asked again after five minutes), and
-one that matches more than 300 distinct advisories. Only the repo root is read:
-a root `go.mod` alone reads as known even when the front end lives in a
+for `go.mod`, has no `module` line (it is asked again after an hour), and one
+that matches more than 300 distinct advisories. Only the repo root is read: a
+root `go.mod` alone reads as known even when the front end lives in a
 subdirectory, so a count is the advisories in the root lock files, not in the
 whole repo. A `replace` directive in `go.mod` is applied, and an aliased npm
 install is matched by its real name. A lock file lists many packages: past 3000
-distinct name and version pairs the repo is `unknown`.
+distinct name and version pairs the repo is `unknown`. So is a repo where every
+package was left out for being private, since nothing was checked.
 
 The page does not flag an unknown Forgejo row, since most repos have no lock
 file: neither the notice above the list nor the grey dash is about them. Answers
-are cached for fifteen minutes. A failed read keeps the last answer, or shows
-`unknown` if there is none, and is retried after five minutes, then ten, up to
-thirty while OSV stays down, without reading the lock files from the forge
-again. One repo's read gives up after ten seconds so a slow OSV can't hold up
-the CI row. A read costs one listing of the root plus one read per lock file,
-counted under the `advisories` kind in [Rate limits](rate-limits.md).
+are cached for fifteen minutes. A failed read keeps the last answer for up to a
+day, or shows `unknown` if there is none or it is older, and is retried after
+five minutes, then ten, up to thirty while OSV stays down, without reading the
+lock files from the forge again. One repo's read gives up after ten seconds so a
+slow OSV can't hold up the CI row. A read costs one listing of the root plus one
+read per lock file, counted under the `advisories` kind in [Rate
+limits](rate-limits.md).
 
 ## When advisories can't be read
 
