@@ -93,7 +93,9 @@ alerts, or alerts are off for it. The API and MCP tools still report that as
 - a GitHub App with **Dependabot alerts: Read-only**. On an App that is already
   installed, GitHub holds a new permission until the owner accepts it: open the
   installation's page and accept the request, or the App keeps its old
-  permissions.
+  permissions. A permission accepted later reaches the dashboard when its
+  installation token next refreshes, up to an hour; saving Settings or
+  restarting the dashboard picks it up at once.
 
 Dependabot alerts must also be enabled on the repo. Answers are cached for
 fifteen minutes, and a failed read is retried after five. GitHub's reference:
