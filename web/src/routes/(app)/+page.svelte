@@ -41,6 +41,9 @@
     httpHref,
     advisoryPill,
     advisoryCoverage,
+    advisoryUnknownReason,
+    advisoryReasonNeedsGrant,
+    ADVISORY_REASON_TEXT,
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
@@ -74,6 +77,7 @@
   const statusOffered = $derived(offeredStatuses(branches, filter));
   const forgeOffered = $derived(offeredForges(branches, filter));
   const advisoryState = $derived(advisoryCoverage(branches));
+  const advisoryReason = $derived(advisoryUnknownReason(branches));
   const staleRows = $derived(branches.filter((b) => b.stale));
   const staleSince = $derived(
     staleRows
@@ -736,18 +740,25 @@
       <div class="mb-banner" role="status" data-testid="advisories-notice">
         <p>
           Advisories can't be read for your GitHub repositories, so none are
-          shown. Most likely the credential lacks the Dependabot alerts
-          permission (read-only), or alerts are switched off on the repo. A rate
-          limit or a GitHub error looks the same. A permission you just accepted
-          can take up to an hour and a quarter to show; saving Settings reads
-          them again at once. <a
-            href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#when-advisories-cant-be-read"
-            target="_blank"
-            rel="noopener noreferrer"
-            >How to grant it<span class="sr-only">
-              (opens in a new tab)</span
-            ></a
-          >.
+          shown.
+          {#if advisoryReason}
+            {ADVISORY_REASON_TEXT[advisoryReason]}
+          {:else}
+            Most likely the credential lacks the Dependabot alerts permission
+            (read-only), or alerts are switched off on the repo. A rate limit or
+            a GitHub error looks the same.
+          {/if}
+          {#if !advisoryReason || advisoryReasonNeedsGrant(advisoryReason)}
+            A permission you just accepted can take up to an hour and a quarter
+            to show; saving Settings reads them again at once. <a
+              href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#when-advisories-cant-be-read"
+              target="_blank"
+              rel="noopener noreferrer"
+              >How to grant it<span class="sr-only">
+                (opens in a new tab)</span
+              ></a
+            >.
+          {/if}
         </p>
       </div>
     {/if}

@@ -27,8 +27,16 @@ export type MainBranchRelease = {
 
 // Matches api/openapi.yaml's Advisories. `unknown` is no answer, never zero.
 export type AdvisorySeverity = 'low' | 'medium' | 'high' | 'critical';
+export type AdvisoryReason =
+  | 'refused'
+  | 'switched_off'
+  | 'throttled'
+  | 'failed'
+  | 'too_many';
 export type Advisories = {
   state: 'known' | 'unknown';
+  // Why the answer is unknown, when the server knows.
+  reason?: AdvisoryReason;
   count: number;
   highest?: AdvisorySeverity;
   url?: string;
@@ -298,4 +306,40 @@ export function advisoryCoverage(
   }
   if (unknown === 0) return 'full';
   return known === 0 ? 'none' : 'partial';
+}
+
+// The one cause every unknown row shares, or null when the rows disagree or
+// the server named none. The page notice names a cause only when it is sure.
+export function advisoryUnknownReason(
+  branches: readonly MainBranch[],
+): AdvisoryReason | null {
+  let shared: AdvisoryReason | null = null;
+  for (const b of branches) {
+    if (b.advisories?.state !== 'unknown') continue;
+    const r = b.advisories.reason;
+    if (!r) return null;
+    if (shared && shared !== r) return null;
+    shared = r;
+  }
+  return shared;
+}
+
+// What the notice says for a cause. Whether the owner has anything to do
+// differs by cause: a rate limit clears by itself, a refusal needs a token.
+export const ADVISORY_REASON_TEXT: Record<AdvisoryReason, string> = {
+  refused:
+    'GitHub refused the read: the credential lacks the Dependabot alerts permission (read-only).',
+  switched_off:
+    "GitHub says Dependabot alerts are switched off on the repository, or the credential can't see it.",
+  throttled:
+    'GitHub is rate limiting the dashboard. This clears by itself, and no permission needs changing.',
+  failed:
+    'GitHub returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.',
+  too_many:
+    'A repository has more open alerts than the dashboard reads in one go, so it shows no count rather than a short one.',
+};
+
+// Only a refusal or switched-off alerts are fixed with the permission steps.
+export function advisoryReasonNeedsGrant(r: AdvisoryReason): boolean {
+  return r === 'refused' || r === 'switched_off';
 }
