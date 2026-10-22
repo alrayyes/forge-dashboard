@@ -102,12 +102,7 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 
 	for i := current; i < len(steps); i++ {
 		if err := apply(ctx, conn, i+1, steps[i]); err != nil {
-			if res.Applied == 0 {
-				// The step rolled back, so the copy holds what the file holds. A start
-				// that keeps failing would add one with every secret per restart.
-				_ = os.Remove(res.BackupPath)
-				res.BackupPath = ""
-			}
+			res.dropUnneededBackup()
 
 			return res, err
 		}
@@ -116,6 +111,17 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 	}
 
 	return res, nil
+}
+
+// dropUnneededBackup removes the copy when no step has committed. The failed
+// step rolled back, so the copy holds what the file holds, and a start that keeps
+// failing would add one, with every secret in it, per restart.
+func (r *Result) dropUnneededBackup() {
+	if r.Applied > 0 || r.BackupPath == "" {
+		return
+	}
+	_ = os.Remove(r.BackupPath)
+	r.BackupPath = ""
 }
 
 // preflight runs the read-only refusals of the pending steps.

@@ -222,6 +222,31 @@ func chooseAuthOwner(ctx context.Context, q dbmigrate.Tx, pending []authRebuild)
 	return id, nil
 }
 
+// otherUserNames lists the usernames, other than the owner's, that hold rows in
+// the table.
+func (r authRebuild) otherUserNames(ctx context.Context, q dbmigrate.Tx, owner string) ([]string, error) {
+	rows, err := q.QueryContext(ctx,
+		`SELECT DISTINCT u.username FROM `+r.table+` t JOIN users u ON u.id = t.`+r.column+` WHERE t.`+r.column+` != ? ORDER BY u.username`, owner)
+	if err != nil {
+		return nil, fmt.Errorf("list the other users in %s: %w", r.table, err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var names []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, fmt.Errorf("list the other users in %s: %w", r.table, err)
+		}
+		names = append(names, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list the other users in %s: %w", r.table, err)
+	}
+
+	return names, nil
+}
+
 func cleanupMarkerExists(ctx context.Context, q dbmigrate.Tx) (bool, error) {
 	var marker int
 	if err := q.QueryRowContext(ctx,
@@ -240,25 +265,9 @@ func requireOthersHoldNothing(ctx context.Context, q dbmigrate.Tx, pending []aut
 		if r.copyAll {
 			continue
 		}
-		var names []string
-		rows, err := q.QueryContext(ctx,
-			`SELECT DISTINCT u.username FROM `+r.table+` t JOIN users u ON u.id = t.`+r.column+` WHERE t.`+r.column+` != ? ORDER BY u.username`, owner)
+		names, err := r.otherUserNames(ctx, q, owner)
 		if err != nil {
-			return fmt.Errorf("list the other users in %s: %w", r.table, err)
-		}
-		for rows.Next() {
-			var n string
-			if err := rows.Scan(&n); err != nil {
-				_ = rows.Close()
-
-				return fmt.Errorf("list the other users in %s: %w", r.table, err)
-			}
-			names = append(names, n)
-		}
-		err = rows.Err()
-		_ = rows.Close()
-		if err != nil {
-			return fmt.Errorf("list the other users in %s: %w", r.table, err)
+			return err
 		}
 		if len(names) > 0 {
 			return fmt.Errorf("%w: no user holds a passkey, so the previous release cannot settle it, but %s still holds rows for %s; copy the database file, delete the users you do not want from users and their rows from %s, then start again, or restore a backup",
