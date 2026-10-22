@@ -86,6 +86,9 @@ would need the same answer. The reasons, and what it costs, are in
   of a default branch's newest pipeline, in the same shape). It spends
   budget too: one request for the commits plus one per commit until one has
   checks on GitHub, 3 plus one per run on Forgejo.
+  `get_check_log` mirrors `GET /api/checks/log` (one CI job's output as plain
+  text, the last 256 KiB at most, by the `jobId` a check carries). It spends
+  one request on Forgejo and one plus a short-lived download on GitHub.
   `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.
@@ -158,7 +161,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   to read them.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_main_branch_checks`,
-  `get_pull_request_checks`, `get_pull_request_details`,
+  `get_check_log`, `get_pull_request_checks`, `get_pull_request_details`,
   `list_queued_actions`, `get_settings` and `set_pull_request_auto_update`.**
   Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
   150+ only, with no stable spec yet — so this is a no-op everywhere else rather

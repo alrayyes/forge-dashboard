@@ -82,7 +82,12 @@ type Client struct {
 	token           string
 	username        string
 	restClient      *ghsdk.Client
-	webhookPath     string
+	// logProxy picks the proxy of a log blob download (nil: the environment's);
+	// logBlob is the one client those downloads share.
+	logProxy    func(*http.Request) (*url.URL, error)
+	logBlobMu   sync.Mutex
+	logBlob     *http.Client
+	webhookPath string
 
 	// hooks* remember a webhook check GitHub refused for lack of permission
 	// (#894), so refreshes don't ask 50 repos the same question every time.
@@ -3878,6 +3883,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				Name:            r.GetName(),
 				State:           checkStateFromRun(r),
 				URL:             r.GetHTMLURL(),
+				JobID:           r.GetID(),
 				DurationSeconds: runDurationSeconds(r),
 			})
 		}
@@ -4088,10 +4094,6 @@ const maxFailureDetails = 5
 // at the end, and a full log can be megabytes.
 const logTailBytes = 16 * 1024
 
-// maxLogBody bounds what is read when the log host ignores the range request
-// and answers with the whole log.
-const maxLogBody = 16 * 1024 * 1024
-
 // excerptLines and excerptBytes cap the excerpt shown in the inspector.
 const (
 	excerptLines = 20
@@ -4170,7 +4172,7 @@ func (c *Client) failedStep(ctx context.Context, owner, name string, id int64) (
 func (c *Client) logExcerpt(ctx context.Context, owner, name string, id int64) string {
 	path := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/logs", owner, name, id)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
-	loc, resp, err := c.restClient.Actions.GetWorkflowJobLogs(ctx, owner, name, id, 1)
+	loc, resp, err := c.restClient.Actions.GetWorkflowJobLogs(ctx, owner, name, id, 0)
 	if err != nil {
 		slog.Debug("github job log unavailable", "path", path, "err", err)
 
@@ -4178,29 +4180,20 @@ func (c *Client) logExcerpt(ctx context.Context, owner, name string, id int64) s
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 
-	fetchCtx, cancel := context.WithTimeout(ctx, logFetchTimeout)
+	blob, cancel, err := c.fetchLogBlob(ctx, loc, logTailBytes)
+	if err != nil {
+		return ""
+	}
 	defer cancel()
-	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, c.restClient.BaseURL.ResolveReference(loc).String(), nil)
-	if err != nil {
-		return ""
-	}
-	req.Header.Set("Range", fmt.Sprintf("bytes=-%d", logTailBytes))
-	blob, err := (&http.Client{Timeout: logFetchTimeout}).Do(req)
-	if err != nil {
-		return ""
-	}
 	defer func() { _ = blob.Body.Close() }()
 	if blob.StatusCode != http.StatusOK && blob.StatusCode != http.StatusPartialContent {
 		return ""
 	}
-	body, err := io.ReadAll(io.LimitReader(blob.Body, maxLogBody))
+	body, skipped, err := readTail(blob.Body, logTailBytes)
 	if err != nil {
 		return ""
 	}
-	partial := blob.StatusCode == http.StatusPartialContent
-	if len(body) > logTailBytes {
-		body, partial = body[len(body)-logTailBytes:], true
-	}
+	partial := skipped || blob.StatusCode == http.StatusPartialContent
 
 	return excerptFromLog(string(body), partial)
 }
