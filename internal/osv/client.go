@@ -15,9 +15,9 @@ import (
 	"time"
 )
 
-// BaseURL is OSV's public API.
 const httpTimeout = 30 * time.Second
 
+// BaseURL is OSV's public API.
 const BaseURL = "https://api.osv.dev"
 
 const (
@@ -38,6 +38,11 @@ const (
 
 // ErrTooMany is a scan that matched more advisories than maxAdvisories.
 var ErrTooMany = errors.New("osv: too many advisories to read")
+
+var (
+	errBatchShape = errors.New("osv: querybatch answered a different number of results than queries")
+	errStatus     = errors.New("osv: unexpected status")
+)
 
 // Summary is what a scan found: how many distinct advisories match, and the
 // worst severity among them ("low", "medium", "high" or "critical"), empty when
@@ -128,19 +133,9 @@ func (c *Client) queryBatch(ctx context.Context, pkgs []Package, ids map[string]
 			return err
 		}
 		if len(resp.Results) != len(queries) {
-			return fmt.Errorf("osv: querybatch answered %d results for %d queries", len(resp.Results), len(queries))
+			return fmt.Errorf("%w: %d results for %d queries", errBatchShape, len(resp.Results), len(queries))
 		}
-		var next []query
-		for i, r := range resp.Results {
-			for _, v := range r.Vulns {
-				ids[v.ID] = struct{}{}
-			}
-			if r.NextPageToken != "" {
-				q := queries[i]
-				q.PageToken = r.NextPageToken
-				next = append(next, q)
-			}
-		}
+		next := collect(queries, resp.Results, ids)
 		if len(next) == 0 {
 			return nil
 		}
@@ -148,6 +143,24 @@ func (c *Client) queryBatch(ctx context.Context, pkgs []Package, ids map[string]
 	}
 
 	return ErrTooMany
+}
+
+// collect adds the ids in results to ids and returns the queries that have a
+// further page.
+func collect(queries []query, results []batchResult, ids map[string]struct{}) []query {
+	var next []query
+	for i, r := range results {
+		for _, v := range r.Vulns {
+			ids[v.ID] = struct{}{}
+		}
+		if r.NextPageToken != "" {
+			q := queries[i]
+			q.PageToken = r.NextPageToken
+			next = append(next, q)
+		}
+	}
+
+	return next
 }
 
 // loadRecords returns the record of every id, fetching the ones not yet remembered.
@@ -191,7 +204,7 @@ func (c *Client) loadRecords(ctx context.Context, ids map[string]struct{}) (map[
 	}
 	wg.Wait()
 	if firstErr != nil {
-		return nil, firstErr
+		return nil, fmt.Errorf("osv: read advisory records: %w", firstErr)
 	}
 
 	return out, nil
@@ -237,39 +250,10 @@ var severityRank = map[string]int{"low": 1, "medium": 2, "high": 3, "critical": 
 // aliases (a GHSA and its PYSEC twin) are the same advisory, and its severity is
 // the highest any of them states.
 func summarise(recs map[string]record) Summary {
-	parent := map[string]string{}
-	var find func(string) string
-	find = func(x string) string {
-		if p, ok := parent[x]; ok && p != x {
-			parent[x] = find(p)
-
-			return parent[x]
-		}
-		parent[x] = x
-
-		return x
-	}
-	for id, r := range recs {
-		if r.withdrawn {
-			continue
-		}
-		for _, a := range r.aliases {
-			if other, ok := recs[a]; ok && !other.withdrawn {
-				parent[find(a)] = find(id)
-			}
-		}
-		find(id)
-	}
-	groups := map[string]string{} // group root -> highest severity
-	for id, r := range recs {
-		if r.withdrawn {
-			continue
-		}
-		root := find(id)
-		if severityRank[r.severity] > severityRank[groups[root]] {
-			groups[root] = r.severity
-		} else if _, ok := groups[root]; !ok {
-			groups[root] = ""
+	groups := map[string]string{} // group root -> highest severity in it
+	for id, root := range aliasRoots(recs) {
+		if severityRank[recs[id].severity] >= severityRank[groups[root]] {
+			groups[root] = recs[id].severity
 		}
 	}
 	out := Summary{Count: len(groups)}
@@ -280,6 +264,43 @@ func summarise(recs map[string]record) Summary {
 	}
 
 	return out
+}
+
+// aliasRoots maps each live (not withdrawn) record to a representative of the
+// set of records it shares an alias with.
+func aliasRoots(recs map[string]record) map[string]string {
+	parent := map[string]string{}
+	find := func(x string) string {
+		for {
+			p, ok := parent[x]
+			if !ok || p == x {
+				parent[x] = x
+
+				return x
+			}
+			x = p
+		}
+	}
+	live := func(id string) bool {
+		r, ok := recs[id]
+
+		return ok && !r.withdrawn
+	}
+	for id, r := range recs {
+		for _, a := range r.aliases {
+			if live(id) && live(a) {
+				parent[find(a)] = find(id)
+			}
+		}
+	}
+	roots := map[string]string{}
+	for id := range recs {
+		if live(id) {
+			roots[id] = find(id)
+		}
+	}
+
+	return roots
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body, into any) error {
@@ -304,7 +325,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, into any) er
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("osv: %s %s: %s", method, path, resp.Status)
+		return fmt.Errorf("%w: %s %s: %s", errStatus, method, path, resp.Status)
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(into); err != nil {
 		return fmt.Errorf("osv: read %s: %w", path, err)

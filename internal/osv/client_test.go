@@ -38,7 +38,11 @@ func (s *osvServer) start(t *testing.T) *osv.Client {
 				Package struct{ Name, Ecosystem string }
 			} `json:"queries"`
 		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
 		results := make([]map[string]any, len(req.Queries))
 		for i, q := range req.Queries {
 			var vulns []map[string]string

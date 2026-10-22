@@ -29,6 +29,8 @@ const (
 // the repo reads as unknown.
 const maxLockfileBytes = 8 << 20
 
+var errNoAdvisoryScanner = errors.New("forgejo: no advisory scanner configured")
+
 // AdvisoryScanner matches packages against a vulnerability database. osv.Client
 // is the real one; a test stands in with its own.
 type AdvisoryScanner interface {
@@ -97,7 +99,7 @@ func (c *advisoryCache) expireAll() {
 // versions in the lockfiles are sent to OSV; nothing else is.
 func (c *Client) ReadAdvisories(ctx context.Context, owner, name, _ string) (dashboard.Advisories, error) {
 	if c.advisoryScanner == nil {
-		return dashboard.Advisories{}, errors.New("forgejo: no advisory scanner configured")
+		return dashboard.Advisories{}, errNoAdvisoryScanner
 	}
 	ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
 

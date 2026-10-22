@@ -47,7 +47,7 @@ func ParsePackageLock(data []byte) ([]Package, error) {
 	const marker = "node_modules/"
 	var out []Package
 	for key, p := range lock.Packages {
-		i := strings.LastIndex(key, marker)
+		i := strings.LastIndex(key, marker) //nolint:modernize // CutLast needs a newer Go than this module pins
 		if i < 0 || p.Link || p.Version == "" {
 			continue // the root, a workspace folder or a symlink
 		}
