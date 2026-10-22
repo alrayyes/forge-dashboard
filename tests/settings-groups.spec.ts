@@ -167,6 +167,21 @@ test.describe('settings groups', () => {
     expect(a.barColour).not.toBe(b.barColour);
   });
 
+  test('the GitHub token help names the Dependabot alerts permission as optional', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html#connections');
+    await expect(page.locator('#save-connections-button')).toBeEnabled();
+    await page
+      .getByRole('button', { name: 'What does this token need?' })
+      .first()
+      .click();
+    const hint = page.locator('#github-token-hint');
+    await expect(hint).toContainText('Dependabot alerts \u2014 Read-only');
+    await expect(hint).toContainText('security_events');
+    await expect(hint).toContainText('Without it');
+  });
+
   test('a token help disclosure is closed by default and toggles aria-expanded', async ({
     page,
   }) => {

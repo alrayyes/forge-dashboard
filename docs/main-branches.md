@@ -29,11 +29,15 @@ also shows a pill with the count and the highest severity in words, for example
 "3 advisories, critical", linking to the alerts on GitHub in a new tab. The
 severity is the word, so the tint (red for high and critical, amber for medium,
 grey for low) is never the only signal. A repo with none open shows nothing. A
-repo whose alerts could not be read, because they are switched off or the token
-lacks the scope, shows a grey "Advisories unknown" and no link: unknown is no
-answer and is never shown as zero. A repo no source reads, such as a Forgejo
-one, shows no pill. A branch whose only trouble is a cancelled run (a newer
-push or a person stopped it) reads Cancelled, not Failed, with a stop glyph; a real
+repo whose alerts could not be read, because they are switched off or the
+credential lacks the permission, is never shown as zero: unknown is no answer.
+When every GitHub repo is unknown, one notice above the list says so and links
+to [When advisories can't be read](#when-advisories-cant-be-read), and no row
+repeats it. When only some are unknown, those rows carry a small grey dash
+(read aloud as "Advisories unknown") and no pill. A repo no source reads, such as
+a Forgejo one, shows no pill. A branch whose only trouble is a cancelled run (a
+newer push or a person stopped it) reads Cancelled, not Failed, with a stop
+glyph; a real
 failure beside a cancelled run is Failed and names only the failed job, and a
 cancelled run beside one still going is Running. A GitHub branch whose newest
 commit has workflow runs held until someone approves them reads "Waiting for
@@ -75,6 +79,25 @@ works on a pull request's checks, not on a default-branch run, so the pipeline
 panel here only reads. With every
 default branch passing the page says so, and a filter that matches nothing
 offers **Reset filters**. A repo with no pipeline says no run was found.
+
+## When advisories can't be read
+
+GitHub answers 403 or 404 when the credential can't read a repo's Dependabot
+alerts, or alerts are off for it. The API and MCP tools still report that as
+`unknown`, never zero. To read them, the credential needs one of:
+
+- a fine-grained personal access token with **Dependabot alerts: Read-only**
+  (a repository permission);
+- a classic token with the `security_events` scope (`public_repo` is enough if
+  every tracked repo is public);
+- a GitHub App with **Dependabot alerts: Read-only**. On an App that is already
+  installed, GitHub holds a new permission until the owner accepts it: open the
+  installation's page and accept the request, or the App keeps its old
+  permissions.
+
+Dependabot alerts must also be enabled on the repo. Answers are cached for
+fifteen minutes, and a failed read is retried after five. GitHub's reference:
+[List Dependabot alerts for a repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
 
 ## Main branches API
 

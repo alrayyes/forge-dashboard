@@ -148,7 +148,10 @@ To offer this to your users:
    any name, no webhook of its own needed. Under **Repository
    permissions**, grant Contents, Issues, and Pull requests (read and
    write) for repo discovery, plus **Webhooks (Read and write)** for
-   "Add a webhook", plus **Actions (Read and write)** for "Rerun failed
+   "Add a webhook", plus **Dependabot alerts (Read-only)** for the advisories
+   on the Branches page (optional, see
+   [When advisories can't be read](main-branches.md#when-advisories-cant-be-read)),
+   plus **Actions (Read and write)** for "Rerun failed
    checks" and for listing workflow runs held for approval; Metadata (read)
    comes along automatically. (GitHub also
    has an _organization_ Webhooks permission; that is not the one.) An
