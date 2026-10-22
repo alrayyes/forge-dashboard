@@ -124,6 +124,7 @@ export function pickSummary(
   picked: string[],
   choices: PickChoice[],
   words: PickWords,
+  unoffered: (value: string) => string = (value) => value,
 ): string {
   if (picked.length === 0) return words.all;
   if (picked.length > 1) return `${picked.length} ${words.many}`;
@@ -131,8 +132,12 @@ export function pickSummary(
   // A repo named on several forges needs its forge, or two read the same.
   if (found) return choiceText(found);
   // Not on this page: a repo is still named without its forge.
-  const colon = picked[0].indexOf(':');
-  return colon >= 0 ? picked[0].slice(colon + 1) : picked[0];
+  return unoffered(picked[0]);
+}
+
+// A repo is saved forge-qualified ("github:acme/api") and read without it.
+export function repoName(value: string): string {
+  return value.slice(value.indexOf(':') + 1);
 }
 
 export function labelSummary(picked: string[], offered: string[]): string {
@@ -173,6 +178,8 @@ export interface PickFilterConfig {
   ariaName: string;
   // How a URL in a choice becomes a safe image source; null drops the image.
   imageSrc?: (url: string | undefined) => string | null;
+  // How a saved value this page does not offer reads in the button.
+  unoffered?: (value: string) => string;
 }
 
 export interface PickFilterControl {
@@ -437,7 +444,7 @@ export function mountPickFilter(
           ? `${cfg.hint} No room for more.`
           : cfg.hint;
     if (hint.textContent !== full) hint.textContent = full;
-    const summary = pickSummary(picked, offeredNow, cfg.words);
+    const summary = pickSummary(picked, offeredNow, cfg.words, cfg.unoffered);
     if (button.textContent !== summary) button.textContent = summary;
     button.setAttribute('aria-label', `${cfg.ariaName}: ${summary}`);
   }
@@ -492,6 +499,7 @@ export const REPO_CONFIG: PickFilterConfig = {
   emptyText: 'No repos on this page.',
   ariaName: 'Filter by repo',
   imageSrc: avatarSrc,
+  unoffered: repoName,
 };
 
 export const AUTHOR_CONFIG: PickFilterConfig = {

@@ -32,6 +32,7 @@
   import { choicesChange, offerAction, shownList } from "#lib/shown-list.js";
   import {
     labelKey,
+    repoName,
     choiceText,
     type PickChoice,
     pickImageNode,
@@ -6818,7 +6819,9 @@
           const choice = choices.find((c) => labelKey(c.value) === value);
           const text = choice
             ? choiceText(choice)
-            : value.slice(key === "repo" ? value.indexOf(":") + 1 : 0);
+            : key === "repo"
+              ? repoName(value)
+              : value;
           chips.push({
             label: `${noun} ${text}`,
             choice: choice ?? {
@@ -8646,7 +8649,7 @@
           class="col-filter"
           data-col="title"
           type="text"
-          maxlength="200"
+          maxlength={Filters.MAX_TITLE}
           placeholder="Title or #number"
           aria-label="Filter by title"
           aria-keyshortcuts="/"

@@ -197,6 +197,7 @@ import {
   narrowLabels,
   type PickChoice,
   parseLabels,
+  repoName,
   unionLabels,
 } from './label-filter';
 
@@ -415,6 +416,9 @@ function dropNonStringTitleRule(state: SharedFilterState): void {
 // a longer saved one is cut as the cookie is read.
 export const MAX_TITLE = 200;
 
+// The filters that hold a list of picks.
+export const PICK_KEYS = ['label', 'repo', 'author'];
+
 // A saved Label pick over the limits the server holds it to (a cookie from an
 // earlier build, or a hand-edited one) would make every later save a 400 that
 // drops the other filters with it. It is cut down to what fits as it is read.
@@ -423,7 +427,7 @@ function trimLabelPick(state: SharedFilterState): void {
   if (typeof state.shared.title === 'string')
     state.shared.title = state.shared.title.slice(0, MAX_TITLE);
   // The Repo and Author picks are held to the same limits as the Label's.
-  for (const key of ['label', 'repo', 'author']) {
+  for (const key of PICK_KEYS) {
     const pick = state.shared[key];
     if (pick === undefined) continue;
     if (typeof pick !== 'string') delete state.shared[key];
@@ -439,8 +443,6 @@ function trimLabelPick(state: SharedFilterState): void {
 // the same control ends the hold.
 type StateGroup = 'shared' | 'pr' | 'issue' | 'view';
 const held: { group: StateGroup; key: string; value: string }[] = [];
-
-const PICK_KEYS = ['label', 'repo', 'author'];
 
 function heldValue(group: StateGroup, key: string): string | undefined {
   return held.find((h) => h.group === group && h.key === key)?.value;
@@ -486,11 +488,6 @@ export function reconcilePick(
     });
   state.shared[key] = joinLabels(kept);
   return true;
-}
-
-// A repo is saved forge-qualified ("github:acme/api") and read without it.
-function repoName(value: string): string {
-  return value.slice(value.indexOf(':') + 1);
 }
 
 // The user chose something else for this control (or cleared it): the held

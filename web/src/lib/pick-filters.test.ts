@@ -11,7 +11,7 @@ import {
   type SharedFilterState,
   saveState,
 } from './filters';
-import { initialOf, pickSummary } from './label-filter';
+import { initialOf, pickSummary, REPO_CONFIG } from './label-filter';
 
 // The Repo and Author filters hold a list, like the Label filter: saved as one
 // lowercase string joined by a newline, so a value saved before the list
@@ -144,7 +144,14 @@ describe('pickSummary and initialOf', () => {
     );
   });
   test('a pick nothing offers is named from its value', () => {
-    expect(pickSummary(['github:gone/x'], repos, words)).toBe('gone/x');
+    expect(
+      pickSummary(['github:gone/x'], repos, words, REPO_CONFIG.unoffered),
+    ).toBe('gone/x');
+  });
+  test('a label with a colon keeps it when nothing offers it', () => {
+    expect(
+      pickSummary(['kind:bug'], [], { all: 'All labels', many: 'labels' }),
+    ).toBe('kind:bug');
   });
   test('the initial of a name, upper case, for the fallback', () => {
     expect(initialOf('ann')).toBe('A');
