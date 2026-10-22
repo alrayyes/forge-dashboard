@@ -203,10 +203,14 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*
 // DeleteUnregisteredUser removes username's account if — and only if — it
 // has no credentials attached: an abandoned registration (begun, never
 // finished, so nothing was ever actually attached to the username) rather
-// than a real account. A no-op if the account has since gained a
-// credential, or doesn't exist at all.
-func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ? AND credentials_json = '[]'`, username)
+// than a real account. It also removes every credential-less account created
+// before olderThan under any username: its ceremony has expired, so nothing
+// can finish it, and leaving it would let such rows pile up. A no-op for an
+// account that has since gained a credential.
+func (s *Store) DeleteUnregisteredUser(ctx context.Context, username string, olderThan time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM users WHERE credentials_json = '[]' AND (username = ? OR created_at < ?)`,
+		username, olderThan.UTC())
 	if err != nil {
 		return fmt.Errorf("auth: delete unregistered user: %w", err)
 	}

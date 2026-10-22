@@ -1,12 +1,17 @@
 package auth_test
 
 import (
+	"database/sql"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func newTestService(t *testing.T) (*auth.Service, *auth.Store) {
@@ -85,4 +90,33 @@ func TestBeginRegistration_AfterAUserHoldsAPasskey_IsClosed(t *testing.T) {
 
 	_, getErr := store.GetUserByUsername(t.Context(), "alex")
 	assert.ErrorIs(t, getErr, auth.ErrNotFound, "a refused registration must not create an account")
+}
+
+// Rows from earlier attempts under other usernames pile up while no passkey
+// exists. Once their ceremony has expired nothing can finish them, so a new
+// attempt clears them. A recent one may still be mid-ceremony and stays.
+func TestBeginRegistration_ClearsExpiredAbandonedRowsOfOtherUsernames(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	wa, err := webauthn.New(&webauthn.Config{RPID: "localhost", RPDisplayName: "Test", RPOrigins: []string{"http://localhost"}})
+	require.NoError(t, err)
+	svc := auth.NewService(wa, store)
+	for _, name := range []string{"stale", "recent"} {
+		_, err = svc.BeginRegistration(t.Context(), name, name)
+		require.NoError(t, err)
+	}
+	_, err = db.ExecContext(t.Context(), `UPDATE users SET created_at = ? WHERE username = 'stale'`, time.Now().UTC().Add(-time.Hour))
+	require.NoError(t, err)
+
+	_, err = svc.BeginRegistration(t.Context(), "third", "Third")
+	require.NoError(t, err)
+
+	_, err = store.GetUserByUsername(t.Context(), "stale")
+	require.ErrorIs(t, err, auth.ErrNotFound)
+	_, err = store.GetUserByUsername(t.Context(), "recent")
+	require.NoError(t, err)
 }
