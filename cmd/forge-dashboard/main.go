@@ -95,7 +95,7 @@ const defaultShutdownDrain = 5 * time.Second
 
 // shutdownTimeout is how long Shutdown waits for in-flight requests once the
 // drain delay is over; a request still running then is cut.
-var shutdownTimeout = 5 * time.Second
+const shutdownTimeout = 5 * time.Second
 
 // resolveShutdownDrain reads SHUTDOWN_DRAIN as a Go duration. Zero turns the
 // wait off; empty, invalid or negative falls back to the default.
@@ -120,11 +120,11 @@ func resolveShutdownDrain(v string) time.Duration {
 
 // drainThenShutdown flips readiness to 503, waits the drain delay so a
 // router can notice, and only then shuts the server down.
-func drainThenShutdown(delay time.Duration, startDrain func(), shutdown func(context.Context) error) error {
+func drainThenShutdown(delay, timeout time.Duration, startDrain func(), shutdown func(context.Context) error) error {
 	startDrain()
 	time.Sleep(delay)
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	return shutdown(shutdownCtx)
@@ -334,7 +334,7 @@ func run() error {
 	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 
-	return serve(ctx, newServer(addr, deps), &drain)
+	return listenAndServe(ctx, newServer(addr, deps), &drain, manager.Stop)
 }
 
 // resolveIntervals reads how often to refresh everything and how often to poll
@@ -382,26 +382,50 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 	return manager
 }
 
-// serve runs srv until ctx is cancelled, then drains readiness before it stops
-// the server, and answers whatever stopped it that wasn't that shutdown.
-func serve(ctx context.Context, srv *http.Server, drain *api.Drain) error {
-	// ListenAndServe returns the moment Shutdown closes the listener, not when
-	// in-flight requests finish, so wait for Shutdown itself before returning.
+// listenAndServe binds srv.Addr and serves it with the production shutdown
+// timeout. stopStreams ends the long-lived streams as shutdown begins.
+func listenAndServe(ctx context.Context, srv *http.Server, drain *api.Drain, stopStreams func()) error {
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", srv.Addr)
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+
+	return serve(ctx, srv, ln, drain, shutdownTimeout, stopStreams)
+}
+
+// serve runs srv on ln until ctx is cancelled, then drains readiness, stops
+// whatever holds a request open for good (stopStreams, which runs as Shutdown
+// begins), and waits up to timeout for the rest. A server that is still busy
+// then is closed. It answers whatever stopped the server that wasn't that
+// shutdown.
+func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Drain, timeout time.Duration, stopStreams func()) error {
+	if stopStreams != nil {
+		srv.RegisterOnShutdown(stopStreams)
+	}
+
+	serveDone := make(chan struct{})
 	shutdownDone := make(chan struct{})
 	go func() {
 		defer close(shutdownDone)
-		<-ctx.Done()
-		if err := drainThenShutdown(resolveShutdownDrain(os.Getenv("SHUTDOWN_DRAIN")), drain.Start, srv.Shutdown); err != nil {
+		select {
+		case <-ctx.Done():
+		case <-serveDone:
+			return
+		}
+		if err := drainThenShutdown(resolveShutdownDrain(os.Getenv("SHUTDOWN_DRAIN")), timeout, drain.Start, srv.Shutdown); err != nil {
 			slog.Error("shutdown", "error", err)
+			if err := srv.Close(); err != nil {
+				slog.Error("close after shutdown", "error", err)
+			}
 		}
 	}()
 
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	err := srv.Serve(ln)
+	close(serveDone)
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("server stopped: %w", err)
 	}
-	if ctx.Err() != nil {
-		<-shutdownDone
-	}
+	<-shutdownDone
 
 	return nil
 }

@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -26,7 +25,7 @@ func TestDrainThenShutdown_FlipsUnreadyBeforeShutdownAndWaitsTheDelay(t *testing
 	start := time.Now()
 	var waited time.Duration
 
-	err := drainThenShutdown(30*time.Millisecond,
+	err := drainThenShutdown(30*time.Millisecond, time.Second,
 		func() { order = append(order, "drain") },
 		func(context.Context) error {
 			waited = time.Since(start)
@@ -59,53 +58,46 @@ func TestResolveShutdownDrain_Zero_DisablesTheWait(t *testing.T) {
 	assert.Equal(t, time.Duration(0), resolveShutdownDrain("0s"))
 }
 
-// startServe runs serve on a free port with handler and returns the base URL,
-// the cancel that asks it to stop, and a channel that closes once serve returns.
-func startServe(t *testing.T, handler http.Handler) (string, context.CancelFunc, <-chan struct{}) {
+// startServe runs serve on a listener it owns, with handler, and returns the
+// base URL, the cancel that asks it to stop, and a channel that closes once
+// serve returns.
+func startServe(t *testing.T, handler http.Handler, timeout time.Duration, stopStreams func()) (string, context.CancelFunc, <-chan struct{}) {
 	t.Helper()
 	t.Setenv("SHUTDOWN_DRAIN", "0s")
 
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	addr := l.Addr().String()
-	require.NoError(t, l.Close())
 
-	srv := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: time.Second}
+	srv := &http.Server{Handler: handler, ReadHeaderTimeout: time.Second}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_ = serve(ctx, srv, &api.Drain{})
+		_ = serve(ctx, srv, ln, &api.Drain{}, timeout, stopStreams)
 	}()
 
-	require.Eventually(t, func() bool {
-		c, err := net.Dial("tcp", addr)
-		if err != nil {
-			return false
-		}
-		_ = c.Close()
-
-		return true
-	}, 2*time.Second, 10*time.Millisecond)
-
-	return "http://" + addr, cancel, done
+	return "http://" + ln.Addr().String(), cancel, done
 }
 
-func TestServe_InFlightRequest_FinishesBeforeServeReturns(t *testing.T) {
-	started := make(chan struct{})
-	base, cancel, done := startServe(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		close(started)
-		time.Sleep(time.Second)
-		_, _ = w.Write([]byte("done"))
-	}))
+type result struct {
+	body string
+	err  error
+}
 
-	type result struct {
-		body string
-		err  error
-	}
+// getAsync fetches url in the background, bounded so a regression fails the
+// test instead of hanging it.
+func getAsync(url string) <-chan result {
 	res := make(chan result, 1)
 	go func() {
-		resp, err := get(base)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+		if err != nil {
+			res <- result{err: err}
+
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			res <- result{err: err}
 
@@ -116,7 +108,28 @@ func TestServe_InFlightRequest_FinishesBeforeServeReturns(t *testing.T) {
 		res <- result{body: string(b), err: err}
 	}()
 
-	<-started
+	return res
+}
+
+func waitClosed(t *testing.T, ch <-chan struct{}, d time.Duration, msg string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(d):
+		t.Fatal(msg)
+	}
+}
+
+func TestServe_InFlightRequest_FinishesBeforeServeReturns(t *testing.T) {
+	started := make(chan struct{})
+	base, cancel, done := startServe(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		time.Sleep(time.Second)
+		_, _ = w.Write([]byte("done"))
+	}), 5*time.Second, nil)
+
+	res := getAsync(base)
+	waitClosed(t, started, 2*time.Second, "handler never started")
 	cancel()
 
 	select {
@@ -128,53 +141,56 @@ func TestServe_InFlightRequest_FinishesBeforeServeReturns(t *testing.T) {
 	r := <-res
 	require.NoError(t, r.err)
 	assert.Equal(t, "done", r.body)
-	select {
-	case <-done:
-	case <-time.After(3 * time.Second):
-		t.Fatal("serve did not return after the request finished")
-	}
+	waitClosed(t, done, 3*time.Second, "serve did not return after the request finished")
 }
 
 func TestServe_RequestOutlastingTheDrain_ServeReturnsWithinTheShutdownTimeout(t *testing.T) {
-	old := shutdownTimeout
-	shutdownTimeout = 200 * time.Millisecond
-	t.Cleanup(func() { shutdownTimeout = old })
-
 	started := make(chan struct{})
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
 	base, cancel, done := startServe(t, http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		close(started)
 		<-release
-	}))
+	}), 200*time.Millisecond, nil)
 
-	go func() {
-		resp, err := get(base)
-		if err == nil {
-			_ = resp.Body.Close()
-		}
-	}()
-	<-started
+	_ = getAsync(base)
+	waitClosed(t, started, 2*time.Second, "handler never started")
 	begin := time.Now()
 	cancel()
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("serve did not return after the shutdown timeout")
-	}
+	waitClosed(t, done, 2*time.Second, "serve did not return after the shutdown timeout")
 	assert.GreaterOrEqual(t, time.Since(begin), 150*time.Millisecond)
 }
 
-func get(url string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("build request: %w", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("get: %w", err)
-	}
+// An open event stream never ends on its own, so shutdown has to end it or
+// every restart waits out the full timeout.
+func TestServe_OpenStream_IsEndedAsShutdownBeginsSoServeReturnsAtOnce(t *testing.T) {
+	started := make(chan struct{})
+	stop := make(chan struct{})
+	base, cancel, done := startServe(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		close(started)
+		<-stop
+	}), 10*time.Second, func() { close(stop) })
 
-	return resp, nil
+	_ = getAsync(base)
+	waitClosed(t, started, 2*time.Second, "stream never opened")
+	begin := time.Now()
+	cancel()
+
+	waitClosed(t, done, 3*time.Second, "serve waited out the shutdown timeout on an open stream")
+	assert.Less(t, time.Since(begin), 2*time.Second)
+}
+
+func TestServe_ListenerFails_ReturnsTheErrorAndDoesNotLeakTheShutdownWaiter(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	require.NoError(t, ln.Close())
+
+	err = serve(context.Background(), &http.Server{ReadHeaderTimeout: time.Second}, ln, &api.Drain{}, time.Second, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server stopped")
 }
