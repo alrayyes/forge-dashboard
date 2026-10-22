@@ -4169,7 +4169,7 @@ components:
             Whatever the forge already masks stays masked. Absent when the
             log can't be read or has expired. Both forges fill it for at
             most five failed jobs of a list: on GitHub the first five in the
-            list's order, on Forgejo the five newest. The whole output is read
+            list's order, on Forgejo up to five, newest first. The whole output is read
             through GET /api/checks/log.
 
     CheckLog:

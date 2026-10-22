@@ -54,6 +54,12 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 	}
 	httpResp, err := c.httpClient.Do(req)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			// The caller gave up (a sibling read was refused, or the caller left):
+			// that is not this request failing, so it is not recorded as one.
+			return dashboard.JobLog{}, fmt.Errorf("forgejo: read job log: %w", err)
+		}
+
 		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, nil, err)
 	}
 	defer func() { _ = httpResp.Body.Close() }()
@@ -70,6 +76,10 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 
 	tail, cut, err := readTail(httpResp.Body, window)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return dashboard.JobLog{}, fmt.Errorf("forgejo: read job log: %w", err)
+		}
+
 		return dashboard.JobLog{}, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
 	c.recordRequest(ctx, http.MethodGet, path, httpResp.StatusCode, requestlog.OutcomeSuccess)

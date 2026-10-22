@@ -681,14 +681,17 @@ or that has expired, shows without them and keeps its link.
 
 On Forgejo, a failed job carries the same kind of excerpt, but no steps and no
 timing, since its API doesn't serve them. The log is read while the checks are
-listed, so on every pull request's checks and every Main branches poll, not
-only when the panel opens: one request per failed job, for at most five jobs
-per list, each given 15 seconds. The reads run together, so a slow forge can
-delay the answer to a request for checks by up to about 15 seconds, until the
-excerpts are kept. A log with text is read once per finished job and kept, so
-a branch that stays red costs no more reads. A log that can't be read, or that
-is empty, is not asked for again for a minute, and a token that is refused
-stops the rest of that list's reads. A job whose log can't be read keeps its link.
+listed, so each time the panel loads or refreshes its checks, not only when
+someone asks to see a log: one request per failed job, for at most five jobs
+per list, newest first, each given 15 seconds. The reads run together, so a
+slow forge can delay the answer to a request for checks by up to about 15
+seconds, until the excerpts are kept. A log with text is read once per
+finished job and kept, so a branch that stays red costs no more reads. A log
+that can't be read, or that is empty, is not asked for again for a minute, and
+a token that is refused stops the rest of that list's reads. A log that is
+gone for good is asked for again every minute while the panel stays open, and
+a failed job with no finish time is read on every call; both are bounded by
+the five reads. A job whose log can't be read keeps its link.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each

@@ -569,3 +569,47 @@ func TestListChecks_ARateLimitStopsTheOtherReads(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, siblingsAnswered.Load(), "a limited forge is not asked again by the same list")
 }
+
+func TestListChecks_AReadCancelledByASiblingIsNotRecordedAsAFailedRequest(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": finishedFailures(3)})
+	})
+	limited := make(chan struct{})
+	var siblingsAnswered atomic.Int32
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/3/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		close(limited)
+	})
+	sibling := func(w http.ResponseWriter, r *http.Request) {
+		<-limited
+		select {
+		case <-time.After(300 * time.Millisecond):
+			siblingsAnswered.Add(1)
+			_, _ = io.WriteString(w, "boom\n")
+		case <-r.Context().Done():
+		}
+	}
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/1/logs", sibling)
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/2/logs", sibling)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	rec := &fakeRecorder{}
+	client := forgejo.NewClient(srv.URL, "test-token", "", rec)
+
+	_, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	for _, e := range rec.all() {
+		assert.NotContains(t, e.Endpoint, "/jobs/1/", "a read the list cancelled is not a failed request")
+		assert.NotContains(t, e.Endpoint, "/jobs/2/", "a read the list cancelled is not a failed request")
+	}
+}
