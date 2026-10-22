@@ -498,6 +498,18 @@ func (s *GenericSource) RerunFailedChecks(ctx context.Context, owner, name strin
 	return rerunner.RerunFailedChecks(ctx, owner, name, number) //nolint:wrapcheck // see above
 }
 
+// RerunFailedDefaultBranchChecks implements DefaultBranchRerunner at the Source
+// level, the same shape as RerunFailedChecks.
+func (s *GenericSource) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error {
+	rerunner, ok := s.client.(DefaultBranchRerunner)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't rerun default branch checks: %w", s.forge, errUnsupportedByClient)
+	}
+
+	// Not wrapped, for the same reason as RerunFailedChecks.
+	return rerunner.RerunFailedDefaultBranchChecks(ctx, owner, name) //nolint:wrapcheck // see above
+}
+
 // FetchRepo implements RepoRefresher: the same per-repo calls Fetch
 // already makes for every tracked repo, but for just the one a caller
 // (a webhook delivery) already knows the identity of — no ListRepos

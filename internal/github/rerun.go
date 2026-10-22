@@ -39,8 +39,50 @@ func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, numb
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, runsPath, runsResp)
 
+	return c.rerunFailedRuns(ctx, owner, name, runs.CheckRuns, errNothingToRerun)
+}
+
+// errNothingToRerunOnBranch is errNothingToRerun for a default branch.
+var errNothingToRerunOnBranch = errors.New("no failed GitHub Actions job to rerun on this branch")
+
+// RerunFailedDefaultBranchChecks implements dashboard.DefaultBranchRerunner: it
+// finds the newest commit on owner/name's default branch that a check ran on,
+// the commit the Main branches row reports, and reruns the failed Actions jobs
+// of its check runs as RerunFailedChecks does for a pull request.
+func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error {
+	commitsPath := fmt.Sprintf("/repos/%s/%s/commits", owner, name)
+	slog.Debug("github request", "method", http.MethodGet, "url", commitsPath)
+	opts := &ghsdk.CommitsListOptions{}
+	opts.PerPage = branchCheckCommits
+	commits, resp, err := c.restClient.Repositories.ListCommits(ctx, owner, name, opts)
+	if err != nil {
+		return asClientError(c.restError(ctx, http.MethodGet, commitsPath, err))
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, commitsPath, resp)
+
+	for _, commit := range commits {
+		sha := commit.GetSHA()
+		runsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
+		slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
+		runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{PerPage: perPage})
+		if err != nil {
+			return asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
+		}
+		c.recordRESTSuccess(ctx, http.MethodGet, runsPath, runsResp)
+		if len(runs.CheckRuns) > 0 {
+			return c.rerunFailedRuns(ctx, owner, name, runs.CheckRuns, errNothingToRerunOnBranch)
+		}
+	}
+
+	return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerunOnBranch}
+}
+
+// rerunFailedRuns maps the failed or timed-out check runs to their workflow
+// runs and asks GitHub to rerun the failed jobs of each, once per workflow run.
+// none is the conflict's sentence when no such run is found.
+func (c *Client) rerunFailedRuns(ctx context.Context, owner, name string, checkRuns []*ghsdk.CheckRun, none error) error {
 	var workflowRuns []int64
-	for _, r := range runs.CheckRuns {
+	for _, r := range checkRuns {
 		if state := checkStateFromRun(r); state != dashboard.CheckFailure && state != dashboard.CheckTimedOut {
 			continue
 		}
@@ -50,7 +92,7 @@ func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, numb
 		}
 	}
 	if len(workflowRuns) == 0 {
-		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerun}
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: none}
 	}
 
 	for _, runID := range workflowRuns {

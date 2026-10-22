@@ -50,6 +50,7 @@ var optionalCapabilities = []optionalCapability{
 	capabilityNamed[dashboard.PullRequestCloser](false),
 	capabilityNamed[dashboard.PullRequestReopener](false),
 	capabilityNamed[dashboard.ChecksRerunner](false),
+	capabilityNamed[dashboard.DefaultBranchRerunner](false),
 	capabilityNamed[dashboard.BranchUpdater](false),
 	capabilityNamed[dashboard.PullRequestChecker](false),
 	capabilityNamed[dashboard.PullRequestLabeler](false),

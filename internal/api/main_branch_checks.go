@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -62,5 +63,59 @@ func handleMainBranchChecks(deps Deps) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, pullRequestChecksResponse{Checks: checks})
+	}
+}
+
+// mainBranchRerunRequest names the repository whose default branch to rerun.
+type mainBranchRerunRequest struct {
+	Forge    string `json:"forge"`
+	FullName string `json:"fullName"`
+}
+
+// handleMainBranchRerunChecks asks the forge to rerun the failed jobs of the
+// newest pipeline on the named repository's default branch: the branch twin of
+// handlePullRequestRerunChecks. It answers 204 once the forge has queued them.
+func handleMainBranchRerunChecks(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := auth.UserFromContext(r.Context())
+		if !ok {
+			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
+
+			return
+		}
+
+		var req mainBranchRerunRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
+			return
+		}
+		if overBound(w, bound{"fullName", req.FullName, maxRepoFullNameLen}) {
+			return
+		}
+		owner, name, ok := splitFullName(req.FullName)
+		if !ok {
+			writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
+
+			return
+		}
+
+		src, _, ok := forgeSource(w, r, deps, u.ID, req.Forge)
+		if !ok {
+			return
+		}
+		rerunner, ok := capabilityOf[dashboard.DefaultBranchRerunner](w, src, req.Forge, "doesn't support rerunning default branch checks")
+		if !ok {
+			return
+		}
+
+		if err := rerunner.RerunFailedDefaultBranchChecks(r.Context(), owner, name); err != nil {
+			slog.Warn("default branch checks rerun failed", "forge", req.Forge, "repo", req.FullName, "error", err)
+			writeActionRefusal(r.Context(), w, nil, dashboard.PullRequestActionRerunChecks, owner, name, 0, err)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

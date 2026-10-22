@@ -49,7 +49,51 @@ func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, numb
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerun}
 	}
 
-	for _, runID := range failed {
+	return c.rerunRuns(ctx, owner, name, failed)
+}
+
+// errNothingToRerunOnBranch is errNothingToRerun for a default branch.
+var errNothingToRerunOnBranch = errors.New("no failed job to rerun on this branch")
+
+// RerunFailedDefaultBranchChecks implements dashboard.DefaultBranchRerunner: it
+// asks Forgejo to rerun the failed jobs of every failed Actions run on the
+// newest commit of owner/name's default branch that has one, the commit the
+// Main branches row reports.
+func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name string) error {
+	c = c.withContext(ctx)
+
+	repoPath := fmt.Sprintf("/repos/%s/%s", owner, name)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", repoPath)
+	repo, resp, err := c.sdk.GetRepo(owner, name)
+	if err != nil {
+		return c.forgejoError(ctx, http.MethodGet, repoPath, resp, err)
+	}
+	c.recordRequest(ctx, http.MethodGet, repoPath, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	var failed []int64
+	if repo.DefaultBranch != "" {
+		runs, err := c.branchRuns(ctx, dashboard.RepoRef{
+			FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch,
+		})
+		if err != nil {
+			return err
+		}
+		for _, run := range runs {
+			if checkStateFromWorkflowStatus(run.Status) == dashboard.CheckFailure {
+				failed = append(failed, run.ID)
+			}
+		}
+	}
+	if len(failed) == 0 {
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerunOnBranch}
+	}
+
+	return c.rerunRuns(ctx, owner, name, failed)
+}
+
+// rerunRuns asks Forgejo to rerun the failed jobs of each run in ids.
+func (c *Client) rerunRuns(ctx context.Context, owner, name string, ids []int64) error {
+	for _, runID := range ids {
 		rerunPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/rerun-failed-jobs", owner, name, runID)
 		slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
 		_, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil)
