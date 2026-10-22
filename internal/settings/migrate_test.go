@@ -342,11 +342,11 @@ func TestMigrate_TheOwnerIsTheUserAuthCallsTheOwner(t *testing.T) {
 	mustExec(t, db, `ALTER TABLE users ADD COLUMN display_name TEXT NOT NULL DEFAULT ''`)
 	mustExec(t, db, `CREATE TABLE single_user_cleanup (ran_at TIMESTAMP NOT NULL, kept_username TEXT NOT NULL, removed_users INTEGER NOT NULL)`)
 	// Two rows the owner rule must tell apart: an older one without a passkey
-	// and a newer one with. Auth.Owner takes the oldest row either way.
+	// and a newer one with. Auth.Owner takes the passkey holder, as the cleanup does.
 	mustExec(t, db, `DELETE FROM users`)
 	mustExec(t, db, `INSERT INTO users (id, username, credentials_json, created_at) VALUES ('b2xk', 'old', '[]', '2025-01-01 00:00:00'), ('bmV3', 'new', '[{}]', '2026-01-01 00:00:00')`)
 	for _, table := range []string{"webhook_deliveries", "ignored_repos", "auto_update_branch_repos", "auto_merge_intents", "hidden_pull_requests", "queued_actions", "pull_request_auto_update"} {
-		mustExec(t, db, `UPDATE `+table+` SET user_id = 'b2xk'`)
+		mustExec(t, db, `UPDATE `+table+` SET user_id = 'bmV3'`)
 	}
 	mustExec(t, db, `UPDATE user_credentials SET user_id = 'bmV3'`)
 	mustExec(t, db, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES ('b2xk', 'old-token', '2026-02-02 00:00:00')`)
@@ -357,8 +357,8 @@ func TestMigrate_TheOwnerIsTheUserAuthCallsTheOwner(t *testing.T) {
 
 	require.NoError(t, err)
 	want := scalar[string](t, db, `SELECT webhook_token FROM settings`)
-	assert.Equal(t, "old-token", want)
-	assert.Equal(t, "b2xk", base64.RawURLEncoding.EncodeToString(owner), "the test must really compare the two rules")
+	assert.Equal(t, "hook-token", want, "the passkey holder's settings win, not the older row's")
+	assert.Equal(t, "bmV3", base64.RawURLEncoding.EncodeToString(owner), "the store must pick the holder")
 }
 
 func TestMigrate_ASettingsTableAlreadyThere_IsReplacedWhenEmpty(t *testing.T) {

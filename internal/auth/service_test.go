@@ -149,7 +149,7 @@ func TestBeginRegistration_ClearsExpiredAbandonedRowsOfOtherUsernames(t *testing
 }
 
 // newServiceWithASurvivingSecondUser is a database the single-user cleanup left
-// two users in: the owner, and a newer row holding a passkey (a registration
+// two users in: the owner, and a newer row also holding a passkey (a registration
 // that finished after the cleanup ran).
 func newServiceWithASurvivingSecondUser(t *testing.T) (*auth.Service, *auth.Store) {
 	t.Helper()
@@ -164,7 +164,7 @@ func newServiceWithASurvivingSecondUser(t *testing.T) (*auth.Service, *auth.Stor
 	time.Sleep(2 * time.Millisecond)
 	_, err = store.CreateUser(t.Context(), "sam", "Sam")
 	require.NoError(t, err)
-	_, err = db.ExecContext(t.Context(), `UPDATE users SET credentials_json = '[{"id":"AQID"}]' WHERE username = 'sam'`)
+	_, err = db.ExecContext(t.Context(), `UPDATE users SET credentials_json = '[{"id":"AQID"}]'`)
 	require.NoError(t, err)
 
 	wa, err := webauthn.New(&webauthn.Config{RPID: "localhost", RPDisplayName: "Forge Board Test", RPOrigins: []string{"http://localhost"}})

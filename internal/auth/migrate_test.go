@@ -293,25 +293,27 @@ func TestMigrate_APITokensFromBeforeExpiry_StillMigrate(t *testing.T) {
 	assert.True(t, hasColumn(t, db, "api_tokens", "expires_at"))
 }
 
-func TestMigrate_TheOwnerIsTheUserTheStoreCallsTheOwner(t *testing.T) {
+func TestMigrate_TheOwnerIsTheOldestPasskeyHolder_AsTheCleanupAndTheStoreHaveIt(t *testing.T) {
 	db, path := openMigrationDB(t)
 	seedOldShape(t, db)
 	addCleanupMarker(t, db)
-	// An older user without a passkey and a newer one with: Owner takes the oldest row.
+	// An older user without a passkey and a newer one with: the cleanup keeps the holder.
 	mustExec(t, db, `UPDATE users SET id = 'new', username = 'new', created_at = '2026-01-01 00:00:00'`)
 	mustExec(t, db, `UPDATE sessions SET user_id = 'new'`)
 	mustExec(t, db, `UPDATE api_tokens SET user_id = 'new'`)
 	mustExec(t, db, `UPDATE credential_metadata SET user_id = 'new'`)
 	mustExec(t, db, `INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('old', 'old', 'Old', '[]', '2025-01-01 00:00:00')`)
 	mustExec(t, db, `INSERT INTO sessions VALUES ('old-session', 'old', '2099-01-01 00:00:00', '2026-02-01 00:00:00')`)
+	before := scalar[int](t, db, `SELECT count(*) FROM sessions WHERE user_id = 'new'`)
 	owner, err := auth.NewStore(db).Owner(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "old", owner.Username, "the test must really compare the two rules")
+	require.Equal(t, "new", owner.Username, "the store must pick the holder too")
 
 	_, err = migrate(t, db, path)
 
 	require.NoError(t, err)
-	assert.Equal(t, "old-session", scalar[string](t, db, `SELECT token FROM sessions`))
+	assert.Equal(t, before, scalar[int](t, db, `SELECT count(*) FROM sessions`))
+	assert.Zero(t, scalar[int](t, db, `SELECT count(*) FROM sessions WHERE token = 'old-session'`))
 }
 
 func TestMigrate_AfterwardsTheStoreAuthenticatesTheSameSessionAndBothTokens(t *testing.T) {

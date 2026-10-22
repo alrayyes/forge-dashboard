@@ -290,11 +290,13 @@ func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 }
 
 // OwnerOrder is the tail of every query that picks the instance's one user: the
-// oldest row. The settings migration builds its owner query from it too, so the
-// user whose settings survive the upgrade is the user Owner and OwnerID return.
-const OwnerOrder = `ORDER BY created_at, id LIMIT 1`
+// oldest user holding a passkey, the rule the single-user cleanup keeps by, and
+// with none the oldest row (an abandoned registration). The settings and auth
+// migrations build their owner query from it too, so the user whose rows
+// survive the upgrade is the user Owner and OwnerID return.
+const OwnerOrder = `ORDER BY credentials_json = '[]', created_at, rowid LIMIT 1`
 
-// Owner returns the instance's one user, the oldest row, or ErrNotFound on an
+// Owner returns the instance's one user (see OwnerOrder), or ErrNotFound on an
 // instance nobody has started registering on.
 func (s *Store) Owner(ctx context.Context) (*User, error) {
 	row := s.db.QueryRowContext(ctx,

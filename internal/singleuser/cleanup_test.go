@@ -398,3 +398,30 @@ func TestOwnerUsername_NoPasskeyYet_ReportsNotFound(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, found)
 }
+
+// The cleanup, the migrations and the store each pick the owner; if they ever
+// disagreed, a migration would keep one user's rows and the store serve another.
+func TestOwnerUsername_AgreesWithTheStoreWhenAnOlderUserHasNoPasskey(t *testing.T) {
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "app.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	for _, stmt := range []string{
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('YQ', 'old', 'Old', '[]', '2025-01-01 00:00:00')`,
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('Yg', 'holder', 'H', '[{}]', '2026-01-01 00:00:00')`,
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('Yw', 'later', 'L', '[{}]', '2026-02-01 00:00:00')`,
+	} {
+		_, err := db.ExecContext(t.Context(), stmt)
+		require.NoError(t, err)
+	}
+
+	name, found, err := singleuser.OwnerUsername(t.Context(), db)
+	require.NoError(t, err)
+	require.True(t, found)
+	owner, err := store.Owner(t.Context())
+	require.NoError(t, err)
+
+	assert.Equal(t, "holder", name)
+	assert.Equal(t, name, owner.Username)
+}
