@@ -46,6 +46,10 @@ func count(t *testing.T, db *sql.DB, query string) int {
 func version(t *testing.T, db *sql.DB) int {
 	t.Helper()
 
+	if count(t, db, `SELECT count(*) FROM sqlite_master WHERE name = 'schema_version'`) == 0 {
+		return 0 // nothing was stamped
+	}
+
 	return count(t, db, `SELECT version FROM schema_version`)
 }
 
@@ -259,4 +263,17 @@ func TestRun_AStepHoldsTheWriteLockFromItsFirstStatement(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Error(t, writeErr, "another connection must not get a write in once the step has begun")
+}
+
+func TestRun_TheBackupIsOfTheDatabaseAsItWas_NotOneThatAlreadyHoldsAVersionRow(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+
+	res, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{rebuild}, quiet)
+	require.NoError(t, err)
+
+	backup, err := sql.Open("sqlite", res.BackupPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backup.Close() })
+	assert.Equal(t, 0, count(t, backup, `SELECT count(*) FROM sqlite_master WHERE name = 'schema_version'`))
 }

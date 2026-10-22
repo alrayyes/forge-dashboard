@@ -109,16 +109,20 @@ func readVersion(ctx context.Context, conn *sql.Conn) (version int, fresh bool, 
 	if tables == 0 {
 		return 0, true, nil
 	}
-	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
-		return 0, false, fmt.Errorf("migrate: create schema_version: %w", err)
+	// Read only. The backup comes next and must see the database as it was, and
+	// the first write happens inside the first step's transaction.
+	var stamped int
+	if err := conn.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'`,
+	).Scan(&stamped); err != nil {
+		return 0, false, fmt.Errorf("migrate: look for schema_version: %w", err)
+	}
+	if stamped == 0 {
+		return 0, false, nil
 	}
 	err = conn.QueryRowContext(ctx, `SELECT version FROM schema_version`).Scan(&version)
 	if errors.Is(err, sql.ErrNoRows) {
 		// Tables exist but nothing was ever stamped: the database predates the runner.
-		if _, err := conn.ExecContext(ctx, `INSERT INTO schema_version (version) VALUES (0)`); err != nil {
-			return 0, false, fmt.Errorf("migrate: stamp schema_version: %w", err)
-		}
-
 		return 0, false, nil
 	}
 	if err != nil {

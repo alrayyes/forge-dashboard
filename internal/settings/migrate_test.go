@@ -148,7 +148,7 @@ func TestMigrate_FailureMidStep_LeavesEveryOldTableIntact(t *testing.T) {
 		assert.Equal(t, 1, scalar[int](t, db, `SELECT count(*) FROM `+table), table)
 	}
 	assert.False(t, tableExists(t, db, "settings"))
-	assert.Zero(t, scalar[int](t, db, `SELECT version FROM schema_version`))
+	assert.False(t, tableExists(t, db, "schema_version"), "a failed step writes no version")
 }
 
 func TestMigrate_FreshDatabase_CreatesNoOldTable(t *testing.T) {
