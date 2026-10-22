@@ -67,3 +67,40 @@ func TestGenericSource_RerunFailedChecks_UnsupportedClient(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not supported by this client")
 }
+
+var _ dashboard.DefaultBranchRerunner = (*dashboard.GenericSource)(nil)
+
+type fakeBranchRerunnerClient struct {
+	fakeForgeClient
+	rerunErr error
+	reran    []string
+}
+
+func (f *fakeBranchRerunnerClient) RerunFailedDefaultBranchChecks(_ context.Context, owner, name string) error {
+	f.reran = append(f.reran, owner+"/"+name)
+
+	return f.rerunErr
+}
+
+func TestGenericSource_RerunFailedDefaultBranchChecks_DelegatesAndKeepsTheClientsError(t *testing.T) {
+	t.Parallel()
+
+	want := &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errors.New("no failed job to rerun on this branch")}
+	client := &fakeBranchRerunnerClient{rerunErr: want}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	err := source.RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	assert.Same(t, want, err)
+	assert.Equal(t, []string{"alrayyes/a"}, client.reran)
+}
+
+func TestGenericSource_RerunFailedDefaultBranchChecks_UnsupportedClient(t *testing.T) {
+	t.Parallel()
+
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, &fakeForgeClient{}, 4)
+
+	err := source.RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.Error(t, err)
+}
