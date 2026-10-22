@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -167,4 +168,66 @@ func TestJobLog_ForgejoViaGenericSource_ReturnsTheText(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.EqualValues(t, 7, client.lastJob)
+}
+
+func TestJobLog_HostileInput_Returns400AndNeverReachesTheForge(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	for name, args := range map[string][2]string{
+		"dot-dot owner":          {"../b", "1"},
+		"dot-dot repo":           {"a/..", "1"},
+		"single dot repo":        {"a/.", "1"},
+		"query in the repo":      {"a/b?x=1", "1"},
+		"fragment in the repo":   {"a/b#x", "1"},
+		"percent in the repo":    {"a/b%2e%2e", "1"},
+		"extra segment":          {"a/b/c", "1"},
+		"space in the owner":     {"a b/c", "1"},
+		"backslash":              {`a\b/c`, "1"},
+		"job id overflows int64": {"a/b", "99999999999999999999"},
+		"job id with a sign":     {"a/b", "+5"},
+		"job id with a space":    {"a/b", "5 "},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := getJobLog(t, srvURL, sessionCookie, "github", args[0], args[1])
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		})
+	}
+	assert.Zero(t, source.lastJob, "the forge must not have been asked")
+}
+
+func TestJobLog_ErrorsNeverCarryTheUpstreamError(t *testing.T) {
+	t.Parallel()
+
+	const signed = "https://blob.example/log?sig=SECRETSIGNATURE"
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, err: &url.Error{Op: "Get", URL: signed, Err: assert.AnError}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "SECRETSIGNATURE")
+	assert.NotContains(t, string(raw), "blob.example")
+	assert.NotEqual(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestJobLog_ResponseIsNotCachedOrSniffed(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "x"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
+	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
 }
