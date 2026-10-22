@@ -4,6 +4,7 @@ import {
   blockingFirst,
   CHECK_STATE_LABELS,
   type Check,
+  checkRunKey,
   formatCheckDuration,
   groupChecks,
   isBlocking,
@@ -103,5 +104,29 @@ describe('groupChecks', () => {
 
   test('no checks, no groups', () => {
     expect(groupChecks([])).toEqual([]);
+  });
+});
+
+describe('checkRunKey', () => {
+  test('changes with the attempt and with the duration', () => {
+    const a = check({ url: 'u', runAttempt: 1, durationSeconds: 5 });
+
+    expect(checkRunKey({ ...a, runAttempt: 2 })).not.toBe(checkRunKey(a));
+    expect(checkRunKey({ ...a, durationSeconds: 6 })).not.toBe(checkRunKey(a));
+  });
+
+  test('keeps the key when a later excerpt arrives and the forge numbers the run', () => {
+    const a = check({ url: 'u', runAttempt: 1, excerpt: 'one' });
+
+    expect(checkRunKey({ ...a, excerpt: 'two' })).toBe(checkRunKey(a));
+  });
+
+  test('falls back to the excerpt when the forge gives neither attempt nor duration', () => {
+    const a = check({ url: 'u', excerpt: 'first failure' });
+
+    expect(checkRunKey({ ...a, excerpt: 'second failure' })).not.toBe(
+      checkRunKey(a),
+    );
+    expect(checkRunKey({ ...a })).toBe(checkRunKey(a));
   });
 });

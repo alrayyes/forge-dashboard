@@ -5,9 +5,16 @@
 // the start of a log past this.
 const KEPT_KB = 256;
 
-// How long a log read may take, answer and body, before it counts as failed.
-// Without a bound a stalled read would leave a copy waiting for good.
-const LOG_TIMEOUT_MS = 30_000;
+// How long a read for Copy log may take, answer and body, before it counts as
+// failed. Without a bound a stalled read would leave a copy waiting for good.
+// View run sets none: it shows its own loading state and can be closed.
+const COPY_LOG_TIMEOUT_MS = 30_000;
+
+// How long a log read for Copy log is reused before it is read again. The
+// server waits a while after a job finishes because a read just then can miss
+// lines the runner hasn't flushed; a press in that window mustn't pin a short
+// log for the life of the row.
+export const COPIED_LOG_KEPT_MS = 60_000;
 
 export type LogResult =
   | { ok: true; text: string; truncated: boolean }
@@ -31,14 +38,16 @@ export function notePlaces(forgeName: string): string {
 }
 
 // Reads one job's output. A refusal is a sentence a person can use, never the
-// forge's own words or an exception.
+// forge's own words or an exception. A read has no time limit unless
+// `timeoutMs` is given.
 export async function loadRunLog(
   url: string,
   forgeName: string,
   fetchImpl: typeof fetch = fetch,
-  timeoutMs: number = LOG_TIMEOUT_MS,
+  timeoutMs?: number,
 ): Promise<LogResult> {
-  const signal = AbortSignal.timeout(timeoutMs);
+  const signal =
+    timeoutMs === undefined ? undefined : AbortSignal.timeout(timeoutMs);
   try {
     return await readRunLog(url, forgeName, fetchImpl, signal);
   } catch (err) {
@@ -57,7 +66,7 @@ async function readRunLog(
   url: string,
   forgeName: string,
   fetchImpl: typeof fetch,
-  signal: AbortSignal,
+  signal: AbortSignal | undefined,
 ): Promise<LogResult> {
   const res = await fetchImpl(url, {
     headers: { Accept: 'application/json' },
@@ -73,7 +82,7 @@ async function readRunLog(
   if (res.ok) {
     const body = await res.json().catch((err) => {
       // A body cut off by the timeout is a stalled read, not a bad answer.
-      if (signal.aborted) throw err;
+      if (signal?.aborted) throw err;
 
       return null;
     });
@@ -183,7 +192,7 @@ export async function logToCopy(
   noUrlWhy = 'This check has no job to read a full log from.',
 ): Promise<Prepared> {
   if (!url) return { text: excerpt, kind: 'excerpt', why: noUrlWhy };
-  const got = await loadRunLog(url, forgeName, fetchImpl);
+  const got = await loadRunLog(url, forgeName, fetchImpl, COPY_LOG_TIMEOUT_MS);
   // A signed-out answer is not about the log: copy nothing, so the clipboard
   // keeps what it held, and say to sign in.
   if (!got.ok && got.signedOut) {

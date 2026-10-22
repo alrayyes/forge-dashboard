@@ -50,6 +50,7 @@
   import {
     blockingFirst,
     CHECK_STATE_LABELS,
+    checkRunKey,
     formatCheckDuration,
     groupChecks,
     isBlocking,
@@ -323,8 +324,7 @@
           excerpt={check.excerpt ?? ""}
           forgeName={target ? forgeLabel(target) : "the forge"}
           {copyable}
-          runKey="{check.url}|{check.durationSeconds ?? ''}|{check.runAttempt ??
-            ''}"
+          runKey={checkRunKey(check)}
         />
       </li>
     {/each}
