@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/alrayyes/forge-dashboard/compare/v2.3.0...v2.4.0) (2026-10-22)
+
+
+### Features
+
+* **branches:** rerun failed checks from the Main branches pipeline dialog ([#2482](https://github.com/alrayyes/forge-dashboard/issues/2482)) ([816690f](https://github.com/alrayyes/forge-dashboard/commit/816690f7122c27cb60b3290ebbf16341864eb901))
+
 ## [2.3.0](https://github.com/alrayyes/forge-dashboard/compare/v2.2.0...v2.3.0) (2026-10-22)
 
 
