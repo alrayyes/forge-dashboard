@@ -3796,6 +3796,10 @@ button.pipeline-check-link:disabled {
     display: flex;
     flex-wrap: nowrap;
     gap: 8px;
+    /* The strip scrolls; it must not push the page wider than the window
+       when the chips add up to more than the width. */
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     scrollbar-width: none;
   }
