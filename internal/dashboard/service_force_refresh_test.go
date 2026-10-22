@@ -85,7 +85,7 @@ func TestService_RefreshNow_IsNotThrottledByTheCooldown(t *testing.T) {
 	assert.Equal(t, int32(3), src.calls.Load(), "a webhook's refresh still fetches")
 }
 
-func TestService_Stop_ClearsTheForceRefreshCooldown(t *testing.T) {
+func TestService_Stop_KeepsTheForceRefreshCooldown(t *testing.T) {
 	t.Parallel()
 
 	m, src := forceRefreshFixture(t, time.Minute)
@@ -97,7 +97,23 @@ func TestService_Stop_ClearsTheForceRefreshCooldown(t *testing.T) {
 	retryAfter, ok := m.ForceRefresh(t.Context())
 
 	assert.True(t, ok)
-	assert.Zero(t, retryAfter, "a stopped Service starts like a fresh process")
+	assert.Positive(t, retryAfter, "halting the loop must not hand out a free refresh")
+}
+
+func TestService_Reset_ClearsTheForceRefreshCooldown(t *testing.T) {
+	t.Parallel()
+
+	m, src := forceRefreshFixture(t, time.Minute)
+	m.ForceRefresh(t.Context())
+	m.Stop()
+	m.Reset()
+	m.Ensure(t.Context(), []dashboard.Source{src})
+	require.Eventually(t, m.FirstRefreshDone, time.Second, 5*time.Millisecond)
+
+	retryAfter, ok := m.ForceRefresh(t.Context())
+
+	assert.True(t, ok)
+	assert.Zero(t, retryAfter, "a reset Service starts like a fresh process")
 }
 
 func TestService_Ensure_KeepsTheForceRefreshCooldown(t *testing.T) {

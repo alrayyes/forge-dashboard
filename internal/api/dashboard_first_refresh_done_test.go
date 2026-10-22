@@ -236,6 +236,7 @@ func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEn
 
 	// A restart: every Aggregator and mark gone, the saved settings still there.
 	manager.Stop()
+	manager.Reset()
 
 	assert.Equal(t, false, firstRefreshDoneOverHTTP(t, srv.URL, cookie), "the warm-up refresh is still running")
 	assert.Equal(t, false, firstRefreshDoneOverMCP(t, srv.URL, apiToken))
