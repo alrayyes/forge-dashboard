@@ -205,6 +205,41 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 	require.NotNil(t, found)
 	assert.Contains(t, found.Description, "Read-only")
 	assert.Contains(t, found.Description, "no forge")
+	assert.Contains(t, found.Description, "advisories")
+	assert.Contains(t, found.Description, "unknown")
+}
+
+func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
+	t.Parallel()
+
+	known := branchRow("acme/known", dashboard.MainBranchPassed)
+	known.Advisories = &dashboard.Advisories{
+		State:   dashboard.AdvisoriesKnown,
+		Count:   3,
+		Highest: dashboard.SeverityHigh,
+		URL:     "https://github.com/acme/known/security/dependabot",
+	}
+	unknown := branchRow("acme/unknown", dashboard.MainBranchFailed)
+	unknown.Advisories = &dashboard.Advisories{State: dashboard.AdvisoriesUnknown}
+	none := branchRow("acme/none", dashboard.MainBranchPassed)
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{known, unknown, none})
+	readMainBranchesFrom(t, srvURL, cookie, 3)
+
+	content := callMainBranchesTool(t, srvURL, cookie, 3)
+
+	byName := map[string]map[string]any{}
+	for _, row := range content["branches"].([]any) {
+		r := row.(map[string]any)
+		byName[r["fullName"].(string)] = r
+	}
+	assert.Equal(t, map[string]any{
+		"state":   "known",
+		"count":   float64(3),
+		"highest": "high",
+		"url":     "https://github.com/acme/known/security/dependabot",
+	}, byName["acme/known"]["advisories"])
+	assert.Equal(t, "unknown", byName["acme/unknown"]["advisories"].(map[string]any)["state"])
+	assert.NotContains(t, byName["acme/none"], "advisories")
 }
 
 func TestMCP_GetMainBranches_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
