@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/alrayyes/forge-dashboard/compare/v2.0.1...v2.0.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* **github:** log why the alerts read was refused and retry it sooner ([#2457](https://github.com/alrayyes/forge-dashboard/issues/2457)) ([faf7913](https://github.com/alrayyes/forge-dashboard/commit/faf79132f750129c55e8424bbe066c17cdbdfdd4))
+
 ## [2.0.1](https://github.com/alrayyes/forge-dashboard/compare/v2.0.0...v2.0.1) (2026-10-22)
 
 
