@@ -126,6 +126,13 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
+  import {
+    type ForgeHealthEntry,
+    dependabotBlockedReason,
+    forgeLockReason,
+    isUnreachable,
+    spentLimit,
+  } from "#lib/forge-lock.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -283,24 +290,15 @@
     "forge" | "repo" | "number" | "title" | "url"
   > &
     Partial<IssueItem>;
-  type Forge = {
-    forge: string;
-    reachable: boolean;
+  // The health fields are shared with the Main branches lock (forge-lock.ts);
+  // the dashboard adds what only its snapshot carries.
+  type Forge = ForgeHealthEntry & {
     repoCount: number;
     errorKind?: string;
     error?: string;
     // Set with reachable: false when the rows shown are the last good ones
     // (#933): when that data was fetched.
     staleSince?: string;
-    // Two independent GitHub budgets (#361) — see api/openapi.yaml's own
-    // ForgeHealth.rateLimitGraphQL/rateLimitREST doc comment for which
-    // is which and when each is reported.
-    rateLimitGraphQL?: RateLimit;
-    rateLimitREST?: RateLimit;
-    // #666: why Dependabot would refuse a command sent through this
-    // forge's credential (a GitHub App) — the Dependabot buttons lock
-    // with this exact text. Absent when commands work.
-    dependabotCommandsBlocked?: string;
   };
   type DashboardSnapshot = {
     generatedAt: string;
@@ -2418,7 +2416,7 @@
     // Why an action is locked, and the code that says what kind of wait it is
     // when one is known: "rate_limited" and "permission" don't clear by
     // clicking; anything else may.
-    type LockInfo = { reason: string; code?: string };
+    type LockInfo = { reason: string; code?: string; resetsAt?: string };
 
     function lockOf(entry: ActionState): LockInfo {
       return { reason: entry.reason ?? "", code: entry.code };
@@ -2605,29 +2603,11 @@
       forgeName: string,
       budget: "rest" | "graphql" = "rest",
     ): LockInfo | null {
-      const health = lastForges.find((f) => f.forge === forgeName);
-      if (health && health.reachable === false) {
-        // The forge can't be reached, so nothing here can work (#1199). The
-        // controls are not drawn (see readOnlyBecauseRateLimited), and one
-        // banner says why, once (#360, #755).
-        return {
-          reason: "This forge can't be reached right now.",
-          code: "forge_unreachable",
-        };
-      }
       // #361: Merge, Update branch, Close and the bot commands are REST
       // calls, so REST's budget decides them; auto-merge is a GraphQL
-      // mutation and asks for that budget instead. The two are separate
-      // allowances, and one saying nothing about the other would leave a
-      // row looking clickable until the click itself failed.
-      const spent =
-        health?.[budget === "rest" ? "rateLimitREST" : "rateLimitGraphQL"];
-      if (isRateLimited(spent))
-        return {
-          reason: rateLimitedReason(forgeName, spent),
-          code: "rate_limited",
-        };
-      return null;
+      // mutation and asks for that budget instead. An unreachable forge
+      // (#1199) draws no controls, and one banner says why, once (#360, #755).
+      return forgeLockReason(lastForges, forgeName, Date.now(), budget);
     }
 
     // A forge whose budget is spent, or that can't be reached, is read-only
@@ -2644,13 +2624,13 @@
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
     // min)." Built fresh from the latest snapshot, so a 429 from a click
     // reads the same as a budget the snapshot already showed spent (#732).
-    function rateLimitedReason(forgeName: string, known?: RateLimit): string {
-      const health = lastForges.find((f) => f.forge === forgeName);
-      const limit =
-        known ??
-        [health?.rateLimitREST, health?.rateLimitGraphQL].find(
-          (l) => l && Date.parse(l.resetsAt) > Date.now(),
-        );
+    function rateLimitedReason(
+      forgeName: string,
+      known?: RateLimit,
+      budget: "rest" | "graphql" = "rest",
+    ): string {
+      // Every entry of the kind, but only the budget the action spends.
+      const limit = known ?? spentLimit(lastForges, forgeName, budget);
       return rateLimitReasonText(
         FORGE_LABELS[forgeName] || forgeName,
         limit?.resetsAt,
@@ -2676,6 +2656,8 @@
       setState: (next: ActionState) => void,
       retryable?: ReadonlySet<ActionCode>,
       actionName?: string,
+      // The budget the action spends, for a refusal that names no reset time.
+      budget: "rest" | "graphql" = "rest",
     ) {
       // The raw answer for Copy, made once for whichever line this ends in.
       const details = failureDetails(
@@ -2690,7 +2672,7 @@
                 FORGE_LABELS[item.forge] || item.forge,
                 resetsAt,
               )
-            : rateLimitedReason(item.forge),
+            : rateLimitedReason(item.forge, undefined, budget),
         retryable,
       );
       if (outcome.kind === "settled") {
@@ -3173,6 +3155,8 @@
               autoMergeState[key] = next;
             },
             AUTO_MERGE_RETRYABLE,
+            undefined,
+            "graphql",
           );
         });
     }
@@ -3292,9 +3276,18 @@
             });
         })
         .catch((err: ActionRequestError) => {
-          renderActionRefusal(item, err, fkey, "cancel auto-merge", (next) => {
-            cancelAutoMergeState[key] = next;
-          });
+          renderActionRefusal(
+            item,
+            err,
+            fkey,
+            "cancel auto-merge",
+            (next) => {
+              cancelAutoMergeState[key] = next;
+            },
+            undefined,
+            undefined,
+            "graphql",
+          );
         });
     }
 
@@ -4001,9 +3994,7 @@
       const key = `${prKey(item)}:${action}`;
       const entry = dependabotActionState[key] || { phase: "idle" };
 
-      const blockedReason = lastForges.find(
-        (f) => f.forge === item.forge,
-      )?.dependabotCommandsBlocked;
+      const blockedReason = dependabotBlockedReason(lastForges, item.forge);
       if (blockedReason)
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],
@@ -5400,11 +5391,13 @@
       // direct button is there, and there is nothing to wait for.
       const lock = proactiveActionLockReason(item.forge);
       if (lock?.code !== "rate_limited") return null;
+      // With a host of this kind down, the row may be on that host, and a
+      // queued action would wait for a reset that doesn't bring it back.
+      if (lastForges.some((f) => f.forge === item.forge && isUnreachable(f)))
+        return null;
       const action = queueableAction(item);
       if (!action) return null;
-      const health = lastForges.find((f) => f.forge === item.forge);
-      if (!isRateLimited(health?.rateLimitREST)) return null;
-      const resets = health?.rateLimitREST?.resetsAt ?? "";
+      const resets = lock.resetsAt ?? "";
       const button = buttonEl(
         "row-action",
         `Queue ${QUEUE_VERBS[action]} for ${formatTime(resets)}`,
