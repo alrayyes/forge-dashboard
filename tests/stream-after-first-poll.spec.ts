@@ -74,7 +74,7 @@ test.describe('live stream start (#1569)', () => {
       if (streamRequests === 1) {
         return route.fulfill({
           status: 404,
-          json: { error: 'no background refresh is running yet for this user' },
+          json: { error: 'no background refresh is running yet' },
         });
       }
       const pushed = snapshot({
