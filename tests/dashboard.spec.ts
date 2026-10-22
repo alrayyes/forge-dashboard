@@ -60,7 +60,7 @@ test.describe('dashboard page', () => {
         status: 404,
         contentType: 'application/json',
         body: JSON.stringify({
-          error: 'no background refresh is running yet for this user',
+          error: 'no background refresh is running yet',
         }),
       }),
     );
@@ -2413,7 +2413,7 @@ test.describe('dashboard page', () => {
           status: 404,
           contentType: 'application/json',
           body: JSON.stringify({
-            error: 'no background refresh is running yet for this user',
+            error: 'no background refresh is running yet',
           }),
         }),
       );

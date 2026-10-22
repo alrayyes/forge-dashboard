@@ -293,7 +293,7 @@ func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 // oldest user holding a passkey, the rule the single-user cleanup keeps by, and
 // with none the oldest row (an abandoned registration). The settings and auth
 // migrations build their owner query from it too, so the user whose rows
-// survive the upgrade is the user Owner and OwnerID return.
+// survive the upgrade is the user Owner returns.
 const OwnerOrder = `ORDER BY credentials_json = '[]', created_at, rowid LIMIT 1`
 
 // Owner returns the instance's one user (see OwnerOrder), or ErrNotFound on an
@@ -373,19 +373,6 @@ func deleteCount(ctx context.Context, tx *sql.Tx, query string, args ...any) (in
 	n, err := r.RowsAffected()
 
 	return int(n), err
-}
-
-// OwnerID is the id of the one user. ErrNotFound until someone has started
-// registering. Callers that need the user a request without a session acts for,
-// such as a webhook delivery, use it. It is Owner without the passkeys, and it
-// still answers after the operator cleared them, so a webhook keeps refreshing.
-func (s *Store) OwnerID(ctx context.Context) ([]byte, error) {
-	owner, err := s.Owner(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return owner.ID, nil
 }
 
 // rowScanner is the common surface of *sql.Row and *sql.Rows that scanUser

@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -70,9 +69,9 @@ func repoTracked(snap dashboard.Snapshot, forge, fullName string) bool {
 	})
 }
 
-// resolveJobLogFor reads the output of one Actions job for u. Shared by
+// resolveJobLogFor reads the output of one Actions job. Shared by
 // handleJobLog and the MCP get_check_log tool so the two can't drift.
-func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
+func resolveJobLogFor(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok || !validRepoSegment(owner) || !validRepoSegment(name) {
 		return dashboard.JobLog{}, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
@@ -92,7 +91,7 @@ func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullN
 
 	// A repository the dashboard doesn't track is one the person never added;
 	// the token could still read it, so refuse before the forge is called.
-	warmUpAggregator(ctx, deps, u.Username)
+	warmUpAggregator(ctx, deps)
 	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
 	snap := deps.Service.Get()
 	if len(snap.Repos) == 0 {
@@ -118,13 +117,6 @@ func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullN
 // like GET /api/pull-requests/checks, since a log is never part of a snapshot.
 func handleJobLog(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		q := r.URL.Query()
 		jobID, problem := parseJobID(q.Get("jobId"))
 		if problem != "" {
@@ -132,7 +124,7 @@ func handleJobLog(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		log, serr := resolveJobLogFor(r.Context(), deps, u, q.Get("forge"), q.Get("fullName"), jobID)
+		log, serr := resolveJobLogFor(r.Context(), deps, q.Get("forge"), q.Get("fullName"), jobID)
 		if serr != nil {
 			serr.write(w)
 

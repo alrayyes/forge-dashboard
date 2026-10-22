@@ -101,15 +101,22 @@ export type MainBranches = {
 export type StatusPill = 'all' | MainBranchStatus;
 export type ForgeFilter = 'all' | 'github' | 'forgejo';
 
+// Any row, only rows with open advisories, or only rows known to have none.
+// A row whose answer is unknown, or that has none, is under neither of the
+// last two: unknown is no answer and never zero.
+export type AdvisoryFilter = 'all' | 'has' | 'none';
+
 export type MainBranchFilter = {
   status: StatusPill;
   forge: ForgeFilter;
+  advisories: AdvisoryFilter;
   query: string;
 };
 
 export const DEFAULT_FILTER: MainBranchFilter = {
   status: 'all',
   forge: 'all',
+  advisories: 'all',
   query: '',
 };
 
@@ -147,7 +154,10 @@ export const SEGMENTED_STATUSES: ReadonlySet<MainBranchStatus> = new Set([
 
 export function isFiltered(filter: MainBranchFilter): boolean {
   return (
-    filter.status !== 'all' || filter.forge !== 'all' || filter.query !== ''
+    filter.status !== 'all' ||
+    filter.forge !== 'all' ||
+    filter.advisories !== 'all' ||
+    filter.query !== ''
   );
 }
 
@@ -161,6 +171,8 @@ export function applyFilter(
   return branches.filter((b) => {
     if (filter.status !== 'all' && b.status !== filter.status) return false;
     if (filter.forge !== 'all' && b.forge !== filter.forge) return false;
+    if (filter.advisories !== 'all' && advisoryChoice(b) !== filter.advisories)
+      return false;
     if (!query) return true;
     const haystack = [
       b.fullName,
@@ -175,6 +187,34 @@ export function applyFilter(
       .toLowerCase();
     return haystack.includes(query);
   });
+}
+
+// Which advisory choice a row falls under, or null when its answer is
+// unknown or absent: no source reading a repo says nothing about it either.
+function advisoryChoice(b: MainBranch): 'has' | 'none' | null {
+  if (b.advisories?.state !== 'known') return null;
+  return b.advisories.count > 0 ? 'has' : 'none';
+}
+
+// How many rows each choice holds, and how many are under neither.
+export function advisoryCounts(branches: readonly MainBranch[]) {
+  const counts = { has: 0, none: 0, unknown: 0 };
+  for (const b of branches) counts[advisoryChoice(b) ?? 'unknown']++;
+  return counts;
+}
+
+// The advisory choices worth offering, the same way as the forges: those some
+// row would show under, given the other filters, plus "Any" and the active one.
+export function offeredAdvisories(
+  branches: MainBranch[],
+  filter: MainBranchFilter,
+): Set<AdvisoryFilter> {
+  const offered = new Set<AdvisoryFilter>(['all', filter.advisories]);
+  for (const b of applyFilter(branches, { ...filter, advisories: 'all' })) {
+    const choice = advisoryChoice(b);
+    if (choice) offered.add(choice);
+  }
+  return offered;
 }
 
 // The status pills worth offering (#1427): those some row would show if
@@ -249,6 +289,7 @@ const STATUSES = [
   'none',
 ];
 const FORGES = ['all', 'github', 'forgejo'];
+const ADVISORY_CHOICES = ['all', 'has', 'none'];
 
 export function filterFromState(
   saved: Record<string, string> | undefined,
@@ -259,9 +300,12 @@ export function filterFromState(
   const forge = FORGES.includes(saved?.forge ?? '')
     ? (saved?.forge as ForgeFilter)
     : 'all';
+  const advisories = ADVISORY_CHOICES.includes(saved?.advisories ?? '')
+    ? (saved?.advisories as AdvisoryFilter)
+    : 'all';
   const query =
     typeof saved?.query === 'string' ? saved.query.slice(0, 200) : '';
-  return { status, forge, query };
+  return { status, forge, advisories, query };
 }
 
 // A link (a release, an advisories page) is shown only for an http(s) url, so
@@ -280,7 +324,12 @@ export function httpHref(url: string): string | null {
 export function filterToState(
   filter: MainBranchFilter,
 ): Record<string, string> {
-  return { status: filter.status, forge: filter.forge, query: filter.query };
+  return {
+    status: filter.status,
+    forge: filter.forge,
+    advisories: filter.advisories,
+    query: filter.query,
+  };
 }
 
 export type AdvisoryPill = {
