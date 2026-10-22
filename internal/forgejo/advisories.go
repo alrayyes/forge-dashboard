@@ -58,13 +58,30 @@ var lockfileReaders = map[string]func([]byte) ([]osv.Package, error){
 
 // SetAdvisoryScanner turns on advisories for this client's repos: with a
 // scanner set, ReadMainBranch reads the default branch's lockfiles and asks the
-// scanner about the packages in them. Without one, rows carry no advisories.
-// Call it right after construction, before the client makes a request.
+// scanner about the packages in them. Without one, every Forgejo row carries
+// the unknown state with the reason that advisories are not enabled, and
+// nothing is read or sent. Call it right after construction, before the client
+// makes a request.
 func (c *Client) SetAdvisoryScanner(s AdvisoryScanner) {
 	c.advisoryScanner = s
 }
 
-// advisoryCache remembers each repo's last answer and when to ask again.
+// ShareAdvisoryCache makes this client remember advisories in cache, so a
+// client built later over the same forge (every login and settings save builds
+// one) picks up the answers, retry timers and failure counts of the old one.
+// Without it a client keeps its own. Call it right after construction.
+func (c *Client) ShareAdvisoryCache(cache *AdvisoryCache) {
+	c.advisories = cache
+}
+
+// NewAdvisoryCache returns an empty cache to share between clients.
+func NewAdvisoryCache() *AdvisoryCache { return &AdvisoryCache{} }
+
+// AdvisoryCache remembers each repo's last answer and when to ask again. Its
+// keys name the instance as well as the repo, so one cache can serve clients
+// for different forges.
+type AdvisoryCache = advisoryCache
+
 type advisoryCache struct {
 	mu      sync.Mutex
 	entries map[string]advisoryEntry
@@ -205,6 +222,11 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]os
 	var pkgs []osv.Package
 	for _, file := range files {
 		data, err := c.rawFile(ctx, owner, name, file)
+		if errors.Is(err, errResponseTooBig) {
+			slog.Warn("lockfile too big to read", "forge", dashboard.ForgeForgejo, "repo", repo, "files", []string{file})
+
+			return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
+		}
 		if err != nil {
 			return nil, nil, err
 		}
@@ -254,11 +276,15 @@ func (c *Client) rootLockfiles(ctx context.Context, owner, name string) (files, 
 	return files, skipped, nil
 }
 
-// rawFile reads one file of the default branch.
+// rawFile reads one file of the default branch, no more than maxLockfileBytes of
+// it whatever the listing said it weighs.
 func (c *Client) rawFile(ctx context.Context, owner, name, file string) ([]byte, error) {
 	path := fmt.Sprintf("/repos/%s/%s/raw/%s", url.PathEscape(owner), url.PathEscape(name), url.PathEscape(file))
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
+	body, resp, err := c.rawRequestMax(ctx, http.MethodGet, path, nil, maxLockfileBytes)
+	if errors.Is(err, errResponseTooBig) {
+		return nil, err
+	}
 	if err != nil {
 		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
@@ -278,11 +304,12 @@ func (c *Client) advisoriesFor(ctx context.Context, repo dashboard.RepoRef) *das
 	if c.advisoryScanner == nil {
 		return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonNotEnabled}
 	}
-	old, fresh, have := c.advisories.get(repo.FullName)
+	key := c.instanceURL + " " + repo.FullName
+	old, fresh, have := c.advisories.get(key)
 	if fresh {
 		return &old.value
 	}
-	call, leader := c.advisories.join(repo.FullName)
+	call, leader := c.advisories.join(key)
 	if !leader {
 		select {
 		case <-call.done:
@@ -291,14 +318,24 @@ func (c *Client) advisoriesFor(ctx context.Context, repo dashboard.RepoRef) *das
 			return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
 		}
 	}
-	defer c.advisories.finish(repo.FullName, call)
-	call.value = *c.refreshAdvisories(ctx, repo, old, have)
+	defer c.advisories.finish(key, call)
+	call.value = *c.refreshAdvisories(ctx, key, repo, old, have)
 
 	return &call.value
 }
 
+// cancelledAnswer is what a read that its caller cancelled answers with: the
+// last answer, or unknown when there is none. Nothing is cached.
+func (*Client) cancelledAnswer(old advisoryEntry, have bool) *dashboard.Advisories {
+	if have {
+		return &old.value
+	}
+
+	return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
+}
+
 // refreshAdvisories reads a repo's advisories again and remembers the answer.
-func (c *Client) refreshAdvisories(ctx context.Context, repo dashboard.RepoRef, old advisoryEntry, have bool) *dashboard.Advisories {
+func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboard.RepoRef, old advisoryEntry, have bool) *dashboard.Advisories {
 	var known []osv.Package
 	if old.havePkgs && c.advisories.clock().Before(old.pkgsUntil) {
 		known = old.pkgs
@@ -307,6 +344,11 @@ func (c *Client) refreshAdvisories(ctx context.Context, repo dashboard.RepoRef, 
 	readCtx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
 	v, pkgs, err := c.readAdvisories(readCtx, repo.Owner, repo.Name, known)
+	if err != nil && ctx.Err() != nil {
+		// The caller gave up (shutdown, a superseded refresh): the forge and OSV
+		// did nothing wrong, so remember nothing and let the next ask read again.
+		return c.cancelledAnswer(old, have)
+	}
 	if err != nil {
 		slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "error", err)
 		e := advisoryEntry{value: old.value, failures: old.failures + 1}
@@ -319,7 +361,7 @@ func (c *Client) refreshAdvisories(ctx context.Context, repo dashboard.RepoRef, 
 		case pkgs != nil:
 			e.pkgs, e.havePkgs, e.pkgsUntil = pkgs, true, c.advisories.clock().Add(advisoriesTTL)
 		}
-		c.advisories.put(repo.FullName, e, min(advisoriesRetry<<min(e.failures-1, 6), advisoriesRetryMax))
+		c.advisories.put(key, e, min(advisoriesRetry<<min(e.failures-1, 6), advisoriesRetryMax))
 
 		return &e.value
 	}
@@ -327,7 +369,7 @@ func (c *Client) refreshAdvisories(ctx context.Context, repo dashboard.RepoRef, 
 	if v.State == dashboard.AdvisoriesUnknown && v.Reason == dashboard.ReasonFailed {
 		ttl = advisoriesRetry
 	}
-	c.advisories.put(repo.FullName, advisoryEntry{value: v}, ttl)
+	c.advisories.put(key, advisoryEntry{value: v}, ttl)
 
 	return &v
 }

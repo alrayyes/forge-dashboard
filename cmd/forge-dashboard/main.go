@@ -533,6 +533,9 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 
 func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(userID []byte, c settings.Credentials) []dashboard.Source {
 	scanner := newAdvisoryScanner(os.Getenv("OSV_ADVISORIES"), slog.Default())
+	// One cache for every client this closure builds: a login or a settings
+	// save builds new clients, and they pick up what the old ones learned.
+	advisoryCache := forgejo.NewAdvisoryCache()
 
 	return func(_ []byte, c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
@@ -548,6 +551,7 @@ func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Wri
 		case c.ForgejoToken != "":
 			client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "", recorder)
 			client.SetAdvisoryScanner(scanner)
+			client.ShareAdvisoryCache(advisoryCache)
 			client.SetStats(stats, apistats.TokenCredential(c.ForgejoToken))
 			if c.WebhookToken != "" {
 				client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
@@ -556,6 +560,7 @@ func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Wri
 		case c.ForgejoUsername != "":
 			client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, recorder)
 			client.SetAdvisoryScanner(scanner)
+			client.ShareAdvisoryCache(advisoryCache)
 			client.SetStats(stats, apistats.AccountCredential(c.ForgejoUsername))
 			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 		}

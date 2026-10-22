@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -49,6 +50,7 @@ type lockfileServer struct {
 	listCode int
 	rawCode  int
 	requests atomic.Int32
+	url      string // set by start
 }
 
 func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *forgejo.Client {
@@ -82,6 +84,7 @@ func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *f
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	s.url = srv.URL
 	client := forgejo.NewClient(srv.URL, "test-token", "")
 	client.SetAdvisoryScanner(scanner)
 
@@ -405,4 +408,77 @@ func (s *slowScanner) Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary
 	time.Sleep(150 * time.Millisecond)
 
 	return s.fakeScanner.Scan(ctx, pkgs)
+}
+
+func TestReadAdvisories_AFileBiggerThanItsListingSaidIsUnknown(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{}
+	big := strings.Repeat("x", 8<<20+1)
+	client := (&lockfileServer{
+		files: map[string]string{"package-lock.json": big},
+		sizes: map[string]int{"package-lock.json": 10},
+	}).start(t, scanner)
+
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, got, "the cap holds whatever the listing claimed")
+	assert.Zero(t, scanner.calls())
+}
+
+// cancelScanner cancels the caller's context mid-scan, as a shutdown or a
+// superseded refresh does, then fails with that cancellation.
+type cancelScanner struct{ cancel context.CancelFunc }
+
+func (s cancelScanner) Scan(ctx context.Context, _ []osv.Package) (osv.Summary, error) {
+	s.cancel()
+	<-ctx.Done()
+
+	return osv.Summary{}, fmt.Errorf("scan: %w", ctx.Err())
+}
+
+func TestReadMainBranch_ACancelledReadIsNotCachedAsAFailure(t *testing.T) {
+	t.Parallel()
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
+	ctx, cancel := context.WithCancel(t.Context())
+	client := forge.start(t, cancelScanner{cancel: cancel})
+	clk := withClock(client)
+
+	_, _ = client.ReadMainBranch(ctx, repoA)
+
+	good := &fakeScanner{summary: osv.Summary{Count: 3, Highest: "high"}}
+	client.SetAdvisoryScanner(good)
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	require.NotNil(t, row.Advisories)
+	assert.Equal(t, 3, row.Advisories.Count, "the next ask reads again at once: a cancelled read is not a failed one")
+
+	clk.advance(16 * time.Minute)
+	good.mu.Lock()
+	good.err = assert.AnError
+	good.mu.Unlock()
+	_, err = client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	assert.Equal(t, 2, good.calls(), "the cancelled read did not count towards the back-off")
+}
+
+func TestReadMainBranch_ClientsShareAnAdvisoryCache(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{summary: osv.Summary{Count: 2, Highest: "low"}}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
+	cache := forgejo.NewAdvisoryCache()
+
+	first := forge.start(t, scanner)
+	first.ShareAdvisoryCache(cache)
+	_, err := first.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+
+	// A login or a settings save builds a new client over the same forge.
+	second := forgejo.NewClient(forge.url, "test-token", "")
+	second.SetAdvisoryScanner(scanner)
+	second.ShareAdvisoryCache(cache)
+	row, err := second.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	require.NotNil(t, row.Advisories)
+	assert.Equal(t, 2, row.Advisories.Count)
+	assert.Equal(t, 1, scanner.calls(), "the rebuilt client keeps what the old one learned")
 }
