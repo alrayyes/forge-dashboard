@@ -187,6 +187,10 @@ test.describe('Copy error details on a failed action (#1323)', () => {
         await footer
           .getByRole('button', { name: `Dependabot: ${verb}`, exact: true })
           .click();
+        if (verb === 'Recreate')
+          await footer
+            .getByRole('button', { name: 'Confirm recreate?', exact: true })
+            .click();
       });
       // The error toast covers the row at this size; its Copy is the same.
       await copyIn(page.locator('#feedback-toasts .feedback-toast')).click();

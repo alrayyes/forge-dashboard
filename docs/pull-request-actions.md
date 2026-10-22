@@ -495,10 +495,17 @@ server restart forgets it and a browser reload doesn't. The page shows the
 request as queued the moment you click, until the next snapshot says otherwise.
 
 A queued Dependabot request names itself: `Rebase requested` or `Recreate
-requested` on the button. While `Recreate requested` shows, the row hides
-`Dependabot: Rebase`, since recreating rebuilds the whole pull request. `Rebase
-requested` keeps `Dependabot: Recreate`, which is still a different outcome.
-Both buttons come back once the bot has acted.
+requested` on the button. The two commands lock each other while either is
+pending, in both directions: `Dependabot: Recreate` is unavailable while a
+rebase is pending, because recreating over it would throw its work away, and
+`Dependabot: Rebase` is unavailable while a Recreate is pending, since
+recreating rebuilds the whole pull request. The locked entry stays where it
+was, on the row, in the menu and in the pop-up, and its reason names the
+pending command ("A Dependabot Recreate is pending on this pull request.").
+The server holds the lock too: it blocks the other action with the
+`already_requested` code in `allowedActions`, and refuses the request with a
+409 if one arrives anyway. Both commands unlock once the bot has acted or the
+request has expired.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). A pull request counts as
@@ -521,6 +528,17 @@ Dependabot's own [comment commands](https://docs.github.com/en/code-security/dep
 (`@dependabot rebase` / `@dependabot recreate`) instead of you switching to
 the forge to type them yourself. GitHub only — Dependabot doesn't run on
 Forgejo.
+
+On a Bots page row, `Dependabot: Rebase` is the main button and a chevron
+beside it, named `More Dependabot actions`, opens a menu with `Dependabot:
+Recreate`. The rebase is the common, safe command. Recreate is the heavier
+fallback: it rebuilds the pull request and discards any edits made to it, so it
+asks first. Choosing it swaps the buttons for `Confirm recreate?` and `Cancel`,
+with a line saying what it discards, and only `Confirm recreate?` posts the
+comment. Escape, a click elsewhere, `Cancel` and eight seconds without a choice
+all cancel it. The pop-up lists `Dependabot: Rebase` and `Dependabot: Recreate`
+as separate buttons, and Recreate asks first there too. The menu opens under
+the button, so a row on a phone doesn't grow sideways.
 
 Dependabot only honours these commands from a user with push access, and
 it ignores GitHub App accounts whatever permissions the App holds

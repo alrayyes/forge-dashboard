@@ -102,6 +102,7 @@ const singleUserSpecs = [
   '**/close-neutral.spec.ts',
   '**/copy-failure.spec.ts',
   '**/dependabot-ack.spec.ts',
+  '**/dependabot-recreate-menu.spec.ts',
   '**/failure-line-stays.spec.ts',
   '**/fonts.spec.ts',
   '**/footer-consistency.spec.ts',

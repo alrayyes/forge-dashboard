@@ -223,6 +223,7 @@ test.describe('the dialog footer offers every action of the row (every type)', (
       button: 'Dependabot: Recreate',
       path: '/api/pull-requests/dependabot-action',
       body: { action: 'recreate' },
+      confirm: 'Confirm recreate?',
     },
     {
       action: 'renovate_rebase',
