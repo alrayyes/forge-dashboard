@@ -3,9 +3,8 @@ import { describe, expect, mock, test } from 'bun:test';
 
 // rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
 mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
-const { dependabotBlockedReason, forgeLockReason, spentLimit } = await import(
-  './forge-lock'
-);
+const { dependabotBlockedReason, forgeLockReason, isUnreachable, spentLimit } =
+  await import('./forge-lock');
 
 const NOW = Date.parse('2026-10-22T12:00:00Z');
 const spent = (resetsAt: string) => ({
@@ -87,6 +86,19 @@ describe('spentLimit', () => {
     ).toBeUndefined();
   });
 
+  test('prefers a budget graded spent, and falls back to a reset still ahead', () => {
+    const healthy = {
+      ...spent('2026-10-22T13:30:00Z'),
+      remaining: 4000,
+      severity: 'ok' as const,
+    };
+    const forges = [
+      host({ rateLimitREST: healthy }),
+      host({ rateLimitREST: rest }),
+    ];
+    expect(spentLimit(forges, 'github', 'rest', NOW)).toBe(rest);
+  });
+
   test('skips a limit that has passed, and other forges', () => {
     const forges = [
       host({ rateLimitREST: spent('2026-10-22T11:00:00Z') }),
@@ -115,5 +127,13 @@ describe('dependabotBlockedReason', () => {
   test('ignores hosts of other kinds', () => {
     const other = { ...host(), forge: 'forgejo' };
     expect(dependabotBlockedReason([blocked('a'), other], 'github')).toBe('a');
+  });
+});
+
+describe('isUnreachable', () => {
+  test('only an entry that says so', () => {
+    expect(isUnreachable({ reachable: false })).toBe(true);
+    expect(isUnreachable({ reachable: true })).toBe(false);
+    expect(isUnreachable({})).toBe(false);
   });
 });

@@ -130,6 +130,7 @@
     type ForgeHealthEntry,
     dependabotBlockedReason,
     forgeLockReason,
+    isUnreachable,
     spentLimit,
   } from "#lib/forge-lock.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
@@ -5392,7 +5393,7 @@
       if (lock?.code !== "rate_limited") return null;
       // With a host of this kind down, the row may be on that host, and a
       // queued action would wait for a reset that doesn't bring it back.
-      if (lastForges.some((f) => f.forge === item.forge && !f.reachable))
+      if (lastForges.some((f) => f.forge === item.forge && isUnreachable(f)))
         return null;
       const action = queueableAction(item);
       if (!action) return null;

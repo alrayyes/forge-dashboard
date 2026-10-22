@@ -232,7 +232,11 @@
     // The forge may have gone down, or come back, since the last poll; a
     // failed poll still moves the clock. Outside the try, so a throw here is
     // not a failed poll.
-    if (openRow) rerun.redraw(openRow);
+    try {
+      if (openRow) rerun.redraw(openRow);
+    } catch {
+      // A control that can't draw must not fail the page's load.
+    }
   }
 
   function retry() {

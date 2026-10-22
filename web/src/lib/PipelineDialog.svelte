@@ -217,8 +217,11 @@
     void checks;
     // Untracked: the control reads the page's snapshot (its lock, its row) and
     // redraws itself when that changes, so a poll must not rebuild it.
+    // The target itself stays tracked, so pointing the dialog at another row
+    // draws that row's control.
     const isFailed = failed;
-    const node = untrack(() => target?.controls?.(isFailed)) ?? null;
+    const current = target;
+    const node = untrack(() => current?.controls?.(isFailed)) ?? null;
     // The button the keyboard was on, by its place among the control's buttons
     // (Rerun, then a failure's Copy), so it keeps focus when the control is drawn
     // again.
@@ -232,8 +235,13 @@
       const now = buttons();
       (now[was] ?? now[0])?.focus({ preventScroll: true });
     } else if (node && onControl) {
-      node.tabIndex = -1;
-      node.focus({ preventScroll: true });
+      // A control with a button again gets the focus on it, not on its wrapper.
+      const button = buttons()[0];
+      if (button) button.focus({ preventScroll: true });
+      else {
+        node.tabIndex = -1;
+        node.focus({ preventScroll: true });
+      }
     }
   }
 </script>

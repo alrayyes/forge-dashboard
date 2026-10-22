@@ -28,12 +28,18 @@ export type ForgeLock = {
   resetsAt?: string;
 };
 
+// A host that says it can't be reached. One that is silent on it is not
+// treated as down.
+export function isUnreachable(health: { reachable?: boolean }): boolean {
+  return health.reachable === false;
+}
+
 function lockOf(
   health: ForgeHealthEntry,
   budget: 'rest' | 'graphql',
   now: number,
 ): ForgeLock | null {
-  if (health.reachable === false)
+  if (isUnreachable(health))
     return {
       code: 'forge_unreachable',
       reason: "This forge can't be reached right now.",
@@ -84,10 +90,16 @@ export function spentLimit(
   budget: 'rest' | 'graphql',
   now: number = Date.now(),
 ): RateLimit | undefined {
-  return (forges ?? [])
+  const limits = (forges ?? [])
     .filter((f) => f.forge === forge)
-    .map((f) => (budget === 'rest' ? f.rateLimitREST : f.rateLimitGraphQL))
-    .find((l): l is RateLimit => !!l && Date.parse(l.resetsAt) > now);
+    .map((f) => (budget === 'rest' ? f.rateLimitREST : f.rateLimitGraphQL));
+  // One the snapshot grades spent wins. Failing that, the refusal itself says
+  // the budget is gone and the snapshot is behind, so a reset still ahead is
+  // the best answer there is.
+  return (
+    limits.find((l): l is RateLimit => isRateLimited(l, now)) ??
+    limits.find((l): l is RateLimit => !!l && Date.parse(l.resetsAt) > now)
+  );
 }
 
 // Why Dependabot commands are refused through a kind's credential, or nothing.

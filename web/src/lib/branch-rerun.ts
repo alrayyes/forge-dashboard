@@ -161,8 +161,9 @@ export function createBranchRerun() {
         // setTimeout wraps past about 24 days and would fire at once, looping;
         // the next poll arms it again anyway.
         const left = at ? msUntilReset(at) : null;
-        const wait = left === null ? null : Math.min(left, MAX_UNLOCK_WAIT_MS);
-        if (at && wait !== null)
+        // A reset that passed since the lock was computed: look again shortly.
+        const wait = Math.min(left ?? 250, MAX_UNLOCK_WAIT_MS);
+        if (at)
           unlocks.set(key, {
             at,
             timer: setTimeout(() => {
