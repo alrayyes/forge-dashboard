@@ -293,9 +293,16 @@ export function createIssueActions(host: IssueActionsHost) {
     if (focusId) document.getElementById(focusId)?.focus();
   }
 
+  // A comment that was posted belongs to the attempt that is being dropped.
+  function forgetAttempt() {
+    commentPosted = false;
+    withNote = false;
+  }
+
   function drop(focusId: string) {
     phase = 'idle';
     failure = null;
+    forgetAttempt();
     text = text.trim() === '' ? '' : text;
     draw(focusId);
   }
@@ -451,6 +458,8 @@ export function createIssueActions(host: IssueActionsHost) {
         ) {
           phase = 'closed';
           failure = null;
+          text = '';
+          forgetAttempt();
           draw();
         }
         return true;
