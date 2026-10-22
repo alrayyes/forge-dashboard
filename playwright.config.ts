@@ -125,6 +125,7 @@ const singleUserSpecs = [
   '**/issue-settings-effect.spec.ts',
   '**/issues-page.spec.ts',
   '**/issues-number-filter.spec.ts',
+  '**/pull-request-number-filter.spec.ts',
   '**/issues-steady.spec.ts',
   '**/main-branches-choices.spec.ts',
   '**/main-branches-page.spec.ts',
