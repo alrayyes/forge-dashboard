@@ -58,9 +58,14 @@ refresh tries again.
 - **Refreshing often.** Each full refresh spends budget. `REFRESH_INTERVAL` sets
   how often it runs (see [Configuration](configuration.md)). While every tracked
   repo has a healthy webhook the wait is four times that, up to 2 hours, so 80
-  minutes at the default of 20; with one repo missing a webhook it is
-  `REFRESH_INTERVAL` again. A repo you can't manage webhooks on counts as
-  missing one, so such an account keeps the shorter wait.
+  minutes at the default of 20. It is `REFRESH_INTERVAL` again when no webhook
+  path is configured, no repos are tracked yet, a repo has no hook or its hook
+  check failed, or you can't manage hooks on a repo (such an account keeps the
+  shorter wait). It is also `REFRESH_INTERVAL` when a forge's last fetch failed
+  or a repo could not be fully fetched. One forge being down keeps the shorter
+  wait for all of them, even a forge whose repos are all covered, until it
+  answers again. The same goes for the saved snapshot a restart starts from,
+  until a refresh has reached the forge.
 - **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
   refresh rests. After `IDLE_AFTER` (15 minutes by default) with no signed-in
   request and no tab that is visible and in use, the schedule skips its turn
@@ -470,9 +475,9 @@ server and was not measured live.
   changed, which costs far less than a full refresh. A burst of deliveries for one
   repo, which is what a push sends, is merged into one refresh that runs 2
   seconds after the last of them (never more than 5 seconds after the first).
-  With working webhooks the
-  full refresh is a safety net, and it runs four times less often on its own
-  (80 minutes at the default) while every repo has one. See
-  [Webhooks](webhooks.md).
+  With working webhooks the full refresh is a safety net, and it runs four
+  times less often on its own (80 minutes at the default) while every repo has
+  a healthy webhook and every forge's last fetch worked. A repo the forge could
+  not fully fetch keeps the shorter wait too. See [Webhooks](webhooks.md).
 - **Wait.** The reset time is in the banner and the header. The page recovers by
   itself, with no reload.

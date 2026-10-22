@@ -140,7 +140,10 @@ func TestAggregator_NextDelay_StillWaitsOutACriticalBudget(t *testing.T) {
 	assert.Equal(t, 80*time.Minute, covered.NextDelay(20*time.Minute))
 }
 
-func TestAggregator_NextDelay_DoesNotStretchOnCarriedOverRepos(t *testing.T) {
+// Pins the forge-health gate in webhooksCover, which predates the failed-repo
+// check: a restored or failed forge is already Reachable:false, so this passes
+// without that check.
+func TestAggregator_NextDelay_DoesNotStretchWhileAForgeFetchFails(t *testing.T) {
 	t.Parallel()
 
 	src := &fakeSource{result: dashboard.Result{
@@ -151,11 +154,9 @@ func TestAggregator_NextDelay_DoesNotStretchOnCarriedOverRepos(t *testing.T) {
 	agg.Refresh(t.Context())
 	require.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
 
-	// The whole fetch fails: the repos are the earlier ones, with the hook
-	// state they had then, which says nothing about now.
-	src.mu.Lock()
-	src.result = dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false}}
-	src.mu.Unlock()
+	// The whole fetch fails: the repos are the earlier ones, which say
+	// nothing about now.
+	setResult(src, dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false}})
 	agg.Refresh(t.Context())
 	require.Len(t, agg.Get().Repos, 1)
 
@@ -176,4 +177,93 @@ func TestAggregator_NextDelay_DoesNotStretchWhileAnotherForgeWasNeverReachable(t
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+}
+
+// Pins the forge-health gate in webhooksCover, which predates the failed-repo
+// check: a restored or failed forge is already Reachable:false, so this passes
+// without that check.
+func TestAggregator_NextDelay_DoesNotStretchOnASnapshotRestoredAtStart(t *testing.T) {
+	t.Parallel()
+
+	cache := &memSnapshotCache{}
+	src := func() dashboard.Source {
+		return &fakeSource{result: dashboard.Result{
+			Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+			Repos:  []dashboard.Repo{repoWithHook("o/a", true)},
+		}}
+	}
+	first := dashboard.NewAggregator([]dashboard.Source{src()}, dashboard.WithSnapshotCache(cache))
+	first.Refresh(t.Context())
+	require.Equal(t, 80*time.Minute, first.NextDelay(20*time.Minute))
+
+	// The saved hook state is from before the restart. Until a refresh has
+	// reached the forge it says nothing about now.
+	restarted := dashboard.NewAggregator([]dashboard.Source{src()}, dashboard.WithSnapshotCache(cache))
+	require.Len(t, restarted.Get().Repos, 1)
+
+	assert.Equal(t, 20*time.Minute, restarted.NextDelay(20*time.Minute))
+}
+
+func TestAggregator_NextDelay_DoesNotStretchWhileARepoIsInFailedRepos(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeSource{result: dashboard.Result{
+		Health:      dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:       []dashboard.Repo{repoWithHook("o/a", true), repoWithHook("o/b", true)},
+		FailedRepos: []dashboard.FailedRepo{{FullName: "o/b", PullRequests: true}},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+
+	setResult(src, dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:  []dashboard.Repo{repoWithHook("o/a", true), repoWithHook("o/b", true)},
+	})
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+}
+
+// Pins the forge-health gate in webhooksCover, which predates the failed-repo
+// check: a restored or failed forge is already Reachable:false, so this passes
+// without that check.
+func TestAggregator_NextDelay_OnlyTheFailedForgeBlocksCoverageAndItRecovers(t *testing.T) {
+	t.Parallel()
+
+	gh := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:  []dashboard.Repo{repoWithHook("o/a", true)},
+	}}
+	fjRepo := dashboard.Repo{Forge: dashboard.ForgeForgejo, FullName: "o/b", HasWebhook: true}
+	fj := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true},
+		Repos:  []dashboard.Repo{fjRepo},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{gh, fj})
+	agg.Refresh(t.Context())
+	require.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+
+	// Forgejo's fetch fails: GitHub is fully covered, but Forgejo's repo is
+	// carried over, so the short wait holds while it is down.
+	down := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: false}}
+	setResult(fj, down)
+	agg.Refresh(t.Context())
+	require.Len(t, agg.Get().Repos, 2)
+	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+
+	setResult(fj, dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true},
+		Repos:  []dashboard.Repo{fjRepo},
+	})
+	agg.Refresh(t.Context())
+
+	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+}
+
+func setResult(src *fakeSource, res dashboard.Result) {
+	src.mu.Lock()
+	defer src.mu.Unlock()
+	src.result = res
 }
