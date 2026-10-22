@@ -121,6 +121,7 @@ describe('saving and restoring it', () => {
     expect(loadState().branches).toEqual({
       status: 'failed',
       forge: 'github',
+      advisories: 'all',
       query: 'api',
     });
     expect(puts).toHaveLength(1);
