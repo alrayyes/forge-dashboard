@@ -42,6 +42,21 @@ const respond = (status: number, body: unknown) =>
     })) as unknown as typeof fetch;
 
 describe('loadRunLog', () => {
+  test('puts no time limit on a read unless asked, so View run waits as it did', async () => {
+    let signal: AbortSignal | null | undefined = null;
+    const capture = ((_url: string, init?: RequestInit) => {
+      signal = init?.signal;
+
+      return Promise.resolve(
+        new Response(JSON.stringify({ text: 'x', truncated: false })),
+      );
+    }) as unknown as typeof fetch;
+
+    await loadRunLog('/x', 'GitHub', capture);
+
+    expect(signal).toBeUndefined();
+  });
+
   test('gives up on a forge that never answers, so a copy cannot hang', async () => {
     let signal: AbortSignal | undefined;
     const stalled = ((_url: string, init?: RequestInit) => {
@@ -189,6 +204,21 @@ describe('copyLog', () => {
 const URL9 = '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9';
 
 describe('logToCopy', () => {
+  test('bounds the read, so a copy cannot wait for good', async () => {
+    let signal: AbortSignal | null | undefined;
+    const capture = ((_url: string, init?: RequestInit) => {
+      signal = init?.signal;
+
+      return Promise.resolve(
+        new Response(JSON.stringify({ text: 'x', truncated: false })),
+      );
+    }) as unknown as typeof fetch;
+
+    await logToCopy(URL9, 'tail', 'GitHub', capture);
+
+    expect(signal).toBeInstanceOf(AbortSignal);
+  });
+
   test('is the whole log when the endpoint answers', async () => {
     const got = await logToCopy(
       URL9,
