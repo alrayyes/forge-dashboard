@@ -28,8 +28,8 @@ type cachedRepoRows struct {
 
 // restoreSnapshot loads what the last run saved and shows it as the current
 // snapshot, every row stamped with when it was fetched so a client can tell it
-// is old. Each forge is reported unreachable with that time as its StaleSince,
-// the same mark a failed refresh puts on carried-over data, and goodAt is
+// is old. Each forge is reported as Starting with that time as its StaleSince, not
+// as an outage: nothing has asked the forge yet. goodAt is
 // seeded from it so a first refresh that fails keeps these rows instead of
 // dropping them. The first refresh that reaches a forge replaces its rows and
 // clears the mark.
@@ -51,7 +51,7 @@ func (a *Aggregator) restoreSnapshot(ctx context.Context) {
 		snap.Forges = append(snap.Forges, ForgeHealth{
 			Forge:      forge,
 			Reachable:  false,
-			ErrorKind:  ForgeErrorUnreachable,
+			Starting:   true,
 			RepoCount:  repos,
 			StaleSince: &newest,
 		})

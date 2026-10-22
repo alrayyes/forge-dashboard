@@ -4506,6 +4506,15 @@ components:
         reachable:
           type: boolean
           description: Whether the last refresh attempt against this forge succeeded.
+        starting:
+          type: boolean
+          description: |
+            True while the rows shown for this forge are the ones the last run
+            saved and no refresh has asked the forge since the app started.
+            The forge is then neither reachable nor in error (errorKind is
+            absent); it has not been checked yet. The first refresh that
+            reaches it replaces this entry. A client says "starting up,
+            showing data from 3 minutes ago", and never "unreachable".
         staleSince:
           type: string
           format: date-time

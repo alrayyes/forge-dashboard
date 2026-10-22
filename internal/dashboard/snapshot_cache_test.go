@@ -89,6 +89,8 @@ func TestAggregator_AfterARestart_ServesTheSavedSnapshotMarkedStale(t *testing.T
 	require.NotNil(t, snap.Repos[0].StaleSince, "the repo says when its rows were fetched")
 	h := health(snap, dashboard.ForgeGitHub)
 	assert.False(t, h.Reachable)
+	assert.True(t, h.Starting, "no forge has been asked yet, so the mark says starting")
+	assert.Empty(t, h.ErrorKind, "a start-up gap is not an outage")
 	require.NotNil(t, h.StaleSince)
 	assert.False(t, restarted.FirstRefreshDone(), "readiness still waits for a real refresh")
 }
@@ -107,6 +109,7 @@ func TestAggregator_AfterARestart_TheFirstGoodRefreshClearsTheStaleMark(t *testi
 	assert.Equal(t, []int{3}, numbers(snap))
 	h := health(snap, dashboard.ForgeGitHub)
 	assert.True(t, h.Reachable)
+	assert.False(t, h.Starting)
 	assert.Nil(t, h.StaleSince)
 	require.Len(t, snap.Repos, 1)
 	assert.Nil(t, snap.Repos[0].StaleSince)
@@ -123,7 +126,10 @@ func TestAggregator_AfterARestart_AFailedFirstRefreshKeepsTheSavedSnapshot(t *te
 
 	snap := restarted.Get()
 	assert.ElementsMatch(t, []int{1, 2}, numbers(snap))
-	assert.NotNil(t, health(snap, dashboard.ForgeGitHub).StaleSince)
+	h := health(snap, dashboard.ForgeGitHub)
+	assert.NotNil(t, h.StaleSince)
+	assert.False(t, h.Starting, "a fetch that failed is an outage, not a start-up")
+	assert.False(t, h.Reachable)
 }
 
 func TestAggregator_AfterARestart_APageDoesNotWaitForTheFirstRefresh(t *testing.T) {
