@@ -54,10 +54,11 @@ const defaultRefreshInterval = 20 * time.Minute
 const minRefreshInterval = time.Minute
 
 // resolveRefreshInterval parses v (REFRESH_INTERVAL's raw value) as a Go
-// duration, falling back to defaultRefreshInterval for an empty, unparseable
-// or below-minimum value (a zero or tiny wait would spin the refresh loop,
-// spending the forge budget) — split out from main so the fallback behavior is
-// unit-testable without standing up the rest of the process.
+// duration. An empty, unparseable, zero or negative value falls back to
+// defaultRefreshInterval. A positive value below minRefreshInterval is raised
+// to it, since the operator asked for "faster" and the minimum is the nearest
+// value that is allowed. Split out from main so this is unit-testable without
+// standing up the rest of the process.
 func resolveRefreshInterval(v string) time.Duration {
 	if v == "" {
 		return defaultRefreshInterval
@@ -68,10 +69,15 @@ func resolveRefreshInterval(v string) time.Duration {
 
 		return defaultRefreshInterval
 	}
-	if d < minRefreshInterval {
-		slog.Error("REFRESH_INTERVAL is below the minimum, using default", "value", v, "minimum", minRefreshInterval, "default", defaultRefreshInterval)
+	if d <= 0 {
+		slog.Error("REFRESH_INTERVAL must be positive, using default", "value", v, "default", defaultRefreshInterval)
 
 		return defaultRefreshInterval
+	}
+	if d < minRefreshInterval {
+		slog.Error("REFRESH_INTERVAL is below the minimum, using the minimum", "value", v, "minimum", minRefreshInterval)
+
+		return minRefreshInterval
 	}
 
 	return d
@@ -94,8 +100,13 @@ func resolveShutdownDrain(v string) time.Duration {
 		return defaultShutdownDrain
 	}
 	d, err := time.ParseDuration(v)
-	if err != nil || d < 0 {
+	if err != nil {
 		slog.Error("invalid SHUTDOWN_DRAIN, using default", "value", v, "default", defaultShutdownDrain, "error", err)
+
+		return defaultShutdownDrain
+	}
+	if d < 0 {
+		slog.Error("SHUTDOWN_DRAIN must not be negative, using default; use 0s to skip the wait", "value", v, "default", defaultShutdownDrain)
 
 		return defaultShutdownDrain
 	}
@@ -126,11 +137,16 @@ func drainThenShutdown(delay time.Duration, startDrain func(), shutdown func(con
 // open, CI-pending pull request, not every tracked one.
 const defaultCIPollInterval = 1 * time.Minute
 
+// minCIPollInterval is the shortest non-zero CI_POLL_INTERVAL accepted. Each
+// tick spends forge budget on every repo with a pending check, so a value such
+// as 1ms would drain it.
+const minCIPollInterval = 10 * time.Second
+
 // resolveCIPollInterval is resolveRefreshInterval's counterpart for
-// CI_POLL_INTERVAL: an empty, unparseable or negative value falls back to
-// the default, with a log line for all but empty. "0s" is a real, valid zero duration, not an error, so an
-// operator can pass it to disable the poll entirely
-// (Manager.SetCIPollInterval treats zero as "off").
+// CI_POLL_INTERVAL. An empty, unparseable or negative value falls back to the
+// default. "0s" is a real zero, not an error: it turns the poll off
+// (Manager.SetCIPollInterval treats zero as "off"). A positive value below
+// minCIPollInterval is raised to it.
 func resolveCIPollInterval(v string) time.Duration {
 	if v == "" {
 		return defaultCIPollInterval
@@ -145,6 +161,11 @@ func resolveCIPollInterval(v string) time.Duration {
 		slog.Error("CI_POLL_INTERVAL must not be negative, using default; use 0s to turn the poll off", "value", v, "default", defaultCIPollInterval)
 
 		return defaultCIPollInterval
+	}
+	if d > 0 && d < minCIPollInterval {
+		slog.Error("CI_POLL_INTERVAL is below the minimum, using the minimum", "value", v, "minimum", minCIPollInterval)
+
+		return minCIPollInterval
 	}
 
 	return d

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.9](https://github.com/alrayyes/forge-dashboard/compare/v1.7.8...v1.7.9) (2026-10-22)
+
+
+### Bug Fixes
+
+* **web:** hold the changelog cards until their notes render so nothing shifts ([#2404](https://github.com/alrayyes/forge-dashboard/issues/2404)) ([ebfc292](https://github.com/alrayyes/forge-dashboard/commit/ebfc2920fb4745deeb561d553c53cb85f7cac035))
+
 ## [1.7.8](https://github.com/alrayyes/forge-dashboard/compare/v1.7.7...v1.7.8) (2026-10-22)
 
 

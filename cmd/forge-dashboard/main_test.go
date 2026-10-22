@@ -39,12 +39,15 @@ func TestResolveRefreshInterval_InvalidEnv_FallsBackToDefault(t *testing.T) {
 	assert.Equal(t, defaultRefreshInterval, got)
 }
 
-// A zero or negative interval would give the refresh loop no wait at all, so
-// both fall back to the default, same as an unparseable value.
-func TestResolveRefreshInterval_NonPositive_FallsBackToDefault(t *testing.T) {
+// A zero or negative refresh interval is meaningless (zero would give the
+// loop no wait at all), so it falls back to the default and says so.
+func TestResolveRefreshInterval_ZeroOrNegative_FallsBackToDefaultAndLogsTheValue(t *testing.T) {
 	for _, v := range []string{"0s", "0", "-5m", "-1ns"} {
 		t.Run(v, func(t *testing.T) {
+			logs := captureLog(t)
 			assert.Equal(t, defaultRefreshInterval, resolveRefreshInterval(v))
+			assert.Contains(t, logs.String(), "REFRESH_INTERVAL")
+			assert.Contains(t, logs.String(), "value="+v)
 		})
 	}
 }
@@ -61,13 +64,14 @@ func captureLog(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-// A tiny positive interval would make the refresh loop spin almost as hard as
-// a zero one, so anything under the minimum falls back to the default.
-func TestResolveRefreshInterval_BelowMinimum_FallsBackToDefaultAndLogsTheValue(t *testing.T) {
-	for _, v := range []string{"1ms", "1ns", "59s"} {
+// A positive interval under the minimum asked for "faster", so it is raised to
+// the minimum, not thrown away for the 20 minute default. 30s must not turn
+// into 20m.
+func TestResolveRefreshInterval_BelowMinimum_ClampsToMinimumAndLogsTheValue(t *testing.T) {
+	for _, v := range []string{"30s", "1ms", "1ns", "59s"} {
 		t.Run(v, func(t *testing.T) {
 			logs := captureLog(t)
-			assert.Equal(t, defaultRefreshInterval, resolveRefreshInterval(v))
+			assert.Equal(t, minRefreshInterval, resolveRefreshInterval(v))
 			assert.Contains(t, logs.String(), "level=ERROR")
 			assert.Contains(t, logs.String(), "REFRESH_INTERVAL")
 			assert.Contains(t, logs.String(), "value="+v)
@@ -87,6 +91,23 @@ func TestResolveCIPollInterval_Negative_FallsBackToDefaultAndLogsTheValue(t *tes
 	assert.Contains(t, logs.String(), "level=ERROR")
 	assert.Contains(t, logs.String(), "CI_POLL_INTERVAL")
 	assert.Contains(t, logs.String(), "value=-5m")
+}
+
+// Below the floor the poll is raised to it, like REFRESH_INTERVAL, and 0s
+// still means off.
+func TestResolveCIPollInterval_BelowMinimum_ClampsToMinimumAndLogsTheValue(t *testing.T) {
+	for _, v := range []string{"1ms", "9s"} {
+		t.Run(v, func(t *testing.T) {
+			logs := captureLog(t)
+			assert.Equal(t, minCIPollInterval, resolveCIPollInterval(v))
+			assert.Contains(t, logs.String(), "CI_POLL_INTERVAL")
+			assert.Contains(t, logs.String(), "value="+v)
+		})
+	}
+}
+
+func TestResolveCIPollInterval_Minimum_IsAccepted(t *testing.T) {
+	assert.Equal(t, minCIPollInterval, resolveCIPollInterval("10s"))
 }
 
 func TestResolveCIPollInterval_ExplicitZero_DoesNotLog(t *testing.T) {
@@ -145,7 +166,8 @@ func TestResolveIdleAfter_ExplicitZero_DisablesRatherThanFallingBack(t *testing.
 // Every interval setting follows one policy: a value that cannot be used is
 // logged and replaced by the default, and never stops the process.
 func TestResolveIdleAfter_Bad_FallsBackToDefaultAndLogsTheValue(t *testing.T) {
-	for _, v := range []string{"soon", "-5m"} {
+	// "15" is the likely typo: a number with no unit is not a duration.
+	for _, v := range []string{"soon", "15", "-5m"} {
 		t.Run(v, func(t *testing.T) {
 			logs := captureLog(t)
 			assert.Equal(t, dashboard.DefaultIdleAfter, resolveIdleAfter(v))
@@ -164,6 +186,7 @@ func TestResolveShutdownDrain_Bad_LogsTheValue(t *testing.T) {
 			assert.Contains(t, logs.String(), "level=ERROR")
 			assert.Contains(t, logs.String(), "SHUTDOWN_DRAIN")
 			assert.Contains(t, logs.String(), "value="+v)
+			assert.NotContains(t, logs.String(), "error=<nil>")
 		})
 	}
 }
