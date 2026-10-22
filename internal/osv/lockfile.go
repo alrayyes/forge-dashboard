@@ -89,13 +89,9 @@ var publicRegistries = []string{"https://registry.npmjs.org/", "https://registry
 // public npm registry (".../name/-/name-1.0.0.tgz"). A private registry's
 // package names stay out of the request, and a git, file or plain tarball
 // source is not the registry package of that name and version, so matching it
-// against OSV could flag the wrong code. An entry with no resolved source is
-// kept.
+// against OSV could flag the wrong code. An entry with no resolved source (a
+// bundled dependency, say) can't be shown to be public, so it stays out too.
 func fromRegistry(resolved string) bool {
-	if resolved == "" {
-		return true
-	}
-
 	return strings.Contains(resolved, "/-/") && slices.ContainsFunc(publicRegistries, func(host string) bool {
 		return strings.HasPrefix(resolved, host)
 	})
