@@ -2,6 +2,8 @@ package dashboard_test
 
 import (
 	"context"
+	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -194,26 +196,73 @@ func TestAggregator_RefreshRepo_SourceDoesNotSupportScopedRefresh_ReturnsFalse(t
 func TestAggregator_RefreshRepo_ConcurrentCallsForSameRepo_Coalesce(t *testing.T) {
 	t.Parallel()
 
+	// The first fetch is held on a gate until every other caller is parked
+	// in the coalescer, so which calls join the run in flight is decided by
+	// the test, not by how fast the scheduler starts five goroutines. A
+	// caller arriving after the trailing run began is owed a third run, so
+	// a timing-based version of this test flaked under load.
+	const triggers = 5
+	gate := make(chan struct{})
+	started := make(chan struct{})
+	var once sync.Once
+
 	src := newFakeRepoRefresherSource()
-	src.delay = 20 * time.Millisecond
+	src.onFetchRepo = func(string) {
+		once.Do(func() {
+			close(started)
+			<-gate
+		})
+	}
 	src.setRepo("alrayyes/a", nil)
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 
-	const triggers = 5
 	var wg sync.WaitGroup
 	var oks atomic.Int64
-	for range triggers {
+	call := func() {
 		wg.Go(func() {
 			if agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a") {
 				oks.Add(1)
 			}
 		})
 	}
+	call()
+	<-started
+	for range triggers - 1 {
+		call()
+	}
+	require.Eventually(t, func() bool { return parkedCallers() == triggers-1 }, 10*time.Second, time.Millisecond,
+		"every other caller should be waiting on the run in flight")
+	close(gate)
 	wg.Wait()
 
 	assert.Equal(t, int64(triggers), oks.Load(), "every caller should be told a scoped refresh handled its trigger")
-	assert.LessOrEqual(t, src.repoFetchCallCount("alrayyes/a"), 2,
-		"concurrent triggers for the same repo should coalesce, not fetch once per trigger")
+	assert.Equal(t, 2, src.repoFetchCallCount("alrayyes/a"),
+		"concurrent triggers for the same repo should share one in-flight run and one trailing run")
+}
+
+// parkedCallers counts this file's coalesce test goroutines that are blocked
+// waiting on a coalescer. Goroutine stacks are the only place that state is
+// visible from outside the package, and the test's own closure name keeps
+// other tests' waiters out of the count.
+func parkedCallers() int {
+	buf := make([]byte, 1<<16)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			buf = buf[:n]
+
+			break
+		}
+		buf = make([]byte, 2*len(buf))
+	}
+	count := 0
+	for stack := range strings.SplitSeq(string(buf), "\n\n") {
+		if strings.Contains(stack, "ConcurrentCallsForSameRepo_Coalesce.func") && strings.Contains(stack, "sync.(*Cond).Wait") {
+			count++
+		}
+	}
+
+	return count
 }
 
 func TestAggregator_RefreshRepo_UnrelatedRepoConcurrently_DoesNotWaitOnIt(t *testing.T) {
