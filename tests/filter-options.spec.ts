@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { choicesOf } from './label-filter-helper';
+import { choicesOf, pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1427: a filter offers only choices that exist in the results the page can
@@ -70,13 +70,15 @@ for (const path of ['/issues.html', '/insights.html']) {
     test('offer only repos, authors and labels the page can show', async ({
       page,
     }) => {
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(2);
+      await expect(
+        page.locator('#shared-repo-filter-panel .label-filter-option'),
+      ).toHaveCount(1);
 
-      expect(await choices(page, 'shared-repo-select')).toEqual([
+      expect(await choices(page, 'shared-repo-filter')).toEqual([
         'All repos',
         'alrayyes/app',
       ]);
-      expect(await choices(page, 'shared-author-select')).toEqual([
+      expect(await choices(page, 'shared-author-filter')).toEqual([
         'All authors',
         'claude',
         'ryan',
@@ -92,21 +94,27 @@ for (const path of ['/issues.html', '/insights.html']) {
       page,
     }) => {
       const hide = page.locator('#issue-hide-dependency-dashboard');
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(2);
+      await expect(
+        page.locator('#shared-repo-filter-panel .label-filter-option'),
+      ).toHaveCount(1);
 
       await hide.uncheck();
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(3);
-      expect(await choices(page, 'shared-repo-select')).toContain(
+      await expect(
+        page.locator('#shared-repo-filter-panel .label-filter-option'),
+      ).toHaveCount(2);
+      expect(await choices(page, 'shared-repo-filter')).toContain(
         'alrayyes/dash-only',
       );
-      expect(await choices(page, 'shared-author-select')).toContain('renovate');
+      expect(await choices(page, 'shared-author-filter')).toContain('renovate');
       expect(await choices(page, 'shared-label-filter')).toContain(
         'dependencies',
       );
 
       await hide.check();
-      await expect(page.locator('#shared-repo-select option')).toHaveCount(2);
-      expect(await choices(page, 'shared-author-select')).not.toContain(
+      await expect(
+        page.locator('#shared-repo-filter-panel .label-filter-option'),
+      ).toHaveCount(1);
+      expect(await choices(page, 'shared-author-filter')).not.toContain(
         'renovate',
       );
     });
@@ -134,17 +142,21 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
   test('picking an author narrows the repo choices to that author, and the author keeps its siblings', async ({
     page,
   }) => {
-    await expect(page.locator('#shared-repo-select option')).toHaveCount(3);
+    await expect(
+      page.locator('#shared-repo-filter-panel .label-filter-option'),
+    ).toHaveCount(2);
 
-    await page.selectOption('#shared-author-select', 'claude');
+    await pickOnly(page, 'author', 'claude');
 
-    await expect(page.locator('#shared-repo-select option')).toHaveCount(2);
-    expect(await choices(page, 'shared-repo-select')).toEqual([
+    await expect(
+      page.locator('#shared-repo-filter-panel .label-filter-option'),
+    ).toHaveCount(1);
+    expect(await choices(page, 'shared-repo-filter')).toEqual([
       'All repos',
       'alrayyes/other',
     ]);
     // The author select leaves its own pick out, so ryan stays a choice.
-    expect(await choices(page, 'shared-author-select')).toEqual([
+    expect(await choices(page, 'shared-author-filter')).toEqual([
       'All authors',
       'claude',
       'ryan',
@@ -156,15 +168,15 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
   }) => {
     const hide = page.locator('#issue-hide-dependency-dashboard');
     await hide.uncheck();
-    await page.selectOption('#shared-repo-select', 'github:alrayyes/dash-only');
-    await expect(page.locator('#shared-repo-select')).toHaveValue(
-      'github:alrayyes/dash-only',
-    );
+    await pickOnly(page, 'repo', 'github:alrayyes/dash-only');
+    await expect
+      .poll(() => pickedValues(page, 'repo'))
+      .toEqual(['github:alrayyes/dash-only']);
 
     await hide.check();
 
-    await expect(page.locator('#shared-repo-select')).toHaveValue('');
-    expect(await choices(page, 'shared-repo-select')).not.toContain(
+    await expect.poll(() => pickedValues(page, 'repo')).toEqual([]);
+    expect(await choices(page, 'shared-repo-filter')).not.toContain(
       'alrayyes/dash-only',
     );
     await expect(page.locator('#issue-rows > .row')).toHaveCount(3);
@@ -173,8 +185,10 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
   test('has no axe-core violations with the narrowed choices', async ({
     page,
   }) => {
-    await page.selectOption('#shared-author-select', 'claude');
-    await expect(page.locator('#shared-repo-select option')).toHaveCount(2);
+    await pickOnly(page, 'author', 'claude');
+    await expect(
+      page.locator('#shared-repo-filter-panel .label-filter-option'),
+    ).toHaveCount(1);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

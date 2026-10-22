@@ -1,5 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { pickedLabels, toggleLabels } from './label-filter-helper';
+import {
+  pickedLabels,
+  pickedValues,
+  pickOnly,
+  toggleLabels,
+} from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1620: a filter set on one page is still set when you come back to it. The
@@ -91,14 +96,14 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
     await expect(issueRows(page)).toHaveCount(3);
   });
 
-  for (const [control, select, value, kept] of [
-    ['author', '#shared-author-select', 'ryan', 2],
-    ['repo', '#shared-repo-select', 'github:acme/docs', 1],
+  for (const [control, value, kept] of [
+    ['author', 'ryan', 2],
+    ['repo', 'github:acme/docs', 1],
   ] as const) {
     test(`the ${control} pick on Issues is still set after a client navigation through Pull requests`, async ({
       page,
     }) => {
-      await page.locator(select).selectOption(value);
+      await pickOnly(page, control, value);
       await expect(issueRows(page)).toHaveCount(kept);
 
       await nav(page, 'pull-requests').click();
@@ -106,21 +111,21 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
       await expect(prRows(page)).toHaveCount(2);
       await nav(page, 'issues').click();
 
-      await expect(page.locator(select)).toHaveValue(value);
+      await expect.poll(() => pickedValues(page, control)).toEqual([value]);
       await expect(issueRows(page)).toHaveCount(kept);
     });
 
     test(`the ${control} pick on Issues is still set after a full load of Pull requests`, async ({
       page,
     }) => {
-      await page.locator(select).selectOption(value);
+      await pickOnly(page, control, value);
       await expect(issueRows(page)).toHaveCount(kept);
 
       await open(page, '/pull-requests.html');
       await expect(prRows(page)).toHaveCount(2);
       await open(page, '/issues.html');
 
-      await expect(page.locator(select)).toHaveValue(value);
+      await expect.poll(() => pickedValues(page, control)).toEqual([value]);
       await expect(issueRows(page)).toHaveCount(kept);
     });
   }
@@ -156,7 +161,7 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
   test('the same pick follows the account to a second browser after the detour', async ({
     page,
   }) => {
-    await page.locator('#shared-author-select').selectOption('ryan');
+    await pickOnly(page, 'author', 'ryan');
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
 
@@ -169,29 +174,32 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
   test('a pick changed on the page that does not offer the old one replaces it', async ({
     page,
   }) => {
-    await page.locator('#shared-author-select').selectOption('ryan');
+    await pickOnly(page, 'author', 'ryan');
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
-    await page.locator('#shared-author-select').selectOption('claude');
+    await pickOnly(page, 'author', 'claude');
     await expect(prRows(page)).toHaveCount(1);
 
     await nav(page, 'issues').click();
     // claude wrote no issue, so the list is whole and the old pick is gone.
     await expect(issueRows(page)).toHaveCount(3);
     await nav(page, 'pull-requests').click();
-    await expect(page.locator('#shared-author-select')).toHaveValue('claude');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
   });
 
-  test('choosing All authors on the other page forgets the held pick', async ({
+  test('clearing the held author on the other page forgets it', async ({
     page,
   }) => {
-    await page.locator('#shared-author-select').selectOption('ryan');
+    await pickOnly(page, 'author', 'ryan');
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
-    await page.locator('#shared-author-select').selectOption('');
+    // Nothing is ticked here, so the held pick is cleared from its note.
+    await page
+      .getByRole('button', { name: 'Clear saved author "ryan"' })
+      .click();
     await nav(page, 'issues').click();
 
-    await expect(page.locator('#shared-author-select')).toHaveValue('');
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     await expect(issueRows(page)).toHaveCount(3);
   });
 });

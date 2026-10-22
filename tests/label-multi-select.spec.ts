@@ -5,6 +5,8 @@ import {
   labelButton,
   labelPanel,
   pickedLabels,
+  pickOnly,
+  pickTexts,
   toggleLabels,
 } from './label-filter-helper';
 import { test } from './server-fixture';
@@ -316,7 +318,7 @@ test.describe('Label filter: narrowing', () => {
     page,
   }) => {
     await open(page);
-    await page.locator('#shared-author-select').selectOption('alice');
+    await pickOnly(page, 'author', 'alice');
 
     await labelButton(page).click();
     await expect(labelPanel(page).locator('.label-filter-option')).toHaveText([
@@ -332,17 +334,12 @@ test.describe('Label filter: narrowing', () => {
     await toggleLabels(page, 'security', 'docs');
 
     // bob wrote the security one and the bug+docs one, alice the docs one.
-    await expect(page.locator('#shared-author-select option')).toHaveText([
-      'All authors',
-      'alice',
-      'bob',
-    ]);
+    await expect
+      .poll(() => pickTexts(page, 'author'))
+      .toEqual(['alice', 'bob']);
     await clearLabels(page);
     await toggleLabels(page, 'security');
-    await expect(page.locator('#shared-author-select option')).toHaveText([
-      'All authors',
-      'bob',
-    ]);
+    await expect.poll(() => pickTexts(page, 'author')).toEqual(['bob']);
   });
 
   test('a ticked label that a later filter leaves nothing for is cleared, the others stay', async ({
@@ -352,7 +349,7 @@ test.describe('Label filter: narrowing', () => {
     await toggleLabels(page, 'bug', 'security');
     await expect(prRows(page)).toHaveCount(3);
 
-    await page.locator('#shared-author-select').selectOption('alice');
+    await pickOnly(page, 'author', 'alice');
 
     // security is bob's: alice has none, so it can no longer be ticked.
     await expect(labelButton(page)).toHaveText('bug');

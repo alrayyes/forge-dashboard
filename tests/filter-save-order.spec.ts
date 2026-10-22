@@ -1,5 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { toggleLabels } from './label-filter-helper';
+import { pickOnly, toggleLabels } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1637: two picks made one after the other each send a PUT. The server keeps
@@ -65,7 +65,7 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
     return route.continue();
   });
 
-  await page.locator('#shared-author-select').selectOption('ryan');
+  await pickOnly(page, 'author', 'ryan');
   await toggleLabels(page, 'bug');
   await expect.poll(() => puts, { timeout: 5000 }).toBeGreaterThan(0);
 

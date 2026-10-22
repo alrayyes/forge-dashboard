@@ -226,23 +226,23 @@ test.describe('hide titles matching a pattern (#1593)', () => {
   });
 
   test('repo, author and label choices follow the rule', async ({ page }) => {
-    expect(await choices(page, 'shared-repo-select')).toContain(
+    expect(await choices(page, 'shared-repo-filter')).toContain(
       'alrayyes/reports',
     );
-    expect(await choices(page, 'shared-author-select')).toContain('bot');
+    expect(await choices(page, 'shared-author-filter')).toContain('bot');
     expect(await choices(page, 'shared-label-filter')).toContain('report');
 
     await input(page).fill('^Weekly report|^Weekly');
 
     await expect(rows(page)).toHaveCount(3);
-    expect(await choices(page, 'shared-repo-select')).not.toContain(
+    expect(await choices(page, 'shared-repo-filter')).not.toContain(
       'alrayyes/reports',
     );
-    expect(await choices(page, 'shared-author-select')).not.toContain('bot');
+    expect(await choices(page, 'shared-author-filter')).not.toContain('bot');
     expect(await choices(page, 'shared-label-filter')).not.toContain('report');
 
     await input(page).fill('');
-    expect(await choices(page, 'shared-repo-select')).toContain(
+    expect(await choices(page, 'shared-repo-filter')).toContain(
       'alrayyes/reports',
     );
   });

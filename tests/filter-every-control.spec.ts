@@ -1,5 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { pickedLabels, toggleLabels } from './label-filter-helper';
+import {
+  pickedLabels,
+  pickedValues,
+  toggleLabels,
+  togglePicks,
+} from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1620, acceptance criterion 1: a list, from a test, of which filter controls
@@ -289,20 +294,31 @@ const CONTROLS: Control[] = [
   pill('Review requested from me', 'review-requested', PR_BOARDS),
   autoMerge('on'),
   autoMerge('off'),
-  select(
-    'repo select',
-    '#shared-repo-select',
-    'github:acme/app',
-    'shared',
-    'repo',
-  ),
-  select(
-    'author select',
-    '#shared-author-select',
-    { issues: 'sam', other: 'dana' },
-    'shared',
-    'author',
-  ),
+  {
+    name: 'repo filter',
+    boards: ALL,
+    group: 'shared',
+    key: 'repo',
+    stored: 'github:acme/app',
+    set: (page) => togglePicks(page, 'repo', 'github:acme/app'),
+    show: (page) =>
+      expect
+        .poll(() => pickedValues(page, 'repo'))
+        .toEqual(['github:acme/app']),
+  },
+  {
+    name: 'author filter',
+    boards: ALL,
+    group: 'shared',
+    key: 'author',
+    stored: { issues: 'sam', other: 'dana' },
+    set: (page, board) =>
+      togglePicks(page, 'author', board === 'issues' ? 'sam' : 'dana'),
+    show: (page, board) =>
+      expect
+        .poll(() => pickedValues(page, 'author'))
+        .toEqual([board === 'issues' ? 'sam' : 'dana']),
+  },
   {
     name: 'label filter',
     boards: ALL,

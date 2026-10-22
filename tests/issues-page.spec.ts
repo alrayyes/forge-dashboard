@@ -1,6 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { labelChoices } from './label-filter-helper';
+import {
+  clearPicks,
+  labelChoices,
+  offeredValues,
+  pickOnly,
+} from './label-filter-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -160,12 +165,10 @@ test.describe('issues page (#827)', () => {
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(12);
 
-    await page.locator('#shared-repo-select').selectOption({
-      label: 'alrayyes/other-repo',
-    });
+    await pickOnly(page, 'repo', 'github:alrayyes/other-repo');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(5);
 
-    await page.locator('#shared-repo-select').selectOption({ index: 0 });
+    await clearPicks(page, 'repo');
     await page
       .getByRole('combobox', { name: 'Filter by title' })
       .fill('Needle');
@@ -173,7 +176,7 @@ test.describe('issues page (#827)', () => {
     await expect(page.locator('#issue-rows > .row')).toContainText('Needle');
 
     for (const id of [
-      '#shared-author-select',
+      '#shared-author-filter-button',
       '#shared-label-filter-button',
       '[data-col="created"]',
       '[data-col="updated"]',
@@ -202,27 +205,18 @@ test.describe('issues page (#827)', () => {
     ];
     await mockDashboard(page, issues, prs);
 
-    const values = (id: string) =>
-      page
-        .locator(`${id} option`)
-        .evaluateAll((os) =>
-          os.map((o) => (o as HTMLOptionElement).value).filter(Boolean),
-        );
+    const values = (key: 'repo' | 'author') => offeredValues(page, key);
 
     await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    expect(await values('#shared-repo-select')).toEqual([
-      'github:alrayyes/pr-only',
-    ]);
-    expect(await values('#shared-author-select')).toEqual(['pr-author']);
+    expect(await values('repo')).toEqual(['github:alrayyes/pr-only']);
+    expect(await values('author')).toEqual(['pr-author']);
     expect(await labelChoices(page)).toEqual(['pr-label']);
 
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
-    expect(await values('#shared-repo-select')).toEqual([
-      'github:alrayyes/issue-only',
-    ]);
-    expect(await values('#shared-author-select')).toEqual(['issue-author']);
+    expect(await values('repo')).toEqual(['github:alrayyes/issue-only']);
+    expect(await values('author')).toEqual(['issue-author']);
     expect(await labelChoices(page)).toEqual(['issue-label']);
   });
 
@@ -231,9 +225,7 @@ test.describe('issues page (#827)', () => {
   }) => {
     await mockDashboard(page);
     await page.goto('/issues.html');
-    await page.locator('#shared-repo-select').selectOption({
-      label: 'alrayyes/other-repo',
-    });
+    await pickOnly(page, 'repo', 'github:alrayyes/other-repo');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(5);
 
     await page.reload();

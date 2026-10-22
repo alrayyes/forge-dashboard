@@ -1,5 +1,12 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { labelButton, pickedLabels, toggleLabels } from './label-filter-helper';
+import {
+  labelButton,
+  pickButton,
+  pickedLabels,
+  pickedValues,
+  pickOnly,
+  toggleLabels,
+} from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1620: an author or label with capitals ("Ryan", "Bug") is saved lowercase,
@@ -58,20 +65,22 @@ test.describe('a pick with capitals stays picked (#1620)', () => {
     await expect(issueRows(page)).toHaveCount(3);
   });
 
-  for (const [control, select, value, kept] of [
-    ['author', '#shared-author-select', 'Ryan', 2],
-  ] as const) {
+  for (const [control, value, kept] of [['author', 'Ryan', 2]] as const) {
     test(`the ${control} pick ${value} is kept, and is still set after a full load`, async ({
       page,
     }) => {
-      await page.locator(select).selectOption(value);
+      await pickOnly(page, control, value);
       await expect(issueRows(page)).toHaveCount(kept);
       // The page rebuilds its choices after a pick; the pick must outlast that.
-      await expect(page.locator(select)).toHaveValue(value);
-      await expect(page.locator(`${select} option:checked`)).toHaveText(value);
+      await expect
+        .poll(() => pickedValues(page, control))
+        .toEqual([value.toLowerCase()]);
+      await expect(pickButton(page, control)).toHaveText(value);
 
       await open(page, '/issues.html');
-      await expect(page.locator(select)).toHaveValue(value);
+      await expect
+        .poll(() => pickedValues(page, control))
+        .toEqual([value.toLowerCase()]);
       await expect(issueRows(page)).toHaveCount(kept);
     });
   }
