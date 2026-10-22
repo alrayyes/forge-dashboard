@@ -25,8 +25,12 @@
   // one list was 3,490 elements and failed Lighthouse's DOM size audit
   // (#1135). Nothing is dropped, only revealed a page at a time.
   const PAGE_SIZE = 20;
+  // How long the first cards wait for their notes to render before they show
+  // as plain text instead.
+  const RENDER_WAIT_MS = 1500;
   let visibleCount = $state(PAGE_SIZE);
-  const shown = $derived(releases.slice(0, visibleCount));
+  const visible = (list: Release[]) => list.slice(0, visibleCount);
+  const shown = $derived(visible(releases));
   const hiddenCount = $derived(Math.max(0, releases.length - visibleCount));
 
   // The notes are release-please's Markdown (a bold scope, links, lists),
@@ -48,7 +52,6 @@
   $effect(() => {
     void requestNotes(shown);
   });
-  const RENDER_WAIT_MS = 1500;
   // A render that failed is asked for again a few seconds later, for as long
   // as the page is open.
   $effect(() => () => requestNotes.stop());
@@ -69,31 +72,50 @@
     });
   }
 
+  // Holds the first cards back until their notes have rendered, for at most
+  // RENDER_WAIT_MS. A failed render ends the wait at once: waiting longer
+  // would not help, and the cards show as plain text.
+  async function waitForNotes(list: Release[]) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        requestNotes(visible(list)),
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, RENDER_WAIT_MS);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   onMount(() => {
-    fetch("/changelog.json", { headers: { Accept: "application/json" } })
-      .then((res) => {
+    let mounted = true;
+    (async () => {
+      let list: Release[];
+      try {
+        const res = await fetch("/changelog.json", {
+          headers: { Accept: "application/json" },
+        });
         if (!res.ok) throw new Error(`changelog answered ${res.status}`);
-        return res.json();
-      })
-      .then(async (data: { releases?: Release[] }) => {
-        const all = data.releases ?? [];
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        await Promise.race([
-          requestNotes(all.slice(0, PAGE_SIZE)),
-          new Promise((resolve) => {
-            timer = setTimeout(resolve, RENDER_WAIT_MS);
-          }),
-        ]);
-        clearTimeout(timer);
-        status = "";
-        releases = all;
-        loaded = true;
-      })
-      .catch(() => {
+        list = ((await res.json()) as { releases?: Release[] }).releases ?? [];
+      } catch {
+        if (!mounted) return;
         status = "Could not load the changelog.";
         statusKind = "error";
         loaded = true;
-      });
+        return;
+      }
+      // The JSON loaded. If the wait fails, the cards still show.
+      await waitForNotes(list).catch(() => {});
+      if (!mounted) return;
+      status = "";
+      releases = list;
+      loaded = true;
+    })();
+    return () => {
+      mounted = false;
+    };
   });
 </script>
 
