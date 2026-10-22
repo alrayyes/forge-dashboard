@@ -34,7 +34,10 @@ export function createBranchRerun() {
   const releases = new Map<string, ReturnType<typeof setTimeout>>();
   // One timer per repository while its forge's rate limit holds the control
   // back, so the button returns when the limit lifts even with no poll.
-  const unlocks = new Map<string, ReturnType<typeof setTimeout>>();
+  const unlocks = new Map<
+    string,
+    { at: string; timer: ReturnType<typeof setTimeout> }
+  >();
   const keyOf = (t: RerunTarget) => `${t.forge}\u0000${t.fullName}`;
 
   // A queued rerun is held until the branch's CI moves on or the hold runs out.
@@ -60,7 +63,7 @@ export function createBranchRerun() {
       // No control is left to redraw, so the hold's timer has nothing to do.
       clearTimeout(releases.get(key));
       releases.delete(key);
-      clearTimeout(unlocks.get(key));
+      clearTimeout(unlocks.get(key)?.timer);
       unlocks.delete(key);
     }
   }
@@ -113,8 +116,14 @@ export function createBranchRerun() {
       // A forge that can't be reached or has no budget left would refuse the
       // click, so there is no button, only the reason.
       const locked = lock();
-      if (locked) button.remove();
-      else if (!button.isConnected) wrap.prepend(button);
+      if (locked) {
+        // Take keyboard focus along, or it drops to the page.
+        if (document.activeElement === button) {
+          wrap.tabIndex = -1;
+          wrap.focus();
+        }
+        button.remove();
+      } else if (!button.isConnected) wrap.prepend(button);
       button.textContent = isHeld ? 'Rerun queued' : 'Rerun failed checks';
       // Pending, not disabled, so the button keeps focus.
       if (isHeld || sending) button.setAttribute('aria-disabled', 'true');
@@ -130,14 +139,21 @@ export function createBranchRerun() {
       ]
         .filter(Boolean)
         .join(' ');
-      clearTimeout(unlocks.get(key));
-      unlocks.delete(key);
-      const wait = locked?.resetsAt ? msUntilReset(locked.resetsAt) : null;
-      if (wait !== null)
-        unlocks.set(
-          key,
-          setTimeout(() => syncAll(key), wait),
-        );
+      // Armed once per reset time, so a redraw does not restart it.
+      const at = locked?.resetsAt;
+      if (unlocks.get(key)?.at !== at) {
+        clearTimeout(unlocks.get(key)?.timer);
+        unlocks.delete(key);
+        const wait = at ? msUntilReset(at) : null;
+        if (at && wait !== null)
+          unlocks.set(key, {
+            at,
+            timer: setTimeout(() => {
+              unlocks.delete(key);
+              syncAll(key);
+            }, wait),
+          });
+      }
       for (const extra of failureBox.querySelectorAll(
         '.pipeline-rerun-copy, .feedback-details',
       ))

@@ -220,10 +220,15 @@
     const buttons = () =>
       Array.from(host.querySelectorAll<HTMLElement>("button"));
     const was = buttons().indexOf(document.activeElement as HTMLElement);
+    // Focus the control itself held, when its button had gone (a lock).
+    const onControl = was < 0 && host.contains(document.activeElement);
     host.replaceChildren(...(node ? [node] : []));
     if (node && was >= 0) {
       const now = buttons();
       (now[was] ?? now[0])?.focus({ preventScroll: true });
+    } else if (node && onControl) {
+      node.tabIndex = -1;
+      node.focus({ preventScroll: true });
     }
   }
 </script>

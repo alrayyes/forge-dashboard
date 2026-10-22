@@ -62,5 +62,12 @@ export function forgeLockReason(
     .filter((f) => f.forge === forge)
     .map((f) => lockOf(f, budget, now));
   if (locks.length === 0 || locks.some((l) => l === null)) return null;
-  return locks[0];
+  // All of them refuse. The one to report is the rate limit that lifts first,
+  // since that is when a host frees up; unreachable hosts have no such time.
+  const limited = locks
+    .filter((l): l is ForgeLock => l?.resetsAt !== undefined)
+    .sort(
+      (a, b) => Date.parse(a.resetsAt ?? '') - Date.parse(b.resetsAt ?? ''),
+    );
+  return limited[0] ?? locks[0];
 }

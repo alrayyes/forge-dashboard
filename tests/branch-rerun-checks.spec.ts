@@ -425,4 +425,86 @@ test.describe('main branches rerun failed checks', () => {
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
     ).toBeVisible();
   });
+
+  const spentUntil = (minutes: number) => ({
+    limit: 5000,
+    remaining: 0,
+    resetsAt: new Date(Date.now() + minutes * 60_000).toISOString(),
+    severity: 'exceeded',
+  });
+
+  for (const [name, forges] of [
+    [
+      'the later reset comes first',
+      () => [
+        { forge: 'github', reachable: true, rateLimitREST: spentUntil(10) },
+        { forge: 'github', reachable: true, rateLimitREST: spentUntil(5) },
+      ],
+    ],
+    [
+      'the first host is unreachable',
+      () => [
+        { forge: 'github', reachable: false },
+        { forge: 'github', reachable: true, rateLimitREST: spentUntil(5) },
+      ],
+    ],
+  ] as const) {
+    test(`with several locked hosts the button returns at the earliest reset (${name})`, async ({
+      page,
+    }) => {
+      await page.clock.install();
+      const dialog = await openPanel(page, 'failed', {
+        checks: failedCheck,
+        forges: forges(),
+      });
+      await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(
+        0,
+      );
+
+      await page.route('**/api/main-branches', () => {});
+      await page.clock.runFor(5 * 60_000 + 1_000);
+
+      await expect(
+        dialog.getByRole('button', { name: 'Rerun failed checks' }),
+      ).toBeVisible();
+    });
+  }
+
+  test('keyboard focus stays in the dialog when a poll takes the button away', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).focus();
+
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+    await expect(
+      page.evaluate(
+        () =>
+          document.activeElement?.closest('dialog, [role="dialog"]') != null,
+      ),
+    ).resolves.toBe(true);
+  });
+
+  test('a forge entry that does not say whether it is reachable does not lock', async ({
+    page,
+  }) => {
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges: [{ forge: 'github', repoCount: 1 }],
+    });
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
+  });
 });

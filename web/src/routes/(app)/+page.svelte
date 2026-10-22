@@ -230,6 +230,8 @@
     } catch {
       // A refresh that fails keeps the rows already on screen.
       if (initial || !data) failed = true;
+      // The lock still follows the clock while the poll is down.
+      if (openRow) rerun.redraw(openRow);
     } finally {
       loading = false;
     }

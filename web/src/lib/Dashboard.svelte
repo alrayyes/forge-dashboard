@@ -2628,12 +2628,13 @@
     // min)." Built fresh from the latest snapshot, so a 429 from a click
     // reads the same as a budget the snapshot already showed spent (#732).
     function rateLimitedReason(forgeName: string, known?: RateLimit): string {
-      const health = lastForges.find((f) => f.forge === forgeName);
+      // Every entry of the kind, as the lock looks at them.
       const limit =
         known ??
-        [health?.rateLimitREST, health?.rateLimitGraphQL].find(
-          (l) => l && Date.parse(l.resetsAt) > Date.now(),
-        );
+        lastForges
+          .filter((f) => f.forge === forgeName)
+          .flatMap((f) => [f.rateLimitREST, f.rateLimitGraphQL])
+          .find((l) => l && Date.parse(l.resetsAt) > Date.now());
       return rateLimitReasonText(
         FORGE_LABELS[forgeName] || forgeName,
         limit?.resetsAt,
