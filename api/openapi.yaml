@@ -697,7 +697,7 @@ paths:
         "204":
           description: Saved.
         "400":
-          description: The request body wasn't valid JSON, exceeded the size this endpoint accepts, or its `shared.label`, `shared.repo` or `shared.author` held more than 20 values, more than 1000 characters, or a control character other than the newline between values.
+          description: The request body wasn't valid JSON, exceeded the size this endpoint accepts, or its `shared.label`, `shared.repo` or `shared.author` held more than 20 values, more than 1000 characters, or a control character other than the newline between values. The message names the filter that failed.
           content:
             application/json:
               schema:
