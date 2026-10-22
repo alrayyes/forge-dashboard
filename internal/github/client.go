@@ -119,6 +119,8 @@ type Client struct {
 
 	// advisories remembers each repo's open dependency advisories for a while.
 	advisories advisoryCache
+	// log is where the client says what it skipped; nil means slog's default.
+	log *slog.Logger
 
 	// appAuthenticated is true for a Client built via NewAppClient — an
 	// installation token minted and silently refreshed by the Transport
@@ -4244,4 +4246,13 @@ func heldByForge(enabled bool) dashboard.AutoMergeHolder {
 	}
 
 	return ""
+}
+
+// logger is the client's logger, or slog's default when none was set.
+func (c *Client) logger() *slog.Logger {
+	if c.log != nil {
+		return c.log
+	}
+
+	return slog.Default()
 }

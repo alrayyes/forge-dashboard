@@ -1,6 +1,7 @@
 package github
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -92,10 +93,16 @@ const MaxETagBodyBytes = maxETagBodyBytes
 // AdvisoriesRetry is how long a refused or failed alerts read waits to be asked again.
 const AdvisoriesRetry = advisoriesRetry
 
+// AdvisoriesTTL is how long a known or settled-refused answer is reused.
+const AdvisoriesTTL = advisoriesTTL
+
+// SetLogger gives the client its own logger in place of slog's default.
+func (c *Client) SetLogger(l *slog.Logger) { c.log = l }
+
 // AdvisoryTTLForTest is how long a repo's cached advisory answer has left.
 func (c *Client) AdvisoryTTLForTest(repo string) time.Duration {
 	c.advisories.mu.Lock()
 	defer c.advisories.mu.Unlock()
 
-	return time.Until(c.advisories.entries[repo].expires) + time.Second/2
+	return time.Until(c.advisories.entries[repo].expires)
 }

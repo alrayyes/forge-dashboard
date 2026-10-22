@@ -338,17 +338,17 @@ Each row is one forge, credential, kind and repo, with four counts:
 
 The kind says why the request was made:
 
-| Kind               | Cause                                                                                |
-| ------------------ | ------------------------------------------------------------------------------------ |
-| `full`             | A refresh of the whole account.                                                      |
-| `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                      |
-| `ci_poll`          | A poll of pull requests with a check still running.                                  |
-| `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.   |
-| `details`          | A pull request, issue or check list you opened.                                      |
-| `hook_maintenance` | Checking, adding or upgrading webhooks.                                              |
-| `advisories`       | Reading a repo's open Dependabot alerts, every 15 minutes (5 once refused).          |
-| `user_action`      | A button you pressed, a queued action, or auto-merge and auto-update acting for you. |
-| `unknown`          | A request nobody tagged. That is a bug in the dashboard; please report it.           |
+| Kind               | Cause                                                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `full`             | A refresh of the whole account.                                                                                                        |
+| `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                                                                        |
+| `ci_poll`          | A poll of pull requests with a check still running.                                                                                    |
+| `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.                                                     |
+| `details`          | A pull request, issue or check list you opened.                                                                                        |
+| `hook_maintenance` | Checking, adding or upgrading webhooks.                                                                                                |
+| `advisories`       | Reading a repo's open Dependabot alerts, at most every 15 minutes per repo. A failed read, or a first refusal, is tried again after 5. |
+| `user_action`      | A button you pressed, a queued action, or auto-merge and auto-update acting for you.                                                   |
+| `unknown`          | A request nobody tagged. That is a bug in the dashboard; please report it.                                                             |
 
 A few things to know when you read the numbers:
 
