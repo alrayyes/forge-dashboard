@@ -89,6 +89,7 @@ const singleUserSpecs = [
   '**/update-branch-request.spec.ts',
   '**/wait-chip.spec.ts',
   '**/webhooks-filter-choices.spec.ts',
+  '**/webhooks-failing-repo.spec.ts',
   '**/webmcp.spec.ts',
   '**/actions-dialog-helper.spec.ts',
   '**/activity-persistence.spec.ts',

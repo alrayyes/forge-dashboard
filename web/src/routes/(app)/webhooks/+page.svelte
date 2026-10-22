@@ -47,6 +47,8 @@
     canManageWebhooks?: boolean;
     webhookLockedByConnection?: boolean;
     webhookNeedsToken?: boolean;
+    // When the repo's fetch first failed, while it keeps failing.
+    failingSince?: string;
     ignored: boolean;
     ignoredPRs: boolean;
     ignoredIssues: boolean;
@@ -763,6 +765,15 @@
     .repo-link {
       color: inherit;
     }
+    .failing-badge {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--warning);
+      background: var(--warning-bg);
+    }
     .sort-button {
       background: none;
       border: none;
@@ -1212,7 +1223,12 @@
                       title={repo.fullName}
                       target="_blank"
                       rel="noopener noreferrer">{repo.fullName}</a
-                    >{:else}{repo.fullName}{/if}</td
+                    >{:else}{repo.fullName}{/if}{#if repo.failingSince}
+                    <span
+                      class="failing-badge"
+                      title="The dashboard can't fetch this repo, so its pull requests and issues are the last ones it could read."
+                      >Failing since {formatTime(repo.failingSince)}</span
+                    >{/if}</td
                 >
                 <td
                   role="cell"
