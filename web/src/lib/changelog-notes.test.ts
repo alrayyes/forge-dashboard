@@ -66,21 +66,52 @@ describe('createPlainNotes', () => {
 });
 
 describe('createNoteRenderer', () => {
-  test('the promise it returns settles once every asked release has rendered or failed', async () => {
-    const done: string[] = [];
+  test('the promise it returns says whether every asked release rendered', async () => {
     const request = createNoteRenderer(
       async (text) => {
         if (text.includes('bad')) throw new Error('no chunk');
         return text;
       },
-      (version) => done.push(version),
+      () => {},
       60_000,
     );
-    await request([release('1.0.0'), { version: '1.0.1', notes: 'bad' }]);
-    expect(done.sort()).toEqual(['1.0.0', '1.0.1']);
-    // Asking again for one still in flight waits for it too.
-    await request([release('1.0.0')]);
+    expect(await request([release('1.0.0')])).toBe(true);
+    expect(
+      await request([release('1.0.1'), { version: '1.0.2', notes: 'bad' }]),
+    ).toBe(false);
     request.stop();
+  });
+
+  test('asking again for a release still rendering waits for that render', async () => {
+    let finish: (html: string) => void = () => {};
+    const request = createNoteRenderer(
+      () => new Promise<string>((r) => (finish = r)),
+      () => {},
+    );
+    let settled = false;
+    request([release('1.0.0')]);
+    const second = request([release('1.0.0')]).then((ok) => {
+      settled = true;
+      return ok;
+    });
+    await flush();
+    expect(settled).toBe(false);
+    finish('<p>x</p>');
+    expect(await second).toBe(true);
+  });
+
+  test('renders nothing once stopped', async () => {
+    const calls: string[] = [];
+    const request = createNoteRenderer(
+      async (text) => {
+        calls.push(text);
+        return text;
+      },
+      () => {},
+    );
+    request.stop();
+    expect(await request([release('1.0.0')])).toBe(false);
+    expect(calls).toEqual([]);
   });
 
   test('renders each of 20 releases exactly once, however often it is asked', async () => {

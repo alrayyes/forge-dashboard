@@ -64,18 +64,20 @@ export function createNoteRenderer(
   render: (text: string) => Promise<string>,
   done: (version: string, html: string | null) => void,
   retryMs: number = RETRY_MS,
-): ((releases: { version: string; notes: string }[]) => Promise<void>) & {
+): ((releases: { version: string; notes: string }[]) => Promise<boolean>) & {
   stop: () => void;
 } {
-  const started = new Map<string, Promise<void>>();
+  const started = new Map<string, Promise<boolean>>();
   let latest: { version: string; notes: string }[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
-  // Resolves once every release in this call has been rendered or has failed,
-  // so a caller can hold back showing cards until their notes are ready.
+  // Resolves once every release in this call has been rendered or has failed:
+  // true if all of them rendered, false if any failed or the renderer was
+  // stopped. A caller holding cards back can tell a render from a failure.
   const request = (releases: { version: string; notes: string }[]) => {
     latest = releases;
-    const pending: Promise<void>[] = [];
+    if (stopped) return Promise.resolve(false);
+    const pending: Promise<boolean>[] = [];
     for (const r of releases) {
       const existing = started.get(r.version);
       if (existing) {
@@ -83,21 +85,25 @@ export function createNoteRenderer(
         continue;
       }
       const job = render(withoutHeading(r.notes)).then(
-        (html) => done(r.version, html),
+        (html) => {
+          done(r.version, html);
+          return true;
+        },
         () => {
           started.delete(r.version);
           done(r.version, null);
-          if (stopped || timer !== undefined) return;
+          if (stopped || timer !== undefined) return false;
           timer = setTimeout(() => {
             timer = undefined;
-            request(latest);
+            void request(latest);
           }, retryMs);
+          return false;
         },
       );
       started.set(r.version, job);
       pending.push(job);
     }
-    return Promise.all(pending).then(() => {});
+    return Promise.all(pending).then((all) => all.every(Boolean));
   };
   request.stop = () => {
     stopped = true;
