@@ -311,10 +311,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('rate-limit-exceeded banner (#361)', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     test('an exhausted budget shows a prominent banner at the top with a live countdown', async ({
       page,
     }) => {
@@ -339,7 +335,7 @@ test.describe('dashboard page', () => {
         }),
       );
 
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const banner = page.locator('#rate-limit-banner');
       await expect(banner).toBeVisible();
@@ -388,7 +384,7 @@ test.describe('dashboard page', () => {
         }),
       );
 
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const banner = page.locator('#rate-limit-banner');
       await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(1);
@@ -419,7 +415,7 @@ test.describe('dashboard page', () => {
         }),
       );
 
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#rate-limit-banner')).toBeVisible();
 
       await page.route('**/api/dashboard/refresh', (route: Route) =>
@@ -474,7 +470,7 @@ test.describe('dashboard page', () => {
         }),
       );
 
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const banner = page.locator('#rate-limit-banner');
       await expect(banner).toBeVisible();
@@ -507,7 +503,7 @@ test.describe('dashboard page', () => {
         }),
       );
 
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
     });
@@ -537,7 +533,7 @@ test.describe('dashboard page', () => {
         }),
       );
 
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const banner = page.locator('#rate-limit-banner');
       await expect(banner.locator('.rate-limit-banner-row')).toHaveCount(2);
@@ -1789,10 +1785,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('pagination', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     function makePR(n: number): MockItem {
       return {
         forge: 'github',
@@ -1823,7 +1815,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
       await expect(page.locator('#pr-pagination')).toBeHidden();
     });
@@ -1847,7 +1839,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       // Default page size is 25, so 30 PRs means page 1 of 2.
       await expect(page.locator('#pr-rows > .row')).toHaveCount(25);
@@ -1889,7 +1881,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-pagination')).toBeVisible();
 
       await page.fill(
@@ -1987,10 +1979,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('CI pill wording for a passed pipeline', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     function mockOnePR(page: Page, overrides: Partial<MockItem>) {
       return page.route('**/api/dashboard*', (route: Route) =>
         route.fulfill({
@@ -2026,7 +2014,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockOnePR(page, { mergeStatus: 'mergeable' });
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
@@ -2037,7 +2025,7 @@ test.describe('dashboard page', () => {
     // no clickable one.
     test('shows "Passed" once Merge is locked on the row', async ({ page }) => {
       await mockOnePR(page, { mergeStatus: 'blocked' });
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row.getByRole('button', { name: 'Merge' })).toHaveAttribute(
@@ -2051,7 +2039,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockOnePR(page, { mergeStatus: 'mergeable', ci: 'failure' });
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows .row').first();
       await expect(row.locator('.ci-pill')).toContainText('Failed');
@@ -2059,10 +2047,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('merge status and auto-merge pills', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     function pr(overrides = {}) {
       return {
         forge: 'github',
@@ -2099,7 +2083,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockDashboard(page, [pr()]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
       await expect(page.locator('.merge-pill')).toHaveCount(0);
@@ -2109,7 +2093,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockDashboard(page, [pr({ mergeStatus: 'conflicting' })]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const pill = page.locator('#pr-rows .merge-pill.conflicting');
       await expect(pill).toHaveCount(1);
@@ -2118,7 +2102,7 @@ test.describe('dashboard page', () => {
 
     test('a blocked pull request shows the blocked pill', async ({ page }) => {
       await mockDashboard(page, [pr({ mergeStatus: 'blocked' })]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const pill = page.locator('#pr-rows .merge-pill.blocked');
       await expect(pill).toHaveCount(1);
@@ -2137,7 +2121,7 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, [
         pr({ mergeStatus: 'blocked', ci: 'pending' }),
       ]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       await expect(page.locator('#pr-rows .merge-pill.blocked')).toHaveCount(0);
     });
@@ -2151,7 +2135,7 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, [
         pr({ mergeStatus: 'blocked', ci: 'failure' }),
       ]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const row = page.locator('#pr-rows > .row');
       await expect(row.locator('.ci-pill')).toContainText('Failed');
@@ -2163,7 +2147,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockDashboard(page, [pr({ mergeStatus: 'blocked', ci: 'none' })]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const pill = page.locator('#pr-rows .merge-pill.blocked');
       await expect(pill).toHaveCount(1);
@@ -2176,7 +2160,7 @@ test.describe('dashboard page', () => {
       await mockDashboard(page, [
         pr({ mergeStatus: 'conflicting', ci: 'pending' }),
       ]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const pill = page.locator('#pr-rows .merge-pill.conflicting');
       await expect(pill).toHaveCount(1);
@@ -2187,7 +2171,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockDashboard(page, [pr({ autoMergeEnabled: true })]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       const pill = page.locator('#pr-rows .attr-chip.auto-merge');
       await expect(pill).toHaveCount(1);
@@ -2200,7 +2184,7 @@ test.describe('dashboard page', () => {
       // autoMergeEnabled omitted entirely — the Forgejo case, since the
       // SDK has no read capability for it at all.
       await mockDashboard(page, [pr({ forge: 'forgejo' })]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       await expect(page.locator('.attr-chip.auto-merge')).toHaveCount(0);
     });
@@ -2222,7 +2206,7 @@ test.describe('dashboard page', () => {
         // The failing CI pill, with the Blocked pill left off (#1561).
         pr({ number: 5, mergeStatus: 'blocked', ci: 'failure' }),
       ]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(5);
       await expect(page.locator('.forge-badge.fj')).toBeVisible();
       await expect(page.locator('#pr-rows .ci-pill.failure')).toBeVisible();
@@ -2274,7 +2258,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       await mockDashboard(page, [pr({ behind: true })]);
-      await page.reload();
+      await page.goto('/pull-requests.html');
 
       // Merge stays the primary action while only behind, so the row draws
       // no Update branch; the pop-up's footer offers it.
@@ -2314,10 +2298,6 @@ test.describe('dashboard page', () => {
   });
 
   test.describe('force-refresh button', () => {
-    test.beforeEach(async ({ page }) => {
-      await landOnPullRequests(page);
-    });
-
     test('clicking it calls the endpoint and updates the dashboard from its response', async ({
       page,
     }) => {
@@ -2333,7 +2313,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-count')).toHaveText('0 open');
 
       let refreshCalled = false;
@@ -2396,6 +2376,7 @@ test.describe('dashboard page', () => {
         });
       });
 
+      await landOnPullRequests(page);
       const button = page.locator('#force-refresh-button');
       await expect(button).toBeEnabled();
 
@@ -2423,6 +2404,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
+      await landOnPullRequests(page);
 
       await page.click('#force-refresh-button');
       await expect(page.locator('#error-banner')).toBeVisible();
@@ -2442,7 +2424,7 @@ test.describe('dashboard page', () => {
       const firstRead = page.waitForResponse(
         (r) => new URL(r.url()).pathname === '/api/dashboard',
       );
-      await page.reload();
+      await page.goto('/pull-requests.html');
       await firstRead;
 
       await expect(page.locator('#force-refresh-button')).toBeVisible();
