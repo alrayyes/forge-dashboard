@@ -6,15 +6,15 @@ package main
 // (rules/go-test.md prefers the external test package).
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
-
-	"context"
-	"github.com/alrayyes/forge-dashboard/internal/api"
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,13 +105,13 @@ func TestServe_InFlightRequest_FinishesBeforeServeReturns(t *testing.T) {
 	}
 	res := make(chan result, 1)
 	go func() {
-		resp, err := http.Get(base)
+		resp, err := get(base)
 		if err != nil {
 			res <- result{err: err}
 
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		b, err := io.ReadAll(resp.Body)
 		res <- result{body: string(b), err: err}
 	}()
@@ -149,7 +149,7 @@ func TestServe_RequestOutlastingTheDrain_ServeReturnsWithinTheShutdownTimeout(t 
 	}))
 
 	go func() {
-		resp, err := http.Get(base)
+		resp, err := get(base)
 		if err == nil {
 			_ = resp.Body.Close()
 		}
@@ -164,4 +164,17 @@ func TestServe_RequestOutlastingTheDrain_ServeReturnsWithinTheShutdownTimeout(t 
 		t.Fatal("serve did not return after the shutdown timeout")
 	}
 	assert.GreaterOrEqual(t, time.Since(begin), 150*time.Millisecond)
+}
+
+func get(url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("get: %w", err)
+	}
+
+	return resp, nil
 }
