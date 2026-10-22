@@ -42,6 +42,7 @@ type Posted = { path: string; body: Record<string, unknown> };
 async function start(
   page: Page,
   answers: Partial<Record<'close' | 'reopen' | 'comment', Answer[]>> = {},
+  { reachable = true }: { reachable?: boolean } = {},
 ) {
   const state = { closed: false as boolean, posted: [] as Posted[] };
   const queue = {
@@ -56,7 +57,7 @@ async function start(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [{ forge: 'github', reachable, repoCount: 1 }],
         pullRequests: [],
         issues: state.closed ? [] : [ISSUE],
       }),
@@ -384,6 +385,80 @@ test('a spent rate limit locks the buttons with the reset time', async ({
     footer(dialog).getByRole('button', { name: 'Close issue' }),
   ).toHaveAttribute('aria-disabled', 'true');
   await expect(footer(dialog)).toContainText('rate limit');
+});
+
+test('an unreachable forge locks the buttons before any request, with the reason', async ({
+  page,
+}) => {
+  const { dialog, state } = await start(page, {}, { reachable: false });
+
+  const close = footer(dialog).getByRole('button', { name: 'Close issue' });
+  await expect(close).toHaveAttribute('aria-disabled', 'true');
+  await expect(
+    footer(dialog).getByRole('button', { name: 'Close with a comment' }),
+  ).toHaveAttribute('aria-disabled', 'true');
+  await expect(footer(dialog)).toContainText("can't be reached");
+  await close.click({ force: true });
+  expect(state.posted).toEqual([]);
+});
+
+test('a refused Reopen says why, keeps the Closed state and offers Reopen again', async ({
+  page,
+}) => {
+  const { dialog, state } = await start(page, {
+    reopen: [
+      { status: 502, body: { code: 'forge_error', message: 'Bad gateway.' } },
+    ],
+  });
+  await footer(dialog).getByRole('button', { name: 'Close issue' }).click();
+  await footer(dialog)
+    .getByRole('button', { name: 'Confirm close issue?' })
+    .click();
+  await footer(dialog).getByRole('button', { name: 'Reopen issue' }).click();
+
+  await expect(dialog.locator('.details-feedback')).toContainText(
+    "Couldn't reopen the issue.",
+  );
+  await expect(dialog.locator('.details-state')).toContainText('Closed');
+  await footer(dialog).getByRole('button', { name: 'Reopen issue' }).click();
+  await expect(dialog.locator('.details-state')).toContainText('Open');
+  expect(state.posted.map((p) => p.path)).toEqual([
+    'close',
+    'reopen',
+    'reopen',
+  ]);
+});
+
+test('a comment dropped after a half-done close is not reused for the next one', async ({
+  page,
+}) => {
+  const { dialog, state } = await start(page, {
+    close: [
+      { status: 502, body: { code: 'forge_error', message: 'Bad gateway.' } },
+    ],
+  });
+  await footer(dialog)
+    .getByRole('button', { name: 'Close with a comment' })
+    .click();
+  await dialog.getByRole('textbox', { name: 'Comment' }).fill('First.');
+  await dialog.getByRole('button', { name: 'Comment and close' }).click();
+  await expect(
+    footer(dialog).getByRole('button', { name: 'Retry close' }),
+  ).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await footer(dialog)
+    .getByRole('button', { name: 'Close with a comment' })
+    .click();
+  await dialog.getByRole('textbox', { name: 'Comment' }).fill('Second.');
+  await dialog.getByRole('button', { name: 'Comment and close' }).click();
+
+  await expect(
+    footer(dialog).getByRole('button', { name: 'Reopen issue' }),
+  ).toBeVisible();
+  expect(
+    state.posted.filter((p) => p.path === 'comment').map((p) => p.body.body),
+  ).toEqual(['First.', 'Second.']);
 });
 
 for (const scheme of ['light', 'dark'] as const) {
