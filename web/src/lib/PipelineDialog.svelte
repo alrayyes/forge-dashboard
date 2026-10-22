@@ -190,15 +190,14 @@
     if (event.target === dialog) dialog.close();
   }
 
-  // Only failed and timed-out checks carry a log excerpt from the server, and
-  // a cancelled run is not a failure to debug (View run still opens its output),
-  // so those two states alone get the button. A failed check shows Copy log when there is a log to read (its job) or an
-  // excerpt to copy, and a board to name the forge for the message.
+  // Copy log is for a failed or timed-out check that has something to copy:
+  // an excerpt, or a job whose full log the board's checks url can name. Only
+  // those two states carry an excerpt from the server, and a cancelled run is
+  // not a failure to debug (View run still opens its output).
   function copyableLog(check: Check): boolean {
     return (
       (check.state === "failure" || check.state === "timed_out") &&
-      !!target?.checksUrl &&
-      (!!check.jobId || !!check.excerpt)
+      (!!check.excerpt || (!!check.jobId && !!target?.checksUrl))
     );
   }
 

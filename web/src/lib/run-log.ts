@@ -141,18 +141,16 @@ export function copyStatus(
   outcome: CopyOutcome,
   prepared: Prepared,
   forgeName: string,
-  hasExcerpt = true,
 ): string {
   const only = prepared.kind === 'excerpt';
   const lost = only ? ` ${prepared.why}` : '';
   if (outcome === 'nothing') return `Nothing was copied.${lost}`;
-  if (outcome === 'selected' && !hasExcerpt) {
-    return `Couldn't copy the log automatically. Open the run on ${forgeName} to read it.`;
-  }
   if (outcome === 'selected') {
+    const press = 'press Ctrl+C (Cmd+C on a Mac) to copy it';
+
     return only
-      ? `Couldn't copy automatically. The excerpt is selected: press Ctrl+C.${lost}`
-      : "Couldn't copy automatically, so the full log was not copied. The excerpt is selected: press Ctrl+C to copy just that.";
+      ? `Couldn't copy automatically. The excerpt is selected below: ${press}.${lost}`
+      : `Couldn't copy automatically. The log is selected below: ${press}.`;
   }
   if (only) return `Copied the excerpt only.${lost}`;
   if (prepared.kind === 'cut') {

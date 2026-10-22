@@ -289,7 +289,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     ).toHaveCount(0);
   });
 
-  test('when the clipboard refuses, the status does not claim the full log was copied', async ({
+  test('when the clipboard refuses, the status does not claim anything was copied', async ({
     page,
   }) => {
     await page.addInitScript(() => {
@@ -305,7 +305,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
-      'the full log was not copied',
+      "Couldn't copy automatically",
     );
   });
 
@@ -333,15 +333,90 @@ test.describe('a check run output in the pipeline dialog', () => {
   }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await setup(page, { status: 401, body: {} });
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/checks/log*', async (route) => {
+      await held;
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: '{}',
+      });
+    });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     const copy = dialog.getByRole('button', { name: 'Copy log: build' });
 
     await copy.focus();
     await page.keyboard.press('Enter');
 
-    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
-      'Sign in again',
-    );
+    const status = dialog.locator('.pipeline-check-copy-status');
+    await expect(status).toHaveText('Copying');
+    await expect(copy).toHaveAttribute('aria-busy', 'true');
     await expect(copy).toBeFocused();
+    release();
+    await expect(status).toContainText('Sign in again');
+    await expect(copy).toBeFocused();
+    await expect(copy).not.toHaveAttribute('aria-busy');
+  });
+
+  test('closing the dialog while the log is read leaves no error behind', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, { status: 200, body: { text: 'x', truncated: false } });
+    const errors: Error[] = [];
+    page.on('pageerror', (e) => errors.push(e));
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/checks/log*', async (route) => {
+      await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'x', truncated: false }),
+      });
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await page.keyboard.press('Escape');
+    release();
+    await page.waitForTimeout(200);
+
+    expect(errors).toEqual([]);
+  });
+
+  test('when every copy route is refused the whole log is selected in a field and the instruction stays', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined });
+      document.execCommand = () => false;
+    });
+    await setup(page, {
+      status: 200,
+      body: { text: 'line one\nline two\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+
+    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await expect(field).toHaveValue('line one\nline two\n');
+    await expect(field).toBeFocused();
+    expect(
+      await field.evaluate((el: HTMLTextAreaElement) => [
+        el.selectionStart,
+        el.selectionEnd,
+      ]),
+    ).toEqual([0, 18]);
+    const status = dialog.locator('.pipeline-check-copy-status');
+    await expect(status).toContainText('Cmd+C');
+    await expect(status).toContainText('The log is selected below');
   });
 });

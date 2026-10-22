@@ -246,17 +246,18 @@ describe('copyStatus', () => {
     ).toBe('Nothing was copied. Gone.');
   });
 
-  test('a selection fallback with no excerpt on screen does not point at one', () => {
-    const said = copyStatus('selected', whole, 'GitHub', false);
+  test('a selection fallback points at the field with the log, and names both shortcuts', () => {
+    const said = copyStatus('selected', whole, 'GitHub');
 
-    expect(said).not.toContain('excerpt');
-    expect(said).toContain('Open the run on GitHub');
+    expect(said).toContain('The log is selected below');
+    expect(said).toContain('Ctrl+C (Cmd+C on a Mac)');
   });
 
-  test('a refused copy of a whole log says the full log was not copied', () => {
-    expect(copyStatus('selected', whole, 'GitHub')).toContain(
-      'full log was not copied',
+  test('a selection fallback with only the excerpt says so, and why', () => {
+    expect(copyStatus('selected', excerpt, 'GitHub')).toContain(
+      'The excerpt is selected below',
     );
+    expect(copyStatus('selected', excerpt, 'GitHub')).toContain('Gone.');
   });
 });
 
