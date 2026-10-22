@@ -177,41 +177,71 @@ func TestStore_UnknownSessionToken_ReturnsErrNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
-func TestStore_DeleteUnregisteredUser_RemovesAUserWithNoCredentials(t *testing.T) {
+func TestStore_ClaimUnregisteredUser_NoRowYet_CreatesOne(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	u, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan", time.Time{})
 	require.NoError(t, err)
 
-	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "ryan", time.Time{}))
+	got, err := store.GetUserByUsername(t.Context(), "ryan")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID)
+}
 
-	_, err = store.GetUserByUsername(t.Context(), "ryan")
+func TestStore_ClaimUnregisteredUser_ADeadEndRowIsReusedAndOthersAreDropped(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	first, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stray", "Stray")
+	require.NoError(t, err)
+
+	claimed, err := store.ClaimUnregisteredUser(t.Context(), "ryan", "Ryan K", time.Now().Add(time.Minute))
+	require.NoError(t, err)
+
+	assert.Equal(t, first.ID, claimed.ID, "the oldest row is the owner's")
+	_, err = store.GetUserByUsername(t.Context(), "stray")
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
-func TestStore_DeleteUnregisteredUser_SweepsTheCeremoniesOfEveryUserItRemoves(t *testing.T) {
+func TestStore_ClaimUnregisteredUser_SweepsTheCeremoniesOfEveryUserItDrops(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 	session := webauthn.SessionData{Challenge: "c"}
 
-	_, err := store.CreateUser(t.Context(), "stale", "Stale")
+	_, err := store.CreateUser(t.Context(), "owner", "Owner")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stale", "Stale")
 	require.NoError(t, err)
 	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "registration", session, time.Minute))
-	kept, err := store.CreateUser(t.Context(), "kept", "Kept")
-	require.NoError(t, err)
-	require.NoError(t, store.AddCredential(t.Context(), kept.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
-	require.NoError(t, store.SaveCeremony(t.Context(), "kept", "login", session, time.Minute))
 
-	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "someone-else", time.Now().Add(time.Hour)))
+	_, err = store.ClaimUnregisteredUser(t.Context(), "owner", "Owner", time.Now().Add(time.Hour))
+	require.NoError(t, err)
 
 	_, err = store.LoadCeremony(t.Context(), "stale", "registration")
-	require.ErrorIs(t, err, auth.ErrNotFound, "a removed user's ceremony must not outlive it")
-	_, err = store.LoadCeremony(t.Context(), "kept", "login")
-	assert.NoError(t, err, "a registered user's ceremony is not touched")
+	assert.ErrorIs(t, err, auth.ErrNotFound, "a dropped user's ceremony must not outlive it")
 }
 
-func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
+func TestStore_AddFirstCredential_SweepsTheCeremoniesOfTheUsersItClears(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	session := webauthn.SessionData{Challenge: "c"}
+
+	winner, err := store.CreateUser(t.Context(), "winner", "Winner")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stale", "Stale")
+	require.NoError(t, err)
+	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "registration", session, time.Minute))
+
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	_, err = store.LoadCeremony(t.Context(), "stale", "registration")
+	assert.ErrorIs(t, err, auth.ErrNotFound, "a cleared user's ceremony must not outlive it")
+}
+
+func TestStore_ClaimUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
@@ -219,7 +249,8 @@ func TestStore_DeleteUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	require.NoError(t, store.DeleteUnregisteredUser(t.Context(), "ryan", time.Time{}))
+	_, err = store.ClaimUnregisteredUser(t.Context(), "alex", "Alex", time.Time{})
+	require.NoError(t, err)
 
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
 	require.NoError(t, err)
@@ -232,7 +263,7 @@ func TestStore_AddFirstCredential_NobodyRegisteredYet_AttachesThePasskey(t *test
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
-	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, "ryan", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
 	got, err := store.GetUserByID(t.Context(), u.ID)
 	require.NoError(t, err)
@@ -246,9 +277,9 @@ func TestStore_AddFirstCredential_AnotherUserHoldsAPasskey_ReturnsErrRegistratio
 	require.NoError(t, err)
 	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
-	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	err = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+	err = store.AddFirstCredential(t.Context(), loser.ID, "loser", webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
 
 	assert.ErrorIs(t, err, auth.ErrRegistrationClosed)
 }
@@ -260,12 +291,27 @@ func TestStore_AddFirstCredential_Refused_RemovesThePendingUser(t *testing.T) {
 	require.NoError(t, err)
 	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
-	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	_ = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+	_ = store.AddFirstCredential(t.Context(), loser.ID, "loser", webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
 
 	_, err = store.GetUserByID(t.Context(), loser.ID)
 	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_AddFirstCredential_TakesTheUsernameOfTheFinishingCeremony(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stray", "Stray")
+	require.NoError(t, err)
+
+	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, "stray", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	got, err := store.GetUserByUsername(t.Context(), "stray")
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID, "the winner's row takes its username, even one an abandoned attempt held")
 }
 
 func TestStore_HasAnyRegisteredUser_NoUsersYet_ReportsFalse(t *testing.T) {
@@ -706,6 +752,75 @@ func TestStore_Init_DropsTheInviteMachineryAnOlderDatabaseHad(t *testing.T) {
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
 	require.NoError(t, err)
 	assert.Equal(t, "Ryan", got.DisplayName)
+}
+
+func newOwnerWithEverything(t *testing.T, store *auth.Store) *auth.User {
+	t.Helper()
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, []byte("cred-1"), "Laptop"))
+	_, err = store.CreateSession(t.Context(), u.ID, time.Hour)
+	require.NoError(t, err)
+	_, _, err = store.CreateAPIToken(t.Context(), u.ID, "ci", time.Time{})
+	require.NoError(t, err)
+
+	return u
+}
+
+func TestStore_Owner_NoUser_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.Owner(t.Context())
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_ResetPasskeys_ClearsPasskeysAndSessionsAndKeepsTheRowAndTokens(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u := newOwnerWithEverything(t, store)
+
+	res, err := store.ResetPasskeys(t.Context(), false)
+	require.NoError(t, err)
+
+	assert.Equal(t, auth.ResetResult{Username: "ryan", Passkeys: 1, Sessions: 1}, res)
+	got, err := store.GetUserByID(t.Context(), u.ID)
+	require.NoError(t, err, "the row, and so its id, is what the settings hang off")
+	assert.Empty(t, got.Credentials)
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, creds)
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Len(t, tokens, 1)
+	registered, err := store.HasAnyRegisteredUser(t.Context())
+	require.NoError(t, err)
+	assert.False(t, registered, "registration is open again")
+}
+
+func TestStore_ResetPasskeys_WithTokens_RevokesThemToo(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u := newOwnerWithEverything(t, store)
+
+	res, err := store.ResetPasskeys(t.Context(), true)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, res.Tokens)
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, tokens)
+}
+
+func TestStore_ResetPasskeys_NoUser_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.ResetPasskeys(t.Context(), false)
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
 // execRecorder wraps the SQLite driver and notes every statement executed.

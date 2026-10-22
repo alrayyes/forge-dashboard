@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/alrayyes/forge-dashboard/compare/v2.0.2...v2.1.0) (2026-10-22)
+
+
+### Features
+
+* **auth:** operator command to reopen registration when the only passkey is lost ([#2456](https://github.com/alrayyes/forge-dashboard/issues/2456)) ([cc61a73](https://github.com/alrayyes/forge-dashboard/commit/cc61a7323aada0cb86a4b849064b6e3f6c1d281b))
+
 ## [2.0.2](https://github.com/alrayyes/forge-dashboard/compare/v2.0.1...v2.0.2) (2026-10-22)
 
 
