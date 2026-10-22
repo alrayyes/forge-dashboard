@@ -532,7 +532,7 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 // change that follows.
 
 func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(userID []byte, c settings.Credentials) []dashboard.Source {
-	scanner := newAdvisoryScanner(os.Getenv("OSV_ADVISORIES"))
+	scanner := newAdvisoryScanner(os.Getenv("OSV_ADVISORIES"), slog.Default())
 
 	return func(_ []byte, c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
@@ -566,17 +566,22 @@ func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Wri
 
 // newAdvisoryScanner returns the OSV client that matches Forgejo lockfiles
 // against known advisories, or nil unless OSV_ADVISORIES is on (on, true or 1).
+// A value that is neither on nor a plain no (off, false, 0, empty) leaves it
+// off and logs a warning, since "yes" or "enabled" says the operator meant on.
 // It is off by default: turning it on sends the package names and versions in
 // each repo's lockfiles, private repos included, to api.osv.dev; nothing else
 // leaves. It is one client for every source, so what it learns about an
 // advisory is kept across refreshes. A nil result is a plain nil, not a typed
 // one, so the forge client sees no scanner at all.
-func newAdvisoryScanner(setting string) forgejo.AdvisoryScanner {
-	switch strings.ToLower(strings.TrimSpace(setting)) {
+func newAdvisoryScanner(setting string, log *slog.Logger) forgejo.AdvisoryScanner {
+	switch value := strings.ToLower(strings.TrimSpace(setting)); value {
 	case "on", "true", "1":
-		slog.Info("OSV advisories are on: package names and versions from Forgejo lockfiles are sent to api.osv.dev", "host", osv.BaseURL)
+		log.Info("OSV advisories are on: package names and versions from Forgejo lockfiles are sent to api.osv.dev", "host", osv.BaseURL)
 
 		return osv.NewClient(osv.BaseURL, nil)
+	case "", "off", "false", "0":
+	default:
+		log.Warn("OSV_ADVISORIES is not understood, so Forgejo advisories stay off: use on or off", "value", setting)
 	}
 
 	return nil
