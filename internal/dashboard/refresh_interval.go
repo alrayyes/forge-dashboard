@@ -50,15 +50,18 @@ func webhooksCover(snap Snapshot, interval time.Duration, now time.Time) bool {
 	// A forge that was never reachable has no repos to check, so its silence
 	// would otherwise read as coverage. A forge that failed after a good fetch
 	// has carried-over repos, and this check catches that too.
+	reachable := make(map[Forge]bool, len(snap.Forges))
 	for _, h := range snap.Forges {
 		if !h.Reachable {
 			return false
 		}
+		reachable[h.Forge] = true
 	}
 	// A reachable forge can still have failed on one repo. That repo is the
 	// earlier one, marked stale, so retry sooner, until it has failed for good.
 	for _, repo := range snap.Repos {
-		if !repo.HasWebhook {
+		// A repo whose forge reported no health has nothing vouching for it.
+		if !repo.HasWebhook || !reachable[repo.Forge] {
 			return false
 		}
 		if repo.StaleSince != nil && now.Sub(*repo.StaleSince) < permanentFailureIntervals*interval {

@@ -349,3 +349,18 @@ func repoNamed(t *testing.T, agg *dashboard.Aggregator, fullName string) dashboa
 
 	return dashboard.Repo{}
 }
+
+func TestAggregator_NextDelay_ARepoWhoseForgeHasNoHealthEntryIsNotCovered(t *testing.T) {
+	t.Parallel()
+
+	// The repo is GitHub's, but only Forgejo reported health.
+	src := &fakeSource{result: dashboard.Result{
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true},
+		Repos:  []dashboard.Repo{repoWithHook("o/a", true)},
+	}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	require.Len(t, agg.Get().Repos, 1)
+
+	assert.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+}

@@ -62,14 +62,15 @@ refresh tries again.
   path is configured, no repos are tracked yet, a repo has no hook or its hook
   check failed, or you can't manage hooks on a repo (such an account keeps the
   shorter wait). It is also `REFRESH_INTERVAL` when a forge's last fetch failed
-  or a repo could not be fully fetched. A repo that can't be fetched for three
-  refresh intervals counts as failing for good and stops holding the short
-  wait, so one broken repo (issues disabled, an empty repo, a token without the
-  scope) doesn't cost every other repo the saving. A webhook-driven refresh
-  that fetches a stale repo clears the mark, which also ends its hold. One forge
-  being down keeps the shorter wait for all of them, even a forge whose repos
-  are all covered, until it answers again. The same goes for the saved snapshot
-  a restart starts from, until a refresh has reached the forge.
+  or it has not reported, or a repo could not be fully fetched. A repo that
+  can't be fetched for three refresh intervals counts as failing for good and
+  stops holding the short wait, so one broken repo (issues disabled, an empty
+  repo, a token without the scope) doesn't cost every other repo the saving. A
+  webhook-driven refresh that fetches a stale repo clears the mark, which also
+  ends its hold. One forge being down keeps the shorter wait for all of them,
+  even a forge whose repos are all covered, until it answers again. The same
+  goes for the saved snapshot a restart starts from, until a refresh has reached
+  the forge.
 - **An unwatched dashboard.** While nobody is using the dashboard, the scheduled
   refresh rests. After `IDLE_AFTER` (15 minutes by default) with no signed-in
   request and no tab that is visible and in use, the schedule skips its turn
