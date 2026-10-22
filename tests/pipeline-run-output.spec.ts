@@ -758,6 +758,28 @@ test.describe('a rerun gives a failed check a new job', () => {
     await expect(field).toHaveCount(0);
   });
 
+  test('a log copied a while ago is read again, since a quick read may have missed lines', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    let reads = 0;
+    const { dialog } = await openBranchFailure(page, async () => {
+      reads++;
+    });
+    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+    await copy.click();
+    await expect(dialog.locator('.pipeline-check-copy-status')).not.toHaveText(
+      'Copying',
+    );
+    await copy.click();
+    await expect.poll(() => reads).toBe(1);
+
+    await page.clock.runFor(61_000);
+    await copy.click();
+
+    await expect.poll(() => reads).toBe(2);
+  });
+
   test('a forge that gives neither attempt nor duration: a rerun that fails again still clears the field', async ({
     page,
   }) => {

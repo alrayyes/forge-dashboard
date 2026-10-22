@@ -5,7 +5,12 @@
   // as markup.
   import { onDestroy } from "svelte";
   import { CopyFlow } from "#lib/copy-flow.svelte.js";
-  import { logSource, logToCopy, type Prepared } from "#lib/run-log.js";
+  import {
+    COPIED_LOG_KEPT_MS,
+    logSource,
+    logToCopy,
+    type Prepared,
+  } from "#lib/run-log.js";
 
   let {
     name,
@@ -39,8 +44,10 @@
   // changes nothing.
   let identity: string | undefined;
   // The log read for the current identity, so pressing again doesn't download
-  // it twice. A whole or cut log only: an excerpt stands for a failed read.
-  let cached: Prepared | undefined;
+  // it twice, for a minute: a read just after the job finished may have missed
+  // lines still being flushed. A whole or cut log only: an excerpt stands for
+  // a failed read.
+  let cached: { prepared: Prepared; at: number } | undefined;
   $effect.pre(() => {
     const next = !copyable
       ? "none"
@@ -61,7 +68,10 @@
       // The clipboard write starts here, inside the click, with the log still
       // being read.
       const source = logSource(checksUrl, jobId);
-      const kept = cached;
+      const kept =
+        cached && Date.now() - cached.at < COPIED_LOG_KEPT_MS
+          ? cached.prepared
+          : undefined;
       return (
         kept
           ? Promise.resolve(kept)
@@ -70,7 +80,7 @@
         // A check rerun (or its row gone) while the log loads has another log
         // now: the read fails then, so nothing is written.
         guard();
-        if (prepared.kind !== "excerpt") cached = prepared;
+        if (prepared.kind !== "excerpt") cached = { prepared, at: Date.now() };
 
         return prepared;
       });

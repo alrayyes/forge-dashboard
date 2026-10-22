@@ -10,6 +10,12 @@ const KEPT_KB = 256;
 // View run sets none: it shows its own loading state and can be closed.
 const COPY_LOG_TIMEOUT_MS = 30_000;
 
+// How long a log read for Copy log is reused before it is read again. The
+// server waits a while after a job finishes because a read just then can miss
+// lines the runner hasn't flushed; a press in that window mustn't pin a short
+// log for the life of the row.
+export const COPIED_LOG_KEPT_MS = 60_000;
+
 export type LogResult =
   | { ok: true; text: string; truncated: boolean }
   | { ok: false; message: string; signedOut?: boolean };
