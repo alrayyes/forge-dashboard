@@ -2715,6 +2715,89 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/checks/log:
+    get:
+      operationId: getCheckLog
+      summary: Read the output of one CI job, on demand
+      description: |
+        The output behind a `Check` that carries a `jobId`, as plain text: colour
+        codes and carriage returns removed, never markup, so a client must render
+        it as text. Whatever the forge already masks stays masked. Only the last
+        256 KiB are returned; `truncated` says the start was cut.
+
+        Fetched live on every call and never as part of a snapshot, since a log
+        can be large and most are never opened. GitHub reads the job's log
+        through its REST API (one request, then a short-lived download). Forgejo
+        reads it through the job logs endpoint of its Actions API.
+
+        A forge can refuse: the token may not read logs, the log may have
+        expired, or the check may not be an Actions job at all. Those answer 403
+        or 404 with a sentence a person can read.
+      tags: [dashboard]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Forge"
+        - name: fullName
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '"owner/repo" of the repository the check ran in.'
+        - name: jobId
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Matching a Check.jobId.
+      responses:
+        "200":
+          description: The job's output.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckLog"
+        "400":
+          description: '`fullName` wasn''t "owner/repo", `jobId` wasn''t a positive integer, no credentials are saved for that forge, or that forge''s client can''t read job logs.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The saved token's scope doesn't cover reading job logs, or it isn't allowed to see that repo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge has no such job or log (it expired, or the check isn't an Actions job).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/main-branches/checks:
     get:
       operationId: getMainBranchChecks
@@ -3960,6 +4043,13 @@ components:
         url:
           type: string
           description: That job's own page on the forge that ran it — never the pull request's own page.
+        jobId:
+          type: integer
+          minimum: 1
+          description: |
+            The Actions job (or check run) id to pass to GET /api/checks/log.
+            Absent for a legacy commit status and for a workflow held for
+            approval, which have no output to read.
         required:
           type: boolean
           description: |
@@ -3988,9 +4078,20 @@ components:
             with per-line timestamps and colour codes removed, at most 2,000
             characters. Never markup, and a client must render it as text.
             Whatever the forge already masks stays masked. Absent when the
-            log can't be read or has expired. GitHub only: Forgejo's API
-            doesn't serve job logs, so there the link to the run is all a
-            failed check offers.
+            log can't be read or has expired. GitHub only: for Forgejo the
+            whole output is read through GET /api/checks/log.
+
+    CheckLog:
+      type: object
+      required: [text, truncated]
+      description: The output of one CI job.
+      properties:
+        text:
+          type: string
+          description: Plain text, never markup. A client must render it as text.
+        truncated:
+          type: boolean
+          description: True when the start of the output was cut to fit the size cap.
 
     ClosingIssue:
       type: object

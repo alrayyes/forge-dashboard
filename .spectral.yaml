@@ -59,3 +59,8 @@ rules:
   # The webhook path token only says whose webhook it is. What proves the
   # request came from the forge is its HMAC signature.
   owasp:api2:2023-no-credentials-in-url: off
+
+  # The one id a client sends is a forge job id, which the forge assigns and
+  # numbers itself. Reading a log is allowed by the token's own access to that
+  # repository, so an unguessable id would add nothing.
+  owasp:api1:2023-no-numeric-ids: off
