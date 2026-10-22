@@ -13,6 +13,7 @@ import (
 // response can't outgrow them.
 const pullRequestDetailsQuery = `
 query($owner: String!, $name: String!, $number: Int!) {
+  rateLimit { cost }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       body

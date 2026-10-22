@@ -114,6 +114,17 @@ func resolveShutdownDrain(v string) time.Duration {
 	return d
 }
 
+// requestLogFlushLimit is how long shutdown waits for queued request-log rows
+// to reach the database. It matches the 5s given to srv.Shutdown, so the stop
+// grace period the docs ask for (SHUTDOWN_DRAIN plus 5 seconds) still holds.
+const requestLogFlushLimit = 5 * time.Second
+
+func flushRequestLog(w *requestlog.Writer) {
+	if !w.CloseWithin(requestLogFlushLimit) {
+		slog.Warn("request log: gave up flushing queued rows at shutdown", "limit", requestLogFlushLimit)
+	}
+}
+
 // drainThenShutdown flips readiness to 503, waits the drain delay so a
 // router can notice, and only then shuts the server down.
 func drainThenShutdown(delay time.Duration, startDrain func(), shutdown func(context.Context) error) error {
@@ -304,9 +315,11 @@ func run() error {
 	manager := newManager(settingsStore, refreshInterval, ciPollInterval)
 	defer manager.Stop()
 
-	// One writer for every request-log row (#902); Close drains what's queued.
+	// One writer for every request-log row (#902). On the way out it flushes
+	// what's queued, but only for so long: a locked database must not hold the
+	// stop past the container's grace period.
 	requestLogWriter := requestlog.NewWriter(authStore, requestLogQueueSize)
-	defer requestLogWriter.Close()
+	defer flushRequestLog(requestLogWriter)
 
 	var drain api.Drain
 	deps := api.Deps{

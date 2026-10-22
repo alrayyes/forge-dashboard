@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.13](https://github.com/alrayyes/forge-dashboard/compare/v1.7.12...v1.7.13) (2026-10-22)
+
+
+### Bug Fixes
+
+* **shutdown:** a locked database can't stall the stop past the grace period ([#2426](https://github.com/alrayyes/forge-dashboard/issues/2426)) ([e07985b](https://github.com/alrayyes/forge-dashboard/commit/e07985bdd0756bda728bef8e388f7ed89fe03edd))
+
+## [1.7.12](https://github.com/alrayyes/forge-dashboard/compare/v1.7.11...v1.7.12) (2026-10-22)
+
+
+### Bug Fixes
+
+* **github:** ask for rateLimit cost on every GraphQL read so the stats count it ([#2424](https://github.com/alrayyes/forge-dashboard/issues/2424)) ([e5fafda](https://github.com/alrayyes/forge-dashboard/commit/e5fafdac689b6d89a786b2b3f761ca2bfb9a3711))
+
 ## [1.7.11](https://github.com/alrayyes/forge-dashboard/compare/v1.7.10...v1.7.11) (2026-10-22)
 
 
