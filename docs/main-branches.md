@@ -182,9 +182,9 @@ a refusal as the pull request button (see
 queued" until the row's CI changes or ten minutes pass. When the row's forge
 can't be reached, or its REST rate limit is spent, the panel draws no button and
 says why in the pull request board's words. The button returns when the rate
-limit lifts, or on the first refresh that shows the forge healthy again. A
-queued note stays above the reason. With several hosts of one forge kind, the
-button is held back only when every one of them would refuse it. The response
-carries each forge's health in `forges`, the same entries the dashboard serves.
-A branch with nothing
-left to rerun answers "no failed job to rerun on this branch" with a 409.
+limit lifts, or on the first refresh that shows the forge healthy again. A queued
+note stays, with the reason after it on the same line. With several hosts of one
+forge kind, the button is held back only when every one of them would refuse it.
+The response carries each forge's health in `forges`, the same entries the
+dashboard serves. A branch with nothing left to rerun answers "no failed job to
+rerun on this branch" with a 409.

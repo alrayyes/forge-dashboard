@@ -90,7 +90,8 @@ async function openPanel(
 }
 
 // Steps the page's clock until its own poll of the branches has gone out,
-// whatever the interval is, then lets the answer land.
+// whatever the interval is. It returns once the request is seen, before the
+// answer is fulfilled, so the next step must be an auto-waiting expect.
 async function runUntilPolled(page: Page) {
   let polled = false;
   page.on('request', (req) => {
