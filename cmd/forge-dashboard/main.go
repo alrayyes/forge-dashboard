@@ -48,10 +48,15 @@ var version = "dev"
 // in the middle of it (#381).
 const defaultRefreshInterval = 20 * time.Minute
 
+// minRefreshInterval is the shortest REFRESH_INTERVAL accepted. Each refresh
+// spends forge budget, so a value such as 1ms would drain it, not "refresh
+// often". The CI poll covers anything that needs to feel live.
+const minRefreshInterval = time.Minute
+
 // resolveRefreshInterval parses v (REFRESH_INTERVAL's raw value) as a Go
-// duration, falling back to defaultRefreshInterval for an empty, unparseable,
-// zero or negative value (a zero wait would spin the refresh loop, spending
-// the forge budget) — split out from main so the fallback behavior is
+// duration, falling back to defaultRefreshInterval for an empty, unparseable
+// or below-minimum value (a zero or tiny wait would spin the refresh loop,
+// spending the forge budget) — split out from main so the fallback behavior is
 // unit-testable without standing up the rest of the process.
 func resolveRefreshInterval(v string) time.Duration {
 	if v == "" {
@@ -63,8 +68,8 @@ func resolveRefreshInterval(v string) time.Duration {
 
 		return defaultRefreshInterval
 	}
-	if d <= 0 {
-		slog.Error("REFRESH_INTERVAL must be positive, using default", "value", v, "default", defaultRefreshInterval)
+	if d < minRefreshInterval {
+		slog.Error("REFRESH_INTERVAL is below the minimum, using default", "value", v, "minimum", minRefreshInterval, "default", defaultRefreshInterval)
 
 		return defaultRefreshInterval
 	}
@@ -121,9 +126,9 @@ func drainThenShutdown(delay time.Duration, startDrain func(), shutdown func(con
 // open, CI-pending pull request, not every tracked one.
 const defaultCIPollInterval = 1 * time.Minute
 
-// resolveCIPollInterval is resolveRefreshInterval's own counterpart
-// for CI_POLL_INTERVAL — same empty/invalid-falls-back-to-default
-// shape. "0s" is a real, valid zero duration, not an error, so an
+// resolveCIPollInterval is resolveRefreshInterval's counterpart for
+// CI_POLL_INTERVAL: an empty, unparseable or negative value falls back to
+// the default, with a log line for all but empty. "0s" is a real, valid zero duration, not an error, so an
 // operator can pass it to disable the poll entirely
 // (Manager.SetCIPollInterval treats zero as "off").
 func resolveCIPollInterval(v string) time.Duration {
@@ -136,31 +141,37 @@ func resolveCIPollInterval(v string) time.Duration {
 
 		return defaultCIPollInterval
 	}
+	if d < 0 {
+		slog.Error("CI_POLL_INTERVAL must not be negative, using default; use 0s to turn the poll off", "value", v, "default", defaultCIPollInterval)
+
+		return defaultCIPollInterval
+	}
 
 	return d
 }
 
-var errNegativeIdleAfter = errors.New("must not be negative; use 0s to turn idle mode off")
-
 // resolveIdleAfter reads IDLE_AFTER, how long nothing may have used the
 // dashboard before its scheduled refresh rests. Empty means the default and
-// "0s" is a real zero that turns idle mode off. A value that does not parse, or
-// is negative, is an error: the other intervals fall back to their default
-// with a log line, but this one silently changing how long a refresh rests
-// would hide a mistake.
-func resolveIdleAfter(v string) (time.Duration, error) {
+// "0s" is a real zero that turns idle mode off. A value that does not parse,
+// or is negative, is logged and replaced by the default, like every other
+// interval setting: a typo must not stop a running instance from restarting.
+func resolveIdleAfter(v string) time.Duration {
 	if v == "" {
-		return dashboard.DefaultIdleAfter, nil
+		return dashboard.DefaultIdleAfter
 	}
 	d, err := time.ParseDuration(v)
 	if err != nil {
-		return 0, fmt.Errorf("invalid IDLE_AFTER %q: want a duration such as 15m, or 0s to turn idle mode off: %w", v, err)
+		slog.Error("invalid IDLE_AFTER, using default", "value", v, "default", dashboard.DefaultIdleAfter, "error", err)
+
+		return dashboard.DefaultIdleAfter
 	}
 	if d < 0 {
-		return 0, fmt.Errorf("invalid IDLE_AFTER %q: %w", v, errNegativeIdleAfter)
+		slog.Error("IDLE_AFTER must not be negative, using default; use 0s to turn idle mode off", "value", v, "default", dashboard.DefaultIdleAfter)
+
+		return dashboard.DefaultIdleAfter
 	}
 
-	return d, nil
+	return d
 }
 
 func main() {
@@ -269,10 +280,7 @@ func run() error {
 		return fmt.Errorf("github app setup failed: %w", err)
 	}
 
-	manager, err := newManager(settingsStore, refreshInterval, ciPollInterval)
-	if err != nil {
-		return err
-	}
+	manager := newManager(settingsStore, refreshInterval, ciPollInterval)
 	defer manager.Stop()
 
 	// One writer for every request-log row (#902); Close drains what's queued.
@@ -330,14 +338,9 @@ func keepGitHubAnswersAcrossRestarts(store *settings.Store) {
 
 // newManager is the per-user refresh manager, with the settings store as its
 // list of repos to keep up to date.
-func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) (*dashboard.Manager, error) {
-	idleAfter, err := resolveIdleAfter(os.Getenv("IDLE_AFTER"))
-	if err != nil {
-		return nil, err
-	}
-
+func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) *dashboard.Manager {
 	manager := dashboard.NewManager(refreshInterval)
-	manager.SetActivity(dashboard.NewActivity(idleAfter, nil))
+	manager.SetActivity(dashboard.NewActivity(resolveIdleAfter(os.Getenv("IDLE_AFTER")), nil))
 	// Existing app-created webhooks get new events without a click on
 	// "Add a webhook" (#1555); same origin the ensure endpoint builds URLs from.
 	manager.SetWebhookUpgrade(settingsStore, envOr("RP_ORIGIN", "http://localhost:8080"))
@@ -351,7 +354,7 @@ func newManager(settingsStore *settings.Store, refreshInterval, ciPollInterval t
 	manager.SetWebhookSeenStore(settingsStore)
 	manager.SetCIPollInterval(ciPollInterval)
 
-	return manager, nil
+	return manager
 }
 
 // serve runs srv until ctx is cancelled, then drains readiness before it stops
