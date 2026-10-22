@@ -6,6 +6,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewJobLog_StripsColourCodesAndCarriageReturns(t *testing.T) {
@@ -76,6 +77,18 @@ func TestNewJobLog_AnUnterminatedOSCDoesNotSwallowTheLog(t *testing.T) {
 	got := dashboard.NewJobLog([]byte("a\x1b]0;never closed\nline two\nline three\n"), false)
 
 	assert.Equal(t, "a\nline two\nline three\n", got.Text)
+}
+
+func TestNewJobLog_TooLarge_CutOnALineStart_KeepsThatWholeLine(t *testing.T) {
+	t.Parallel()
+
+	tailPart := "first kept line\n" + strings.Repeat("x", dashboard.MaxJobLogBytes-len("first kept line\n")-1) + "\n"
+	require.Len(t, tailPart, dashboard.MaxJobLogBytes)
+
+	got := dashboard.NewJobLog([]byte("dropped line\n"+tailPart), false)
+
+	assert.True(t, got.Truncated)
+	assert.True(t, strings.HasPrefix(got.Text, "first kept line\n"), "the window starts on a line start")
 }
 
 func TestNewJobLog_StripsCSISequencesWithPrivateParameterBytes(t *testing.T) {
