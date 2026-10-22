@@ -132,3 +132,28 @@ func TestDashboard_BotRequest_TriggerRefused_RecordsNothing(t *testing.T) {
 
 	assert.Nil(t, botRequestOnBoard(t, srv, cookie))
 }
+
+// A pending Dependabot Recreate or Rebase refuses the other command, so the
+// second request is turned away by the server and not just hidden by a page.
+func TestDashboard_BotRequest_DependabotCommandsRefuseEachOther(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ first, second string }{{"recreate", "rebase"}, {"rebase", "recreate"}} {
+		t.Run(tc.first+" then "+tc.second, func(t *testing.T) {
+			t.Parallel()
+
+			srv, cookie := botBoardAs(t, "dependabot[bot]", nil)
+
+			resp := postDependabotAction(t, srv.URL, cookie, "github", "alrayyes/a", 5, tc.first)
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+			resp = postDependabotAction(t, srv.URL, cookie, "github", "alrayyes/a", 5, tc.second)
+			defer func() { _ = resp.Body.Close() }()
+			assert.Equal(t, http.StatusConflict, resp.StatusCode)
+
+			got, _ := botRequestOnBoard(t, srv, cookie).(map[string]any)
+			assert.Equal(t, tc.first, got["action"], "the refused command must not replace the pending one")
+		})
+	}
+}

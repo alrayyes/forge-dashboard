@@ -66,7 +66,7 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 		out = append(out, ActionAvailability{Action: ActionCancelAutoMerge})
 	}
 	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {
-		out = append(out, ActionAvailability{Action: ActionDependabotRebase}, ActionAvailability{Action: ActionDependabotRecreate})
+		out = append(out, dependabotRebaseAvailability(pr), dependabotRecreateAvailability(pr))
 	}
 	if isRenovatePR(pr, renovateAuthors) {
 		out = append(out, renovateRebaseAvailability(pr))
@@ -125,6 +125,33 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 	}
 
 	return nil
+}
+
+// dependabotRebaseAvailability: a Recreate that is pending rebuilds the whole
+// pull request, so a Rebase beside it has no point until it is done.
+func dependabotRebaseAvailability(pr PullRequest) ActionAvailability {
+	return dependabotLock(ActionDependabotRebase, pr, BotRecreate, "Recreate")
+}
+
+// dependabotRecreateAvailability: a Recreate over a pending Rebase would throw
+// its work away, so it waits until the Rebase is done.
+func dependabotRecreateAvailability(pr PullRequest) ActionAvailability {
+	return dependabotLock(ActionDependabotRecreate, pr, BotRebase, "Rebase")
+}
+
+// dependabotLock blocks action while the other Dependabot command is pending,
+// and names it. An expired request has settled and locks nothing.
+func dependabotLock(action ActionName, pr PullRequest, other BotAction, otherName string) ActionAvailability {
+	req := pr.BotRequest
+	if req == nil || req.Bot != BotDependabot || req.Action != other || (req.Phase != BotQueued && req.Phase != BotRebasing) {
+		return ActionAvailability{Action: action}
+	}
+
+	return ActionAvailability{Action: action, Blocked: &Blocked{
+		Code:    ActionAlreadyRequested,
+		Message: "A Dependabot " + otherName + " is pending on this pull request.",
+		Next:    "It unlocks once Dependabot has finished.",
+	}}
 }
 
 // renovateRebaseAvailability: while Renovate's rebase box is ticked, a rebase is

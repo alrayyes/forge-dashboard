@@ -334,3 +334,77 @@ func TestAllowedActions_ARebaseRequestOnAPersonsPullRequestOffersNothing(t *test
 		assert.NotEqual(t, dashboard.ActionRenovateRebase, a.Action)
 	}
 }
+
+func lockedDependabotActions(pr dashboard.PullRequest) []dashboard.ActionAvailability {
+	var locked []dashboard.ActionAvailability
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		isRebaseOrRecreate := a.Action == dashboard.ActionDependabotRebase || a.Action == dashboard.ActionDependabotRecreate
+		if a.Blocked != nil && isRebaseOrRecreate {
+			locked = append(locked, a)
+		}
+	}
+
+	return locked
+}
+
+// A Dependabot Rebase and a Recreate lock each other while either is pending:
+// Recreate rebuilds the pull request, so a Rebase beside it has no point, and a
+// Recreate over a pending Rebase would throw its work away. The reason names
+// the one that is pending. A request that has expired locks nothing.
+func TestAllowedActions_DependabotRebaseAndRecreateLockEachOther(t *testing.T) {
+	t.Parallel()
+
+	dependabot := func(req *dashboard.BotRequest) dashboard.PullRequest {
+		return ghPR(func(p *dashboard.PullRequest) {
+			p.Author = "dependabot[bot]"
+			p.BotRequest = req
+		})
+	}
+	pending := func(action dashboard.BotAction, phase dashboard.BotPhase) *dashboard.BotRequest {
+		return &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: action, Phase: phase}
+	}
+
+	cases := []struct {
+		name        string
+		req         *dashboard.BotRequest
+		wantLocked  dashboard.ActionName
+		wantMessage string
+	}{
+		{"queued rebase locks recreate", pending(dashboard.BotRebase, dashboard.BotQueued), dashboard.ActionDependabotRecreate, "A Dependabot Rebase is pending on this pull request."},
+		{"rebasing locks recreate", pending(dashboard.BotRebase, dashboard.BotRebasing), dashboard.ActionDependabotRecreate, "A Dependabot Rebase is pending on this pull request."},
+		{"queued recreate locks rebase", pending(dashboard.BotRecreate, dashboard.BotQueued), dashboard.ActionDependabotRebase, "A Dependabot Recreate is pending on this pull request."},
+		{"recreating locks rebase", pending(dashboard.BotRecreate, dashboard.BotRebasing), dashboard.ActionDependabotRebase, "A Dependabot Recreate is pending on this pull request."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			locked := lockedDependabotActions(dependabot(tc.req))
+			require.Len(t, locked, 1)
+			assert.Equal(t, tc.wantLocked, locked[0].Action)
+			assert.Equal(t, dashboard.ActionAlreadyRequested, locked[0].Blocked.Code)
+			assert.Equal(t, tc.wantMessage, locked[0].Blocked.Message)
+		})
+	}
+
+	t.Run("an expired request and no request lock nothing", func(t *testing.T) {
+		t.Parallel()
+
+		for _, req := range []*dashboard.BotRequest{nil, pending(dashboard.BotRecreate, dashboard.BotExpired)} {
+			for _, a := range dashboard.AllowedActions(dependabot(req), nil) {
+				if a.Action == dashboard.ActionDependabotRebase || a.Action == dashboard.ActionDependabotRecreate {
+					assert.Nil(t, a.Blocked, a.Action)
+				}
+			}
+		}
+	})
+
+	t.Run("a Renovate request does not lock a Dependabot action", func(t *testing.T) {
+		t.Parallel()
+
+		req := &dashboard.BotRequest{Bot: dashboard.BotRenovate, Action: dashboard.BotRebase, Phase: dashboard.BotQueued}
+		for _, a := range dashboard.AllowedActions(dependabot(req), nil) {
+			assert.Nil(t, a.Blocked, a.Action)
+		}
+	})
+}
