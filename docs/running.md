@@ -115,6 +115,10 @@ The command:
 - logs a `reset-passkeys: cleared the owner's passkeys` warning with what it
   removed.
 
+The command applies any pending schema upgrade first, the same one the server
+runs at start. If the database is not ready for it, the command stops with the
+server's refusal, so a database from an older release is never reset while it
+still has several users.
 If the owner still has a passkey, the command refuses until you pass `--yes`.
 With no passkey registered it changes nothing and says registration is already
 open.
