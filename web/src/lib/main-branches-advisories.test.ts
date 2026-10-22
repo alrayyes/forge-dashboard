@@ -55,4 +55,34 @@ describe('advisoryPill', () => {
       })?.href,
     ).toBeNull();
   });
+
+  test('a known count with no url shows the count, unlinked', () => {
+    expect(advisoryPill({ state: 'known', count: 2, highest: 'low' })).toEqual({
+      tone: 'low',
+      text: '2 advisories, low',
+      href: null,
+    });
+  });
+
+  test('a url that does not parse is not linked', () => {
+    expect(
+      advisoryPill({ state: 'known', count: 1, highest: 'low', url: 'nope' })
+        ?.href,
+    ).toBeNull();
+  });
+
+  test('a negative count draws no pill', () => {
+    expect(advisoryPill({ state: 'known', count: -1 })).toBeNull();
+  });
+
+  test('unknown ignores a stray count, severity and url', () => {
+    expect(
+      advisoryPill({
+        state: 'unknown',
+        count: 5,
+        highest: 'critical',
+        url: URL,
+      }),
+    ).toEqual({ tone: 'unknown', text: 'Advisories unknown', href: null });
+  });
 });

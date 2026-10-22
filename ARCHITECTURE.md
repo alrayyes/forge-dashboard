@@ -73,7 +73,8 @@ would need the same answer. The reasons, and what it costs, are in
   tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
   exactly (it takes no arguments, and the old `owner` argument is
   refused), and `get_main_branches`, which mirrors
-  `GET /api/main-branches` (default-branch CI status, no forge budget), and
+  `GET /api/main-branches` (default-branch CI status and open dependency
+  advisories, no forge budget), and
   `get_pull_request_details`, which mirrors `GET /api/pull-requests/details`
   (a pull request's description, comments and reactions). That one reads the
   forge on demand and spends budget: one GraphQL query on GitHub, up to 53
