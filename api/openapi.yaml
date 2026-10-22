@@ -72,8 +72,8 @@ tags:
       instead of waiting on the next poll, and the one endpoint that
       creates or updates a webhook on the user's behalf. The two delivery
       endpoints aren't session-authenticated like everything else here —
-      the path's token identifies the user, and the request's HMAC
-      signature (computed with that user's webhook secret) is what proves
+      the path's token is the instance's webhook token, and the request's HMAC
+      signature (computed with its webhook secret) is what proves
       it actually came from their forge; `POST /api/webhooks/ensure` is a
       normal session-authenticated endpoint like the rest of this API.
   - name: pull-requests
@@ -2866,7 +2866,7 @@ paths:
         changed, refresh — so nothing about the payload itself is parsed.
       tags: [webhooks]
       # Not session-or-bearer authenticated like everything else in this
-      # spec — the path's token identifies the user, and the request's
+      # spec — the path's token is the instance's webhook token, and the request's
       # own HMAC signature is what proves it actually came from their
       # forge. Explicit rather than left to the top-level default so
       # this reads as a deliberate exception, not an oversight.

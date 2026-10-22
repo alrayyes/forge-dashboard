@@ -26,6 +26,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
+	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
@@ -308,9 +309,9 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	db, err := openDatabase()
+	db, err := openUpgradedDatabase(ctx)
 	if err != nil {
-		return fmt.Errorf("open database: %w", err)
+		return err
 	}
 
 	authService, authStore, err := buildAuth(ctx, db)
@@ -360,7 +361,7 @@ func run() error {
 	}
 	deps.BuildSources = buildSourcesForUser(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
 
-	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
+	resumeQueuedActions(ctx, settingsStore, authStore, settingsStore, deps.BuildSources, manager)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 
 	return listenAndServe(ctx, newServer(addr, deps), &drain)
@@ -589,7 +590,7 @@ func (p schemaPinger) PingContext(ctx context.Context) error {
 // it can't get the lock, rather than wait for the other writer to finish.
 // Confirmed live: forge-dashboard#82.
 func openDatabase() (*sql.DB, error) {
-	dbPath := envOr("DB_PATH", "/data/forge-dashboard.db")
+	dbPath := databasePath()
 	if dir := filepath.Dir(dbPath); dir != "." {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return nil, fmt.Errorf("create database directory: %w", err)
@@ -604,12 +605,38 @@ func openDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
+// databasePath is where the SQLite file lives.
+func databasePath() string {
+	return envOr("DB_PATH", "/data/forge-dashboard.db")
+}
+
+// openUpgradedDatabase opens the database and brings its schema up to date
+// before anything else touches it. The migration has to come first: a store's
+// Init creates tables in the current shape, and on an old database that would
+// sit next to the old tables the migration is about to rebuild. A fresh
+// database needs no migration and is stamped current. A failure stops the
+// start: the migration is atomic and took a backup, so the file is as it was,
+// and running on in the old shape would break every store.
+func openUpgradedDatabase(ctx context.Context) (*sql.DB, error) {
+	db, err := openDatabase()
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+	if _, err := dbmigrate.Run(ctx, db, databasePath(), settings.MigrationSteps(slog.Default()), slog.Default()); err != nil {
+		_ = db.Close()
+
+		return nil, fmt.Errorf("upgrade database: %w", err)
+	}
+
+	return db, nil
+}
+
 // cleanUpForSingleUser keeps the oldest user and deletes the rest, once. It
 // runs before the manager starts, so no refresh loop ever exists for a user the
 // cleanup is about to remove. A failure leaves the database untouched and the
 // next start tries again, so it is logged and startup goes on.
 func cleanUpForSingleUser(ctx context.Context, db *sql.DB) {
-	if _, err := singleuser.Run(ctx, db, envOr("DB_PATH", "/data/forge-dashboard.db"), slog.Default()); err != nil {
+	if _, err := singleuser.Run(ctx, db, databasePath(), slog.Default()); err != nil {
 		slog.Error("single-user cleanup failed, nothing was deleted", "error", err)
 	}
 }

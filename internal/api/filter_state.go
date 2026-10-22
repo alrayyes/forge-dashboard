@@ -71,14 +71,14 @@ func validLabelPick(body []byte) bool {
 // server change.
 func handleFilterStateGet(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
 			return
 		}
 
-		state, err := store.GetFilterState(r.Context(), u.ID)
+		state, err := store.GetFilterState(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load filter state"))
 
@@ -97,7 +97,7 @@ func handleFilterStateGet(store *settings.Store) http.HandlerFunc {
 // change here.
 func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
@@ -122,7 +122,7 @@ func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 			return
 		}
 
-		if err := store.SetFilterState(r.Context(), u.ID, string(body)); err != nil {
+		if err := store.SetFilterState(r.Context(), string(body)); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save filter state"))
 
 			return

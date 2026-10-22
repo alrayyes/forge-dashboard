@@ -32,7 +32,7 @@ func TestAggregator_Refresh_PROptedOutOnEnabledRepo_IsLeftAlone_OthersStillUpdat
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#2"}, src.updatedBranches())
@@ -47,7 +47,7 @@ func TestAggregator_Refresh_PROptedInOnRepoNotEnabled_IsUpdated_OthersAreNot(t *
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#2"}, src.updatedBranches())
@@ -64,7 +64,7 @@ func TestAggregator_Refresh_DraftOptedIn_IsStillLeftAlone(t *testing.T) {
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches())
@@ -81,7 +81,7 @@ func TestAggregator_Refresh_ReleasePleasePROptedIn_IsStillLeftAlone(t *testing.T
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, src.updatedBranches())
@@ -96,7 +96,7 @@ func TestAggregator_Refresh_OverridesUnreadable_FallsBackToTheRepoSetting(t *tes
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
@@ -118,7 +118,7 @@ func TestAggregator_Refresh_ForgetsTheChoiceOfAPullRequestThatIsGone(t *testing.
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true, "github/alrayyes/a#2": true}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"github/alrayyes/a#1"}, lister.forgotten)
@@ -130,7 +130,7 @@ func TestAggregator_Refresh_ForgetsTheChoiceOfARepoNoLongerTracked(t *testing.T)
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/old-name#9": true}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"github/alrayyes/old-name#9"}, lister.forgotten)
@@ -148,7 +148,7 @@ func TestAggregator_Refresh_FirstRefreshWithARepoListFailed_KeepsThatRepoChoices
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, lister.forgotten, "a list that failed is not an empty one")
@@ -167,7 +167,7 @@ func TestAggregator_Refresh_OneRepoListFailed_KeepsItsChoices_ButStillForgetsThe
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true, "github/alrayyes/b#9": true}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"github/alrayyes/b#9"}, lister.forgotten)
@@ -181,7 +181,7 @@ func TestAggregator_Refresh_ForgeUnreachable_KeepsEveryChoice(t *testing.T) {
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Empty(t, lister.forgotten, "an outage returns no pull requests, and that isn't a close")
@@ -199,7 +199,7 @@ func TestAggregator_Refresh_ForgetsAChoiceThatNowEqualsItsRepo(t *testing.T) {
 	}
 
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoUpdateBranch([]byte("user-1"), lister)
+	agg.EnableAutoUpdateBranch(lister)
 	agg.Refresh(t.Context())
 
 	assert.Equal(t, []string{"github/alrayyes/a#1"}, lister.forgotten, "only the one equal to the repo's new setting")

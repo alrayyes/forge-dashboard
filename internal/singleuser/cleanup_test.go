@@ -15,7 +15,6 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
-	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
@@ -28,34 +27,18 @@ import (
 // TestRun_EveryTableIsClassified until someone decides what a cleanup does
 // with it.
 var ownedBy = map[string]string{
-	"sessions":                 "user_id",
-	"api_tokens":               "user_id",
-	"credential_metadata":      "user_id",
-	"request_log":              "account_id",
-	"user_credentials":         "user_id",
-	"webhook_deliveries":       "user_id",
-	"ignored_repos":            "user_id",
-	"auto_update_branch_repos": "user_id",
-	"auto_merge_intents":       "user_id",
-	"hidden_pull_requests":     "user_id",
-	"queued_actions":           "user_id",
-	"pull_request_auto_update": "user_id",
+	"sessions":            "user_id",
+	"api_tokens":          "user_id",
+	"credential_metadata": "user_id",
+	"request_log":         "account_id",
 }
 
 // seedRow inserts one row owned by the user with this encoded id.
 var seedRow = map[string]string{ //nolint:gosec // G101: SQL fixtures, no credentials
-	"sessions":                 `INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES ('tok-' || ?1, ?1, '2099-01-01', '2026-01-01')`,
-	"api_tokens":               `INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES ('id-' || ?1, ?1, 'l', 'hash-' || ?1, '2026-01-01')`,
-	"credential_metadata":      `INSERT INTO credential_metadata (user_id, credential_id, label, created_at) VALUES (?1, 'c', 'l', '2026-01-01')`,
-	"request_log":              `INSERT INTO request_log (logged_at, forge, account_id, method, endpoint, outcome) VALUES ('2026-01-01', 'github', ?1, 'GET', '/x', 'ok')`,
-	"user_credentials":         `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES (?1, 'wh-' || ?1, '2026-01-01')`,
-	"webhook_deliveries":       `INSERT INTO webhook_deliveries (user_id, forge, repo_full_name, last_seen_at) VALUES (?1, 'github', 'a/b', '2026-01-01')`,
-	"ignored_repos":            `INSERT INTO ignored_repos (user_id, forge, repo_full_name) VALUES (?1, 'github', 'a/b')`,
-	"auto_update_branch_repos": `INSERT INTO auto_update_branch_repos (user_id, forge, repo_full_name) VALUES (?1, 'github', 'a/b')`,
-	"auto_merge_intents":       `INSERT INTO auto_merge_intents (user_id, forge, repo_full_name, number, armed_at) VALUES (?1, 'github', 'a/b', 1, '2026-01-01')`,
-	"hidden_pull_requests":     `INSERT INTO hidden_pull_requests (user_id, forge, repo_full_name, number) VALUES (?1, 'github', 'a/b', 1)`,
-	"queued_actions":           `INSERT INTO queued_actions (id, user_id, action, forge, repo_full_name, number, status, run_at, created_at) VALUES ('q-' || ?1, ?1, 'merge', 'github', 'a/b', 1, 'queued', '2026-01-01', '2026-01-01')`,
-	"pull_request_auto_update": `INSERT INTO pull_request_auto_update (user_id, forge, repo_full_name, number, enabled) VALUES (?1, 'github', 'a/b', 1, 1)`,
+	"sessions":            `INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES ('tok-' || ?1, ?1, '2099-01-01', '2026-01-01')`,
+	"api_tokens":          `INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES ('id-' || ?1, ?1, 'l', 'hash-' || ?1, '2026-01-01')`,
+	"credential_metadata": `INSERT INTO credential_metadata (user_id, credential_id, label, created_at) VALUES (?1, 'c', 'l', '2026-01-01')`,
+	"request_log":         `INSERT INTO request_log (logged_at, forge, account_id, method, endpoint, outcome) VALUES ('2026-01-01', 'github', ?1, 'GET', '/x', 'ok')`,
 }
 
 type fixture struct {
@@ -77,9 +60,6 @@ func newFixture(t *testing.T) *fixture {
 	ctx := t.Context()
 	authStore := auth.NewStore(db)
 	require.NoError(t, authStore.Init(ctx))
-	cipher, err := settings.NewCipher(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("k"), 32)))
-	require.NoError(t, err)
-	require.NoError(t, settings.NewStore(db, cipher).Init(ctx))
 
 	buf := &bytes.Buffer{}
 
@@ -394,7 +374,7 @@ func TestRun_FailureAfterSomeDeletes_RollsBackEveryUser(t *testing.T) {
 	assert.False(t, f.markerExists(t))
 }
 
-func TestRun_KeptUser_StillHasWorkingSessionTokenPasskeysAndSettings(t *testing.T) {
+func TestRun_KeptUser_StillHasWorkingSessionTokenAndPasskeys(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	keeper := f.addUser(t, "ryan", true)
@@ -403,8 +383,6 @@ func TestRun_KeptUser_StillHasWorkingSessionTokenPasskeysAndSettings(t *testing.
 	session, err := f.auth.CreateSession(ctx, keeper.ID, time.Hour)
 	require.NoError(t, err)
 	apiToken, _, err := f.auth.CreateAPIToken(ctx, keeper.ID, "ci", time.Now().Add(time.Hour))
-	require.NoError(t, err)
-	_, err = f.db.ExecContext(ctx, `INSERT INTO user_credentials (user_id, webhook_token, updated_at) VALUES (?, 'the-hook', '2026-01-01')`, base64.RawURLEncoding.EncodeToString(keeper.ID))
 	require.NoError(t, err)
 
 	_, err = f.run(t)
@@ -417,38 +395,6 @@ func TestRun_KeptUser_StillHasWorkingSessionTokenPasskeysAndSettings(t *testing.
 	require.NoError(t, err)
 	assert.Equal(t, keeper.ID, got.ID)
 	assert.Len(t, got.Credentials, 1)
-	cipher, err := settings.NewCipher(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("k"), 32)))
-	require.NoError(t, err)
-	userID, _, err := settings.NewStore(f.db, cipher).FindByWebhookToken(ctx, "the-hook")
-	require.NoError(t, err)
-	assert.Equal(t, keeper.ID, userID)
-}
-
-// An old database still has its invites table when the cleanup runs, which is
-// before auth.Store.Init drops it. With foreign keys on, an invite made by a
-// user the cleanup deletes must not block the delete, and Init must still
-// succeed afterwards.
-func TestRun_ForeignKeysOn_AnInviteByADeletedUserDoesNotBlockCleanupOrInit(t *testing.T) {
-	t.Parallel()
-	f := threeUsers(t)
-	f.db.SetMaxOpenConns(1) // foreign_keys is per connection
-	for _, stmt := range []string{
-		`PRAGMA foreign_keys = ON`,
-		`CREATE TABLE invites (token_hash TEXT PRIMARY KEY, username TEXT NOT NULL, display_name TEXT NOT NULL,
-			created_by TEXT NOT NULL REFERENCES users(id), expires_at TIMESTAMP NOT NULL, consumed_at TIMESTAMP)`,
-		fmt.Sprintf(`INSERT INTO invites (token_hash, username, display_name, created_by, expires_at)
-			VALUES ('h', 'new', 'New', '%s', '2099-01-01')`, base64.RawURLEncoding.EncodeToString(f.users[1].ID)),
-	} {
-		_, err := f.db.ExecContext(t.Context(), stmt)
-		require.NoError(t, err)
-	}
-
-	_, err := f.run(t)
-	require.NoError(t, err)
-
-	require.NoError(t, f.auth.Init(t.Context()))
-	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM users`))
-	assert.Zero(t, f.count(t, `SELECT count(*) FROM sqlite_master WHERE name = 'invites'`))
 }
 
 func TestOwnerUsername_IsTheOldestUserHoldingAPasskey(t *testing.T) {

@@ -21,4 +21,8 @@ regexes = [
   # reset tests in cmd/forge-dashboard/e2e_reset_test.go build a cipher
   # from. Still in use there, and in history.
   '''MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=''',
+  # A fake GitHub token (advisoryTestToken) the advisory cache tests use to
+  # check that a token never reaches a log line. It is not a credential, and
+  # it is in git history, where gitleaks keeps finding it.
+  '''ghp_advisorysecret0123456789''',
 ]

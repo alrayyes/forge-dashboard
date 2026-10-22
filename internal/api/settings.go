@@ -94,14 +94,14 @@ type ThemeResponse struct {
 
 func handleThemeGet(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
 			return
 		}
 
-		creds, err := store.Get(r.Context(), u.ID)
+		creds, err := store.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
 
@@ -130,7 +130,7 @@ type themePutRequest struct {
 // not wait on the rest of the form's own Save button.
 func handleThemePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
@@ -149,7 +149,7 @@ func handleThemePut(store *settings.Store) http.HandlerFunc {
 			return
 		}
 
-		existing, err := store.Get(r.Context(), u.ID)
+		existing, err := store.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
 
@@ -157,7 +157,7 @@ func handleThemePut(store *settings.Store) http.HandlerFunc {
 		}
 		existing.Theme = req.Theme
 
-		if err := store.Set(r.Context(), u.ID, existing); err != nil {
+		if err := store.Set(r.Context(), existing); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save theme"))
 
 			return
@@ -176,7 +176,7 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		creds, err := deps.SettingsStore.Get(r.Context(), u.ID)
+		creds, err := deps.SettingsStore.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
 
@@ -186,14 +186,14 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 		// Every visit to Settings is a webhook credentials' first chance
 		// to exist — a user who never saved GitHub/Forgejo settings at
 		// all still needs a webhook URL to paste into their forge.
-		creds.WebhookToken, creds.WebhookSecret, err = deps.SettingsStore.EnsureWebhookCredentials(r.Context(), u.ID)
+		creds.WebhookToken, creds.WebhookSecret, err = deps.SettingsStore.EnsureWebhookCredentials(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load webhook credentials"))
 
 			return
 		}
 
-		counts := ignoredTitleCounts(r.Context(), deps, u.ID, creds.IgnoredTitles, deps.Manager.Get(u.ID))
+		counts := ignoredTitleCounts(r.Context(), deps, creds.IgnoredTitles, deps.Manager.Get(u.ID))
 		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured, counts))
 	}
 }
@@ -470,7 +470,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		existing, err := deps.SettingsStore.Get(r.Context(), u.ID)
+		existing, err := deps.SettingsStore.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
 
@@ -489,7 +489,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// issues the viewer was looking at when they saved it.
 		snap := deps.Manager.Get(u.ID)
 
-		if err := deps.SettingsStore.Set(r.Context(), u.ID, merged); err != nil {
+		if err := deps.SettingsStore.Set(r.Context(), merged); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
 
 			return
@@ -500,7 +500,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// request that started it.
 		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(u.ID, merged))
 
-		counts := ignoredTitleCounts(r.Context(), deps, u.ID, merged.IgnoredTitles, snap)
+		counts := ignoredTitleCounts(r.Context(), deps, merged.IgnoredTitles, snap)
 		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured, counts))
 	}
 }
@@ -511,12 +511,12 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 // aren't ignored) and the same matcher, but per pattern, so an issue two
 // patterns match counts for both. Every entry is nil while the count is
 // unknown, never a made-up 0: see snapshotKnown. The slice is never nil.
-func ignoredTitleCounts(ctx context.Context, deps Deps, userID []byte, patterns []string, snap dashboard.Snapshot) []*int {
+func ignoredTitleCounts(ctx context.Context, deps Deps, patterns []string, snap dashboard.Snapshot) []*int {
 	if len(patterns) == 0 || !snapshotKnown(snap) {
 		return make([]*int, len(patterns))
 	}
 
-	board := loadBoardSettings(ctx, deps.SettingsStore, userID)
+	board := loadBoardSettings(ctx, deps.SettingsStore)
 
 	return titleCounts(patterns, snap.Issues, func(issue dashboard.Issue) bool {
 		return board.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues
@@ -597,7 +597,7 @@ type TimezoneResponse struct {
 
 func handleTimezoneGet(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
@@ -605,7 +605,7 @@ func handleTimezoneGet(store *settings.Store) http.HandlerFunc {
 		}
 
 		// ErrNotFound leaves creds at its zero value: Timezone "" (the browser's own).
-		creds, err := store.Get(r.Context(), u.ID)
+		creds, err := store.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
 
@@ -640,7 +640,7 @@ func validTimezone(name string) bool {
 // every other saved setting.
 func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
+		_, ok := auth.UserFromContext(r.Context())
 		if !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
@@ -662,7 +662,7 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 			return
 		}
 
-		existing, err := store.Get(r.Context(), u.ID)
+		existing, err := store.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
 
@@ -670,7 +670,7 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 		}
 		existing.Timezone = req.Timezone
 
-		if err := store.Set(r.Context(), u.ID, existing); err != nil {
+		if err := store.Set(r.Context(), existing); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save timezone"))
 
 			return
@@ -709,11 +709,11 @@ var errCouldNotLoadSettings = errors.New("could not load settings")
 // flag. A user with no saved row gets the zero settings. It is the one builder
 // behind both GET /api/settings/summary and the get_settings MCP tool.
 func resolveSettingsSummary(ctx context.Context, deps Deps, u *auth.User) (SettingsSummary, error) {
-	creds, err := deps.SettingsStore.Get(ctx, u.ID)
+	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {
 		return SettingsSummary{}, errCouldNotLoadSettings
 	}
-	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, u.ID, creds.IgnoredTitles, deps.Manager.Get(u.ID)))
+	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, creds.IgnoredTitles, deps.Manager.Get(u.ID)))
 
 	return SettingsSummary{
 		GitHubUsername:          full.GitHubUsername,

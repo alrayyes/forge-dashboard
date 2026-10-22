@@ -33,16 +33,16 @@ func ParseAutoMergeKey(key string) (PullRequestRef, bool) {
 	return PullRequestRef{Forge: forge, Repo: repo, Number: number}, true
 }
 
-// ArmAutoMerge records that userID asked this app to merge the pull request
+// ArmAutoMerge records that the user asked this app to merge the pull request
 // once its checks pass. Forgejo's pull request JSON has no auto-merge field, so
 // the app's own intent lives here. Idempotent: arming an armed pull request keeps the
 // original time.
-func (s *Store) ArmAutoMerge(ctx context.Context, userID []byte, forge, repoFullName string, number int) error {
+func (s *Store) ArmAutoMerge(ctx context.Context, forge, repoFullName string, number int) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO auto_merge_intents (user_id, forge, repo_full_name, number, armed_at)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (user_id, forge, repo_full_name, number) DO NOTHING`,
-		encodeUserID(userID), forge, repoFullName, number, time.Now().UTC(),
+		INSERT INTO auto_merge_intents (forge, repo_full_name, number, armed_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (forge, repo_full_name, number) DO NOTHING`,
+		forge, repoFullName, number, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: arm auto-merge: %w", err)
@@ -53,10 +53,10 @@ func (s *Store) ArmAutoMerge(ctx context.Context, userID []byte, forge, repoFull
 
 // CancelAutoMerge reverses ArmAutoMerge. Idempotent: cancelling a pull
 // request that was never armed is a no-op, not an error.
-func (s *Store) CancelAutoMerge(ctx context.Context, userID []byte, forge, repoFullName string, number int) error {
+func (s *Store) CancelAutoMerge(ctx context.Context, forge, repoFullName string, number int) error {
 	_, err := s.db.ExecContext(ctx, `
-		DELETE FROM auto_merge_intents WHERE user_id = ? AND forge = ? AND repo_full_name = ? AND number = ?`,
-		encodeUserID(userID), forge, repoFullName, number,
+		DELETE FROM auto_merge_intents WHERE forge = ? AND repo_full_name = ? AND number = ?`,
+		forge, repoFullName, number,
 	)
 	if err != nil {
 		return fmt.Errorf("settings: cancel auto-merge: %w", err)
@@ -65,11 +65,11 @@ func (s *Store) CancelAutoMerge(ctx context.Context, userID []byte, forge, repoF
 	return nil
 }
 
-// AutoMergeIntents returns, keyed by AutoMergeKey, every pull request userID
-// has armed — empty, never an error, for a user who has armed none.
-func (s *Store) AutoMergeIntents(ctx context.Context, userID []byte) (map[string]struct{}, error) {
+// AutoMergeIntents returns, keyed by AutoMergeKey, every pull request the user
+// has armed — empty, never an error, when none is armed.
+func (s *Store) AutoMergeIntents(ctx context.Context) (map[string]struct{}, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT forge, repo_full_name, number FROM auto_merge_intents WHERE user_id = ?`, encodeUserID(userID),
+		`SELECT forge, repo_full_name, number FROM auto_merge_intents`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("settings: list auto-merge intents: %w", err)

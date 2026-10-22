@@ -169,10 +169,10 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/issues/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleIssueDetails(deps))))
 
 	// Not session-authenticated like everything above — the path's token
-	// identifies the user, and the request's own HMAC signature is what
+	// is the webhook token saved in the settings, and the request's own HMAC signature is what
 	// proves it actually came from their forge. See internal/api/webhooks.go.
-	mux.HandleFunc("POST /api/webhooks/github/{webhookToken}", handleGitHubWebhook(deps.AppContext, deps.SettingsStore, deps.Manager))
-	mux.HandleFunc("POST /api/webhooks/forgejo/{webhookToken}", handleForgejoWebhook(deps.AppContext, deps.SettingsStore, deps.Manager))
+	mux.HandleFunc("POST /api/webhooks/github/{webhookToken}", handleGitHubWebhook(deps.AppContext, deps.SettingsStore, deps.AuthStore, deps.Manager))
+	mux.HandleFunc("POST /api/webhooks/forgejo/{webhookToken}", handleForgejoWebhook(deps.AppContext, deps.SettingsStore, deps.AuthStore, deps.Manager))
 
 	static, err := fs.Sub(staticFiles, "static")
 	if err != nil {

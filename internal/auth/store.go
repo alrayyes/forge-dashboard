@@ -232,8 +232,11 @@ func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName
 	if err != nil {
 		return nil, fmt.Errorf("auth: find the unregistered user: %w", err)
 	}
-
-	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE credentials_json = '[]' AND id != ? AND created_at < ?`, id, olderThan.UTC()); err != nil {
+	const abandoned = `FROM users WHERE credentials_json = '[]' AND id != ? AND created_at < ?`
+	if _, err := tx.ExecContext(ctx, `DELETE FROM ceremonies WHERE username IN (SELECT username `+abandoned+`)`, id, olderThan.UTC()); err != nil {
+		return nil, fmt.Errorf("auth: drop abandoned registrations' ceremonies: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE `+abandoned, id, olderThan.UTC()); err != nil {
 		return nil, fmt.Errorf("auth: drop abandoned registrations: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE users SET display_name = ? WHERE id = ?`, displayName, id); err != nil {
@@ -290,11 +293,16 @@ func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 	}
 }
 
+// OwnerOrder is the tail of every query that picks the instance's one user: the
+// oldest row. The settings migration builds its owner query from it too, so the
+// user whose settings survive the upgrade is the user Owner and OwnerID return.
+const OwnerOrder = `ORDER BY created_at, id LIMIT 1`
+
 // Owner returns the instance's one user, the oldest row, or ErrNotFound on an
 // instance nobody has started registering on.
 func (s *Store) Owner(ctx context.Context) (*User, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, username, display_name, credentials_json, created_at FROM users ORDER BY created_at, id LIMIT 1`,
+		`SELECT id, username, display_name, credentials_json, created_at FROM users `+OwnerOrder,
 	)
 
 	return scanUser(row)
@@ -310,10 +318,11 @@ type ResetResult struct {
 
 // ResetPasskeys is the operator's way back in after the only passkey is lost.
 // It clears the owner's passkeys and signs every session out, in one
-// transaction, and keeps the user row: the saved settings and the webhook
-// token hang off its id. API tokens stay unless withTokens, since they are
-// separate secrets the lost authenticator never protected. With no passkey the
-// instance is open to the first registration again (ClaimUnregisteredUser
+// transaction, and keeps the user row, so the passkey registered next attaches
+// to it. The settings tables hold no user and are untouched. API tokens stay
+// unless withTokens, since they are separate secrets the lost authenticator
+// never protected. With no passkey the instance is open to the first
+// registration again (ClaimUnregisteredUser
 // attaches it to this row).
 func (s *Store) ResetPasskeys(ctx context.Context, withTokens bool) (ResetResult, error) {
 	owner, err := s.Owner(ctx)
@@ -366,6 +375,19 @@ func deleteCount(ctx context.Context, tx *sql.Tx, query string, args ...any) (in
 	n, err := r.RowsAffected()
 
 	return int(n), err
+}
+
+// OwnerID is the id of the one user. ErrNotFound until someone has started
+// registering. Callers that need the user a request without a session acts for,
+// such as a webhook delivery, use it. It is Owner without the passkeys, and it
+// still answers after the operator cleared them, so a webhook keeps refreshing.
+func (s *Store) OwnerID(ctx context.Context) ([]byte, error) {
+	owner, err := s.Owner(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return owner.ID, nil
 }
 
 // rowScanner is the common surface of *sql.Row and *sql.Rows that scanUser
@@ -434,9 +456,12 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, username 
 	// first so none can hold the username this registration takes. If this
 	// row is itself gone (another ceremony won and cleared it), the update
 	// below matches nothing and the registration is refused.
-	if _, err := tx.ExecContext(ctx, `
-		DELETE FROM users WHERE id != ? AND credentials_json = '[]'
-		  AND EXISTS (SELECT 1 FROM users WHERE id = ? AND credentials_json = '[]')`, id, id); err != nil {
+	const abandoned = `FROM users WHERE id != ? AND credentials_json = '[]'
+		  AND EXISTS (SELECT 1 FROM users WHERE id = ? AND credentials_json = '[]')`
+	if _, err := tx.ExecContext(ctx, `DELETE FROM ceremonies WHERE username IN (SELECT username `+abandoned+`)`, id, id); err != nil {
+		return fmt.Errorf("auth: clear abandoned registrations' ceremonies: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE `+abandoned, id, id); err != nil {
 		return fmt.Errorf("auth: clear abandoned registrations: %w", err)
 	}
 	res, err := tx.ExecContext(ctx, `

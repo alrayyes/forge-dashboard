@@ -157,6 +157,13 @@ test.describe('Branches page advisories pill', () => {
     const notice = page.getByTestId('advisories-notice');
     await expect(notice).toHaveCount(1);
     await expect(notice).toContainText('Dependabot alerts permission');
+    // A rate limit or an outage reads as unknown too, and a new permission
+    // takes a while to show: the notice owns up to both and names the way out.
+    await expect(notice).toContainText(/rate\s+limit/i);
+    await expect(notice).toContainText(
+      /up\s+to\s+an\s+hour\s+and\s+a\s+quarter/i,
+    );
+    await expect(notice).toContainText(/saving\s+Settings/i);
     await expect(
       notice.getByRole('link', { name: /How to grant it/ }),
     ).toHaveAttribute(
@@ -230,6 +237,11 @@ test.describe('Branches page advisories pill', () => {
         if (size.width === 390) {
           const box = await pill(page, 'acme/critical').boundingBox();
           expect(box?.height).toBeGreaterThanOrEqual(44);
+          // An unlinked count is not interactive by design, so it keeps the
+          // quiet 24px size rather than posing as a tap target.
+          const unlinked = pill(page, 'acme/unsafe');
+          await expect(unlinked).not.toHaveAttribute('href');
+          expect(await unlinked.evaluate((el) => el.tagName)).toBe('SPAN');
         }
       }
     }

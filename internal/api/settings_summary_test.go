@@ -31,10 +31,8 @@ func getSettingsSummary(t *testing.T, srvURL string, cookie *http.Cookie) (int, 
 func TestSettingsSummary_ReadCreatesNoWebhookCredentials(t *testing.T) {
 	t.Parallel()
 
-	srv, _, authStore, store := newTestServerWithSettingsStore(t, noSources, false, 0)
+	srv, _, _, store := newTestServerWithSettingsStore(t, noSources, false, 0)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	user, err := authStore.GetUserByUsername(t.Context(), testUser)
-	require.NoError(t, err)
 
 	for range 2 {
 		status, _, body := getSettingsSummary(t, srv.URL, cookie)
@@ -42,7 +40,7 @@ func TestSettingsSummary_ReadCreatesNoWebhookCredentials(t *testing.T) {
 		assert.Equal(t, false, body["webhookConfigured"])
 	}
 
-	creds, err := store.Get(t.Context(), user.ID)
+	creds, err := store.Get(t.Context())
 	if err != nil {
 		require.ErrorIs(t, err, settingspkg.ErrNotFound)
 	}
@@ -104,24 +102,6 @@ func TestSettingsSummary_RequiresASession(t *testing.T) {
 	status, _, _ := getSettingsSummary(t, srv.URL, nil)
 
 	assert.Equal(t, http.StatusUnauthorized, status)
-}
-
-func TestSettingsSummary_AnotherUserSeesOnlyTheirOwn(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-	owner, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	status, _ := putSettings(t, srv.URL, seededSettings, owner)
-	require.Equal(t, http.StatusOK, status)
-	other := registerExtraUser(t, srv, testOtherUser, "Alex")
-
-	_, _, theirs := getSettingsSummary(t, srv.URL, other)
-	_, _, mine := getSettingsSummary(t, srv.URL, owner)
-
-	assert.Empty(t, theirs["githubUsername"])
-	assert.Equal(t, false, theirs["githubTokenSet"])
-	assert.Equal(t, []any{}, theirs["ignoredTitles"])
-	assert.Equal(t, "ryan", mine["githubUsername"])
 }
 
 func TestContract_SettingsSummary(t *testing.T) {

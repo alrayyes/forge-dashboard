@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -90,7 +91,7 @@ func (c Credentials) RenovateRebaseLabelOrDefault() string {
 	return c.RenovateRebaseLabel
 }
 
-// Store persists Credentials, encrypted at rest, one row per user.
+// Store persists Credentials, encrypted at rest, in a single row.
 type Store struct {
 	db     *sql.DB
 	cipher *Cipher
@@ -114,8 +115,8 @@ func NewStore(db *sql.DB, cipher *Cipher) *Store {
 // startup.
 func (s *Store) Init(ctx context.Context) error {
 	const schema = `
-	CREATE TABLE IF NOT EXISTS user_credentials (
-		user_id TEXT PRIMARY KEY,
+	CREATE TABLE IF NOT EXISTS settings (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
 		github_token TEXT NOT NULL DEFAULT '',
 		github_username TEXT NOT NULL DEFAULT '',
 		forgejo_url TEXT NOT NULL DEFAULT '',
@@ -134,85 +135,41 @@ func (s *Store) Init(ctx context.Context) error {
 		updated_at TIMESTAMP NOT NULL
 	);
 	CREATE TABLE IF NOT EXISTS webhook_deliveries (
-		user_id TEXT NOT NULL,
 		forge TEXT NOT NULL,
 		repo_full_name TEXT NOT NULL,
 		last_seen_at TIMESTAMP NOT NULL,
-		PRIMARY KEY (user_id, forge, repo_full_name)
+		PRIMARY KEY (forge, repo_full_name)
 	);
 	CREATE TABLE IF NOT EXISTS ignored_repos (
-		user_id TEXT NOT NULL,
 		forge TEXT NOT NULL,
 		repo_full_name TEXT NOT NULL,
 		ignore_prs BOOLEAN NOT NULL DEFAULT 1,
 		ignore_issues BOOLEAN NOT NULL DEFAULT 1,
-		PRIMARY KEY (user_id, forge, repo_full_name)
+		PRIMARY KEY (forge, repo_full_name)
 	);
 	CREATE TABLE IF NOT EXISTS auto_update_branch_repos (
-		user_id TEXT NOT NULL,
 		forge TEXT NOT NULL,
 		repo_full_name TEXT NOT NULL,
-		PRIMARY KEY (user_id, forge, repo_full_name)
+		PRIMARY KEY (forge, repo_full_name)
 	);
 	CREATE TABLE IF NOT EXISTS auto_merge_intents (
-		user_id TEXT NOT NULL,
 		forge TEXT NOT NULL,
 		repo_full_name TEXT NOT NULL,
 		number INTEGER NOT NULL,
 		armed_at TIMESTAMP NOT NULL,
-		PRIMARY KEY (user_id, forge, repo_full_name, number)
+		PRIMARY KEY (forge, repo_full_name, number)
 	);
 	` + hiddenPullRequestsSchema + queuedActionsSchema + pullRequestAutoUpdateSchema
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("settings: create schema: %w", err)
 	}
 
-	if err := s.addColumnsIfMissing(ctx); err != nil {
-		return err
-	}
-
 	return s.initCache(ctx)
 }
 
-// addColumnsIfMissing exists for a database that already had this table
-// before a column below was added — CREATE TABLE IF NOT EXISTS above is a
-// no-op against it, so the column needs adding here instead. SQLite has no
-// ADD COLUMN IF NOT EXISTS, so a "duplicate column name" error is the
-// expected, ignored outcome on a database that already has it (including
-// every fresh one, which got it from the CREATE TABLE above already).
-func (s *Store) addColumnsIfMissing(ctx context.Context) error {
-	migrations := []string{
-		`ALTER TABLE user_credentials ADD COLUMN webhook_token TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE user_credentials ADD COLUMN webhook_secret TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE user_credentials ADD COLUMN renovate_rebase_label TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE user_credentials ADD COLUMN filter_state TEXT NOT NULL DEFAULT '{}'`,
-		`ALTER TABLE user_credentials ADD COLUMN theme TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE user_credentials ADD COLUMN timezone TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE user_credentials ADD COLUMN github_app_installation_id INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE user_credentials ADD COLUMN renovate_authors TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE user_credentials ADD COLUMN hide_dependency_dashboard INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE user_credentials ADD COLUMN ignored_titles TEXT NOT NULL DEFAULT '[]'`,
-		// Default 1 (true): a repo ignored before #511 was all-or-nothing,
-		// so it keeps ignoring both PRs and issues after upgrading.
-		`ALTER TABLE ignored_repos ADD COLUMN ignore_prs BOOLEAN NOT NULL DEFAULT 1`,
-		`ALTER TABLE ignored_repos ADD COLUMN ignore_issues BOOLEAN NOT NULL DEFAULT 1`,
-	}
-	for _, stmt := range migrations {
-		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
-			if strings.Contains(err.Error(), "duplicate column name") {
-				continue
-			}
-
-			return fmt.Errorf("settings: add missing column: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// Set replaces userID's entire credential row — a Settings save is always
+// Set replaces the entire credential row — a Settings save is always
 // a full form submit, not a partial patch.
-func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
+func (s *Store) Set(ctx context.Context, c Credentials) error {
 	encGitHubToken, err := s.cipher.Encrypt(c.GitHubToken)
 	if err != nil {
 		return err
@@ -228,10 +185,10 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 	}
 
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO user_credentials
-			(user_id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, renovate_authors, hide_dependency_dashboard, ignored_titles, theme, timezone, github_app_installation_id, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (user_id) DO UPDATE SET
+		INSERT INTO settings
+			(id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, renovate_authors, hide_dependency_dashboard, ignored_titles, theme, timezone, github_app_installation_id, updated_at)
+		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
 			github_token = excluded.github_token,
 			github_username = excluded.github_username,
 			forgejo_url = excluded.forgejo_url,
@@ -245,7 +202,7 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 			timezone = excluded.timezone,
 			github_app_installation_id = excluded.github_app_installation_id,
 			updated_at = excluded.updated_at`,
-		encodeUserID(userID), encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, strings.Join(c.RenovateAuthors, ","), c.HideDependencyDashboard, titles, c.Theme, c.Timezone, c.GitHubAppInstallationID, time.Now().UTC(),
+		encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, strings.Join(c.RenovateAuthors, ","), c.HideDependencyDashboard, titles, c.Theme, c.Timezone, c.GitHubAppInstallationID, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: save credentials: %w", err)
@@ -254,8 +211,8 @@ func (s *Store) Set(ctx context.Context, userID []byte, c Credentials) error {
 	return nil
 }
 
-// Get returns ErrNotFound when userID has never saved any credentials.
-func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
+// Get returns ErrNotFound when no credentials were ever saved.
+func (s *Store) Get(ctx context.Context) (Credentials, error) {
 	var (
 		c                               Credentials
 		encGitHubToken, encForgejoToken string
@@ -263,8 +220,7 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 	var authors, titles string
 	err := s.db.QueryRowContext(ctx, `
 		SELECT github_token, github_username, forgejo_url, forgejo_token, forgejo_username, webhook_token, webhook_secret, renovate_rebase_label, renovate_authors, hide_dependency_dashboard, ignored_titles, theme, timezone, github_app_installation_id, updated_at
-		FROM user_credentials WHERE user_id = ?`,
-		encodeUserID(userID),
+		FROM settings WHERE id = 1`,
 	).Scan(&encGitHubToken, &c.GitHubUsername, &c.ForgejoURL, &encForgejoToken, &c.ForgejoUsername, &c.WebhookToken, &c.WebhookSecret, &c.RenovateRebaseLabel, &authors, &c.HideDependencyDashboard, &titles, &c.Theme, &c.Timezone, &c.GitHubAppInstallationID, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Credentials{}, ErrNotFound
@@ -293,7 +249,7 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 	return c, nil
 }
 
-// RenovateRebaseLabel reports userID's own saved RenovateRebaseLabel,
+// RenovateRebaseLabel reports the saved RenovateRebaseLabel,
 // resolved through RenovateRebaseLabelOrDefault — Renovate's own default
 // ("rebase") for a user who's never saved any settings at all, the same
 // zero-value default Credentials{} itself gives someone who has saved
@@ -301,8 +257,8 @@ func (s *Store) Get(ctx context.Context, userID []byte) (Credentials, error) {
 // satisfy dashboard.AutoUpdateBranchLister without that package needing
 // the full Credentials shape (and the token decryption Get does) just to
 // read one string.
-func (s *Store) RenovateRebaseLabel(ctx context.Context, userID []byte) (string, error) {
-	c, err := s.Get(ctx, userID)
+func (s *Store) RenovateRebaseLabel(ctx context.Context) (string, error) {
+	c, err := s.Get(ctx)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return Credentials{}.RenovateRebaseLabelOrDefault(), nil
@@ -324,11 +280,11 @@ func splitLogins(joined string) []string {
 	return strings.Split(joined, ",")
 }
 
-// RenovateAuthors reports userID's own saved Renovate logins, none for a user
-// who has never saved settings. It exists, like RenovateRebaseLabel, so
+// RenovateAuthors reports the saved Renovate logins, none when settings
+// were never saved. It exists, like RenovateRebaseLabel, so
 // dashboard.AutoUpdateBranchLister needn't take the whole Credentials shape.
-func (s *Store) RenovateAuthors(ctx context.Context, userID []byte) ([]string, error) {
-	c, err := s.Get(ctx, userID)
+func (s *Store) RenovateAuthors(ctx context.Context) ([]string, error) {
+	c, err := s.Get(ctx)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return nil, nil
@@ -340,18 +296,15 @@ func (s *Store) RenovateAuthors(ctx context.Context, userID []byte) ([]string, e
 	return c.RenovateAuthors, nil
 }
 
-// EnsureWebhookCredentials returns userID's webhook token and secret,
-// generating and persisting them on first call — a user who never opens
-// Settings never gets a row touched for this, and a repeat call always
-// returns the same values (a webhook already configured on a forge
-// points at a URL built from the token; it can't change underneath it).
-// Doesn't touch any other field, including on a user who has no saved
-// row at all yet.
-func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (token, secret string, err error) {
-	encodedID := encodeUserID(userID)
-
+// EnsureWebhookCredentials returns the webhook token and secret, generating and
+// persisting them on first call — a user who never opens Settings never gets
+// a row touched for this, and a repeat call always returns the same values (a
+// webhook already configured on a forge points at a URL built from the token;
+// it can't change underneath it). Doesn't touch any other field, including
+// when no settings were saved yet.
+func (s *Store) EnsureWebhookCredentials(ctx context.Context) (token, secret string, err error) {
 	err = s.db.QueryRowContext(ctx,
-		`SELECT webhook_token, webhook_secret FROM user_credentials WHERE user_id = ?`, encodedID,
+		`SELECT webhook_token, webhook_secret FROM settings WHERE id = 1`,
 	).Scan(&token, &secret)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -375,12 +328,12 @@ func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (to
 	}
 
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO user_credentials (user_id, webhook_token, webhook_secret, updated_at)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT (user_id) DO UPDATE SET
+		INSERT INTO settings (id, webhook_token, webhook_secret, updated_at)
+		VALUES (1, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET
 			webhook_token = excluded.webhook_token,
 			webhook_secret = excluded.webhook_secret`,
-		encodedID, token, secret, time.Now().UTC(),
+		token, secret, time.Now().UTC(),
 	)
 	if err != nil {
 		return "", "", fmt.Errorf("settings: save webhook credentials: %w", err)
@@ -389,46 +342,38 @@ func (s *Store) EnsureWebhookCredentials(ctx context.Context, userID []byte) (to
 	return token, secret, nil
 }
 
-// FindByWebhookToken looks up which user a webhook token belongs to and
-// their signing secret, for verifying an inbound webhook delivery.
-// Returns ErrNotFound for any token with no match — including the empty
-// string, which every row that's never called EnsureWebhookCredentials
-// shares as its default, and which would otherwise resolve to whichever
-// of them the query happened to return first.
-func (s *Store) FindByWebhookToken(ctx context.Context, token string) (userID []byte, secret string, err error) {
-	if token == "" {
-		return nil, "", ErrNotFound
-	}
-
-	var encodedUserID string
+// WebhookSecretFor returns the signing secret for an inbound webhook delivery
+// whose URL carried token. ErrNotFound for any other token, including the empty
+// string, which is what a row that never called EnsureWebhookCredentials
+// holds. The comparison takes the same time however many leading bytes match.
+func (s *Store) WebhookSecretFor(ctx context.Context, token string) (secret string, err error) {
+	var stored string
 	err = s.db.QueryRowContext(ctx,
-		`SELECT user_id, webhook_secret FROM user_credentials WHERE webhook_token = ?`, token,
-	).Scan(&encodedUserID, &secret)
+		`SELECT webhook_token, webhook_secret FROM settings WHERE id = 1`,
+	).Scan(&stored, &secret)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, "", ErrNotFound
+		return "", ErrNotFound
 	}
 	if err != nil {
-		return nil, "", fmt.Errorf("settings: find webhook token: %w", err)
+		return "", fmt.Errorf("settings: find webhook token: %w", err)
+	}
+	if token == "" || stored == "" || subtle.ConstantTimeCompare([]byte(token), []byte(stored)) != 1 {
+		return "", ErrNotFound
 	}
 
-	userID, err = base64.RawURLEncoding.DecodeString(encodedUserID)
-	if err != nil {
-		return nil, "", fmt.Errorf("settings: decode stored user id: %w", err)
-	}
-
-	return userID, secret, nil
+	return secret, nil
 }
 
-// GetFilterState returns userID's own saved dashboard/Insights filter
+// GetFilterState returns the saved dashboard/Insights filter
 // state as a raw JSON blob (#353) — "{}" for a user who's never saved
 // any, the same empty-object shape Filters.defaultState() already
 // treats as "nothing set" client-side, not ErrNotFound: no filters
 // saved yet is the normal starting state, not a missing-row error the
 // way Get's own ErrNotFound is for forge credentials.
-func (s *Store) GetFilterState(ctx context.Context, userID []byte) (string, error) {
+func (s *Store) GetFilterState(ctx context.Context) (string, error) {
 	var state string
 	err := s.db.QueryRowContext(ctx,
-		`SELECT filter_state FROM user_credentials WHERE user_id = ?`, encodeUserID(userID),
+		`SELECT filter_state FROM settings WHERE id = 1`,
 	).Scan(&state)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "{}", nil
@@ -440,7 +385,7 @@ func (s *Store) GetFilterState(ctx context.Context, userID []byte) (string, erro
 	return state, nil
 }
 
-// SetFilterState replaces userID's own saved filter state with stateJSON
+// SetFilterState replaces the saved filter state with stateJSON
 // verbatim — this Store never parses or validates its shape, the same
 // "opaque blob, not this layer's concern" treatment WebAuthnCeremonyOptions
 // gets in api/openapi.yaml. Doesn't touch any other field, including on a
@@ -448,18 +393,18 @@ func (s *Store) GetFilterState(ctx context.Context, userID []byte) (string, erro
 // "insert just this one field" shape, not Set's full-row replace — #353's
 // whole point is that this saves far more often than a real Settings
 // submit does, so it can't wait on one having happened first).
-func (s *Store) SetFilterState(ctx context.Context, userID []byte, stateJSON string) error {
+func (s *Store) SetFilterState(ctx context.Context, stateJSON string) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO user_credentials (user_id, filter_state, updated_at)
-		VALUES (?, ?, ?)
-		ON CONFLICT (user_id) DO UPDATE SET filter_state = excluded.filter_state`,
+		INSERT INTO settings (id, filter_state, updated_at)
+		VALUES (1, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET filter_state = excluded.filter_state`,
 		// updated_at is only ever used for the fresh-row INSERT case above
 		// (the ON CONFLICT clause deliberately leaves it out) — the same
 		// "this column means a real Settings form save happened" convention
 		// EnsureWebhookCredentials already established; a filter-state-only
 		// write shouldn't make Settings look more recently touched than it
 		// really was.
-		encodeUserID(userID), stateJSON, time.Now().UTC(),
+		stateJSON, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: save filter state: %w", err)
@@ -481,41 +426,6 @@ func randomWebhookValue() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// Delete removes userID's saved credentials — a no-op, not an error, if
-// they never saved any. Used when an account is removed outright.
-// Also removes their recorded webhook deliveries and per-repo settings,
-// the same store's other tables.
-func (s *Store) Delete(ctx context.Context, userID []byte) error {
-	encodedID := encodeUserID(userID)
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM webhook_deliveries WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete webhook deliveries: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM ignored_repos WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete ignored repos: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_update_branch_repos WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete auto-update-branch repos: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_merge_intents WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete auto-merge intents: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM hidden_pull_requests WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete hidden pull requests: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM pull_request_auto_update WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete pull request auto-update: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM queued_actions WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete queued actions: %w", err)
-	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodedID)
-	if err != nil {
-		return fmt.Errorf("settings: delete credentials: %w", err)
-	}
-
-	return nil
-}
-
 // WebhookDeliveryKey is how a repo's forge and full name combine into
 // the key WebhookDeliveries' returned set uses — exported so a caller
 // never has to know or reproduce the separator itself. IgnoredRepos'
@@ -533,20 +443,20 @@ type IgnoreScope struct {
 	Issues bool
 }
 
-// IgnoreRepo marks forge/repoFullName as ignored for userID in exactly the
-// given scope — its pull requests and/or issues stop appearing in that
-// user's dashboard/Insights (see internal/api's buildDashboardResponse),
+// IgnoreRepo marks forge/repoFullName as ignored in exactly the
+// given scope — its pull requests and/or issues stop appearing in the
+// dashboard/Insights (see internal/api's buildDashboardResponse),
 // though the repo itself keeps being fetched and tracked (#363). A repeat
 // call replaces the previously saved scope rather than merging with it, so
 // it's idempotent only for an identical repeat, not additive across calls
 // with different scopes (#511).
-func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullName string, prs, issues bool) error {
+func (s *Store) IgnoreRepo(ctx context.Context, forge, repoFullName string, prs, issues bool) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO ignored_repos (user_id, forge, repo_full_name, ignore_prs, ignore_issues)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (user_id, forge, repo_full_name)
+		INSERT INTO ignored_repos (forge, repo_full_name, ignore_prs, ignore_issues)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (forge, repo_full_name)
 		DO UPDATE SET ignore_prs = excluded.ignore_prs, ignore_issues = excluded.ignore_issues`,
-		encodeUserID(userID), forge, repoFullName, prs, issues,
+		forge, repoFullName, prs, issues,
 	)
 	if err != nil {
 		return fmt.Errorf("settings: ignore repo: %w", err)
@@ -558,10 +468,10 @@ func (s *Store) IgnoreRepo(ctx context.Context, userID []byte, forge, repoFullNa
 // UnignoreRepo reverses IgnoreRepo, clearing both scopes at once regardless
 // of which were set. Idempotent: un-ignoring a repo that was never ignored
 // is a no-op, not an error.
-func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFullName string) error {
+func (s *Store) UnignoreRepo(ctx context.Context, forge, repoFullName string) error {
 	_, err := s.db.ExecContext(ctx, `
-		DELETE FROM ignored_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
-		encodeUserID(userID), forge, repoFullName,
+		DELETE FROM ignored_repos WHERE forge = ? AND repo_full_name = ?`,
+		forge, repoFullName,
 	)
 	if err != nil {
 		return fmt.Errorf("settings: unignore repo: %w", err)
@@ -571,11 +481,11 @@ func (s *Store) UnignoreRepo(ctx context.Context, userID []byte, forge, repoFull
 }
 
 // IgnoredRepos returns, keyed by WebhookDeliveryKey, the ignore scope for
-// every forge/repo pair userID has ignored in either scope — empty, never
-// an error, for a user who's never ignored anything.
-func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]IgnoreScope, error) {
+// every forge/repo pair ignored in either scope — empty, never
+// an error, when nothing is ignored.
+func (s *Store) IgnoredRepos(ctx context.Context) (map[string]IgnoreScope, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT forge, repo_full_name, ignore_prs, ignore_issues FROM ignored_repos WHERE user_id = ?`, encodeUserID(userID),
+		`SELECT forge, repo_full_name, ignore_prs, ignore_issues FROM ignored_repos`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("settings: list ignored repos: %w", err)
@@ -603,12 +513,12 @@ func (s *Store) IgnoredRepos(ctx context.Context, userID []byte) (map[string]Ign
 // refresh finds behind its base branch gets updated the same way a
 // manual "Update branch" click would, from then on. Idempotent: enabling
 // an already-enabled repo is a no-op, not an error.
-func (s *Store) EnableAutoUpdateBranch(ctx context.Context, userID []byte, forge, repoFullName string) error {
+func (s *Store) EnableAutoUpdateBranch(ctx context.Context, forge, repoFullName string) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO auto_update_branch_repos (user_id, forge, repo_full_name)
-		VALUES (?, ?, ?)
-		ON CONFLICT (user_id, forge, repo_full_name) DO NOTHING`,
-		encodeUserID(userID), forge, repoFullName,
+		INSERT INTO auto_update_branch_repos (forge, repo_full_name)
+		VALUES (?, ?)
+		ON CONFLICT (forge, repo_full_name) DO NOTHING`,
+		forge, repoFullName,
 	)
 	if err != nil {
 		return fmt.Errorf("settings: enable auto-update-branch: %w", err)
@@ -619,10 +529,10 @@ func (s *Store) EnableAutoUpdateBranch(ctx context.Context, userID []byte, forge
 
 // DisableAutoUpdateBranch reverses EnableAutoUpdateBranch. Idempotent:
 // disabling a repo that was never enabled is a no-op, not an error.
-func (s *Store) DisableAutoUpdateBranch(ctx context.Context, userID []byte, forge, repoFullName string) error {
+func (s *Store) DisableAutoUpdateBranch(ctx context.Context, forge, repoFullName string) error {
 	_, err := s.db.ExecContext(ctx, `
-		DELETE FROM auto_update_branch_repos WHERE user_id = ? AND forge = ? AND repo_full_name = ?`,
-		encodeUserID(userID), forge, repoFullName,
+		DELETE FROM auto_update_branch_repos WHERE forge = ? AND repo_full_name = ?`,
+		forge, repoFullName,
 	)
 	if err != nil {
 		return fmt.Errorf("settings: disable auto-update-branch: %w", err)
@@ -632,11 +542,11 @@ func (s *Store) DisableAutoUpdateBranch(ctx context.Context, userID []byte, forg
 }
 
 // AutoUpdateBranchRepos returns the set of forge/repo pairs (keyed by
-// WebhookDeliveryKey) userID has turned automatic branch updates on for
+// WebhookDeliveryKey) the user has turned automatic branch updates on for
 // — empty, never an error, for a user who's never enabled any.
-func (s *Store) AutoUpdateBranchRepos(ctx context.Context, userID []byte) (map[string]struct{}, error) {
+func (s *Store) AutoUpdateBranchRepos(ctx context.Context) (map[string]struct{}, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT forge, repo_full_name FROM auto_update_branch_repos WHERE user_id = ?`, encodeUserID(userID),
+		`SELECT forge, repo_full_name FROM auto_update_branch_repos`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("settings: list auto-update-branch repos: %w", err)
@@ -658,20 +568,20 @@ func (s *Store) AutoUpdateBranchRepos(ctx context.Context, userID []byte) (map[s
 	return enabled, nil
 }
 
-// RecordWebhookDelivery notes that userID's webhook for forge/repoFullName
+// RecordWebhookDelivery notes that the webhook for forge/repoFullName
 // just delivered a signature-verified event — the passive signal
 // WebhookDeliveries reports back as "this repo has a working webhook,"
 // since actually asking GitHub/Forgejo whether one's configured would
 // need a broader token scope than this app otherwise asks for (see the
 // issue this shipped against for why). Safe to call repeatedly; only the
 // latest timestamp is kept.
-func (s *Store) RecordWebhookDelivery(ctx context.Context, userID []byte, forge, repoFullName string) error {
+func (s *Store) RecordWebhookDelivery(ctx context.Context, forge, repoFullName string) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO webhook_deliveries (user_id, forge, repo_full_name, last_seen_at)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT (user_id, forge, repo_full_name) DO UPDATE SET
+		INSERT INTO webhook_deliveries (forge, repo_full_name, last_seen_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT (forge, repo_full_name) DO UPDATE SET
 			last_seen_at = excluded.last_seen_at`,
-		encodeUserID(userID), forge, repoFullName, time.Now().UTC(),
+		forge, repoFullName, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("settings: record webhook delivery: %w", err)
@@ -682,11 +592,11 @@ func (s *Store) RecordWebhookDelivery(ctx context.Context, userID []byte, forge,
 
 // WebhookDeliveries returns the set of forge/repo pairs (keyed by
 // WebhookDeliveryKey) that have ever delivered a signature-verified
-// webhook event for userID — empty for a user none of whose repos have,
+// webhook event — empty when none of the repos has,
 // never an error for that case.
-func (s *Store) WebhookDeliveries(ctx context.Context, userID []byte) (map[string]struct{}, error) {
+func (s *Store) WebhookDeliveries(ctx context.Context) (map[string]struct{}, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT forge, repo_full_name FROM webhook_deliveries WHERE user_id = ?`, encodeUserID(userID),
+		`SELECT forge, repo_full_name FROM webhook_deliveries`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("settings: list webhook deliveries: %w", err)
@@ -707,5 +617,3 @@ func (s *Store) WebhookDeliveries(ctx context.Context, userID []byte) (map[strin
 
 	return seen, nil
 }
-
-func encodeUserID(id []byte) string { return base64.RawURLEncoding.EncodeToString(id) }

@@ -23,17 +23,15 @@ type queuedActionRequest struct {
 }
 
 // handleQueuedActionsList implements GET /api/queued-actions: the signed-in
-// user's own queue, waiting and finished. The store scopes it by account, so
-// there is no other user's row to leak.
+// queue, waiting and finished. There is one queue per instance.
 func handleQueuedActionsList(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
+		if _, ok := auth.UserFromContext(r.Context()); !ok {
 			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
 			return
 		}
-		items, err := resolveQueuedActionsFor(r.Context(), deps, u)
+		items, err := resolveQueuedActionsFor(r.Context(), deps)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
 
@@ -51,11 +49,11 @@ type queuedActionsResponse struct {
 	QueuedActions []dashboard.QueuedAction `json:"queuedActions"`
 }
 
-// resolveQueuedActionsFor is the user's own queue, shared by the HTTP handler
-// and the MCP tool so both answer the same. The store scopes it by account.
+// resolveQueuedActionsFor is the instance's queue, shared by the HTTP handler
+// and the MCP tool so both answer the same.
 // The store returns an empty, never nil, slice, so nothing queued encodes as [].
-func resolveQueuedActionsFor(ctx context.Context, deps Deps, u *auth.User) ([]dashboard.QueuedAction, error) {
-	items, err := deps.SettingsStore.QueuedActions(ctx, u.ID)
+func resolveQueuedActionsFor(ctx context.Context, deps Deps) ([]dashboard.QueuedAction, error) {
+	items, err := deps.SettingsStore.QueuedActions(ctx)
 	if err != nil {
 		slog.Error("could not list queued actions", "error", err)
 
@@ -97,7 +95,7 @@ func handleQueuedActionsCreate(deps Deps) http.HandlerFunc {
 		}
 		now := time.Now()
 
-		item, created, err := deps.SettingsStore.EnqueueQueuedAction(r.Context(), u.ID, dashboard.QueuedAction{
+		item, created, err := deps.SettingsStore.EnqueueQueuedAction(r.Context(), dashboard.QueuedAction{
 			Action: req.Action, Forge: pr.Forge, Repo: req.FullName, Number: req.Number,
 			Status: dashboard.QueuedWaiting, RunAt: runAt.UTC(), CreatedAt: now.UTC(),
 		})
@@ -185,7 +183,7 @@ func handleQueuedActionsCancel(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		found, err := deps.SettingsStore.CancelQueuedAction(r.Context(), u.ID, r.PathValue("id"))
+		found, err := deps.SettingsStore.CancelQueuedAction(r.Context(), r.PathValue("id"))
 		if err != nil {
 			slog.Error("could not cancel queued action", "error", err)
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not cancel the queued action"))
