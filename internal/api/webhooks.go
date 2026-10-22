@@ -304,6 +304,9 @@ func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, manager 
 		recordDelivery(manager, forge, fullName, event, body)
 	}
 	settleFromDelivery(manager, forge, body)
+	if !manager.Running() {
+		slog.Warn("webhook delivery arrived before any dashboard was running; the change shows on the next scheduled refresh", "forge", forge, "delivery", delivery)
+	}
 	w.WriteHeader(http.StatusNoContent)
 	go triggerRefresh(appCtx, manager, forge, delivery, body)
 }

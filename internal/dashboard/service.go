@@ -52,7 +52,8 @@ type Service struct {
 	// which is what the loading state is for.
 	refreshedOnce bool
 	// forceRefreshCooldown is the window ForceRefresh throttles inside, and
-	// lastForced is when it last fetched.
+	// lastForced is when it last fetched. Ensure keeps it, so a settings save
+	// doesn't skip the throttle; Stop clears it.
 	forceRefreshCooldown time.Duration
 	lastForced           time.Time
 	// snapshotCache is nil until SetSnapshotCache is called.
@@ -558,7 +559,11 @@ func (m *Service) Subscribe() (<-chan Snapshot, func(), bool) {
 	return ch, unsubscribe, true
 }
 
-// Stop cancels the running refresh loop.
+// Stop cancels the running refresh loop and returns the Service to how a fresh
+// process starts: no first-refresh marks and no force-refresh cooldown. That is
+// what a restart and the e2e reset both mean. A settings save goes through
+// Ensure instead, which keeps those marks and the cooldown so a save can't be
+// used to dodge the throttle.
 func (m *Service) Stop() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -567,4 +572,7 @@ func (m *Service) Stop() {
 		m.current.cancel()
 	}
 	m.current = nil
+	m.refreshedOnce = false
+	m.firstRefreshSeen = false
+	m.lastForced = time.Time{}
 }

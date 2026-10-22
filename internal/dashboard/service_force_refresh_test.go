@@ -61,7 +61,7 @@ func TestService_ForceRefresh_AfterTheCooldown_FetchesAgain(t *testing.T) {
 	assert.Equal(t, int32(3), src.calls.Load())
 }
 
-func TestService_ForceRefresh_UnknownUser_ReportsNotOK(t *testing.T) {
+func TestService_ForceRefresh_NothingRunning_ReportsNotOK(t *testing.T) {
 	t.Parallel()
 
 	m := dashboard.NewService(time.Minute)
@@ -81,4 +81,30 @@ func TestService_RefreshNow_IsNotThrottledByTheCooldown(t *testing.T) {
 	m.RefreshNow(t.Context())
 
 	assert.Equal(t, int32(3), src.calls.Load(), "a webhook's refresh still fetches")
+}
+
+func TestService_Stop_ClearsTheForceRefreshCooldown(t *testing.T) {
+	t.Parallel()
+
+	m, src := forceRefreshFixture(t, time.Minute)
+	m.ForceRefresh(t.Context())
+	m.Stop()
+	m.Ensure(t.Context(), []dashboard.Source{src})
+
+	retryAfter, ok := m.ForceRefresh(t.Context())
+
+	assert.True(t, ok)
+	assert.Zero(t, retryAfter, "a stopped Service starts like a fresh process")
+}
+
+func TestService_Ensure_KeepsTheForceRefreshCooldown(t *testing.T) {
+	t.Parallel()
+
+	m, src := forceRefreshFixture(t, time.Minute)
+	m.ForceRefresh(t.Context())
+	m.Ensure(t.Context(), []dashboard.Source{src})
+
+	retryAfter, _ := m.ForceRefresh(t.Context())
+
+	assert.Positive(t, retryAfter, "a settings save doesn't dodge the throttle")
 }

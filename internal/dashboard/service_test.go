@@ -469,3 +469,17 @@ func TestService_FirstRefreshDone_StaysTrueWhenTheAggregatorIsReplaced(t *testin
 
 	assert.True(t, m.FirstRefreshDone(), "a later refresh must not put the loading state back")
 }
+
+func TestService_Stop_ForgetsTheFirstRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+	m.Ensure(t.Context(), []dashboard.Source{src})
+	require.Eventually(t, func() bool { return m.FirstRefreshDone() }, time.Second, 5*time.Millisecond)
+
+	m.Stop()
+
+	assert.False(t, m.FirstRefreshDone(), "a stopped Service reads like a fresh process")
+}
