@@ -214,3 +214,90 @@ func TestJobLog_AnExhaustedRateLimitIsRateLimited(t *testing.T) {
 	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, dashboard.ForgeErrorRateLimited, ce.Kind)
 }
+
+func TestJobLog_EveryRedirectHopIsChecked(t *testing.T) {
+	t.Parallel()
+	var hits int
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		_, _ = io.WriteString(w, "should never be fetched")
+	}))
+	t.Cleanup(other.Close)
+	// The first hop is the API's own origin, which is allowed; the blob then
+	// redirects on to another plain-http host.
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/second", http.StatusFound)
+	})
+
+	_, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.Error(t, err)
+	assert.Zero(t, hits)
+}
+
+func TestJobLog_ARedirectChainIsCapped(t *testing.T) {
+	t.Parallel()
+	var hops int
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+		hops++
+		http.Redirect(w, r, "/blob/job-77.log", http.StatusFound)
+	})
+
+	_, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.Error(t, err)
+	assert.LessOrEqual(t, hops, 4)
+}
+
+func TestJobLog_AMovedLogsRequestNeverSendsTheTokenElsewhere(t *testing.T) {
+	t.Parallel()
+	var auth string
+	var hits int
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		auth = r.Header.Get("Authorization")
+		http.Redirect(w, r, "/x", http.StatusFound)
+	}))
+	t.Cleanup(other.Close)
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL+"/repos/alrayyes/a/actions/jobs/77/logs", http.StatusMovedPermanently)
+	}))
+	t.Cleanup(api.Close)
+
+	_, err := github.NewClient("test-token", "", api.URL).JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.Error(t, err)
+	assert.Zero(t, hits)
+	assert.Empty(t, auth)
+}
+
+func TestJobLog_AnUnsatisfiableRangeIsAnEmptyLog(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+	})
+
+	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.NoError(t, err)
+	assert.Empty(t, got.Text)
+	assert.False(t, got.Truncated)
+}
+
+func TestJobLog_ABodyWithoutEndIsReadOnlyUpToACap(t *testing.T) {
+	t.Parallel()
+	c := jobLogServer(t, "/blob/job-77.log", func(w http.ResponseWriter, r *http.Request) {
+		line := strings.Repeat("y", 1023) + "\n"
+		for range 70 * 1024 {
+			if _, err := io.WriteString(w, line); err != nil {
+				return
+			}
+		}
+	})
+
+	got, err := c.JobLog(t.Context(), "alrayyes", "a", 77)
+
+	require.NoError(t, err)
+	assert.True(t, got.Truncated)
+	assert.LessOrEqual(t, len(got.Text), dashboard.MaxJobLogBytes)
+}
