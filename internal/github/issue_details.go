@@ -13,6 +13,7 @@ import (
 // (dashboard.MaxDetailsComments, MaxReactionLogins).
 const issueDetailsQuery = `
 query($owner: String!, $name: String!, $number: Int!) {
+  rateLimit { cost }
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       body
