@@ -2882,6 +2882,74 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/main-branches/rerun-checks:
+    post:
+      operationId: rerunMainBranchChecks
+      summary: Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
+      description: |
+        The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+        to rerun the failed jobs of the Actions workflow runs on the commit
+        GET /api/main-branches/checks lists, and nothing that passed. It
+        answers once the forge has queued them, not when they finish, so a
+        client shows a queued state and lets the next refresh carry the result.
+
+        A Main branches row offers it when its `status` is `failed`. A failed
+        check that isn't an Actions job (a third-party check, a legacy status,
+        an external CI) can't be rerun here and is skipped. Refusals are an
+        `ActionError`; a 409 means the branch has no failed job to rerun.
+      tags: [dashboard]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MainBranchRerunRequest"
+      responses:
+        "204":
+          description: The failed jobs were queued to rerun.
+        "400":
+          description: The request body wasn't valid JSON, `fullName` wasn't "owner/repo", no credentials are saved for that forge, or that forge's client doesn't support rerunning default branch checks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized. The saved token can't write to Actions on that repo. `code` is `permission`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The repo isn't one whose default branch the dashboard tracks, or the forge reported it doesn't exist (or isn't visible to this token). For the forge's answer `code` is `unknown`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "409":
+          description: There is no failed Actions job to rerun on the default branch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
   /api/stats/forge-api:
     get:
       operationId: getForgeApiStats
@@ -3881,6 +3949,18 @@ components:
           type: integer
           maximum: 2147483647
           description: Matching a PullRequest.number from GET /api/dashboard.
+
+    MainBranchRerunRequest:
+      type: object
+      required: [forge, fullName]
+      description: Which repository's default branch to rerun the failed checks of.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: '"owner/repo", matching a MainBranch.fullName from GET /api/main-branches.'
 
     PullRequestHideRequest:
       type: object
