@@ -96,6 +96,8 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 
 	restore, err := suspendForeignKeys(ctx, conn)
 	if err != nil {
+		res.dropUnneededBackup()
+
 		return Result{}, err
 	}
 	defer restore()
