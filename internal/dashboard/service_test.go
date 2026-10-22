@@ -426,6 +426,48 @@ func TestService_FirstRefreshComplete_ReplacingTheAggregatorDoesNotRestartTheGra
 		"the grace ran from the first start, not from the latest Ensure")
 }
 
+// Stop only halts the loop, so the grace anchor survives a stop and a restart
+// in the same process, like the other first-refresh marks.
+func TestService_Stop_KeepsTheGraceAnchor(t *testing.T) {
+	t.Parallel()
+
+	blocked := &gatedSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(blocked.release) })
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+	m.SetFirstRefreshGrace(100 * time.Millisecond)
+
+	start := time.Now()
+	m.Ensure(t.Context(), []dashboard.Source{blocked})
+	m.Stop()
+	time.Sleep(time.Until(start.Add(150 * time.Millisecond)))
+	m.Ensure(t.Context(), []dashboard.Source{blocked})
+
+	assert.True(t, m.FirstRefreshComplete(),
+		"the grace still runs from the first start after a stop")
+}
+
+// Reset is a fresh process, so the next start anchors the grace anew.
+func TestService_Reset_ClearsTheGraceAnchor(t *testing.T) {
+	t.Parallel()
+
+	blocked := &gatedSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(blocked.release) })
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+	m.SetFirstRefreshGrace(100 * time.Millisecond)
+
+	start := time.Now()
+	m.Ensure(t.Context(), []dashboard.Source{blocked})
+	m.Stop()
+	m.Reset()
+	time.Sleep(time.Until(start.Add(150 * time.Millisecond)))
+	m.Ensure(t.Context(), []dashboard.Source{blocked})
+
+	assert.False(t, m.FirstRefreshComplete(),
+		"a reset anchors the grace on the next start")
+}
+
 func TestService_FirstRefreshComplete_AnAggregatorAddedLaterCannotUnreadyAServingProcess(t *testing.T) {
 	t.Parallel()
 
