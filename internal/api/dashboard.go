@@ -871,15 +871,20 @@ func warmUpAggregator(ctx context.Context, deps Deps) {
 // startSession calls this on every login regardless of whether one's
 // already running, to pick up whatever was most recently saved.
 func loadAndEnsure(ctx context.Context, deps Deps) {
-	creds, err := deps.SettingsStore.Get(ctx)
-	if err != nil {
-		if !errors.Is(err, settings.ErrNotFound) {
-			slog.Warn("could not load settings to warm up dashboard", "error", err)
+	// The read happens under the Service's lock, so a settings save that lands
+	// meanwhile queues behind this swap instead of being overwritten by it.
+	deps.Service.EnsureFrom(deps.AppContext, func() ([]dashboard.Source, bool) {
+		creds, err := deps.SettingsStore.Get(ctx)
+		if err != nil {
+			if !errors.Is(err, settings.ErrNotFound) {
+				slog.Warn("could not load settings to warm up dashboard", "error", err)
+			}
+
+			return nil, false
 		}
 
-		return
-	}
-	deps.Service.Ensure(deps.AppContext, deps.BuildSources(creds))
+		return deps.BuildSources(creds), true
+	})
 }
 
 // handleDashboardRefresh triggers an immediate, out-of-band refresh of

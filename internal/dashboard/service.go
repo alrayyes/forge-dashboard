@@ -215,6 +215,28 @@ func (m *Service) Ensure(ctx context.Context, sources []Source) {
 	m.startLocked(ctx, sources)
 }
 
+// EnsureFrom is Ensure, but load runs under the same lock as the swap. A
+// caller that reads the saved credentials itself and then calls Ensure can be
+// overtaken by a settings save in between, and its older read would then
+// replace the newer Aggregator. load returns the sources and true, or false to
+// leave whatever is running untouched (nothing saved, or the read failed).
+func (m *Service) EnsureFrom(ctx context.Context, load func() ([]Source, bool)) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	sources, ok := load()
+	if !ok {
+		return
+	}
+
+	if m.current != nil {
+		m.latchFirstRefreshLocked()
+		m.current.cancel()
+	}
+
+	m.startLocked(ctx, sources)
+}
+
 // EnsureIfAbsent is Ensure, but only takes effect if no Aggregator is running
 // yet. The check and the insert happen under the same lock, unlike a separate
 // Running() check followed by Ensure(), which races when several requests land
