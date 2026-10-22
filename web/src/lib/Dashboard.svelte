@@ -3985,11 +3985,13 @@
       const key = `${prKey(item)}:${action}`;
       const entry = dependabotActionState[key] || { phase: "idle" };
 
-      // Blocked only when every host of the kind says so, as the lock is.
+      // Blocked only when there is a host and every one of that kind says so,
+      // as the lock is; the first host's reason stands for them all.
       const hosts = lastForges.filter((f) => f.forge === item.forge);
-      const blockedReason = hosts.every((f) => f.dependabotCommandsBlocked)
-        ? hosts[0]?.dependabotCommandsBlocked
-        : undefined;
+      const blockedReason =
+        hosts.length > 0 && hosts.every((f) => f.dependabotCommandsBlocked)
+          ? hosts[0].dependabotCommandsBlocked
+          : undefined;
       if (blockedReason)
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],

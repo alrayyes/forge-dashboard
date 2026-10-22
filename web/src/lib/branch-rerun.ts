@@ -115,7 +115,8 @@ export function createBranchRerun() {
       // A forge that can't be reached or has no budget left would refuse the
       // click, so there is no button, only the reason.
       const locked = lock();
-      // A refusal from before the lock is stale once the lock lifts.
+      // Deliberate, though it writes from a draw: a refusal from before the
+      // lock is stale once the lock lifts, for every view of this repository.
       if (locked && states.get(key)?.phase === 'failed') states.delete(key);
       const state = states.get(key);
       const sending = state?.phase === 'requesting';
@@ -144,7 +145,9 @@ export function createBranchRerun() {
         .join(' ');
       // A live region: write only a change, or each redraw re-announces it.
       if (status.textContent !== text) status.textContent = text;
-      // Armed once per reset time, so a redraw does not restart it.
+      // Armed once per reset time, so a redraw does not restart it. Only a
+      // rate limit says when it ends; an unreachable forge is looked at again
+      // by the next poll's redraw.
       const at = locked?.resetsAt;
       if (unlocks.get(key)?.at !== at) {
         clearTimeout(unlocks.get(key)?.timer);
@@ -187,6 +190,8 @@ export function createBranchRerun() {
 
     button.addEventListener('click', () => {
       if (button.getAttribute('aria-disabled') === 'true') return;
+      // A snapshot may have locked the forge since the last draw.
+      if (lock()) return sync();
       const sig = signature();
       states.set(key, { phase: 'requesting' });
       syncAll(key);
