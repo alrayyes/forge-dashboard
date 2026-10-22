@@ -86,7 +86,8 @@ and puts focus on that input. The page holds no copy of those rules.
 
 - **Token**: a personal access token with read access to the
   repositories you want tracked, plus write access to their webhooks if
-  you ever plan to use the Webhooks page's "Add a webhook" button. The
+  you ever plan to use the Webhooks page's "Add a webhook" button, and
+  optionally Dependabot alerts (read) for the Branches page's advisories. The
   exact scope, classic and fine-grained, lives in Settings' own
   "What does this token need?" help under the token field — one place, kept
   current with what the

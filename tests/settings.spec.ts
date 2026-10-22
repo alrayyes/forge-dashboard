@@ -347,9 +347,10 @@ test.describe('settings page', () => {
     await page.goto('/settings.html#connections');
 
     const items = page.locator('#github-token-hint ul li');
-    await expect(items).toHaveCount(6);
+    await expect(items).toHaveCount(7);
     await expect(items.nth(0)).toContainText('Metadata');
     await expect(items.nth(5)).toContainText('Webhooks');
+    await expect(items.nth(6)).toContainText('Dependabot alerts');
   });
 
   test('the Forgejo permission list includes read:user, easy to leave out and silently break repo discovery', async ({
