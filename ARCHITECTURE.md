@@ -191,6 +191,22 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   written exclusion (the same `x-mcp-excluded` reason the server MCP uses, so
   one list serves both) or a place on the test's list of tools still to come.
 
+### Which hosts a log download may reach
+
+One policy covers the only forge-supplied URL the server fetches: the
+short-lived blob a GitHub job-log request redirects to (Forgejo answers the
+log itself). The download is public-only, with one exception, the API's own
+origin, so a GitHub Enterprise Server instance on a private network still
+works. Every hop must be HTTPS (or that origin), and at most three redirects
+are followed. A direct dial is refused unless it lands on a public address:
+localhost, private, link-local, shared (100.64.0.0/10), group, unspecified
+and NAT64 addresses all fail, checked on the resolved address so DNS
+rebinding doesn't get around it. When a proxy is configured, the dial to the
+proxy is allowed and the proxy owns name resolution, so a request whose target
+is localhost or a literal non-public address is refused before it is sent.
+There is no allowlist: a blob host on a private network is refused, by design.
+The code is `internal/github/job_log.go`.
+
 ### What the passkey login covers
 
 It covers passkey registration and login gating the
