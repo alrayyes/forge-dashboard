@@ -259,25 +259,18 @@ export function filterToState(
 }
 
 export type AdvisoryPill = {
-  // The severity, 'counted' for a count with no severity, or 'unknown'.
-  tone: AdvisorySeverity | 'counted' | 'unknown';
+  // The severity, or 'counted' for a count with no severity.
+  tone: AdvisorySeverity | 'counted';
   text: string;
   href: string | null;
 };
 
 // What the advisories pill on a row says, or null for no pill: no field means
-// no source reads this forge, and a known zero is not worth an alarm. An
-// unknown answer says so in words. The severity is a word too, so colour is
-// never the only carrier (WCAG 1.4.1).
+// no source reads this forge, a known zero is not worth an alarm, and an
+// unknown answer is said once for the page (advisoryCoverage), not per row.
+// The severity is a word, so colour is never the only carrier (WCAG 1.4.1).
 export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
-  if (!a) return null;
-  if (a.state === 'unknown') {
-    return {
-      tone: 'unknown',
-      text: 'Advisories unknown',
-      href: null,
-    };
-  }
+  if (!a || a.state === 'unknown') return null;
   if (a.count <= 0) return null;
   const noun = a.count === 1 ? 'advisory' : 'advisories';
   const href = a.url ? releaseHref(a.url) : null;
@@ -286,4 +279,23 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
     text: a.highest ? `${a.count} ${noun}, ${a.highest}` : `${a.count} ${noun}`,
     href,
   };
+}
+
+// How much of the list's advisory data was readable. 'none': every row that
+// has an answer says unknown, so the page shows one notice about the cause.
+// 'partial': a mix, so only the unknown rows get a quiet cue. 'full': nothing
+// to say. Rows with no field (no source reads that forge) don't count.
+export type AdvisoryCoverage = 'full' | 'partial' | 'none';
+
+export function advisoryCoverage(
+  branches: readonly MainBranch[],
+): AdvisoryCoverage {
+  let unknown = 0;
+  let known = 0;
+  for (const b of branches) {
+    if (b.advisories?.state === 'unknown') unknown++;
+    else if (b.advisories) known++;
+  }
+  if (unknown === 0) return 'full';
+  return known === 0 ? 'none' : 'partial';
 }

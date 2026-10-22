@@ -60,7 +60,7 @@ const BRANCHES = [
   }),
 ];
 
-async function open(page: Page) {
+async function open(page: Page, branches: object[] = BRANCHES) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
@@ -70,20 +70,20 @@ async function open(page: Page) {
         generatedAt: new Date().toISOString(),
         counts: {
           failed: 0,
-          passed: BRANCHES.length,
+          passed: branches.length,
           running: 0,
           cancelled: 0,
           awaitingApproval: 0,
           none: 0,
-          total: BRANCHES.length,
+          total: branches.length,
         },
-        branches: BRANCHES,
+        branches,
       }),
     }),
   );
   await page.goto('/');
   await expect(page.locator('[data-testid="main-branch-row"]')).toHaveCount(
-    BRANCHES.length,
+    branches.length,
   );
 }
 
@@ -118,15 +118,54 @@ test.describe('Branches page advisories pill', () => {
     await expect(pill(page, 'acme/nofield')).toHaveCount(0);
   });
 
-  test('unknown says unknown, not zero, and is not a link', async ({
+  test('a mixed list marks unknown rows with a quiet cue, no pill and no notice', async ({
     page,
   }) => {
     await open(page);
 
-    const p = pill(page, 'acme/unsure');
-    await expect(p).toHaveText('Advisories unknown');
-    await expect(p).not.toHaveAttribute('href', /.*/);
-    await expect(p).not.toContainText('0');
+    await expect(pill(page, 'acme/unsure')).toHaveCount(0);
+    const cue = page
+      .locator('[data-testid="main-branch-row"]', { hasText: 'acme/unsure' })
+      .locator('[data-testid="main-branch-advisories-cue"]');
+    await expect(cue).toHaveCount(1);
+    await expect(cue).toHaveAccessibleName('Advisories unknown');
+    await expect(page.getByTestId('advisories-notice')).toHaveCount(0);
+    await expect(
+      page.locator('[data-testid="main-branch-advisories-cue"]'),
+    ).toHaveCount(1);
+  });
+
+  test('when every answer is unknown, one notice names the cause and no row repeats it', async ({
+    page,
+  }) => {
+    await open(page, [
+      row('acme/a', { state: 'unknown', count: 0 }),
+      row('acme/b', { state: 'unknown', count: 0 }),
+      row('acme/nofield'),
+    ]);
+
+    const notice = page.getByTestId('advisories-notice');
+    await expect(notice).toHaveCount(1);
+    await expect(notice).toContainText('Dependabot alerts permission');
+    await expect(
+      notice.getByRole('link', { name: /How to grant it/ }),
+    ).toHaveAttribute(
+      'href',
+      /docs\/main-branches\.md#when-advisories-cant-be-read$/,
+    );
+    await expect(page.getByTestId('main-branch-advisories')).toHaveCount(0);
+    await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(0);
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 800 });
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations, `${theme} ${width}px`).toEqual([]);
+      }
+    }
+    await setTheme(page, 'light');
   });
 
   test('a url that is not http(s) leaves the count unlinked', async ({

@@ -39,6 +39,7 @@
     filterToState,
     releaseHref,
     advisoryPill,
+    advisoryCoverage,
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
@@ -70,6 +71,7 @@
   // something, and the active one stays (#1427).
   const statusOffered = $derived(offeredStatuses(branches, filter));
   const forgeOffered = $derived(offeredForges(branches, filter));
+  const advisoryState = $derived(advisoryCoverage(branches));
   const staleRows = $derived(branches.filter((b) => b.stale));
   const staleSince = $derived(
     staleRows
@@ -539,6 +541,11 @@
       background: var(--warning-bg);
       color: var(--warning);
     }
+    .mb-advisory-cue {
+      color: var(--ink-2);
+      font-size: 12px;
+      padding: 0 4px;
+    }
     a.mb-advisory {
       text-decoration: underline;
     }
@@ -713,6 +720,23 @@
       </div>
     {/if}
 
+    {#if advisoryState === "none"}
+      <div class="mb-banner" role="status" data-testid="advisories-notice">
+        <p>
+          Advisories can't be read for your GitHub repositories, so none are
+          shown. Most likely the credential lacks the Dependabot alerts
+          permission (read-only), or alerts are switched off on the repo. <a
+            href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#when-advisories-cant-be-read"
+            target="_blank"
+            rel="noopener noreferrer"
+            >How to grant it<span class="sr-only">
+              (opens in a new tab)</span
+            ></a
+          >.
+        </p>
+      </div>
+    {/if}
+
     {#if branchesAwaitingFlag(firstRefresh.settled, data.counts.total)}
       <p class="mb-loading" data-testid="branches-awaiting-flag">
         Loading the main branches…
@@ -854,6 +878,16 @@
                           r="1"
                         /></svg
                       ><span class="mb-release-tag">{release.tag}</span></button
+                    >
+                  {/if}
+                  {#if advisoryState === "partial" && b.advisories?.state === "unknown"}
+                    <span
+                      class="mb-advisory-cue"
+                      data-testid="main-branch-advisories-cue"
+                      title="Advisories unknown"
+                      ><span aria-hidden="true">&#8211;</span><span
+                        class="sr-only">Advisories unknown</span
+                      ></span
                     >
                   {/if}
                   {#if advisoryPill(b.advisories)}

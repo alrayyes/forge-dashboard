@@ -1,6 +1,11 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { advisoryPill } from './main-branches';
+import {
+  type Advisories,
+  advisoryCoverage,
+  advisoryPill,
+  type MainBranch,
+} from './main-branches';
 
 const URL = 'https://example.com/acme/x/security/dependabot';
 
@@ -13,13 +18,8 @@ describe('advisoryPill', () => {
     expect(advisoryPill({ state: 'known', count: 0 })).toBeNull();
   });
 
-  test('unknown says unknown, never zero, and carries no link', () => {
-    const pill = advisoryPill({ state: 'unknown', count: 0 });
-    expect(pill).toEqual({
-      tone: 'unknown',
-      text: 'Advisories unknown',
-      href: null,
-    });
+  test('unknown draws no pill: the page says it once instead', () => {
+    expect(advisoryPill({ state: 'unknown', count: 0 })).toBeNull();
   });
 
   test('a count and severity read as words, linking to the url', () => {
@@ -54,5 +54,25 @@ describe('advisoryPill', () => {
         url: 'javascript:alert(1)',
       })?.href,
     ).toBeNull();
+  });
+});
+
+const b = (advisories?: Advisories) => ({ advisories }) as MainBranch;
+const unknown: Advisories = { state: 'unknown', count: 0 };
+const known: Advisories = { state: 'known', count: 0 };
+
+describe('advisoryCoverage', () => {
+  test('every row that has an answer is unknown: one notice', () => {
+    expect(advisoryCoverage([b(unknown), b(unknown), b()])).toBe('none');
+  });
+
+  test('some known, some unknown: a quiet cue on the unknown rows', () => {
+    expect(advisoryCoverage([b(unknown), b(known)])).toBe('partial');
+  });
+
+  test('all known, or no source at all, has nothing to say', () => {
+    expect(advisoryCoverage([b(known), b()])).toBe('full');
+    expect(advisoryCoverage([b(), b()])).toBe('full');
+    expect(advisoryCoverage([])).toBe('full');
   });
 });
