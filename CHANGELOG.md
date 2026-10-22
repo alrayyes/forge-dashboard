@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/alrayyes/forge-dashboard/compare/v2.4.0...v2.4.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **dbmigrate:** check ROLLBACK and the tables that reference a rebuilt one ([#2504](https://github.com/alrayyes/forge-dashboard/issues/2504)) ([047d3d6](https://github.com/alrayyes/forge-dashboard/commit/047d3d671a4d7e3bb13ccd26dba157ab1ea6f1df))
+
 ## [2.4.0](https://github.com/alrayyes/forge-dashboard/compare/v2.3.0...v2.4.0) (2026-10-22)
 
 
