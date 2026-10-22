@@ -191,6 +191,33 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   written exclusion (the same `x-mcp-excluded` reason the server MCP uses, so
   one list serves both) or a place on the test's list of tools still to come.
 
+### Which hosts a log download may reach
+
+One policy covers the URL a GitHub job-log request redirects to (Forgejo
+answers the log itself). It lives in `logBlobClient` and `logTransport` in
+`internal/github/job_log.go`. The request carries no token and times out after
+15 seconds. Reading more than 64 megabytes fails the request with an error.
+
+- Every hop must be HTTPS, or share the API's scheme, host, and port. At most
+  three redirects are followed. Any public HTTPS host passes, so a separate
+  blob host is fine.
+- A direct dial is refused when the resolved address is local (127.0.0.0/8 or
+  ::1), private, link-local, shared (100.64.0.0/10), a group address,
+  unspecified, or in the NAT64 prefix. The check is on the resolved address,
+  so DNS rebinding doesn't get around it. The one exception is the API's own
+  host and port, so a GitHub Enterprise Server instance on a private network
+  can serve its logs itself.
+- With a proxy configured, the proxy does the resolving. A request whose host
+  is exactly `localhost` or a literal non-public address is refused before it
+  is sent. The environment's proxy settings skip localhost, local addresses and
+  `NO_PROXY` hosts, so those take the direct path above.
+- The proxy's own host and port is dialled without the address check, and so
+  is any later direct dial to that same host and port from the same client. A
+  proxy URL without a port isn't recognised, so a proxy on a private network
+  is refused.
+
+There is no allowlist: a blob host on a private network is refused, by design.
+
 ### What the passkey login covers
 
 It covers passkey registration and login gating the

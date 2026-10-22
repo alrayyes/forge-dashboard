@@ -37,8 +37,8 @@ func newResetFixture(t *testing.T, withPasskey bool) resetFixture {
 	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 	if withPasskey {
-		require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
-		_, err = store.CreateSession(t.Context(), owner.ID, time.Hour)
+		require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+		_, err = store.CreateSession(t.Context(), time.Hour)
 		require.NoError(t, err)
 	}
 
@@ -112,4 +112,49 @@ func TestParseResetOptions_UnknownFlag_Fails(t *testing.T) {
 	_, err := parseResetOptions([]string{"--nope"})
 
 	assert.Error(t, err)
+}
+
+// oldMultiUserDatabase is a file from the release before the user id was
+// dropped, still holding two users that each hold a passkey and a session.
+func oldMultiUserDatabase(t *testing.T) (string, *sql.DB) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "app.db")
+	t.Setenv("DB_PATH", path)
+	db, err := sql.Open("sqlite", dbdsn.For(path))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	for _, stmt := range []string{
+		`CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL,
+			credentials_json TEXT NOT NULL DEFAULT '[]', created_at TIMESTAMP NOT NULL)`,
+		`CREATE TABLE ceremonies (username TEXT NOT NULL, kind TEXT NOT NULL, session_json TEXT NOT NULL,
+			expires_at TIMESTAMP NOT NULL, PRIMARY KEY (username, kind))`,
+		`CREATE TABLE sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+			expires_at TIMESTAMP NOT NULL, created_at TIMESTAMP NOT NULL)`,
+		`CREATE TABLE credential_metadata (user_id TEXT NOT NULL, credential_id TEXT NOT NULL, label TEXT NOT NULL,
+			created_at TIMESTAMP NOT NULL, PRIMARY KEY (user_id, credential_id))`,
+		`INSERT INTO users VALUES ('YWFh', 'ryan', 'Ryan', '[{"id":"AQID"}]', '2026-01-01 00:00:00')`,
+		`INSERT INTO users VALUES ('YmJi', 'sam', 'Sam', '[{"id":"BAUG"}]', '2026-02-01 00:00:00')`,
+		`INSERT INTO sessions VALUES ('s-a', 'YWFh', '2099-01-01 00:00:00', '2026-01-01 00:00:00')`,
+		`INSERT INTO sessions VALUES ('s-b', 'YmJi', '2099-01-01 00:00:00', '2026-01-01 00:00:00')`,
+		`INSERT INTO credential_metadata VALUES ('YmJi', 'cred-b', 'Key', '2026-01-01 00:00:00')`,
+	} {
+		_, err := db.ExecContext(t.Context(), stmt)
+		require.NoError(t, err)
+	}
+
+	return path, db
+}
+
+func TestRunResetPasskeys_UnmigratedMultiUserDatabase_RefusesAndDeletesNothing(t *testing.T) {
+	_, db := oldMultiUserDatabase(t)
+
+	err := runResetPasskeys([]string{"--yes"})
+
+	require.Error(t, err, "the upgrade refuses a database the previous release has not settled")
+	var sessions, labels int
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM sessions`).Scan(&sessions))
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM credential_metadata`).Scan(&labels))
+	assert.Equal(t, 2, sessions, "no user's session may be deleted")
+	assert.Equal(t, 1, labels)
 }

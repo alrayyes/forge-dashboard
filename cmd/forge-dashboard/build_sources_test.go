@@ -10,7 +10,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
-	"encoding/base64"
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
@@ -47,46 +46,6 @@ func newTestAuthStore(t *testing.T) *auth.Store {
 // ForgejoURL) — this is what lets the test point real clients at an
 // httptest server and observe a genuine recorded request, rather than
 // only inspecting how the client was constructed.
-func TestBuildSourcesForUser_TwoUsers_RecordUnderTwoDistinctAccountIDs(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/user/repos", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[]`))
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	store := newTestAuthStore(t)
-	build := buildSourcesForUser(store, nil, 0, nil, nil)
-
-	userA, err := store.CreateUser(t.Context(), "user-a", "User A")
-	require.NoError(t, err)
-	userB, err := store.CreateUser(t.Context(), "user-b", "User B")
-	require.NoError(t, err)
-
-	creds := settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "test-token"}
-
-	sourcesA := build(userA.ID, creds)
-	sourcesB := build(userB.ID, creds)
-	require.Len(t, sourcesA, 1)
-	require.Len(t, sourcesB, 1)
-
-	sourcesA[0].Fetch(t.Context())
-	sourcesB[0].Fetch(t.Context())
-
-	rows, err := store.ListRequests(t.Context(), auth.RequestLogFilter{})
-	require.NoError(t, err)
-	require.Len(t, rows, 2)
-
-	accountA := base64.RawURLEncoding.EncodeToString(userA.ID)
-	accountB := base64.RawURLEncoding.EncodeToString(userB.ID)
-	gotAccounts := []string{rows[0].AccountID, rows[1].AccountID}
-	assert.ElementsMatch(t, []string{accountA, accountB}, gotAccounts)
-	assert.NotEqual(t, accountA, accountB)
-}
-
 // testGitHubAppPrivateKeyPEM is a throwaway RSA key generated once and
 // reused across every #620 precedence test in this file.
 var testGitHubAppPrivateKeyPEM = generateTestGitHubAppPrivateKeyPEM()

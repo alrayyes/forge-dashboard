@@ -45,7 +45,7 @@ func TestWriter_FullQueueDropsTheRowAndNeverBlocksTheCaller(t *testing.T) {
 	t.Parallel()
 	store := &gatedStore{release: make(chan struct{})}
 	w := requestlog.NewWriter(store, 2)
-	rec := requestlog.NewSQLiteRecorder(nil, "acct", requestlog.WithWriter(w))
+	rec := requestlog.NewSQLiteRecorder(nil, requestlog.WithWriter(w))
 
 	done := make(chan struct{})
 	go func() {
@@ -75,7 +75,7 @@ func TestWriter_CloseDrainsWhatIsQueued(t *testing.T) {
 	store := &gatedStore{release: make(chan struct{})}
 	close(store.release)
 	w := requestlog.NewWriter(store, 8)
-	rec := requestlog.NewSQLiteRecorder(nil, "acct", requestlog.WithWriter(w))
+	rec := requestlog.NewSQLiteRecorder(nil, requestlog.WithWriter(w))
 
 	for range 5 {
 		require.NoError(t, rec.Record(t.Context(), requestlog.Entry{Outcome: requestlog.OutcomeSuccess}))
@@ -112,7 +112,7 @@ func TestWriter_CloseWithin_GivesUpOnADatabaseLockedPastTheLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	w := requestlog.NewWriter(lockedStore{db: db}, 8)
-	rec := requestlog.NewSQLiteRecorder(nil, "acct", requestlog.WithWriter(w))
+	rec := requestlog.NewSQLiteRecorder(nil, requestlog.WithWriter(w))
 	for range 3 {
 		require.NoError(t, rec.Record(t.Context(), requestlog.Entry{Outcome: requestlog.OutcomeSuccess}))
 	}
@@ -139,7 +139,7 @@ func TestWriter_ARowSubmittedAfterCloseWithinNeitherPanicsNorBlocks(t *testing.T
 	t.Parallel()
 	store := &gatedStore{release: make(chan struct{})}
 	w := requestlog.NewWriter(store, 1)
-	rec := requestlog.NewSQLiteRecorder(nil, "acct", requestlog.WithWriter(w))
+	rec := requestlog.NewSQLiteRecorder(nil, requestlog.WithWriter(w))
 	require.NoError(t, rec.Record(t.Context(), requestlog.Entry{Outcome: requestlog.OutcomeSuccess}))
 
 	require.False(t, w.CloseWithin(50*time.Millisecond), "the held write keeps the flush from finishing")

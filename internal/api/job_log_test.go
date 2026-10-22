@@ -98,6 +98,35 @@ func TestJobLog_BadInput_Returns400(t *testing.T) {
 	}
 }
 
+func TestJobLog_BadJobID_SaysWhichRuleItBroke(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	for name, tc := range map[string]struct{ id, want string }{
+		"empty":     {"", "jobId is required"},
+		"letters":   {"x", "jobId must be digits only"},
+		"signed":    {"-5", "jobId must be digits only"},
+		"too large": {"99999999999999999999", "jobId is too large"},
+		"zero":      {"0", "jobId must be a positive integer"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", tc.id)
+			defer func() { _ = resp.Body.Close() }()
+
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			var body struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+			assert.Equal(t, tc.want, body.Error)
+		})
+	}
+}
+
 func TestJobLog_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 

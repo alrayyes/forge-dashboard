@@ -5,7 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"fmt"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -21,25 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
-
-// ownedBy classifies every table that holds a user's rows by the column that
-// names the owner. A table added later is in none of these maps, which fails
-// TestRun_EveryTableIsClassified until someone decides what a cleanup does
-// with it.
-var ownedBy = map[string]string{
-	"sessions":            "user_id",
-	"api_tokens":          "user_id",
-	"credential_metadata": "user_id",
-	"request_log":         "account_id",
-}
-
-// seedRow inserts one row owned by the user with this encoded id.
-var seedRow = map[string]string{ //nolint:gosec // G101: SQL fixtures, no credentials
-	"sessions":            `INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES ('tok-' || ?1, ?1, '2099-01-01', '2026-01-01')`,
-	"api_tokens":          `INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES ('id-' || ?1, ?1, 'l', 'hash-' || ?1, '2026-01-01')`,
-	"credential_metadata": `INSERT INTO credential_metadata (user_id, credential_id, label, created_at) VALUES (?1, 'c', 'l', '2026-01-01')`,
-	"request_log":         `INSERT INTO request_log (logged_at, forge, account_id, method, endpoint, outcome) VALUES ('2026-01-01', 'github', ?1, 'GET', '/x', 'ok')`,
-}
 
 type fixture struct {
 	db     *sql.DB
@@ -75,7 +56,11 @@ func (f *fixture) addUser(t *testing.T, name string, passkey bool) *auth.User {
 	u, err := f.auth.CreateUser(t.Context(), name, name)
 	require.NoError(t, err)
 	if passkey {
-		require.NoError(t, f.auth.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-" + name), PublicKey: []byte("pk")}))
+		// AddCredential acts for the owner; this fixture needs it on this user.
+		creds, err := json.Marshal([]webauthn.Credential{{ID: []byte("cred-" + name), PublicKey: []byte("pk")}})
+		require.NoError(t, err)
+		_, err = f.db.ExecContext(t.Context(), `UPDATE users SET credentials_json = ? WHERE id = ?`, string(creds), base64.RawURLEncoding.EncodeToString(u.ID))
+		require.NoError(t, err)
 	}
 	f.users = append(f.users, u)
 	time.Sleep(2 * time.Millisecond) // created_at must differ between users
@@ -83,14 +68,10 @@ func (f *fixture) addUser(t *testing.T, name string, passkey bool) *auth.User {
 	return u
 }
 
-// giveData puts a row in every per-user table for u, plus a ceremony.
+// giveData puts a ceremony in flight for u, the one thing keyed to a user that
+// the cleanup still removes.
 func (f *fixture) giveData(t *testing.T, u *auth.User) {
 	t.Helper()
-	id := base64.RawURLEncoding.EncodeToString(u.ID)
-	for table, query := range seedRow {
-		_, err := f.db.ExecContext(t.Context(), query, id)
-		require.NoError(t, err, table)
-	}
 	require.NoError(t, f.auth.SaveCeremony(t.Context(), u.Username, "login", webauthn.SessionData{Challenge: "c"}, time.Hour))
 }
 
@@ -190,7 +171,8 @@ func TestRun_EveryTableIsClassified(t *testing.T) {
 	for _, table := range []string{"cache_schema", "http_etags", "snapshot_cache", "hook_checks", "webhook_seen"} {
 		known[table] = true
 	}
-	for table := range ownedBy {
+	// These hold no user since the schema step that dropped the user id.
+	for _, table := range []string{"sessions", "api_tokens", "credential_metadata", "request_log"} {
 		known[table] = true
 	}
 	for _, table := range f.tables(t) {
@@ -198,7 +180,7 @@ func TestRun_EveryTableIsClassified(t *testing.T) {
 	}
 }
 
-func TestRun_ThreeUsers_OnlyTheOldestUsersRowsRemain(t *testing.T) {
+func TestRun_ThreeUsers_OnlyTheOldestUserRemains(t *testing.T) {
 	t.Parallel()
 	f := threeUsers(t)
 	keeper := base64.RawURLEncoding.EncodeToString(f.users[0].ID)
@@ -209,10 +191,6 @@ func TestRun_ThreeUsers_OnlyTheOldestUsersRowsRemain(t *testing.T) {
 	assert.True(t, res.Ran)
 	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM users`))
 	assert.Equal(t, 1, f.count(t, `SELECT count(*) FROM users WHERE id = ?`, keeper))
-	for table, column := range ownedBy {
-		assert.Equal(t, 0, f.count(t, fmt.Sprintf(`SELECT count(*) FROM %s WHERE %s != ?`, table, column), keeper), "%s holds another user's rows", table)
-		assert.Equal(t, 1, f.count(t, fmt.Sprintf(`SELECT count(*) FROM %s WHERE %s = ?`, table, column), keeper), "%s lost the kept user's row", table)
-	}
 }
 
 func TestRun_ThreeUsers_ClearsTheirCeremonies(t *testing.T) {
@@ -370,7 +348,6 @@ func TestRun_FailureAfterSomeDeletes_RollsBackEveryUser(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, 3, f.count(t, `SELECT count(*) FROM users`))
-	assert.Equal(t, 3, f.count(t, `SELECT count(*) FROM sessions`))
 	assert.False(t, f.markerExists(t))
 }
 
@@ -380,9 +357,9 @@ func TestRun_KeptUser_StillHasWorkingSessionTokenAndPasskeys(t *testing.T) {
 	keeper := f.addUser(t, "ryan", true)
 	f.addUser(t, "sam", true)
 	ctx := t.Context()
-	session, err := f.auth.CreateSession(ctx, keeper.ID, time.Hour)
+	session, err := f.auth.CreateSession(ctx, time.Hour)
 	require.NoError(t, err)
-	apiToken, _, err := f.auth.CreateAPIToken(ctx, keeper.ID, "ci", time.Now().Add(time.Hour))
+	apiToken, _, err := f.auth.CreateAPIToken(ctx, "ci", time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
 	_, err = f.run(t)
@@ -420,4 +397,31 @@ func TestOwnerUsername_NoPasskeyYet_ReportsNotFound(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, found)
+}
+
+// The cleanup, the migrations and the store each pick the owner; if they ever
+// disagreed, a migration would keep one user's rows and the store serve another.
+func TestOwnerUsername_AgreesWithTheStoreWhenAnOlderUserHasNoPasskey(t *testing.T) {
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "app.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	for _, stmt := range []string{
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('YQ', 'old', 'Old', '[]', '2025-01-01 00:00:00')`,
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('Yg', 'holder', 'H', '[{}]', '2026-01-01 00:00:00')`,
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('Yw', 'later', 'L', '[{}]', '2026-02-01 00:00:00')`,
+	} {
+		_, err := db.ExecContext(t.Context(), stmt)
+		require.NoError(t, err)
+	}
+
+	name, found, err := singleuser.OwnerUsername(t.Context(), db)
+	require.NoError(t, err)
+	require.True(t, found)
+	owner, err := store.Owner(t.Context())
+	require.NoError(t, err)
+
+	assert.Equal(t, "holder", name)
+	assert.Equal(t, name, owner.Username)
 }

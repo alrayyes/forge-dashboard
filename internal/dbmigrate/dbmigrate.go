@@ -96,12 +96,16 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 
 	restore, err := suspendForeignKeys(ctx, conn)
 	if err != nil {
+		res.dropUnneededBackup()
+
 		return Result{}, err
 	}
 	defer restore()
 
 	for i := current; i < len(steps); i++ {
 		if err := apply(ctx, conn, i+1, steps[i]); err != nil {
+			res.dropUnneededBackup()
+
 			return res, err
 		}
 		res.Applied++
@@ -109,6 +113,17 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 	}
 
 	return res, nil
+}
+
+// dropUnneededBackup removes the copy when no step has committed. The failed
+// step rolled back, so the copy holds what the file holds, and a start that keeps
+// failing would add one, with every secret in it, per restart.
+func (r *Result) dropUnneededBackup() {
+	if r.Applied > 0 || r.BackupPath == "" {
+		return
+	}
+	_ = os.Remove(r.BackupPath)
+	r.BackupPath = ""
 }
 
 // preflight runs the read-only refusals of the pending steps.

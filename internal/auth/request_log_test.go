@@ -20,7 +20,6 @@ func TestStore_RecordRequest_RoundTripsEveryField(t *testing.T) {
 	require.NoError(t, store.RecordRequest(t.Context(), auth.RequestLogRow{
 		LoggedAt:           loggedAt,
 		Forge:              "github",
-		AccountID:          "acct-1",
 		Method:             "POST",
 		Endpoint:           "/graphql",
 		StatusCode:         200,
@@ -38,7 +37,6 @@ func TestStore_RecordRequest_RoundTripsEveryField(t *testing.T) {
 	row := rows[0]
 	assert.Equal(t, loggedAt, row.LoggedAt)
 	assert.Equal(t, "github", row.Forge)
-	assert.Equal(t, "acct-1", row.AccountID)
 	assert.Equal(t, "POST", row.Method)
 	assert.Equal(t, "/graphql", row.Endpoint)
 	assert.Equal(t, 200, row.StatusCode)
@@ -74,7 +72,6 @@ func TestStore_RecordRequest_NoRateLimitFields_ReadsBackNil(t *testing.T) {
 	assert.Nil(t, rows[0].RateLimitResetsAt)
 	assert.Nil(t, rows[0].RateLimitCost)
 	assert.Equal(t, 0, rows[0].StatusCode)
-	assert.Empty(t, rows[0].AccountID)
 }
 
 func TestStore_RecordRequest_PastRetentionCap_DiscardsOldest(t *testing.T) {
@@ -114,24 +111,6 @@ func TestStore_ListRequests_FilterByForge_Narrows(t *testing.T) {
 
 	require.Len(t, rows, 1)
 	assert.Equal(t, "forgejo", rows[0].Forge)
-}
-
-func TestStore_ListRequests_FilterByAccount_Narrows(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-
-	require.NoError(t, store.RecordRequest(t.Context(), auth.RequestLogRow{
-		LoggedAt: time.Now().UTC(), Forge: "github", AccountID: "acct-1", Method: "GET", Endpoint: "/a", Outcome: "success",
-	}, 10000))
-	require.NoError(t, store.RecordRequest(t.Context(), auth.RequestLogRow{
-		LoggedAt: time.Now().UTC(), Forge: "github", AccountID: "acct-2", Method: "GET", Endpoint: "/b", Outcome: "success",
-	}, 10000))
-
-	rows, err := store.ListRequests(t.Context(), auth.RequestLogFilter{AccountID: "acct-2"})
-	require.NoError(t, err)
-
-	require.Len(t, rows, 1)
-	assert.Equal(t, "acct-2", rows[0].AccountID)
 }
 
 func TestStore_ListRequests_NoMatches_ReturnsEmptyNotError(t *testing.T) {

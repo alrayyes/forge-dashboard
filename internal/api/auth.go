@@ -157,7 +157,7 @@ func handleLoginFinish(deps Deps) http.HandlerFunc {
 }
 
 func startSession(w http.ResponseWriter, r *http.Request, deps Deps, u *auth.User) {
-	token, err := deps.AuthService.CreateSession(r.Context(), u)
+	token, err := deps.AuthService.CreateSession(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorBody("could not start session"))
 

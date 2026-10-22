@@ -1,9 +1,12 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import {
+  ADVISORY_REASON_TEXT,
   type Advisories,
   advisoryCoverage,
   advisoryPill,
+  advisoryReasonNeedsGrant,
+  advisoryUnknownReason,
   type MainBranch,
 } from './main-branches';
 
@@ -104,5 +107,40 @@ describe('advisoryCoverage', () => {
     expect(advisoryCoverage([b(known), b()])).toBe('full');
     expect(advisoryCoverage([b(), b()])).toBe('full');
     expect(advisoryCoverage([])).toBe('full');
+  });
+});
+
+describe('advisoryUnknownReason', () => {
+  const why = (reason: Advisories['reason']): Advisories => ({
+    state: 'unknown',
+    count: 0,
+    reason,
+  });
+
+  test('names the cause every unknown row shares', () => {
+    expect(
+      advisoryUnknownReason([b(why('throttled')), b(why('throttled')), b()]),
+    ).toBe('throttled');
+  });
+
+  test('says nothing when the unknown rows disagree', () => {
+    expect(
+      advisoryUnknownReason([b(why('throttled')), b(why('refused'))]),
+    ).toBeNull();
+  });
+
+  test('says nothing when any unknown row has no reason', () => {
+    expect(advisoryUnknownReason([b(why('refused')), b(unknown)])).toBeNull();
+  });
+
+  test('ignores known rows and says nothing without unknown ones', () => {
+    expect(advisoryUnknownReason([b(known), b()])).toBeNull();
+  });
+
+  test('only a refusal or switched-off alerts point at the permission steps', () => {
+    expect(advisoryReasonNeedsGrant('refused')).toBe(true);
+    expect(advisoryReasonNeedsGrant('switched_off')).toBe(true);
+    expect(advisoryReasonNeedsGrant('throttled')).toBe(false);
+    expect(ADVISORY_REASON_TEXT.throttled).toContain('rate limiting');
   });
 });

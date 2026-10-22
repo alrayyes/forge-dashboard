@@ -123,34 +123,6 @@ func TestDashboard_FirstRefreshDone_TrueWhenTheFirstRefreshFails(t *testing.T) {
 	assert.Equal(t, false, forges[0].(map[string]any)["reachable"])
 }
 
-func TestDashboard_FirstRefreshDone_IsPerViewer(t *testing.T) {
-	t.Parallel()
-
-	const slowToken = "slow-token" // #nosec G101 -- a fake test fixture, not a real credential
-	slow := &holdSource{release: make(chan struct{})}
-	t.Cleanup(func() { close(slow.release) })
-	srv, _, _ := newTestServerWithFirstLoadWait(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
-		switch c.GitHubToken {
-		case firstRefreshToken:
-			return []dashboard.Source{&holdSource{release: closedChan(), reachable: true}}
-		case slowToken:
-			return []dashboard.Source{slow}
-		}
-
-		return nil
-	}, false, 50*time.Millisecond)
-	cookieA, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	cookieB := registerExtraUser(t, srv, testOtherUser, "Alex")
-	for cookie, token := range map[*http.Cookie]string{cookieA: firstRefreshToken, cookieB: slowToken} {
-		put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
-		_ = put.Body.Close()
-		require.Equal(t, http.StatusOK, put.StatusCode)
-	}
-
-	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, srv.URL, cookieA) == true }, pollBudget, 10*time.Millisecond)
-	assert.Equal(t, false, firstRefreshDoneOverHTTP(t, srv.URL, cookieB), "the other viewer's refresh is still running")
-}
-
 func closedChan() chan struct{} {
 	c := make(chan struct{})
 	close(c)

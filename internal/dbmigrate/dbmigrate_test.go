@@ -168,6 +168,19 @@ func TestRun_AFailingStepLeavesEveryTableAndTheVersionAlone(t *testing.T) {
 	assert.Equal(t, 0, count(t, db, `SELECT count(*) FROM sqlite_master WHERE name = 'notes_new'`))
 }
 
+func TestRun_AFirstStepThatFailsLeavesNoBackupBehind(t *testing.T) {
+	db, path := open(t)
+	seedOld(t, db)
+	failing := dbmigrate.Step{Name: "first", Run: func(context.Context, dbmigrate.Tx) error { return errors.New("no") }}
+
+	for range 3 {
+		_, err := dbmigrate.Run(context.Background(), db, path, []dbmigrate.Step{failing}, quiet)
+		require.Error(t, err)
+	}
+
+	assert.Empty(t, backups(t, path), "the step rolled back, so the copy would only repeat the file and pile up on every restart")
+}
+
 func TestRun_EarlierStepsStayWhenALaterOneFails(t *testing.T) {
 	db, path := open(t)
 	seedOld(t, db)

@@ -185,6 +185,34 @@ test.describe('Branches page advisories pill', () => {
     await setTheme(page, 'light');
   });
 
+  test('a rate limit is named as the cause and sends nobody to permissions', async ({
+    page,
+  }) => {
+    await open(page, [
+      row('acme/a', { state: 'unknown', count: 0, reason: 'throttled' }),
+      row('acme/b', { state: 'unknown', count: 0, reason: 'throttled' }),
+    ]);
+
+    const notice = page.getByTestId('advisories-notice');
+    await expect(notice).toContainText(/rate\s+limiting/i);
+    await expect(notice).not.toContainText('Dependabot alerts permission');
+    await expect(notice.getByRole('link')).toHaveCount(0);
+  });
+
+  test('a refusal is named as the cause and keeps the way to grant it', async ({
+    page,
+  }) => {
+    await open(page, [
+      row('acme/a', { state: 'unknown', count: 0, reason: 'refused' }),
+    ]);
+
+    const notice = page.getByTestId('advisories-notice');
+    await expect(notice).toContainText('refused the read');
+    await expect(
+      notice.getByRole('link', { name: /How to grant it/ }),
+    ).toHaveCount(1);
+  });
+
   test('a stale row keeps its pill beside the same stale chip every row gets', async ({
     page,
   }) => {

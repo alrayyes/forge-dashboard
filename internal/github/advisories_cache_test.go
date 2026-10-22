@@ -84,6 +84,7 @@ func TestReadAdvisories_PastThePageCapIsUnknownNotATruncatedCount(t *testing.T) 
 
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
+	assert.Equal(t, dashboard.ReasonTooMany, got.Reason)
 	assert.Zero(t, got.Count)
 }
 
@@ -136,7 +137,46 @@ func TestFetch_ABrokenAdvisoryReadBacksOffInsteadOfRetryingEveryPoll(t *testing.
 	advisoriesOf(t, client)
 
 	assert.Equal(t, dashboard.AdvisoriesUnknown, first.State)
+	assert.Equal(t, dashboard.ReasonFailed, first.Reason)
 	assert.Equal(t, int32(1), hits.Load())
+}
+
+func TestFetch_ARateLimitedFirstReadSaysThrottled(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+	client := advisoryFetchServer(t, &hits, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Limit", "5000")
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		w.Header().Set("X-RateLimit-Reset", "4102444800")
+		w.WriteHeader(http.StatusForbidden)
+		writeJSON(t, w, map[string]any{"message": "API rate limit exceeded"})
+	})
+
+	got := advisoriesOf(t, client)
+
+	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
+	assert.Equal(t, dashboard.ReasonThrottled, got.Reason)
+}
+
+func TestFetch_AFailedRefreshUpdatesTheReasonOfAnUnknownAnswer(t *testing.T) {
+	t.Parallel()
+
+	var hits atomic.Int32
+	var fail atomic.Bool
+	client := advisoryFetchServer(t, &hits, func(w http.ResponseWriter, _ *http.Request) {
+		if fail.Load() {
+			w.WriteHeader(http.StatusBadGateway)
+
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})
+	assert.Equal(t, dashboard.ReasonSwitchedOff, advisoriesOf(t, client).Reason)
+	fail.Store(true)
+	client.ExpireAdvisories()
+
+	assert.Equal(t, dashboard.ReasonFailed, advisoriesOf(t, client).Reason)
 }
 
 func TestFetch_ARateLimitedRefreshKeepsTheKnownAnswer(t *testing.T) {
@@ -185,6 +225,7 @@ func TestFetch_AlertsSwitchedOffAfterAKnownAnswerReplacesIt(t *testing.T) {
 	got := advisoriesOf(t, client)
 
 	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
+	assert.Equal(t, dashboard.ReasonSwitchedOff, got.Reason)
 }
 
 func TestFetch_CountsAdvisoryReadsUnderTheirOwnKind(t *testing.T) {

@@ -28,14 +28,7 @@ func tokenOf(t *auth.APIToken) Token {
 
 func handleTokensGet(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
-		tokens, err := store.ListAPITokens(r.Context(), u.ID)
+		tokens, err := store.ListAPITokens(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load api tokens"))
 
@@ -74,13 +67,6 @@ const maxAPITokenLifetime = 366 * 24 * time.Hour
 
 func handleTokensPost(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		var req apiTokenCreateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
@@ -108,7 +94,7 @@ func handleTokensPost(store *auth.Store) http.HandlerFunc {
 			return
 		}
 
-		raw, tok, err := store.CreateAPIToken(r.Context(), u.ID, label, req.ExpiresAt)
+		raw, tok, err := store.CreateAPIToken(r.Context(), label, req.ExpiresAt)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not create api token"))
 
@@ -127,15 +113,8 @@ func handleTokensPost(store *auth.Store) http.HandlerFunc {
 
 func handleTokensDelete(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		id := r.PathValue("id")
-		if err := store.DeleteAPIToken(r.Context(), u.ID, id); err != nil {
+		if err := store.DeleteAPIToken(r.Context(), id); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not revoke api token"))
 
 			return

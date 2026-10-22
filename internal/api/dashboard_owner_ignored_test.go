@@ -13,39 +13,34 @@ import (
 )
 
 // An old client may still send ?owner=. The parameter is gone, so it is
-// ignored: the caller gets their own dashboard, never another user's.
-func TestDashboard_WithOwnerQuery_IsIgnoredAndTheCallerSeesTheirOwn(t *testing.T) {
+// ignored: the caller gets the one dashboard there is.
+func TestDashboard_WithOwnerQuery_IsIgnored(t *testing.T) {
 	t.Parallel()
 
-	const otherToken = "sekrit-other-token"  // #nosec G101 -- a fake test fixture, not a real credential
 	const secretToken = "sekrit-owner-token" // #nosec G101 -- a fake test fixture, not a real credential
 	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
-		count := map[string]int{secretToken: 9, otherToken: 3}[c.GitHubToken]
-		if count == 0 {
+		if c.GitHubToken != secretToken {
 			return nil
 		}
 
-		return []dashboard.Source{&fakeConfiguredSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: count}}}
+		return []dashboard.Source{&fakeConfiguredSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 9}}}
 	}
 
 	srv := newTestServerWithSources(t, buildSources)
-	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	otherCookie := registerExtraUser(t, srv, testOtherUser, "Alex")
-	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+secretToken+`"}`, ownerCookie)
-	require.Equal(t, http.StatusOK, status)
-	status, _ = putSettings(t, srv.URL, `{"githubToken":"`+otherToken+`"}`, otherCookie)
+	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+secretToken+`"}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 
 	require.Eventually(t, func() bool {
-		forges, _ := fetchDashboardWith(t, srv.URL, otherCookie, "?owner="+testUser)["forges"].([]any)
+		forges, _ := fetchDashboardWith(t, srv.URL, cookie, "?owner="+testOtherUser)["forges"].([]any)
 
 		return len(forges) == 1
-	}, pollBudget, 10*time.Millisecond, "the other user's own forge should appear")
-	board := fetchDashboardWith(t, srv.URL, otherCookie, "?owner="+testUser)
+	}, pollBudget, 10*time.Millisecond, "the dashboard should appear despite the owner query")
+	board := fetchDashboardWith(t, srv.URL, cookie, "?owner="+testOtherUser)
 
 	forges, _ := board["forges"].([]any)
 	require.Len(t, forges, 1)
-	assert.InDelta(t, 3, forges[0].(map[string]any)["repoCount"], 0, "their own 3 repos, not the owner's 9")
+	assert.InDelta(t, 9, forges[0].(map[string]any)["repoCount"], 0)
 }
 
 // An agent written against the old tool may still pass owner. The tool takes
