@@ -166,7 +166,7 @@ so that rebuild refuses them, whether or not the owner has rows in the same
 table. The message names the table and the user ids and gives the `DELETE` that
 clears them. Copy the database file, run it, and start again. Nothing is deleted
 for you. Sessions, API tokens and passkey labels of an unknown user are
-different: the earlier cleanup removed them without a word, so the sign-in
+different: the earlier release removed them without a word, so the sign-in
 rebuild drops them and logs the table, the count and the user ids.
 
 Rows of another user who still exists, left beside the owner's by a second
