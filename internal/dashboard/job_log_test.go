@@ -77,3 +77,11 @@ func TestNewJobLog_AnUnterminatedOSCDoesNotSwallowTheLog(t *testing.T) {
 
 	assert.Equal(t, "a\nline two\nline three\n", got.Text)
 }
+
+func TestNewJobLog_StripsCSISequencesWithPrivateParameterBytes(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.NewJobLog([]byte("a\x1b[>1cb\x1b[=3hc\x1b[<5;2Md\n"), false)
+
+	assert.Equal(t, "abcd\n", got.Text)
+}
