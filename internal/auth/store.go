@@ -283,6 +283,84 @@ func (s *Store) HasAnyRegisteredUser(ctx context.Context) (bool, error) {
 	}
 }
 
+// Owner returns the instance's one user, the oldest row, or ErrNotFound on an
+// instance nobody has started registering on.
+func (s *Store) Owner(ctx context.Context) (*User, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, username, display_name, credentials_json, created_at FROM users ORDER BY created_at, id LIMIT 1`,
+	)
+
+	return scanUser(row)
+}
+
+// ResetResult says what ResetPasskeys removed.
+type ResetResult struct {
+	Username string
+	Passkeys int
+	Sessions int
+	Tokens   int
+}
+
+// ResetPasskeys is the operator's way back in after the only passkey is lost.
+// It clears the owner's passkeys and signs every session out, in one
+// transaction, and keeps the user row: the saved settings and the webhook
+// token hang off its id. API tokens stay unless withTokens, since they are
+// separate secrets the lost authenticator never protected. With no passkey the
+// instance is open to the first registration again (ClaimUnregisteredUser
+// attaches it to this row).
+func (s *Store) ResetPasskeys(ctx context.Context, withTokens bool) (ResetResult, error) {
+	owner, err := s.Owner(ctx)
+	if err != nil {
+		return ResetResult{}, err
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return ResetResult{}, fmt.Errorf("auth: begin reset: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	id := encodeID(owner.ID)
+	res := ResetResult{Username: owner.Username, Passkeys: len(owner.Credentials)}
+
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET credentials_json = '[]' WHERE id = ?`, id); err != nil {
+		return ResetResult{}, fmt.Errorf("auth: clear passkeys: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM credential_metadata WHERE user_id = ?`, id); err != nil {
+		return ResetResult{}, fmt.Errorf("auth: clear passkey labels: %w", err)
+	}
+	// Every ceremony in flight belongs to the passkeys just cleared or to a
+	// registration that predates the reset.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM ceremonies`); err != nil {
+		return ResetResult{}, fmt.Errorf("auth: clear ceremonies: %w", err)
+	}
+
+	if res.Sessions, err = deleteCount(ctx, tx, `DELETE FROM sessions WHERE user_id = ?`, id); err != nil {
+		return ResetResult{}, fmt.Errorf("auth: clear sessions: %w", err)
+	}
+	if withTokens {
+		if res.Tokens, err = deleteCount(ctx, tx, `DELETE FROM api_tokens WHERE user_id = ?`, id); err != nil {
+			return ResetResult{}, fmt.Errorf("auth: clear API tokens: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return ResetResult{}, fmt.Errorf("auth: commit reset: %w", err)
+	}
+
+	return res, nil
+}
+
+func deleteCount(ctx context.Context, tx *sql.Tx, query string, args ...any) (int, error) {
+	r, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err //nolint:wrapcheck // callers add the table
+	}
+	n, err := r.RowsAffected()
+
+	return int(n), err //nolint:wrapcheck // callers add the table
+}
+
 // rowScanner is the common surface of *sql.Row and *sql.Rows that scanUser
 // needs.
 type rowScanner interface {

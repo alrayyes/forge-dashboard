@@ -714,3 +714,72 @@ func TestStore_Init_DropsTheInviteMachineryAnOlderDatabaseHad(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Ryan", got.DisplayName)
 }
+
+func newOwnerWithEverything(t *testing.T, store *auth.Store) *auth.User {
+	t.Helper()
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), u.ID, []byte("cred-1"), "Laptop"))
+	_, err = store.CreateSession(t.Context(), u.ID, time.Hour)
+	require.NoError(t, err)
+	_, _, err = store.CreateAPIToken(t.Context(), u.ID, "ci", time.Time{})
+	require.NoError(t, err)
+
+	return u
+}
+
+func TestStore_Owner_NoUser_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.Owner(t.Context())
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_ResetPasskeys_ClearsPasskeysAndSessionsAndKeepsTheRowAndTokens(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u := newOwnerWithEverything(t, store)
+
+	res, err := store.ResetPasskeys(t.Context(), false)
+	require.NoError(t, err)
+
+	assert.Equal(t, auth.ResetResult{Username: "ryan", Passkeys: 1, Sessions: 1}, res)
+	got, err := store.GetUserByID(t.Context(), u.ID)
+	require.NoError(t, err, "the row, and so its id, is what the settings hang off")
+	assert.Empty(t, got.Credentials)
+	creds, err := store.ListCredentials(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, creds)
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Len(t, tokens, 1)
+	registered, err := store.HasAnyRegisteredUser(t.Context())
+	require.NoError(t, err)
+	assert.False(t, registered, "registration is open again")
+}
+
+func TestStore_ResetPasskeys_WithTokens_RevokesThemToo(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u := newOwnerWithEverything(t, store)
+
+	res, err := store.ResetPasskeys(t.Context(), true)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, res.Tokens)
+	tokens, err := store.ListAPITokens(t.Context(), u.ID)
+	require.NoError(t, err)
+	assert.Empty(t, tokens)
+}
+
+func TestStore_ResetPasskeys_NoUser_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.ResetPasskeys(t.Context(), false)
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
