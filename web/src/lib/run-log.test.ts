@@ -259,6 +259,15 @@ describe('copyStatus', () => {
   const whole = { text: 'x', kind: 'whole', why: '' } as const;
   const excerpt = { text: 'x', kind: 'excerpt', why: 'Gone.' } as const;
 
+  test('names the output when that is what was copied', () => {
+    expect(copyStatus('selected', whole, 'GitHub', 'output')).toContain(
+      'The output is selected below',
+    );
+    expect(
+      copyStatus('copied', { ...whole, kind: 'cut' }, 'GitHub', 'output'),
+    ).toContain('KB of the output,');
+  });
+
   test('plain Copied only for a whole log that landed', () => {
     expect(copyStatus('copied', whole, 'GitHub')).toBe('Copied');
   });

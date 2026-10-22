@@ -204,6 +204,8 @@ export function copyStatus(
   outcome: CopyOutcome,
   prepared: Prepared,
   forgeName: string,
+  // What was copied, for the sentences that name it.
+  noun = 'log',
 ): string {
   const only = prepared.kind === 'excerpt';
   const lost = only ? ` ${prepared.why}` : '';
@@ -215,14 +217,14 @@ export function copyStatus(
     }
     const cut =
       prepared.kind === 'cut'
-        ? ` It is the last ${KEPT_KB} KB of the log, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`
+        ? ` It is the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`
         : '';
 
-    return `Couldn't copy automatically. The log is selected below: ${press}.${cut}`;
+    return `Couldn't copy automatically. The ${noun} is selected below: ${press}.${cut}`;
   }
   if (only) return `Copied the excerpt only.${lost}`;
   if (prepared.kind === 'cut') {
-    return `Copied the last ${KEPT_KB} KB of the log, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`;
+    return `Copied the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`;
   }
 
   return 'Copied';
