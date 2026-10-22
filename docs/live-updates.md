@@ -272,8 +272,9 @@ ends the saved choice too. Changing that control on the page ends it as well.
 Text typed in the title search or the hide-titles pattern is sent to the
 server half a second after the last key, and at once when you leave the page
 or switch tab, so a value typed just before leaving is kept. The title search
-stops at 200 characters, so a long search cannot crowd the picks out of the
-cookie.
+stops at 200 characters to keep it small in the cookie. A title in a script
+that takes several bytes a letter still counts for more there, and with three
+full picks it can pass the cookie's room.
 Each save carries a revision number, in the cookie and in the server copy. When
 a page loads, the server copy is applied unless the cookie holds a newer
 revision, so a value typed just before a reload is not replaced by an older
