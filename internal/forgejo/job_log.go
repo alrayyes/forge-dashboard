@@ -112,8 +112,8 @@ func readTail(r io.Reader, window int) ([]byte, bool, error) {
 // boards agree. keys[i] names check i's finished job (its id and finish time,
 // so a rerun reads afresh), or "" for a job that isn't finished: a finished
 // job's log never changes, so an excerpt read once is kept and a red default
-// branch costs no log read per poll. A read that failed is remembered briefly
-// too, so a log that can't be read isn't asked for on every poll. A job with no
+// branch costs no log read per poll. A read that failed, or found the log empty, is
+// remembered briefly too, so such a log isn't asked for on every poll. A job with no
 // finish time has no key, so it is neither kept nor remembered: it is read on
 // every poll and counts against the budget.
 //
@@ -144,6 +144,11 @@ func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, che
 			// Older jobs may still have a kept excerpt, so keep looking.
 			continue
 		}
+		// A refusal elsewhere in the list (or a gone caller) dooms every read
+		// not yet started; sending it would only record a failed request.
+		if ctx.Err() != nil {
+			break
+		}
 		reads++
 		wg.Go(func() { c.fillExcerpt(ctx, cancel, owner, name, &checks[i], keys[i]) })
 	}
@@ -169,10 +174,18 @@ func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, own
 		return
 	}
 	check.Excerpt = text
-	// An empty log may only not have been flushed yet; read it again.
-	if key != "" && text != "" {
-		c.excerpts.put(key, text)
+	if key == "" {
+		return
 	}
+	if text == "" {
+		// An empty log may only not have been flushed yet: ask again after the
+		// same short wait as a failed read, not on every poll, so it doesn't
+		// hold one of the read slots each time.
+		c.excerpts.fail(key)
+
+		return
+	}
+	c.excerpts.put(key, text)
 }
 
 // newestFailures is the indexes of the failed or timed-out checks that have a

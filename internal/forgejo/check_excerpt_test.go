@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,13 +13,14 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // excerptServer serves one run on commit cafef00d whose jobs are given, and the
 // log of each job from logs (a missing id answers 404). logCalls counts reads.
-func excerptServer(t *testing.T, jobs []map[string]any, logs map[int]string, logCalls *atomic.Int32) *forgejo.Client {
+func excerptServer(t *testing.T, jobs []map[string]any, logs map[int]string, logCalls *atomic.Int32, recorder ...requestlog.Recorder) *forgejo.Client {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
@@ -45,7 +47,7 @@ func excerptServer(t *testing.T, jobs []map[string]any, logs map[int]string, log
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	return forgejo.NewClient(srv.URL, "test-token", "")
+	return forgejo.NewClient(srv.URL, "test-token", "", recorder...)
 }
 
 func TestListChecks_FailedJob_CarriesTheEndOfItsLog(t *testing.T) {
@@ -340,21 +342,77 @@ func TestListChecks_CachedExcerptsDoNotUseUpTheReadBudget(t *testing.T) {
 	assert.Equal(t, "boom", checks[6].Excerpt)
 }
 
-func TestListChecks_AnEmptyLogIsNotCached(t *testing.T) {
+func TestListChecks_AnEmptyLogIsNotRetriedAtOnce(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
-	logs := map[int]string{7: ""}
-	client := excerptServer(t, finishedFailures(7)[6:], logs, &calls)
+	client := excerptServer(t, finishedFailures(7)[6:], map[int]string{7: ""}, &calls)
+
+	for range 3 {
+		checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+		require.NoError(t, err)
+		assert.Empty(t, checks[0].Excerpt)
+	}
+
+	assert.Equal(t, int32(1), calls.Load(), "an empty log waits out the retry delay like a failed read, instead of holding a read slot every poll")
+}
+
+func TestListChecks_TheSameJobIdInTwoReposKeepsSeparateExcerpts(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	for _, repo := range []string{"a", "b"} {
+		base := "/api/v1/repos/alrayyes/" + repo
+		mux.HandleFunc(base+"/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+		})
+		mux.HandleFunc(base+"/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42}}})
+		})
+		mux.HandleFunc(base+"/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, map[string]any{"jobs": finishedFailures(1)})
+		})
+		mux.HandleFunc(base+"/actions/jobs/1/logs", func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, "boom in "+repo+"\n")
+		})
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
 	first, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
 	require.NoError(t, err)
-	logs[7] = "boom\n"
-
-	second, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
-
+	second, err := client.ListChecks(t.Context(), "alrayyes", "b", 5)
 	require.NoError(t, err)
-	assert.Empty(t, first[0].Excerpt)
-	assert.Equal(t, "boom", second[0].Excerpt)
+
+	assert.Equal(t, "boom in a", first[0].Excerpt)
+	assert.Equal(t, "boom in b", second[0].Excerpt)
+}
+
+func TestExcerptReadWindow_IsSixtyFourKilobytes(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 64<<10, forgejo.ExcerptReadWindow)
+}
+
+func TestAddFailureExcerpts_StartsNoReadOnceTheListIsCancelled(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	rec := &fakeRecorder{}
+	client := excerptServer(t, finishedFailures(3), map[int]string{1: "a\n", 2: "b\n", 3: "c\n"}, &calls, rec)
+	checks := []dashboard.Check{
+		{Name: "one", State: dashboard.CheckFailure, JobID: 1},
+		{Name: "two", State: dashboard.CheckFailure, JobID: 2},
+		{Name: "three", State: dashboard.CheckFailure, JobID: 3},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	forgejo.AddFailureExcerptsForTest(ctx, client, "alrayyes", "a", checks, []string{"a#1@1", "a#2@1", "a#3@1"})
+
+	assert.Zero(t, calls.Load())
+	assert.Empty(t, rec.all(), "a read that is already doomed is not started, so it is not recorded as a failed request")
 }
 
 func TestListChecks_AFailedReadIsNotRetriedAtOnce(t *testing.T) {
