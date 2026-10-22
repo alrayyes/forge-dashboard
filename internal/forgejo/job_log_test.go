@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -87,4 +88,32 @@ func TestListDefaultBranchChecks_CarriesTheJobID(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, checks, 1)
 	assert.EqualValues(t, 31, checks[0].JobID)
+}
+
+// Not parallel: it reads the process-wide allocation counter, and a serial
+// test runs before the parallel ones resume.
+func TestJobLog_HundredsOfMiB_CostsABoundedAmountOfMemory(t *testing.T) {
+	const logBytes = 300 << 20
+	line := []byte("a line of output that repeats until the log is huge............\n")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/31/logs", func(w http.ResponseWriter, _ *http.Request) {
+		for written := 0; written < logBytes; written += len(line) {
+			_, _ = w.Write(line)
+		}
+		_, _ = io.WriteString(w, "last line\n")
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	got, err := client.JobLog(t.Context(), "alrayyes", "a", 31)
+	runtime.ReadMemStats(&after)
+
+	require.NoError(t, err)
+	assert.True(t, got.Truncated)
+	assert.True(t, strings.HasSuffix(got.Text, "last line\n"))
+	assert.Less(t, after.TotalAlloc-before.TotalAlloc, uint64(logBytes/4), "allocation must not scale with the log")
 }
