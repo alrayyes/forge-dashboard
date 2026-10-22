@@ -165,6 +165,9 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/pull-requests/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestChecks(deps))))
 	mux.Handle("GET /api/pull-requests/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestDetails(deps))))
 	mux.Handle("GET /api/releases/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleReleaseDetails(deps))))
+	mux.Handle("POST /api/issues/close", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handleIssueClose(deps))))
+	mux.Handle("POST /api/issues/reopen", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handleIssueReopen(deps))))
+	mux.Handle("POST /api/issues/comment", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handleIssueComment(deps))))
 	mux.Handle("GET /api/issues/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleIssueDetails(deps))))
 
 	// Not session-authenticated like everything above — the path's token

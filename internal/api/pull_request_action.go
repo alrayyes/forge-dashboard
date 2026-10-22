@@ -28,16 +28,32 @@ type actionTarget struct {
 // readActionTarget reads who is asking and which pull request, and answers 500
 // or 400 itself when it can't.
 func readActionTarget(w http.ResponseWriter, r *http.Request) (actionTarget, bool) {
-	u, ok := auth.UserFromContext(r.Context())
-	if !ok {
-		writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
+	var req pullRequestActionRequest
+	if !decodeActionBody(w, r, &req) {
 		return actionTarget{}, false
 	}
 
-	var req pullRequestActionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	return validateActionTarget(w, r, req)
+}
+
+// decodeActionBody reads the JSON body into into, answering 400 when it isn't
+// JSON.
+func decodeActionBody(w http.ResponseWriter, r *http.Request, into any) bool {
+	if err := json.NewDecoder(r.Body).Decode(into); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
+		return false
+	}
+
+	return true
+}
+
+// validateActionTarget is readActionTarget once the body is decoded, for an
+// endpoint whose body carries more than the target.
+func validateActionTarget(w http.ResponseWriter, r *http.Request, req pullRequestActionRequest) (actionTarget, bool) {
+	u, ok := auth.UserFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
 		return actionTarget{}, false
 	}
