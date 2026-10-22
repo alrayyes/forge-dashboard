@@ -66,6 +66,23 @@ describe('createPlainNotes', () => {
 });
 
 describe('createNoteRenderer', () => {
+  test('the promise it returns settles once every asked release has rendered or failed', async () => {
+    const done: string[] = [];
+    const request = createNoteRenderer(
+      async (text) => {
+        if (text.includes('bad')) throw new Error('no chunk');
+        return text;
+      },
+      (version) => done.push(version),
+      60_000,
+    );
+    await request([release('1.0.0'), { version: '1.0.1', notes: 'bad' }]);
+    expect(done.sort()).toEqual(['1.0.0', '1.0.1']);
+    // Asking again for one still in flight waits for it too.
+    await request([release('1.0.0')]);
+    request.stop();
+  });
+
   test('renders each of 20 releases exactly once, however often it is asked', async () => {
     const calls: string[] = [];
     const results: Record<string, string | null> = {};

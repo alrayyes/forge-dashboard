@@ -294,6 +294,70 @@ test.describe('release history page', () => {
     await expect(page.locator('.plain-notes')).toHaveCount(0);
   });
 
+  // The raw text of a real note wraps onto more lines than what it renders to,
+  // so a card that shows text first and Markdown later moves everything below
+  // it. The page waits a short while for the renderer before showing cards, so
+  // a chunk that arrives in time never shows. The chunk is delayed here, as on
+  // a slow connection, and the second card's position is sampled every frame.
+  for (const [label, size] of [
+    ['desktop', { width: 1280, height: 800 }],
+    ['phone', { width: 375, height: 700 }],
+  ] as const) {
+    test(`the card below a realistic note does not move when the notes render at ${label} width`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(size);
+      const bullet = (n: number) =>
+        `* **web:** change number ${n} to the \`thing\` so a long enough line wraps ([#${n}](https://example.com/${n})) ([6bf88c${n}](https://example.com/c${n}))`;
+      const notes = [
+        '### Features',
+        ...[1, 2, 3, 4].map(bullet),
+        '',
+        '### Bug Fixes',
+        ...[5, 6, 7].map(bullet),
+      ].join('\n');
+      await page.route('**/changelog.json', (route) =>
+        route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            releases: ['9.9.9', '9.9.8'].map((version) => ({
+              version,
+              date: '2026-10-05',
+              url: 'https://example.com',
+              notes,
+            })),
+          }),
+        }),
+      );
+      await page.route('**/_app/immutable/**/*.js', async (route) => {
+        const response = await route.fetch();
+        if ((await response.text()).includes(RENDERER_MARKER)) {
+          await new Promise((r) => setTimeout(r, 400));
+        }
+        return route.fulfill({ response });
+      });
+      await page.addInitScript(() => {
+        const ys: number[] = [];
+        (window as unknown as { __ys: number[] }).__ys = ys;
+        const tick = () => {
+          const card = document.querySelectorAll('.release')[1];
+          if (card) ys.push(card.getBoundingClientRect().y + window.scrollY);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      await page.goto('/changelog.html');
+      await expect(page.locator('.release-notes li').first()).toBeVisible();
+      await expect(page.locator('.plain-notes')).toHaveCount(0);
+      await page.waitForTimeout(300);
+      const ys = await page.evaluate(
+        () => (window as unknown as { __ys: number[] }).__ys,
+      );
+      expect(ys.length).toBeGreaterThan(0);
+      expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(8);
+    });
+  }
+
   // A long URL in plain text has no break point. It wraps inside the card at
   // phone width instead of pushing the page sideways.
   test('a long unbroken URL in the plain notes wraps at phone width', async ({
