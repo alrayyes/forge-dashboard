@@ -266,37 +266,41 @@ func summarise(recs map[string]record) Summary {
 	return out
 }
 
+// sets is a union-find over advisory ids.
+type sets map[string]string
+
+func (s sets) find(x string) string {
+	for {
+		p, ok := s[x]
+		if !ok || p == x {
+			s[x] = x
+
+			return x
+		}
+		x = p
+	}
+}
+
 // aliasRoots maps each live (not withdrawn) record to a representative of the
 // set of records it shares an alias with.
 func aliasRoots(recs map[string]record) map[string]string {
-	parent := map[string]string{}
-	find := func(x string) string {
-		for {
-			p, ok := parent[x]
-			if !ok || p == x {
-				parent[x] = x
-
-				return x
-			}
-			x = p
-		}
-	}
 	live := func(id string) bool {
 		r, ok := recs[id]
 
 		return ok && !r.withdrawn
 	}
+	groups := sets{}
 	for id, r := range recs {
 		for _, a := range r.aliases {
 			if live(id) && live(a) {
-				parent[find(a)] = find(id)
+				groups[groups.find(a)] = groups.find(id)
 			}
 		}
 	}
 	roots := map[string]string{}
 	for id := range recs {
 		if live(id) {
-			roots[id] = find(id)
+			roots[id] = groups.find(id)
 		}
 	}
 
