@@ -3,7 +3,6 @@
 
 import { isReadOnlyLock, type LockInfo } from './lock-info';
 
-export type { LockInfo };
 export type DependabotAction = 'rebase' | 'recreate';
 
 export const DEPENDABOT_ACTION_LABELS: Record<DependabotAction, string> = {
@@ -58,7 +57,8 @@ export type DependabotButtonInput = {
   // Why Dependabot ignores this forge's credential (a GitHub App with no
   // personal token), or undefined.
   blockedReason: string | undefined;
-  serverEntry: DependabotServerEntry | undefined;
+  // Asked only when the action is idle, with the forge-wide lock below.
+  serverEntry: () => DependabotServerEntry | undefined;
   // The forge-wide lock from the latest snapshot, or null. Asked only when the
   // action is idle, the one case that reads it.
   proactive: () => LockInfo | null;
@@ -96,7 +96,7 @@ export function dependabotButtonDecision(
       i.prKey,
       i.action,
       i.states,
-      i.serverEntry,
+      i.serverEntry(),
     );
     if (pending)
       return { kind: 'locked', lock: pending, printNote: i.printReason };

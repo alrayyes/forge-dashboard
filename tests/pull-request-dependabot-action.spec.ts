@@ -585,7 +585,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('a GitHub App with no personal token locks both buttons and describes them with the reason (#666)', async ({
+  test('a GitHub App with no personal token locks both buttons and describes them with the reason, and clicking sends nothing (#666)', async ({
     page,
   }) => {
     const reason =
@@ -609,12 +609,21 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         }),
       }),
     );
+    let posted = false;
+    await page.route(
+      '**/api/pull-requests/dependabot-action',
+      (route: Route) => {
+        posted = true;
+        return route.fulfill({ status: 204 });
+      },
+    );
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
     const rebase = row.getByRole('button', { name: 'Dependabot: Rebase' });
     await expect(rebase).toHaveAttribute('aria-disabled', 'true');
     await expect(rebase).toHaveAccessibleDescription(reason);
+    await rebase.click({ force: true });
 
     const footer = await openFooter(row);
     const recreate = footer.getByRole('button', {
@@ -622,5 +631,8 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     });
     await expect(recreate).toHaveAttribute('aria-disabled', 'true');
     await expect(recreate).toHaveAccessibleDescription(reason);
+    await recreate.click({ force: true });
+
+    expect(posted).toBe(false);
   });
 });

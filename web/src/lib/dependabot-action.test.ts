@@ -18,7 +18,7 @@ function input(
     action: 'rebase',
     states: {},
     blockedReason: undefined,
-    serverEntry: undefined,
+    serverEntry: () => undefined,
     proactive: () => NO_PROACTIVE,
     confirmingRecreate: false,
     printReason: false,
@@ -127,36 +127,47 @@ describe('dependabotButtonDecision', () => {
     expect(
       dependabotButtonDecision(
         input({
-          serverEntry: {
+          serverEntry: () => ({
             blocked: { code: 'already_requested', message: 'Already asked.' },
-          },
+          }),
         }),
       ),
     ).toEqual({ kind: 'locked', lock: 'Already asked.', printNote: false });
   });
 
-  test('the forge-wide lock is looked up only for an idle action', () => {
+  test('the forge-wide lock and the server entry are looked up only for an idle action', () => {
     let asked = 0;
+    let looked = 0;
     const proactive = () => {
       asked++;
       return null;
     };
-    dependabotButtonDecision(input({ blockedReason: 'no token', proactive }));
+    const serverEntry = () => {
+      looked++;
+      return undefined;
+    };
+    dependabotButtonDecision(
+      input({ blockedReason: 'no token', proactive, serverEntry }),
+    );
     dependabotButtonDecision(
       input({
         states: { [dependabotActionKey(KEY, 'rebase')]: { phase: 'locked' } },
         proactive,
+        serverEntry,
       }),
     );
     dependabotButtonDecision(
       input({
         states: { [dependabotActionKey(KEY, 'rebase')]: { phase: 'queued' } },
         proactive,
+        serverEntry,
       }),
     );
     expect(asked).toBe(0);
-    dependabotButtonDecision(input({ proactive }));
+    expect(looked).toBe(0);
+    dependabotButtonDecision(input({ proactive, serverEntry }));
     expect(asked).toBe(1);
+    expect(looked).toBe(1);
   });
 
   test('a spent rate limit draws nothing, and another proactive lock draws a locked button', () => {
@@ -183,6 +194,18 @@ describe('dependabotButtonDecision', () => {
       kind: 'locked',
       lock: { reason: 'other', code: 'something' },
       printNote: false,
+    });
+    expect(
+      dependabotButtonDecision(
+        input({
+          proactive: () => ({ reason: 'other', code: 'something' }),
+          printReason: true,
+        }),
+      ),
+    ).toEqual({
+      kind: 'locked',
+      lock: { reason: 'other', code: 'something' },
+      printNote: true,
     });
   });
 

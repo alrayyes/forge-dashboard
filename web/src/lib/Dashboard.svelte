@@ -2413,6 +2413,10 @@
 
     let actionLockReasonCounter = 0;
 
+    function lockOf(entry: ActionState): LockInfo {
+      return { reason: entry.reason ?? "", code: entry.code };
+    }
+
     // Same aria-disabled + visible, wired-up reason shape webhooks.js's
     // own lockedButton uses, not a native disabled attribute or a
     // title-only tooltip — native disabled would drop it from the tab
@@ -2422,10 +2426,6 @@
     // of a dead end. Left undefined for the actions that don't pass it
     // (Dependabot/Renovate), which keep today's plain disabled-button
     // behavior.
-    function lockOf(entry: ActionState): LockInfo {
-      return { reason: entry.reason ?? "", code: entry.code };
-    }
-
     function lockedActionButton(
       label: string,
       lock: string | LockInfo,
@@ -3972,10 +3972,11 @@
         action,
         states: dependabotActionState,
         blockedReason: dependabotBlockedReason(lastForges, item.forge),
-        serverEntry: findAction(
-          item,
-          action === "rebase" ? "dependabot_rebase" : "dependabot_recreate",
-        ),
+        serverEntry: () =>
+          findAction(
+            item,
+            action === "rebase" ? "dependabot_rebase" : "dependabot_recreate",
+          ),
         proactive: () => proactiveActionLockReason(item.forge),
         confirmingRecreate: recreateState[prKey(item)]?.phase === "confirming",
         printReason,
