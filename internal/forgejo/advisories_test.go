@@ -91,7 +91,7 @@ func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *f
 	return client
 }
 
-const lockJSON = `{"lockfileVersion":3,"packages":{"":{},"node_modules/left-pad":{"version":"1.3.0"}}}`
+const lockJSON = `{"lockfileVersion":3,"packages":{"":{},"node_modules/left-pad":{"version":"1.3.0","resolved":"https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz"}}}`
 
 func TestReadAdvisories_FillsCountAndSeverityFromTheLockfile(t *testing.T) {
 	t.Parallel()
