@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -62,5 +63,53 @@ func handleMainBranchChecks(deps Deps) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, pullRequestChecksResponse{Checks: checks})
+	}
+}
+
+// trackedMainBranch reports whether fullName's default branch is one of the
+// rows the user's Main branches page shows, so the rerun route can't be aimed
+// at a repository the dashboard doesn't follow.
+func trackedMainBranch(ctx context.Context, deps Deps, u *auth.User, forge, fullName string) bool {
+	return slices.ContainsFunc(resolveMainBranchesFor(ctx, deps, u).Branches, func(b mainBranchView) bool {
+		return string(b.Forge) == forge && b.FullName == fullName
+	})
+}
+
+// handleMainBranchRerunChecks asks the forge to rerun the failed jobs of the
+// newest pipeline on the named repository's default branch: the branch twin of
+// handlePullRequestRerunChecks. It answers 204 once the forge has queued them.
+func handleMainBranchRerunChecks(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		t, ok := readActionTarget(w, r)
+		if !ok {
+			return
+		}
+		req := t.req
+		u := t.user
+		owner, name := t.owner, t.name
+
+		src, _, ok := forgeSource(w, r, deps, u.ID, req.Forge)
+		if !ok {
+			return
+		}
+		rerunner, ok := capabilityOf[dashboard.DefaultBranchRerunner](w, src, req.Forge, "doesn't support rerunning default branch checks")
+		if !ok {
+			return
+		}
+
+		if !trackedMainBranch(r.Context(), deps, u, req.Forge, req.FullName) {
+			writeJSON(w, http.StatusNotFound, errorBody("that repository's default branch isn't tracked"))
+
+			return
+		}
+
+		if err := rerunner.RerunFailedDefaultBranchChecks(r.Context(), owner, name); err != nil {
+			slog.Warn("default branch checks rerun failed", "forge", req.Forge, "repo", req.FullName, "error", err)
+			writeActionRefusal(r.Context(), w, nil, dashboard.PullRequestActionRerunBranchChecks, owner, name, 0, err)
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
