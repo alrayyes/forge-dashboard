@@ -553,6 +553,72 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
     await expect(pickPanel(page, 'author')).toContainText('Up to 20');
   });
 
+  test('a new avatar for a choice keeps keyboard focus on its box', async ({
+    page,
+  }) => {
+    const NEW_AVATAR = 'https://avatars.githubusercontent.com/u/9?v=4';
+    await page.addInitScript(() => {
+      const w = window as unknown as {
+        __es?: { onmessage: ((e: { data: string }) => void) | null };
+        __push?: (data: unknown) => void;
+        EventSource: unknown;
+      };
+      class StubEventSource {
+        onmessage: ((e: { data: string }) => void) | null = null;
+        constructor() {
+          w.__es = this;
+        }
+        close() {}
+        addEventListener() {}
+      }
+      w.EventSource = StubEventSource;
+      w.__push = (data) => w.__es?.onmessage?.({ data: JSON.stringify(data) });
+    });
+    await page.route(NEW_AVATAR, (route: Route) =>
+      route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
+    );
+    await open(page);
+    await pickButton(page, 'author').click();
+    const alice = pickPanel(page, 'author').locator('.label-filter-option', {
+      hasText: 'alice',
+    });
+    await expect(alice.locator('.pick-image img')).toHaveAttribute(
+      'src',
+      AVATAR,
+    );
+    const box = alice.locator('input');
+    await box.focus();
+    await expect(box).toBeFocused();
+
+    await page.waitForFunction(
+      () =>
+        (window as unknown as { __es?: { onmessage: unknown } }).__es
+          ?.onmessage != null,
+    );
+    await page.evaluate(
+      (data) =>
+        (window as unknown as { __push: (d: unknown) => void }).__push(data),
+      {
+        generatedAt: NOW,
+        forges: [{ forge: 'github', reachable: true, repoCount: 3 }],
+        // A new author makes the page redraw the list of authors; a changed
+        // avatar alone is not a change to a row.
+        pullRequests: [
+          pr(5, 'dave', 'acme/web'),
+          ...PRS.map((p) =>
+            p.author === 'alice' ? { ...p, authorAvatarUrl: NEW_AVATAR } : p,
+          ),
+        ],
+        issues: ISSUES,
+      },
+    );
+    await expect(alice.locator('.pick-image img')).toHaveAttribute(
+      'src',
+      NEW_AVATAR,
+    );
+    await expect(box).toBeFocused();
+  });
+
   test('opens with Enter, ticks with Space and closes with Escape', async ({
     page,
   }) => {

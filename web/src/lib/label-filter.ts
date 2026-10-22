@@ -386,10 +386,13 @@ export function mountPickFilter(
       const key = labelKey(choice.value);
       const sig = `${choice.imageKind ?? ''}|${choice.imageUrl ?? ''}`;
       let row = rows.get(key) as HTMLLabelElement | undefined;
-      // A row is rebuilt when its picture changes; otherwise it is left alone.
+      // A row whose picture changes swaps only the picture, so the checkbox
+      // keeps keyboard focus; otherwise the row is left alone.
       if (row && row.dataset.sig !== sig) {
-        row.remove();
-        row = undefined;
+        row.querySelector('.pick-image')?.remove();
+        const image = pickImageNode(choice, cfg.imageSrc);
+        if (image) row.querySelector('input')?.after(image);
+        row.dataset.sig = sig;
       }
       if (!row) {
         row = node('label', 'label-filter-option');
