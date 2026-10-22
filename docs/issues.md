@@ -48,9 +48,10 @@ reopen the pop-up. A forge error that passes by itself keeps the buttons live.
 
 Closing and commenting need write access to issues, which listing them does
 not. On GitHub that is **Issues: Read and write** on a fine-grained token, the
-`repo` scope on a classic one, or the Issues permission set to read and write
-on a GitHub App installation, accepted on the installation. On Forgejo it is
-the `write:issue` scope. The Connections page in Settings lists them.
+`repo` scope on a classic one, or the repository permission for issues set to
+read and write on a GitHub App installation, accepted on the installation. On
+Forgejo it is the `write:issue` scope. The Connections page in Settings lists
+them.
 
 Next to **Hide Dependency Dashboard**, the **Hide titles matching (regex)**
 box hides the issues whose title matches a regular expression. The match is
