@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2](https://github.com/alrayyes/forge-dashboard/compare/v1.8.1...v1.8.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* **serve:** wait for Shutdown so in-flight requests finish before exit ([#2430](https://github.com/alrayyes/forge-dashboard/issues/2430)) ([09eb89e](https://github.com/alrayyes/forge-dashboard/commit/09eb89e530245828d5d255c0e4becc92cbd3def5))
+
 ## [1.8.1](https://github.com/alrayyes/forge-dashboard/compare/v1.8.0...v1.8.1) (2026-10-22)
 
 
