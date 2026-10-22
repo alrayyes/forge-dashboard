@@ -112,10 +112,21 @@ export async function pickedValues(
   page: Page,
   key: PickKey,
 ): Promise<string[]> {
-  const picked = await pickPanel(page, key)
-    .locator('input:checked')
-    .evaluateAll((boxes) => boxes.map((b) => (b as HTMLInputElement).value));
-  return picked;
+  // A page that is still navigating drops the read; try it again once the
+  // next document is there.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await pickPanel(page, key)
+        .locator('input:checked')
+        .evaluateAll((boxes) =>
+          boxes.map((b) => (b as HTMLInputElement).value),
+        );
+    } catch (error) {
+      if (attempt >= 4 || !/context was destroyed/.test(String(error)))
+        throw error;
+      await page.waitForLoadState('domcontentloaded');
+    }
+  }
 }
 
 // Ticks (or unticks) each value.
