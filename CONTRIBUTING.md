@@ -229,16 +229,11 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
 - `internal/github` and `internal/forgejo` are the two adapters — thin,
   handwritten REST clients, each wrapped in a `dashboard.GenericSource`
   rather than duplicating the concurrency/error-handling logic per forge.
-- `internal/auth` is passkey registration, login, sessions, admin
-  user-management, and invite-gated registration — `Store` persists
-  users/credentials/sessions/invites to SQLite (plus
-  `ListUsers`/`RevokeUser`/`DeleteUser` and
-  `CreateInvite`/`ConsumeInviteIfValid`/`ListOutstandingInvites`/
-  `RevokeInvite` for the admin API), `Service` drives the WebAuthn
-  ceremonies against `Store` and requires a valid invite for every
-  registration past the first, `RequireAuth` is the middleware that
-  gates a handler on a valid session, and `RequireAdmin` composes inside
-  it to gate one on the session's own `IsAdmin` flag.
+- `internal/auth` is passkey registration, login and sessions — `Store`
+  persists users/credentials/sessions to SQLite, `Service` drives the
+  WebAuthn ceremonies against `Store` and refuses registration once a user
+  holds a passkey, and `RequireAuth` is the middleware that gates a handler
+  on a valid session.
 - `internal/settings` is each user's own GitHub/Forgejo configuration —
   `Cipher` is AES-256-GCM encryption keyed off `ENCRYPTION_KEY`, and
   `Store` persists it to SQLite with the tokens encrypted, never in
@@ -265,8 +260,7 @@ nothing new to install, where Vitest takes 0.4 s or more and a dependency.
   genuinely outside `(app)` — no persistent nav chrome to inherit before
   a session exists. Settings
   (`web/src/routes/(app)/settings`) is where a signed-in user sets
-  their own tokens and theme. There is no admin page;
-  the user list and invites are API-only.
+  their own tokens and theme. There is no admin page.
 - `cmd/forge-dashboard` is the composition root: reads environment
   variables, wires the auth service, the settings store, and the
   dashboard manager, and serves the API and static files. A session's
