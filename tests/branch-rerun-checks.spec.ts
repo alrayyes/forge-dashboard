@@ -32,7 +32,12 @@ function branch(status: 'failed' | 'passed', running = 0) {
 async function openPanel(
   page: Page,
   status: 'failed' | 'passed',
-  state: { checks: unknown[]; running?: number } = {
+  state: {
+    checks: unknown[];
+    running?: number;
+    row?: Record<string, unknown>;
+    checksGate?: Promise<void>;
+  } = {
     checks: [
       {
         name: 'test',
@@ -58,17 +63,18 @@ async function openPanel(
           none: 0,
           total: 1,
         },
-        branches: [branch(status, state.running ?? 0)],
+        branches: [{ ...branch(status, state.running ?? 0), ...state.row }],
       }),
     }),
   );
-  await page.route('**/api/main-branches/checks*', (route) =>
-    route.fulfill({
+  await page.route('**/api/main-branches/checks*', async (route) => {
+    await state.checksGate;
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ checks: state.checks }),
-    }),
-  );
+    });
+  });
   await page.goto('/');
   await page
     .getByRole('button', { name: /open pipeline/i })
@@ -185,6 +191,46 @@ test.describe('main branches rerun failed checks', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test('a queued rerun clears the moment a poll shows a newer commit, before the checks reload', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await page.route('**/api/main-branches/rerun-checks', (route) =>
+      route.fulfill({ status: 204 }),
+    );
+    const state: {
+      checks: unknown[];
+      row?: Record<string, unknown>;
+      checksGate?: Promise<void>;
+    } = {
+      checks: [
+        { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+      ],
+    };
+    const dialog = await openPanel(page, 'failed', state);
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun queued' }),
+    ).toBeVisible();
+
+    // The branch moves to a new commit and its checks are slow to load.
+    let release: () => void = () => {};
+    state.checksGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    state.row = {
+      commit: { ...branch('failed').commit, sha: 'a1b2c3d' },
+      runUrl: 'https://example.com/acme/auth-service/actions/runs/2',
+    };
+    await page.clock.runFor(60_000);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(dialog.getByRole('status')).toHaveText('');
+    release();
   });
 
   test('a passing branch has no button', async ({ page }) => {
