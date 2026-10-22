@@ -199,7 +199,9 @@ type ChecksRerunner interface {
 // repository's default branch: the branch twin of ChecksRerunner. An error of
 // kind ForgeErrorConflict means there was no failed job it could rerun.
 // defaultBranch is the branch the Main branches row already names, so a forge
-// that needs it doesn't look the repository up to learn it.
+// that needs it doesn't look the repository up to learn it. The row's branch
+// can lag a default-branch rename by one refresh, so the rerun targets the
+// branch the page showed, not necessarily the live default.
 type DefaultBranchRerunner interface {
 	RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, defaultBranch string) error
 }

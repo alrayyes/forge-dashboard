@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -97,4 +98,21 @@ func TestRerunFailedDefaultBranchChecks_RunsListMissing_IsAnErrorNotNothingToRer
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}
+
+func TestRerunFailedDefaultBranchChecks_EmptyBranch_IsAConflictWithoutAnyRequest(t *testing.T) {
+	t.Parallel()
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "")
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "want a ClientError, got %v", err)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+	assert.Zero(t, requests.Load(), "an empty repository has no branch to look up")
 }
