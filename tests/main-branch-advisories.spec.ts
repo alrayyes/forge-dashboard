@@ -230,6 +230,11 @@ test.describe('Branches page advisories pill', () => {
         if (size.width === 390) {
           const box = await pill(page, 'acme/critical').boundingBox();
           expect(box?.height).toBeGreaterThanOrEqual(44);
+          // An unlinked count is not interactive by design, so it keeps the
+          // quiet 24px size rather than posing as a tap target.
+          const unlinked = pill(page, 'acme/unsafe');
+          await expect(unlinked).not.toHaveAttribute('href');
+          expect(await unlinked.evaluate((el) => el.tagName)).toBe('SPAN');
         }
       }
     }
