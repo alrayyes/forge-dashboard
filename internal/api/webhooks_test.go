@@ -771,3 +771,23 @@ func TestGitHubWebhook_TenDeliveriesForOneRepo_CauseOneScopedRefresh(t *testing.
 	require.Eventually(t, func() bool { return source.repoFetchCallCount("alrayyes/burst") >= 1 }, time.Second, 5*time.Millisecond)
 	assert.Equal(t, int64(1), source.repoFetchCallCount("alrayyes/burst"), "ten deliveries in one window are one scoped refresh")
 }
+
+func TestGitHubWebhook_NoDashboardRunning_StillAcknowledgesWith204(t *testing.T) {
+	t.Parallel()
+
+	srvURL, sessionCookie, service := newTestServerWithManager(t, &countingSource{calls: &atomic.Int64{}}, nil)
+	token, secret := webhookCredentials(t, srvURL, sessionCookie)
+	service.Stop()
+	require.False(t, service.Running())
+
+	body := []byte(`{"action":"opened","repository":{"full_name":"alrayyes/a","name":"a","owner":{"login":"alrayyes"}}}`)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.False(t, service.Running(), "a delivery doesn't start a dashboard")
+}

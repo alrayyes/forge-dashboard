@@ -300,13 +300,18 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 // refresh, and the delivery is still acknowledged: the sender can't act on that.
 func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, manager *dashboard.Service, forge dashboard.Forge, delivery, event string, body []byte) {
 	slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
+	if !manager.Running() {
+		// Nothing is scheduled until a page load, a stream connection or a
+		// login starts the dashboard, and the forge won't redeliver a 204.
+		slog.Warn("webhook delivery acknowledged but ignored: no dashboard is running yet", "forge", forge, "delivery", delivery)
+		w.WriteHeader(http.StatusNoContent)
+
+		return
+	}
 	if _, _, fullName, ok := repoFromPayload(body); ok {
 		recordDelivery(manager, forge, fullName, event, body)
 	}
 	settleFromDelivery(manager, forge, body)
-	if !manager.Running() {
-		slog.Warn("webhook delivery arrived before any dashboard was running; the change shows on the next scheduled refresh", "forge", forge, "delivery", delivery)
-	}
 	w.WriteHeader(http.StatusNoContent)
 	go triggerRefresh(appCtx, manager, forge, delivery, body)
 }
