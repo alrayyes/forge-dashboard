@@ -59,3 +59,13 @@ func TestNewJobLog_AlreadyCut_DropsThePartialFirstLineAndSaysSo(t *testing.T) {
 	assert.Equal(t, "whole line\n", got.Text)
 	assert.True(t, got.Truncated)
 }
+
+func TestNewJobLog_StripsOSCSequencesAndStrayControlCharacters(t *testing.T) {
+	t.Parallel()
+
+	raw := "\x1b]0;window title\x07before\x1b]8;;https://x.example\x1b\\link\x1b]8;;\x1b\\ after\x00\x07\x08\x1b(B\x7f\ttab\n"
+
+	got := dashboard.NewJobLog([]byte(raw), false)
+
+	assert.Equal(t, "beforelink after\ttab\n", got.Text)
+}
