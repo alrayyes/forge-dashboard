@@ -205,6 +205,13 @@ time, with a polite "Rate limit reset, actions available again" toast. While the
 forge is read-only the server stops refreshing it until the reset, so the rows
 are the last ones it saw. The header's Refreshed time shows how old they are.
 
+A row names its forge kind, not the host. With several hosts of one kind,
+the controls are held back only when every one of them is unreachable or out
+of budget, and the Dependabot commands only when every one of them can't
+send them. With one host down and another healthy the controls still draw,
+and a click on a row from the down host fails with the forge's own answer. The
+queue button is not offered while any host of the kind is unreachable.
+
 A forge that can't be reached gets the same treatment. Its controls are not
 drawn either, and no row carries a Retry or a pointer to a status line. One
 banner that stays in view while you scroll, on a phone too, says "GitHub is

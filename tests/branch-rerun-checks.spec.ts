@@ -550,6 +550,34 @@ test.describe('main branches rerun failed checks', () => {
     ).resolves.toBe(true);
   });
 
+  test('keyboard focus returns to the button when the lock lifts', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).focus();
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+
+    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    await runUntilPolled(page);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeFocused();
+    await expect(dialog.locator('.pipeline-rerun')).not.toHaveAttribute(
+      'tabindex',
+      /.*/,
+    );
+  });
+
   test('a forge entry that does not say whether it is reachable does not lock', async ({
     page,
   }) => {

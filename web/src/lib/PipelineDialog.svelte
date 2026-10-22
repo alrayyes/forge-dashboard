@@ -28,6 +28,8 @@
     // A control drawn above the list, such as the pull request board's rerun
     // button. Drawn again whenever the checks change; `failed` says whether any
     // check failed or timed out.
+    // The call is untracked, so the control must redraw itself when anything
+    // else it reads changes (the Main branches page does, after each poll).
     controls?: (failed: boolean) => HTMLElement | null;
   };
 </script>

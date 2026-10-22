@@ -38,6 +38,7 @@ export function createBranchRerun() {
     string,
     { at: string; timer: ReturnType<typeof setTimeout> }
   >();
+  const MAX_UNLOCK_WAIT_MS = 5 * 60 * 1000;
   const keyOf = (t: RerunTarget) => `${t.forge}\u0000${t.fullName}`;
 
   // A queued rerun is held until the branch's CI moves on or the hold runs out.
@@ -127,7 +128,12 @@ export function createBranchRerun() {
           wrap.focus();
         }
         button.remove();
-      } else if (!button.isConnected) wrap.prepend(button);
+      } else if (!button.isConnected) {
+        wrap.prepend(button);
+        // Focus was parked on the wrapper while the button was away.
+        if (document.activeElement === wrap) button.focus();
+        wrap.removeAttribute('tabindex');
+      }
       button.textContent = isHeld ? 'Rerun queued' : 'Rerun failed checks';
       // Pending, not disabled, so the button keeps focus.
       if (isHeld || sending) button.setAttribute('aria-disabled', 'true');
@@ -152,7 +158,10 @@ export function createBranchRerun() {
       if (unlocks.get(key)?.at !== at) {
         clearTimeout(unlocks.get(key)?.timer);
         unlocks.delete(key);
-        const wait = at ? msUntilReset(at) : null;
+        // setTimeout wraps past about 24 days and would fire at once, looping;
+        // the next poll arms it again anyway.
+        const left = at ? msUntilReset(at) : null;
+        const wait = left === null ? null : Math.min(left, MAX_UNLOCK_WAIT_MS);
         if (at && wait !== null)
           unlocks.set(key, {
             at,

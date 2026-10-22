@@ -17,6 +17,8 @@ export type ForgeHealthEntry = {
   reachable: boolean;
   rateLimitREST?: RateLimit;
   rateLimitGraphQL?: RateLimit;
+  // Why Dependabot would refuse a command through this credential.
+  dependabotCommandsBlocked?: string;
 };
 
 export type ForgeLock = {

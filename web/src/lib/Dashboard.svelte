@@ -126,7 +126,7 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
-  import { forgeLockReason } from "#lib/forge-lock.js";
+  import { type ForgeHealthEntry, forgeLockReason } from "#lib/forge-lock.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -284,24 +284,15 @@
     "forge" | "repo" | "number" | "title" | "url"
   > &
     Partial<IssueItem>;
-  type Forge = {
-    forge: string;
-    reachable: boolean;
+  // The health fields are shared with the Main branches lock (forge-lock.ts);
+  // the dashboard adds what only its snapshot carries.
+  type Forge = ForgeHealthEntry & {
     repoCount: number;
     errorKind?: string;
     error?: string;
     // Set with reachable: false when the rows shown are the last good ones
     // (#933): when that data was fetched.
     staleSince?: string;
-    // Two independent GitHub budgets (#361) — see api/openapi.yaml's own
-    // ForgeHealth.rateLimitGraphQL/rateLimitREST doc comment for which
-    // is which and when each is reported.
-    rateLimitGraphQL?: RateLimit;
-    rateLimitREST?: RateLimit;
-    // #666: why Dependabot would refuse a command sent through this
-    // forge's credential (a GitHub App) — the Dependabot buttons lock
-    // with this exact text. Absent when commands work.
-    dependabotCommandsBlocked?: string;
   };
   type DashboardSnapshot = {
     generatedAt: string;
@@ -2627,13 +2618,19 @@
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
     // min)." Built fresh from the latest snapshot, so a 429 from a click
     // reads the same as a budget the snapshot already showed spent (#732).
-    function rateLimitedReason(forgeName: string, known?: RateLimit): string {
-      // Every entry of the kind, as the lock looks at them.
+    function rateLimitedReason(
+      forgeName: string,
+      known?: RateLimit,
+      budget: "rest" | "graphql" = "rest",
+    ): string {
+      // Every entry of the kind, but only the budget the action spends.
       const limit =
         known ??
         lastForges
           .filter((f) => f.forge === forgeName)
-          .flatMap((f) => [f.rateLimitREST, f.rateLimitGraphQL])
+          .map((f) =>
+            budget === "rest" ? f.rateLimitREST : f.rateLimitGraphQL,
+          )
           .find((l) => l && Date.parse(l.resetsAt) > Date.now());
       return rateLimitReasonText(
         FORGE_LABELS[forgeName] || forgeName,
@@ -2674,7 +2671,11 @@
                 FORGE_LABELS[item.forge] || item.forge,
                 resetsAt,
               )
-            : rateLimitedReason(item.forge),
+            : rateLimitedReason(
+                item.forge,
+                undefined,
+                what === "enable auto-merge" ? "graphql" : "rest",
+              ),
         retryable,
       );
       if (outcome.kind === "settled") {
@@ -5388,6 +5389,10 @@
       // direct button is there, and there is nothing to wait for.
       const lock = proactiveActionLockReason(item.forge);
       if (lock?.code !== "rate_limited") return null;
+      // With a host of this kind down, the row may be on that host, and a
+      // queued action would wait for a reset that doesn't bring it back.
+      if (lastForges.some((f) => f.forge === item.forge && !f.reachable))
+        return null;
       const action = queueableAction(item);
       if (!action) return null;
       const resets = lock.resetsAt ?? "";
