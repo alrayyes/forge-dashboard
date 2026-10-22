@@ -90,6 +90,12 @@ type clientState struct {
 
 	// finishedJobs keeps the job list of each finished run (see finishedJobs).
 	finishedJobs *finishedJobs
+
+	// advisoryScanner, when set, makes ReadMainBranch fill a row's
+	// advisories from the default branch's lockfiles; advisories remembers
+	// each repo's last answer.
+	advisoryScanner AdvisoryScanner
+	advisories      advisoryCache
 }
 
 // cachedReview is one pull request's review state as of updatedAt.

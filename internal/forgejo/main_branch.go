@@ -27,7 +27,24 @@ import (
 // A repo with no default branch, no run, or an instance without Actions comes
 // back as status none. A runs list that fails is an error, so the caller keeps
 // the repo's earlier row rather than showing none.
+//
+// With an advisory scanner set (SetAdvisoryScanner) the row also carries the
+// repo's open dependency advisories, read from its lockfiles and remembered for
+// fifteen minutes (see ReadAdvisories).
 func (c *Client) ReadMainBranch(ctx context.Context, repo dashboard.RepoRef) (dashboard.MainBranch, error) {
+	row, err := c.readBranchRuns(ctx, repo)
+	if err != nil {
+		return row, err
+	}
+	if repo.DefaultBranch != "" {
+		row.Advisories = c.advisoriesFor(ctx, repo)
+	}
+
+	return row, nil
+}
+
+// readBranchRuns is ReadMainBranch without the advisories.
+func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (dashboard.MainBranch, error) {
 	row := dashboard.MainBranch{
 		Branch: repo.DefaultBranch, Status: dashboard.MainBranchNone,
 		FailingJobs: []string{}, RunURL: repo.URL,
