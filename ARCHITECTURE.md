@@ -194,35 +194,27 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
 ### Which hosts a log download may reach
 
 One policy covers the URL a GitHub job-log request redirects to (Forgejo
-answers the log itself). The guard lives in `logBlobClient` in
-`internal/github/job_log.go`; any new fetch of a URL a forge supplies should
-go through it. The request carries no token, times out after 15 seconds, and
-reads at most 64 megabytes.
+answers the log itself). It lives in `logBlobClient` and `logTransport` in
+`internal/github/job_log.go`. The request carries no token and times out after
+15 seconds. Reading more than 64 megabytes fails the request with an error.
 
-The rule is public addresses only, with exceptions:
-
-- Every hop must be HTTPS, or the API's own scheme, host and port. At most
-  three redirects are followed.
-- A direct dial is checked on the resolved address, so DNS rebinding doesn't
-  get around it. It is refused for local (127.0.0.0/8, ::1), private,
-  link-local, shared (100.64.0.0/10), group-address, unspecified and NAT64
-  (its well-known prefix) addresses.
-  Other reserved ranges are not on that list.
-- The first exception is the API's own host and port, dialled without the
-  check, so a GitHub Enterprise Server instance on a private network works
-  when its logs are served from that same scheme, host and port. A blob on a
-  separate host is refused.
-- With a proxy configured (the environment's), the proxy does the resolving,
-  so the rebinding check does not apply on that path. A request is refused
-  before it is sent only when its host is exactly `localhost` or a literal
-  non-public address; the proxy's own egress policy covers the rest. This
-  refusal runs before the API-host exception, so behind a proxy an API host
-  that is `localhost` or a literal private address is refused too.
-- The second exception is the proxy itself. Its `host:port` is remembered
-  once chosen and dialled without the check. The proxy URL needs an explicit
-  port, since the match is on the host and port as written. The remembered
-  set is process-wide and never cleared, so a later direct dial to that same
-  host and port skips the check too.
+- Every hop must be HTTPS, or share the API's scheme, host, and port. At most
+  three redirects are followed. Any public HTTPS host passes, so a separate
+  blob host is fine.
+- A direct dial is refused when the resolved address is local (127.0.0.0/8 or
+  ::1), private, link-local, shared (100.64.0.0/10), a group address,
+  unspecified, or in the NAT64 prefix. The check is on the resolved address,
+  so DNS rebinding doesn't get around it. The one exception is the API's own
+  host and port, so a GitHub Enterprise Server instance on a private network
+  can serve its logs itself.
+- With a proxy configured, the proxy does the resolving. A request whose host
+  is exactly `localhost` or a literal non-public address is refused before it
+  is sent. The environment's proxy settings skip localhost, local addresses and
+  `NO_PROXY` hosts, so those take the direct path above.
+- The proxy's own host and port is dialled without the address check, and so
+  is any later direct dial to that same host and port from the same client. A
+  proxy URL without a port isn't recognised, so a proxy on a private network
+  is refused.
 
 There is no allowlist: a blob host on a private network is refused, by design.
 
