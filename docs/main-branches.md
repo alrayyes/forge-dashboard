@@ -100,8 +100,8 @@ so. While it is off, every Forgejo row is `unknown` with the reason
 `not_enabled`: not checked, never zero.
 
 With it on, a repo with no lock file the dashboard reads is `unknown`, never
-zero. So is a repo where any lock file is over 8 MiB or doesn't parse (it is
-asked again after five minutes), and one that matches more than 300 distinct
+zero. So is a repo where any lock file is over 8 megabytes or doesn't parse (it
+is asked again after five minutes), and one that matches more than 300 distinct
 advisories. Only the repo root is read: a root `go.mod` alone reads as known
 even when the front end lives in a subdirectory, so a count is the advisories
 in the root lock files, not in the whole repo. A `replace` directive in
