@@ -13,6 +13,7 @@ import (
 // the pull request dialog (dashboard.MaxReactionLogins).
 const releaseDetailsQuery = `
 query($owner: String!, $name: String!, $tag: String!) {
+  rateLimit { cost }
   repository(owner: $owner, name: $name) {
     release(tagName: $tag) {
       tagName

@@ -331,7 +331,7 @@ func checkedCommitsQuery(repos []branchRepo) (string, map[string]any) {
 		vars[fmt.Sprintf("owner%d", i)] = r.owner
 		vars[fmt.Sprintf("name%d", i)] = r.name
 	}
-	q.WriteString(") {\n")
+	q.WriteString(") {\n  rateLimit { cost }\n")
 	for i := range repos {
 		fmt.Fprintf(&q, `  m%[1]d: repository(owner: $owner%[1]d, name: $name%[1]d) {
     defaultBranchRef { target { ... on Commit { history(first: 10) { nodes {
@@ -449,6 +449,7 @@ func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) 
 // mainBranchQuery reads one repository's default branch, the same selection
 // the account-wide query makes for every tracked repo.
 var mainBranchQuery = `query($owner: String!, $name: String!) {
+  rateLimit { cost }
   repository(owner: $owner, name: $name) {
     url` + defaultBranchSelection + `  }
 }`

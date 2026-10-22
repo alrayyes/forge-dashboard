@@ -362,6 +362,17 @@ A few things to know when you read the numbers:
   `public:<username>`. It holds no secret. Two accounts that connect the same
   token share a row, because they share a budget.
 - Forgejo has no GraphQL, so its `graphql` and `graphqlCost` stay zero.
+- `graphqlCost` is what each reply reports in `rateLimit { cost }`, and every
+  GraphQL read the dashboard sends asks for it: the full refresh, the CI and
+  auto-merge polls, a webhook's refresh of one repo and of its default branch,
+  the check of whether a pull request is behind, and the pull request, issue,
+  and release details.
+  A kind that shows `0` with a non-zero `graphql` count was answered without a
+  cost, so check that before trusting it.
+- Two things are not measured. The GraphQL mutations (enabling or disabling
+  auto-merge) have no `rateLimit` field to ask for, and GitHub's response
+  headers carry no cost for GraphQL, only the remaining budget. They count in
+  `graphql` with a cost of `0`, and their real cost is not in the figures.
 - `budgets` repeats the limits each forge last reported, the same figures as
   `forges` on `GET /api/dashboard`.
 
