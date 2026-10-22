@@ -14,10 +14,43 @@ the footer links to the issue on its forge. The status follows the forge while
 the pop-up is open: when a refresh no longer lists the issue, lists it again,
 or shows it changed, the pop-up reads the forge again, so closing or reopening
 the issue there turns the badge to Closed or back to Open without reopening the
-pop-up. There
-are no actions: you can't merge, close, or comment from here. If the forge can't
-be read, the pop-up says why and offers **Try again** instead of showing an
-empty thread. Escape or **Close details** returns you to the issue's row.
+pop-up. If the forge can't be read, the pop-up says why and offers **Try
+again** instead of showing an empty thread. Escape or **Close details**
+returns you to the issue's row.
+
+## Closing an issue from its pop-up
+
+The footer offers **Close issue** and **Close with a comment**. There is no
+merge or rebase on an issue.
+
+- **Close issue** asks you to confirm. **Confirm close issue?** closes it,
+  **Cancel** or Escape drops the step.
+- **Close with a comment** opens a **Comment** field. **Comment and close**
+  posts the comment, then closes the issue. A blank comment is not sent.
+  Escape closes the field and keeps the pop-up open.
+
+A close works the way it does on a pull request. The pop-up stays open, the
+badge turns to Closed, and focus moves to **Reopen issue**, which is the undo:
+there is no timer. The issue leaves the list on the next refresh. Reopening
+puts the badge back to Open.
+
+Because the comment and the close are two requests to the forge, one can work
+while the other fails. The pop-up then says which: "Your comment was posted.
+The issue is still open." offers **Retry close** and never posts the comment
+again, and "Your comment was not posted." offers **Retry comment**. Your text
+stays in the field until the close goes through.
+
+When the forge refuses, the buttons lock and the reason is printed beside
+them, as it is for a pull request: a token without write access to issues, a
+spent rate limit (with the time it resets), or a forge that can't be reached.
+A refusal about permission does not clear by clicking again. Fix the token and
+reopen the pop-up. A forge error that passes by itself keeps the buttons live.
+
+Closing and commenting need write access to issues, which listing them does
+not. On GitHub that is **Issues: Read and write** on a fine-grained token, the
+`repo` scope on a classic one, or the Issues permission set to read and write
+on a GitHub App installation, accepted on the installation. On Forgejo it is
+the `write:issue` scope. The Connections page in Settings lists them.
 
 Next to **Hide Dependency Dashboard**, the **Hide titles matching (regex)**
 box hides the issues whose title matches a regular expression. The match is

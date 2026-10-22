@@ -163,6 +163,10 @@ forge error keeps Reopen with Retry and Copy.
 A permission refusal is re-read too: if the pull request turns out to be
 merged or closed, that is what the row says, not "check your token". Only a
 rate limit skips the re-read, since it would be limited as well.
+
+An issue's pop-up closes the same way, with a confirm step, a Closed header and
+Reopen as the undo, and adds a comment that posts before the close. See
+[Closing an issue from its pop-up](issues.md#closing-an-issue-from-its-pop-up).
 On Forgejo a rate limit comes from a proxy in front of it, and its reset time is
 read from the `Retry-After` header. Forgejo's API says only whether a pull
 request can be merged, not why, so a Merge it refuses on a pull request that
