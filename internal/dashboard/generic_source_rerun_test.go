@@ -76,7 +76,7 @@ type fakeBranchRerunnerClient struct {
 	reran    []string
 }
 
-func (f *fakeBranchRerunnerClient) RerunFailedDefaultBranchChecks(_ context.Context, owner, name string) error {
+func (f *fakeBranchRerunnerClient) RerunFailedDefaultBranchChecks(_ context.Context, owner, name, _ string) error {
 	f.reran = append(f.reran, owner+"/"+name)
 
 	return f.rerunErr
@@ -89,7 +89,7 @@ func TestGenericSource_RerunFailedDefaultBranchChecks_DelegatesAndKeepsTheClient
 	client := &fakeBranchRerunnerClient{rerunErr: want}
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
 
-	err := source.RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+	err := source.RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
 
 	assert.Same(t, want, err)
 	assert.Equal(t, []string{"alrayyes/a"}, client.reran)
@@ -100,7 +100,7 @@ func TestGenericSource_RerunFailedDefaultBranchChecks_UnsupportedClient(t *testi
 
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, &fakeForgeClient{}, 4)
 
-	err := source.RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a")
+	err := source.RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
 
 	require.Error(t, err)
 }
