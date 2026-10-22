@@ -116,6 +116,11 @@ type Check struct {
 	// DurationSeconds is how long a completed check ran (#697), nil when
 	// the forge didn't say or it hasn't finished.
 	DurationSeconds *int `json:"durationSeconds,omitempty"`
+	// RunAttempt is which attempt of its workflow run the job belongs to,
+	// 0 and omitted when the forge doesn't number them. Forgejo keeps a
+	// job's id and page when it reruns, so the attempt is what tells the
+	// rerun's log from the first run's.
+	RunAttempt int64 `json:"runAttempt,omitempty"`
 	// FailedStep names the step of a failed job that broke, and Excerpt is
 	// the tail of its log as plain text, capped in length (#697). Both are
 	// empty when the forge can't provide them (permission, expired logs, a

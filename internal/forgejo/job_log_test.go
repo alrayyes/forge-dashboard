@@ -81,13 +81,14 @@ func TestListDefaultBranchChecks_CarriesTheJobID(t *testing.T) {
 
 	client := branchChecksServer(t,
 		[]map[string]any{actionRun(8, "main", "cafef00d", "failure", "2026-10-10T09:00:00Z", "2026-10-10T09:05:00Z")},
-		map[string][]map[string]any{"8": {{"id": 31, "name": "build", "status": "failure"}}})
+		map[string][]map[string]any{"8": {{"id": 31, "name": "build", "status": "failure", "run_attempt": 3}}})
 
 	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
 
 	require.NoError(t, err)
 	require.Len(t, checks, 1)
 	assert.EqualValues(t, 31, checks[0].JobID)
+	assert.EqualValues(t, 3, checks[0].RunAttempt)
 }
 
 // Not parallel: it reads the process-wide allocation counter, and a serial
