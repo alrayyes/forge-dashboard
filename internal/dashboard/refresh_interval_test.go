@@ -307,3 +307,45 @@ func setResult(src *fakeSource, res dashboard.Result) {
 	defer src.mu.Unlock()
 	src.result = res
 }
+
+// staleRepoSource answers every full fetch with the same result and lets a
+// scoped refresh through the embedded fake.
+type staleRepoSource struct {
+	*fakeRepoRefresherSource
+	result dashboard.Result
+}
+
+func (s *staleRepoSource) Fetch(context.Context) dashboard.Result { return s.result }
+
+func TestAggregator_NextDelay_StretchesAgainAfterAScopedRefreshClearsAStaleRepo(t *testing.T) {
+	t.Parallel()
+
+	result := dashboard.Result{
+		Health:      dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Repos:       []dashboard.Repo{repoWithHook("o/a", true), repoWithHook("o/b", true)},
+		FailedRepos: []dashboard.FailedRepo{{FullName: "o/b", Issues: true}},
+	}
+	src := &staleRepoSource{fakeRepoRefresherSource: newFakeRepoRefresherSource(), result: result}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	require.NotNil(t, repoNamed(t, agg, "o/b").StaleSince)
+	require.Equal(t, 20*time.Minute, agg.NextDelay(20*time.Minute))
+
+	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "b", "o/b"))
+
+	assert.Nil(t, repoNamed(t, agg, "o/b").StaleSince)
+	assert.Equal(t, 80*time.Minute, agg.NextDelay(20*time.Minute))
+}
+
+func repoNamed(t *testing.T, agg *dashboard.Aggregator, fullName string) dashboard.Repo {
+	t.Helper()
+
+	for _, r := range agg.Get().Repos {
+		if r.FullName == fullName {
+			return r
+		}
+	}
+	require.Failf(t, "repo not in the snapshot", "%s", fullName)
+
+	return dashboard.Repo{}
+}

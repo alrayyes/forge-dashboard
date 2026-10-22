@@ -572,9 +572,10 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 }
 
 // mergedRepo is current with forge/fullName's own entries replaced by prs and
-// issues. The caller holds mu and writes the result back.
+// issues. The caller holds mu and writes the result back. The repo's own row
+// is no longer stale: its pull requests and issues were just fetched.
 func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue) Snapshot {
-	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
+	merged := Snapshot{Forges: current.Forges, Repos: withoutStale(current.Repos, forge, fullName), MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
 			continue
@@ -959,6 +960,23 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	)
 
 	return res
+}
+
+// withoutStale is repos with StaleSince cleared on forge/fullName's row. It
+// copies the slice only when there is a stale mark to clear, since the
+// snapshot's own slice is shared with readers.
+func withoutStale(repos []Repo, forge Forge, fullName string) []Repo {
+	for i, r := range repos {
+		if r.Forge != forge || r.FullName != fullName || r.StaleSince == nil {
+			continue
+		}
+		out := slices.Clone(repos)
+		out[i].StaleSince = nil
+
+		return out
+	}
+
+	return repos
 }
 
 // keepFailedRepos puts back what the forge had for each repo it answered but
