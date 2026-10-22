@@ -215,7 +215,14 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          counts: { failed: 0, running: 0, passed: 0, none: 0, total: 0 },
+          // The page's own read is what the pill follows on this page.
+          counts: {
+            failed: state.counts.branches.failed,
+            running: 0,
+            passed: 0,
+            none: 0,
+            total: state.counts.branches.total,
+          },
           branches: [],
         }),
       }),
@@ -224,7 +231,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     await expect(header(page, '/').locator('.nav-failed')).toHaveText('3');
 
     state.counts = { ...MIXED, branches: { total: 12, failed: 5 } };
-    await page.clock.runFor(31_000);
+    await page.clock.runFor(61_000);
 
     await expect(header(page, '/').locator('.nav-failed')).toHaveText('5');
   });

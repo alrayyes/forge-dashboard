@@ -4,6 +4,7 @@
 
 import type { CheckCounts } from './check-counts';
 import type { ForgeHealthEntry } from './forge-lock';
+import type { NavCount } from './nav-counts.svelte';
 
 export type MainBranchStatus =
   | 'failed'
@@ -75,6 +76,19 @@ export function statusCount(counts: MainBranchCounts, key: StatusPill): number {
   if (key === 'all') return counts.total;
   if (key === 'awaiting_approval') return counts.awaitingApproval;
   return counts[key];
+}
+
+// The Branches nav pill's numbers from the page's own counts, so the pill and
+// the chips are one tally however their two reads fall.
+export function branchNavCount(counts: MainBranchCounts): NavCount {
+  return {
+    total: counts.total,
+    failed: counts.failed,
+    running: counts.running,
+    passed: counts.passed,
+    none: counts.none,
+    awaitingApproval: counts.awaitingApproval,
+  };
 }
 
 export type MainBranches = {
