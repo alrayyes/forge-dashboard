@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -305,12 +306,19 @@ func handleWebhook(appCtx context.Context, store *settings.Store, owners ownerFi
 // acknowledgeDelivery answers a verified delivery and starts the refresh it
 // asks for on the owner's dashboard. With nobody registered there is no
 // dashboard to refresh, and the delivery is still acknowledged: the sender
-// can't act on that.
+// can't act on that. Any other failure finding the owner is transient, so it
+// answers 503 and the forge redelivers instead of the refresh being lost.
 func acknowledgeDelivery(appCtx context.Context, r *http.Request, w http.ResponseWriter, owners ownerFinder, manager *dashboard.Manager, forge dashboard.Forge, delivery, event string, body []byte) {
 	userID, err := owners.OwnerID(r.Context())
-	if err != nil {
+	if errors.Is(err, auth.ErrNotFound) {
 		slog.Warn("webhook accepted but no owner to refresh", "forge", forge, "event", event, "delivery", delivery, "error", err)
 		w.WriteHeader(http.StatusNoContent)
+
+		return
+	}
+	if err != nil {
+		slog.Error("webhook could not look up the owner, asking the sender to retry", "forge", forge, "event", event, "delivery", delivery, "error", err)
+		w.WriteHeader(http.StatusServiceUnavailable)
 
 		return
 	}
