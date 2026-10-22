@@ -1344,6 +1344,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			probes = append(probes, workflowContext(run, j.Name))
 		}
 	}
+	c.addFailureExcerpts(ctx, owner, name, checks)
 
 	return checks, probes, nil
 }

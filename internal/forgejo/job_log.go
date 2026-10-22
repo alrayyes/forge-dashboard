@@ -30,3 +30,28 @@ func (c *Client) JobLog(ctx context.Context, owner, name string, id int64) (dash
 
 	return dashboard.NewJobLog(raw, false), nil
 }
+
+// addFailureExcerpts fills Excerpt on the first few failed or timed-out Actions
+// jobs among checks, from the end of their logs, as the GitHub client does. It
+// is best effort: a job with no id, or a log the token can't read, keeps its
+// check as it was, with the link to the run. A pull request's list and a
+// branch's list both come through here, so the two boards agree.
+func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check) {
+	read := 0
+	for i := range checks {
+		if checks[i].JobID == 0 || (checks[i].State != dashboard.CheckFailure && checks[i].State != dashboard.CheckTimedOut) {
+			continue
+		}
+		if read == dashboard.MaxExcerptJobs {
+			return
+		}
+		read++
+		log, err := c.JobLog(ctx, owner, name, checks[i].JobID)
+		if err != nil {
+			slog.Debug("forgejo job log unavailable", "job", checks[i].JobID, "err", err)
+
+			continue
+		}
+		checks[i].Excerpt = dashboard.LogExcerpt(log.Text, log.Truncated)
+	}
+}
