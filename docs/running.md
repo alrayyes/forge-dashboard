@@ -146,5 +146,14 @@ settings.
 
 A database that still holds several users from before the single-user release
 stops with `run the previous release first`. Start the release that removes
-the extra users first, then this one. Delete the copy once you are satisfied;
-the server never does.
+the extra users first, then this one. A refused start writes nothing and takes
+no copy.
+
+That release keeps the oldest user who holds a passkey. If the database has
+several users and none holds a passkey, it can't choose and the previous
+release won't help. The server says so and stops. Keep the one user you want
+in the `users` table (copy the file first) and start again. A settings table
+that already holds rows beside the old one stops the upgrade the same way, so
+nothing is overwritten.
+
+Delete the copy once you are satisfied; the server never does.
