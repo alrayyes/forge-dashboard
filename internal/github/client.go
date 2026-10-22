@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -4098,23 +4097,13 @@ func restRequestedReviewerLogins(users []*ghsdk.User) []string {
 // maxFailureDetails caps how many failed jobs get a step and a log excerpt,
 // each costing three requests, so a run with dozens of failures can't turn
 // opening the inspector into a request storm.
-const maxFailureDetails = 5
+const maxFailureDetails = dashboard.MaxExcerptJobs
 
 // logTailBytes is how much of the end of a job log is fetched: the failure is
 // at the end, and a full log can be megabytes.
 const logTailBytes = 16 * 1024
 
-// excerptLines and excerptBytes cap the excerpt shown in the inspector.
-const (
-	excerptLines = 20
-	excerptBytes = 2000
-)
-
-var (
-	ansiEscape      = regexp.MustCompile("\x1b\\[[0-9;?]*[A-Za-z]")
-	logLineStamp    = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z ?`)
-	logFetchTimeout = 15 * time.Second
-)
+var logFetchTimeout = 15 * time.Second
 
 // runDurationSeconds is how long a completed check run ran, nil otherwise.
 func runDurationSeconds(r *ghsdk.CheckRun) *int {
@@ -4208,37 +4197,9 @@ func (c *Client) logExcerpt(ctx context.Context, owner, name string, id int64) s
 	return excerptFromLog(string(body), partial)
 }
 
-// excerptFromLog turns the tail of a job log into the excerpt shown to a
-// person: per-line timestamps and colour codes removed, blank lines dropped,
-// the last few lines, capped in length. It stays plain text; nothing here
-// interprets it as markup. partial says the text starts mid-line, so its
-// first line is dropped.
+// excerptFromLog is dashboard.LogExcerpt: the same excerpt on every forge.
 func excerptFromLog(tail string, partial bool) string {
-	tail = strings.ToValidUTF8(tail, "")
-	lines := strings.Split(tail, "\n")
-	if partial && len(lines) > 1 {
-		lines = lines[1:]
-	}
-	kept := make([]string, 0, len(lines))
-	for _, line := range lines {
-		line = ansiEscape.ReplaceAllString(line, "")
-		line = logLineStamp.ReplaceAllString(line, "")
-		if line = strings.TrimRight(line, " \t\r"); line != "" {
-			kept = append(kept, line)
-		}
-	}
-	if len(kept) > excerptLines {
-		kept = kept[len(kept)-excerptLines:]
-	}
-	for len(kept) > 1 && len(strings.Join(kept, "\n")) > excerptBytes {
-		kept = kept[1:]
-	}
-	out := strings.Join(kept, "\n")
-	if len(out) > excerptBytes {
-		out = strings.ToValidUTF8(out[len(out)-excerptBytes:], "")
-	}
-
-	return out
+	return dashboard.LogExcerpt(tail, partial)
 }
 
 // heldByForge names GitHub as the holder of an enabled auto-merge, and nobody
