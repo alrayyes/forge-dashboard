@@ -2,6 +2,8 @@ package auth_test
 
 import (
 	"database/sql"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -78,9 +80,9 @@ func TestBeginRegistration_AfterAUserHoldsAPasskey_IsClosed(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
-	require.NoError(t, store.AddCredential(t.Context(), owner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
 	for _, username := range []string{"alex", "ryan"} {
 		_, err = svc.BeginRegistration(t.Context(), username, "Anyone")
@@ -144,4 +146,73 @@ func TestBeginRegistration_ClearsExpiredAbandonedRowsOfOtherUsernames(t *testing
 	require.ErrorIs(t, err, auth.ErrNotFound)
 	_, err = store.GetUserByUsername(t.Context(), "recent")
 	require.NoError(t, err)
+}
+
+// newServiceWithASurvivingSecondUser is a database the single-user cleanup left
+// two users in: the owner, and a newer row also holding a passkey (a registration
+// that finished after the cleanup ran).
+func newServiceWithASurvivingSecondUser(t *testing.T) (*auth.Service, *auth.Store) {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	_, err = store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	time.Sleep(2 * time.Millisecond)
+	_, err = store.CreateUser(t.Context(), "sam", "Sam")
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `UPDATE users SET credentials_json = '[{"id":"AQID"}]'`)
+	require.NoError(t, err)
+
+	wa, err := webauthn.New(&webauthn.Config{RPID: "localhost", RPDisplayName: "Forge Board Test", RPOrigins: []string{"http://localhost"}})
+	require.NoError(t, err)
+
+	return auth.NewService(wa, store), store
+}
+
+func TestBeginLogin_ASurvivingNonOwnerUser_ReturnsErrNotFound(t *testing.T) {
+	t.Parallel()
+	svc, _ := newServiceWithASurvivingSecondUser(t)
+
+	_, err := svc.BeginLogin(t.Context(), "sam")
+
+	assert.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestFinishLogin_ASurvivingNonOwnerUser_NeverMintsAnOwnerSession(t *testing.T) {
+	t.Parallel()
+	svc, store := newServiceWithASurvivingSecondUser(t)
+	require.NoError(t, store.SaveCeremony(t.Context(), "sam", "login", webauthn.SessionData{}, time.Minute))
+
+	u, err := svc.FinishLogin(t.Context(), "sam", httptest.NewRequest(http.MethodPost, "/", nil))
+
+	assert.Nil(t, u)
+	assert.ErrorIs(t, err, auth.ErrNotFound, "the check runs before the assertion is read")
+}
+
+func TestClaimUnregisteredUser_PicksTheRowOwnerOrderPicks(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	// Same created_at, so only the tie-break decides; the later row has the smaller id.
+	for _, stmt := range []string{
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('enp6', 'first', 'F', '[]', '2026-01-01 00:00:00')`,
+		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES ('YWFh', 'second', 'S', '[]', '2026-01-01 00:00:00')`,
+	} {
+		_, err := db.ExecContext(t.Context(), stmt)
+		require.NoError(t, err)
+	}
+	owner, err := store.Owner(t.Context())
+	require.NoError(t, err)
+
+	claimed, err := store.ClaimUnregisteredUser(t.Context(), "new", "New", time.Now().Add(-time.Hour))
+
+	require.NoError(t, err)
+	assert.Equal(t, owner.ID, claimed.ID, "a registration must attach to the user the store calls the owner")
 }

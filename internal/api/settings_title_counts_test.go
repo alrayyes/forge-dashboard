@@ -41,18 +41,12 @@ func countsServer(t *testing.T, byToken map[string][]dashboard.Issue) *httptest.
 }
 
 // signInWithBoard registers a user, saves their token and waits for the board
-// to hold want issues, so the viewer has a snapshot. Pass extra for a second
-// user on the same server, which no public flow can register any more.
-func signInWithBoard(t *testing.T, srv *httptest.Server, username, token string, want int, extra ...bool) *http.Cookie {
+// to hold want issues, so the viewer has a snapshot.
+func signInWithBoard(t *testing.T, srv *httptest.Server, want int) *http.Cookie {
 	t.Helper()
 
-	var cookie *http.Cookie
-	if len(extra) > 0 && extra[0] {
-		cookie = registerExtraUser(t, srv, username, username)
-	} else {
-		cookie, _, _ = registerViaRealCeremony(t, srv, username, username)
-	}
-	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+token+`"}`, cookie)
+	cookie, _, _ := registerViaRealCeremony(t, srv, "ryan", "ryan")
+	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`"}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool {
 		issues, _ := fetchDashboard(t, srv.URL, cookie)["issues"].([]any)
@@ -71,7 +65,7 @@ func TestSettingsGet_IgnoredTitleCounts_CountsEachPatternsOpenIssuesInOrder(t *t
 		countIssue(5, "a/x", "A real bug"),
 	}
 	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: issues})
-	cookie := signInWithBoard(t, srv, "ryan", countsToken, 5)
+	cookie := signInWithBoard(t, srv, 5)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["^weekly report","STALE","nothing matches"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, pollBudget, 10*time.Millisecond)
@@ -85,7 +79,7 @@ func TestSettingsGet_IgnoredTitleCounts_AnIssueTwoPatternsMatchCountsForBoth(t *
 	t.Parallel()
 	issues := []dashboard.Issue{countIssue(1, "a/x", "Weekly stale report"), countIssue(2, "a/x", "Other")}
 	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: issues})
-	cookie := signInWithBoard(t, srv, "ryan", countsToken, 2)
+	cookie := signInWithBoard(t, srv, 2)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly","stale"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 
@@ -104,7 +98,7 @@ func TestSettingsGet_IgnoredTitleCounts_LeavesOutIssuesOfIgnoredRepos(t *testing
 	t.Parallel()
 	issues := []dashboard.Issue{countIssue(1, "a/x", "Weekly one"), countIssue(2, "a/muted", "Weekly two")}
 	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: issues})
-	cookie := signInWithBoard(t, srv, "ryan", countsToken, 2)
+	cookie := signInWithBoard(t, srv, 2)
 	resp := postRepoIgnoreAction(t, srv.URL, cookie, "a/muted", false, true)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -186,7 +180,7 @@ func TestSettingsPut_IgnoredTitleCounts_FollowTheListJustSaved(t *testing.T) {
 		countIssue(1, "a/x", "Weekly one"), countIssue(2, "a/x", "Weekly two"), countIssue(3, "a/x", "Stale one"),
 	}
 	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: issues})
-	cookie := signInWithBoard(t, srv, "ryan", countsToken, 3)
+	cookie := signInWithBoard(t, srv, 3)
 
 	_, first := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
 	assert.Equal(t, []any{float64(2)}, first["ignoredTitleCounts"])
@@ -195,31 +189,6 @@ func TestSettingsPut_IgnoredTitleCounts_FollowTheListJustSaved(t *testing.T) {
 
 	_, second := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["stale","weekly one","zzz"]}`, cookie)
 	assert.Equal(t, []any{float64(1), float64(1), float64(0)}, second["ignoredTitleCounts"], "counted against the new patterns, not the old")
-}
-
-func TestSettingsGet_IgnoredTitleCounts_CountOnlyTheViewersOwnIssues(t *testing.T) {
-	t.Parallel()
-	srv := countsServer(t, map[string][]dashboard.Issue{
-		"token-a": {countIssue(1, "a/x", "Weekly one")},
-		"token-b": {countIssue(1, "b/y", "Weekly one"), countIssue(2, "b/y", "Weekly two"), countIssue(3, "b/y", "Weekly three")},
-	})
-	cookieA := signInWithBoard(t, srv, "alice", "token-a", 1)
-	cookieB := signInWithBoard(t, srv, "bob", "token-b", 3, true)
-	for _, c := range []struct {
-		cookie *http.Cookie
-		token  string
-	}{{cookieA, "token-a"}, {cookieB, "token-b"}} {
-		status, _ := putSettings(t, srv.URL, `{"githubToken":"`+c.token+`","ignoredTitles":["weekly"]}`, c.cookie)
-		require.Equal(t, http.StatusOK, status)
-	}
-
-	assert.Eventually(t, func() bool {
-		return getSettings(t, srv.URL, cookieA).IgnoredTitleCounts[0] != nil &&
-			getSettings(t, srv.URL, cookieB).IgnoredTitleCounts[0] != nil
-	}, pollBudget, 10*time.Millisecond)
-
-	assert.Equal(t, []*int{new(1)}, getSettings(t, srv.URL, cookieA).IgnoredTitleCounts)
-	assert.Equal(t, []*int{new(3)}, getSettings(t, srv.URL, cookieB).IgnoredTitleCounts)
 }
 
 // A first refresh that fails leaves a snapshot with a stamp and nothing in it.
@@ -248,7 +217,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullWhenTheOnlyForgeIsUnreachable(t *
 func TestSettingsGet_IgnoredTitleCounts_AReachableForgeWithNoMatchesCountsZero(t *testing.T) {
 	t.Parallel()
 	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: {countIssue(1, "a/x", "A real bug")}})
-	cookie := signInWithBoard(t, srv, "ryan", countsToken, 1)
+	cookie := signInWithBoard(t, srv, 1)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 

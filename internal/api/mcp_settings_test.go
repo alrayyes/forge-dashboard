@@ -179,7 +179,7 @@ func TestMCP_GetSettings_IgnoredTitleCountsMatchTheHTTPValue(t *testing.T) {
 		countIssue(3, "a/x", "stale branch"), countIssue(4, "a/x", "A real bug"),
 	}
 	srv := countsServer(t, map[string][]dashboard.Issue{countsToken: issues})
-	cookie := signInWithBoard(t, srv, "ryan", countsToken, 4)
+	cookie := signInWithBoard(t, srv, 4)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["^weekly","STALE","none"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool { return getSettings(t, srv.URL, cookie).IgnoredTitleCounts[0] != nil }, pollBudget, 10*time.Millisecond)

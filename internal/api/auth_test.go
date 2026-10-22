@@ -231,23 +231,6 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, disp
 // registration closes once the first user holds a passkey.
 var testStores sync.Map
 
-// registerExtraUser adds a second user straight to the server's store, with a
-// passkey and a session, and returns that session's cookie.
-func registerExtraUser(tb testing.TB, srv *httptest.Server, username, displayName string) *http.Cookie {
-	tb.Helper()
-
-	store, ok := testStores.Load(srv.URL)
-	require.True(tb, ok, "server was not built by newTestServerWithDatabase")
-	authStore := store.(*authpkg.Store) //nolint:forcetypeassert // only newTestServerWithDatabase stores here
-	u, err := authStore.CreateUser(tb.Context(), username, displayName)
-	require.NoError(tb, err)
-	require.NoError(tb, authStore.AddCredential(tb.Context(), u.ID, webauthn.Credential{ID: []byte("cred-" + username), PublicKey: []byte("pk")}))
-	token, err := authStore.CreateSession(tb.Context(), u.ID, authpkg.SessionTTL)
-	require.NoError(tb, err)
-
-	return &http.Cookie{Name: authpkg.CookieName, Value: token} //nolint:gosec // a client-side test cookie
-}
-
 func readAll(tb testing.TB, resp *http.Response) string {
 	tb.Helper()
 	b, err := io.ReadAll(resp.Body)

@@ -94,7 +94,7 @@ func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.Response
 		deps.Manager.Stop()
 		deps.Manager.Activity().Reset()
 	}
-	token, err := deps.AuthStore.CreateSession(ctx, owner.ID, auth.SessionTTL)
+	token, err := deps.AuthStore.CreateSession(ctx, auth.SessionTTL)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
@@ -197,7 +197,7 @@ func keepOwner(ctx context.Context, tx sqlExecer, owner *auth.User, firstPasskey
 		return fmt.Errorf("trim passkeys: %w", err)
 	}
 	keptKey := base64.RawURLEncoding.EncodeToString(firstPasskey[0].ID)
-	if _, err := tx.ExecContext(ctx, `DELETE FROM credential_metadata WHERE NOT (user_id = ? AND credential_id = ?)`, id, keptKey); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM credential_metadata WHERE credential_id != ?`, keptKey); err != nil {
 		return fmt.Errorf("trim passkey labels: %w", err)
 	}
 

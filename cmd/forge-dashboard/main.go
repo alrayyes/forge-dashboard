@@ -524,17 +524,16 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	}
 }
 
-// buildSourcesForUser returns the per-user dashboard.Source builder Deps.
-// BuildSources needs — a closure over authStore so every forge client it
-// builds gets a requestlog.SQLiteRecorder bound to that specific user's
-// own account ID (#482): the account whose credential made a request is
-// known here, at construction, and nowhere else past this point, so this
-// is where it has to be threaded in.
+// buildSourcesForUser returns the dashboard.Source builder Deps.BuildSources
+// needs, a closure over authStore so every forge client it builds records its
+// requests in the request log. The user id it is called with names nobody the
+// log cares about any more; the manager stops passing it with the aggregator
+// change that follows.
 
 func buildSourcesForUser(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(userID []byte, c settings.Credentials) []dashboard.Source {
-	return func(userID []byte, c settings.Credentials) []dashboard.Source {
+	return func(_ []byte, c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
-		recorder := requestlog.NewSQLiteRecorder(authStore, base64.RawURLEncoding.EncodeToString(userID), requestlog.WithWriter(requestLogWriter))
+		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
 		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder, stats); src != nil {
 			sources = append(sources, src)
@@ -610,6 +609,13 @@ func databasePath() string {
 	return envOr("DB_PATH", "/data/forge-dashboard.db")
 }
 
+// migrationSteps are every schema step, in the order they ran in the release
+// that added each. A step's position is its version number, so an entry is
+// only ever appended.
+func migrationSteps(log *slog.Logger) []dbmigrate.Step {
+	return append(settings.MigrationSteps(log), auth.MigrationSteps(log)...)
+}
+
 // openUpgradedDatabase opens the database and brings its schema up to date
 // before anything else touches it. The migration has to come first: a store's
 // Init creates tables in the current shape, and on an old database that would
@@ -622,7 +628,7 @@ func openUpgradedDatabase(ctx context.Context) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	if _, err := dbmigrate.Run(ctx, db, databasePath(), settings.MigrationSteps(slog.Default()), slog.Default()); err != nil {
+	if _, err := dbmigrate.Run(ctx, db, databasePath(), migrationSteps(slog.Default()), slog.Default()); err != nil {
 		_ = db.Close()
 
 		return nil, fmt.Errorf("upgrade database: %w", err)

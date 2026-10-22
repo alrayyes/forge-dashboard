@@ -325,17 +325,6 @@ func TestQueuedActions_RequireASession(t *testing.T) {
 	}
 }
 
-func TestQueuedActions_AnotherUser_CannotQueueOnTheOwnersBoard(t *testing.T) {
-	t.Parallel()
-	srv, _, _ := queueBoard(t, true, time.Now().Add(time.Hour))
-	other := registerExtraUser(t, srv, testOtherUser, "Alex")
-
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), other)
-	_ = resp.Body.Close()
-
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode, "that user has no such pull request on their board")
-}
-
 func TestQueuedActions_SurviveARestart(t *testing.T) {
 	t.Parallel()
 	srv, manager, cookie := queueBoard(t, true, time.Now().Add(time.Hour))

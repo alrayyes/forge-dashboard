@@ -50,7 +50,10 @@ func runResetPasskeys(args []string) error {
 		return err
 	}
 
-	db, err := openDatabase()
+	// The upgrade runs first, as at server start: on a database from before the
+	// user id was dropped, the reset's deletes would reach every user's rows. The
+	// upgrade refuses what the server would refuse, so nothing is touched then.
+	db, err := openUpgradedDatabase(context.Background())
 	if err != nil {
 		return err
 	}

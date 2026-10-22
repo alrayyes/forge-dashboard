@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,11 +18,12 @@ import (
 // would merge their settings into one row, so the migration refuses.
 var ErrRunPreviousRelease = errors.New("settings: the database has several users and the single-user cleanup has not run")
 
-// ErrNoPasskeyHolder is returned when the database has several users, none of
-// them holding a passkey. The single-user cleanup keeps the oldest user with a
-// passkey, so it can't pick one here and never writes its marker: running the
-// previous release won't settle it.
-var ErrNoPasskeyHolder = errors.New("settings: the database has several users and none holds a passkey")
+// ErrOthersHoldData is returned when the database has several users, none holds
+// a passkey, and a user other than the owner still has settings rows (forge
+// tokens, the webhook secret, ignored repositories). The single-user cleanup
+// can't run to settle that, and dropping live credentials with a log line would
+// lose them for good.
+var ErrOthersHoldData = errors.New("settings: the database has several users, none holds a passkey, and another user still has settings")
 
 // ErrNoOwner is returned when the settings tables hold rows but there is no
 // user to attach them to. Copying nothing and dropping the old tables would
@@ -489,8 +491,9 @@ func addLegacyColumns(ctx context.Context, tx dbmigrate.Tx, table string) error 
 }
 
 // chooseOwner returns the id whose rows survive. With several users and no
-// cleanup marker it refuses: the previous release's cleanup settles that, unless
-// no user holds a passkey, when it never will. With the marker, or one user, the
+// cleanup marker it refuses when one holds a passkey, since the previous
+// release's cleanup settles that; with none it never will, so the oldest wins
+// unless another user still has settings rows. With the marker, or one user, the
 // owner is the one auth.Store.Owner returns. With no user at all and rows to
 // keep it refuses, since copying nothing would lose them.
 func chooseOwner(ctx context.Context, q dbmigrate.Tx, pending []rebuild) (string, error) {
@@ -501,15 +504,14 @@ func chooseOwner(ctx context.Context, q dbmigrate.Tx, pending []rebuild) (string
 	if users == 0 {
 		return "", requireNoRows(ctx, q, pending)
 	}
-	if users > 1 {
-		if err := requireCleanupDone(ctx, q); err != nil {
-			return "", err
-		}
-	}
-
 	var id string
 	if err := q.QueryRowContext(ctx, `SELECT id FROM users `+auth.OwnerOrder).Scan(&id); err != nil {
 		return "", fmt.Errorf("find the owner: %w", err)
+	}
+	if users > 1 {
+		if err := requireCleanupDone(ctx, q, pending, id); err != nil {
+			return "", err
+		}
 	}
 
 	return id, nil
@@ -532,8 +534,8 @@ func requireNoRows(ctx context.Context, q dbmigrate.Tx, pending []rebuild) error
 }
 
 // requireCleanupDone refuses several users until the single-user cleanup has
-// settled them, and says which way out applies.
-func requireCleanupDone(ctx context.Context, q dbmigrate.Tx) error {
+// settled them, unless none holds a passkey and the cleanup can't run.
+func requireCleanupDone(ctx context.Context, q dbmigrate.Tx, pending []rebuild, owner string) error {
 	var hasMarker int
 	if err := q.QueryRowContext(ctx,
 		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, singleuser.MarkerTable).Scan(&hasMarker); err != nil {
@@ -547,10 +549,52 @@ func requireCleanupDone(ctx context.Context, q dbmigrate.Tx) error {
 		return fmt.Errorf("count users with a passkey: %w", err)
 	}
 	if holders == 0 {
-		return fmt.Errorf("%w: the single-user cleanup keeps the oldest user with a passkey, so it can't run and the previous release won't help; keep the one user you want in the users table (take a backup first) or restore a backup", ErrNoPasskeyHolder)
+		// The cleanup keeps the oldest user with a passkey, so with none it never
+		// runs and never writes its marker. Waiting for it would never end, so the
+		// oldest user wins, but only over abandoned registrations: another user's
+		// forge tokens or webhook secret are live, and a log line is no way to lose
+		// them.
+		return requireOthersHoldNothing(ctx, q, pending, owner)
 	}
 
 	return fmt.Errorf("%w: run the previous release first, then this one", ErrRunPreviousRelease)
+}
+
+// requireOthersHoldNothing refuses when a user other than the owner still has
+// rows in a table the rebuild would drop them from.
+func requireOthersHoldNothing(ctx context.Context, q dbmigrate.Tx, pending []rebuild, owner string) error {
+	for _, r := range pending {
+		rows, err := q.QueryContext(ctx,
+			`SELECT DISTINCT u.username FROM `+r.old+` t JOIN users u ON u.id = t.user_id WHERE t.user_id != ? ORDER BY u.username`, owner)
+		if err != nil {
+			return fmt.Errorf("list the other users in %s: %w", r.old, err)
+		}
+		names, err := scanNames(rows)
+		if err != nil {
+			return fmt.Errorf("list the other users in %s: %w", r.old, err)
+		}
+		if len(names) > 0 {
+			return fmt.Errorf("%w: %s holds rows for %s; copy the database file, then delete the users you do not want from users and their rows from %s, and start again, or restore a backup",
+				ErrOthersHoldData, r.old, strings.Join(names, ", "), r.old)
+		}
+	}
+
+	return nil
+}
+
+func scanNames(rows *sql.Rows) ([]string, error) {
+	defer func() { _ = rows.Close() }()
+
+	var names []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err //nolint:wrapcheck // the caller adds the table
+		}
+		names = append(names, n)
+	}
+
+	return names, rows.Err() //nolint:wrapcheck // the caller adds the table
 }
 
 // countUsers counts the users, zero when the table doesn't exist.
