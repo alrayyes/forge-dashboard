@@ -61,7 +61,7 @@ func gitHubAggregator(t *testing.T, store *fakeAutoMergeStore, prs ...dashboard.
 		PullRequests: prs,
 	}
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoMerge([]byte("user-1"), store)
+	agg.EnableAutoMerge(store)
 
 	return agg, src
 }
@@ -182,7 +182,7 @@ func TestAutoMerge_WhenTheArmedSetCannotBeRead_ForgejoIsSkippedAndGitHubStillCan
 		PullRequests: []dashboard.PullRequest{amPR(func(p *dashboard.PullRequest) { p.Empty = true })},
 	}
 	agg := dashboard.NewAggregator([]dashboard.Source{fjSrc, ghSrc})
-	agg.EnableAutoMerge([]byte("user-1"), store)
+	agg.EnableAutoMerge(store)
 
 	agg.Refresh(t.Context())
 

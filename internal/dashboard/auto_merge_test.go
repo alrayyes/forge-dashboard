@@ -61,7 +61,7 @@ func armedStore(keys ...string) *fakeAutoMergeStore {
 	return s
 }
 
-func (s *fakeAutoMergeStore) AutoMergeIntents(context.Context, []byte) (map[string]struct{}, error) {
+func (s *fakeAutoMergeStore) AutoMergeIntents(context.Context) (map[string]struct{}, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.loadErr != nil {
@@ -75,7 +75,7 @@ func (s *fakeAutoMergeStore) AutoMergeIntents(context.Context, []byte) (map[stri
 	return out, nil
 }
 
-func (s *fakeAutoMergeStore) CancelAutoMerge(_ context.Context, _ []byte, forge, repo string, number int) error {
+func (s *fakeAutoMergeStore) CancelAutoMerge(_ context.Context, forge, repo string, number int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := forge + "/" + repo + "#" + strconv.Itoa(number)
@@ -124,7 +124,7 @@ func autoMergeAggregator(t *testing.T, store *fakeAutoMergeStore, prs ...dashboa
 		PullRequests: prs,
 	}
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoMerge([]byte("user-1"), store)
+	agg.EnableAutoMerge(store)
 
 	return agg, src
 }

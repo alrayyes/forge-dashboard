@@ -25,40 +25,39 @@ type pullRequestHideRequest struct {
 // readHiddenTarget reads and checks who is asking and which pull request, and
 // answers 500 or 400 itself when it can't. A hide is a local write: nothing
 // here touches a forge, so it needs no credentials and no forge source.
-func readHiddenTarget(w http.ResponseWriter, r *http.Request) (*auth.User, pullRequestHideRequest, bool) {
-	u, ok := auth.UserFromContext(r.Context())
-	if !ok {
+func readHiddenTarget(w http.ResponseWriter, r *http.Request) (pullRequestHideRequest, bool) {
+	if _, ok := auth.UserFromContext(r.Context()); !ok {
 		writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
 
-		return nil, pullRequestHideRequest{}, false
+		return pullRequestHideRequest{}, false
 	}
 
 	var req pullRequestHideRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
 
-		return nil, req, false
+		return req, false
 	}
 	if overBound(w, bound{"fullName", req.FullName, maxRepoFullNameLen}) {
-		return nil, req, false
+		return req, false
 	}
 	if _, _, ok := splitFullName(req.FullName); !ok {
 		writeJSON(w, http.StatusBadRequest, errorBody(`fullName must be "owner/repo"`))
 
-		return nil, req, false
+		return req, false
 	}
 	if req.Forge != string(dashboard.ForgeGitHub) && req.Forge != string(dashboard.ForgeForgejo) {
 		writeJSON(w, http.StatusBadRequest, fieldErrorBody("forge", "forge must be github or forgejo"))
 
-		return nil, req, false
+		return req, false
 	}
 	if req.Number < 1 || req.Number > maxPullRequestNumber {
 		writeJSON(w, http.StatusBadRequest, fieldErrorBody("number", "number must be a pull request number"))
 
-		return nil, req, false
+		return req, false
 	}
 
-	return u, req, true
+	return req, true
 }
 
 // handlePullRequestHide implements POST /api/pull-requests/hide (#841): a pure
@@ -66,7 +65,7 @@ func readHiddenTarget(w http.ResponseWriter, r *http.Request) (*auth.User, pullR
 // choice replaces the old one.
 func handlePullRequestHide(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, req, ok := readHiddenTarget(w, r)
+		req, ok := readHiddenTarget(w, r)
 		if !ok {
 			return
 		}
@@ -80,7 +79,7 @@ func handlePullRequestHide(deps Deps) http.HandlerFunc {
 			until = time.Now().AddDate(0, 0, *req.Days)
 		}
 
-		if err := deps.SettingsStore.HidePullRequest(r.Context(), u.ID, req.Forge, req.FullName, req.Number, until); err != nil {
+		if err := deps.SettingsStore.HidePullRequest(r.Context(), req.Forge, req.FullName, req.Number, until); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save"))
 
 			return
@@ -93,12 +92,12 @@ func handlePullRequestHide(deps Deps) http.HandlerFunc {
 // reverse of handlePullRequestHide. Idempotent.
 func handlePullRequestUnhide(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, req, ok := readHiddenTarget(w, r)
+		req, ok := readHiddenTarget(w, r)
 		if !ok {
 			return
 		}
 
-		if err := deps.SettingsStore.UnhidePullRequest(r.Context(), u.ID, req.Forge, req.FullName, req.Number); err != nil {
+		if err := deps.SettingsStore.UnhidePullRequest(r.Context(), req.Forge, req.FullName, req.Number); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save"))
 
 			return

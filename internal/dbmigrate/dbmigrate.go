@@ -21,11 +21,26 @@ var ErrNewerDatabase = errors.New("database is newer than this release")
 // ErrDanglingForeignKey is returned when a step leaves a row pointing at nothing.
 var ErrDanglingForeignKey = errors.New("foreign key check failed: a row points at nothing")
 
-// Step is one schema change. Run gets the transaction the step commits in and
-// must not commit or roll it back itself.
+// Tx is what a step runs its statements through. It is the open transaction
+// the step commits in; a step must not commit or roll it back itself.
+type Tx interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// Step is one schema change.
 type Step struct {
 	Name string
-	Run  func(ctx context.Context, tx *sql.Tx) error
+	// Tables are the tables the step creates or rewrites. Only their foreign
+	// keys are checked after it runs, so a dangling key it never touched can't
+	// block it. Empty means every table.
+	Tables []string
+	// Preflight, when set, runs before the backup and before anything is
+	// written. It only reads. A step that is bound to refuse says so here, so a
+	// refused start leaves no backup behind and writes nothing.
+	Preflight func(ctx context.Context, q Tx) error
+	Run       func(ctx context.Context, tx Tx) error
 }
 
 // Result says what Run did.
@@ -67,6 +82,10 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 		return Result{}, nil
 	}
 
+	if err := preflight(ctx, conn, steps[current:]); err != nil {
+		return Result{}, err
+	}
+
 	var res Result
 	res.BackupPath, err = backUp(ctx, conn, dbPath)
 	if err != nil {
@@ -90,6 +109,20 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 	return res, nil
 }
 
+// preflight runs the read-only refusals of the pending steps.
+func preflight(ctx context.Context, conn *sql.Conn, pending []Step) error {
+	for _, step := range pending {
+		if step.Preflight == nil {
+			continue
+		}
+		if err := step.Preflight(ctx, conn); err != nil {
+			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		}
+	}
+
+	return nil
+}
+
 // readVersion returns the stored version. fresh is true when the database has
 // no tables, so there is nothing to migrate.
 func readVersion(ctx context.Context, conn *sql.Conn) (version int, fresh bool, err error) {
@@ -102,16 +135,20 @@ func readVersion(ctx context.Context, conn *sql.Conn) (version int, fresh bool, 
 	if tables == 0 {
 		return 0, true, nil
 	}
-	if _, err := conn.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
-		return 0, false, fmt.Errorf("migrate: create schema_version: %w", err)
+	// Read only. The backup comes next and must see the database as it was, and
+	// the first write happens inside the first step's transaction.
+	var stamped int
+	if err := conn.QueryRowContext(ctx,
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'`,
+	).Scan(&stamped); err != nil {
+		return 0, false, fmt.Errorf("migrate: look for schema_version: %w", err)
+	}
+	if stamped == 0 {
+		return 0, false, nil
 	}
 	err = conn.QueryRowContext(ctx, `SELECT version FROM schema_version`).Scan(&version)
 	if errors.Is(err, sql.ErrNoRows) {
 		// Tables exist but nothing was ever stamped: the database predates the runner.
-		if _, err := conn.ExecContext(ctx, `INSERT INTO schema_version (version) VALUES (0)`); err != nil {
-			return 0, false, fmt.Errorf("migrate: stamp schema_version: %w", err)
-		}
-
 		return 0, false, nil
 	}
 	if err != nil {
@@ -122,22 +159,10 @@ func readVersion(ctx context.Context, conn *sql.Conn) (version int, fresh bool, 
 }
 
 func setVersion(ctx context.Context, conn *sql.Conn, version int) error {
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("migrate: begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := writeVersion(ctx, tx, version); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("migrate: commit: %w", err)
-	}
-
-	return nil
+	return inTransaction(ctx, conn, "stamp", func() error { return writeVersion(ctx, conn, version) })
 }
 
-func writeVersion(ctx context.Context, tx *sql.Tx, version int) error {
+func writeVersion(ctx context.Context, tx Tx, version int) error {
 	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
 		return fmt.Errorf("migrate: create schema_version: %w", err)
 	}
@@ -154,39 +179,75 @@ func writeVersion(ctx context.Context, tx *sql.Tx, version int) error {
 // apply runs one step, checks no foreign key dangles, and records the version,
 // all in one transaction.
 func apply(ctx context.Context, conn *sql.Conn, version int, step Step) error {
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("migrate: begin %q: %w", step.Name, err)
-	}
-	defer func() { _ = tx.Rollback() }()
+	return inTransaction(ctx, conn, step.Name, func() error {
+		if err := step.Run(ctx, conn); err != nil {
+			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		}
+		if err := checkForeignKeys(ctx, conn, step.Tables); err != nil {
+			return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		}
 
-	if err := step.Run(ctx, tx); err != nil {
-		return fmt.Errorf("migrate: step %q: %w", step.Name, err)
+		return writeVersion(ctx, conn, version)
+	})
+}
+
+// inTransaction runs fn between BEGIN IMMEDIATE and COMMIT on conn. IMMEDIATE
+// takes the write lock up front. A deferred transaction that read first and
+// wrote later could fail with SQLITE_BUSY_SNAPSHOT when another connection
+// wrote in between, halfway through a rebuild. database/sql's BeginTx can't
+// ask for it, so the statements go through the connection directly.
+func inTransaction(ctx context.Context, conn *sql.Conn, name string, fn func() error) (err error) {
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("migrate: begin %q: %w", name, err)
 	}
-	if err := checkForeignKeys(ctx, tx); err != nil {
-		return fmt.Errorf("migrate: step %q: %w", step.Name, err)
-	}
-	if err := writeVersion(ctx, tx, version); err != nil {
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(context.WithoutCancel(ctx), `ROLLBACK`)
+		}
+	}()
+
+	if err := fn(); err != nil {
 		return err
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("migrate: commit %q: %w", step.Name, err)
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("migrate: commit %q: %w", name, err)
+	}
+	committed = true
+
+	return nil
+}
+
+func checkForeignKeys(ctx context.Context, tx Tx, tables []string) error {
+	if len(tables) == 0 {
+		return firstViolation(ctx, tx, `SELECT count(*) FROM pragma_foreign_key_check`)
+	}
+	for _, table := range tables {
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&exists); err != nil {
+			return fmt.Errorf("foreign key check: %w", err)
+		}
+		if exists == 0 {
+			continue // a table the step left to the store to create
+		}
+		if err := firstViolation(ctx, tx, `SELECT count(*) FROM pragma_foreign_key_check(?)`, table); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func checkForeignKeys(ctx context.Context, tx *sql.Tx) error {
-	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
-	if err != nil {
+func firstViolation(ctx context.Context, tx Tx, query string, args ...any) error {
+	var n int
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
 		return fmt.Errorf("foreign key check: %w", err)
 	}
-	defer func() { _ = rows.Close() }()
-	if rows.Next() {
+	if n > 0 {
 		return ErrDanglingForeignKey
 	}
 
-	return rows.Err() //nolint:wrapcheck // the caller adds the step
+	return nil
 }
 
 // suspendForeignKeys switches enforcement off on this connection when it is on,

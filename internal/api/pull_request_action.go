@@ -79,7 +79,7 @@ func (e *statusError) write(w http.ResponseWriter) {
 // lookupForgeSource finds the user's source for forge, with the settings it was
 // built from. The *statusError is a 500 or 400, nil on success.
 func lookupForgeSource(ctx context.Context, deps Deps, userID []byte, forge string) (dashboard.Source, settings.Credentials, *statusError) {
-	creds, err := deps.SettingsStore.Get(ctx, userID)
+	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
 		return nil, settings.Credentials{}, &statusError{http.StatusInternalServerError, "could not load settings"}
 	}

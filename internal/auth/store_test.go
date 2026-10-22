@@ -350,6 +350,27 @@ func TestStore_HasAnyRegisteredUser_CompletedRegistration_ReportsTrue(t *testing
 	assert.True(t, has)
 }
 
+func TestStore_OwnerID_NoUsers_IsNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.OwnerID(t.Context())
+
+	require.ErrorIs(t, err, auth.ErrNotFound)
+}
+
+func TestStore_OwnerID_TheOnlyUser_IsTheirID_EvenWithoutAPasskey(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+
+	id, err := store.OwnerID(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, id, "after the operator clears the passkeys the owner is still the owner")
+}
+
 // TestStore_RevokeUser_AlsoRevokesAPITokens is a regression test for the
 // same "signed out everywhere" gap DeleteUser already had to cover for
 // sessions — an API token is another way to authenticate as this user,

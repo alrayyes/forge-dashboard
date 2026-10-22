@@ -57,14 +57,14 @@ func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		creds, err := deps.SettingsStore.Get(r.Context(), t.user.ID)
+		creds, err := deps.SettingsStore.Get(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
 
 			return
 		}
 
-		token, secret, err := deps.SettingsStore.EnsureWebhookCredentials(r.Context(), t.user.ID)
+		token, secret, err := deps.SettingsStore.EnsureWebhookCredentials(r.Context())
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load webhook credentials"))
 

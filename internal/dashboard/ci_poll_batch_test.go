@@ -278,13 +278,13 @@ type countingAutoMergeStore struct {
 	sweeps atomic.Int32
 }
 
-func (s *countingAutoMergeStore) AutoMergeIntents(context.Context, []byte) (map[string]struct{}, error) {
+func (s *countingAutoMergeStore) AutoMergeIntents(context.Context) (map[string]struct{}, error) {
 	s.sweeps.Add(1)
 
 	return nil, nil
 }
 
-func (s *countingAutoMergeStore) CancelAutoMerge(context.Context, []byte, string, string, int) error {
+func (s *countingAutoMergeStore) CancelAutoMerge(context.Context, string, string, int) error {
 	return nil
 }
 
@@ -308,7 +308,7 @@ func TestAggregator_PollCI_ABatchOfRepoMergesRunsTheAfterMergeSweepOnce(t *testi
 	}
 	store := &countingAutoMergeStore{}
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
-	agg.EnableAutoMerge([]byte("u"), store)
+	agg.EnableAutoMerge(store)
 	agg.Refresh(t.Context())
 	before := store.sweeps.Load()
 
