@@ -148,6 +148,7 @@ const singleUserSpecs = [
   '**/branch-pipeline-panel-live.spec.ts',
   '**/branch-rerun-checks.spec.ts',
   '**/in-place-dialogs.spec.ts',
+  '**/issue-close.spec.ts',
   '**/issue-dialog.spec.ts',
   '**/phone-card-action-row.spec.ts',
   '**/profile-links.spec.ts',
