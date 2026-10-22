@@ -106,7 +106,9 @@ Dependabot alerts must also be enabled on the repo. Answers are cached for
 fifteen minutes. A failed read, or the first refusal, is retried after five
 minutes; the same refusal again waits the full fifteen. A rate limit or a
 GitHub error shows as unknown too, so an unknown row does not always mean a
-missing permission. GitHub's reference:
+missing permission. The API says which in `reason` on the unknown answer
+(`refused`, `switched_off`, `throttled`, `failed` or `too_many`), and the notice
+on the page names the cause when every unknown row shares one. GitHub's reference:
 [List Dependabot alerts for a repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
 
 ## Main branches API
@@ -122,7 +124,8 @@ null) and its open dependency advisories (`advisories`: `state`, `count`, the
 `highest` severity and a `url` to the alerts). `advisories` is absent for a repo
 whose forge no source reads, such as Forgejo. `state` is `unknown` when the
 forge could not say, for example alerts switched off or a token without the
-scope, and is never a count of zero. The release's title and notes are a
+scope, and is never a count of zero; `reason` then says why when the dashboard
+can tell. The release's title and notes are a
 separate read, `GET /api/releases/details`, made when the dialog opens. The
 response also counts the rows per status. Every row is returned whatever its
 status, ordered by commit time, latest first (rows with no commit time last,

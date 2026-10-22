@@ -68,7 +68,7 @@ func TestReadAdvisories_AlertsDisabledIsUnknownNotZero(t *testing.T) {
 	got, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "https://github.com/alrayyes/a")
 
 	require.NoError(t, err)
-	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, got)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonSwitchedOff}, got)
 }
 
 func TestReadAdvisories_MissingScopeIsUnknownNotZero(t *testing.T) {
@@ -82,7 +82,7 @@ func TestReadAdvisories_MissingScopeIsUnknownNotZero(t *testing.T) {
 	got, err := client.ReadAdvisories(t.Context(), "alrayyes", "a", "https://github.com/alrayyes/a")
 
 	require.NoError(t, err)
-	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, got)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonRefused}, got)
 }
 
 func TestReadAdvisories_ServerErrorIsAnError(t *testing.T) {

@@ -226,7 +226,7 @@ func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 		URL:     "https://github.com/acme/known/security/dependabot",
 	}
 	unknown := branchRow("acme/unknown", dashboard.MainBranchFailed)
-	unknown.Advisories = &dashboard.Advisories{State: dashboard.AdvisoriesUnknown}
+	unknown.Advisories = &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonThrottled}
 	none := branchRow("acme/none", dashboard.MainBranchPassed)
 	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{known, unknown, none})
 
@@ -244,6 +244,7 @@ func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 		"url":     "https://github.com/acme/known/security/dependabot",
 	}, byName["acme/known"]["advisories"])
 	assert.Equal(t, "unknown", byName["acme/unknown"]["advisories"].(map[string]any)["state"])
+	assert.Equal(t, "throttled", byName["acme/unknown"]["advisories"].(map[string]any)["reason"])
 	assert.NotContains(t, byName["acme/none"], "advisories")
 }
 
