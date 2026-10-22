@@ -77,10 +77,10 @@ func (r *SQLiteRecorder) Record(ctx context.Context, e Entry) error {
 	return nil
 }
 
-// List returns every entry matching filter, newest first — the admin
-// API's own read path (internal/api's request-log handlers), kept on
-// this same type rather than a second one, since it's just
-// RecordRequest's read-side counterpart against the same store.
+// List returns every entry matching filter, newest first — the read
+// path of the request-log handlers in internal/api, kept on this same type
+// rather than a second one, since it's just RecordRequest's read-side
+// counterpart against the same store.
 func (r *SQLiteRecorder) List(ctx context.Context, filter Filter) ([]Entry, error) {
 	rows, err := r.store.ListRequests(ctx, auth.RequestLogFilter{
 		Forge:     string(filter.Forge),

@@ -481,41 +481,6 @@ func randomWebhookValue() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
-// Delete removes userID's saved credentials — a no-op, not an error, if
-// they never saved any. Used when an account is removed outright.
-// Also removes their recorded webhook deliveries and per-repo settings,
-// the same store's other tables.
-func (s *Store) Delete(ctx context.Context, userID []byte) error {
-	encodedID := encodeUserID(userID)
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM webhook_deliveries WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete webhook deliveries: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM ignored_repos WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete ignored repos: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_update_branch_repos WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete auto-update-branch repos: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM auto_merge_intents WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete auto-merge intents: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM hidden_pull_requests WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete hidden pull requests: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM pull_request_auto_update WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete pull request auto-update: %w", err)
-	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM queued_actions WHERE user_id = ?`, encodedID); err != nil {
-		return fmt.Errorf("settings: delete queued actions: %w", err)
-	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM user_credentials WHERE user_id = ?`, encodedID)
-	if err != nil {
-		return fmt.Errorf("settings: delete credentials: %w", err)
-	}
-
-	return nil
-}
-
 // WebhookDeliveryKey is how a repo's forge and full name combine into
 // the key WebhookDeliveries' returned set uses — exported so a caller
 // never has to know or reproduce the separator itself. IgnoredRepos'

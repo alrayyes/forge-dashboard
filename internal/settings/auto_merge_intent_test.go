@@ -87,16 +87,3 @@ func TestStore_ArmAutoMerge_TwoUsers_EachSeesOnlyTheirOwn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
-
-func TestStore_Delete_RemovesAutoMergeIntents(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	userID := []byte("user-1")
-	require.NoError(t, store.ArmAutoMerge(t.Context(), userID, "forgejo", "alrayyes/a", 7))
-
-	require.NoError(t, store.Delete(t.Context(), userID))
-
-	got, err := store.AutoMergeIntents(t.Context(), userID)
-	require.NoError(t, err)
-	assert.Empty(t, got)
-}

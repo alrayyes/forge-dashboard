@@ -206,6 +206,41 @@ func TestStore_ClaimUnregisteredUser_ADeadEndRowIsReusedAndOthersAreDropped(t *t
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
+func TestStore_ClaimUnregisteredUser_SweepsTheCeremoniesOfEveryUserItDrops(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	session := webauthn.SessionData{Challenge: "c"}
+
+	_, err := store.CreateUser(t.Context(), "owner", "Owner")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stale", "Stale")
+	require.NoError(t, err)
+	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "registration", session, time.Minute))
+
+	_, err = store.ClaimUnregisteredUser(t.Context(), "owner", "Owner", time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	_, err = store.LoadCeremony(t.Context(), "stale", "registration")
+	assert.ErrorIs(t, err, auth.ErrNotFound, "a dropped user's ceremony must not outlive it")
+}
+
+func TestStore_AddFirstCredential_SweepsTheCeremoniesOfTheUsersItClears(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	session := webauthn.SessionData{Challenge: "c"}
+
+	winner, err := store.CreateUser(t.Context(), "winner", "Winner")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "stale", "Stale")
+	require.NoError(t, err)
+	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "registration", session, time.Minute))
+
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	_, err = store.LoadCeremony(t.Context(), "stale", "registration")
+	assert.ErrorIs(t, err, auth.ErrNotFound, "a cleared user's ceremony must not outlive it")
+}
+
 func TestStore_ClaimUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)

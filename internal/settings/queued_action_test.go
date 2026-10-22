@@ -136,15 +136,3 @@ func TestStore_QueuedActions_SurviveReopeningTheDatabase(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, saved.ID, got[0].ID)
 }
-
-func TestStore_Delete_RemovesQueuedActions(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	_, _, err := store.EnqueueQueuedAction(t.Context(), []byte("user-1"), queuedUpdate(time.Now().Add(time.Hour)))
-	require.NoError(t, err)
-
-	require.NoError(t, store.Delete(t.Context(), []byte("user-1")))
-
-	got, _ := store.QueuedActions(t.Context(), []byte("user-1"))
-	assert.Empty(t, got)
-}

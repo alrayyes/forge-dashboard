@@ -232,8 +232,11 @@ func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName
 	if err != nil {
 		return nil, fmt.Errorf("auth: find the unregistered user: %w", err)
 	}
-
-	if _, err := tx.ExecContext(ctx, `DELETE FROM users WHERE credentials_json = '[]' AND id != ? AND created_at < ?`, id, olderThan.UTC()); err != nil {
+	const abandoned = `FROM users WHERE credentials_json = '[]' AND id != ? AND created_at < ?`
+	if _, err := tx.ExecContext(ctx, `DELETE FROM ceremonies WHERE username IN (SELECT username `+abandoned+`)`, id, olderThan.UTC()); err != nil {
+		return nil, fmt.Errorf("auth: drop abandoned registrations' ceremonies: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE `+abandoned, id, olderThan.UTC()); err != nil {
 		return nil, fmt.Errorf("auth: drop abandoned registrations: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE users SET display_name = ? WHERE id = ?`, displayName, id); err != nil {
@@ -434,9 +437,12 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, username 
 	// first so none can hold the username this registration takes. If this
 	// row is itself gone (another ceremony won and cleared it), the update
 	// below matches nothing and the registration is refused.
-	if _, err := tx.ExecContext(ctx, `
-		DELETE FROM users WHERE id != ? AND credentials_json = '[]'
-		  AND EXISTS (SELECT 1 FROM users WHERE id = ? AND credentials_json = '[]')`, id, id); err != nil {
+	const abandoned = `FROM users WHERE id != ? AND credentials_json = '[]'
+		  AND EXISTS (SELECT 1 FROM users WHERE id = ? AND credentials_json = '[]')`
+	if _, err := tx.ExecContext(ctx, `DELETE FROM ceremonies WHERE username IN (SELECT username `+abandoned+`)`, id, id); err != nil {
+		return fmt.Errorf("auth: clear abandoned registrations' ceremonies: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE `+abandoned, id, id); err != nil {
 		return fmt.Errorf("auth: clear abandoned registrations: %w", err)
 	}
 	res, err := tx.ExecContext(ctx, `

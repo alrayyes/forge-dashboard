@@ -316,19 +316,6 @@ func newManagedDebounce(t *testing.T) (*dashboard.Manager, *fakeTimers, *fakeRep
 	return m, clock, src
 }
 
-func TestManager_RemoveDropsAPendingDebouncedRefresh(t *testing.T) {
-	t.Parallel()
-	m, clock, src := newManagedDebounce(t)
-
-	require.True(t, m.RefreshRepoDebounced(t.Context(), []byte("u1"), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a"))
-	require.Equal(t, 1, clock.pending())
-	m.Remove([]byte("u1"))
-
-	require.Eventually(t, func() bool { return clock.pending() == 0 }, 5*time.Second, time.Millisecond, "the removed user's timer is stopped")
-	clock.Advance(10 * time.Second)
-	assert.Zero(t, src.repoFetchCallCount("alrayyes/a"), "nothing fetches for a user who was removed")
-}
-
 func TestManager_EnsureRebuildDropsAPendingDebouncedRefreshOfTheOldAggregator(t *testing.T) {
 	t.Parallel()
 	m, clock, src := newManagedDebounce(t)
