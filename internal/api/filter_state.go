@@ -19,7 +19,7 @@ import (
 // storing it.
 const maxFilterStateBytes = 16 * 1024
 
-// The Label filter's pick is saved as lowercase labels joined by a newline, in
+// The Label, Repo and Author filters' picks are saved as lowercase labels joined by a newline, in
 // a cookie as well as here, so it is held to a size a cookie carries, and to
 // text with no control character that could split one label into two.
 const (
@@ -27,34 +27,41 @@ const (
 	maxLabelPickChars  = 1000
 )
 
-// validLabelPick reports whether shared.label in a filter state body, when it
-// is there and a string, stays inside those limits. Everything else about the
-// body stays opaque.
-func validLabelPick(body []byte) bool {
+// pickKeys are the shared filters saved as several values joined by a newline:
+// label, repo and author. Each is held to the same limits.
+var pickKeys = []string{"label", "repo", "author"}
+
+// validPicks reports whether each of shared.label, shared.repo and
+// shared.author in a filter state body, when it is there and a string, stays
+// inside those limits. Everything else about the body stays opaque.
+func validPicks(body []byte) bool {
 	var state struct {
-		Shared struct {
-			Label any `json:"label"`
-		} `json:"shared"`
+		Shared map[string]any `json:"shared"`
 	}
 	if err := json.Unmarshal(body, &state); err != nil {
 		// Some other shape under "shared": not this check's concern.
 		return true
 	}
 
-	label, ok := state.Shared.Label.(string)
-	if !ok {
-		return true
+	for _, key := range pickKeys {
+		if pick, ok := state.Shared[key].(string); ok && !validPick(pick) {
+			return false
+		}
 	}
 
-	if utf8.RuneCountInString(label) > maxLabelPickChars {
+	return true
+}
+
+func validPick(pick string) bool {
+	if utf8.RuneCountInString(pick) > maxLabelPickChars {
 		return false
 	}
 
-	if strings.Count(label, "\n")+1 > maxLabelPickLabels {
+	if strings.Count(pick, "\n")+1 > maxLabelPickLabels {
 		return false
 	}
 
-	for _, r := range label {
+	for _, r := range pick {
 		if r != '\n' && unicode.IsControl(r) {
 			return false
 		}
@@ -101,8 +108,8 @@ func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 			return
 		}
 
-		if !validLabelPick(body) {
-			writeJSON(w, http.StatusBadRequest, errorBody("label filter too long or invalid"))
+		if !validPicks(body) {
+			writeJSON(w, http.StatusBadRequest, errorBody("a filter pick is too long or invalid"))
 
 			return
 		}

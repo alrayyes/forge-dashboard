@@ -14,6 +14,17 @@ import (
 func TestFilterStatePut_LabelPick(t *testing.T) {
 	t.Parallel()
 
+	for _, key := range []string{"label", "repo", "author"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			runPickCases(t, key)
+		})
+	}
+}
+
+func runPickCases(t *testing.T, key string) {
+	t.Helper()
+
 	labels := func(n int) string { return strings.TrimSuffix(strings.Repeat(`l\n`, n), `\n`) }
 	cases := map[string]struct {
 		label string
@@ -39,7 +50,7 @@ func TestFilterStatePut_LabelPick(t *testing.T) {
 
 			srv := newTestServer(t)
 			sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-			body := `{"shared":{"label":"` + tc.label + `"}}`
+			body := `{"shared":{"` + key + `":"` + tc.label + `"}}`
 
 			resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", body, sessionCookie)
 			defer func() { _ = resp.Body.Close() }()
