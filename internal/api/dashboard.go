@@ -407,10 +407,10 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	}
 }
 
-// firstRefreshDone is the snapshot's flag. With no
-// Aggregator after warmUpAggregator has no saved settings, so nothing will
-// ever refresh for them and nothing is loading: report true, or a page waiting
-// on the flag would show its skeleton forever. Ensuring an empty Aggregator
+// firstRefreshDone is the snapshot's flag. When no Aggregator is running
+// (warmUpAggregator found no saved settings), nothing will ever refresh and
+// nothing is loading, so it reports true, or a page waiting on the flag would
+// show its skeleton forever. Ensuring an empty Aggregator
 // instead would change the stream and refresh endpoints, which answer 404
 // while none runs.
 func firstRefreshDone(m *dashboard.Service) bool {
@@ -813,11 +813,11 @@ func withRateLimitSeverity(forges []dashboard.ForgeHealth, now time.Time) []dash
 	return out
 }
 
-// dashboardFor returns the dashboard data u's account currently has. Shared
+// dashboardFor returns the dashboard data currently held. Shared
 // by handleDashboard and the MCP get_dashboard tool (mcp.go) so both read it
 // the same way. Never blocks on either forge: Service.Get reads whatever
-// that user's background refresh last assembled -- empty, not an error, for a
-// user who hasn't saved any credentials in Settings yet.
+// the background refresh last assembled -- empty, not an error, when no
+// credentials are saved in Settings yet.
 func dashboardFor(ctx context.Context, deps Deps, u *auth.User, view boardView) dashboardResponse {
 	warmUpAggregator(ctx, deps, u.Username)
 	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())

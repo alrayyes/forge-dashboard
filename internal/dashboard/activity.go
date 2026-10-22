@@ -47,10 +47,7 @@ const MaxViewers = 32
 // use. The zero idle period turns idle mode off.
 //
 // One Activity serves every Aggregator the Service builds, and its wake is
-// read by whichever Run gets there first. With one signed-in user, which is
-// what the app is becoming, that is the only reader. Should several users come
-// back, only one of them would catch up at once; the others catch up on their
-// next scheduled tick.
+// read by whichever Run gets there first, which is the only reader.
 //
 // A nil *Activity is valid and is never idle, which is what an Aggregator
 // built without idle mode holds. Safe for concurrent use.
