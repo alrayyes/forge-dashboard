@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.1](https://github.com/alrayyes/forge-dashboard/compare/v2.0.0...v2.0.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **auth:** harden the single-user migration and share the owner lookup ([#2455](https://github.com/alrayyes/forge-dashboard/issues/2455)) ([902d05e](https://github.com/alrayyes/forge-dashboard/commit/902d05ec03dad095656e6fa2b426e81537a4d7fd))
+* **mcp:** one wording for the advisories field, and finish the Branches pill details ([#2454](https://github.com/alrayyes/forge-dashboard/issues/2454)) ([96bd114](https://github.com/alrayyes/forge-dashboard/commit/96bd114d3506d65c3ac9a1442cccc5ec39a5dc93))
+
 ## [2.0.0](https://github.com/alrayyes/forge-dashboard/compare/v1.9.0...v2.0.0) (2026-10-22)
 
 
