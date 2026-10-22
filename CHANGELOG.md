@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.2](https://github.com/alrayyes/forge-dashboard/compare/v2.5.1...v2.5.2) (2026-10-22)
+
+
+### Bug Fixes
+
+* **branches:** end a queued rerun's hold on a timer, not on the next redraw ([#2517](https://github.com/alrayyes/forge-dashboard/issues/2517)) ([6e0d787](https://github.com/alrayyes/forge-dashboard/commit/6e0d78748803db1e44ebe97b91b406a2c2a70dd8))
+
 ## [2.5.1](https://github.com/alrayyes/forge-dashboard/compare/v2.5.0...v2.5.1) (2026-10-22)
 
 
