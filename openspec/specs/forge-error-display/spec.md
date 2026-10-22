@@ -76,3 +76,31 @@ one of the other kinds.
 - **WHEN** a forge client's error doesn't carry a status code or signal
   the system recognizes
 - **THEN** the error is classified as unknown rather than guessed at
+
+### Requirement: A start-up gap is not drawn as an outage
+
+The system SHALL mark a forge `starting`, with no error kind, while the rows
+shown for it are the ones a previous run saved and no refresh has asked the
+forge since the app started. The dashboard SHALL say the app is starting up
+and show when the data is from, and SHALL NOT draw an unreachable chip,
+headline or banner for that forge. The first refresh that reaches the forge
+replaces the mark with its real reachability.
+
+#### Scenario: Opening the page right after a restart
+
+- **WHEN** the page loads before the first refresh has finished and the
+  forges carry the saved rows
+- **THEN** each forge chip says it is loading, a line says "Starting up,
+  showing data from" the saved time, and no forge is called unreachable
+
+#### Scenario: A forge that is really down at start-up
+
+- **WHEN** the first refresh reports a forge as failing
+- **THEN** its chip says unreachable and the unreachable banner appears,
+  as for any outage
+
+#### Scenario: The first refresh finishes
+
+- **WHEN** the first refresh answers for a forge
+- **THEN** the starting notice clears and the chip shows the real
+  reachability
