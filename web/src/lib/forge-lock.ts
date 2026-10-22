@@ -15,6 +15,8 @@ import {
 export type ForgeHealthEntry = {
   forge: string;
   reachable: boolean;
+  // Rows are the saved ones and no fetch has answered since the app started.
+  starting?: boolean;
   rateLimitREST?: RateLimit;
   rateLimitGraphQL?: RateLimit;
   // Why Dependabot would refuse a command through this credential.
@@ -39,6 +41,11 @@ function lockOf(
   budget: 'rest' | 'graphql',
   now: number,
 ): ForgeLock | null {
+  if (health.starting)
+    return {
+      code: 'forge_unreachable',
+      reason: 'Still loading from this forge, try again in a moment.',
+    };
   if (isUnreachable(health))
     return {
       code: 'forge_unreachable',

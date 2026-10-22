@@ -137,3 +137,15 @@ describe('isUnreachable', () => {
     expect(isUnreachable({})).toBe(false);
   });
 });
+
+describe('a forge that is still starting up', () => {
+  test('locks a write with a reason that says it is loading, not unreachable', () => {
+    const lock = forgeLockReason(
+      [host({ reachable: false, starting: true })],
+      'github',
+      NOW,
+    );
+    expect(lock?.reason).toMatch(/still loading|starting/i);
+    expect(lock?.reason).not.toMatch(/can't be reached/);
+  });
+});
