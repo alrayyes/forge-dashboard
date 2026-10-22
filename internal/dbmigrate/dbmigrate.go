@@ -102,6 +102,13 @@ func Run(ctx context.Context, db *sql.DB, dbPath string, steps []Step, log *slog
 
 	for i := current; i < len(steps); i++ {
 		if err := apply(ctx, conn, i+1, steps[i]); err != nil {
+			if res.Applied == 0 {
+				// The step rolled back, so the copy holds what the file holds. A start
+				// that keeps failing would add one with every secret per restart.
+				_ = os.Remove(res.BackupPath)
+				res.BackupPath = ""
+			}
+
 			return res, err
 		}
 		res.Applied++
