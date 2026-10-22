@@ -283,9 +283,9 @@ server. A copy with no revision, or the same one, wins as before.
 What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, the
 hidden pull requests panel, and the expanded rows on Branches. The Branches
-status, forge and search follow you to another browser the same way, and so do
-the Webhooks forge buttons, repo search, status select and sort. The Webhooks
-page size is not remembered, as on the other pages.
+status, forge, advisories and search follow you to another browser the same
+way, and so do the Webhooks forge buttons, repo search, status select and sort.
+The Webhooks page size is not remembered, as on the other pages.
 
 ## Filters on a phone
 

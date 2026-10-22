@@ -3,11 +3,16 @@ import { describe, expect, test } from 'bun:test';
 import {
   ADVISORY_REASON_TEXT,
   type Advisories,
+  advisoryCounts,
   advisoryCoverage,
   advisoryPill,
   advisoryReasonNeedsGrant,
   advisoryUnknownReason,
+  applyFilter,
+  DEFAULT_FILTER,
+  isFiltered,
   type MainBranch,
+  offeredAdvisories,
 } from './main-branches';
 
 const URL = 'https://example.com/acme/x/security/dependabot';
@@ -154,5 +159,65 @@ describe('advisoryUnknownReason', () => {
     expect(advisoryReasonNeedsGrant('switched_off')).toBe(true);
     expect(advisoryReasonNeedsGrant('throttled')).toBe(false);
     expect(ADVISORY_REASON_TEXT.throttled).toContain('rate limiting');
+  });
+});
+
+describe('the advisories filter', () => {
+  const rows = [
+    { ...b({ state: 'known', count: 2, highest: 'high' }), fullName: 'a' },
+    { ...b({ state: 'known', count: 0 }), fullName: 'b' },
+    { ...b({ state: 'unknown', count: 0 }), fullName: 'c' },
+    { ...b(undefined), fullName: 'd' },
+  ] as MainBranch[];
+  const names = (f: 'all' | 'has' | 'none') =>
+    applyFilter(rows, { ...DEFAULT_FILTER, advisories: f }).map(
+      (r) => r.fullName,
+    );
+
+  test('any keeps every row', () => {
+    expect(names('all')).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  test('has keeps only a known count above zero', () => {
+    expect(names('has')).toEqual(['a']);
+  });
+
+  test('no keeps only a known zero: unknown and absent are neither', () => {
+    expect(names('none')).toEqual(['b']);
+  });
+
+  test('the counts say how many rows are left out as unknown', () => {
+    expect(advisoryCounts(rows)).toEqual({ has: 1, none: 1, unknown: 2 });
+  });
+
+  test('a choice is a filter, so reset is offered', () => {
+    expect(isFiltered(DEFAULT_FILTER)).toBe(false);
+    expect(isFiltered({ ...DEFAULT_FILTER, advisories: 'has' })).toBe(true);
+  });
+
+  test('a choice is offered only when a row would show under it, and the active one stays', () => {
+    const onlyClean = [rows[1]] as MainBranch[];
+    expect([...offeredAdvisories(onlyClean, DEFAULT_FILTER)].sort()).toEqual([
+      'all',
+      'none',
+    ]);
+    expect(
+      [
+        ...offeredAdvisories(onlyClean, {
+          ...DEFAULT_FILTER,
+          advisories: 'has',
+        }),
+      ].sort(),
+    ).toEqual(['all', 'has', 'none']);
+  });
+
+  test('the other filters narrow what is offered', () => {
+    const mixed = [
+      { ...rows[0], status: 'failed' },
+      { ...rows[1], status: 'passed' },
+    ] as MainBranch[];
+    expect([
+      ...offeredAdvisories(mixed, { ...DEFAULT_FILTER, status: 'passed' }),
+    ]).not.toContain('has');
   });
 });
