@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.10.0](https://github.com/alrayyes/forge-dashboard/compare/v2.9.0...v2.10.0) (2026-10-22)
+
+
+### Features
+
+* **forgejo:** show a failed job's log excerpt in the pipeline dialog ([#2535](https://github.com/alrayyes/forge-dashboard/issues/2535)) ([949204c](https://github.com/alrayyes/forge-dashboard/commit/949204c9183a8ab1371066fc6f0c79458130ff41))
+* **web:** add a Copy log button beside a failed check's excerpt ([#2534](https://github.com/alrayyes/forge-dashboard/issues/2534)) ([1a40b4c](https://github.com/alrayyes/forge-dashboard/commit/1a40b4c1522489e785270a0c8b40ea7e87b6066a))
+* **web:** select several repos and several authors in the shared filters ([#2549](https://github.com/alrayyes/forge-dashboard/issues/2549)) ([4417074](https://github.com/alrayyes/forge-dashboard/commit/44170744629526ec224aa701082e485a83d4fefd)), closes [#2538](https://github.com/alrayyes/forge-dashboard/issues/2538)
+
 ## [2.9.0](https://github.com/alrayyes/forge-dashboard/compare/v2.8.0...v2.9.0) (2026-10-22)
 
 
