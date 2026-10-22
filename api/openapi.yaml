@@ -4154,6 +4154,14 @@ components:
             How long a completed check ran. Absent while it runs, or when
             the forge doesn't say. GitHub only: Forgejo's API doesn't give
             a job's timing.
+        runAttempt:
+          type: integer
+          minimum: 1
+          description: |
+            Which attempt of its workflow run the job belongs to. Forgejo
+            only: it keeps a job's id and page when a run is retried, so this
+            is what tells a retry's output from the first attempt's. Absent
+            when the forge doesn't number attempts.
         failedStep:
           type: string
           description: |
