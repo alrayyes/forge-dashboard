@@ -98,3 +98,11 @@ func TestNewJobLog_StripsCSISequencesWithPrivateParameterBytes(t *testing.T) {
 
 	assert.Equal(t, "abcd\n", got.Text)
 }
+
+func TestNewJobLog_CutTail_KeepsALonePartialLine(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.NewJobLog([]byte("the end of one very long line\n"), true)
+
+	assert.Equal(t, "the end of one very long line\n", got.Text, "dropping the only line would leave nothing")
+}
