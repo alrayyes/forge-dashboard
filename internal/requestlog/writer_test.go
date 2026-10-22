@@ -132,3 +132,35 @@ func TestWriter_CloseWithin_ReportsAFlushThatFinishedInTime(t *testing.T) {
 
 	assert.True(t, w.CloseWithin(time.Second))
 }
+
+// A handler cut by srv.Close can still log after the flush has started or given
+// up. That write must neither panic nor block, and is never stored.
+func TestWriter_ARowSubmittedAfterCloseWithinNeitherPanicsNorBlocks(t *testing.T) {
+	t.Parallel()
+	store := &gatedStore{release: make(chan struct{})}
+	w := requestlog.NewWriter(store, 1)
+	rec := requestlog.NewSQLiteRecorder(nil, "acct", requestlog.WithWriter(w))
+	require.NoError(t, rec.Record(t.Context(), requestlog.Entry{Outcome: requestlog.OutcomeSuccess}))
+
+	require.False(t, w.CloseWithin(50*time.Millisecond), "the held write keeps the flush from finishing")
+
+	late := make(chan error, 1)
+	go func() {
+		var err error
+		for range 3 { // past the queue size, so the full-queue path runs too
+			err = rec.Record(t.Context(), requestlog.Entry{Outcome: requestlog.OutcomeSuccess})
+		}
+		late <- err
+	}()
+
+	select {
+	case err := <-late:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("a late write blocked")
+	}
+
+	close(store.release)
+	w.Close()
+	assert.LessOrEqual(t, store.count(), 2, "rows submitted after the close began are not all written")
+}
