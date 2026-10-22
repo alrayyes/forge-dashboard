@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -13,13 +12,6 @@ import (
 // nothing, never part of the snapshot.
 func handleReleaseDetails(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		tag := r.URL.Query().Get("tag")
 		if tag == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("tag is required"))
@@ -34,7 +26,7 @@ func handleReleaseDetails(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		src, _, serr := lookupForgeSource(r.Context(), deps, u.ID, forge)
+		src, _, serr := lookupForgeSource(r.Context(), deps, forge)
 		if serr != nil {
 			serr.write(w)
 

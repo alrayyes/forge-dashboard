@@ -24,10 +24,10 @@ func handlePullRequestMerge(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dashboard.ActionMerge, t.req.Forge, t.req.FullName, t.req.Number) {
+		if refuseIfNotAllowed(r.Context(), w, deps, dashboard.ActionMerge, t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
-		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		src, _, ok := forgeSource(w, r, deps, t.req.Forge)
 		if !ok {
 			return
 		}
@@ -43,7 +43,7 @@ func handlePullRequestMerge(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Manager.MarkSettled(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
+		deps.Service.MarkSettled(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

@@ -13,8 +13,7 @@ that scrolls away. `internal/auth/store.go` already owns a SQLite
 database (`Store.Init`, `CREATE TABLE IF NOT EXISTS ...`) for
 users/sessions/tokens/invites — the natural home for another table,
 rather than standing up a second storage mechanism for one more record
-type. `internal/dashboard/manager.go`'s `Manager` runs one `Aggregator`
-per account, each with its own forge client instances, so "the account
+type. `internal/dashboard/service.go`'s `Service` runs one `Aggregator`, each with its own forge client instances, so "the account
 whose credential made the request" is already known at the call site
 inside each client — it just isn't threaded anywhere past the client
 today.

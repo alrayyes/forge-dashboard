@@ -45,7 +45,7 @@ const (
 // about real forge data — most of this file, which is about the auth and
 // settings plumbing, not internal/github or internal/forgejo (each tested
 // in its own package).
-func noSources([]byte, settingspkg.Credentials) []dashboard.Source { return nil }
+func noSources(settingspkg.Credentials) []dashboard.Source { return nil }
 
 func newTestServer(tb testing.TB) *httptest.Server {
 	tb.Helper()
@@ -53,7 +53,7 @@ func newTestServer(tb testing.TB) *httptest.Server {
 	return newTestServerWithSources(tb, noSources)
 }
 
-func newTestServerWithSources(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) *httptest.Server {
+func newTestServerWithSources(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source) *httptest.Server {
 	tb.Helper()
 	srv, _, _ := newTestServerWithSourcesAndManager(tb, buildSources)
 
@@ -61,13 +61,13 @@ func newTestServerWithSources(tb testing.TB, buildSources func([]byte, settingsp
 }
 
 // newTestServerWithSourcesAndManager is newTestServerWithSources plus
-// the *dashboard.Manager itself — for a test that needs to simulate a
+// the *dashboard.Service itself — for a test that needs to simulate a
 // process restart (manager.Stop(), which cancels every running loop and
-// clears its map, the same effect on Manager state a real restart has)
+// clears it, the same effect on Service state a real restart has)
 // without tearing down the rest of the server — and the *auth.Store,
 // for a test that needs to seed state (like a request-log row) with no
 // HTTP endpoint of its own to create one through.
-func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
+func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Service, *authpkg.Store) {
 	tb.Helper()
 
 	return newTestServerWithAutoMerge(tb, buildSources, false)
@@ -77,7 +77,7 @@ func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func([]byte,
 // auto-merge hook switched on, as main.go does: it merges armed Forgejo pull
 // requests and cancels an armed auto-merge on one that went empty (#1375). Off
 // elsewhere, since it reads the armed set on every refresh.
-func newTestServerWithAutoMerge(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
+func newTestServerWithAutoMerge(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source, autoMerge bool) (*httptest.Server, *dashboard.Service, *authpkg.Store) {
 	tb.Helper()
 
 	return newTestServerWithFirstLoadWait(tb, buildSources, autoMerge, 0)
@@ -86,7 +86,7 @@ func newTestServerWithAutoMerge(tb testing.TB, buildSources func([]byte, setting
 // newTestServerWithFirstLoadWait is newTestServerWithAutoMerge with the time a
 // read waits for a user's first refresh set (zero keeps the default). A test
 // holding a refresh open needs it short, or its read blocks for the default.
-func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Manager, *authpkg.Store) {
+func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Service, *authpkg.Store) {
 	tb.Helper()
 	srv, manager, authStore, _ := newTestServerWithSettingsStore(tb, buildSources, autoMerge, firstLoadWait)
 
@@ -96,7 +96,7 @@ func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func([]byte, set
 // newTestServerWithSettingsStore is newTestServerWithFirstLoadWait plus the
 // *settings.Store, for a test that asserts what the store holds after a call
 // (say, that a read created no webhook credentials). opts adjust the Deps before the mux is built.
-func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store) {
+func newTestServerWithSettingsStore(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Service, *authpkg.Store, *settingspkg.Store) {
 	tb.Helper()
 	srv, manager, authStore, settingsStore, _, _ := newTestServerWithDatabase(tb, buildSources, autoMerge, firstLoadWait, opts...)
 
@@ -106,7 +106,7 @@ func newTestServerWithSettingsStore(tb testing.TB, buildSources func([]byte, set
 // newTestServerWithDatabase is newTestServerWithSettingsStore plus the open
 // database and the path of its file, for a test that runs something against
 // the database the server is serving, like the single-user cleanup.
-func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Manager, *authpkg.Store, *settingspkg.Store, *sql.DB, string) {
+func newTestServerWithDatabase(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Service, *authpkg.Store, *settingspkg.Store, *sql.DB, string) {
 	tb.Helper()
 
 	dbPath := filepath.Join(tb.TempDir(), "app.db")
@@ -130,7 +130,7 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settings
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(tb, settingsStore.Init(tb.Context()))
 
-	manager := dashboard.NewManager(testRefreshInterval)
+	manager := dashboard.NewService(testRefreshInterval)
 	if autoMerge {
 		manager.SetAutoMergeStore(settingsStore)
 	}
@@ -144,7 +144,7 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func([]byte, settings
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		Manager:       manager,
+		Service:       manager,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
 

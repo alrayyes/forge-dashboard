@@ -52,7 +52,7 @@ func statsServer(t *testing.T) (*httptest.Server, *http.Cookie, *apistats.Counte
 		Forge: dashboard.ForgeGitHub, Reachable: true,
 		RateLimitGraphQL: &dashboard.RateLimit{Limit: 5000, Remaining: 4990, ResetsAt: time.Now().Add(time.Hour)},
 	}}
-	srv, _, _, _ := newTestServerWithSettingsStore(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, _, _, _ := newTestServerWithSettingsStore(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != statsToken {
 			return nil
 		}
@@ -157,7 +157,7 @@ func statsServerWithoutCounts(t *testing.T) (*httptest.Server, *http.Cookie, *ap
 	t.Helper()
 
 	counters := apistats.New()
-	srv, _, _, _ := newTestServerWithSettingsStore(t, func([]byte, settingspkg.Credentials) []dashboard.Source { return nil },
+	srv, _, _, _ := newTestServerWithSettingsStore(t, func(settingspkg.Credentials) []dashboard.Source { return nil },
 		false, 0, func(d *api.Deps) { d.APIStats = counters })
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 

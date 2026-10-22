@@ -32,7 +32,7 @@ func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCo
 			},
 		},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

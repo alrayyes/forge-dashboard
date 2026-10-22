@@ -45,7 +45,7 @@ func scheduledBoard(t *testing.T, src *scheduleCancelSource, prs ...dashboard.Pu
 
 	src.health = dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true, RepoCount: 1}
 	src.prs = prs
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.ForgejoToken == "" {
 			return nil
 		}

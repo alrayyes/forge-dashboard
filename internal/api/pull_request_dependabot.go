@@ -106,11 +106,11 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		if refuseIfNotAllowed(r.Context(), w, deps, t.user.ID, dependabotActions[t.action], t.req.Forge, t.req.FullName, t.req.Number) {
+		if refuseIfNotAllowed(r.Context(), w, deps, dependabotActions[t.action], t.req.Forge, t.req.FullName, t.req.Number) {
 			return
 		}
 
-		src, _, ok := forgeSource(w, r, deps, t.user.ID, t.req.Forge)
+		src, _, ok := forgeSource(w, r, deps, t.req.Forge)
 		if !ok {
 			return
 		}
@@ -131,7 +131,7 @@ func handlePullRequestDependabotAction(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Manager.RecordBotRequest(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotDependabot, dashboard.BotAction(t.action))
+		deps.Service.RecordBotRequest(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotDependabot, dashboard.BotAction(t.action))
 
 		w.WriteHeader(http.StatusNoContent)
 	}

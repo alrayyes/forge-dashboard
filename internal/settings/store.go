@@ -73,7 +73,7 @@ type Credentials struct {
 	// config), so it isn't run through Store's AES-256-GCM cipher and is
 	// stored as a plain integer column. Wins over GitHubToken when both
 	// are set and the server has an App configured — see
-	// cmd/forge-dashboard's buildSourcesForUser.
+	// cmd/forge-dashboard's buildSources.
 	GitHubAppInstallationID int64
 }
 

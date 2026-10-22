@@ -120,13 +120,13 @@ func newMCPServer(deps Deps, u *auth.User, ok bool) *mcp.Server {
 		return nil, resolveMainBranchesFor(ctx, deps, u), nil
 	})
 
-	addMainBranchChecksTool(server, deps, u, ok)
+	addMainBranchChecksTool(server, deps, ok)
 	addCheckLogTool(server, deps, u, ok)
-	addPullRequestTools(server, deps, u, ok)
-	addPullRequestWriteTools(server, deps, u, ok)
+	addPullRequestTools(server, deps, ok)
+	addPullRequestWriteTools(server, deps, ok)
 
 	addStoreTools(server, deps, u, ok)
-	addSettingsTool(server, deps, u, ok)
+	addSettingsTool(server, deps, ok)
 
 	return server
 }
@@ -188,7 +188,7 @@ func addStoreTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 
 // addMainBranchChecksTool registers get_main_branch_checks, the job list behind
 // one get_main_branches row.
-func addMainBranchChecksTool(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
+func addMainBranchChecksTool(server *mcp.Server, deps Deps, ok bool) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_main_branch_checks",
 		Description: "List every individual check (CI job) of the newest pipeline on one " +
@@ -209,7 +209,7 @@ func addMainBranchChecksTool(server *mcp.Server, deps Deps, u *auth.User, ok boo
 			return nil, pullRequestChecksResponse{}, errNoAuthenticatedUser
 		}
 
-		checks, serr := resolveMainBranchChecksFor(ctx, deps, u, input.Forge, input.FullName)
+		checks, serr := resolveMainBranchChecksFor(ctx, deps, input.Forge, input.FullName)
 		if serr != nil {
 			return nil, pullRequestChecksResponse{}, serr
 		}
@@ -248,7 +248,7 @@ func addCheckLogTool(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 
 // addPullRequestTools registers the tools that read one pull request on demand.
 // Split from newMCPServer to keep it short as tools accrue (#1503).
-func addPullRequestTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
+func addPullRequestTools(server *mcp.Server, deps Deps, ok bool) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_pull_request_details",
 		Description: "Fetch one pull request's description, comments and reactions, and " +
@@ -265,7 +265,7 @@ func addPullRequestTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 			return nil, dashboard.PullRequestDetails{}, errNoAuthenticatedUser
 		}
 
-		details, serr := resolvePullRequestDetailsFor(ctx, deps, u, input.Forge, input.FullName, input.Number)
+		details, serr := resolvePullRequestDetailsFor(ctx, deps, input.Forge, input.FullName, input.Number)
 		if serr != nil {
 			return nil, dashboard.PullRequestDetails{}, serr
 		}
@@ -293,7 +293,7 @@ func addPullRequestTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 			return nil, pullRequestChecksResponse{}, errNoAuthenticatedUser
 		}
 
-		checks, serr := resolvePullRequestChecksFor(ctx, deps, u, input.Forge, input.FullName, input.Number)
+		checks, serr := resolvePullRequestChecksFor(ctx, deps, input.Forge, input.FullName, input.Number)
 		if serr != nil {
 			return nil, pullRequestChecksResponse{}, serr
 		}
@@ -304,7 +304,7 @@ func addPullRequestTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 
 // addPullRequestWriteTools registers the tools that change one pull request's
 // own setting in this app's store. None calls a forge.
-func addPullRequestWriteTools(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
+func addPullRequestWriteTools(server *mcp.Server, deps Deps, ok bool) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "set_pull_request_auto_update",
 		Description: "Turn the automatic branch update on or off for one pull request, or " +
@@ -326,7 +326,7 @@ func addPullRequestWriteTools(server *mcp.Server, deps Deps, u *auth.User, ok bo
 			return nil, setPullRequestAutoUpdateInput{}, errNoAuthenticatedUser
 		}
 
-		_, serr := setPullRequestAutoUpdateFor(ctx, deps, u, pullRequestAutoUpdateRequest(input))
+		_, serr := setPullRequestAutoUpdateFor(ctx, deps, pullRequestAutoUpdateRequest(input))
 		if serr != nil {
 			return nil, setPullRequestAutoUpdateInput{}, serr
 		}
@@ -336,7 +336,7 @@ func addPullRequestWriteTools(server *mcp.Server, deps Deps, u *auth.User, ok bo
 }
 
 // addSettingsTool registers get_settings.
-func addSettingsTool(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
+func addSettingsTool(server *mcp.Server, deps Deps, ok bool) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_settings",
 		Description: "Fetch the signed-in user's own forge configuration: usernames, the Forgejo " +
@@ -350,7 +350,7 @@ func addSettingsTool(server *mcp.Server, deps Deps, u *auth.User, ok bool) {
 			return nil, SettingsSummary{}, errNoAuthenticatedUser
 		}
 
-		resp, err := resolveSettingsSummary(ctx, deps, u)
+		resp, err := resolveSettingsSummary(ctx, deps)
 		if err != nil {
 			return nil, SettingsSummary{}, err
 		}

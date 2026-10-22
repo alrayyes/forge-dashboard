@@ -66,7 +66,7 @@ func TestDashboard_NavCountsTotalAndFailedPerPage(t *testing.T) {
 			{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/e", Status: dashboard.MainBranchCancelled},
 		},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

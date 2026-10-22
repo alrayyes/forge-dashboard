@@ -1,6 +1,6 @@
 // Package settings is each user's own GitHub/Forgejo credentials — saved
 // through the Settings page, encrypted at rest, and what
-// dashboard.Manager builds that user's forge sources from. Replaces v1's
+// dashboard.Service builds the forge sources from. Replaces v1's
 // GITHUB_TOKEN/FORGEJO_* environment variables, which configured one
 // dashboard for everyone rather than one per signed-in user.
 package settings

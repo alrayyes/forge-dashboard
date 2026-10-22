@@ -81,7 +81,7 @@ func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullN
 		return dashboard.JobLog{}, &statusError{http.StatusBadRequest, "jobId must be a positive integer"}
 	}
 
-	src, _, serr := lookupForgeSource(ctx, deps, u.ID, forge)
+	src, _, serr := lookupForgeSource(ctx, deps, forge)
 	if serr != nil {
 		return dashboard.JobLog{}, serr
 	}
@@ -92,9 +92,9 @@ func resolveJobLogFor(ctx context.Context, deps Deps, u *auth.User, forge, fullN
 
 	// A repository the dashboard doesn't track is one the person never added;
 	// the token could still read it, so refuse before the forge is called.
-	warmUpAggregator(ctx, deps, u.ID, u.Username)
-	deps.Manager.WaitFirstRefresh(ctx, u.ID, deps.firstLoadWait())
-	snap := deps.Manager.Get(u.ID)
+	warmUpAggregator(ctx, deps, u.Username)
+	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
+	snap := deps.Service.Get()
 	if len(snap.Repos) == 0 {
 		// A cold start, an outage or a slow first refresh also looks like this,
 		// so it can't be told apart from "not tracked": ask the caller to retry.

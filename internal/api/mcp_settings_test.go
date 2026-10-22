@@ -193,7 +193,7 @@ func TestMCP_GetSettings_IgnoredTitleCountsAreNullWhileUnknown(t *testing.T) {
 	t.Parallel()
 
 	release := make(chan struct{})
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken == "" {
 			return nil
 		}

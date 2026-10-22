@@ -22,7 +22,7 @@ func handlePullRequestReopen(deps Deps) http.HandlerFunc {
 		// The close held the pull request off the board; the next refresh
 		// lists it again.
 		settle: func(deps Deps, t actionTarget) {
-			deps.Manager.Unsettle(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
+			deps.Service.Unsettle(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
 		},
 	})
 }

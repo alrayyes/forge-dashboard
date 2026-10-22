@@ -26,7 +26,7 @@ func forgejoAutoMergeBoard(t *testing.T, prs ...dashboard.PullRequest) (*httptes
 	src := &fakeConfiguredSource{}
 	src.health = dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true, RepoCount: 1}
 	src.prs = prs
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.ForgejoToken == "" {
 			return nil
 		}
@@ -216,7 +216,7 @@ func TestForgejoAutoMerge_Cancel_Unauthenticated_Returns401(t *testing.T) {
 
 func TestForgejoAutoMerge_Arm_WithNoForgejoCredentials_Returns400(t *testing.T) {
 	t.Parallel()
-	srv := newTestServerWithSources(t, func([]byte, settingspkg.Credentials) []dashboard.Source { return nil })
+	srv := newTestServerWithSources(t, func(settingspkg.Credentials) []dashboard.Source { return nil })
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	saved := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"ghp_x"}`, cookie)
 	_ = saved.Body.Close()

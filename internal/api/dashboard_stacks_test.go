@@ -26,7 +26,7 @@ func TestDashboard_StackedPullRequestsSaySoInTheResponse(t *testing.T) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3, URL: "https://github.com/alrayyes/a/pull/3", BaseBranch: "main", HeadBranch: "feat/c", MergeStatus: dashboard.MergeMergeable, CI: dashboard.CISuccess},
 		},
 	}
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

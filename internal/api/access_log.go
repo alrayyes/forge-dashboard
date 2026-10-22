@@ -30,7 +30,7 @@ import (
 // open, or reconnects, in a tab nobody is looking at), and neither is the
 // presence report, which says whether anyone is, nor a read
 // the page marks as its own timer (X-Background-Read).
-func accessLogMiddleware(manager *dashboard.Manager, next http.Handler) http.Handler {
+func accessLogMiddleware(manager *dashboard.Service, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -21,13 +20,13 @@ type pullRequestChecksResponse struct {
 // handlePullRequestChecks and the MCP get_pull_request_checks tool so the two
 // can't drift. The *statusError carries the HTTP status the handler answers
 // with.
-func resolvePullRequestChecksFor(ctx context.Context, deps Deps, u *auth.User, forge, fullName string, number int) ([]dashboard.Check, *statusError) {
+func resolvePullRequestChecksFor(ctx context.Context, deps Deps, forge, fullName string, number int) ([]dashboard.Check, *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok {
 		return nil, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
 	}
 
-	src, _, serr := lookupForgeSource(ctx, deps, u.ID, forge)
+	src, _, serr := lookupForgeSource(ctx, deps, forge)
 	if serr != nil {
 		return nil, serr
 	}
@@ -52,13 +51,6 @@ func resolvePullRequestChecksFor(ctx context.Context, deps Deps, u *auth.User, f
 // the same shape GET /api/dashboard's own owner parameter already uses.
 func handlePullRequestChecks(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		number, err := strconv.Atoi(r.URL.Query().Get("number"))
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("number must be an integer"))
@@ -66,7 +58,7 @@ func handlePullRequestChecks(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		checks, serr := resolvePullRequestChecksFor(r.Context(), deps, u, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"), number)
+		checks, serr := resolvePullRequestChecksFor(r.Context(), deps, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"), number)
 		if serr != nil {
 			serr.write(w)
 

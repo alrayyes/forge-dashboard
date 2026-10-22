@@ -9,7 +9,7 @@
 A dashboard of open pull requests, issues, and CI status across
 every repository you have write access to on **GitHub** and a **Forgejo**
 instance — one page instead of two forge UIs. It has passwordless login
-and per-user tokens.
+and settings-managed tokens.
 
 ## Quick start
 
@@ -75,7 +75,7 @@ stale.
   generate one.
   It's what encrypts every user's forge tokens at rest; there's no
   sensible default for a secret like this one.
-- Each signed-in user configures their own forge credentials from the
+- You configure your forge credentials from the
   Settings page after registering — see
   [Credentials](docs/accounts.md#credentials) for exactly which permissions to
   grant. Nothing forge-related needs setting before

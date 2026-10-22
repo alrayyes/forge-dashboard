@@ -49,17 +49,14 @@ type Deps struct {
 	// sending traffic before shutdown. Nil never drains.
 	Drain *Drain
 
-	// Manager holds each signed-in user's own Aggregator, built from
-	// their saved Credentials via BuildSources.
-	Manager *dashboard.Manager
-	// FirstLoadWait is how long a read waits for a user's first refresh; zero
+	// Service holds the one Aggregator, built from the saved Credentials via
+	// BuildSources.
+	Service *dashboard.Service
+	// FirstLoadWait is how long a read waits for the first refresh; zero
 	// means the default. Only tests set it.
 	FirstLoadWait time.Duration
-	// BuildSources takes the signed-in user's own ID (#482: threaded
-	// through so the forge clients it builds can record outbound
-	// requests under the right account) alongside their saved
-	// Credentials.
-	BuildSources func(userID []byte, c settings.Credentials) []dashboard.Source
+	// BuildSources makes the forge sources from the saved Credentials.
+	BuildSources func(c settings.Credentials) []dashboard.Source
 
 	// PublicOrigin is this instance's own externally-reachable origin
 	// (RP_ORIGIN — the same value WebAuthn's relying-party config
@@ -80,7 +77,7 @@ type Deps struct {
 
 	// AppContext is the process's own long-lived context (canceled on
 	// shutdown), not any one request's — a handler that starts a
-	// Manager-owned background refresh goroutine has to root it here, not
+	// Service-owned background refresh goroutine has to root it here, not
 	// in the *http.Request context that dies the moment that handler
 	// returns.
 	AppContext context.Context
@@ -173,8 +170,8 @@ func NewMux(deps Deps) http.Handler {
 	// Not session-authenticated like everything above — the path's token
 	// is the webhook token saved in the settings, and the request's own HMAC signature is what
 	// proves it actually came from their forge. See internal/api/webhooks.go.
-	mux.HandleFunc("POST /api/webhooks/github/{webhookToken}", handleGitHubWebhook(deps.AppContext, deps.SettingsStore, deps.AuthStore, deps.Manager))
-	mux.HandleFunc("POST /api/webhooks/forgejo/{webhookToken}", handleForgejoWebhook(deps.AppContext, deps.SettingsStore, deps.AuthStore, deps.Manager))
+	mux.HandleFunc("POST /api/webhooks/github/{webhookToken}", handleGitHubWebhook(deps.AppContext, deps.SettingsStore, deps.Service))
+	mux.HandleFunc("POST /api/webhooks/forgejo/{webhookToken}", handleForgejoWebhook(deps.AppContext, deps.SettingsStore, deps.Service))
 
 	static, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -221,7 +218,7 @@ func NewMux(deps Deps) http.Handler {
 		writeJSON(w, http.StatusNotFound, errorBody("not found"))
 	})
 
-	return noIndex(accessLogMiddleware(deps.Manager, recoverPanics(static, deps.Version, limitRequestBody(mux))))
+	return noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, deps.Version, limitRequestBody(mux))))
 }
 
 // noIndex marks every response, page, script, JSON or error, as not for search

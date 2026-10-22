@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// savedRows is a SnapshotCache that outlives a Manager, the way the database
+// savedRows is a SnapshotCache that outlives a Service, the way the database
 // outlives a restart.
 type savedRows struct {
 	mu   sync.Mutex
@@ -83,13 +83,13 @@ func TestDashboard_AfterARestart_ShowsTheSavedSnapshotMarkedStaleNotALoadingStat
 	src := &oneRepoSource{release: make(chan struct{})}
 	src.hold.Store(true)
 	t.Cleanup(func() { close(src.release) })
-	srv, _, _, _ := newTestServerWithSettingsStore(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, _, _, _ := newTestServerWithSettingsStore(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != firstRefreshToken {
 			return nil
 		}
 
 		return []dashboard.Source{src}
-	}, false, 50*time.Millisecond, func(d *api.Deps) { d.Manager.SetSnapshotCache(cache) })
+	}, false, 50*time.Millisecond, func(d *api.Deps) { d.Service.SetSnapshotCache(cache) })
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()

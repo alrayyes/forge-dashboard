@@ -20,7 +20,7 @@ func handlePullRequestClose(deps Deps) http.HandlerFunc {
 			return c.ClosePullRequest(ctx, owner, name, number)
 		},
 		settle: func(deps Deps, t actionTarget) {
-			deps.Manager.MarkSettled(t.user.ID, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
+			deps.Service.MarkSettled(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
 		},
 	})
 }

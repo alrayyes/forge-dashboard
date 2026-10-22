@@ -90,9 +90,9 @@ func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.Response
 		return err
 	}
 
-	if deps.Manager != nil {
-		deps.Manager.Stop()
-		deps.Manager.Activity().Reset()
+	if deps.Service != nil {
+		deps.Service.Stop()
+		deps.Service.Activity().Reset()
 	}
 	token, err := deps.AuthStore.CreateSession(ctx, auth.SessionTTL)
 	if err != nil {

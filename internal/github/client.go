@@ -267,7 +267,7 @@ func ValidateAppPrivateKey(appID int64, privateKeyPEM []byte) error {
 // The returned Client's httpClient.Transport mints and silently
 // refreshes its own installation token on every request, so — unlike a
 // token-based Client — this one can be kept and reused for a
-// Manager/Aggregator's whole lifetime with no rebuild-on-expiry logic
+// Service/Aggregator's whole lifetime with no rebuild-on-expiry logic
 // needed.
 func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL string, recorder ...requestlog.Recorder) (*Client, error) {
 	if baseURL == "" {

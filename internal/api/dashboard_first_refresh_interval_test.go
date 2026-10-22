@@ -77,7 +77,7 @@ func TestDashboard_ReadInterval_HeldReadEndsOnCompletionNotTimeout(t *testing.T)
 
 	const wait = 30 * time.Second
 	src := &holdSource{release: make(chan struct{}), reachable: true}
-	srv, _, _ := newTestServerWithFirstLoadWait(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv, _, _ := newTestServerWithFirstLoadWait(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != firstRefreshToken {
 			return nil
 		}

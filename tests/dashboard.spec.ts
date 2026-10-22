@@ -81,7 +81,7 @@ test.describe('dashboard page', () => {
   }) => {
     await landOnPullRequests(page);
     // GET /api/dashboard/stream 404s until Settings has been saved once
-    // (no Manager Aggregator running yet) — EventSource retries that on
+    // (no Aggregator running yet) — EventSource retries that on
     // its own, silently, and the poll this page also runs keeps the
     // dashboard itself working regardless. Real bug shape this guards
     // against: an unhandled SSE failure surfacing as a visible error.

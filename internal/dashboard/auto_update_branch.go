@@ -41,7 +41,7 @@ type AutoUpdateBranchLister interface {
 // autoUpdateBranchConfig holds what an Aggregator needs to run the
 // post-refresh auto-update-branch hook — nil on an Aggregator that never
 // called EnableAutoUpdateBranch, which is every one before #365 and
-// every one Manager builds with no AutoUpdateBranchLister configured.
+// every one Service builds with no AutoUpdateBranchLister configured.
 type autoUpdateBranchConfig struct {
 	lister AutoUpdateBranchLister
 

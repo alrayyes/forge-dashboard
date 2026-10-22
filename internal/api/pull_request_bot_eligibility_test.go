@@ -44,7 +44,7 @@ func botCallsBoard(t *testing.T, pr dashboard.PullRequest) (*httptest.Server, *h
 	src := &botCallsSource{}
 	src.health = dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1}
 	src.prs = []dashboard.PullRequest{pr}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

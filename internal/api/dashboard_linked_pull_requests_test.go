@@ -115,7 +115,7 @@ func linkedServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 		issues: []dashboard.Issue{issue(dashboard.ForgeForgejo, "Ryan/Hush", 3), issue(dashboard.ForgeForgejo, "Ryan/Hush", 4)},
 		repos:  []dashboard.Repo{{Forge: dashboard.ForgeForgejo, FullName: "Ryan/Hush", URL: "https://git.example.com/Ryan/Hush"}},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

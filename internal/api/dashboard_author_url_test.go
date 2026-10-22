@@ -29,7 +29,7 @@ func TestDashboard_EachItemCarriesItsAuthorsProfileURL(t *testing.T) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 9, URL: "https://github.com/alrayyes/a/issues/9", Author: "claude"},
 		},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

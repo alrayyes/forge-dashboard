@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"unicode/utf8"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -35,12 +34,6 @@ type pullRequestAutoUpdateRequest struct {
 // deletes it.
 func handlePullRequestAutoUpdate(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
 		var req pullRequestAutoUpdateRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
@@ -48,7 +41,7 @@ func handlePullRequestAutoUpdate(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		field, serr := setPullRequestAutoUpdateFor(r.Context(), deps, u, req)
+		field, serr := setPullRequestAutoUpdateFor(r.Context(), deps, req)
 		if serr != nil {
 			if field != "" {
 				writeJSON(w, serr.status, fieldErrorBody(field, serr.message))
@@ -62,16 +55,16 @@ func handlePullRequestAutoUpdate(deps Deps) http.HandlerFunc {
 	}
 }
 
-// setPullRequestAutoUpdateFor validates req and saves the choice for u. Shared
+// setPullRequestAutoUpdateFor validates req and saves the choice. Shared
 // by handlePullRequestAutoUpdate and the MCP set_pull_request_auto_update tool
 // so the two can't drift. The *statusError carries the HTTP status the handler
 // answers with; the string names the request field a 400 is about, "" if none.
-func setPullRequestAutoUpdateFor(ctx context.Context, deps Deps, u *auth.User, req pullRequestAutoUpdateRequest) (string, *statusError) {
+func setPullRequestAutoUpdateFor(ctx context.Context, deps Deps, req pullRequestAutoUpdateRequest) (string, *statusError) {
 	if field, serr := pullRequestTargetProblem(req.Forge, req.FullName, req.Number); serr != nil {
 		return field, serr
 	}
 
-	if _, found := deps.Manager.FindPullRequest(u.ID, dashboard.Forge(req.Forge), req.FullName, req.Number); !found {
+	if _, found := deps.Service.FindPullRequest(dashboard.Forge(req.Forge), req.FullName, req.Number); !found {
 		return "", &statusError{http.StatusNotFound, "pull request not found"}
 	}
 

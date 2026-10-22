@@ -28,7 +28,7 @@ func draftsServer(t *testing.T) (srvURL string, sessionCookie *http.Cookie) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3},
 		},
 	}
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

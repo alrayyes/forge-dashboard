@@ -18,7 +18,7 @@ func TestDashboard_WithOwnerQuery_IsIgnored(t *testing.T) {
 	t.Parallel()
 
 	const secretToken = "sekrit-owner-token" // #nosec G101 -- a fake test fixture, not a real credential
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}

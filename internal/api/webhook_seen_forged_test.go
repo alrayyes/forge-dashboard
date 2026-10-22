@@ -29,7 +29,7 @@ func TestWebhook_ACheckHeaderOverABodyThatIsNotThatCheckEventDoesNotMarkChecksSe
 			t.Parallel()
 
 			source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
-			srvURL, sessionCookie, manager, userID := newTestServerWithManager(t, source, func(_ time.Duration, f func()) func() bool {
+			srvURL, sessionCookie, manager := newTestServerWithManager(t, source, func(_ time.Duration, f func()) func() bool {
 				return time.AfterFunc(time.Millisecond, f).Stop
 			})
 			require.Eventually(t, func() bool { return source.fetchCalls.Load() >= 1 }, time.Second, 5*time.Millisecond)
@@ -46,13 +46,13 @@ func TestWebhook_ACheckHeaderOverABodyThatIsNotThatCheckEventDoesNotMarkChecksSe
 			require.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 			require.Eventually(t, func() bool {
-				_, ok := manager.LastDelivery(userID(), dashboard.ForgeGitHub, "alrayyes/forged", dashboard.EventClassOther)
+				_, ok := manager.LastDelivery(dashboard.ForgeGitHub, "alrayyes/forged", dashboard.EventClassOther)
 
 				return ok
 			}, time.Second, 5*time.Millisecond, "the delivery is still recorded, as an event of no particular class")
-			_, seen := manager.LastDelivery(userID(), dashboard.ForgeGitHub, "alrayyes/forged", dashboard.EventClassCheck)
+			_, seen := manager.LastDelivery(dashboard.ForgeGitHub, "alrayyes/forged", dashboard.EventClassCheck)
 			assert.False(t, seen)
-			_, shaSeen := manager.LastCheckDelivery(userID(), dashboard.ForgeGitHub, "alrayyes/forged", headSHA)
+			_, shaSeen := manager.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/forged", headSHA)
 			assert.False(t, shaSeen)
 		})
 	}

@@ -8,13 +8,13 @@ big choices are in [the decision records](docs/adr/).
 
 ```text
 GitHub, Forgejo
-      │  REST and GraphQL, one credential set per user
+      │  REST and GraphQL, one credential set
       ▼
 internal/github, internal/forgejo      adapters: each forge's shape mapped to ours
       │  dashboard.Source
       ▼
-internal/dashboard                     domain: the model, the rules, one Aggregator per user
-      │  Manager.Get (never waits on a forge)
+internal/dashboard                     domain: the model, the rules, one Aggregator
+      │  Service.Get (never waits on a forge)
       ▼
 internal/api                           HTTP, written against api/openapi.yaml
       │  JSON, SSE, MCP
@@ -56,9 +56,8 @@ would need the same answer. The reasons, and what it costs, are in
   Pass, 1Password, iCloud Keychain, a platform authenticator, or a
   hardware key, anything that speaks passkeys. Nothing password-shaped is
   ever stored or transmitted.
-- **Every user configures their own forges.** Each signed-in user has
-  their own GitHub/Forgejo tokens, set from the Settings page, and sees
-  only their own dashboard — nobody else's tokens, nobody else's repos.
+- **You configure your own forges.** The GitHub/Forgejo tokens are set from
+  the Settings page and never leave the backend.
 - **Credentials never reach the browser.** The Go backend holds every
   user's tokens server-side, encrypted at rest, and only ever hands the
   frontend its own already-filtered JSON. Confirm this yourself: open the
@@ -223,9 +222,8 @@ There is no allowlist: a blob host on a private network is refused, by design.
 ### What the passkey login covers
 
 It covers passkey registration and login gating the
-dashboard, per-user GitHub/Forgejo tokens (every signed-in user
-configures their own forges from the Settings page and sees only their
-own dashboard).
+dashboard, GitHub/Forgejo tokens (configured from the Settings
+page).
 
 ## Where to look next
 

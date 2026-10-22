@@ -152,16 +152,14 @@ func (a *Aggregator) AutoMergeReport() AutoMergeReport {
 	return report
 }
 
-// AutoMergeReport delegates to userID's Aggregator; empty for a user with none.
-func (m *Manager) AutoMergeReport(userID []byte) AutoMergeReport {
-	m.mu.Lock()
-	entry, ok := m.users[string(userID)]
-	m.mu.Unlock()
-	if !ok {
+// AutoMergeReport delegates to the Aggregator; empty when none is running.
+func (m *Service) AutoMergeReport() AutoMergeReport {
+	agg := m.aggregator()
+	if agg == nil {
 		return AutoMergeReport{}
 	}
 
-	return entry.agg.AutoMergeReport()
+	return agg.AutoMergeReport()
 }
 
 // mergeRefusal explains a refused merge. A "not allowed" from Forgejo

@@ -39,7 +39,7 @@ func handleDashboardPresence(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		activity := deps.Manager.Activity()
+		activity := deps.Service.Activity()
 		activity.Present(req.ViewerID, *req.Visible)
 
 		writeJSON(w, http.StatusOK, presenceAnswer{

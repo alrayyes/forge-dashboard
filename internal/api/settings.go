@@ -12,7 +12,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -155,13 +154,6 @@ func handleThemePut(store *settings.Store) http.HandlerFunc {
 
 func handleSettingsGet(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		creds, err := deps.SettingsStore.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
@@ -179,7 +171,7 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		counts := ignoredTitleCounts(r.Context(), deps, creds.IgnoredTitles, deps.Manager.Get(u.ID))
+		counts := ignoredTitleCounts(r.Context(), deps, creds.IgnoredTitles, deps.Service.Get())
 		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured, counts))
 	}
 }
@@ -189,14 +181,7 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 // webhook credentials and never returns them.
 func handleSettingsSummaryGet(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
-		summary, err := resolveSettingsSummary(r.Context(), deps, u)
+		summary, err := resolveSettingsSummary(r.Context(), deps)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody(err.Error()))
 
@@ -422,7 +407,7 @@ func mergeSettings(req settingsPutRequest, existing settings.Credentials) settin
 func settingsFieldError(merged settings.Credentials, req settingsPutRequest, githubAppConfigured bool) (field, message string) {
 	switch {
 	case merged.ForgejoURL == "" && (merged.ForgejoToken != "" || merged.ForgejoUsername != ""):
-		// buildSourcesForUser skips Forgejo entirely once ForgejoURL is
+		// buildSources skips Forgejo entirely once ForgejoURL is
 		// empty, token or username notwithstanding — so a token/username
 		// saved without a URL wouldn't just be incomplete, it'd silently
 		// do nothing.
@@ -444,13 +429,6 @@ func settingsFieldError(merged settings.Credentials, req settingsPutRequest, git
 
 func handleSettingsPut(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, ok := auth.UserFromContext(r.Context())
-		if !ok {
-			writeJSON(w, http.StatusInternalServerError, errorBody("no authenticated user in context"))
-
-			return
-		}
-
 		req, ok := decodeSettingsPut(w, r)
 		if !ok {
 			return
@@ -473,7 +451,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// Taken before Ensure below, which swaps in an Aggregator with no
 		// snapshot yet: the counts answer the list just saved, against the
 		// issues the viewer was looking at when they saved it.
-		snap := deps.Manager.Get(u.ID)
+		snap := deps.Service.Get()
 
 		if err := deps.SettingsStore.Set(r.Context(), merged); err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
@@ -484,7 +462,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		// deps.AppContext: see the identical comment in auth.go's
 		// startSession — this background refresh loop has to outlive the
 		// request that started it.
-		deps.Manager.Ensure(deps.AppContext, u.ID, deps.BuildSources(u.ID, merged))
+		deps.Service.Ensure(deps.AppContext, deps.BuildSources(merged))
 
 		counts := ignoredTitleCounts(r.Context(), deps, merged.IgnoredTitles, snap)
 		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured, counts))
@@ -680,12 +658,12 @@ var errCouldNotLoadSettings = errors.New("could not load settings")
 // webhook credentials are created, and the ones that exist are reduced to a
 // flag. A user with no saved row gets the zero settings. It is the one builder
 // behind both GET /api/settings/summary and the get_settings MCP tool.
-func resolveSettingsSummary(ctx context.Context, deps Deps, u *auth.User) (SettingsSummary, error) {
+func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, error) {
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {
 		return SettingsSummary{}, errCouldNotLoadSettings
 	}
-	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, creds.IgnoredTitles, deps.Manager.Get(u.ID)))
+	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, creds.IgnoredTitles, deps.Service.Get()))
 
 	return SettingsSummary{
 		GitHubUsername:          full.GitHubUsername,

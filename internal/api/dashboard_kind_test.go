@@ -31,7 +31,7 @@ func TestDashboard_EachPullRequestCarriesItsKind(t *testing.T) {
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 5, Author: "alice", HeadBranch: "release-please--branches--main", BaseBranch: "main"},
 		},
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

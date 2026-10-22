@@ -41,7 +41,7 @@ func newMainBranchesServerWithHealth(t *testing.T, health dashboard.ForgeHealth,
 		health:   health,
 		branches: rows,
 	}
-	srv := newTestServerWithSources(t, func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}

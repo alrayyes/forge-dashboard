@@ -9,8 +9,8 @@ import "github.com/alrayyes/forge-dashboard/internal/dashboard"
 // setup, and a known limit with two self-hosted forges of the same kind and a
 // dialog for a repository the board lists nothing in. Empty when the board has
 // nothing for the forge yet, in which case a person is shown by name alone.
-func boardWebBase(deps Deps, userID []byte, forge dashboard.Forge, fullName string) string {
-	snapshot := deps.Manager.Get(userID)
+func boardWebBase(deps Deps, forge dashboard.Forge, fullName string) string {
+	snapshot := deps.Service.Get()
 	var fallback string
 	consider := func(itemForge dashboard.Forge, repo, itemURL string) (exact string) {
 		if itemForge != forge {

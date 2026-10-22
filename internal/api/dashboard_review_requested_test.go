@@ -25,7 +25,7 @@ func TestDashboard_PullRequestsSayWhetherTheirReviewIsRequestedFromMe(t *testing
 			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, RequestedReviewerLogins: []string{"bob"}},
 		},
 	}
-	buildSources := func(_ []byte, c settingspkg.Credentials) []dashboard.Source {
+	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
