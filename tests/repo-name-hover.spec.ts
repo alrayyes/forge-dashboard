@@ -98,12 +98,7 @@ for (const [label, width] of [
     }) => {
       await page.goto('/pull-requests.html');
       await expect(repoName(page, 1)).toBeVisible();
-      const cut = await repoName(page, 1).evaluate(
-        (el) => el.scrollWidth > el.clientWidth,
-      );
       await expect(repoName(page, 1)).toHaveAttribute('title', LONG);
-      // Record whether the name was cut at this width, for the ticket.
-      test.info().annotations.push({ type: 'cut', description: String(cut) });
     });
 
     test('a name that fits carries none, as a short title does', async ({
