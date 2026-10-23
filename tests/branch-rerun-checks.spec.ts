@@ -621,6 +621,11 @@ test.describe('main branches rerun failed checks', () => {
           document.activeElement?.closest('dialog, [role="dialog"]') != null,
       ),
     ).resolves.toBe(true);
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await expect(dialog.locator('.pipeline-rerun')).not.toHaveAttribute(
+      'tabindex',
+      /.*/,
+    );
   });
 
   test('keyboard focus returns to the button when the lock lifts', async ({

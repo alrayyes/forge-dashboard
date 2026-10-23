@@ -5,6 +5,7 @@
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { ciSignature } from "#lib/pipeline-live.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
+  import { createRedrawGuard } from "#lib/redraw-guard.js";
   import { forgeLockReason } from "#lib/forge-lock.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
@@ -75,6 +76,9 @@
   // The branch whose dialog is open, to follow its row from each refresh.
   let openRow: MainBranch | null = null;
   const rerun = createBranchRerun();
+  const redrawGuard = createRedrawGuard((err) =>
+    console.error("The rerun control could not be redrawn", err),
+  );
 
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
@@ -253,17 +257,11 @@
     // The forge may have gone down, or come back, since the last poll; a
     // failed poll still moves the clock. Outside the try, so a throw here is
     // not a failed poll.
-    try {
+    // A control that can't draw must not fail the page's load, but a lock left
+    // on screen from the last draw should not go unexplained.
+    redrawFailed = redrawGuard.run(() => {
       if (openRow) rerun.redraw(openRow);
-      redrawFailed = false;
-    } catch (err) {
-      // A control that can't draw must not fail the page's load, but a lock
-      // left on screen from the last draw should not go unexplained. Said once
-      // per run of failures, not on every poll.
-      if (!redrawFailed)
-        console.error("The rerun control could not be redrawn", err);
-      redrawFailed = true;
-    }
+    });
   }
 
   function retry() {
@@ -763,6 +761,18 @@
   <!-- Always mounted, so it is empty before it speaks and a screen reader
        announces the change (#1672). -->
   <FirstRefreshStatus {pending} />
+  <!-- Always mounted, so it is empty before it speaks and is announced when
+       filled. -->
+  <p
+    class="mb-banner"
+    role="status"
+    data-testid="rerun-redraw-note"
+    hidden={!redrawFailed}
+  >
+    {redrawFailed
+      ? "The rerun control could not be updated, so it may be out of date. Reload the page if it looks wrong."
+      : ""}
+  </p>
   {#if pending}
     <div class="list-region" aria-busy="true">
       <ListSkeleton />
@@ -775,14 +785,6 @@
       <button type="button" class="mb-toggle" onclick={retry}>Retry</button>
     </div>
   {:else if data}
-    {#if redrawFailed}
-      <div class="mb-banner" role="status" data-testid="rerun-redraw-note">
-        <p>
-          The rerun control could not be updated, so it may be out of date.
-          Reload the page if it looks wrong.
-        </p>
-      </div>
-    {/if}
     {#if startingRows.length > 0}
       <div class="mb-banner" role="status" data-testid="starting-banner">
         <p>
