@@ -2,12 +2,14 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   applyServerState,
+  droppedPicksText,
   loadState,
   MAX_TITLE,
   releaseAllHeld,
   type SharedFilterState,
   saveState,
   setSaveRefusedHandler,
+  takeDroppedPicks,
 } from './filters';
 import {
   MAX_ENCODED,
@@ -181,5 +183,45 @@ describe('the title search in the cookie', () => {
       document: { cookie: `forge-board-filters=${encodeURIComponent(value)}` },
     });
     expect(loadState().shared.title).toHaveLength(MAX_TITLE);
+  });
+});
+
+describe('a saved pick that no longer fits', () => {
+  test('is reported by key and name once, then cleared', () => {
+    seedCookie(many(22));
+    loadState();
+    const dropped = takeDroppedPicks();
+    expect(dropped).toEqual([
+      { key: 'label', names: ['label-20', 'label-21'] },
+    ]);
+    expect(takeDroppedPicks()).toEqual([]);
+  });
+
+  test('is not reported when everything fits', () => {
+    seedCookie(many(3));
+    loadState();
+    expect(takeDroppedPicks()).toEqual([]);
+  });
+
+  test('does not carry over from the page before', () => {
+    seedCookie(many(22));
+    loadState();
+    seedCookie(many(3));
+    loadState();
+    expect(takeDroppedPicks()).toEqual([]);
+  });
+});
+
+describe('droppedPicksText', () => {
+  test('names each filter and what it lost, repos without their forge', () => {
+    expect(
+      droppedPicksText([
+        { key: 'label', names: ['a', 'b'] },
+        { key: 'repo', names: ['github:acme/api'] },
+      ]),
+    ).toBe(
+      'Your label filter held more than fits, so these were dropped: a, b. ' +
+        'Your repo filter held more than fits, so these were dropped: acme/api.',
+    );
   });
 });

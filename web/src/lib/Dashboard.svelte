@@ -5719,6 +5719,18 @@
     // from — only the current page's own entity type (#1071), though a
     // picked filter still applies to both boards, so it carries over.
     const sharedState = Filters.loadState();
+    // A saved pick cut to fit the limits is said once, not left quietly smaller.
+    function reportDroppedPicks() {
+      const dropped = Filters.takeDroppedPicks();
+      if (dropped.length === 0) return;
+      const message = Filters.droppedPicksText(dropped);
+      feedback.notify({
+        title: "Filters trimmed",
+        message,
+        announce: message,
+      });
+    }
+    reportDroppedPicks();
     // The cookie has every pick, including ones an earlier page held back.
     Filters.releaseAllHeld();
     let allPRs: PullRequestItem[] = [];
@@ -5748,6 +5760,7 @@
       if (destroyed || page !== Filters.currentPage()) return;
       const before = JSON.stringify(sharedState);
       if (got) Filters.applyServerState(sharedState, got);
+      reportDroppedPicks();
       // An edit made while the copy loaded was saved on top of the cookie's
       // values; save the merged state so the server keeps the copy's other
       // fields too (#1713).
