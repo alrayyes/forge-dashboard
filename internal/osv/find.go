@@ -3,6 +3,7 @@ package osv
 import (
 	"cmp"
 	"context"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -80,40 +81,47 @@ func buildFinding(ids []string, recs map[string]record, hits map[string][]Packag
 	all := map[string]struct{}{}
 	var pkgs []Package
 	for _, id := range order {
-		r := recs[id]
 		all[id] = struct{}{}
-		for _, a := range r.aliases {
+		for _, a := range recs[id].aliases {
 			all[a] = struct{}{}
 		}
-		f.Summary = cmp.Or(f.Summary, r.summary)
-		f.Details = cmp.Or(f.Details, r.details)
-		f.Published = cmp.Or(f.Published, r.published)
-		if severityRank[r.severity] > severityRank[f.Severity] {
-			f.Severity = r.severity
-		}
-		for _, v := range r.vectors {
-			if score := baseScore(v); score > f.CVSSScore {
-				f.CVSSScore, f.CVSSVector = score, v
-			}
-		}
-		f.CWEs = appendNew(f.CWEs, r.cwes...)
-		f.References = appendNew(f.References, r.references...)
+		f.merge(recs[id])
 		for _, p := range hits[id] {
 			if !slices.Contains(pkgs, p) {
 				pkgs = append(pkgs, p)
 			}
 		}
 	}
-	f.IDs = slices.Sorted(func(yield func(string) bool) {
-		for id := range all {
-			if !yield(id) {
-				return
-			}
+	f.IDs = slices.Sorted(maps.Keys(all))
+	f.Hits = hitsOf(pkgs, order, recs)
+
+	return f
+}
+
+// merge adds what r states to the finding, keeping what an earlier record
+// already gave.
+func (f *Finding) merge(r record) {
+	f.Summary = cmp.Or(f.Summary, r.summary)
+	f.Details = cmp.Or(f.Details, r.details)
+	f.Published = cmp.Or(f.Published, r.published)
+	if severityRank[r.severity] > severityRank[f.Severity] {
+		f.Severity = r.severity
+	}
+	for _, v := range r.vectors {
+		if score := baseScore(v); score > f.CVSSScore {
+			f.CVSSScore, f.CVSSVector = score, v
 		}
-	})
+	}
+	f.CWEs = appendNew(f.CWEs, r.cwes...)
+	f.References = appendNew(f.References, r.references...)
+}
+
+// hitsOf pairs each package, in order, with the versions the records fix it in.
+func hitsOf(pkgs []Package, order []string, recs map[string]record) []Hit {
 	slices.SortFunc(pkgs, func(a, b Package) int {
 		return cmp.Or(cmp.Compare(a.Ecosystem, b.Ecosystem), cmp.Compare(a.Name, b.Name), cmp.Compare(a.Version, b.Version))
 	})
+	out := make([]Hit, 0, len(pkgs))
 	for _, p := range pkgs {
 		hit := Hit{Package: p}
 		for _, id := range order {
@@ -123,10 +131,10 @@ func buildFinding(ids []string, recs map[string]record, hits map[string][]Packag
 				}
 			}
 		}
-		f.Hits = append(f.Hits, hit)
+		out = append(out, hit)
 	}
 
-	return f
+	return out
 }
 
 // appendNew appends the values not already in dst, in order.

@@ -414,8 +414,10 @@ func TestFind_GroupsAliasesAndKeepsWhatTheRecordStates(t *testing.T) {
 				},
 			},
 			"PYSEC-9": {"aliases": []string{"GHSA-3"}, "summary": "Same flaw, other id", "affected": []map[string]any{
-				{"package": map[string]any{"name": "b", "ecosystem": "npm"},
-					"ranges": []map[string]any{{"events": []map[string]any{{"fixed": "2.1.0"}}}}},
+				{
+					"package": map[string]any{"name": "b", "ecosystem": "npm"},
+					"ranges":  []map[string]any{{"events": []map[string]any{{"fixed": "2.1.0"}}}},
+				},
 			}},
 			"GHSA-4": {"summary": "Second", "database_specific": map[string]any{"severity": "LOW"}},
 		},

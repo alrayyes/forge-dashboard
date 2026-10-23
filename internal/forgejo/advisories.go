@@ -265,11 +265,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 			return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 		}
 		pkgs = append(pkgs, got.Packages...)
-		for _, p := range got.Packages {
-			if !slices.Contains(from[p], file) {
-				from[p] = append(from[p], file)
-			}
-		}
+		noteSource(from, file, got.Packages)
 		left += got.Left
 	}
 	pkgs = slices.Compact(slices.SortedFunc(slices.Values(pkgs), comparePackages))
@@ -285,6 +281,15 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 	}
 
 	return &lockPackages{pkgs: pkgs, partial: left > 0, files: from}, nil, nil
+}
+
+// noteSource remembers that pkgs were read from file.
+func noteSource(from map[osv.Package][]string, file string, pkgs []osv.Package) {
+	for _, p := range pkgs {
+		if !slices.Contains(from[p], file) {
+			from[p] = append(from[p], file)
+		}
+	}
 }
 
 // withoutOwnHost drops the Go modules whose path starts with this forge's own
