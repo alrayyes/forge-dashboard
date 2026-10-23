@@ -32,7 +32,16 @@ function pr(allowed: { action: string }[]) {
   };
 }
 
-const RUNNING = [
+type CheckFixture = {
+  name: string;
+  state: string;
+  url: string;
+  jobId?: number;
+  runId?: number;
+  runName?: string;
+};
+
+const RUNNING: CheckFixture[] = [
   { name: 'build', state: 'success', url: 'https://example.com/r/1' },
   {
     name: 'lint',
@@ -59,7 +68,7 @@ const LOOKUP_FAILED = RUNNING.map(
   ({ runId: _id, runName: _name, ...rest }) => rest,
 );
 
-const TWO_RUNS = [
+const TWO_RUNS: CheckFixture[] = [
   ...RUNNING.slice(0, 3),
   {
     name: 'publish',
@@ -71,7 +80,7 @@ const TWO_RUNS = [
   },
 ];
 
-const STOPPED = [
+const STOPPED: CheckFixture[] = [
   { name: 'build', state: 'success', url: 'https://example.com/r/1' },
   {
     name: 'lint',
