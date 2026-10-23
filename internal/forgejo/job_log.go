@@ -103,7 +103,9 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 }
 
 // isAPIMessage reports whether body is the JSON error envelope Forgejo's API
-// answers with, as opposed to a router's bare "404 page not found".
+// answers with, as opposed to a router's bare "404 page not found". A proxy
+// that rewrites its own 404s into a JSON body would still pass for a pruned log;
+// that is an accepted limit of the heuristic.
 func isAPIMessage(body []byte) bool {
 	var envelope struct {
 		Message string `json:"message"`
