@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.27.0](https://github.com/alrayyes/forge-dashboard/compare/v2.26.0...v2.27.0) (2026-10-23)
+
+
+### Features
+
+* **web:** make Out of date stand out and add a filter for it ([#2702](https://github.com/alrayyes/forge-dashboard/issues/2702)) ([40170de](https://github.com/alrayyes/forge-dashboard/commit/40170de7a40a2cad5fb9b283081a6d0167b25341))
+
 ## [2.26.0](https://github.com/alrayyes/forge-dashboard/compare/v2.25.0...v2.26.0) (2026-10-23)
 
 

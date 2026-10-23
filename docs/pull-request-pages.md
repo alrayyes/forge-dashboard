@@ -153,8 +153,8 @@ anywhere else on the row.
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
-**Releases** item in the navigation. It is the pull request board over the
-pull requests the server marks `kind: release` (release-please's, by its
+**Releases** item in the navigation. It is the pull request board over the pull
+requests the server marks `kind: release` (release-please's, by its
 `autorelease:` label, or by its `release-please--branches--<base>` head branch
 when release-please failed before it could label the pull request, as long as
 the pull request is from the same repository and aimed at that base), with the
@@ -162,9 +162,10 @@ same filters, rows and actions as the main page. The main pull request page
 lists none of them, and doesn't count them. Each row shows the version being
 released next to the title. Merge is offered when the release can merge, or
 greyed out with the reason when it can't. A release that is behind its base
-branch gets Update branch and a line saying release-please won't update it
-until a releasable change lands. With no release pull requests open the page
-says nothing is waiting to ship.
+branch gets Update branch and a line saying release-please won't update it until
+a releasable change lands, and its row carries the Out of date badge like any
+other behind pull request. With no release pull requests open the page says
+nothing is waiting to ship.
 
 The quick filter pills above the list include **Failing CI**, **Running CI**,
 **Passing CI** and **No checks**, each offered only when it would show
@@ -173,10 +174,13 @@ status dropdown, on this page, Releases and Bots. The **No checks** pill shows
 the pull requests that have no CI configured. A CI status saved from when the
 dropdown existed becomes the matching pill when the page loads, unless a pill or
 a forge is already picked, in which case it is dropped, so nothing stays
-filtered out of sight. Next to them an **Auto-merge** control has Any, On and
-Off. On shows only pull requests that have auto-merge armed, Off only those
-without. It combines with a pill, so Failing CI with Auto-merge On finds armed
-pull requests whose checks have since failed.
+filtered out of sight. The **Out of date** pill, on this page and on Bots,
+keeps the pull requests whose base branch has moved on, the same ones that
+carry the row's Out of date badge. An empty pull request is left out. The
+choice is saved like the other pills. Next to them an **Auto-merge** control
+has Any, On and Off. On shows only pull requests that have auto-merge armed, Off
+only those without. It combines with a pill, so Failing CI with Auto-merge On
+finds armed pull requests whose checks have since failed.
 
 A **Closing issue** control beside it has Any, **Closes an issue** and **Closes
 no issue**. The first keeps the pull requests that will close at least one

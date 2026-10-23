@@ -1045,16 +1045,20 @@ test.describe('pull request details dialog', () => {
       els.map((el) => {
         const s = getComputedStyle(el);
         return {
+          behind: el.classList.contains('behind'),
           bg: s.backgroundColor,
           border: s.borderTopWidth,
           color: s.color,
         };
       }),
     );
-    for (const s of styles) {
+    // Out of date is the one chip with a fill and the warning colour; the
+    // rest stay quiet.
+    const quiet = styles.filter((s) => !s.behind);
+    for (const s of quiet) {
       expect(s.bg).toBe('rgba(0, 0, 0, 0)');
       expect(s.border).toBe('1px');
-      expect(s.color).toBe(styles[0].color);
+      expect(s.color).toBe(quiet[0].color);
     }
   });
 
