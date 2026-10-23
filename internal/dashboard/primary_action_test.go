@@ -271,7 +271,7 @@ func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 	approval := &dashboard.Blocked{
 		Code:    dashboard.ActionBlockedByProtection,
 		Message: "Workflow runs are waiting for approval",
-		Next:    "Approve them on GitHub, then this can run",
+		Next:    dashboard.HeadPushBlockedNext,
 	}
 	ownBlock := &dashboard.Blocked{
 		Code:    dashboard.ActionAlreadyRequested,
@@ -311,6 +311,16 @@ func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 		{"empty Dependabot has no Merge to unlock", held("dependabot[bot]", func(p *dashboard.PullRequest) { p.Empty = true }), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionDependabotRebase:   nil,
 			dashboard.ActionDependabotRecreate: nil,
+		}},
+		{"Renovate with checks pending keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
+		}},
+		{"Dependabot with checks pending keeps both", held("dependabot[bot]", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionDependabotRebase:   nil,
+			dashboard.ActionDependabotRecreate: nil,
+		}},
+		{"person with checks pending keeps Update branch's own wait", held("someone", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionUpdateBranch: {Code: dashboard.ActionChecksPending, Message: "Waiting for CI to finish", Next: "Merge unlocks automatically"},
 		}},
 		{"up-to-date Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Behind = false }), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionRenovateRebase: nil,

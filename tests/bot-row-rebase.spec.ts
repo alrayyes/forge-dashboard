@@ -118,7 +118,8 @@ const approval = {
   message: 'Workflow runs are waiting for approval',
   next: 'Approve them on GitHub to unlock Merge',
 };
-// What the server lists on the actions that would push a held head.
+// The spec can't import the Go constant, so the text is repeated; the Go
+// test pins the server's value. What the server lists on the actions that would push a held head.
 const headPush = {
   ...approval,
   next: 'Approve them on GitHub, then this can run',
@@ -156,6 +157,6 @@ test('a behind bot pull request waiting for workflow approval has its rebase and
   await row.getByRole('button', { name: 'More Dependabot actions' }).click();
   const recreate = row.getByRole('menuitem', { name: 'Dependabot: Recreate' });
   await expect(recreate).toHaveAttribute('aria-disabled', 'true');
-  await expect(row).toContainText(reason);
+  await expect(row.locator('.row-action-bar')).toContainText(reason);
   await expectNoAxeViolations(page);
 });

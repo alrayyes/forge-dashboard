@@ -123,13 +123,17 @@ func blockHeadPushes(pr PullRequest, actions []ActionAvailability) {
 				actions[i].Blocked = &Blocked{
 					Code:    ActionBlockedByProtection,
 					Message: approvalReason().Message,
-					Next:    "Approve them on GitHub, then this can run",
+					Next:    HeadPushBlockedNext,
 				}
 			}
 		default:
 		}
 	}
 }
+
+// HeadPushBlockedNext is what an action that would push a held head says
+// unlocks it. It is not Merge's text: these actions unlock nothing but themselves.
+const HeadPushBlockedNext = "Approve them on GitHub, then this can run"
 
 func approvalReason() Blocked {
 	return Blocked{Code: ActionBlockedByProtection, Message: "Workflow runs are waiting for approval", Next: "Approve them on GitHub to unlock Merge"}
