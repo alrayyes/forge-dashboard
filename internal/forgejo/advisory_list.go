@@ -45,6 +45,7 @@ func (c *Client) ListAdvisories(ctx context.Context, owner, name string) (dashbo
 	c.listMu.Unlock()
 
 	if running {
+		c.listJoined.Add(1)
 		select {
 		case <-call.done:
 			return call.list, call.err
@@ -53,14 +54,22 @@ func (c *Client) ListAdvisories(ctx context.Context, owner, name string) (dashbo
 		}
 	}
 
+	// Settle however the read ends, a panic included, so later opens of the
+	// repo start their own read rather than wait on one that never finishes.
+	call.err = errReadAborted
+	defer func() {
+		c.listMu.Lock()
+		delete(c.listCalls, repo)
+		c.listMu.Unlock()
+		close(call.done)
+	}()
 	call.list, call.err = c.readAdvisoryList(context.WithoutCancel(ctx), owner, name)
-	c.listMu.Lock()
-	delete(c.listCalls, repo)
-	c.listMu.Unlock()
-	close(call.done)
 
 	return call.list, call.err
 }
+
+// errReadAborted is what opens waiting on a read get when it panicked.
+var errReadAborted = errors.New("advisories read aborted")
 
 // listCall is one repo's dialog read in flight, and its outcome once done.
 type listCall struct {
@@ -165,9 +174,9 @@ func advisoryItemOf(f *osv.Finding, from map[osv.Package][]string) dashboard.Adv
 	var packages, ecosystems, files, fixed []string
 	for _, h := range f.Hits {
 		packages = append(packages, h.Package.Name+"@"+h.Package.Version)
-		ecosystems = appendNew(ecosystems, h.Package.Ecosystem)
-		files = appendNew(files, from[h.Package]...)
-		fixed = appendNew(fixed, h.Fixed...)
+		ecosystems = osv.AppendNew(ecosystems, h.Package.Ecosystem)
+		files = osv.AppendNew(files, from[h.Package]...)
+		fixed = osv.AppendNew(fixed, h.Fixed...)
 	}
 	slices.Sort(files)
 	item.Package = strings.Join(packages, ", ")
@@ -176,16 +185,6 @@ func advisoryItemOf(f *osv.Finding, from map[osv.Package][]string) dashboard.Adv
 	item.PatchedVersion = strings.Join(fixed, ", ")
 
 	return item
-}
-
-func appendNew(dst []string, values ...string) []string {
-	for _, v := range values {
-		if v != "" && !slices.Contains(dst, v) {
-			dst = append(dst, v)
-		}
-	}
-
-	return dst
 }
 
 // sortItems puts the most severe first and, among equals, the newest, then by

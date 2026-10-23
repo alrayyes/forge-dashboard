@@ -112,8 +112,8 @@ func (f *Finding) merge(r record) {
 			f.CVSSScore, f.CVSSVector = score, v
 		}
 	}
-	f.CWEs = appendNew(f.CWEs, r.cwes...)
-	f.References = appendNew(f.References, r.references...)
+	f.CWEs = AppendNew(f.CWEs, r.cwes...)
+	f.References = AppendNew(f.References, r.references...)
 }
 
 // hitsOf pairs each package, in order, with the versions the records fix it in.
@@ -127,7 +127,7 @@ func hitsOf(pkgs []Package, order []string, recs map[string]record) []Hit {
 		for _, id := range order {
 			for _, a := range recs[id].affected {
 				if a.name == p.Name && sameEcosystem(a.ecosystem, p.Ecosystem) {
-					hit.Fixed = appendNew(hit.Fixed, a.fixed...)
+					hit.Fixed = AppendNew(hit.Fixed, a.fixed...)
 				}
 			}
 		}
@@ -137,8 +137,8 @@ func hitsOf(pkgs []Package, order []string, recs map[string]record) []Hit {
 	return out
 }
 
-// appendNew appends the values not already in dst, in order.
-func appendNew(dst []string, values ...string) []string {
+// AppendNew appends the values not already in dst, in order.
+func AppendNew(dst []string, values ...string) []string {
 	for _, v := range values {
 		if v != "" && !slices.Contains(dst, v) {
 			dst = append(dst, v)

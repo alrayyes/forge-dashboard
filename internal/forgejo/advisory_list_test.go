@@ -172,7 +172,7 @@ func TestListAdvisories_ConcurrentOpensOfOneRepoShareOneRead(t *testing.T) {
 		})
 	}
 	<-scanner.started
-	time.Sleep(200 * time.Millisecond) // let the other opens reach the read in flight
+	require.Eventually(t, func() bool { return forgejo.ListJoined(client) == opens-1 }, 10*time.Second, time.Millisecond)
 	close(scanner.release)
 	wg.Wait()
 
@@ -181,4 +181,33 @@ func TestListAdvisories_ConcurrentOpensOfOneRepoShareOneRead(t *testing.T) {
 		require.Len(t, got.Advisories, 1)
 		assert.Equal(t, "GHSA-1", got.Advisories[0].ID)
 	}
+}
+
+// panickingFinder panics on its first Find and answers normally afterwards.
+type panickingFinder struct {
+	fakeScanner
+	finds atomic.Int32
+}
+
+func (p *panickingFinder) Find(ctx context.Context, pkgs []osv.Package) ([]osv.Finding, error) {
+	if p.finds.Add(1) == 1 {
+		panic("boom")
+	}
+
+	return p.fakeScanner.Find(ctx, pkgs)
+}
+
+func TestListAdvisories_APanickedReadDoesNotWedgeLaterOpens(t *testing.T) {
+	t.Parallel()
+	scanner := &panickingFinder{}
+	scanner.findings = []osv.Finding{{ID: "GHSA-1", Summary: "S", Hits: []osv.Hit{{Package: leftPad}}}}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
+
+	assert.Panics(t, func() { _, _ = client.ListAdvisories(t.Context(), "alrayyes", "a") })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	got, err := client.ListAdvisories(ctx, "alrayyes", "a")
+	require.NoError(t, err)
+	require.Len(t, got.Advisories, 1)
 }
