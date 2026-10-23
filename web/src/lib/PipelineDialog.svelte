@@ -65,6 +65,7 @@
     activeRuns,
     cancelLocksRepo,
     cancelRun,
+    runStopped,
     runLabel,
     type ActiveRun,
   } from "#lib/cancel-run.js";
@@ -131,6 +132,8 @@
   // Bumped when a repository is locked, so the lock redraws.
   let lockTick = $state(0);
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  // Whether any re-read since the cancel was accepted came back.
+  let settleRead = false;
   const SETTLE_MS = 2500;
   const SETTLE_TRIES = 8;
 
@@ -142,11 +145,7 @@
     const key = cancelKey(target.cancel);
     const lock = cancelLocks.get(key);
     if (!lock) return "";
-    if (Date.now() - lock.at > LOCK_MS) {
-      cancelLocks.delete(key);
-      return "";
-    }
-    return lock.message;
+    return Date.now() - lock.at > LOCK_MS ? "" : lock.message;
   });
   // The runs that can be cancelled, as the checks now name them.
   const runs = $derived(
@@ -203,6 +202,8 @@
       if (cancelLocksRepo(e)) {
         cancelLocks.set(cancelKey(cancel), { message, at: Date.now() });
         lockTick++;
+        // Redraw when the rest is over, in a dialog that is still open.
+        setTimeout(() => lockTick++, LOCK_MS + 1);
       }
       if (!row || target !== row) return;
       runStates[run.runId] = { phase: "refused", run, message };
@@ -214,6 +215,7 @@
     }
     if (!row || target !== row) return;
     speak(`Cancelling ${runLabel(run)}.`);
+    settleRead = false;
     settle(row, SETTLE_TRIES);
   }
 
@@ -224,20 +226,32 @@
     if (!row || target !== row) return;
     if (!Object.values(runStates).some((s) => s.phase === "cancelling")) return;
     if (left <= 0) {
-      // The forge took the cancel and the run is still going after every
-      // re-read: say so, and give the button back.
+      // The forge took the cancel and no re-read showed the run stopped: give
+      // the button back. It says the run is still going only if a re-read
+      // actually saw that; otherwise it says it couldn't check.
+      const labels: string[] = [];
       for (const state of Object.values(runStates)) {
         if (state.phase !== "cancelling") continue;
-        runStates[state.run.runId] = { ...state, phase: "stalled" };
-        speak(
-          `${runLabel(state.run)} is still running. The forge hasn't stopped it yet.`,
-        );
+        const label = runLabel(state.run);
+        labels.push(label);
+        runStates[state.run.runId] = {
+          ...state,
+          phase: "stalled",
+          message: settleRead
+            ? `${label} is still running. The forge hasn't stopped it yet.`
+            : `Couldn't check whether ${label} has stopped.`,
+        };
       }
+      speak(
+        settleRead
+          ? `${joinLabels(labels)} still running. The forge hasn't stopped ${labels.length === 1 ? "it" : "them"} yet.`
+          : `Couldn't check whether ${joinLabels(labels, "or")} stopped.`,
+      );
       return;
     }
     settleTimer = setTimeout(async () => {
       if (target !== row) return;
-      await load(row, true);
+      if (await load(row, true)) settleRead = true;
       settle(row, left - 1);
     }, SETTLE_MS);
   }
@@ -246,17 +260,37 @@
   // stopped. A run they were asked to confirm that finished on its own has
   // nothing left to cancel, so its question goes.
   function reconcileRuns(list: Check[]) {
-    const going = new Set(activeRuns(list).map((r) => r.runId));
+    const stopped: string[] = [];
+    const finished: string[] = [];
     for (const state of Object.values(runStates)) {
-      if (going.has(state.run.runId)) continue;
+      // Missing from the active runs isn't enough: a failed run lookup leaves
+      // the same jobs going with no run id. The run's own jobs must be seen
+      // finished.
+      if (!runStopped(state.run, list)) continue;
       if (state.phase === "cancelling" || state.phase === "stalled") {
         runStates[state.run.runId] = { ...state, phase: "cancelled" };
-        speak(`${runLabel(state.run)} was cancelled.`);
+        stopped.push(runLabel(state.run));
       } else if (state.phase === "confirm") {
         delete runStates[state.run.runId];
-        speak(`${runLabel(state.run)} has finished.`);
+        finished.push(runLabel(state.run));
       }
     }
+    // One line each, since the announcer holds one message at a time.
+    if (stopped.length) {
+      speak(
+        `${joinLabels(stopped, "and")} ${stopped.length === 1 ? "was" : "were"} cancelled.`,
+      );
+    } else if (finished.length) {
+      speak(
+        `${joinLabels(finished, "and")} ${finished.length === 1 ? "has" : "have"} finished.`,
+      );
+    }
+  }
+
+  // "ci", "ci and release", "ci, release and deploy".
+  function joinLabels(labels: string[], word = "and"): string {
+    if (labels.length < 2) return labels[0] ?? "";
+    return `${labels.slice(0, -1).join(", ")} ${word} ${labels[labels.length - 1]}`;
   }
 
   function askForExcerpts(list: Check[], url: string) {
@@ -315,7 +349,11 @@
     live?.resume();
   }
 
-  async function load(row: PipelineTarget, wantAgain = false) {
+  // Resolves true when the read came back, whether or not anything changed.
+  async function load(
+    row: PipelineTarget,
+    wantAgain = false,
+  ): Promise<boolean> {
     // A change before the first read has drawn restarts that read.
     const again = wantAgain && phase === "ready";
     const mine = ++request;
@@ -328,23 +366,23 @@
       const res = await fetch(row.checksUrl, {
         headers: { Accept: "application/json" },
       });
-      if (mine !== request) return;
+      if (mine !== request) return false;
       if (res.status === 401) {
         window.location.href = "/login.html";
-        return;
+        return false;
       }
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(body?.error || `backend answered ${res.status}`);
       }
-      if (mine !== request) return;
+      if (mine !== request) return false;
       const next: Check[] = body?.checks ?? [];
       if (again) {
         // Each check changes where it stands; nothing moves or redraws when no
         // check changed.
         const ordered = keepOrder(checks, next);
         staleNote = "";
-        if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
+        if (JSON.stringify(ordered) === JSON.stringify(checks)) return true;
         const line = announceChange(checks, ordered);
         const hadFocus = dialog
           .querySelector(".pipeline-dialog-body")
@@ -362,22 +400,24 @@
               .querySelector<HTMLElement>(".pipeline-dialog-close")
               ?.focus({ preventScroll: true });
         }
-        return;
+        return true;
       }
       live?.refreshed();
       checks = blockingFirst(next);
       reconcileRuns(checks);
       phase = "ready";
       askForExcerpts(checks, row.checksUrl);
+      return true;
     } catch (err) {
-      if (mine !== request) return;
+      if (mine !== request) return false;
       if (again) {
         live?.failed();
         staleNote = "Couldn't refresh these checks. They may be out of date.";
-        return;
+        return false;
       }
       message = `${row.errorText}: ${err instanceof Error ? err.message : String(err)}`;
       phase = "error";
+      return false;
     }
   }
 
@@ -573,7 +613,7 @@
       </p>
     {:else if state?.phase === "stalled"}
       <p class="pipeline-rerun-status" role="status">
-        {runLabel(run)} is still running. The forge hasn't stopped it yet.
+        {state.message}
       </p>
       <button
         type="button"

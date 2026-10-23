@@ -53,10 +53,38 @@ const RUNNING = [
   { name: 'external-ci', state: 'running', url: 'https://example.com/r/4' },
 ];
 
+// The same jobs read after GitHub's run lookup failed: still going, but with
+// no run id or name.
+const LOOKUP_FAILED = RUNNING.map(
+  ({ runId: _id, runName: _name, ...rest }) => rest,
+);
+
+const TWO_RUNS = [
+  ...RUNNING.slice(0, 3),
+  {
+    name: 'publish',
+    state: 'running',
+    url: 'https://example.com/r/5',
+    jobId: 5,
+    runId: 78,
+    runName: 'release',
+  },
+];
+
 const STOPPED = [
   { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-  { name: 'lint', state: 'cancelled', url: 'https://example.com/r/2' },
-  { name: 'test', state: 'cancelled', url: 'https://example.com/r/3' },
+  {
+    name: 'lint',
+    state: 'cancelled',
+    url: 'https://example.com/r/2',
+    jobId: 2,
+  },
+  {
+    name: 'test',
+    state: 'cancelled',
+    url: 'https://example.com/r/3',
+    jobId: 3,
+  },
 ];
 
 type Cancel = { status: number; body?: unknown };
@@ -84,6 +112,8 @@ async function open(
     // Resolve to let a held cancel answer.
     hold?: Promise<void>;
     reads?: number;
+    // Set after opening to make the next checks reads fail with it.
+    readStatus?: number;
   },
 ) {
   await page.addInitScript(() => {
@@ -117,7 +147,7 @@ async function open(
   await page.route('**/api/pull-requests/checks*', (route: Route) => {
     state.reads = (state.reads ?? 0) + 1;
     return route.fulfill({
-      status: 200,
+      status: state.readStatus ?? 200,
       contentType: 'application/json',
       body: JSON.stringify({ checks: state.checks }),
     });
@@ -486,6 +516,107 @@ test.describe('cancel a running pipeline', () => {
 
     await expect(
       dialog.getByRole('button', { name: 'Cancel run: ci' }),
+    ).toBeVisible();
+  });
+
+  test('a re-read that lost the run ids does not make a confirm say the run finished', async ({
+    page,
+  }) => {
+    const state = { checks: RUNNING, posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+
+    state.checks = LOOKUP_FAILED;
+    await page.evaluate(
+      (item) => window.__push(item),
+      snapshot({ ...pr([{ action: 'cancel_run' }]), ci: 'failure' }),
+    );
+    await page.waitForTimeout(500);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Yes, cancel run' }),
+    ).toBeVisible();
+    await expect(page.locator('.pipeline-live-status')).not.toContainText(
+      'has finished',
+    );
+  });
+
+  test('a re-read that lost the run ids does not say a cancelling run was cancelled', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const state = { checks: RUNNING, posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    state.checks = LOOKUP_FAILED;
+
+    await page.clock.runFor(2500 * 3);
+
+    await expect(dialog).not.toContainText('ci was cancelled');
+  });
+
+  test('re-reads that all fail end as could not check, not as still running', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const state = {
+      checks: RUNNING,
+      posted: [] as unknown[],
+      readStatus: undefined as number | undefined,
+    };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    state.readStatus = 502;
+
+    await page.clock.runFor(2500 * 9);
+
+    await expect(dialog).toContainText("Couldn't check whether ci has stopped");
+    await expect(dialog).not.toContainText('still running');
+  });
+
+  test('two stalled runs are said in one sentence', async ({ page }) => {
+    await page.clock.install();
+    const state = { checks: TWO_RUNS, posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    for (const name of ['ci', 'release']) {
+      await dialog.getByRole('button', { name: `Cancel run: ${name}` }).click();
+      await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    }
+
+    await page.clock.runFor(2500 * 9);
+
+    const said = page.locator('.pipeline-live-status');
+    await expect(said).toContainText('ci');
+    await expect(said).toContainText('release');
+  });
+
+  test('a permission lock lifts in an open dialog once its time is up', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const state = {
+      checks: TWO_RUNS,
+      posted: [] as unknown[],
+      cancel: {
+        status: 403,
+        body: {
+          error: 'x',
+          code: 'permission',
+          message: 'Resource not accessible by integration',
+        },
+      },
+    };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    await expect(dialog).toContainText("Cancel run: release isn't available");
+
+    await page.clock.runFor(5 * 60_000 + 2000);
+
+    await expect(
+      dialog.getByRole('button', { name: 'Cancel run: release' }),
     ).toBeVisible();
   });
   test('the Main branches dialog offers it too, with no allowed-actions list to ask', async ({

@@ -1,6 +1,12 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
-import { activeRuns, cancelLocksRepo, cancelRun, runLabel } from './cancel-run';
+import {
+  activeRuns,
+  cancelLocksRepo,
+  cancelRun,
+  runLabel,
+  runStopped,
+} from './cancel-run';
 import type { Check } from './pipeline-checks';
 
 const job = (over: Partial<Check>): Check => ({
@@ -20,8 +26,8 @@ describe('activeRuns', () => {
     ]);
 
     expect(runs).toEqual([
-      { runId: 7, runName: 'ci', jobs: ['lint', 'test'] },
-      { runId: 9, runName: 'release', jobs: ['e2e'] },
+      { runId: 7, runName: 'ci', jobs: ['lint', 'test'], jobIds: [1, 1] },
+      { runId: 9, runName: 'release', jobs: ['e2e'], jobIds: [1] },
     ]);
   });
 
@@ -49,7 +55,7 @@ describe('a run whose jobs the forge could not list', () => {
       job({ name: 'ci', jobId: undefined, runId: 7, runName: 'ci' }),
     ]);
 
-    expect(runs).toEqual([{ runId: 7, runName: 'ci', jobs: [] }]);
+    expect(runs).toEqual([{ runId: 7, runName: 'ci', jobs: [], jobIds: [] }]);
   });
 
   test('a job that shares the workflow name still counts as a job', () => {
@@ -63,8 +69,12 @@ describe('a run whose jobs the forge could not list', () => {
 
 describe('runLabel', () => {
   test('names the workflow, and falls back to a plain word', () => {
-    expect(runLabel({ runId: 1, runName: 'ci', jobs: [] })).toBe('ci');
-    expect(runLabel({ runId: 1, runName: '', jobs: [] })).toBe('this run');
+    expect(runLabel({ runId: 1, runName: 'ci', jobs: [], jobIds: [] })).toBe(
+      'ci',
+    );
+    expect(runLabel({ runId: 1, runName: '', jobs: [], jobIds: [] })).toBe(
+      'this run',
+    );
   });
 });
 
@@ -95,5 +105,53 @@ describe('cancelLocksRepo', () => {
     expect(cancelLocksRepo({ code: 'permission' })).toBe(true);
     expect(cancelLocksRepo({ code: 'conflict' })).toBe(false);
     expect(cancelLocksRepo({})).toBe(false);
+  });
+});
+
+describe('runStopped', () => {
+  const run = {
+    runId: 7,
+    runName: 'ci',
+    jobs: ['lint', 'test'],
+    jobIds: [2, 3],
+  };
+
+  test('is true once every job it had is listed and finished', () => {
+    expect(
+      runStopped(run, [
+        job({ jobId: 2, state: 'cancelled' }),
+        job({ jobId: 3, state: 'cancelled' }),
+      ]),
+    ).toBe(true);
+  });
+
+  test('is false while a job of it is still going, even with no run id', () => {
+    // GitHub's run lookup failed: the jobs are listed running, nameless.
+    expect(
+      runStopped(run, [
+        job({ jobId: 2, state: 'running' }),
+        job({ jobId: 3, state: 'cancelled' }),
+      ]),
+    ).toBe(false);
+  });
+
+  test('is false when a job of it is missing from the list', () => {
+    expect(runStopped(run, [job({ jobId: 2, state: 'cancelled' })])).toBe(
+      false,
+    );
+  });
+
+  test('a stand-in run is stopped when its one check finished', () => {
+    const standIn = { runId: 9, runName: 'ci', jobs: [], jobIds: [] };
+    expect(
+      runStopped(standIn, [
+        job({ name: 'ci', jobId: undefined, state: 'cancelled' }),
+      ]),
+    ).toBe(true);
+    expect(
+      runStopped(standIn, [
+        job({ name: 'ci', jobId: undefined, state: 'running' }),
+      ]),
+    ).toBe(false);
   });
 });
