@@ -39,6 +39,11 @@ request whose Merge is held back by something else too (checks running, say)
 draws its rebase on the row. Every other action is in the pop-up's footer, one
 click away, and there is no "More actions" menu.
 
+When runs wait for a maintainer's approval, that is the reason Merge gives,
+ahead of being behind the base branch: a behind pull request in that state shows
+the approval in its status, with no `action`, and its row has no rebase, since
+updating the branch would only start runs that are held again.
+
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a
 parent it is stacked on), with the same `code`, `message` and `next` as a

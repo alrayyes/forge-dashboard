@@ -5,8 +5,9 @@ import { test } from './server-fixture';
 // An out-of-date bot pull request offers its rebase in the row whatever Merge
 // or auto-merge are waiting on, the same way for Renovate and Dependabot.
 // The Go table in primary_action_test.go pins the rule; these cases pin the
-// wiring: the button's place in the row, its accessible name and the locked
-// state.
+// wiring: the button's place in the row, its accessible name and a held-run
+// pull request with no rebase. The locked already-requested button is covered
+// in renovate-rebase-requested.spec.ts.
 
 function pr(overrides: Record<string, unknown> = {}) {
   return {
@@ -111,39 +112,6 @@ for (const { name, author, button } of bots) {
     await expectNoAxeViolations(page);
   });
 }
-
-test('a behind Renovate pull request waiting on CI with a rebase already requested keeps the locked button in its row', async ({
-  page,
-}) => {
-  const row = await open(
-    page,
-    pr({
-      allowedActions: [
-        {
-          action: 'merge',
-          blocked: {
-            code: 'checks_pending',
-            message: 'Waiting for CI to finish',
-          },
-        },
-        { action: 'close' },
-        {
-          action: 'renovate_rebase',
-          blocked: {
-            code: 'already_requested',
-            message:
-              'A Renovate rebase is already requested on this pull request.',
-          },
-        },
-      ],
-    }),
-  );
-  const button = row
-    .locator('.row-action-bar')
-    .getByRole('button', { name: 'Renovate: Rebase' });
-  await expect(button).toHaveAttribute('aria-disabled', 'true');
-  await expectNoAxeViolations(page);
-});
 
 const approval = {
   code: 'blocked_by_protection',
