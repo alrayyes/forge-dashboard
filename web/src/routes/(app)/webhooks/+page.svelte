@@ -49,6 +49,8 @@
     webhookNeedsToken?: boolean;
     // When the repo's fetch first failed, while it keeps failing.
     failingSince?: string;
+    // The failure has outlasted the cutoff, worked out by the server.
+    failingForGood?: boolean;
     ignored: boolean;
     ignoredPRs: boolean;
     ignoredIssues: boolean;
@@ -779,6 +781,11 @@
       color: var(--warning);
       background: var(--warning-bg);
     }
+    .failing-badge.failing-for-good {
+      font-weight: 600;
+      color: var(--critical);
+      background: var(--critical-bg);
+    }
     .sort-button {
       background: none;
       border: none;
@@ -1229,11 +1236,19 @@
                       target="_blank"
                       rel="noopener noreferrer">{repo.fullName}</a
                     >{:else}{repo.fullName}{/if}{#if repo.failingSince}
-                    <span class="failing-badge"
-                      >Failing since {formatTime(repo.failingSince)}</span
-                    ><span class="failing-note"
-                      >The dashboard can't fetch this repo, so its pull requests
-                      and issues are the last ones it could read.</span
+                    <span class="failing-live" role="status"
+                      ><span
+                        class="failing-badge"
+                        class:failing-for-good={repo.failingForGood}
+                        >{repo.failingForGood ? "Still failing" : "Failing"} since
+                        {formatTime(repo.failingSince)}</span
+                      ><span class="failing-note"
+                        >{#if repo.failingForGood}Retrying hasn't helped. Its
+                          pull requests and issues are the last ones it could
+                          read.{:else}The dashboard can't fetch this repo, so
+                          its pull requests and issues are the last ones it
+                          could read.{/if}</span
+                      ></span
                     >{/if}</td
                 >
                 <td

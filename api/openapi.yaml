@@ -6638,6 +6638,16 @@ components:
             pull requests and issues are then the last good ones. Absent
             when the repository is fetching fine. It is not saved, so it
             restarts from the first failure after a restart.
+        failingForGood:
+          type: boolean
+          description: |
+            Present and true when failingSince is older than the cutoff the
+            refresh schedule uses for a repository that keeps failing, a
+            fixed multiple of the refresh interval. Retrying has not helped
+            by then. The server works this out when it builds the response,
+            so a client shows it without doing the arithmetic, and a
+            repository crosses the cutoff in what the client sees at the
+            next refresh. Absent otherwise.
         autoUpdateBranch:
           type: boolean
           description: |
