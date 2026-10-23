@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import {
   authorChoices,
   type FilterableItem,
+  heldPickNote,
   heldPicks,
   matchesFilters,
   reconcilePick,
@@ -10,6 +11,7 @@ import {
   repoChoices,
   type SharedFilterState,
   saveState,
+  takeMigratedAuthor,
 } from './filters';
 import { initialOf, pickSummary, REPO_CONFIG } from './label-filter';
 
@@ -34,7 +36,10 @@ const item = (
 const run = (shared: Record<string, string>, i: FilterableItem) =>
   matchesFilters(i, true, shared, undefined);
 
-afterEach(() => releaseAllHeld());
+afterEach(() => {
+  releaseAllHeld();
+  takeMigratedAuthor();
+});
 
 describe('matching any of the picked repos', () => {
   const pick = 'github:acme/api\nforgejo:acme/docs';
@@ -197,6 +202,50 @@ describe('a hand-edited partial login', () => {
     );
     expect(s.shared.author).toBe('');
     expect(heldPicks().map((h) => h.text)).toEqual(['ren']);
+  });
+});
+
+describe('an author saved as a bare login by an earlier release', () => {
+  const state = (author: string): SharedFilterState => ({
+    shared: { author },
+    pr: {},
+    issue: {},
+    view: {},
+  });
+  test('reads as every forge-qualified choice with that whole login', () => {
+    const s = state('ryan');
+    const offered = ['forgejo:ryan', 'github:ann', 'github:ryan'];
+    expect(reconcilePick(s, 'author', offered, true)).toBe(false);
+    expect(s.shared.author).toBe('forgejo:ryan\ngithub:ryan');
+    expect(heldPicks()).toEqual([]);
+    expect(takeMigratedAuthor()).toBe(true);
+    expect(takeMigratedAuthor()).toBe(false);
+  });
+  test('matches the login in any case and keeps the other picks', () => {
+    const s = state('Ryan\ngithub:ann');
+    reconcilePick(s, 'author', ['github:ann', 'github:ryan'], false);
+    expect(s.shared.author).toBe('github:ryan\ngithub:ann');
+  });
+  test('is not matched by part of a login', () => {
+    const s = state('ry');
+    expect(reconcilePick(s, 'author', ['github:ryan'], true)).toBe(true);
+    expect(s.shared.author).toBe('');
+    expect(takeMigratedAuthor()).toBe(false);
+  });
+  test('on no forge here is set aside and named without a forge', () => {
+    const s = state('ghost');
+    expect(reconcilePick(s, 'author', ['github:ryan'], true)).toBe(true);
+    expect(s.shared.author).toBe('');
+    const [pick] = heldPicks();
+    expect(heldPickNote(pick)).toBe(
+      'Saved author "ghost" has no forge and is not on this page.',
+    );
+  });
+  test('a held bare login is rewritten in the saved copy too', () => {
+    const s = state('ghost');
+    reconcilePick(s, 'author', ['github:x'], true);
+    reconcilePick(s, 'author', ['github:ghost', 'forgejo:ghost'], true);
+    expect(heldPicks().map((h) => h.text)).toEqual(['ghost, ghost']);
   });
 });
 

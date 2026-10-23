@@ -281,6 +281,12 @@ it and leaves the saved choice alone, so it is still set when you go back to
 the page that does. The page says so under the filter bar (`Saved author
 "x" is not on this page.`) with a Clear button, and Clear filters is on and
 ends the saved choice too. Changing that control on the page ends it as well.
+An author saved by an earlier release as a bare login (`ann`, with no forge) is
+read as that whole login (in any case) on every forge that has it, and saved
+again in the forge-qualified form (`github:ann`) the first time the page
+reconciles its picks. A bare login no author on the page has is set aside like
+any other, and the note says it has no forge (`Saved author "ann" has no forge
+and is not on this page.`); Clear removes it.
 Text typed in the title search or the hide-titles pattern is sent to the
 server half a second after the last key, and at once when you leave the page
 or switch tab, so a value typed just before leaving is kept. The title search

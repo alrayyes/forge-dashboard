@@ -301,7 +301,9 @@ test.describe('seeded saved picks (#1620)', () => {
       await expect(
         page
           .locator('#held-picks')
-          .getByText('Saved author "ryan" is not on this page.'),
+          .getByText(
+            'Saved author "ryan" has no forge and is not on this page.',
+          ),
       ).toBeVisible();
 
       await change(page);

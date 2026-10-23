@@ -111,3 +111,90 @@ test('the author panel has no accessibility violations with forge groups', async
     .analyze();
   expect(results.violations).toEqual([]);
 });
+
+// An author pick saved by the release before this one is the bare login. It
+// reads as every forge's choice with that whole login (any case) and is saved
+// again in the new form.
+test.describe('an author saved as a bare login by an earlier release', () => {
+  const cookieShared = async (page: Page) => {
+    const c = (await page.context().cookies()).find(
+      (x) => x.name === 'forge-board-filters',
+    );
+    return c ? (JSON.parse(decodeURIComponent(c.value)).shared ?? {}) : {};
+  };
+  const serverShared = async (page: Page) =>
+    (await (await page.request.get('/api/settings/filter-state')).json())
+      ?.shared ?? {};
+
+  test('in the cookie is read as that login on each forge and saved qualified', async ({
+    page,
+    baseURL,
+  }) => {
+    await page.context().addCookies([
+      {
+        name: 'forge-board-filters',
+        value: encodeURIComponent(
+          JSON.stringify({
+            shared: { author: 'Sam' },
+            pr: {},
+            issue: {},
+            view: {},
+          }),
+        ),
+        url: baseURL ?? '',
+      },
+    ]);
+    await open(page);
+    await expect(rows(page)).toHaveCount(2);
+    expect(await pickedValues(page, 'author')).toEqual([
+      'forgejo:sam',
+      'github:sam',
+    ]);
+    await expect(page.locator('#held-picks .held-pick')).toHaveCount(0);
+    await expect
+      .poll(async () => (await cookieShared(page)).author)
+      .toBe('forgejo:sam\ngithub:sam');
+    await expect
+      .poll(async () => (await serverShared(page)).author)
+      .toBe('forgejo:sam\ngithub:sam');
+  });
+
+  test('in the server copy is read as that login on each forge and saved qualified', async ({
+    page,
+  }) => {
+    await page.request.put('/api/settings/filter-state', {
+      data: { shared: { author: 'sam' }, pr: {}, issue: {}, view: {} },
+    });
+    await open(page);
+    await expect(rows(page)).toHaveCount(2);
+    expect(await pickedValues(page, 'author')).toEqual([
+      'forgejo:sam',
+      'github:sam',
+    ]);
+    await expect
+      .poll(async () => (await serverShared(page)).author)
+      .toBe('forgejo:sam\ngithub:sam');
+    await expect
+      .poll(async () => (await cookieShared(page)).author)
+      .toBe('forgejo:sam\ngithub:sam');
+  });
+
+  test('on no forge here is set aside, named as having no forge and kept saved', async ({
+    page,
+  }) => {
+    await page.request.put('/api/settings/filter-state', {
+      data: { shared: { author: 'ghost' }, pr: {}, issue: {}, view: {} },
+    });
+    await open(page);
+    await expect(rows(page)).toHaveCount(3);
+    await expect(
+      page
+        .locator('#held-picks')
+        .getByText(
+          'Saved author "ghost" has no forge and is not on this page.',
+        ),
+    ).toBeVisible();
+    expect(await pickedValues(page, 'author')).toEqual([]);
+    expect((await serverShared(page)).author).toBe('ghost');
+  });
+});

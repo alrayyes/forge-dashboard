@@ -507,6 +507,18 @@ export function reconcilePick(
   offered: string[],
   hold: boolean,
 ): boolean {
+  if (key === 'author') {
+    const migrated = migrateBareAuthors(state.shared.author, offered);
+    if (migrated !== undefined) state.shared.author = migrated;
+    const heldMigrated = migrateBareAuthors(
+      heldValue('shared', 'author'),
+      offered,
+    );
+    if (heldMigrated !== undefined) {
+      releaseHeld('shared', 'author');
+      held.push({ group: 'shared', key: 'author', value: heldMigrated });
+    }
+  }
   const { kept, dropped } = narrowLabels(
     parseLabels(state.shared[key]),
     offered,
@@ -524,6 +536,46 @@ export function reconcilePick(
   return true;
 }
 
+// An Author pick was saved as the bare login until it became forge-qualified
+// ("github:ann"), because one login on two forges is two people. A bare login
+// reads as the choices that have exactly that login (any case), on every
+// forge. Returns the rewritten pick, or undefined when nothing in it changed:
+// a login no choice here has stays bare, so the page sets it aside and says
+// it has no forge.
+function migrateBareAuthors(
+  saved: string | undefined,
+  offered: string[],
+): string | undefined {
+  const picked = parseLabels(saved);
+  let changed = false;
+  const next: string[] = [];
+  for (const value of picked) {
+    if (value.includes(':')) {
+      next.push(value);
+      continue;
+    }
+    const matches = offered.filter((o) => repoName(o) === value);
+    if (matches.length === 0) next.push(value);
+    else {
+      next.push(...matches);
+      changed = true;
+    }
+  }
+  if (!changed) return undefined;
+  authorMigrated = true;
+  return joinLabels(next);
+}
+
+// Set when a bare author login was rewritten, so the page saves the pick once
+// and the old form leaves the cookie and the server copy.
+let authorMigrated = false;
+
+export function takeMigratedAuthor(): boolean {
+  const was = authorMigrated;
+  authorMigrated = false;
+  return was;
+}
+
 // The user chose something else for this control (or cleared it): the held
 // value is no longer wanted.
 export function releaseHeld(group: StateGroup, key: string): void {
@@ -536,6 +588,8 @@ export function releaseAllHeld(): void {
 }
 
 export type HeldPick = {
+  // An author saved without a forge, which no choice here has.
+  noForge?: boolean;
   group: StateGroup;
   key: string;
   // What the control is called ("author", "repo").
@@ -556,7 +610,15 @@ export function heldPicks(): HeldPick[] {
       h.key === 'created' || h.key === 'updated' ? AGE_RANGES : [];
     text = choices.find((c) => c.value === h.value)?.label ?? text;
     if (h.key === 'label') text = parseLabels(h.value).join(', ');
-    return { group: h.group, key: h.key, name: h.key, text };
+    const noForge =
+      h.key === 'author' && parseLabels(h.value).every((v) => !v.includes(':'));
+    return {
+      group: h.group,
+      key: h.key,
+      name: h.key,
+      text,
+      ...(noForge ? { noForge } : {}),
+    };
   });
 }
 
@@ -580,6 +642,8 @@ function heldPickPhrase(pick: HeldPick): string {
 }
 
 export function heldPickNote(pick: HeldPick): string {
+  if (pick.noForge)
+    return `Saved ${heldPickPhrase(pick)} has no forge and is not on this page.`;
   return `Saved ${heldPickPhrase(pick)} is not on this page.`;
 }
 
