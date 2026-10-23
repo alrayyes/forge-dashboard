@@ -86,11 +86,19 @@ const focusedLabel = (page: Page) =>
   );
 
 test.describe('the open pick panel keeps keyboard focus through a redraw', () => {
-  for (const [kind, button, start, second, after] of [
-    ['repo', '#shared-repo-filter-button', 'alrayyes/lib', 'alrayyes/app', 3],
-    ['author', '#shared-author-filter-button', 'bob', 'alice', 3],
+  // Only the repos move: they group under their forge. The authors are a flat
+  // list that never reorders in place, so their path is the removal test below.
+  for (const [kind, button, start, second, next, after] of [
+    [
+      'repo',
+      '#shared-repo-filter-button',
+      'alrayyes/lib',
+      'alrayyes/app',
+      TWO_FORGES,
+      3,
+    ],
   ] as const) {
-    test(`${kind}: focus stays on the box through a snapshot that regroups the rows`, async ({
+    test(`${kind}: focus stays on the box through a snapshot that moves the rows`, async ({
       page,
     }) => {
       await open(page);
@@ -101,7 +109,7 @@ test.describe('the open pick panel keeps keyboard focus through a redraw', () =>
       await target.focus();
       await expect(target).toBeFocused();
 
-      await push(page, TWO_FORGES);
+      await push(page, next);
       await expect(page.locator('#pr-rows > .row')).toHaveCount(after);
       await expect(target).toBeFocused();
       expect(await focusedLabel(page)).toContain(start);
@@ -137,5 +145,11 @@ test.describe('the open pick panel keeps keyboard focus through a redraw', () =>
     await expect(page.getByRole('checkbox', { name: 'bob' })).toHaveCount(0);
     await expect(button).toBeFocused();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'bob is no longer offered' })
+        .first(),
+    ).toBeAttached();
   });
 });

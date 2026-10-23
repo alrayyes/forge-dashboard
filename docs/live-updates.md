@@ -263,7 +263,8 @@ it saved and says so. The Insights page shows the same two controls.
 A live update redraws an open panel's choices without moving you: keyboard
 focus stays on the checkbox you are on, even when the update adds a second forge
 and the repos regroup under their headings. If that choice is gone, focus moves
-to the panel's button and the panel stays open.
+to the panel's button, the panel stays open and a screen reader hears that the
+choice is no longer offered.
 
 ## Remembered filters
 
