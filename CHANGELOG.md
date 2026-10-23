@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.26.0](https://github.com/alrayyes/forge-dashboard/compare/v2.25.0...v2.26.0) (2026-10-23)
+
+
+### Features
+
+* **github:** fetch only changed repos on a full refresh ([#2692](https://github.com/alrayyes/forge-dashboard/issues/2692)) ([253da28](https://github.com/alrayyes/forge-dashboard/commit/253da2853adb9fa64b3e5f10954e0af82bd6ac8e))
+* **web:** list a Forgejo repo's advisories in the advisories dialog ([#2685](https://github.com/alrayyes/forge-dashboard/issues/2685)) ([2601a2d](https://github.com/alrayyes/forge-dashboard/commit/2601a2d5ac6475cc7f660ca9893bdd4e507dad32))
+
 ## [2.25.0](https://github.com/alrayyes/forge-dashboard/compare/v2.24.1...v2.25.0) (2026-10-23)
 
 
