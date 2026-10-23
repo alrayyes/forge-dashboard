@@ -210,13 +210,13 @@ test.describe('issues page (#827)', () => {
     await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     expect(await values('repo')).toEqual(['github:alrayyes/pr-only']);
-    expect(await values('author')).toEqual(['pr-author']);
+    expect(await values('author')).toEqual(['github:pr-author']);
     expect(await labelChoices(page)).toEqual(['pr-label']);
 
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
     expect(await values('repo')).toEqual(['github:alrayyes/issue-only']);
-    expect(await values('author')).toEqual(['issue-author']);
+    expect(await values('author')).toEqual(['github:issue-author']);
     expect(await labelChoices(page)).toEqual(['issue-label']);
   });
 

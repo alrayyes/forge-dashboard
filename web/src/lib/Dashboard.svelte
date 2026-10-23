@@ -102,6 +102,7 @@
   import {
     type LinkedPullRequest,
     linkedPills,
+    linkedPillId,
     missingNote,
     type PillCi,
     parsePullRequestAddress,
@@ -1860,6 +1861,7 @@
     // it when the dialog last read the forge (undefined while the snapshot
     // does not list it). The dialog draws its status from its own details, so
     // a close or a reopen in the forge reaches it through a re-read.
+    let afterDetailsClosed: (() => void) | null = null;
     let issueDialog: {
       forge: string;
       repo: string;
@@ -2094,6 +2096,17 @@
       note.hidden = false;
     }
 
+    // One dialog at a time: the issue's closes, then the pull request's opens
+    // once its close has run, with focus returning to the issue's row pill.
+    function followLinkedFromDialog(
+      item: IssueDialogItem,
+      linked: LinkedPullRequest,
+    ) {
+      afterDetailsClosed = () =>
+        void openLinkedPullRequest(linked, linkedPillId(prKey(item), linked));
+      detailsDialog?.close();
+    }
+
     async function openAddressedPullRequest(listed: PullRequestItem[]) {
       const wanted = addressed;
       if (!wanted) return;
@@ -2187,15 +2200,16 @@
       attributes.setAttribute("aria-label", "Labels when opened");
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
-      // The pull requests that will close it, as the row's pills. Plain links
-      // here, as the pull request dialog's closing pills are, so a second
-      // dialog does not stack on this one.
+      // The pull requests that will close it, as the row's pills. Links here,
+      // so a modified click still opens the page in a new tab, but a plain
+      // click swaps this dialog for the pull request's, on this page.
       const pills = linkedPills(
         prKey(item),
         item.repo,
         item.linkedPullRequests,
         undefined,
         linkedCi,
+        (linked) => followLinkedFromDialog(item, linked),
       );
       if (pills) {
         attributes.setAttribute("aria-label", "Attributes when opened");
@@ -2208,6 +2222,9 @@
     // with the dialog when it closes.
     escapeDetails = () => confirmArm.disarm("escape") || issueActions.escape();
     detailsClosed = () => {
+      const next = afterDetailsClosed;
+      afterDetailsClosed = null;
+      if (next) setTimeout(next, 0);
       if (dialogKey !== null) {
         // A queued or in-flight rerun outlives the dialog; only a failure line goes.
         if (!["queued", "requesting"].includes(rerunState[dialogKey]?.phase))
@@ -5851,6 +5868,10 @@
     // budget is already exhausted.
     let lastForges: Forge[] = [];
     let sharedControlsRestored = false;
+    // The server's copy has been asked for and answered (or failed). A pick
+    // rewritten before that is saved after, so the cookie's version doesn't
+    // land on the server first.
+    let serverCopyLoaded = false;
 
     // #353: the cookie above is a fast local cache for this page's very
     // first paint, not the source of truth across devices — this fetch
@@ -5865,6 +5886,7 @@
       // Another page has loaded, or this one is gone: its state and touched
       // keys are not ours any more.
       if (destroyed || page !== Filters.currentPage()) return;
+      serverCopyLoaded = true;
       const before = JSON.stringify(sharedState);
       if (got) Filters.applyServerState(sharedState, got);
       reportDroppedPicks();
@@ -5888,6 +5910,11 @@
         syncSharedControlsToState();
         renderBoth();
       }
+      // An author saved as a bare login has been read as its forge-qualified
+      // choices; save it once so the old form leaves the cookie and the
+      // server copy.
+      if (sharedControlsRestored && Filters.takeMigratedAuthor())
+        Filters.saveState(sharedState);
     });
 
     // What the choices come from: the list on screen, not the newest snapshot,
@@ -6052,6 +6079,8 @@
       const cleared =
         !holdPicks && (stalePicks || staleCreated || staleUpdated);
       if (cleared) Filters.saveState(sharedState);
+      else if (serverCopyLoaded && Filters.takeMigratedAuthor())
+        Filters.saveState(sharedState);
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
       // cleared, since the pools are built from what is left.
@@ -6979,11 +7008,7 @@
         const picked = parseLabels(shared[key]);
         for (const value of picked) {
           const choice = choices.find((c) => labelKey(c.value) === value);
-          const text = choice
-            ? choiceText(choice)
-            : key === "repo"
-              ? repoName(value)
-              : value;
+          const text = choice ? choiceText(choice) : repoName(value);
           chips.push({
             label: `${noun} ${text}`,
             choice: choice ?? {

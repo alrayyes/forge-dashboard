@@ -15,30 +15,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAdvisoryCache_DropsExpiredEntriesWhenFull(t *testing.T) {
+func TestAdvisoryCache_KeepsPackagesForARetryPastTheAnswer(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	c := &advisoryCache{max: 3, now: func() time.Time { return now }}
+	c := newAdvisoryCache()
+	c.Max = 2
+	c.Now = func() time.Time { return now }
 
-	c.put("gone-1", advisoryEntry{}, time.Minute)
-	c.put("gone-2", advisoryEntry{pkgs: nil}, time.Minute)
+	c.Put("held", advisoryEntry{havePkgs: true, pkgsUntil: now.Add(2 * time.Hour)}, time.Minute)
+	c.Put("plain", advisoryEntry{}, time.Minute)
 	now = now.Add(time.Hour)
-	c.put("live-1", advisoryEntry{}, time.Hour)
-	c.put("live-2", advisoryEntry{}, time.Hour)
+	c.Put("new", advisoryEntry{}, time.Hour)
 
-	assert.Len(t, c.entries, 2, "the two expired entries went when the cache filled")
-	assert.Contains(t, c.entries, "live-1")
-	assert.Contains(t, c.entries, "live-2")
-}
-
-func TestAdvisoryCache_NeverGrowsPastItsLimit(t *testing.T) {
-	t.Parallel()
-	c := &advisoryCache{max: 3}
-	for _, k := range []string{"a", "b", "c", "d", "e"} {
-		c.put(k, advisoryEntry{}, time.Hour)
-	}
-	assert.LessOrEqual(t, len(c.entries), 3)
-	assert.Contains(t, c.entries, "e", "the newest entry is kept")
+	_, _, held := c.Get("held")
+	_, _, plain := c.Get("plain")
+	assert.True(t, held, "packages read from the forge outlive the answer for the retry")
+	assert.False(t, plain)
 }
 
 func TestWithoutOwnHost_IgnoresCaseAndPort(t *testing.T) {
@@ -62,11 +54,12 @@ func TestWithoutOwnHost_IgnoresCaseAndPort(t *testing.T) {
 
 func TestFailedRead_KeepsTheUnreadableMark(t *testing.T) {
 	t.Parallel()
-	c := &Client{clientState: &clientState{advisories: &advisoryCache{}}}
+	c := &Client{clientState: &clientState{advisories: newAdvisoryCache()}}
 	old := advisoryEntry{unreadable: true, value: dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}}
 	c.failedRead("k", dashboard.RepoRef{FullName: "o/n"}, old, true, nil, nil, assert.AnError)
 
-	assert.True(t, c.advisories.entries["k"].unreadable, "a transient failure must not make the next success warn again")
+	got, _, _ := c.advisories.Get("k")
+	assert.True(t, got.unreadable, "a transient failure must not make the next success warn again")
 }
 
 func TestRawRequestMax_ARefusalWithABigBodyIsNotASuccess(t *testing.T) {

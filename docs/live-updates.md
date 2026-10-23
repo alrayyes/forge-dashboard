@@ -249,7 +249,11 @@ two choices. Each heading is a named group for a screen reader, and a single
 picked repo is named with its forge in the button and the chip ("acme/web
 (Forgejo)").
 
-An author matches on the whole login, in any case. The filter used to match
+An author is listed the way a repo is: one login on two forges is two people,
+so it is two choices, each under its forge's heading when several forges
+show, and a pick matches only that forge's pull requests and issues. A
+single picked author is named with its forge in the button, as a repo is. An
+author matches on the whole login, in any case. The filter used to match
 any login that contained the saved text, so a saved `ann` also showed
 `annabel`; it no longer does, and the list offers whole logins to tick. A
 partial login saved by hand, such as `ren` for `renovate[bot]`, is not on offer
@@ -286,6 +290,12 @@ it and leaves the saved choice alone, so it is still set when you go back to
 the page that does. The page says so under the filter bar (`Saved author
 "x" is not on this page.`) with a Clear button, and Clear filters is on and
 ends the saved choice too. Changing that control on the page ends it as well.
+An author saved by an earlier release as a bare login (`ann`, with no forge) is
+read as that whole login (in any case) on every forge that has it, and saved
+again in the forge-qualified form (`github:ann`) the first time the page
+reconciles its picks. A bare login no author on the page has is set aside like
+any other, and the note says it has no forge (`Saved author "ann" has no forge
+and is not on this page.`); Clear removes it.
 Text typed in the title search or the hide-titles pattern is sent to the
 server half a second after the last key, and at once when you leave the page
 or switch tab, so a value typed just before leaving is kept. The title search

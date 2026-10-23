@@ -50,7 +50,7 @@ test('a refused filter save is reported on the page', async ({ page }) => {
     return route.fulfill({ status: 400, body: '{"error":"too many labels"}' });
   });
 
-  await pickOnly(page, 'author', 'ryan');
+  await pickOnly(page, 'author', 'github:ryan');
   await expect(page.locator('#filter-save-refused')).toBeVisible();
   await expect(page.locator('#filter-save-refused')).toContainText('not saved');
 });

@@ -58,11 +58,22 @@ describe('heldPicks', () => {
 });
 
 describe('wording', () => {
+  test('a forge-qualified author is simply not on this page', () => {
+    const s = state();
+    s.shared.author = 'github:ryan';
+    holdStale(s, 'shared', 'author');
+    expect(heldPickNote(heldPicks()[0])).toBe(
+      'Saved author "ryan" is not on this page.',
+    );
+  });
+
   test('names the control for a text kind', () => {
     const s = state();
     holdStale(s, 'shared', 'author');
     const [pick] = heldPicks();
-    expect(heldPickNote(pick)).toBe('Saved author "ryan" is not on this page.');
+    expect(heldPickNote(pick)).toBe(
+      'Saved author "ryan" has no forge and is not on this page.',
+    );
     expect(heldPickClearLabel(pick)).toBe('Clear saved author "ryan"');
   });
 
@@ -76,8 +87,8 @@ describe('wording', () => {
 
   test('cuts a long value short, in the note and the button name', () => {
     const s = state();
-    s.shared.author = 'x'.repeat(300);
-    holdStale(s, 'shared', 'author');
+    s.shared.repo = 'x'.repeat(300);
+    holdStale(s, 'shared', 'repo');
     const [pick] = heldPicks();
     expect(pick.text).toHaveLength(300);
     expect(heldPickNote(pick).length).toBeLessThan(90);

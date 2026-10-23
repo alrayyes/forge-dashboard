@@ -318,7 +318,7 @@ test.describe('Label filter: narrowing', () => {
     page,
   }) => {
     await open(page);
-    await pickOnly(page, 'author', 'alice');
+    await pickOnly(page, 'author', 'github:alice');
 
     await labelButton(page).click();
     await expect(labelPanel(page).locator('.label-filter-option')).toHaveText([
@@ -349,7 +349,7 @@ test.describe('Label filter: narrowing', () => {
     await toggleLabels(page, 'bug', 'security');
     await expect(prRows(page)).toHaveCount(3);
 
-    await pickOnly(page, 'author', 'alice');
+    await pickOnly(page, 'author', 'github:alice');
 
     // security is bob's: alice has none, so it can no longer be ticked.
     await expect(labelButton(page)).toHaveText('bug');

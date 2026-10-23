@@ -194,18 +194,18 @@ test.describe('Repo and Author: several values, matching any', () => {
     page,
   }) => {
     await open(page);
-    await togglePicks(page, 'author', 'alice');
+    await togglePicks(page, 'author', 'github:alice');
     await expect(pickButton(page, 'author')).toHaveText('alice');
     await expect(prRows(page)).toHaveCount(2);
 
-    await togglePicks(page, 'author', 'bob');
+    await togglePicks(page, 'author', 'github:bob');
     await expect(pickButton(page, 'author')).toHaveText('2 authors');
     await expect(prRows(page)).toHaveCount(3);
   });
 
   test('a repo and an author together narrow each other', async ({ page }) => {
     await open(page);
-    await togglePicks(page, 'author', 'alice');
+    await togglePicks(page, 'author', 'github:alice');
     await expect(prRows(page)).toHaveCount(2);
     // Each control offers what the others leave: alice works in api and docs.
     expect(await offeredValues(page, 'repo')).toEqual([
@@ -216,14 +216,14 @@ test.describe('Repo and Author: several values, matching any', () => {
     await togglePicks(page, 'repo', 'github:acme/api', 'github:acme/docs');
     await expect(prRows(page)).toHaveCount(2);
     await expect(pickButton(page, 'repo')).toHaveText('2 repos');
-    expect(await offeredValues(page, 'author')).toEqual(['alice']);
+    expect(await offeredValues(page, 'author')).toEqual(['github:alice']);
   });
 
   test('Clear empties the list and shows everything again', async ({
     page,
   }) => {
     await open(page);
-    await togglePicks(page, 'author', 'alice', 'bob');
+    await togglePicks(page, 'author', 'github:alice', 'github:bob');
     await expect(prRows(page)).toHaveCount(3);
 
     await clearPicks(page, 'author');
@@ -242,7 +242,7 @@ test.describe('Repo and Author: several values, matching any', () => {
     await expect(issueRows(page)).toHaveCount(2);
 
     await clearPicks(page, 'repo');
-    await togglePicks(page, 'author', 'bob', 'carol');
+    await togglePicks(page, 'author', 'github:bob', 'github:carol');
     await expect(issueRows(page)).toHaveCount(2);
     await expect(pickButton(page, 'author')).toHaveText('2 authors');
   });
@@ -273,7 +273,7 @@ test.describe('Repo and Author: several values, matching any', () => {
   }) => {
     await seedCookie(page, baseURL, {
       repo: 'github:acme/api\ngithub:acme/web',
-      author: 'alice\nbob',
+      author: 'github:alice\ngithub:bob',
     });
     await open(page, '/insights.html');
 
@@ -293,7 +293,7 @@ test.describe('Repo and Author: saved picks', () => {
   }) => {
     await seedCookie(page, baseURL, {
       repo: 'github:acme/api',
-      author: 'alice',
+      author: 'github:alice',
     });
     await open(page);
 
@@ -308,7 +308,7 @@ test.describe('Repo and Author: saved picks', () => {
 
   test('two picks survive a reload', async ({ page }) => {
     await open(page);
-    await togglePicks(page, 'author', 'alice', 'bob');
+    await togglePicks(page, 'author', 'github:alice', 'github:bob');
     await expect(prRows(page)).toHaveCount(3);
     // Saving is debounced; wait for the saved copy before leaving.
     await expect
@@ -318,7 +318,7 @@ test.describe('Repo and Author: saved picks', () => {
         ).json();
         return saved.shared?.author;
       })
-      .toBe('alice\nbob');
+      .toBe('github:alice\ngithub:bob');
 
     await page.reload();
 
@@ -445,7 +445,7 @@ test.describe('Repo and Author: logos and avatars', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedCookie(page, baseURL, {
       repo: 'github:acme/api',
-      author: 'alice',
+      author: 'github:alice',
     });
     await open(page);
 

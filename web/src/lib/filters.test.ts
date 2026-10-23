@@ -118,9 +118,9 @@ describe('optionPool', () => {
       optionItem({ repo: 'a/two', author: 'claude' }),
     ];
 
-    expect(repos(optionPool(items, false, { author: 'ryan' }, 'repo'))).toEqual(
-      ['a/one'],
-    );
+    expect(
+      repos(optionPool(items, false, { author: 'github:ryan' }, 'repo')),
+    ).toEqual(['a/one']);
   });
 
   test('leaves the filter being populated out, so a picked value keeps its siblings', () => {
