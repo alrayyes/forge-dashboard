@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.2](https://github.com/alrayyes/forge-dashboard/compare/v2.21.1...v2.21.2) (2026-10-23)
+
+
+### Performance Improvements
+
+* **web:** read a saved pick once instead of once per item ([#2668](https://github.com/alrayyes/forge-dashboard/issues/2668)) ([139eb08](https://github.com/alrayyes/forge-dashboard/commit/139eb08fae886edc95676b105f30fdb9bf4d310d))
+
 ## [2.21.1](https://github.com/alrayyes/forge-dashboard/compare/v2.21.0...v2.21.1) (2026-10-23)
 
 
