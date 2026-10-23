@@ -380,8 +380,8 @@ func newTestServerWithGitHubAppConfigured(t *testing.T) *httptest.Server {
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	manager := dashboard.NewService(testRefreshInterval)
-	t.Cleanup(manager.Stop)
+	service := dashboard.NewService(testRefreshInterval)
+	t.Cleanup(service.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -391,7 +391,7 @@ func newTestServerWithGitHubAppConfigured(t *testing.T) *httptest.Server {
 		AuthService:         authService,
 		AuthStore:           authStore,
 		SettingsStore:       settingsStore,
-		Service:             manager,
+		Service:             service,
 		BuildSources:        noSources,
 		AppContext:          appCtx,
 		GitHubAppConfigured: true,

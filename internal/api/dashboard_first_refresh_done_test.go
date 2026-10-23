@@ -103,7 +103,7 @@ func TestDashboard_FirstRefreshDone_TrueOnceTheFirstRefreshSucceeds_AndStaysTrue
 	close(src.release)
 
 	require.Eventually(t, func() bool { return firstRefreshDoneOverHTTP(t, url, cookie) == true }, pollBudget, 10*time.Millisecond)
-	// Later refreshes (the test manager ticks every few milliseconds) keep it.
+	// Later refreshes (the test service ticks every few milliseconds) keep it.
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, true, firstRefreshDoneOverHTTP(t, url, cookie))
 	assert.Equal(t, true, firstRefreshDoneOverMCP(t, url, apiToken))
@@ -221,7 +221,7 @@ func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEn
 	t.Parallel()
 
 	src := &holdSource{release: make(chan struct{}), reachable: true}
-	srv, manager, _ := newTestServerWithFirstLoadWait(t, func(c settingspkg.Credentials) []dashboard.Source {
+	srv, service, _ := newTestServerWithFirstLoadWait(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != firstRefreshToken {
 			return nil
 		}
@@ -235,8 +235,8 @@ func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEn
 	require.Equal(t, http.StatusOK, put.StatusCode)
 
 	// A restart: every Aggregator and mark gone, the saved settings still there.
-	manager.Stop()
-	manager.Reset()
+	service.Stop()
+	service.Reset()
 
 	assert.Equal(t, false, firstRefreshDoneOverHTTP(t, srv.URL, cookie), "the warm-up refresh is still running")
 	assert.Equal(t, false, firstRefreshDoneOverMCP(t, srv.URL, apiToken))

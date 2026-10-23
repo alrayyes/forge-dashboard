@@ -159,23 +159,23 @@ func newTestServerWithSource(t *testing.T, source dashboard.Source) (srv string,
 // holds webhook refreshes back under the test's control.
 func newTestServerWithDebounceTimer(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie) {
 	t.Helper()
-	srv, sessionCookie, _ = newTestServerWithManager(t, source, after)
+	srv, sessionCookie, _ = newTestServerWithService(t, source, after)
 
 	return srv, sessionCookie
 }
 
-// newTestServerWithManager is newTestServerWithDebounceTimer that also hands
+// newTestServerWithService is newTestServerWithDebounceTimer that also hands
 // back the Service, for a test
 // that reads state a webhook delivery left in the Aggregator.
-func newTestServerWithManager(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie, manager *dashboard.Service) {
+func newTestServerWithService(t *testing.T, source dashboard.Source, after dashboard.AfterFunc) (srv string, sessionCookie *http.Cookie, service *dashboard.Service) {
 	t.Helper()
 
 	return newTestServerWithDrain(t, source, after, &api.Drain{})
 }
 
-// newTestServerWithDrain is newTestServerWithManager with the Drain under the
+// newTestServerWithDrain is newTestServerWithService with the Drain under the
 // test's control, for a test that ends open streams the way shutdown does.
-func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboard.AfterFunc, drain *api.Drain) (srv string, sessionCookie *http.Cookie, manager *dashboard.Service) {
+func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboard.AfterFunc, drain *api.Drain) (srv string, sessionCookie *http.Cookie, service *dashboard.Service) {
 	t.Helper()
 	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken == "" {
@@ -205,9 +205,9 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	manager = dashboard.NewService(time.Hour)
-	manager.SetWebhookDebounceTimer(after)
-	t.Cleanup(manager.Stop)
+	service = dashboard.NewService(time.Hour)
+	service.SetWebhookDebounceTimer(after)
+	t.Cleanup(service.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -217,7 +217,7 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		Service:       manager,
+		Service:       service,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
 		Drain:         drain,
@@ -236,7 +236,7 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	return testSrv.URL, sessionCookie, manager
+	return testSrv.URL, sessionCookie, service
 }
 
 func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie) (token, secret string) {
@@ -777,7 +777,7 @@ func TestGitHubWebhook_NoDashboardRunning_StartsOneAndRefreshesTheRepo(t *testin
 
 	timers := &heldTimers{}
 	source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
-	srvURL, sessionCookie, service := newTestServerWithManager(t, source, timers.After)
+	srvURL, sessionCookie, service := newTestServerWithService(t, source, timers.After)
 	token, secret := webhookCredentials(t, srvURL, sessionCookie)
 	service.Stop()
 	require.False(t, service.Running())

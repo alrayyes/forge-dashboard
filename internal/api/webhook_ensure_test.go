@@ -100,8 +100,8 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(t, settingsStore.Init(t.Context()))
 
-	manager := dashboard.NewService(time.Hour)
-	t.Cleanup(manager.Stop)
+	service := dashboard.NewService(time.Hour)
+	t.Cleanup(service.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -111,7 +111,7 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		Service:       manager,
+		Service:       service,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
 		PublicOrigin:  testPublicOrigin,

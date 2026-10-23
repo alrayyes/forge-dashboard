@@ -93,55 +93,55 @@ func NewService(refreshInterval time.Duration) *Service {
 // before the first Ensure/EnsureIfAbsent that should carry it; an
 // Aggregator already running when this is called keeps running without
 // it until its own next Ensure rebuilds it.
-func (m *Service) SetAutoUpdateBranchLister(lister AutoUpdateBranchLister) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.autoUpdateBranchLister = lister
+func (s *Service) SetAutoUpdateBranchLister(lister AutoUpdateBranchLister) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.autoUpdateBranchLister = lister
 }
 
 // SetWebhookDebounceTimer replaces the timer every Aggregator this Service
 // builds from here on holds webhook-triggered refreshes with, for tests that
 // drive time by hand. Call once, before the first Ensure.
-func (m *Service) SetWebhookDebounceTimer(after AfterFunc) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.debounceTimer = after
+func (s *Service) SetWebhookDebounceTimer(after AfterFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.debounceTimer = after
 }
 
 // SetSnapshotCache keeps every Aggregator this Service builds from here on
 // in cache across restarts: each starts from the saved snapshot, marked stale
 // until its first refresh succeeds. Call once, before the first Ensure.
-func (m *Service) SetSnapshotCache(cache SnapshotCache) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.snapshotCache = cache
+func (s *Service) SetSnapshotCache(cache SnapshotCache) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.snapshotCache = cache
 }
 
 // SetWebhookSeenStore keeps when each webhook delivery last arrived in store
 // across restarts, for every Aggregator this Service builds from here on. Call
 // once, before the first Ensure.
-func (m *Service) SetWebhookSeenStore(store WebhookSeenStore) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.seenStore = store
+func (s *Service) SetWebhookSeenStore(store WebhookSeenStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.seenStore = store
 }
 
 // SetAutoMergeStore turns on the Forgejo auto-merge hook for every Aggregator
 // this Service builds from here on, the same way SetAutoUpdateBranchLister
 // does: call once, before the first Ensure.
-func (m *Service) SetAutoMergeStore(store AutoMergeStore) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.autoMergeStore = store
+func (s *Service) SetAutoMergeStore(store AutoMergeStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.autoMergeStore = store
 }
 
 // SetQueuedActionStore turns on running the actions users queued for a rate
 // limit's reset (#756) for every Aggregator this Service builds from here on,
 // the way SetAutoMergeStore does: call once, before the first Ensure.
-func (m *Service) SetQueuedActionStore(store QueuedActionStore) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.queuedActionStore = store
+func (s *Service) SetQueuedActionStore(store QueuedActionStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.queuedActionStore = store
 }
 
 // SetWebhookUpgrade turns on the once-per-start upgrade of app-created
@@ -150,12 +150,12 @@ func (m *Service) SetQueuedActionStore(store QueuedActionStore) {
 // The record of which repos were visited lives here, not in an Aggregator, so
 // it spans credential saves and sign-ins for the life of the process. Call
 // once, before the first Ensure.
-func (m *Service) SetWebhookUpgrade(creds WebhookCredentialSource, origin string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.webhookCreds = creds
-	m.webhookOrigin = origin
-	m.webhookUpgrade = NewWebhookUpgrades(DefaultWebhookUpgradeJitter)
+func (s *Service) SetWebhookUpgrade(creds WebhookCredentialSource, origin string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.webhookCreds = creds
+	s.webhookOrigin = origin
+	s.webhookUpgrade = NewWebhookUpgrades(DefaultWebhookUpgradeJitter)
 }
 
 // SetCIPollInterval turns on the CI-status poll fallback (#177) for
@@ -169,10 +169,10 @@ func (m *Service) SetWebhookUpgrade(creds WebhookCredentialSource, origin string
 // its own next Ensure rebuilds it. Zero (the default) leaves the poll
 // off entirely — Aggregator.PollCI/RunCIPoll's own doc comments cover
 // why a real deployment wants it on.
-func (m *Service) SetCIPollInterval(d time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.ciPollInterval = d
+func (s *Service) SetCIPollInterval(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ciPollInterval = d
 }
 
 // SetActivity lets the scheduled refresh rest while nobody is using the
@@ -180,39 +180,39 @@ func (m *Service) SetCIPollInterval(d time.Duration) {
 // one place that says whether anyone is there. Call once, before the first
 // Ensure that should carry it; an Aggregator already running keeps running
 // without it until its own next Ensure rebuilds it.
-func (m *Service) SetActivity(act *Activity) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.activity = act
+func (s *Service) SetActivity(act *Activity) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.activity = act
 }
 
 // Activity is what SetActivity was given, or nil. Safe on a nil Service, and
 // a nil Activity is safe to touch, so a caller never has to check either.
-func (m *Service) Activity() *Activity {
-	if m == nil {
+func (s *Service) Activity() *Activity {
+	if s == nil {
 		return nil
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return m.activity
+	return s.activity
 }
 
 // Ensure (re)builds the Aggregator from sources and starts its background
 // refresh, stopping whatever was running before. Call it after a settings
 // save: there's no way to add or remove a Source from a running Aggregator, so
 // a changed configuration means a new one.
-func (m *Service) Ensure(ctx context.Context, sources []Source) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) Ensure(ctx context.Context, sources []Source) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if m.current != nil {
-		m.latchFirstRefreshLocked()
-		m.current.cancel()
+	if s.current != nil {
+		s.latchFirstRefreshLocked()
+		s.current.cancel()
 	}
 
-	m.startLocked(ctx, sources)
+	s.startLocked(ctx, sources)
 }
 
 // EnsureFrom is Ensure, but load runs under the same lock as the swap. A
@@ -220,21 +220,21 @@ func (m *Service) Ensure(ctx context.Context, sources []Source) {
 // overtaken by a settings save in between, and its older read would then
 // replace the newer Aggregator. load returns the sources and true, or false to
 // leave whatever is running untouched (nothing saved, or the read failed).
-func (m *Service) EnsureFrom(ctx context.Context, load func() ([]Source, bool)) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) EnsureFrom(ctx context.Context, load func() ([]Source, bool)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	sources, ok := load()
 	if !ok {
 		return
 	}
 
-	if m.current != nil {
-		m.latchFirstRefreshLocked()
-		m.current.cancel()
+	if s.current != nil {
+		s.latchFirstRefreshLocked()
+		s.current.cancel()
 	}
 
-	m.startLocked(ctx, sources)
+	s.startLocked(ctx, sources)
 }
 
 // EnsureIfAbsent is Ensure, but only takes effect if no Aggregator is running
@@ -245,70 +245,70 @@ func (m *Service) EnsureFrom(ctx context.Context, load func() ([]Source, bool)) 
 // its own Aggregator with its own immediate Refresh. Concurrent callers still
 // each do their own harmless work building sources beforehand; only one gets
 // to create the Aggregator and kick off its first Refresh.
-func (m *Service) EnsureIfAbsent(ctx context.Context, sources []Source) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) EnsureIfAbsent(ctx context.Context, sources []Source) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if m.current != nil {
+	if s.current != nil {
 		return
 	}
 
-	m.startLocked(ctx, sources)
+	s.startLocked(ctx, sources)
 }
 
 // startLocked builds the Aggregator from sources, with every hook this
-// Service has been given, and starts its background loops. The caller holds m.mu.
-func (m *Service) startLocked(ctx context.Context, sources []Source) {
+// Service has been given, and starts its background loops. The caller holds s.mu.
+func (s *Service) startLocked(ctx context.Context, sources []Source) {
 	runCtx, cancel := context.WithCancel(ctx)
-	opts := []AggregatorOption{WithDebounceOwner(runCtx), WithActivity(m.activity)}
-	if m.debounceTimer != nil {
-		opts = append(opts, WithDebounceTimer(m.debounceTimer))
+	opts := []AggregatorOption{WithDebounceOwner(runCtx), WithActivity(s.activity)}
+	if s.debounceTimer != nil {
+		opts = append(opts, WithDebounceTimer(s.debounceTimer))
 	}
-	if m.snapshotCache != nil {
-		opts = append(opts, WithSnapshotCache(m.snapshotCache))
+	if s.snapshotCache != nil {
+		opts = append(opts, WithSnapshotCache(s.snapshotCache))
 	}
-	if m.seenStore != nil {
-		opts = append(opts, WithWebhookSeenStore(m.seenStore))
+	if s.seenStore != nil {
+		opts = append(opts, WithWebhookSeenStore(s.seenStore))
 	}
 	agg := NewAggregator(sources, opts...)
-	if m.autoUpdateBranchLister != nil {
-		agg.EnableAutoUpdateBranch(m.autoUpdateBranchLister)
+	if s.autoUpdateBranchLister != nil {
+		agg.EnableAutoUpdateBranch(s.autoUpdateBranchLister)
 	}
-	if m.autoMergeStore != nil {
-		agg.EnableAutoMerge(m.autoMergeStore)
+	if s.autoMergeStore != nil {
+		agg.EnableAutoMerge(s.autoMergeStore)
 	}
-	if m.webhookCreds != nil {
-		agg.EnableWebhookUpgrade(runCtx, m.webhookCreds, m.webhookOrigin, m.webhookUpgrade)
+	if s.webhookCreds != nil {
+		agg.EnableWebhookUpgrade(runCtx, s.webhookCreds, s.webhookOrigin, s.webhookUpgrade)
 	}
-	m.current = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
-	go agg.Run(runCtx, m.refreshInterval)
-	if m.ciPollInterval > 0 {
-		go agg.RunCIPoll(runCtx, m.ciPollInterval)
+	s.current = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
+	go agg.Run(runCtx, s.refreshInterval)
+	if s.ciPollInterval > 0 {
+		go agg.RunCIPoll(runCtx, s.ciPollInterval)
 	}
-	if m.queuedActionStore != nil {
-		agg.EnableQueuedActions(m.queuedActionStore)
+	if s.queuedActionStore != nil {
+		agg.EnableQueuedActions(s.queuedActionStore)
 		go agg.RunQueuedActions(runCtx)
 	}
 }
 
 // latchFirstRefreshLocked records that the current Aggregator had finished its
-// first refresh before it goes away. The caller holds m.mu.
-func (m *Service) latchFirstRefreshLocked() {
-	if m.current != nil && m.current.agg.FirstRefreshDone() {
-		m.refreshedOnce = true
+// first refresh before it goes away. The caller holds s.mu.
+func (s *Service) latchFirstRefreshLocked() {
+	if s.current != nil && s.current.agg.FirstRefreshDone() {
+		s.refreshedOnce = true
 	}
 }
 
 // aggregator returns the running Aggregator, or nil when none has started.
-func (m *Service) aggregator() *Aggregator {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) aggregator() *Aggregator {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if m.current == nil {
+	if s.current == nil {
 		return nil
 	}
 
-	return m.current.agg
+	return s.current.agg
 }
 
 // FirstRefreshDone reports whether the first refresh since this process
@@ -316,13 +316,13 @@ func (m *Service) aggregator() *Aggregator {
 // then, and while nothing has been Ensured; true from then on, including while
 // a rebuilt Aggregator refreshes again. The dashboard snapshot carries it so a
 // page can show a loading state, not an empty board, in the gap after a restart.
-func (m *Service) FirstRefreshDone() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) FirstRefreshDone() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	m.latchFirstRefreshLocked()
+	s.latchFirstRefreshLocked()
 
-	return m.refreshedOnce
+	return s.refreshedOnce
 }
 
 // FirstRefreshComplete is the readiness answer for the dashboard half of
@@ -331,15 +331,15 @@ func (m *Service) FirstRefreshDone() bool {
 // Aggregator has finished its first refresh, whether every forge answered or
 // not. After that it stays true for the life of the Service: forge
 // reachability is dashboard data, not readiness.
-func (m *Service) FirstRefreshComplete() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) FirstRefreshComplete() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if m.firstRefreshSeen || m.current == nil {
+	if s.firstRefreshSeen || s.current == nil {
 		return true
 	}
-	if m.current.agg.FirstRefreshDone() || time.Since(m.current.started) > m.firstRefreshGrace {
-		m.firstRefreshSeen = true
+	if s.current.agg.FirstRefreshDone() || time.Since(s.current.started) > s.firstRefreshGrace {
+		s.firstRefreshSeen = true
 
 		return true
 	}
@@ -350,16 +350,16 @@ func (m *Service) FirstRefreshComplete() bool {
 // SetFirstRefreshGrace changes how long readiness waits for a first refresh
 // before it counts as ready anyway (#893). A setter rather than a NewService
 // parameter, for the same reason SetCIPollInterval is one.
-func (m *Service) SetFirstRefreshGrace(d time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.firstRefreshGrace = d
+func (s *Service) SetFirstRefreshGrace(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.firstRefreshGrace = d
 }
 
 // Get returns the current snapshot, empty (not nil arrays) if Ensure was never
 // called (no credentials saved yet).
-func (m *Service) Get() Snapshot {
-	agg := m.aggregator()
+func (s *Service) Get() Snapshot {
+	agg := s.aggregator()
 	if agg == nil {
 		return newEmptySnapshot()
 	}
@@ -371,8 +371,8 @@ func (m *Service) Get() Snapshot {
 // for up to limit, so a read right after a restart or a settings save gets the
 // board and not the empty snapshot that precedes it. It returns at once when
 // there is no Aggregator, or it has refreshed already.
-func (m *Service) WaitFirstRefresh(ctx context.Context, limit time.Duration) {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) WaitFirstRefresh(ctx context.Context, limit time.Duration) {
+	if agg := s.aggregator(); agg != nil {
 		agg.WaitFirstRefresh(ctx, limit)
 	}
 }
@@ -380,8 +380,8 @@ func (m *Service) WaitFirstRefresh(ctx context.Context, limit time.Duration) {
 // FindPullRequest returns the pull request the board holds for
 // forge/repo/number. False when it isn't there, which says nothing against
 // the pull request: the board may just not have caught up with it yet.
-func (m *Service) FindPullRequest(forge Forge, repo string, number int) (PullRequest, bool) {
-	for _, pr := range m.Get().PullRequests {
+func (s *Service) FindPullRequest(forge Forge, repo string, number int) (PullRequest, bool) {
+	for _, pr := range s.Get().PullRequests {
 		if pr.Forge == forge && pr.Repo == repo && pr.Number == number {
 			return pr, true
 		}
@@ -394,8 +394,8 @@ func (m *Service) FindPullRequest(forge Forge, repo string, number int) (PullReq
 // right after a process restart — the Service holds no state across one —
 // until something re-Ensures it; a caller can use this to tell "nothing saved
 // in Settings" apart from "just needs rewarming from what's already saved."
-func (m *Service) Running() bool {
-	return m.aggregator() != nil
+func (s *Service) Running() bool {
+	return s.aggregator() != nil
 }
 
 // RefreshNow fetches the sources immediately, out of band from the regular
@@ -403,8 +403,8 @@ func (m *Service) Running() bool {
 // forge event into an up-to-date snapshot within seconds rather than waiting
 // for the next scheduled refresh. Reports false if there is no running
 // Aggregator (Ensure was never called), rather than silently doing nothing.
-func (m *Service) RefreshNow(ctx context.Context) bool {
-	agg := m.aggregator()
+func (s *Service) RefreshNow(ctx context.Context) bool {
+	agg := s.aggregator()
 	if agg == nil {
 		return false
 	}
@@ -419,10 +419,10 @@ const DefaultForceRefreshCooldown = 5 * time.Second
 
 // SetForceRefreshCooldown changes the window ForceRefresh throttles inside.
 // A setter, like SetCIPollInterval, so NewService's callers are unaffected.
-func (m *Service) SetForceRefreshCooldown(d time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.forceRefreshCooldown = d
+func (s *Service) SetForceRefreshCooldown(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.forceRefreshCooldown = d
 }
 
 // ForceRefresh is RefreshNow for the user's own "refresh now" request, with a
@@ -435,32 +435,32 @@ func (m *Service) SetForceRefreshCooldown(d time.Duration) {
 //
 // Webhooks keep calling RefreshNow: a forge event isn't a user's click, and
 // throttling it would leave the board stale.
-func (m *Service) ForceRefresh(ctx context.Context) (retryAfter time.Duration, ok bool) {
-	m.mu.Lock()
-	if m.current == nil {
-		m.mu.Unlock()
+func (s *Service) ForceRefresh(ctx context.Context) (retryAfter time.Duration, ok bool) {
+	s.mu.Lock()
+	if s.current == nil {
+		s.mu.Unlock()
 
 		return 0, false
 	}
-	agg := m.current.agg
+	agg := s.current.agg
 	// The first refresh since boot is still running: Refresh would coalesce
 	// onto it and wait for all of it, long enough for a proxy to cut the
 	// request off. Answer with the current snapshot and the cooldown instead.
 	// Nothing is claimed in lastForced, as nothing was fetched.
-	m.latchFirstRefreshLocked()
-	if !m.refreshedOnce {
-		m.mu.Unlock()
+	s.latchFirstRefreshLocked()
+	if !s.refreshedOnce {
+		s.mu.Unlock()
 
-		return m.forceRefreshCooldown, true
+		return s.forceRefreshCooldown, true
 	}
-	if left := m.forceRefreshCooldown - time.Since(m.lastForced); !m.lastForced.IsZero() && left > 0 {
-		m.mu.Unlock()
+	if left := s.forceRefreshCooldown - time.Since(s.lastForced); !s.lastForced.IsZero() && left > 0 {
+		s.mu.Unlock()
 
 		return left, true
 	}
 	// Claimed before the fetch, so two clicks in the same instant fetch once.
-	m.lastForced = time.Now()
-	m.mu.Unlock()
+	s.lastForced = time.Now()
+	s.mu.Unlock()
 
 	agg.Refresh(ctx)
 
@@ -469,15 +469,15 @@ func (m *Service) ForceRefresh(ctx context.Context) (retryAfter time.Duration, o
 
 // MarkSettled delegates to the Aggregator — see Aggregator.MarkSettled. With
 // none running there is no board to update, so it does nothing.
-func (m *Service) MarkSettled(forge Forge, repo string, number int) {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) MarkSettled(forge Forge, repo string, number int) {
+	if agg := s.aggregator(); agg != nil {
 		agg.MarkSettled(forge, repo, number)
 	}
 }
 
 // Unsettle delegates to the Aggregator — see Aggregator.Unsettle.
-func (m *Service) Unsettle(forge Forge, repo string, number int) {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) Unsettle(forge Forge, repo string, number int) {
+	if agg := s.aggregator(); agg != nil {
 		agg.Unsettle(forge, repo, number)
 	}
 }
@@ -485,8 +485,8 @@ func (m *Service) Unsettle(forge Forge, repo string, number int) {
 // RecordBotRequest delegates to the Aggregator — see
 // Aggregator.RecordBotRequest. With none running there is no board to show it
 // on, so it does nothing.
-func (m *Service) RecordBotRequest(forge Forge, repo string, number int, bot BotName, action BotAction) {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) RecordBotRequest(forge Forge, repo string, number int, bot BotName, action BotAction) {
+	if agg := s.aggregator(); agg != nil {
 		agg.RecordBotRequest(forge, repo, number, bot, action)
 	}
 }
@@ -494,8 +494,8 @@ func (m *Service) RecordBotRequest(forge Forge, repo string, number int, bot Bot
 // RecordUpdateRequest delegates to the Aggregator — see
 // Aggregator.RecordUpdateRequest. With none running there is no board to show
 // it on, so it does nothing.
-func (m *Service) RecordUpdateRequest(forge Forge, repo string, number int) {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) RecordUpdateRequest(forge Forge, repo string, number int) {
+	if agg := s.aggregator(); agg != nil {
 		agg.RecordUpdateRequest(forge, repo, number)
 	}
 }
@@ -503,16 +503,16 @@ func (m *Service) RecordUpdateRequest(forge Forge, repo string, number int) {
 // QueuedActionsChanged delegates to the Aggregator, see
 // Aggregator.QueuedActionsChanged. With none running there is nothing to wake
 // and no subscribers, so it does nothing.
-func (m *Service) QueuedActionsChanged() {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) QueuedActionsChanged() {
+	if agg := s.aggregator(); agg != nil {
 		agg.QueuedActionsChanged()
 	}
 }
 
 // Republish delegates to the Aggregator, see Aggregator.Republish. With none
 // running there are no subscribers, so it does nothing.
-func (m *Service) Republish() {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) Republish() {
+	if agg := s.aggregator(); agg != nil {
 		agg.Republish()
 	}
 }
@@ -521,8 +521,8 @@ func (m *Service) Republish() {
 // Reports false if none is running, the same as RefreshNow, and also false
 // wherever Aggregator.RefreshRepo itself would — a caller should fall back to
 // RefreshNow either way, without needing to tell the two apart.
-func (m *Service) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
-	agg := m.aggregator()
+func (s *Service) RefreshRepo(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
+	agg := s.aggregator()
 	if agg == nil {
 		return false
 	}
@@ -534,8 +534,8 @@ func (m *Service) RefreshRepo(ctx context.Context, forge Forge, owner, name, ful
 // Aggregator.RefreshRepoDebounced. Reports false if none is running or the
 // forge can't be scoped, so a caller falls back to RefreshNow without telling
 // the two apart.
-func (m *Service) RefreshRepoDebounced(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
-	agg := m.aggregator()
+func (s *Service) RefreshRepoDebounced(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
+	agg := s.aggregator()
 	if agg == nil {
 		return false
 	}
@@ -545,24 +545,24 @@ func (m *Service) RefreshRepoDebounced(ctx context.Context, forge Forge, owner, 
 
 // RecordDelivery delegates to the Aggregator — see Aggregator.RecordDelivery.
 // A no-op if none is running.
-func (m *Service) RecordDelivery(forge Forge, fullName, event string) {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) RecordDelivery(forge Forge, fullName, event string) {
+	if agg := s.aggregator(); agg != nil {
 		agg.RecordDelivery(forge, fullName, event)
 	}
 }
 
 // RecordCheckDelivery delegates to the Aggregator — see
 // Aggregator.RecordCheckDelivery. A no-op if none is running.
-func (m *Service) RecordCheckDelivery(forge Forge, fullName, sha string) {
-	if agg := m.aggregator(); agg != nil {
+func (s *Service) RecordCheckDelivery(forge Forge, fullName, sha string) {
+	if agg := s.aggregator(); agg != nil {
 		agg.RecordCheckDelivery(forge, fullName, sha)
 	}
 }
 
 // LastCheckDelivery delegates to the Aggregator — see
 // Aggregator.LastCheckDelivery. Reports false if none is running.
-func (m *Service) LastCheckDelivery(forge Forge, fullName, sha string) (time.Time, bool) {
-	agg := m.aggregator()
+func (s *Service) LastCheckDelivery(forge Forge, fullName, sha string) (time.Time, bool) {
+	agg := s.aggregator()
 	if agg == nil {
 		return time.Time{}, false
 	}
@@ -572,8 +572,8 @@ func (m *Service) LastCheckDelivery(forge Forge, fullName, sha string) (time.Tim
 
 // LastDelivery delegates to the Aggregator — see Aggregator.LastDelivery.
 // Reports false if none is running.
-func (m *Service) LastDelivery(forge Forge, fullName string, class EventClass) (time.Time, bool) {
-	agg := m.aggregator()
+func (s *Service) LastDelivery(forge Forge, fullName string, class EventClass) (time.Time, bool) {
+	agg := s.aggregator()
 	if agg == nil {
 		return time.Time{}, false
 	}
@@ -583,8 +583,8 @@ func (m *Service) LastDelivery(forge Forge, fullName string, class EventClass) (
 
 // Subscribe delegates to the Aggregator — see Aggregator.Subscribe. Reports
 // false if none is running.
-func (m *Service) Subscribe() (<-chan Snapshot, func(), bool) {
-	agg := m.aggregator()
+func (s *Service) Subscribe() (<-chan Snapshot, func(), bool) {
+	agg := s.aggregator()
 	if agg == nil {
 		return nil, nil, false
 	}
@@ -596,14 +596,14 @@ func (m *Service) Subscribe() (<-chan Snapshot, func(), bool) {
 // Stop cancels the running refresh loop and nothing else. The first-refresh
 // marks and the force-refresh cooldown stay, so a pause or shutdown can't hand
 // out a free refresh. Reset puts those back to a fresh process.
-func (m *Service) Stop() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if m.current != nil {
-		m.current.cancel()
+	if s.current != nil {
+		s.current.cancel()
 	}
-	m.current = nil
+	s.current = nil
 }
 
 // Reset returns the Service to how a fresh process starts: no first-refresh
@@ -611,11 +611,11 @@ func (m *Service) Stop() {
 // that, so they call Stop and then Reset. A settings save goes through Ensure
 // instead, which keeps the marks and the cooldown so a save can't be used to
 // dodge the throttle.
-func (m *Service) Reset() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	m.refreshedOnce = false
-	m.firstRefreshSeen = false
-	m.lastForced = time.Time{}
+	s.refreshedOnce = false
+	s.firstRefreshSeen = false
+	s.lastForced = time.Time{}
 }

@@ -153,8 +153,8 @@ func (a *Aggregator) AutoMergeReport() AutoMergeReport {
 }
 
 // AutoMergeReport delegates to the Aggregator; empty when none is running.
-func (m *Service) AutoMergeReport() AutoMergeReport {
-	agg := m.aggregator()
+func (s *Service) AutoMergeReport() AutoMergeReport {
+	agg := s.aggregator()
 	if agg == nil {
 		return AutoMergeReport{}
 	}

@@ -22,11 +22,11 @@ func TestService_WithAQueueStore_RunsADueQueuedActionAfterAStart(t *testing.T) {
 		Status: dashboard.QueuedWaiting, RunAt: time.Now().Add(-time.Hour), CreatedAt: time.Now().Add(-2 * time.Hour),
 	})
 	require.NoError(t, err)
-	manager := dashboard.NewService(time.Hour)
-	t.Cleanup(manager.Stop)
-	manager.SetQueuedActionStore(store)
+	service := dashboard.NewService(time.Hour)
+	t.Cleanup(service.Stop)
+	service.SetQueuedActionStore(store)
 
-	manager.EnsureIfAbsent(t.Context(), []dashboard.Source{src})
+	service.EnsureIfAbsent(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool { return len(src.writes()) == 1 }, 10*time.Second, 50*time.Millisecond)
 }
