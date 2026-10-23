@@ -94,12 +94,15 @@ export async function fillExcerpts(
     }
     const empty: Check[] = [];
     for (const check of pending) {
+      // A job with no log address shows without an excerpt and costs no read;
+      // the others are still asked for theirs.
+      const url = check.jobId ? excerptUrl(checksUrl, check.jobId) : null;
+      if (!url) continue;
       if (round > 0) {
         if (reads.left <= 0) return;
         reads.left--;
       }
-      const url = excerptUrl(checksUrl, check.jobId as number);
-      if (!url || stopped()) return;
+      if (stopped()) return;
       try {
         const res = await fetchImpl(url, {
           headers: { Accept: 'application/json' },

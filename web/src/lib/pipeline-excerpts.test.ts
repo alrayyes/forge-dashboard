@@ -156,6 +156,54 @@ describe('fillExcerpts', () => {
     expect(urls).toHaveLength(2);
   });
 
+  test('a job with no log address is skipped and the others still get theirs', async () => {
+    const got: [number | undefined, string][] = [];
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ text: 'boom', truncated: false }));
+    }) as unknown as typeof fetch;
+    const noAddress = { ...failed(9), jobId: undefined };
+
+    await fillExcerpts(
+      [failed(2), noAddress, failed(1)],
+      FORGEJO,
+      (check, text) => got.push([check.jobId, text]),
+      fetchImpl,
+    );
+
+    expect(got).toEqual([
+      [2, 'boom'],
+      [1, 'boom'],
+    ]);
+    expect(urls).toHaveLength(2);
+    expect(urls.some((u) => u.includes('undefined'))).toBe(false);
+  });
+
+  test('a skipped job costs no retry read', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify({ text: '', truncated: false }));
+    }) as unknown as typeof fetch;
+    const reads = newExcerptReads();
+    reads.left = 1;
+
+    await fillExcerpts(
+      [{ ...failed(9), jobId: undefined }, failed(1)],
+      FORGEJO,
+      () => {},
+      fetchImpl,
+      () => false,
+      async () => {},
+      reads,
+    );
+
+    // The one retry read left goes to job 1, not to the skipped job.
+    expect(urls).toHaveLength(2);
+    expect(reads.left).toBe(0);
+  });
+
   test('shows nothing for a job whose log is gone or empty', async () => {
     const got: string[] = [];
     await fillExcerpts(
