@@ -508,6 +508,59 @@ test.describe('pull request pipeline checks panel', () => {
     expect(asked).toHaveLength(1);
   });
 
+  test('a Forgejo log that was not flushed yet is asked for again and its excerpt appears when it lands', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      'forgejo',
+      makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles', ci: 'failure' }),
+    );
+    await mockChecks(page, {
+      checks: [
+        {
+          name: 'test',
+          state: 'failure',
+          url: 'https://example.com/7',
+          jobId: 7,
+          runAttempt: 1,
+        },
+      ],
+    });
+    const asked: string[] = [];
+    await page.route('**/api/checks/log*', async (route) => {
+      asked.push(route.request().url());
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          text: asked.length === 1 ? '' : 'FAIL internal/api',
+          truncated: false,
+        }),
+      });
+    });
+    await page.clock.install();
+    await page.goto('/pull-requests.html');
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const failed = dialog.locator('.pipeline-check', { hasText: 'test' });
+    await expect.poll(() => asked.length).toBe(1);
+    await expect(failed.locator('pre.pipeline-check-excerpt')).toHaveCount(0);
+
+    await page.clock.runFor(15_000);
+
+    await expect(failed.locator('pre.pipeline-check-excerpt')).toContainText(
+      'FAIL internal/api',
+    );
+    expect(asked).toHaveLength(2);
+  });
+
   test('a GitHub check that carries no excerpt is not asked for one', async ({
     page,
   }) => {

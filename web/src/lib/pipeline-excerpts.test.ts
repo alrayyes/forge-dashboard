@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Check } from './pipeline-checks';
 import {
+  EXCERPT_RETRY_DELAY_MS,
   excerptKey,
   excerptUrl,
   fillExcerpts,
@@ -74,6 +75,20 @@ describe('pickExcerptJobs', () => {
     ]);
   });
 
+  test('asks for nothing more once five were read, though a newer job appeared', () => {
+    const checks = [3, 4, 5, 6, 7, 8].map((id) => failed(id));
+    const asked = new Set([3, 4, 5, 6, 7].map((id) => excerptKey(failed(id))));
+
+    expect(pickExcerptJobs(checks, asked)).toEqual([]);
+  });
+
+  test('asks for the places left of the five, newest first', () => {
+    const checks = [3, 4, 5, 6, 7, 8].map((id) => failed(id));
+    const asked = new Set([4, 5, 6].map((id) => excerptKey(failed(id))));
+
+    expect(pickExcerptJobs(checks, asked).map((c) => c.jobId)).toEqual([8, 7]);
+  });
+
   test('asks again for a rerun of the same job', () => {
     const first = failed(1);
     const asked = new Set([excerptKey(first)]);
@@ -118,12 +133,16 @@ describe('fillExcerpts', () => {
       FORGEJO,
       (_c, t) => got.push(t),
       answer(404),
+      () => false,
+      async () => {},
     );
     await fillExcerpts(
       [failed(1)],
       FORGEJO,
       (_c, t) => got.push(t),
       answer(200, { text: '', truncated: false }),
+      () => false,
+      async () => {},
     );
 
     expect(got).toEqual([]);
@@ -162,9 +181,11 @@ describe('fillExcerpts', () => {
       FORGEJO,
       (_c, t) => got.push(t),
       fetchImpl,
+      () => false,
+      async () => {},
     );
 
-    expect(got).toEqual(['boom']);
+    expect(got).toEqual(['boom', 'boom']);
   });
 
   test('stops once told the dialog moved on', async () => {
@@ -180,6 +201,127 @@ describe('fillExcerpts', () => {
       () => {},
       fetchImpl,
       () => calls >= 1,
+    );
+
+    expect(calls).toBe(1);
+  });
+
+  test('asks again, at most twice, after a pause, when the first read is empty', async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response(
+        JSON.stringify({ text: calls === 2 ? 'boom' : '', truncated: false }),
+      );
+    }) as unknown as typeof fetch;
+    const got: string[] = [];
+
+    await fillExcerpts(
+      [failed(1)],
+      FORGEJO,
+      (_c, t) => got.push(t),
+      fetchImpl,
+      () => false,
+      async (ms) => {
+        waits.push(ms);
+      },
+    );
+
+    expect(got).toEqual(['boom']);
+    expect(calls).toBe(2);
+    expect(waits).toEqual([EXCERPT_RETRY_DELAY_MS]);
+  });
+
+  test('gives up after two more tries when the log stays empty', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ text: '', truncated: false }));
+    }) as unknown as typeof fetch;
+
+    await fillExcerpts(
+      [failed(1)],
+      FORGEJO,
+      () => {},
+      fetchImpl,
+      () => false,
+      async () => {},
+    );
+
+    expect(calls).toBe(3);
+  });
+
+  test('retries a failed read too, and only the jobs still without text', async () => {
+    const seen: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      seen.push(url);
+      const first = seen.length <= 2;
+      if (url.includes('jobId=1') && first) throw new TypeError('network');
+      if (url.includes('jobId=2') && first)
+        return new Response(JSON.stringify({ text: 'two' }));
+      return new Response(JSON.stringify({ text: 'one' }));
+    }) as unknown as typeof fetch;
+    const got: [number | undefined, string][] = [];
+
+    await fillExcerpts(
+      [failed(1), failed(2)],
+      FORGEJO,
+      (c, t) => got.push([c.jobId, t]),
+      fetchImpl,
+      () => false,
+      async () => {},
+    );
+
+    expect(got).toEqual([
+      [2, 'two'],
+      [1, 'one'],
+    ]);
+    expect(seen).toHaveLength(3);
+  });
+
+  test('a refusal on a retry stops everything, and no retry follows one', async () => {
+    for (const status of [401, 403, 429]) {
+      let calls = 0;
+      const waits: number[] = [];
+      const fetchImpl = (async () => {
+        calls++;
+        return new Response('{}', { status });
+      }) as unknown as typeof fetch;
+
+      await fillExcerpts(
+        [failed(1)],
+        FORGEJO,
+        () => {},
+        fetchImpl,
+        () => false,
+        async (ms) => {
+          waits.push(ms);
+        },
+      );
+
+      expect(calls).toBe(1);
+      expect(waits).toEqual([]);
+    }
+  });
+
+  test('does not retry once the dialog moved on during the pause', async () => {
+    let calls = 0;
+    let moved = false;
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ text: '' }));
+    }) as unknown as typeof fetch;
+
+    await fillExcerpts(
+      [failed(1)],
+      FORGEJO,
+      () => {},
+      fetchImpl,
+      () => moved,
+      async () => {
+        moved = true;
+      },
     );
 
     expect(calls).toBe(1);
