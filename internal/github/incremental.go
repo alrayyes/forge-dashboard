@@ -26,6 +26,8 @@ const probeBatchSize = 50
 // finished check run does not, which is why a repo is only ever skipped while
 // its webhook is confirmed (it delivers check events).
 const probeRepoFields = `
+    usesCustomOpenGraphImage
+    openGraphImageUrl
     pushedAt
     updatedAt
     openPRs: pullRequests(states: OPEN, first: 1, orderBy: {field: UPDATED_AT, direction: DESC}) {
@@ -64,8 +66,6 @@ query($cursor: String) {
         isArchived
         isFork
         viewerPermission
-        usesCustomOpenGraphImage
-        openGraphImageUrl
         owner {
           login
         }
@@ -78,10 +78,12 @@ query($cursor: String) {
 
 // probeNode is one repo's answer to probeRepoFields.
 type probeNode struct {
-	PushedAt   string     `json:"pushedAt"`
-	UpdatedAt  string     `json:"updatedAt"`
-	OpenPRs    probeCount `json:"openPRs"`
-	OpenIssues probeCount `json:"openIssues"`
+	UsesCustomOpenGraphImage bool       `json:"usesCustomOpenGraphImage"`
+	OpenGraphImageURL        string     `json:"openGraphImageUrl"`
+	PushedAt                 string     `json:"pushedAt"`
+	UpdatedAt                string     `json:"updatedAt"`
+	OpenPRs                  probeCount `json:"openPRs"`
+	OpenIssues               probeCount `json:"openIssues"`
 }
 
 // probeCount is a connection's total and the newest-touched node's time.
@@ -142,6 +144,8 @@ func (b *stampBook) get() map[string]repoStamp {
 	return out
 }
 
+// set is last-writer-wins. Refreshes are serialised, and an older set landing
+// late could only cause a refetch, never a skip.
 func (b *stampBook) set(m map[string]repoStamp) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -337,7 +341,7 @@ func (c *Client) probeBatch(ctx context.Context, batch []*ghsdk.Repository) ([]p
 		if err := json.Unmarshal(body, &probe); err != nil {
 			return nil, rateLimit, fmt.Errorf("github: decode probe batch: %w", err)
 		}
-		probed = append(probed, probedRepo{repo: appRepoIdentity(r), stamp: probe.stamp()})
+		probed = append(probed, probedRepo{repo: appRepoIdentity(r, probe), stamp: probe.stamp()})
 	}
 
 	return probed, rateLimit, nil
@@ -345,9 +349,13 @@ func (c *Client) probeBatch(ctx context.Context, batch []*ghsdk.Repository) ([]p
 
 // appRepoIdentity is the graphqlRepo an App listing entry stands for. An
 // installation token has no viewer role, so every listed repo is tracked at
-// WRITE (see decodeAppRepoBatch).
-func appRepoIdentity(r *ghsdk.Repository) graphqlRepo {
-	repo := graphqlRepo{Name: r.GetName(), URL: r.GetHTMLURL(), ViewerPermission: "WRITE"}
+// WRITE (see decodeAppRepoBatch). The social preview comes from the probe,
+// since the repo row is built from it on a skipped repo.
+func appRepoIdentity(r *ghsdk.Repository, probe probeNode) graphqlRepo {
+	repo := graphqlRepo{
+		Name: r.GetName(), URL: r.GetHTMLURL(), ViewerPermission: "WRITE",
+		UsesCustomOpenGraphImage: probe.UsesCustomOpenGraphImage, OpenGraphImageURL: probe.OpenGraphImageURL,
+	}
 	repo.Owner.Login = r.GetOwner().GetLogin()
 
 	return repo
