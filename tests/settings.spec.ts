@@ -367,6 +367,19 @@ test.describe('settings page', () => {
     );
   });
 
+  test('the token hints name the issue write permission that closing and commenting need', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html#connections');
+
+    await expect(page.locator('#forgejo-token-hint')).toContainText(
+      'write:issue',
+    );
+    await expect(page.locator('#github-token-hint')).toContainText(
+      'Issues — Read and write',
+    );
+  });
+
   test('webhook URLs and secret are populated, and the secret starts masked', async ({
     page,
   }) => {

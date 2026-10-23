@@ -355,6 +355,46 @@ func (s *GenericSource) ReopenPullRequest(ctx context.Context, owner, name strin
 	return nil
 }
 
+// CloseIssue implements IssueCloser at the Source level by delegating to the
+// underlying client, the same shape ClosePullRequest uses.
+func (s *GenericSource) CloseIssue(ctx context.Context, owner, name string, number int) error {
+	closer, ok := s.client.(IssueCloser)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't close issues: %w", s.forge, errUnsupportedByClient)
+	}
+	if err := closer.CloseIssue(ctx, owner, name, number); err != nil {
+		return fmt.Errorf("dashboard: close issue: %w", err)
+	}
+
+	return nil
+}
+
+// ReopenIssue implements IssueReopener at the Source level.
+func (s *GenericSource) ReopenIssue(ctx context.Context, owner, name string, number int) error {
+	reopener, ok := s.client.(IssueReopener)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't reopen issues: %w", s.forge, errUnsupportedByClient)
+	}
+	if err := reopener.ReopenIssue(ctx, owner, name, number); err != nil {
+		return fmt.Errorf("dashboard: reopen issue: %w", err)
+	}
+
+	return nil
+}
+
+// CommentIssue implements IssueCommenter at the Source level.
+func (s *GenericSource) CommentIssue(ctx context.Context, owner, name string, number int, body string) error {
+	commenter, ok := s.client.(IssueCommenter)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't comment on issues: %w", s.forge, errUnsupportedByClient)
+	}
+	if err := commenter.CommentIssue(ctx, owner, name, number, body); err != nil {
+		return fmt.Errorf("dashboard: comment on issue: %w", err)
+	}
+
+	return nil
+}
+
 // DisableAutoMerge implements PullRequestAutoMergeDisabler at the Source level
 // by delegating to the underlying client, so the cancel handler reaches the
 // Forgejo client's cancel of a merge scheduled on the forge (#1571).
