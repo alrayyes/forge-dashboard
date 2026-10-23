@@ -459,9 +459,9 @@ A scheduled refresh no longer re-reads every repo. When a webhook is
 configured, it first asks GitHub one cheap question per 100 repos: when each
 repo was last pushed to or edited, how many open pull requests and issues it
 has, and when the newest-touched one last changed. A repo whose answer matches
-the last refresh, and whose webhook is confirmed healthy, is skipped: its pull
-requests, issues and main-branch row stay as they were, and only the repos that
-changed are fetched in full.
+the last refresh, and whose webhook is switched on and subscribed to check
+events, is skipped: its pull requests, issues and main-branch row stay as they
+were, and only the repos that changed are fetched in full.
 
 What the answer can and can't see, found by reading a real repo:
 
@@ -475,11 +475,12 @@ What the answer can and can't see, found by reading a real repo:
 GitHub's reference for the repository, pull request and issue objects doesn't
 say what moves a repo's `updatedAt`, so the table is what was observed, not a
 promise. Because a finished check is invisible to the probe, a repo is only
-skipped while a webhook is configured on it, since that webhook delivers check
-events and refreshes the repo on its own. "Configured" is not "delivering": if
-deliveries stop arriving, a skipped repo's checks stay stale until the next
-periodic full pass, which is the real bound (six refreshes at most). A repo
-with no webhook always counts as changed.
+skipped while its webhook is switched on and subscribed to the check or status
+events, since that webhook refreshes the repo on its own. Set up is not
+"delivering": if deliveries stop arriving, a skipped repo's checks stay stale
+until the next periodic full pass, which is the real bound (six refreshes at
+most). A repo with no such webhook (missing, switched off, or without those
+events) always counts as changed.
 
 Security advisories and the latest release live on the main-branch row, which
 a skipped repo keeps from its last fetch. Nothing the probe reads moves when
@@ -490,7 +491,8 @@ Always a full pass:
 
 - the first refresh after a start, because the remembered answers live in
   memory only;
-- every sixth refresh, as a safety net for a change the probe can't see;
+- every sixth refresh that fetched anything, as a safety net for a change the
+  probe can't see;
 - a refresh you ask for with Refresh now, and any refresh while you have one
   pending;
 - a refresh where the probe itself failed.
@@ -503,7 +505,9 @@ actually fetched, so a skipped repo's issues are never missed.
 The probe also runs on a full pass, because the answers have to be taken
 before the fetch to be sure a change made during it is seen next time. It is
 about two points a page of 100 repos, so skipping it would not be worth the
-risk.
+risk. It also raises what the dashboard counts a refresh as costing, which
+the reserve for your own actions is sized from, by the probe's two points a
+page.
 
 Cost, with a personal token. The probe measured 2 GraphQL points per page of
 100 repos (112 repos on the measured account, 2 pages, so about 4 points and 2
