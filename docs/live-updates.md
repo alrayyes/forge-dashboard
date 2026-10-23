@@ -241,8 +241,8 @@ picked repo is named with its forge in the button and the chip ("acme/web
 (Forgejo)").
 
 An author is listed the way a repo is: one login on two forges is two people,
-so it is two choices, each under its forge's heading when more than one forge
-is on screen, and a pick matches only that forge's pull requests and issues. A
+so it is two choices, each under its forge's heading when several forges
+show, and a pick matches only that forge's pull requests and issues. A
 single picked author is named with its forge in the button, as a repo is. An
 author matches on the whole login, in any case. The filter used to match
 any login that contained the saved text, so a saved `ann` also showed
