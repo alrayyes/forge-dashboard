@@ -2840,6 +2840,35 @@ a.ci-pill:hover {
   text-align: left;
   font-size: 12px;
 }
+/* The comment field that Close with a comment opens above the footer. */
+.issue-comment-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.issue-comment-label {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.issue-comment-field {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+.details-issue-failure {
+  margin: 0;
+  padding-bottom: 8px;
+  font-size: 13px;
+  color: var(--critical);
+}
 /* The status block and failure lines in the dialog are full width. */
 .details-status-block .status-area {
   font-size: 13px;

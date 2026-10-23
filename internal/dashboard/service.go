@@ -45,6 +45,11 @@ type Service struct {
 	// firstRefreshGrace is how long an Aggregator's first refresh is waited
 	// for before the process counts as ready anyway (#893).
 	firstRefreshGrace time.Duration
+	// firstStarted is when the Service first started an Aggregator, which is
+	// what the grace runs from. A replacement doesn't move it, so repeated
+	// logins or saves during a slow first refresh can't keep restarting the
+	// grace. Reset clears it.
+	firstStarted time.Time
 	// refreshedOnce is set once the first refresh since this process started
 	// has finished, whether it succeeded or failed (#1673). It lives here and
 	// not on the Aggregator because a settings save replaces the Aggregator,
@@ -69,9 +74,8 @@ type Service struct {
 const defaultFirstRefreshGrace = 30 * time.Second
 
 type managedAggregator struct {
-	agg     *Aggregator
-	cancel  context.CancelFunc
-	started time.Time
+	agg    *Aggregator
+	cancel context.CancelFunc
 }
 
 // NewService returns a Service whose Aggregator refreshes every
@@ -280,7 +284,10 @@ func (m *Service) startLocked(ctx context.Context, sources []Source) {
 	if m.webhookCreds != nil {
 		agg.EnableWebhookUpgrade(runCtx, m.webhookCreds, m.webhookOrigin, m.webhookUpgrade)
 	}
-	m.current = &managedAggregator{agg: agg, cancel: cancel, started: time.Now()}
+	m.current = &managedAggregator{agg: agg, cancel: cancel}
+	if m.firstStarted.IsZero() {
+		m.firstStarted = time.Now()
+	}
 	go agg.Run(runCtx, m.refreshInterval)
 	if m.ciPollInterval > 0 {
 		go agg.RunCIPoll(runCtx, m.ciPollInterval)
@@ -330,7 +337,9 @@ func (m *Service) FirstRefreshDone() bool {
 // settings exist, so a fresh process has nothing to wait for), and once the
 // Aggregator has finished its first refresh, whether every forge answered or
 // not. After that it stays true for the life of the Service: forge
-// reachability is dashboard data, not readiness.
+// reachability is dashboard data, not readiness. The grace for a slow first
+// refresh runs from the first start, so replacing the Aggregator doesn't
+// restart it.
 func (m *Service) FirstRefreshComplete() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -338,7 +347,7 @@ func (m *Service) FirstRefreshComplete() bool {
 	if m.firstRefreshSeen || m.current == nil {
 		return true
 	}
-	if m.current.agg.FirstRefreshDone() || time.Since(m.current.started) > m.firstRefreshGrace {
+	if m.current.agg.FirstRefreshDone() || time.Since(m.firstStarted) > m.firstRefreshGrace {
 		m.firstRefreshSeen = true
 
 		return true
@@ -617,5 +626,6 @@ func (m *Service) Reset() {
 
 	m.refreshedOnce = false
 	m.firstRefreshSeen = false
+	m.firstStarted = time.Time{}
 	m.lastForced = time.Time{}
 }
