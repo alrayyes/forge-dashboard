@@ -249,7 +249,9 @@ reference.
 
 You can queue Update branch, `Dependabot: Rebase` and `Renovate: Rebase`
 while a forge is limited. They run after the reset, when the pull request still
-needs them, and Merge and Close can't be queued. See
+needs them, and Merge, Close and Cancel run can't be queued: after the reset
+the run may be a different one, started by a newer push, and a cancel can't be
+undone. See
 [Pull request actions](pull-request-actions.md) for what happens to a queued
 action.
 

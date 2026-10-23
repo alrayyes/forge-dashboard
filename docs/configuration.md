@@ -157,7 +157,8 @@ To use it:
    page (optional, see
    [When advisories can't be read](main-branches.md#when-advisories-cant-be-read)),
    plus **Actions (Read and write)** for "Rerun failed
-   checks" and for listing workflow runs held for approval; Metadata (read)
+   checks", "Cancel run" and for listing workflow runs held for approval;
+   Metadata (read)
    comes along automatically. (GitHub also
    has an _organization_ Webhooks permission; that is not the one.) An
    installation has no role on a repo, so the Webhooks page offers the Add

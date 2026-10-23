@@ -764,6 +764,29 @@ rerun and is skipped; a pull request with nothing left to rerun answers "no
 failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
 `rerun_checks` in `allowedActions`).
 
+While a pull request's CI is running, the same panel offers `Cancel run: <workflow>`
+for each Actions run that still has a queued or running job, on GitHub and on
+Forgejo. Neither forge can stop one job of a running workflow, so the unit is
+the run: the confirm step names the whole run and the unfinished jobs that stop
+with it, and nothing is sent until you press `Yes, cancel run`. `Keep running`
+sends nothing. When the forge accepts, the panel says "Cancelling" and reads the
+checks again every few seconds until the run has stopped, then says it was
+cancelled. When the forge refuses (the token can't write to Actions, the run
+already finished, a Forgejo too old to have the cancel route, a rate limit), the
+panel shows the forge's own reason and draws no button for that run. A refused
+permission also removes the button from every run of that repository until the
+page is reloaded. It needs the same write access to Actions as the rerun. A job
+that isn't an Actions job, such as an external CI, belongs to no run and has no
+button. A cancel is never queued for a rate-limit reset: by then the run may be
+a different one, started by a newer push, and a cancel can't be undone
+(`POST /api/checks/cancel-run` with `{forge, fullName, runId}`, listed as
+`cancel_run` in `allowedActions`).
+To name the run of a running job, GitHub's checks list makes two more reads of
+the commit, its workflow runs and the jobs of the unfinished ones, and only
+while some check is still running or queued. A finished pipeline costs nothing
+extra, and a failed lookup leaves the list without the button rather than
+failing it.
+
 When the forge says which checks the base branch's protection requires,
 the panel groups them: a `Required` group first, with a failing required
 check flagged `Blocking`, then `Advisory`. GitHub's classic required
