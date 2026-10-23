@@ -57,7 +57,12 @@ func listThenExcerpt(t *testing.T, c *forgejo.Client, repo string, id int64) (st
 	_, err := c.ListChecks(t.Context(), "alrayyes", repo, 5)
 	require.NoError(t, err)
 
-	return c.JobExcerpt(t.Context(), "alrayyes", repo, id)
+	text, err := c.JobExcerpt(t.Context(), "alrayyes", repo, id)
+	if err != nil {
+		return "", fmt.Errorf("job excerpt: %w", err)
+	}
+
+	return text, nil
 }
 
 func TestListChecks_ReadsNoJobLog(t *testing.T) {
@@ -424,6 +429,7 @@ func TestExcerptCache_PastTheCapANewFailureIsStillRemembered(t *testing.T) {
 	assert.True(t, cache.RecentlyFailed(fmt.Sprintf("job-%d", forgejo.MaxExcerptsForTest+4)))
 	assert.False(t, cache.RecentlyFailed("job-0"), "the oldest goes first")
 }
+
 func TestExcerptReadWindow_IsTheGitHubTailSize(t *testing.T) {
 	t.Parallel()
 

@@ -364,9 +364,18 @@ func (f *fakeExcerptSource) JobExcerpt(_ context.Context, owner, _ string, jobID
 	return f.excerpt, f.excerptEr
 }
 
-func getJobExcerpt(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName, jobID, excerpt string) *http.Response {
+// newExcerptSource is a Forgejo source that tracks a/b.
+func newExcerptSource(excerpt string, err error) *fakeExcerptSource {
+	source := &fakeExcerptSource{excerpt: excerpt, excerptEr: err}
+	source.forge = dashboard.ForgeForgejo
+	source.repos = []string{"a/b"}
+
+	return source
+}
+
+func getJobExcerpt(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName, excerpt string) *http.Response {
 	t.Helper()
-	q := url.Values{"forge": {forge}, "fullName": {fullName}, "jobId": {jobID}, "excerpt": {excerpt}}
+	q := url.Values{"forge": {forge}, "fullName": {fullName}, "jobId": {"7"}, "excerpt": {excerpt}}
 	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/checks/log?"+q.Encode(), nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
@@ -379,10 +388,10 @@ func getJobExcerpt(t *testing.T, srvURL string, sessionCookie *http.Cookie, forg
 func TestJobLog_Excerpt_ReturnsTheExcerptWithoutReadingTheWholeLog(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeExcerptSource{fakeJobLogSource: fakeJobLogSource{forge: dashboard.ForgeForgejo, repos: []string{"a/b"}}, excerpt: "FAIL: boom"}
+	source := newExcerptSource("FAIL: boom", nil)
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
 
-	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "7", "true")
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "true")
 	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -398,10 +407,11 @@ func TestJobLog_Excerpt_ReturnsTheExcerptWithoutReadingTheWholeLog(t *testing.T)
 func TestJobLog_Excerpt_FalseIsTheWholeLog(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeExcerptSource{fakeJobLogSource: fakeJobLogSource{forge: dashboard.ForgeForgejo, repos: []string{"a/b"}, log: dashboard.JobLog{Text: "all\n"}}, excerpt: "x"}
+	source := newExcerptSource("x", nil)
+	source.log = dashboard.JobLog{Text: "all\n"}
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
 
-	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "7", "false")
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "false")
 	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -416,7 +426,7 @@ func TestJobLog_Excerpt_ForgeWithoutExcerptReads_Returns400(t *testing.T) {
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}}
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
-	resp := getJobExcerpt(t, srvURL, sessionCookie, "github", "a/b", "7", "true")
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "github", "a/b", "true")
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -425,10 +435,10 @@ func TestJobLog_Excerpt_ForgeWithoutExcerptReads_Returns400(t *testing.T) {
 func TestJobLog_Excerpt_BadValue_Returns400(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeExcerptSource{fakeJobLogSource: fakeJobLogSource{forge: dashboard.ForgeForgejo, repos: []string{"a/b"}}}
+	source := newExcerptSource("", nil)
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
 
-	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "7", "maybe")
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "maybe")
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -444,10 +454,10 @@ func TestJobLog_Excerpt_ForgeRefuses_MapsTheStatus(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
 
-			source := &fakeExcerptSource{fakeJobLogSource: fakeJobLogSource{forge: dashboard.ForgeForgejo, repos: []string{"a/b"}}, excerptEr: &dashboard.ClientError{Kind: kind, Err: assert.AnError}}
+			source := newExcerptSource("", &dashboard.ClientError{Kind: kind, Err: assert.AnError})
 			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
 
-			resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "7", "true")
+			resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "true")
 			defer func() { _ = resp.Body.Close() }()
 
 			assert.Equal(t, want, resp.StatusCode)
@@ -458,10 +468,10 @@ func TestJobLog_Excerpt_ForgeRefuses_MapsTheStatus(t *testing.T) {
 func TestJobLog_Excerpt_UntrackedRepo_Returns404AndNeverReachesTheForge(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeExcerptSource{fakeJobLogSource: fakeJobLogSource{forge: dashboard.ForgeForgejo, repos: []string{"a/b"}}, excerpt: "x"}
+	source := newExcerptSource("x", nil)
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
 
-	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "c/d", "7", "true")
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "c/d", "true")
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
