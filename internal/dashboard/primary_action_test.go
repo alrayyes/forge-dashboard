@@ -37,6 +37,12 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.MergeStatus = dashboard.MergeBlocked
 		})
 	}
+	botBehindWith := func(author string, forge dashboard.Forge, edit func(*dashboard.PullRequest)) dashboard.PullRequest {
+		pr := botBehind(author, forge)
+		edit(&pr)
+
+		return pr
+	}
 	cases := []struct {
 		name string
 		pr   dashboard.PullRequest
@@ -68,6 +74,17 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.RenovateRebaseRequested = true
 		}), []string{}},
 		{"Dependabot waiting on its rebase: the Dependabot rebase", botBehind("dependabot[bot]", dashboard.ForgeGitHub), []string{"dependabot_rebase"}},
+		// The same rule for both bots: behind and not conflicting puts the rebase in the row,
+		// whatever Merge or auto-merge are waiting on.
+		{"Renovate behind with CI pending: the Renovate rebase", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"renovate_rebase"}},
+		{"Dependabot behind with CI pending: the Dependabot rebase", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"dependabot_rebase"}},
+		{"Renovate behind with auto-merge armed and CI pending: the Renovate rebase", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"renovate_rebase"}},
+		{"Dependabot behind with auto-merge armed and CI pending: the Dependabot rebase", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"dependabot_rebase"}},
+		{"Renovate behind with CI failing: the Renovate rebase", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), []string{"renovate_rebase"}},
+		{"Renovate behind and conflicting: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), []string{}},
+		{"Dependabot behind and conflicting: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), []string{}},
+		{"Renovate not behind with CI pending: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.Behind = false; p.CI = dashboard.CIPending }), []string{}},
+		{"Dependabot not behind with CI pending: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.Behind = false; p.CI = dashboard.CIPending }), []string{}},
 		{"conflicting: none", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), []string{}},
 		{"draft: none", ghPR(func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"CI pending: none", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{}},

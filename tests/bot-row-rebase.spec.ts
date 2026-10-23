@@ -1,0 +1,90 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
+
+// An out-of-date bot pull request offers its rebase in the row whatever Merge
+// or auto-merge are waiting on, the same way for Renovate and Dependabot.
+// Not behind, or conflicting, adds no button.
+
+function pr(overrides: Record<string, unknown> = {}) {
+  return {
+    forge: 'github',
+    repo: 'alrayyes/app',
+    number: 7,
+    title: 'Bump a dependency',
+    url: 'https://example.com/pull/7',
+    author: 'renovate[bot]',
+    draft: false,
+    ci: 'pending',
+    labels: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    mergeStatus: 'blocked',
+    behind: true,
+    ...overrides,
+  };
+}
+
+async function open(page: Page, pullRequest: unknown) {
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.route('**/api/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [pullRequest],
+        issues: [],
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.goto('/bots.html');
+  return page.locator('#pr-rows > .row').first();
+}
+
+const bots = [
+  { name: 'Renovate', author: 'renovate[bot]', button: 'Renovate: Rebase' },
+  {
+    name: 'Dependabot',
+    author: 'dependabot[bot]',
+    button: 'Dependabot: Rebase',
+  },
+];
+
+for (const { name, author, button } of bots) {
+  for (const [state, extra] of [
+    ['waiting on CI', {}],
+    ['waiting on CI with auto-merge armed', { autoMergeEnabled: true }],
+  ] as const) {
+    test(`a behind ${name} pull request ${state} has ${button} in its row`, async ({
+      page,
+    }) => {
+      const row = await open(page, pr({ author, ...extra }));
+      const bar = row.locator('.row-action-bar');
+      await expect(bar.getByRole('button', { name: button })).toBeVisible();
+      await expect(row.getByRole('button', { name: button })).toHaveCount(1);
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
+  test(`a ${name} pull request that is not behind has no rebase in its row`, async ({
+    page,
+  }) => {
+    const row = await open(page, pr({ author, behind: false }));
+    await expect(row.getByRole('button', { name: button })).toHaveCount(0);
+  });
+
+  test(`a behind ${name} pull request with a conflict has no rebase in its row`, async ({
+    page,
+  }) => {
+    const row = await open(page, pr({ author, mergeStatus: 'conflicting' }));
+    await expect(row.getByRole('button', { name: button })).toHaveCount(0);
+  });
+}

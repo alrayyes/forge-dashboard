@@ -12,7 +12,10 @@ and the phone card draw as the main button. The server picks it, so
 no client does. Merge is primary when it is offered and not blocked, unless CI
 is failing. An empty pull request has Close. When being behind the base branch
 is what holds Merge back, Update branch is primary, or the Renovate or
-Dependabot rebase for a bot pull request. Every other state has no primary
+Dependabot rebase for a bot pull request. A bot pull request that is behind
+and not conflicting, a draft or stacked has its rebase as primary whatever else
+holds Merge back (checks running or failing, auto-merge armed), so a stale bot
+branch can be fixed from the row. Every other state has no primary
 action: a blocked, waiting, conflicting, draft or stacked pull request leaves
 its reason to `status`. A blocked action is never primary, and at most one
 entry is.

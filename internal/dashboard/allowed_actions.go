@@ -93,6 +93,9 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 //   - Merge blocked because the branch is behind: Update branch, or the
 //     Renovate or Dependabot rebase for a bot pull request, whichever is
 //     offered and not blocked;
+//   - a bot pull request that is behind and not conflicting, whatever else holds
+//     Merge back (checks running or failing, auto-merge armed): the bot's rebase,
+//     since a stale branch is worth fixing while it waits;
 //   - anything else (checks running or failing, conflict, draft, stacked,
 //     blocked by the forge): none, since the status area gives the reason.
 func markPrimary(pr PullRequest, actions []ActionAvailability) {
@@ -121,10 +124,26 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 			return []ActionName{ActionMerge}
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
 			return []ActionName{ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase}
+		case a.Blocked != nil && botRebaseWorthOffering(pr, a.Blocked.Code):
+			return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
+		case a.Blocked == nil && pr.CI == CIFailure && botRebaseWorthOffering(pr, ""):
+			return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
 		}
 	}
 
 	return nil
+}
+
+// botRebaseWorthOffering: a behind pull request can be rebased unless a
+// conflict needs a person, it is a draft, or it is stacked on another one.
+// Only a bot pull request lists a bot rebase, so the caller's candidates
+// name nothing for any other.
+func botRebaseWorthOffering(pr PullRequest, mergeBlock ActionCode) bool {
+	if !pr.Behind || pr.MergeStatus == MergeConflicting || pr.Draft || pr.StackedOn != nil {
+		return false
+	}
+
+	return mergeBlock != ActionConflict && mergeBlock != ActionStacked
 }
 
 // dependabotRebaseAvailability: a Recreate that is pending rebuilds the whole
