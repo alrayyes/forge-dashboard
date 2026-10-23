@@ -175,8 +175,9 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   to read them.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_main_branch_checks`,
-  `get_check_log`, `get_repository_advisories`, `get_pull_request_checks`, `get_pull_request_details`,
-  `list_queued_actions`, `get_settings` and `set_pull_request_auto_update`.**
+  `get_check_log`, `get_repository_advisories`, `get_pull_request_checks`,
+  `get_pull_request_details`, `list_queued_actions`, `get_settings` and
+  `set_pull_request_auto_update`.**
   Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
   150+ only, with no stable spec yet — so this is a no-op everywhere else rather
   than a real dependency the page needs. Where it's present, it lets an
