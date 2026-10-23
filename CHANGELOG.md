@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.0](https://github.com/alrayyes/forge-dashboard/compare/v2.28.0...v2.29.0) (2026-10-23)
+
+
+### Features
+
+* **api:** offer the bot rebase in the row of every out-of-date bot pull request ([#2706](https://github.com/alrayyes/forge-dashboard/issues/2706)) ([0d65bd1](https://github.com/alrayyes/forge-dashboard/commit/0d65bd11da2dbbb8ed8c47f34df46c5ac62ce075))
+
 ## [2.28.0](https://github.com/alrayyes/forge-dashboard/compare/v2.27.0...v2.28.0) (2026-10-23)
 
 
