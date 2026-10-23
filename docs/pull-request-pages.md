@@ -147,7 +147,7 @@ username-only listing carries no images, so it shows none.
 A repository name that is too long for its column is cut with an ellipsis. Hover
 it and the whole `owner/name` shows as hover text, the same as a cut pull
 request title. A name that fits has no hover text, since it would only repeat
-what is on screen. A click on the name opens the pull request, like a click
+what the row already shows. A click on the name opens the pull request, like a click
 anywhere else on the row.
 
 ## Releases
