@@ -302,9 +302,7 @@ func handleWebhook(appCtx context.Context, store *settings.Store, service *dashb
 // With no settings saved nothing starts and the delivery is still acknowledged.
 func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, service *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, delivery, event string, body []byte) {
 	slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
-	if !service.Running() {
-		warmUp(appCtx)
-	}
+	warmUp(appCtx)
 	if !service.Running() {
 		slog.Warn("webhook delivery acknowledged but ignored: no dashboard could be started", "forge", forge, "delivery", delivery)
 		w.WriteHeader(http.StatusNoContent)
