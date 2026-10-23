@@ -5,6 +5,7 @@ import {
   chipLabel,
   healthSentence,
   isOutage,
+  isUnreachable,
   splitStaleRows,
   staleNote,
 } from './forge-starting';
@@ -62,5 +63,21 @@ describe('splitStaleRows', () => {
     const { starting: s, outage } = splitStaleRows(rows, forges);
     expect(s.map((r) => r.n)).toEqual([1]);
     expect(outage.map((r) => r.n)).toEqual([2]);
+  });
+});
+
+describe('isUnreachable', () => {
+  test('only an entry that says so', () => {
+    expect(isUnreachable({ reachable: false })).toBe(true);
+    expect(isUnreachable({ reachable: true })).toBe(false);
+    expect(isUnreachable({})).toBe(false);
+  });
+
+  test('is the one rule the outage check follows', () => {
+    expect(isOutage({ forge: 'github', reachable: true })).toBe(false);
+    expect(isOutage({ forge: 'github', reachable: false })).toBe(true);
+    expect(
+      isOutage({ forge: 'github', reachable: false, starting: true }),
+    ).toBe(false);
   });
 });

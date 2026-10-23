@@ -141,7 +141,6 @@
     type ForgeHealthEntry,
     dependabotBlockedReason,
     forgeLockReason,
-    isUnreachable,
     spentLimit,
   } from "#lib/forge-lock.js";
   import {
@@ -149,6 +148,7 @@
     chipLabel,
     healthSentence,
     isOutage,
+    isUnreachable,
     staleNote,
   } from "#lib/forge-starting.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
@@ -2720,7 +2720,7 @@
       // calls, so REST's budget decides them; auto-merge is a GraphQL
       // mutation and asks for that budget instead. An unreachable forge
       // (#1199) draws no controls, and one banner says why, once (#360, #755).
-      return forgeLockReason(lastForges, forgeName, Date.now(), budget);
+      return forgeLockReason(lastForges, forgeName, { budget });
     }
 
     // A forge whose budget is spent, or that can't be reached, is read-only
@@ -2741,7 +2741,7 @@
       budget: "rest" | "graphql" = "rest",
     ): string {
       // Every entry of the kind, but only the budget the action spends.
-      const limit = known ?? spentLimit(lastForges, forgeName, budget);
+      const limit = known ?? spentLimit(lastForges, forgeName, { budget });
       return rateLimitReasonText(
         FORGE_LABELS[forgeName] || forgeName,
         limit?.resetsAt,
@@ -2765,10 +2765,16 @@
       fkey: string,
       what: string,
       setState: (next: ActionState) => void,
-      retryable?: ReadonlySet<ActionCode>,
-      actionName?: string,
-      // The budget the action spends, for a refusal that names no reset time.
-      budget: "rest" | "graphql" = "rest",
+      {
+        retryable,
+        actionName,
+        // The budget the action spends, for a refusal that names no reset time.
+        budget = "rest",
+      }: {
+        retryable?: ReadonlySet<ActionCode>;
+        actionName?: string;
+        budget?: "rest" | "graphql";
+      } = {},
     ) {
       // The raw answer for Copy, made once for whichever line this ends in.
       const details = failureDetails(
@@ -3255,9 +3261,7 @@
             (next) => {
               autoMergeState[key] = next;
             },
-            AUTO_MERGE_RETRYABLE,
-            undefined,
-            "graphql",
+            { retryable: AUTO_MERGE_RETRYABLE, budget: "graphql" },
           );
         });
     }
@@ -3380,9 +3384,7 @@
             (next) => {
               cancelAutoMergeState[key] = next;
             },
-            undefined,
-            undefined,
-            "graphql",
+            { budget: "graphql" },
           );
         });
     }
@@ -4068,8 +4070,7 @@
             (next) => {
               dependabotActionState[key] = next;
             },
-            undefined,
-            `dependabot-${action}`,
+            { actionName: `dependabot-${action}` },
           );
         });
     }
@@ -7281,7 +7282,7 @@
         // covers that case at the top of the page, per-budget and with a
         // countdown — repeating "Rate limit exceeded." and a raw-error
         // disclosure here is noise, not a second source of detail.
-        if (!f.reachable && f.error && f.errorKind !== "rate_limited") {
+        if (isUnreachable(f) && f.error && f.errorKind !== "rate_limited") {
           item.appendChild(
             el("span", "forge-health-error", forgeErrorHeadline(f)),
           );
@@ -8155,7 +8156,7 @@
 
       renderForgeHealth(data.forges || []);
       const wasUnreachable = new Set(
-        lastForges.filter((f) => !f.reachable).map((f) => f.forge),
+        lastForges.filter((f) => isUnreachable(f)).map((f) => f.forge),
       );
       // Starting up is locked like an outage, but nothing was lost, so
       // coming out of it is not news.
@@ -8168,7 +8169,7 @@
       // has to redraw them (#1199).
       const reachabilityChanged = lastForges.some(
         (f) =>
-          wasUnreachable.has(f.forge) === f.reachable ||
+          wasUnreachable.has(f.forge) !== isUnreachable(f) ||
           // Starting up and then an outage are both unreachable, but the
           // lock reason on the controls differs.
           (wasStarting.has(f.forge) && !f.starting),
@@ -8176,7 +8177,7 @@
       // A forge that answers again gets its controls back, and one polite
       // line saying so.
       for (const f of lastForges) {
-        if (!f.reachable || !wasUnreachable.has(f.forge)) continue;
+        if (isUnreachable(f) || !wasUnreachable.has(f.forge)) continue;
         if (wasStarting.has(f.forge)) continue;
         const label = FORGE_LABELS[f.forge] || f.forge;
         feedback.notify({
