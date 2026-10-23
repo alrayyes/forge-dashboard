@@ -1,6 +1,7 @@
 package forgejo
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -45,7 +46,10 @@ type excerptCache struct {
 	// failed is when each key's read last failed, so a log that can't be read
 	// isn't asked for again within failedExcerptDelay.
 	failed *lru[time.Time]
-	now    func() time.Time
+	// keys is the excerpt key of each failed job a list showed, by repository
+	// and job id, so a read for a job id alone can find its finish time.
+	keys *lru[excerptKey]
+	now  func() time.Time
 }
 
 // keptExcerpt is an excerpt and when it stops being trusted: the zero time for
@@ -67,7 +71,7 @@ const excerptSettleDelay = 30 * time.Second
 const maxExcerpts = 500
 
 func newExcerptCache(limit int) *excerptCache {
-	return &excerptCache{text: newLRU[keptExcerpt](limit), failed: newLRU[time.Time](limit), now: time.Now}
+	return &excerptCache{text: newLRU[keptExcerpt](limit), failed: newLRU[time.Time](limit), keys: newLRU[excerptKey](limit), now: time.Now}
 }
 
 func (e *excerptCache) get(key string) (string, bool) {
@@ -119,4 +123,28 @@ func (e *excerptCache) recentlyFailed(key string) bool {
 	}
 
 	return ok
+}
+
+func jobKeyName(owner, name string, id int64) string {
+	return fmt.Sprintf("%s/%s#%d", owner, name, id)
+}
+
+// remember keeps the excerpt key a list built for job id of owner/name.
+func (e *excerptCache) remember(owner, name string, id int64, k excerptKey) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.keys.put(jobKeyName(owner, name, id), k)
+}
+
+// keyFor is the excerpt key of job id of owner/name: the one the last list
+// built, or for a job no list showed here (after a restart) one from the id
+// alone, which counts as unsettled and so is kept only briefly.
+func (e *excerptCache) keyFor(owner, name string, id int64) excerptKey {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if k, ok := e.keys.get(jobKeyName(owner, name, id)); ok {
+		return k
+	}
+
+	return excerptKey{key: jobKeyName(owner, name, id)}
 }

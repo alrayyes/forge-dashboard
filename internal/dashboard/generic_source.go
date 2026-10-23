@@ -462,6 +462,21 @@ func (s *GenericSource) JobLog(ctx context.Context, owner, name string, jobID in
 	return log, nil
 }
 
+// JobExcerpt implements JobExcerptReader at the Source level by delegating to
+// the underlying client, like JobLog.
+func (s *GenericSource) JobExcerpt(ctx context.Context, owner, name string, jobID int64) (string, error) {
+	reader, ok := s.client.(JobExcerptReader)
+	if !ok {
+		return "", fmt.Errorf("dashboard: %s's client can't read job log excerpts: %w", s.forge, errUnsupportedByClient)
+	}
+	text, err := reader.JobExcerpt(ctx, owner, name, jobID)
+	if err != nil {
+		return "", fmt.Errorf("dashboard: read job log excerpt: %w", err)
+	}
+
+	return text, nil
+}
+
 // AddLabel implements PullRequestLabeler at the Source level by delegating to
 // the underlying client, the same "Source unwraps to its ForgeClient" shape
 // ClosePullRequest and ListChecks use. #1347: internal/forgejo.Client labels a

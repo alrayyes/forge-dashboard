@@ -339,3 +339,141 @@ func TestJobLog_NothingLoadedYet_Returns503AndNeverReachesTheForge(t *testing.T)
 	assert.Contains(t, body.Error, "retry")
 	assert.Empty(t, source.lastOwner, "the forge must not be called")
 }
+
+// fakeExcerptSource is a Source that reads job logs and excerpts, the shape
+// forgejo.Client has. It counts each read, since asking for an excerpt must
+// not read the whole log.
+type fakeExcerptSource struct {
+	fakeJobLogSource
+	excerpt   string
+	excerptEr error
+	logReads  int
+	lastExOwn string
+	lastExJob int64
+}
+
+func (f *fakeExcerptSource) JobLog(ctx context.Context, owner, name string, jobID int64) (dashboard.JobLog, error) {
+	f.logReads++
+
+	return f.fakeJobLogSource.JobLog(ctx, owner, name, jobID)
+}
+
+func (f *fakeExcerptSource) JobExcerpt(_ context.Context, owner, _ string, jobID int64) (string, error) {
+	f.lastExOwn, f.lastExJob = owner, jobID
+
+	return f.excerpt, f.excerptEr
+}
+
+// newExcerptSource is a Forgejo source that tracks a/b.
+func newExcerptSource(excerpt string, err error) *fakeExcerptSource {
+	source := &fakeExcerptSource{excerpt: excerpt, excerptEr: err}
+	source.forge = dashboard.ForgeForgejo
+	source.repos = []string{"a/b"}
+
+	return source
+}
+
+func getJobExcerpt(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName, excerpt string) *http.Response {
+	t.Helper()
+	q := url.Values{"forge": {forge}, "fullName": {fullName}, "jobId": {"7"}, "excerpt": {excerpt}}
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/checks/log?"+q.Encode(), nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
+func TestJobLog_Excerpt_ReturnsTheExcerptWithoutReadingTheWholeLog(t *testing.T) {
+	t.Parallel()
+
+	source := newExcerptSource("FAIL: boom", nil)
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "true")
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body dashboard.JobLog
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, "FAIL: boom", body.Text)
+	assert.False(t, body.Truncated)
+	assert.EqualValues(t, 7, source.lastExJob)
+	assert.Zero(t, source.logReads)
+	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
+}
+
+func TestJobLog_Excerpt_FalseIsTheWholeLog(t *testing.T) {
+	t.Parallel()
+
+	source := newExcerptSource("x", nil)
+	source.log = dashboard.JobLog{Text: "all\n"}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "false")
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body dashboard.JobLog
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, "all\n", body.Text)
+}
+
+func TestJobLog_Excerpt_ForgeWithoutExcerptReads_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "github", "a/b", "true")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestJobLog_Excerpt_BadValue_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := newExcerptSource("", nil)
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "maybe")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestJobLog_Excerpt_ForgeRefuses_MapsTheStatus(t *testing.T) {
+	t.Parallel()
+
+	for kind, want := range map[dashboard.ForgeErrorKind]int{
+		dashboard.ForgeErrorUnauthorized: http.StatusForbidden,
+		dashboard.ForgeErrorRateLimited:  http.StatusTooManyRequests,
+	} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+
+			source := newExcerptSource("", &dashboard.ClientError{Kind: kind, Err: assert.AnError})
+			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+			resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "true")
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, want, resp.StatusCode)
+		})
+	}
+}
+
+func TestJobLog_Excerpt_UntrackedRepo_Returns404AndNeverReachesTheForge(t *testing.T) {
+	t.Parallel()
+
+	source := newExcerptSource("x", nil)
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "c/d", "true")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Zero(t, source.lastExJob)
+}

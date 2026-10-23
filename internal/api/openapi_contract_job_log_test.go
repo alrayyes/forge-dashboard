@@ -35,6 +35,19 @@ func TestContract_JobLog(t *testing.T) {
 		log := doc.Components.Schemas["CheckLog"].Value
 		assert.ElementsMatch(t, []string{"text", "truncated"}, log.Required)
 	})
+	t.Run("the log takes an excerpt flag", func(t *testing.T) {
+		t.Parallel()
+
+		var found *openapi3.Parameter
+		for _, p := range doc.Paths.Find("/api/checks/log").Get.Parameters {
+			if p.Value.Name == "excerpt" {
+				found = p.Value
+			}
+		}
+		require.NotNil(t, found)
+		assert.False(t, found.Required)
+		assert.True(t, found.Schema.Value.Type.Is("boolean"))
+	})
 	t.Run("a real answer validates against the spec", func(t *testing.T) {
 		t.Parallel()
 

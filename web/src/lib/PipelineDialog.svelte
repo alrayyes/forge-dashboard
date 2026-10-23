@@ -57,6 +57,11 @@
     type Check,
   } from "#lib/pipeline-checks.js";
   import {
+    excerptKey,
+    fillExcerpts,
+    pickExcerptJobs,
+  } from "#lib/pipeline-excerpts.js";
+  import {
     announceChange,
     checkKeys,
     createLiveChecks,
@@ -81,12 +86,40 @@
     announcement = text;
   });
 
+  // Forgejo's list carries no log excerpt, so a failed check shows at once with
+  // its link and the excerpt is filled in as each read lands. Keyed by
+  // excerptKey; `asked` keeps a check from being asked for twice, and a new
+  // number stops reads still waiting from an earlier open.
+  let excerpts = $state<Record<string, string>>({});
+  const asked = new Set<string>();
+  let excerptRun = 0;
+
+  function askForExcerpts(list: Check[], url: string) {
+    const picks = pickExcerptJobs(list, asked);
+    if (!picks.length) return;
+    for (const check of picks) asked.add(excerptKey(check));
+    const mine = excerptRun;
+    void fillExcerpts(
+      picks,
+      url,
+      (check, text) => {
+        excerpts[excerptKey(check)] = text;
+        speak(`Log excerpt loaded for ${check.name}.`);
+      },
+      fetch,
+      () => mine !== excerptRun,
+    );
+  }
+
   export function open(next: PipelineTarget) {
     // Already open: showModal() would throw, and the dialog is modal, so only
     // a stray second call gets here.
     if (dialog.open) return;
     target = next;
     staleNote = "";
+    excerptRun++;
+    excerpts = {};
+    asked.clear();
     speak.clear();
     live = createLiveChecks({
       signature: next.signature,
@@ -149,6 +182,7 @@
           .querySelector(".pipeline-dialog-body")
           ?.contains(document.activeElement);
         checks = ordered;
+        askForExcerpts(ordered, row.checksUrl);
         if (line) speak(line);
         // The control the keyboard was on is gone: its node went with it, so
         // focus goes to the close button instead of the page behind.
@@ -164,6 +198,7 @@
       live?.refreshed();
       checks = blockingFirst(next);
       phase = "ready";
+      askForExcerpts(checks, row.checksUrl);
     } catch (err) {
       if (mine !== request) return;
       if (again) {
@@ -180,6 +215,7 @@
   // on the backdrop.
   function closed() {
     request++;
+    excerptRun++;
     live = null;
     speak.clear();
     const done = target;
@@ -321,7 +357,7 @@
           name={check.name}
           jobId={check.jobId}
           checksUrl={target?.checksUrl ?? ""}
-          excerpt={check.excerpt ?? ""}
+          excerpt={check.excerpt ?? excerpts[excerptKey(check)] ?? ""}
           forgeName={target ? forgeLabel(target) : "the forge"}
           {copyable}
           runKey={checkRunKey(check)}
