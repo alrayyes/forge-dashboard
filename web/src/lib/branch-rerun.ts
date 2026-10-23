@@ -6,6 +6,7 @@
 import {
   type ActionRequestError,
   failureDetails,
+  isTransientFailure,
   readActionFailure,
 } from './action-error';
 import { copyButton } from './copy-details';
@@ -19,7 +20,15 @@ const HOLD_MS = 10 * 60 * 1000;
 type State =
   | { phase: 'requesting' }
   | { phase: 'queued'; queuedAt: number; signature: string }
-  | { phase: 'failed'; message: string; details: FailureDetails };
+  | {
+      phase: 'failed';
+      message: string;
+      details: FailureDetails;
+      // An outage or a spent rate limit passes, and the line about it is stale
+      // once a lock has come and gone. A refusal (a missing permission, say)
+      // is still true after one, so it stays until the next attempt.
+      passes: boolean;
+    };
 
 export type RerunTarget = { forge: string; fullName: string };
 
@@ -116,9 +125,12 @@ export function createBranchRerun() {
       // A forge that can't be reached or has no budget left would refuse the
       // click, so there is no button, only the reason.
       const locked = lock();
-      // Deliberate, though it writes from a draw: a refusal from before the
-      // lock is stale once the lock lifts, for every view of this repository.
-      if (locked && states.get(key)?.phase === 'failed') states.delete(key);
+      // Deliberate, though it writes from a draw: an outage or rate-limit
+      // failure from before the lock is stale once the lock lifts, for every
+      // view of this repository.
+      const before = states.get(key);
+      if (locked && before?.phase === 'failed' && before.passes)
+        states.delete(key);
       const state = states.get(key);
       const sending = state?.phase === 'requesting';
       if (locked) {
@@ -177,6 +189,16 @@ export function createBranchRerun() {
       const failed = state?.phase === 'failed' ? state : null;
       if (failed !== shownFailure) {
         shownFailure = failed;
+        // Focus on the Copy button would drop to the page when it goes.
+        const focused = document.activeElement;
+        if (
+          focused instanceof HTMLElement &&
+          failureBox.contains(focused) &&
+          focused !== failure
+        ) {
+          wrap.tabIndex = -1;
+          wrap.focus();
+        }
         for (const extra of failureBox.querySelectorAll(
           '.pipeline-rerun-copy, .feedback-details',
         ))
@@ -223,6 +245,7 @@ export function createBranchRerun() {
           states.set(key, {
             phase: 'failed',
             message: err.message,
+            passes: isTransientFailure(err) || err.code === 'rate_limited',
             details: failureDetails(err, {
               action: 'rerun-checks',
               forge: t.forge,

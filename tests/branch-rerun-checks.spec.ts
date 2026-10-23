@@ -481,20 +481,29 @@ test.describe('main branches rerun failed checks', () => {
       }),
     });
 
-  test('an earlier refusal does not come back after a lock lifts', async ({
+  // A forge answering 503 is the outage itself: the line says nothing once the
+  // forge is known to be down, and nothing true once it is back.
+  const unavailable = (route: Route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'The forge is down.' }),
+    });
+
+  test('an earlier outage failure does not come back after a lock lifts', async ({
     page,
   }) => {
     const forges: unknown[] = [
       { forge: 'github', reachable: true, repoCount: 1 },
     ];
-    await page.route('**/api/main-branches/rerun-checks', refuse);
+    await page.route('**/api/main-branches/rerun-checks', unavailable);
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       forges,
     });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
-    await expect(dialog.getByRole('alert')).toContainText('no failed job');
+    await expect(dialog.getByRole('alert')).toContainText('forge is down');
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
     await runUntilPolled(page);
@@ -506,6 +515,42 @@ test.describe('main branches rerun failed checks', () => {
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
     ).toBeVisible();
     await expect(dialog.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('a permission refusal is still shown after an outage passes', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.route('**/api/main-branches/rerun-checks', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'permission',
+          message: 'The token cannot rerun workflows.',
+        }),
+      }),
+    );
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('cannot rerun');
+
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+
+    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    await runUntilPolled(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('alert')).toContainText('cannot rerun');
   });
 
   test('a poll leaves the failure box, and the focus on its Copy button, alone', async ({
@@ -542,6 +587,34 @@ test.describe('main branches rerun failed checks', () => {
     await runUntilPolled(page);
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+    await expect(
+      page.evaluate(
+        () =>
+          document.activeElement?.closest('dialog, [role="dialog"]') != null,
+      ),
+    ).resolves.toBe(true);
+  });
+
+  test('keyboard focus stays in the dialog when a lock removes the Copy button', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.route('**/api/main-branches/rerun-checks', unavailable);
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    const copy = dialog.getByRole('button', { name: 'Copy error details' });
+    await copy.focus();
+
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+
+    await expect(copy).toHaveCount(0);
     await expect(
       page.evaluate(
         () =>

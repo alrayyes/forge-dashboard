@@ -253,8 +253,10 @@
     // not a failed poll.
     try {
       if (openRow) rerun.redraw(openRow);
-    } catch {
-      // A control that can't draw must not fail the page's load.
+    } catch (err) {
+      // A control that can't draw must not fail the page's load, but a lock
+      // left on screen from the last draw should not go unexplained.
+      console.error("The rerun control could not be redrawn", err);
     }
   }
 
