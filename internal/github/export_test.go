@@ -1,6 +1,7 @@
 package github
 
 import (
+	"github.com/alrayyes/forge-dashboard/internal/advisorycache"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -8,14 +9,7 @@ import (
 )
 
 // ExpireAdvisories ages every cached advisory answer past its TTL and retry delay.
-func (c *Client) ExpireAdvisories() {
-	c.advisories.mu.Lock()
-	defer c.advisories.mu.Unlock()
-	for key, e := range c.advisories.entries {
-		e.expires = time.Now().Add(-time.Second)
-		c.advisories.entries[key] = e
-	}
-}
+func (c *Client) ExpireAdvisories() { c.advisories.cache.Expire() }
 
 // BaseURLForTest is the base URL this Client talks to.
 func (c *Client) BaseURLForTest() string { return c.baseURL }
@@ -92,20 +86,17 @@ func (c *Client) UseETagStoreLimits(maxEntries, maxBytes int) {
 const MaxETagBodyBytes = maxETagBodyBytes
 
 // AdvisoriesRetry is how long a refused or failed alerts read waits to be asked again.
-const AdvisoriesRetry = advisoriesRetry
+const AdvisoriesRetry = advisorycache.Retry
 
 // AdvisoriesTTL is how long a known or settled-refused answer is reused.
-const AdvisoriesTTL = advisoriesTTL
+const AdvisoriesTTL = advisorycache.TTL
 
 // SetLogger gives the client its own logger in place of slog's default.
 func (c *Client) SetLogger(l *slog.Logger) { c.log = l }
 
 // AdvisoryTTLForTest is how long a repo's cached advisory answer has left.
 func (c *Client) AdvisoryTTLForTest(repo string) time.Duration {
-	c.advisories.mu.Lock()
-	defer c.advisories.mu.Unlock()
-
-	return time.Until(c.advisories.entries[repo].expires)
+	return c.advisories.cache.Remaining(repo)
 }
 
 // SetLogProxyForTest replaces the proxy choice of the log blob client; call it
