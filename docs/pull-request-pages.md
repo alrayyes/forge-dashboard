@@ -153,8 +153,8 @@ anywhere else on the row.
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
-**Releases** item in the navigation. It is the pull request board over the
-pull requests the server marks `kind: release` (release-please's, by its
+**Releases** item in the navigation. It is the pull request board over the pull
+requests the server marks `kind: release` (release-please's, by its
 `autorelease:` label, or by its `release-please--branches--<base>` head branch
 when release-please failed before it could label the pull request, as long as
 the pull request is from the same repository and aimed at that base), with the
@@ -162,9 +162,10 @@ same filters, rows and actions as the main page. The main pull request page
 lists none of them, and doesn't count them. Each row shows the version being
 released next to the title. Merge is offered when the release can merge, or
 greyed out with the reason when it can't. A release that is behind its base
-branch gets Update branch and a line saying release-please won't update it
-until a releasable change lands. With no release pull requests open the page
-says nothing is waiting to ship.
+branch gets Update branch and a line saying release-please won't update it until
+a releasable change lands, and its row carries the Out of date badge like any
+other behind pull request. With no release pull requests open the page says
+nothing is waiting to ship.
 
 The quick filter pills above the list include **Failing CI**, **Running CI**,
 **Passing CI** and **No checks**, each offered only when it would show

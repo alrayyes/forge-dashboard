@@ -230,4 +230,26 @@ test.describe('Out of date badge and quick filter', () => {
       ).toEqual([]);
     });
   }
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`has no axe-core violations on the Bots page in ${scheme} with the badge and the pill active`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await mockDashboard(page, BOTS);
+      await page.goto('/bots.html');
+      await expect(rows(page)).toHaveCount(4);
+      expect(
+        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+          .violations,
+      ).toEqual([]);
+
+      await pill(page, 'Out of date').click();
+      await expect(rows(page)).toHaveCount(3);
+      expect(
+        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+          .violations,
+      ).toEqual([]);
+    });
+  }
 });
