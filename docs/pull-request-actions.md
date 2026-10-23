@@ -49,7 +49,7 @@ branch, the Renovate and Dependabot rebases and Dependabot's Recreate are listed
 but blocked with the approval reason, because a new head would be held again.
 None is primary, so the row draws no such button, and the status shows the
 approval with no `action`. A stacked or draft pull request keeps its own
-reason, a conflicting one keeps its rebase, and one that is up to date is
+reason, a conflicting one keeps its rebase, and one that is not behind is
 unchanged. Once the runs are approved, the pull request is an ordinary behind
 one and Update branch is primary again.
 
