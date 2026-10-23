@@ -206,6 +206,14 @@
       target = { ...target, status: { ...target.status, state } };
   }
 
+  // Swaps the attributes under the title (labels, and for an issue the pull
+  // requests that will close it) for another set the page built, so the open
+  // dialog follows the board without closing.
+  export function setAttributes(attributes: HTMLElement) {
+    if (target?.status)
+      target = { ...target, status: { ...target.status, attributes } };
+  }
+
   // The close button in the header: where focus goes when the control it was
   // on has gone and nothing else in the footer is left.
   export function focusClose() {

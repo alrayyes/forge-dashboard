@@ -1834,6 +1834,10 @@
       repo: string;
       number: number;
       seenUpdatedAt: string | undefined;
+      // The row's reference, and a fingerprint of what the attributes show
+      // (labels and the pills), so a poll redraws them only when they change.
+      item: IssueDialogItem;
+      shown: string;
     } | null = null;
 
     function listedIssue(
@@ -1850,15 +1854,26 @@
     // A snapshot that no longer lists the open dialog's issue (it was
     // closed), lists it again (reopened), or lists it changed has the dialog
     // read the forge again, quietly, so its status and thread follow.
+    function attributesSignature(item: IssueDialogItem): string {
+      return JSON.stringify([item.labels, item.linkedPullRequests]);
+    }
+
     function followIssueDialog(issues: IssueItem[]) {
       const open = issueDialog;
       if (!open || !detailsDialog) return;
-      const now = listedIssue(
-        open.forge,
-        open.repo,
-        open.number,
-        issues,
-      )?.updatedAt;
+      const listed = listedIssue(open.forge, open.repo, open.number, issues);
+      if (listed) {
+        // The pills come from the snapshot, not from the forge read, so they
+        // follow every poll; the labels come along with them.
+        const item = { ...open.item, ...listed };
+        const shown = attributesSignature(item);
+        if (shown !== open.shown) {
+          open.item = item;
+          open.shown = shown;
+          detailsDialog.setAttributes(issueStatus(item).attributes);
+        }
+      }
+      const now = listed?.updatedAt;
       if (now === open.seenUpdatedAt) return;
       open.seenUpdatedAt = now;
       void detailsDialog.reload().then((ok) => {
@@ -1904,6 +1919,8 @@
         number: item.number,
         seenUpdatedAt: listedIssue(item.forge, item.repo, item.number)
           ?.updatedAt,
+        item,
+        shown: attributesSignature(item),
       };
       detailsDialog?.open(
         { ...item, subject: "issue", status: issueStatus(item) },
@@ -2139,6 +2156,20 @@
       attributes.setAttribute("aria-label", "Labels when opened");
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
+      // The pull requests that will close it, as the row's pills. Plain links
+      // here, as the pull request dialog's closing pills are, so a second
+      // dialog does not stack on this one.
+      const pills = linkedPills(
+        prKey(item),
+        item.repo,
+        item.linkedPullRequests,
+        undefined,
+        linkedCi,
+      );
+      if (pills) {
+        attributes.setAttribute("aria-label", "Attributes when opened");
+        attributes.appendChild(pills);
+      }
       return { state, attributes };
     }
 

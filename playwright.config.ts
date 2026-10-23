@@ -152,6 +152,7 @@ const singleUserSpecs = [
   '**/in-place-dialogs.spec.ts',
   '**/issue-close.spec.ts',
   '**/issue-dialog.spec.ts',
+  '**/issue-dialog-closing-pr.spec.ts',
   '**/phone-card-action-row.spec.ts',
   '**/profile-links.spec.ts',
   '**/pr-auto-update.spec.ts',
