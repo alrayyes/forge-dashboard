@@ -475,9 +475,16 @@ What the answer can and can't see, found by reading a real repo:
 GitHub's reference for the repository, pull request and issue objects doesn't
 say what moves a repo's `updatedAt`, so the table is what was observed, not a
 promise. Because a finished check is invisible to the probe, a repo is only
-skipped while its webhook is confirmed: that webhook delivers check events and
-refreshes the repo on its own. A repo with no confirmed webhook always counts
-as changed.
+skipped while a webhook is configured on it, since that webhook delivers check
+events and refreshes the repo on its own. "Configured" is not "delivering": if
+deliveries stop arriving, a skipped repo's checks stay stale until the next
+periodic full pass, which is the real bound (six refreshes at most). A repo
+with no webhook always counts as changed.
+
+Security advisories and the latest release live on the main-branch row, which
+a skipped repo keeps from its last fetch. Nothing the probe reads moves when
+an advisory is published, and a release may not move the push time, so both can
+lag by up to six refreshes on a skipped repo.
 
 Always a full pass:
 
@@ -492,6 +499,11 @@ The webhook check still runs for a skipped repo, as the same conditional
 request it always was, so a repo that loses its webhook is noticed and fetched
 next time. The issues "changed since" marker advances per repo, only for repos
 actually fetched, so a skipped repo's issues are never missed.
+
+The probe also runs on a full pass, because the answers have to be taken
+before the fetch to be sure a change made during it is seen next time. It is
+about two points a page of 100 repos, so skipping it would not be worth the
+risk.
 
 Cost, with a personal token. The probe measured 2 GraphQL points per page of
 100 repos (112 repos on the measured account, 2 pages, so about 4 points and 2
