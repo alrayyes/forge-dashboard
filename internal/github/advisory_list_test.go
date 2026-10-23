@@ -124,3 +124,27 @@ func TestListAdvisories_RefusalsAreUnknownWithTheirCause(t *testing.T) {
 		})
 	}
 }
+
+func TestListAdvisories_ScoresFromTheNewestCVSSWhenTheTopLevelOneIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	client := advisoryClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		a := fullAlert(1, "critical", "2026-10-22T13:02:20Z")
+		adv, ok := a["security_advisory"].(map[string]any)
+		require.True(t, ok)
+		adv["cvss"] = map[string]any{"score": 0.0, "vector_string": nil}
+		adv["epss"] = nil
+		adv["cvss_severities"] = map[string]any{
+			"cvss_v3": map[string]any{"score": 0.0, "vector_string": nil},
+			"cvss_v4": map[string]any{"score": 9.1, "vector_string": "CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"},
+		}
+		writeJSON(t, w, []map[string]any{a})
+	})
+
+	got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	require.Len(t, got.Advisories, 1)
+	assert.Equal(t, &dashboard.AdvisoryCVSS{Score: 9.1, Vector: "CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"}, got.Advisories[0].CVSS)
+	assert.Nil(t, got.Advisories[0].EPSS)
+}

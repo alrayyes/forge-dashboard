@@ -13,6 +13,19 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
+// alertCVSS is a score and its vector. GitHub sends a score of 0 and a null
+// vector for a version it has none for.
+type alertCVSS struct {
+	Score        float64 `json:"score"`
+	VectorString string  `json:"vector_string"`
+}
+
+// alertCVSSVersions is the score per CVSS version.
+type alertCVSSVersions struct {
+	V3 *alertCVSS `json:"cvss_v3"`
+	V4 *alertCVSS `json:"cvss_v4"`
+}
+
 // alertListItem is one Dependabot alert as GET /repos/{owner}/{repo}/dependabot/alerts
 // sends it. It is read with a struct of our own rather than go-github's, which
 // has no field for the dependency's relationship (direct or transitive).
@@ -31,16 +44,14 @@ type alertListItem struct {
 		Relationship string `json:"relationship"`
 	} `json:"dependency"`
 	SecurityAdvisory struct {
-		GHSAID      string `json:"ghsa_id"`
-		CVEID       string `json:"cve_id"`
-		Summary     string `json:"summary"`
-		Description string `json:"description"`
-		Severity    string `json:"severity"`
-		CVSS        *struct {
-			Score        float64 `json:"score"`
-			VectorString string  `json:"vector_string"`
-		} `json:"cvss"`
-		CWEs []struct {
+		GHSAID         string             `json:"ghsa_id"`
+		CVEID          string             `json:"cve_id"`
+		Summary        string             `json:"summary"`
+		Description    string             `json:"description"`
+		Severity       string             `json:"severity"`
+		CVSS           *alertCVSS         `json:"cvss"`
+		CVSSSeverities *alertCVSSVersions `json:"cvss_severities"`
+		CWEs           []struct {
 			CWEID string `json:"cwe_id"`
 			Name  string `json:"name"`
 		} `json:"cwes"`
@@ -150,8 +161,8 @@ func advisoryItemOf(a *alertListItem) dashboard.AdvisoryItem {
 	if vuln.FirstPatchedVersion != nil {
 		item.PatchedVersion = vuln.FirstPatchedVersion.Identifier
 	}
-	if adv.CVSS != nil && (adv.CVSS.Score > 0 || adv.CVSS.VectorString != "") {
-		item.CVSS = &dashboard.AdvisoryCVSS{Score: adv.CVSS.Score, Vector: adv.CVSS.VectorString}
+	if c := scoredCVSS(adv.CVSS, adv.CVSSSeverities); c != nil {
+		item.CVSS = &dashboard.AdvisoryCVSS{Score: c.Score, Vector: c.VectorString}
 	}
 	for _, w := range adv.CWEs {
 		item.Weaknesses = append(item.Weaknesses, dashboard.AdvisoryWeakness{ID: w.CWEID, Name: w.Name})
@@ -164,6 +175,22 @@ func advisoryItemOf(a *alertListItem) dashboard.AdvisoryItem {
 	}
 
 	return item
+}
+
+// scoredCVSS picks the first score that has a vector: the advisory's own, then
+// version 3 and 4. An advisory scored only under version 4 has an empty one.
+func scoredCVSS(top *alertCVSS, versions *alertCVSSVersions) *alertCVSS {
+	candidates := []*alertCVSS{top}
+	if versions != nil {
+		candidates = append(candidates, versions.V3, versions.V4)
+	}
+	for _, c := range candidates {
+		if c != nil && c.VectorString != "" {
+			return c
+		}
+	}
+
+	return nil
 }
 
 // sortAdvisories puts the most severe first and, among equals, the newest. The
