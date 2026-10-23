@@ -91,7 +91,9 @@ func TestFetch_ReportsWhatTheFetchItselfSpent(t *testing.T) {
 	result := client.Fetch(t.Context())
 
 	require.NotNil(t, result.Spent)
-	assert.Equal(t, 7, result.Spent.GraphQL)
+	// The stub prices every query at 7: the change probe and the account-wide
+	// query that follows it.
+	assert.Equal(t, 14, result.Spent.GraphQL)
 	assert.Equal(t, 2, result.Spent.REST, "the hook check and the advisories read")
 }
 
