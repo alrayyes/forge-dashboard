@@ -32,7 +32,9 @@ beforeEach(() => {
     },
   });
   globalThis.fetch = (() =>
-    Promise.resolve(new Response('{}', { status: 200 }))) as typeof fetch;
+    Promise.resolve(
+      new Response('{}', { status: 200 }),
+    )) as unknown as typeof fetch;
   setCookieTrimmedHandler((names) => cut.push(names));
 });
 
