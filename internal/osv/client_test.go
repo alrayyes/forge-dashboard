@@ -330,3 +330,58 @@ func TestScan_StopsFetchingRecordsAfterTheFirstError(t *testing.T) {
 	require.Error(t, err)
 	assert.Less(t, s.details.Load(), int32(100), "a failing OSV doesn't cost a call per advisory")
 }
+
+func TestScan_TimeQueuedBehindTheFetchLimitIsNotCountedAgainstABudget(t *testing.T) {
+	t.Parallel()
+	const scans, perScan = 6, 8
+	s := &osvServer{vulns: map[string][]string{}, detail: map[string]map[string]any{}, delay: 40 * time.Millisecond}
+	var all [][]osv.Package
+	for i := range scans {
+		var pkgs []osv.Package
+		for j := range perScan {
+			name := fmt.Sprintf("p%d-%d", i, j)
+			id := "GHSA-" + name
+			s.vulns[name+"@1.0.0"] = []string{id}
+			s.detail[id] = ghsa("LOW")
+			pkgs = append(pkgs, osv.Package{Ecosystem: "npm", Name: name, Version: "1.0.0"})
+		}
+		all = append(all, pkgs)
+	}
+	client := s.start(t)
+
+	// Six scans of eight records each share eight fetch slots, so the last one
+	// waits about five fetches (200ms) before its own 40ms of work. A budget
+	// that ran during the wait would cut it off.
+	var wg sync.WaitGroup
+	errs := make([]error, scans)
+	for i := range scans {
+		wg.Go(func() {
+			ctx, cancel := osv.WithBudget(t.Context(), 150*time.Millisecond)
+			defer cancel()
+			_, errs[i] = client.Scan(ctx, all[i])
+		})
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoError(t, err, "scan %d", i)
+	}
+}
+
+func TestWithBudget_StillEndsAScanThatIsSlowItself(t *testing.T) {
+	t.Parallel()
+	s := &osvServer{
+		vulns:  map[string][]string{"a@1.0.0": {"GHSA-1"}},
+		detail: map[string]map[string]any{"GHSA-1": ghsa("LOW")},
+		delay:  500 * time.Millisecond,
+	}
+	client := s.start(t)
+
+	ctx, cancel := osv.WithBudget(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	_, err := client.Scan(ctx, []osv.Package{{Ecosystem: "npm", Name: "a", Version: "1.0.0"}})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, ctx.Err(), context.Canceled)
+	assert.ErrorIs(t, context.Cause(ctx), context.DeadlineExceeded)
+}
