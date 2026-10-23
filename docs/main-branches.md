@@ -26,7 +26,8 @@ for the row is cut to one line, with the whole tag on hover. A repo with no
 release, or only drafts and pre-releases, shows no tag, and so does every
 Forgejo repo for now. A GitHub repo with open Dependabot alerts on its default branch
 also shows a pill with the count and the highest severity in words, for example
-"3 advisories, critical", linking to the alerts on GitHub in a new tab. The
+"3 advisories, critical". The pill is a button that opens a
+[dialog of the advisories](#advisories-dialog). The
 severity is the word, so the tint (red for high and critical, amber for medium,
 grey for low) is never the only signal. A repo with none open shows nothing. A
 repo whose alerts could not be read, because they are switched off or the
@@ -89,6 +90,36 @@ works on a pull request's checks, not on a default-branch run, so the pipeline
 panel here only reads. With every
 default branch passing the page says so, and a filter that matches nothing
 offers **Reset filters**. A repo with no pipeline says no run was found.
+
+## Advisories dialog
+
+The advisories pill on a GitHub row opens a dialog with that repository's open
+Dependabot alerts. It lists them with the worst first (critical, high, medium,
+low, then the newest first). Each row shows the severity word, the title, the
+package and its ecosystem, whether it is a runtime or development dependency
+and a direct or transitive one, the file that pulled it in, and how long ago it
+opened. Severity chips above the list (All open, Critical, High, Medium, Low,
+each with its count) narrow it; a level with none open has no chip.
+
+Picking a row shows its detail: the GHSA and CVE ids, the package, the file,
+when it opened, the vulnerable and patched versions, the severity score with
+its CVSS vector, the weaknesses, the exploit probability (EPSS) when GitHub
+states one, the description rendered as Markdown, and the references. Only
+references with a web address are links. **Back to advisories** is the first
+control in the detail, and it returns to the same list: the same filter, the
+same scroll position, and focus on the row that was opened. Escape and the
+close button close the whole dialog and give focus back to the pill. **Open on
+GitHub** goes to the alert, or to the alerts page from the list.
+
+The dialog reads the repository when it opens and not on a timer, so it costs
+one live read per open (the `advisories` kind in [Rate limits](rate-limits.md)).
+A repo with no open alerts says so. An answer GitHub would not give (the
+permission is missing, alerts are switched off, a rate limit or an error) says
+so in the dialog with the same causes as
+[When advisories can't be read](#when-advisories-cant-be-read), and a failed
+request offers **Try again**. Forgejo rows keep their count without the dialog
+for now. `GET /api/main-branches/advisories?forge=github&fullName=owner/repo`
+answers the list for the dialog and is not offered as an MCP tool.
 
 ## Forgejo advisories
 

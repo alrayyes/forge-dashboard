@@ -16,6 +16,7 @@
   } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { setBranchNavCount } from "#lib/nav-counts.svelte.js";
+  import AdvisoriesDialog from "#lib/AdvisoriesDialog.svelte";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
@@ -76,6 +77,7 @@
   let loading = $state(true);
   let filter = $state<MainBranchFilter>({ ...DEFAULT_FILTER });
   let pipeline = $state<PipelineDialog>();
+  let advisories = $state<AdvisoriesDialog>();
   // The branch whose dialog is open, to follow its row from each refresh.
   let openRow: MainBranch | null = null;
   const rerun = createBranchRerun();
@@ -648,11 +650,18 @@
       font-size: 12px;
       padding: 0 4px;
     }
-    a.mb-advisory {
+    a.mb-advisory,
+    button.mb-advisory {
       text-decoration: underline;
     }
+    button.mb-advisory {
+      border: 0;
+      font-family: inherit;
+      cursor: pointer;
+    }
     @media (max-width: 760px) {
-      a.mb-advisory {
+      a.mb-advisory,
+      button.mb-advisory {
         min-height: 44px;
       }
     }
@@ -1083,7 +1092,25 @@
                   {#if adv}
                     <!-- Severity is the word beside the count; the colour
                       only echoes it. -->
-                    {#if adv.href}
+                    {#if adv.href && b.forge === "github"}
+                      <!-- A GitHub row's pill opens the list of its advisories
+                        here; the dialog links on to GitHub. -->
+                      <button
+                        type="button"
+                        class="mb-advisory"
+                        data-tone={adv.tone}
+                        data-testid="main-branch-advisories"
+                        aria-haspopup="dialog"
+                        aria-label="{adv.text} (opens the advisories)"
+                        onclick={(e) =>
+                          advisories?.open({
+                            forge: b.forge,
+                            fullName: b.fullName,
+                            branch: b.branch,
+                            opener: e.currentTarget,
+                          })}>{adv.text}</button
+                      >
+                    {:else if adv.href}
                       <a
                         class="mb-advisory"
                         data-tone={adv.tone}
@@ -1128,4 +1155,5 @@
 </div>
 
 <PipelineDialog bind:this={pipeline} />
+<AdvisoriesDialog bind:this={advisories} />
 <PullRequestDetailsDialog bind:this={releaseDialog} />

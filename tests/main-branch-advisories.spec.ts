@@ -103,18 +103,17 @@ const pill = (page: Page, repo: string) =>
     .locator('[data-testid="main-branch-advisories"]');
 
 test.describe('Branches page advisories pill', () => {
-  test('a known count shows the count and highest severity, linking out', async ({
+  test('a known count shows the count and highest severity, opening the advisories', async ({
     page,
   }) => {
     await open(page);
 
     const p = pill(page, 'acme/critical');
     await expect(p).toHaveText('3 advisories, critical');
-    await expect(p).toHaveRole('link');
-    await expect(p).toHaveAttribute('href', DEPENDABOT);
-    await expect(p).toHaveAttribute('target', '_blank');
+    await expect(p).toHaveRole('button');
+    await expect(p).not.toHaveAttribute('href', /.*/);
     await expect(p).toHaveAccessibleName(
-      '3 advisories, critical (opens in a new tab)',
+      '3 advisories, critical (opens the advisories)',
     );
     await expect(pill(page, 'acme/single')).toHaveText('1 advisory, low');
   });

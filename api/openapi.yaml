@@ -3128,6 +3128,91 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/main-branches/advisories:
+    get:
+      operationId: listAdvisories
+      x-mcp-excluded: "Not offered to MCP clients yet: only the Main branches page's advisories dialog reads it. The count, highest severity and link per repository are already in get_main_branches. The pull request tool (get_pull_request_details) is the model if that changes."
+      summary: List a repository's open dependency advisories in full, on demand
+      description: |
+        What the advisories dialog on the Main branches page shows for one
+        repository: each open Dependabot alert with the fields GitHub's own
+        alert page shows. The list and the detail view are the same answer, so
+        opening one advisory costs no second call. Fetched live on every call,
+        never as part of GET /api/main-branches' snapshot, so a repository
+        nobody opens costs no budget.
+
+        Sorted by severity, highest first, then newest first. Only GitHub reads
+        them, through the Dependabot alerts of the repository; a Forgejo
+        repository is a 400.
+
+        A forge that can't say is a 200 with `state` "unknown", an empty list
+        and the `reason`, the same words as the row's own `advisories`: alerts
+        switched off, a credential without the Dependabot alerts permission, a
+        rate limit, any other failure, or a repository with more open alerts
+        than one read pages through. An empty `known` list means nothing is
+        open.
+
+        `description` is Markdown exactly as GitHub stores it, so a client must
+        render it with raw HTML disabled. A field GitHub didn't send is left
+        out.
+      tags: [dashboard]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Forge"
+        - name: fullName
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '"owner/repo", matching a MainBranch.fullName from GET /api/main-branches.'
+      responses:
+        "200":
+          description: The repository's open advisories, or the reason they couldn't be read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdvisoryList"
+        "400":
+          description: '`fullName` wasn''t "owner/repo", no credentials are saved for that forge, or that forge''s client can''t list advisories.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/main-branches/rerun-checks:
     post:
       operationId: rerunMainBranchChecks
@@ -6252,6 +6337,121 @@ components:
       type: string
       enum: [low, medium, high, critical]
       description: The worst severity among the open advisories. Absent when there are none.
+
+    AdvisoryList:
+      type: object
+      required: [state, advisories]
+      description: A repository's open dependency advisories in full.
+      properties:
+        state:
+          $ref: "#/components/schemas/AdvisoryState"
+        reason:
+          $ref: "#/components/schemas/AdvisoryReason"
+        url:
+          type: string
+          description: The repository's advisories page on the forge. Absent when none are open or the state is unknown.
+        advisories:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdvisoryItem"
+          description: Empty when none are open and whenever `state` is "unknown". Highest severity first, then newest first.
+
+    AdvisoryItem:
+      type: object
+      required: [number, state, summary]
+      description: One open Dependabot alert with the fields GitHub's alert page shows.
+      properties:
+        number:
+          type: integer
+          description: The alert's number on the forge.
+        state:
+          type: string
+          description: The alert's state on the forge. Always "open" here.
+        severity:
+          $ref: "#/components/schemas/AdvisorySeverity"
+        summary:
+          type: string
+          description: The advisory's one-line title.
+        ghsaId:
+          type: string
+        cveId:
+          type: string
+        package:
+          type: string
+          description: The vulnerable dependency's name.
+        ecosystem:
+          type: string
+          description: The package ecosystem, such as "npm" or "pip".
+        scope:
+          type: string
+          description: Whether the dependency is needed at runtime or only in development.
+        relationship:
+          type: string
+          description: Whether the dependency is direct or transitive. Absent when GitHub didn't say.
+        manifestPath:
+          type: string
+          description: The file the dependency was detected in.
+        openedAt:
+          type: string
+          format: date-time
+        vulnerableVersions:
+          type: string
+          description: The affected version range, as GitHub writes it.
+        patchedVersion:
+          type: string
+          description: The first version with the fix. Absent when there is none yet.
+        cvss:
+          $ref: "#/components/schemas/AdvisoryCVSS"
+        weaknesses:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdvisoryWeakness"
+        description:
+          type: string
+          description: The advisory's text, Markdown exactly as GitHub stores it. Render it with raw HTML disabled.
+        references:
+          type: array
+          items:
+            type: string
+          description: Links the advisory cites. A client shows only http(s) ones.
+        epss:
+          $ref: "#/components/schemas/AdvisoryEPSS"
+        url:
+          type: string
+          description: The alert's own page on the forge.
+
+    AdvisoryCVSS:
+      type: object
+      required: [score]
+      properties:
+        score:
+          type: number
+          description: The CVSS base score, 0 to 10.
+        vector:
+          type: string
+          description: The CVSS vector string.
+
+    AdvisoryWeakness:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: The CWE id, such as "CWE-295".
+        name:
+          type: string
+
+    AdvisoryEPSS:
+      type: object
+      required: [percentage, percentile]
+      description: The Exploit Prediction Scoring System's reading, as GitHub sends it. Absent when GitHub sent none.
+      properties:
+        percentage:
+          type: number
+          description: The probability of exploitation in the next 30 days, as a fraction from 0 to 1.
+        percentile:
+          type: number
+          description: How the score ranks among all scored flaws, as a fraction from 0 to 1.
 
     MainBranchRelease:
       type: object
