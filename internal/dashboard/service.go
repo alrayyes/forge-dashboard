@@ -624,7 +624,8 @@ func (s *Service) Subscribe() (<-chan Snapshot, func(), bool) {
 
 // Stop cancels the running refresh loop and nothing else. The first-refresh
 // marks and the force-refresh cooldown stay, so a pause or shutdown can't hand
-// out a free refresh. Reset puts those back to a fresh process.
+// out a free refresh. That includes bootStarted, which stays set until Reset.
+// Reset puts those back to a fresh process.
 func (s *Service) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
