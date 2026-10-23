@@ -97,6 +97,24 @@ func TestListDefaultBranchChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
 	assert.Zero(t, checks[1].RunID)
 }
 
+// A run whose jobs can't be read stands in as one check named for the run. It
+// is cancellable (it has the run id) but carries no job id, which is how the
+// dialog tells it from a real job that shares the workflow's name.
+func TestListDefaultBranchChecks_RunWithNoReadableJobs_IsCancellableButHasNoJob(t *testing.T) {
+	s := &mainBranchServer{
+		runs:   []map[string]any{actionRun(3, "main", "cafef00dcafef00d", "running", "2026-10-10T09:01:00Z", "2026-10-10T09:05:00Z")},
+		jobs:   map[string][]map[string]any{},
+		commit: goodCommit(),
+	}
+
+	checks, err := s.start(t).ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, int64(3), checks[0].RunID)
+	assert.Zero(t, checks[0].JobID, "the stand-in check is the run, not a job")
+}
+
 func TestCancelRun(t *testing.T) {
 	t.Parallel()
 
