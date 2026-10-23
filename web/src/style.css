@@ -1302,6 +1302,16 @@ select.col-filter {
   vertical-align: middle;
 }
 
+/* A cut name (the one carrying hover text) sits above the stretched overlay
+   (.title::after), so the pointer reaches the text and the browser can show
+   it. A click on it is passed on to the row's title in repoCell. A name that
+   fits has nothing to show, so it stays under the overlay and leaves the
+   row's whole hit area to the title. */
+.repo-name[title] {
+  position: relative;
+  z-index: 1;
+}
+
 .repo-name {
   font-family: "IBM Plex Mono", monospace;
   font-size: 12.5px;

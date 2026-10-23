@@ -2,6 +2,7 @@ package forgejo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -73,9 +74,12 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 		}
 
 		refusal := fmt.Errorf("%w: %s", errForgeRefused, reason)
-		if missingIsOrdinary && httpResp.StatusCode == http.StatusNotFound {
+		if missingIsOrdinary && httpResp.StatusCode == http.StatusNotFound && isAPIMessage(msg) {
 			// A log that was pruned, or a job that keeps none, is an ordinary
-			// answer: the request is logged as made, not as an error.
+			// answer: the request is logged as made, not as an error. Only
+			// Forgejo's own error body says so. A 404 without one comes from a
+			// server with no such route (a Forgejo too old to serve job logs, or
+			// a proxy in front), a capability gap that stays visible as an error.
 			clientErr, status := classifyForgejoError(http.MethodGet, path, resp, refusal)
 			c.recordRequest(ctx, http.MethodGet, path, status, requestlog.OutcomeSuccess)
 
@@ -96,6 +100,18 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 	c.recordRequest(ctx, http.MethodGet, path, httpResp.StatusCode, requestlog.OutcomeSuccess)
 
 	return dashboard.NewJobLog(tail, cut), nil
+}
+
+// isAPIMessage reports whether body is the JSON error envelope Forgejo's API
+// answers with, as opposed to a router's bare "404 page not found". A proxy
+// that rewrites its own 404s into a JSON body would still pass for a pruned log;
+// that is an accepted limit of the heuristic.
+func isAPIMessage(body []byte) bool {
+	var envelope struct {
+		Message string `json:"message"`
+	}
+
+	return json.Unmarshal(body, &envelope) == nil && envelope.Message != ""
 }
 
 // readTail reads r to the end and returns its last window bytes, and whether
@@ -156,6 +172,11 @@ func newExcerptKey(owner, name string, j *gitea.ActionWorkflowJob) excerptKey {
 // settled reports whether the job's log is final: it has been finished a while,
 // since a read just after the finish may have missed lines the runner had yet
 // to flush.
+//
+// It compares the forge's finish time with this machine's clock, so it assumes
+// the two agree to within excerptSettleDelay. A forge clock that runs behind
+// ours makes a log look settled early; a forge clock that runs ahead makes it
+// look unsettled for longer, which only costs a re-read.
 func (k excerptKey) settled(now time.Time) bool {
 	return !k.finished.IsZero() && now.Sub(k.finished) >= excerptSettleDelay
 }
@@ -163,10 +184,13 @@ func (k excerptKey) settled(now time.Time) bool {
 // rememberFailedJobs notes the excerpt key of each failed or timed-out job
 // among checks, so a later JobExcerpt can tell a settled log from one still
 // being flushed and a rerun from the first attempt, though the log endpoint
-// is asked for a job id alone. It reads no log. jobs[i] names check i's job.
-func (c *Client) rememberFailedJobs(owner, name string, checks []dashboard.Check, jobs []excerptKey) {
+// is asked for a job id alone. It reads no log. jobs holds each job's key by
+// its id, so no position in checks has to line up with it.
+func (c *Client) rememberFailedJobs(owner, name string, checks []dashboard.Check, jobs map[int64]excerptKey) {
 	for _, i := range newestFailures(checks) {
-		c.excerpts.remember(owner, name, checks[i].JobID, jobs[i])
+		if k, ok := jobs[checks[i].JobID]; ok {
+			c.excerpts.remember(owner, name, checks[i].JobID, k)
+		}
 	}
 }
 

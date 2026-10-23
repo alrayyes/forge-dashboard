@@ -634,6 +634,26 @@
     }
 
     // ---- row rendering ----
+    // A drag that starts and ends on an element is a text-selection gesture,
+    // not a click (a link never opens on one either). Call the returned
+    // function from the element's click handler.
+    function dragGuard(target: HTMLElement): (event: MouseEvent) => boolean {
+      let down: { x: number; y: number } | null = null;
+      target.addEventListener("pointerdown", (event) => {
+        down = { x: event.clientX, y: event.clientY };
+      });
+      return (event) => {
+        const start = down;
+        down = null;
+        // detail 0 is a keyboard click: no pointer path to judge.
+        return (
+          event.detail > 0 &&
+          start !== null &&
+          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
+        );
+      };
+    }
+
     function repoCell(item: FilterableItem): HTMLElement {
       const wrap = el("div", "repo");
       const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
@@ -667,6 +687,30 @@
       // (#1961); the truncation is purely visual, so a screen reader
       // already reads the untruncated text content regardless.
       titleHover.track(repoName, item.repo);
+      // The name sits above the row's stretched link so the pointer reaches
+      // it and the hover text shows; a click on it still does what a click
+      // anywhere else on the row does.
+      // A drag over the name is a text selection, as on the title, and the
+      // click is passed on whole, so its modifier keys and button survive.
+      const wasDrag = dragGuard(repoName);
+      repoName.addEventListener("click", (event) => {
+        if (wasDrag(event)) return;
+        const title = repoName.closest(".row")?.querySelector(".title");
+        title?.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            detail: event.detail,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            button: event.button,
+            ctrlKey: event.ctrlKey,
+            metaKey: event.metaKey,
+            shiftKey: event.shiftKey,
+            altKey: event.altKey,
+          }),
+        );
+      });
       wrap.appendChild(repoName);
       return wrap;
     }
@@ -772,22 +816,9 @@
         button.setAttribute("aria-label", `#${item.number} ${item.title}`);
         // Stable, so the dialog can hand focus back after a re-render.
         button.id = `details-trigger-${domSafeId(prKey(item as PullRequestItem))}`;
-        // A drag that starts and ends on the overlay is a text-selection
-        // gesture, not a click (a link never opens on one either).
-        let down: { x: number; y: number } | null = null;
-        button.addEventListener("pointerdown", (event) => {
-          down = { x: event.clientX, y: event.clientY };
-        });
+        const wasDrag = dragGuard(button);
         button.addEventListener("click", (event) => {
-          const start = down;
-          down = null;
-          // detail 0 is a keyboard click: no pointer path to judge.
-          if (
-            event.detail > 0 &&
-            start &&
-            Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
-          )
-            return;
+          if (wasDrag(event)) return;
           onOpen(button.id);
         });
       }
