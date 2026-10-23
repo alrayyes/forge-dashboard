@@ -132,6 +132,7 @@
   // Bumped when a repository is locked, so the lock redraws.
   let lockTick = $state(0);
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  let lockTimer: ReturnType<typeof setTimeout> | undefined;
   // Whether any re-read since the cancel was accepted came back.
   let settleRead = false;
   const SETTLE_MS = 2500;
@@ -202,8 +203,10 @@
       if (cancelLocksRepo(e)) {
         cancelLocks.set(cancelKey(cancel), { message, at: Date.now() });
         lockTick++;
-        // Redraw when the rest is over, in a dialog that is still open.
-        setTimeout(() => lockTick++, LOCK_MS + 1);
+        // Redraw when the rest is over, in a dialog that is still open. One
+        // timer: a later refusal moves it rather than stacking another.
+        clearTimeout(lockTimer);
+        lockTimer = setTimeout(() => lockTick++, LOCK_MS + 1);
       }
       if (!row || target !== row) return;
       runStates[run.runId] = { phase: "refused", run, message };
@@ -229,23 +232,22 @@
       // The forge took the cancel and no re-read showed the run stopped: give
       // the button back. It says the run is still going only if a re-read
       // actually saw that; otherwise it says it couldn't check.
-      const labels: string[] = [];
+      const runs: ActiveRun[] = [];
       for (const state of Object.values(runStates)) {
         if (state.phase !== "cancelling") continue;
-        const label = runLabel(state.run);
-        labels.push(label);
+        runs.push(state.run);
         runStates[state.run.runId] = {
           ...state,
           phase: "stalled",
           message: settleRead
-            ? `${label} is still running. The forge hasn't stopped it yet.`
-            : `Couldn't check whether ${label} has stopped.`,
+            ? `${runsPhrase([state.run])} still running. The forge hasn't stopped it yet.`
+            : `Couldn't check whether ${runLabel(state.run)} has stopped.`,
         };
       }
       speak(
         settleRead
-          ? `${joinLabels(labels)} still running. The forge hasn't stopped ${labels.length === 1 ? "it" : "them"} yet.`
-          : `Couldn't check whether ${joinLabels(labels, "or")} stopped.`,
+          ? `${runsPhrase(runs)} still running. The forge hasn't stopped ${runs.length === 1 ? "it" : "them"} yet.`
+          : `Couldn't check whether ${runsPhrase(runs, "or")} stopped.`,
       );
       return;
     }
@@ -259,7 +261,8 @@
   // A run the person cancelled that the checks no longer show going has
   // stopped. A run they were asked to confirm that finished on its own has
   // nothing left to cancel, so its question goes.
-  function reconcileRuns(list: Check[]) {
+  // Returns what to say, so a read that also changed jobs speaks it once.
+  function reconcileRuns(list: Check[]): string {
     const stopped: string[] = [];
     const finished: string[] = [];
     for (const state of Object.values(runStates)) {
@@ -275,16 +278,41 @@
         finished.push(runLabel(state.run));
       }
     }
-    // One line each, since the announcer holds one message at a time.
+    const lines: string[] = [];
     if (stopped.length) {
-      speak(
+      lines.push(
         `${joinLabels(stopped, "and")} ${stopped.length === 1 ? "was" : "were"} cancelled.`,
       );
-    } else if (finished.length) {
-      speak(
+    }
+    if (finished.length) {
+      lines.push(
         `${joinLabels(finished, "and")} ${finished.length === 1 ? "has" : "have"} finished.`,
       );
     }
+    return lines.join(" ");
+  }
+
+  // "ci is", "ci and release are", "This run is", "2 runs are". Unnamed runs
+  // are counted, since "this run and this run" says nothing. With a word the
+  // list is closed by it and no verb follows ("ci or release").
+  function runsPhrase(runs: ActiveRun[], word?: string): string {
+    const named = runs.filter((r) => r.runName).map((r) => r.runName);
+    const unnamed = runs.length - named.length;
+    const parts = [...named];
+    if (unnamed) {
+      parts.push(
+        named.length
+          ? `${unnamed} other ${unnamed === 1 ? "run" : "runs"}`
+          : unnamed === 1
+            ? "this run"
+            : `${unnamed} runs`,
+      );
+    }
+    let text = joinLabels(parts, word ?? "and");
+    if (word) return text;
+    if (!named.length && unnamed === 1)
+      text = text.charAt(0).toUpperCase() + text.slice(1);
+    return `${text} ${runs.length === 1 ? "is" : "are"}`;
   }
 
   // "ci", "ci and release", "ci, release and deploy".
@@ -322,6 +350,7 @@
     reads = newExcerptReads();
     runStates = {};
     clearTimeout(settleTimer);
+    clearTimeout(lockTimer);
     speak.clear();
     live = createLiveChecks({
       signature: next.signature,
@@ -366,7 +395,8 @@
       const res = await fetch(row.checksUrl, {
         headers: { Accept: "application/json" },
       });
-      if (mine !== request) return false;
+      // A read a newer one overtook still came back; only a failed one didn't.
+      if (mine !== request) return res.ok;
       if (res.status === 401) {
         window.location.href = "/login.html";
         return false;
@@ -375,7 +405,7 @@
       if (!res.ok) {
         throw new Error(body?.error || `backend answered ${res.status}`);
       }
-      if (mine !== request) return false;
+      if (mine !== request) return true;
       const next: Check[] = body?.checks ?? [];
       if (again) {
         // Each check changes where it stands; nothing moves or redraws when no
@@ -388,9 +418,11 @@
           .querySelector(".pipeline-dialog-body")
           ?.contains(document.activeElement);
         checks = ordered;
-        reconcileRuns(ordered);
+        const said = reconcileRuns(ordered);
         askForExcerpts(ordered, row.checksUrl);
-        if (line) speak(line);
+        // One message per read: the announcer holds one at a time.
+        const both = [said, line].filter(Boolean).join(" ");
+        if (both) speak(both);
         // The control the keyboard was on is gone: its node went with it, so
         // focus goes to the close button instead of the page behind.
         if (hadFocus) {
@@ -404,8 +436,9 @@
       }
       live?.refreshed();
       checks = blockingFirst(next);
-      reconcileRuns(checks);
+      const said = reconcileRuns(checks);
       phase = "ready";
+      if (said) speak(said);
       askForExcerpts(checks, row.checksUrl);
       return true;
     } catch (err) {
@@ -427,6 +460,7 @@
     request++;
     excerptRun++;
     clearTimeout(settleTimer);
+    clearTimeout(lockTimer);
     live = null;
     speak.clear();
     const done = target;

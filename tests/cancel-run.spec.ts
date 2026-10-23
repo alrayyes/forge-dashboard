@@ -597,8 +597,79 @@ test.describe('cancel a running pipeline', () => {
     await page.clock.runFor(2500 * 9);
 
     const said = page.locator('.pipeline-live-status');
-    await expect(said).toContainText('ci');
-    await expect(said).toContainText('release');
+    await expect(said).toContainText('ci and release are still running');
+  });
+
+  test('one stalled run reads as "ci is still running"', async ({ page }) => {
+    await page.clock.install();
+    const state = { checks: RUNNING, posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+
+    await page.clock.runFor(2500 * 9);
+
+    await expect(page.locator('.pipeline-live-status')).toContainText(
+      'ci is still running',
+    );
+  });
+
+  test('stalled runs with no name are counted, not repeated', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const unnamed = TWO_RUNS.map(({ runName: _name, ...rest }) => rest);
+    const state = { checks: unnamed, posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    for (let i = 0; i < 2; i++) {
+      await dialog
+        .getByRole('button', { name: /^Cancel run/ })
+        .first()
+        .click();
+      await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    }
+
+    await page.clock.runFor(2500 * 9);
+
+    const said = page.locator('.pipeline-live-status');
+    await expect(said).toContainText('2 runs are still running');
+    await expect(said).not.toContainText('this run and this run');
+  });
+
+  test('one read that stops a run and finishes a confirm is said together with the job changes', async ({
+    page,
+  }) => {
+    const state = { checks: TWO_RUNS, posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: release' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Yes, cancel run' }),
+    ).toBeVisible();
+
+    state.checks = [
+      ...STOPPED,
+      {
+        name: 'publish',
+        state: 'cancelled',
+        url: 'https://example.com/r/5',
+        jobId: 5,
+      },
+    ];
+    await page.evaluate(
+      (item) => window.__push(item),
+      snapshot({
+        ...pr([{ action: 'cancel_run' }]),
+        ci: 'success',
+        checks: { passed: 3, running: 0, waiting: 0, failed: 0 },
+      }),
+    );
+
+    const said = page.locator('.pipeline-live-status');
+    await expect(said).toContainText('release was cancelled');
+    await expect(said).toContainText('ci has finished');
+    await expect(said).toContainText('Checks updated');
   });
 
   test('a permission lock lifts in an open dialog once its time is up', async ({
