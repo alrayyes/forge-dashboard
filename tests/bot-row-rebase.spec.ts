@@ -47,6 +47,13 @@ async function open(page: Page, pullRequest: unknown) {
   return page.locator('#pr-rows > .row').first();
 }
 
+async function expectNoAxeViolations(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+}
+
 const bots = [
   { name: 'Renovate', author: 'renovate[bot]', button: 'Renovate: Rebase' },
   {
@@ -70,6 +77,7 @@ for (const { name, author, button } of bots) {
       row.locator('.row-action-bar').getByRole('button', { name: button }),
     ).toBeVisible();
     await expect(row.getByRole('button', { name: button })).toHaveCount(1);
+    await expectNoAxeViolations(page);
   });
 
   test(`a behind ${name} pull request waiting on CI has ${button} in its row`, async ({
@@ -79,11 +87,28 @@ for (const { name, author, button } of bots) {
     const bar = row.locator('.row-action-bar');
     await expect(bar.getByRole('button', { name: button })).toBeVisible();
     await expect(row.getByRole('button', { name: button })).toHaveCount(1);
+    await expectNoAxeViolations(page);
+  });
 
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
+  test(`a behind ${name} pull request fits a 360px row with ${button} reachable`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    const row = await open(page, pr({ author }));
+    const button_ = row
+      .locator('.row-action-bar')
+      .getByRole('button', { name: button });
+    await expect(button_).toBeVisible();
+    const box = await button_.boundingBox();
+    expect(box && box.x >= 0 && box.x + box.width <= 360).toBe(true);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await expectNoAxeViolations(page);
   });
 }
 
@@ -117,4 +142,5 @@ test('a behind Renovate pull request waiting on CI with a rebase already request
     .locator('.row-action-bar')
     .getByRole('button', { name: 'Renovate: Rebase' });
   await expect(button).toHaveAttribute('aria-disabled', 'true');
+  await expectNoAxeViolations(page);
 });

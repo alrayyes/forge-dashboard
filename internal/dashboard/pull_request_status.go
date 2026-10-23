@@ -30,6 +30,11 @@ func PullRequestStatus(pr PullRequest, actions []ActionAvailability) *Status {
 // the bot's own rebase. A conflict, a pending check or a draft has none, and a
 // rebase already waiting leaves none too, since the row then shows that action
 // locked.
+//
+// A behind bot pull request that is waiting on checks has a primary rebase
+// from markPrimary but no Action here, on purpose: fixFor answers only for the
+// behind block, and the client draws that rebase on the row instead of in the
+// status line, so don't make fixFor return it.
 type Status struct {
 	Blocked
 

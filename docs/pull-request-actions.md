@@ -7,22 +7,23 @@ own. Only
 live state is the page's: a rate-limited or unreachable forge, a missing token,
 an action already in flight.
 
-One entry in `allowedActions` can carry `primary: true`, the action the row
-and the phone card draw as the main button. The server picks it, so
-no client does. Merge is primary when it is offered and not blocked, unless CI
-is failing. An empty pull request has Close. When being behind the base branch
-is what holds Merge back, Update branch is primary, or the Renovate or
-Dependabot rebase for a bot pull request. A behind bot pull request has its
-rebase as primary whatever else holds Merge back (checks running or failing,
-auto-merge armed), so a stale bot branch can be fixed from the row. A conflict,
-a draft or a stacked pull request never qualifies. Unlike Update branch, which
-is held back while checks run because it would restart them, the rebase is
-offered then: it does restart the checks, but only when someone clicks it, and
-a stuck bot pull request is the case it is for. A rebase that is already
-requested, or locked by a pending Recreate, is blocked and so not primary; the
-row keeps its locked button. Every other state has no primary action: a
-blocked, waiting, conflicting, draft or stacked pull request leaves its reason
-to `status`. A blocked action is never primary, and at most one entry is.
+One entry in `allowedActions` can carry `primary: true`, the action the row and
+the phone card draw as the main button. The server picks it, so no client does.
+Merge is primary when it is offered and not blocked, unless CI is failing. An
+empty pull request has Close. When being behind the base branch is what holds
+Merge back, Update branch is primary, or the Renovate or Dependabot rebase for a
+bot pull request. A behind bot pull request has its rebase as primary whatever
+else holds Merge back (checks running or failing, auto-merge armed), so a stale
+bot branch can be fixed from the row. A conflict, a draft or a stacked pull
+request never qualifies, and neither does one whose checks are held for workflow
+approval, which a rebase can't release. Unlike Update branch, which is held back
+while checks run because it would restart them, the rebase is offered then: it
+does restart the checks, but only when someone clicks it, and a stuck bot pull
+request is the case it is for. A rebase that is already requested, or locked by
+a pending Recreate, is blocked and so not primary; the row keeps its locked
+button. Every other state has no primary action: a blocked, waiting,
+conflicting, draft or stacked pull request leaves its reason to `status`. A
+blocked action is never primary, and at most one entry is.
 
 The row draws one button: the primary action, or, while Merge is locked, the
 greyed Merge with its reason. A pull request with neither draws none, so a

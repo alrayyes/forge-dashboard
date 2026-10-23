@@ -96,7 +96,8 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 //   - a bot pull request that is behind, and neither conflicting, a draft nor
 //     stacked, whatever else holds Merge back (checks running or failing,
 //     auto-merge armed): the bot's rebase, since a stale branch is worth
-//     fixing while it waits;
+//     fixing while it waits. Runs held for workflow approval are the
+//     exception, as a rebase can't release them;
 //   - anything else (checks running or failing, conflict, draft, stacked,
 //     blocked by the forge): none, since the status area gives the reason.
 func markPrimary(pr PullRequest, actions []ActionAvailability) {
@@ -124,11 +125,11 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 		case a.Blocked == nil && pr.CI != CIFailure:
 			return []ActionName{ActionMerge}
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
-			return []ActionName{ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase}
-		// Blocked, or open only because the failing checks aren't required (no
-		// block code then carries the behind state): the rule is the same.
-		case botRebaseWorthOffering(pr) && (a.Blocked != nil || pr.CI == CIFailure):
-			return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
+			return append([]ActionName{ActionUpdateBranch}, botRebases(pr)...)
+		// Merge is blocked for another reason, or open only because the failing
+		// checks aren't required: the rule is the same.
+		case botRebaseWorthOffering(pr):
+			return botRebases(pr)
 		}
 	}
 
@@ -141,6 +142,17 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 // name nothing for any other.
 func botRebaseWorthOffering(pr PullRequest) bool {
 	return pr.Behind && pr.MergeStatus != MergeConflicting && !pr.Draft && pr.StackedOn == nil
+}
+
+// botRebases is the bot rebases that may be primary. Runs held for workflow
+// approval report nothing until a maintainer approves them, and a rebase can't
+// do that, so none is offered then and Merge's reason stays in the status.
+func botRebases(pr PullRequest) []ActionName {
+	if pr.AwaitingWorkflowApproval {
+		return nil
+	}
+
+	return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
 }
 
 // dependabotRebaseAvailability: a Recreate that is pending rebuilds the whole

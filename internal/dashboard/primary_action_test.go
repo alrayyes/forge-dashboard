@@ -86,6 +86,15 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.CI = dashboard.CIPending
 			p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: dashboard.BotRecreate, Phase: dashboard.BotQueued}
 		}), []string{}},
+		// A rebase can't clear a hold for workflow approval, so the status area
+		// keeps the reason and the row has no rebase.
+		{"Renovate behind, blocked, failing and awaiting workflow approval: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.AwaitingWorkflowApproval = true }), []string{}},
+		{"Dependabot behind, blocked, failing and awaiting workflow approval: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.AwaitingWorkflowApproval = true }), []string{}},
+		{"Dependabot behind, unstable, failing and awaiting workflow approval: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeUnstable
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
 		{"Renovate behind and draft: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Dependabot behind and draft: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Renovate behind and stacked: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{}},
