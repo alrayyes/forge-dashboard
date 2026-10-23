@@ -67,15 +67,19 @@
   // GET /api/pull-requests/details or GET /api/issues/details, fetched when
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
+  import { tick } from "svelte";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
   import { repoUrlOf } from "#lib/repo-url.js";
 
-  // Puts a node the row's builders made into the header.
+  // Puts a node the row's builders made into the header. A node already in
+  // place stays put: moving it would drop keyboard focus from inside it
+  // whenever the dialog redraws for another reason (the details arriving).
   const adopt = (content: HTMLElement) => (node: HTMLElement) => {
-    node.replaceChildren(content);
+    if (node.firstChild !== content || node.childNodes.length !== 1)
+      node.replaceChildren(content);
   };
 
   // An error the server explained, as opposed to a network or chunk failure.
@@ -209,9 +213,30 @@
   // Swaps the attributes under the title (labels, and for an issue the pull
   // requests that will close it) for another set the page built, so the open
   // dialog follows the board without closing.
+  //
+  // The swap replaces the nodes, so a pill link holding keyboard focus would
+  // drop it to the page. Focus goes back to the same link (by href) in the
+  // new set, or to the close button when that pull request is gone.
   export function setAttributes(attributes: HTMLElement) {
-    if (target?.status)
-      target = { ...target, status: { ...target.status, attributes } };
+    if (!target?.status) return;
+    const held = document.activeElement;
+    const href =
+      held instanceof HTMLAnchorElement &&
+      target.status.attributes.contains(held)
+        ? held.getAttribute("href")
+        : null;
+    target = { ...target, status: { ...target.status, attributes } };
+    if (href === null) return;
+    void tick().then(() => {
+      if (!dialogEl?.open || dialogEl.contains(document.activeElement)) return;
+      const same = [
+        ...dialogEl.querySelectorAll<HTMLAnchorElement>(
+          ".details-attributes a[href]",
+        ),
+      ].find((a) => a.getAttribute("href") === href);
+      if (same) same.focus();
+      else focusClose();
+    });
   }
 
   // The close button in the header: where focus goes when the control it was

@@ -186,6 +186,43 @@ test('the pills follow the pull request list while the dialog stays open', async
   await expect(dialog(page)).toHaveAttribute('aria-label', name ?? '');
 });
 
+test('focus on a pill survives a poll that changes the list', async ({
+  page,
+}) => {
+  let list: unknown[] = [linked(12), linked(13)];
+  await mockBoard(page, () => [issue(1, list)]);
+  const refresh = () =>
+    page.evaluate(() =>
+      document.querySelector<HTMLElement>('#force-refresh-button')?.click(),
+    );
+  const focusedHref = () =>
+    page.evaluate(() => document.activeElement?.getAttribute('href') ?? null);
+  await page.goto('/issues.html');
+  await openDialog(page);
+  await dialogPills(page).nth(1).focus();
+  await expect.poll(focusedHref).toBe(linked(13).pageUrl);
+
+  // The other pill is replaced: focus stays on the same one.
+  list = [linked(11), linked(13)];
+  await refresh();
+  await expect(dialogPills(page).first()).toHaveAttribute(
+    'href',
+    linked(11).pageUrl,
+  );
+  await expect.poll(focusedHref).toBe(linked(13).pageUrl);
+
+  // The focused one goes: focus stays inside the dialog, not on the page.
+  list = [linked(11)];
+  await refresh();
+  await expect(dialogPills(page)).toHaveCount(1);
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.tagName))
+    .not.toBe('BODY');
+  expect(
+    await dialog(page).evaluate((d) => d.contains(document.activeElement)),
+  ).toBe(true);
+});
+
 for (const width of [1280, 390]) {
   for (const scheme of ['light', 'dark'] as const) {
     test(`has no axe violations with a closing pull request in the dialog, ${scheme} at ${width}px`, async ({
