@@ -64,6 +64,22 @@ async function mockDashboard(page: Page, pullRequests: unknown[]) {
   );
 }
 
+async function mockDetails(page: Page) {
+  await page.route('**/api/pull-requests/details*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        description: null,
+        comments: [],
+        commentCount: 0,
+        commentsTruncated: false,
+        releaseNotes: null,
+      }),
+    }),
+  );
+}
+
 const repoName = (page: Page, n: number) =>
   page.locator('#pr-rows .row', { hasText: `#${n}` }).locator('.repo-name');
 
@@ -120,19 +136,7 @@ for (const [label, width] of [
     test('the cut text is what the pointer hits, and a click on it still opens the dialog', async ({
       page,
     }) => {
-      await page.route('**/api/pull-requests/details*', (route: Route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            description: null,
-            comments: [],
-            commentCount: 0,
-            commentsTruncated: false,
-            releaseNotes: null,
-          }),
-        }),
-      );
+      await mockDetails(page);
       await page.goto('/pull-requests.html');
       const span = repoName(page, 1);
       await expect(span).toHaveAttribute('title', LONG);
@@ -160,6 +164,51 @@ for (const [label, width] of [
       await expect(
         page.getByRole('dialog', { name: /^Pull request details/ }),
       ).toBeVisible();
+    });
+
+    test('dragging across a cut name selects it and opens nothing', async ({
+      page,
+    }) => {
+      await mockDetails(page);
+      await page.goto('/pull-requests.html');
+      const span = repoName(page, 1);
+      await expect(span).toHaveAttribute('title', LONG);
+      const box = await span.boundingBox();
+      if (!box) throw new Error('no repo name box');
+      const y = box.y + box.height / 2;
+      await page.mouse.move(box.x + 6, y);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width - 6, y, { steps: 8 });
+      await page.mouse.up();
+      await expect(
+        page.getByRole('dialog', { name: /^Pull request details/ }),
+      ).toHaveCount(0);
+    });
+
+    test('a modifier held on the click reaches the row title', async ({
+      page,
+    }) => {
+      await mockDetails(page);
+      await page.goto('/pull-requests.html');
+      const span = repoName(page, 1);
+      await expect(span).toHaveAttribute('title', LONG);
+      await page.evaluate(() => {
+        const w = window as unknown as { __titleClicks: boolean[] };
+        w.__titleClicks = [];
+        for (const t of document.querySelectorAll('#pr-rows .row .title'))
+          t.addEventListener('click', (e) =>
+            w.__titleClicks.push((e as MouseEvent).ctrlKey),
+          );
+      });
+      const box = await span.boundingBox();
+      if (!box) throw new Error('no repo name box');
+      await page.keyboard.down('Control');
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await page.keyboard.up('Control');
+      const seen = await page.evaluate(
+        () => (window as unknown as { __titleClicks: boolean[] }).__titleClicks,
+      );
+      expect(seen).toEqual([true]);
     });
 
     test('the accessible name is the text and axe passes', async ({ page }) => {
