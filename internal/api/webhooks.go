@@ -24,8 +24,8 @@ const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 // handleGitHubWebhook verifies a GitHub repository webhook delivery
 // against its X-Hub-Signature-256 header and triggers an immediate
 // refresh when webhookToken matches.
-func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, warmUp, dashboard.ForgeGitHub,
+func handleGitHubWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
+	return handleWebhook(appCtx, store, service, warmUp, dashboard.ForgeGitHub,
 		func(h http.Header) string {
 			const prefix = "sha256="
 			sig := h.Get("X-Hub-Signature-256")
@@ -44,8 +44,8 @@ func handleGitHubWebhook(appCtx context.Context, store *settings.Store, manager 
 // Which header carries the signature depends on whether the webhook was
 // set up with the "Forgejo" type or the legacy "Gitea" one — both are the
 // same raw hex HMAC-SHA256, no prefix.
-func handleForgejoWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
-	return handleWebhook(appCtx, store, manager, warmUp, dashboard.ForgeForgejo,
+func handleForgejoWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
+	return handleWebhook(appCtx, store, service, warmUp, dashboard.ForgeForgejo,
 		func(h http.Header) string {
 			if sig := h.Get("X-Forgejo-Signature"); sig != "" {
 				return sig
@@ -192,18 +192,18 @@ func isCommitSHA(s string) bool {
 // recordDelivery notes a verified delivery with the dashboard. A check event
 // whose body backs it up marks its commit; one whose body does not is recorded
 // as an event of no particular class.
-func recordDelivery(manager *dashboard.Service, forge dashboard.Forge, fullName, event string, body []byte) {
+func recordDelivery(service *dashboard.Service, forge dashboard.Forge, fullName, event string, body []byte) {
 	if dashboard.ClassifyEvent(event) != dashboard.EventClassCheck {
-		manager.RecordDelivery(forge, fullName, event)
+		service.RecordDelivery(forge, fullName, event)
 
 		return
 	}
 	if sha, ok := checkCommit(event, body); ok {
-		manager.RecordCheckDelivery(forge, fullName, sha)
+		service.RecordCheckDelivery(forge, fullName, sha)
 
 		return
 	}
-	manager.RecordDelivery(forge, fullName, "")
+	service.RecordDelivery(forge, fullName, "")
 }
 
 // settleFromDelivery applies what a signed pull_request delivery says about
@@ -213,7 +213,7 @@ func recordDelivery(manager *dashboard.Service, forge dashboard.Forge, fullName,
 // request as open for a while after it merged, and a failed fetch shows
 // nothing at all, either of which kept a merged pull request's Merge button on
 // the board (#966). Dropped by the aggregator once a fetch stops listing it.
-func settleFromDelivery(manager *dashboard.Service, forge dashboard.Forge, body []byte) {
+func settleFromDelivery(service *dashboard.Service, forge dashboard.Forge, body []byte) {
 	_, _, fullName, ok := repoFromPayload(body)
 	if !ok {
 		return
@@ -224,9 +224,9 @@ func settleFromDelivery(manager *dashboard.Service, forge dashboard.Forge, body 
 	}
 	switch action {
 	case "closed":
-		manager.MarkSettled(forge, fullName, number)
+		service.MarkSettled(forge, fullName, number)
 	case "reopened":
-		manager.Unsettle(forge, fullName, number)
+		service.Unsettle(forge, fullName, number)
 	}
 }
 
@@ -251,7 +251,7 @@ func settleFromDelivery(manager *dashboard.Service, forge dashboard.Forge, body 
 // forge fetch along with it. The delivery is acknowledged as soon as it's
 // verified; the refresh it triggers survives the delivery ending either
 // way.
-func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
+func handleWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("webhookToken")
 		delivery, event := deliveryOf(r.Header)
@@ -291,7 +291,7 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 			}
 		}
 
-		acknowledgeDelivery(appCtx, w, manager, warmUp, forge, delivery, event, body)
+		acknowledgeDelivery(appCtx, w, service, warmUp, forge, delivery, event, body)
 	}
 }
 
@@ -300,23 +300,21 @@ func handleWebhook(appCtx context.Context, store *settings.Store, manager *dashb
 // after a restart, before any page load or login), it first builds one from the
 // saved settings, as a page load does, because the forge won't redeliver a 204.
 // With no settings saved nothing starts and the delivery is still acknowledged.
-func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, manager *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, delivery, event string, body []byte) {
+func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, service *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, delivery, event string, body []byte) {
 	slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
-	if !manager.Running() {
-		warmUp(appCtx)
-	}
-	if !manager.Running() {
+	warmUp(appCtx)
+	if !service.Running() {
 		slog.Warn("webhook delivery acknowledged but ignored: no dashboard could be started", "forge", forge, "delivery", delivery)
 		w.WriteHeader(http.StatusNoContent)
 
 		return
 	}
 	if _, _, fullName, ok := repoFromPayload(body); ok {
-		recordDelivery(manager, forge, fullName, event, body)
+		recordDelivery(service, forge, fullName, event, body)
 	}
-	settleFromDelivery(manager, forge, body)
+	settleFromDelivery(service, forge, body)
 	w.WriteHeader(http.StatusNoContent)
-	go triggerRefresh(appCtx, manager, forge, delivery, body)
+	go triggerRefresh(appCtx, service, forge, delivery, body)
 }
 
 // triggerRefresh scopes a webhook-triggered refresh to just the repo the
@@ -333,21 +331,21 @@ func acknowledgeDelivery(appCtx context.Context, w http.ResponseWriter, manager 
 // A scoped refresh is held back briefly and merged with the repo's other
 // deliveries (Aggregator.RefreshRepoDebounced), because one push sends several
 // deliveries in a burst. The fallback to a full refresh is not held back.
-func triggerRefresh(ctx context.Context, manager *dashboard.Service, forge dashboard.Forge, delivery string, body []byte) {
+func triggerRefresh(ctx context.Context, service *dashboard.Service, forge dashboard.Forge, delivery string, body []byte) {
 	if owner, name, fullName, ok := repoFromPayload(body); ok {
 		// A failed fetch says which delivery and pull request it was for (#966).
 		attrs := []any{"delivery", delivery}
 		if _, number, isPR := pullRequestAction(body); isPR {
 			attrs = append(attrs, "pull_request", number)
 		}
-		if manager.RefreshRepoDebounced(ctx, forge, owner, name, fullName, attrs...) {
+		if service.RefreshRepoDebounced(ctx, forge, owner, name, fullName, attrs...) {
 			slog.Info("webhook refresh dispatched", "forge", forge, "delivery", delivery, "repo", fullName, "scoped", true)
 
 			return
 		}
 		slog.Info("webhook scoped refresh unavailable, falling back to a full refresh", "forge", forge, "delivery", delivery, "repo", fullName)
 	}
-	ok := manager.RefreshNow(ctx)
+	ok := service.RefreshNow(ctx)
 	slog.Info("webhook refresh dispatched", "forge", forge, "delivery", delivery, "scoped", false, "ok", ok)
 }
 

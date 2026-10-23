@@ -86,7 +86,7 @@ func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) 
 	t.Parallel()
 
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(c settingspkg.Credentials) []dashboard.Source {
+	srv, service, _ := newTestServerWithSourcesAndService(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
 			return nil
 		}
@@ -95,7 +95,7 @@ func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) 
 	})
 	// Long enough that a loaded CPU can't push the second call past it.
 	const cooldown = time.Minute
-	manager.SetForceRefreshCooldown(cooldown)
+	service.SetForceRefreshCooldown(cooldown)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
 	_ = putResp.Body.Close()

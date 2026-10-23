@@ -161,12 +161,12 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullUntilTheFirstRefreshFinishes(t *t
 
 func TestSettingsGet_IgnoredTitleCounts_AreNullWithNoSnapshotAndEmptyWithNoPatterns(t *testing.T) {
 	t.Parallel()
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(settingspkg.Credentials) []dashboard.Source { return nil })
+	srv, service, _ := newTestServerWithSourcesAndService(t, func(settingspkg.Credentials) []dashboard.Source { return nil })
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":["weekly"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
-	manager.Stop() // a restart: the viewer has no snapshot until they refresh again
+	service.Stop() // a restart: the viewer has no snapshot until they refresh again
 	assert.Equal(t, []*int{nil}, getSettings(t, srv.URL, cookie).IgnoredTitleCounts, "no snapshot")
 
 	status, put := putSettings(t, srv.URL, `{}`, cookie)

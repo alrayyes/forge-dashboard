@@ -511,7 +511,7 @@
 
   let autoUpdateBusy = $state<Record<string, boolean>>({});
 
-  // Mirrors ignoreRepo/unignoreRepo above: a pure per-user setting write,
+  // Mirrors ignoreRepo/unignoreRepo above: a pure settings write,
   // nothing touching the forge, so a global status message is enough — no
   // per-row locked-reason mechanic the way addWebhook needs one.
   async function setAutoUpdateBranch(repo: Repo, enabled: boolean) {

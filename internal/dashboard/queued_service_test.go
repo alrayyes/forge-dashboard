@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A Manager given a queue store starts the scheduler with every user's
+// A Service given a queue store starts the scheduler with the
 // dashboard, so a queued action whose reset has passed runs without anyone
 // opening the page. That is also how a restart keeps its promise: the new
 // process starts the dashboard, which reads the stored queue.
@@ -22,11 +22,11 @@ func TestService_WithAQueueStore_RunsADueQueuedActionAfterAStart(t *testing.T) {
 		Status: dashboard.QueuedWaiting, RunAt: time.Now().Add(-time.Hour), CreatedAt: time.Now().Add(-2 * time.Hour),
 	})
 	require.NoError(t, err)
-	manager := dashboard.NewService(time.Hour)
-	t.Cleanup(manager.Stop)
-	manager.SetQueuedActionStore(store)
+	service := dashboard.NewService(time.Hour)
+	t.Cleanup(service.Stop)
+	service.SetQueuedActionStore(store)
 
-	manager.EnsureIfAbsent(t.Context(), []dashboard.Source{src})
+	service.EnsureIfAbsent(t.Context(), []dashboard.Source{src})
 
 	require.Eventually(t, func() bool { return len(src.writes()) == 1 }, 10*time.Second, 50*time.Millisecond)
 }

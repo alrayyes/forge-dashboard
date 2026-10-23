@@ -49,7 +49,7 @@ func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, 
 			pr(5, "alice", true), pr(6, "dependabot[bot]", true), pr(7, "renovate[bot]", true), pr(8, "alice", false), waiting(pr(9, "alice", true)),
 		},
 	}
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(c settingspkg.Credentials) []dashboard.Source {
+	srv, service, _ := newTestServerWithSourcesAndService(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}
@@ -66,7 +66,7 @@ func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, 
 		return len(prs) == 5
 	}, pollBudget, 10*time.Millisecond)
 
-	return srv, manager, cookie
+	return srv, service, cookie
 }
 
 func queueBody(action string, number int) string {
@@ -327,11 +327,11 @@ func TestQueuedActions_RequireASession(t *testing.T) {
 
 func TestQueuedActions_SurviveARestart(t *testing.T) {
 	t.Parallel()
-	srv, manager, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
+	srv, service, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), cookie)
 	_ = resp.Body.Close()
 
-	manager.Stop() // what a restart does to every aggregator
+	service.Stop() // what a restart does to every aggregator
 
 	assert.Len(t, listQueued(t, srv, cookie), 1)
 }

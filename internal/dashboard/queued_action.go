@@ -16,7 +16,7 @@ const (
 )
 
 // QueuedAction is a safe action a user asked to run once a rate-limited forge
-// resets (#756). The server owns it, per user, so a reload or a restart shows
+// resets (#756). The server owns it, so a reload or a restart shows
 // it again. It matches components.schemas.QueuedAction.
 type QueuedAction struct {
 	ID     string       `json:"id"`

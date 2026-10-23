@@ -38,13 +38,13 @@ func (c *apiClock) advance(d time.Duration) {
 }
 
 // idleActivity is an Activity that has been left alone past its idle period,
-// wired into manager.
-func idleActivity(t *testing.T, manager *dashboard.Service) *dashboard.Activity {
+// wired into service.
+func idleActivity(t *testing.T, service *dashboard.Service) *dashboard.Activity {
 	t.Helper()
 
 	clock := newAPIClock()
 	act := dashboard.NewActivity(15*time.Minute, clock.now)
-	manager.SetActivity(act)
+	service.SetActivity(act)
 	clock.advance(time.Hour)
 	require.True(t, act.Idle())
 
@@ -54,9 +54,9 @@ func idleActivity(t *testing.T, manager *dashboard.Service) *dashboard.Activity 
 func TestActivity_ASignedInRequestCountsAsUse(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	act := idleActivity(t, manager)
+	act := idleActivity(t, service)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 	require.NoError(t, err)
@@ -72,8 +72,8 @@ func TestActivity_ASignedInRequestCountsAsUse(t *testing.T) {
 func TestActivity_ARequestThatIsRejectedIsNotUse(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
-	act := idleActivity(t, manager)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
+	act := idleActivity(t, service)
 
 	resp, err := testClient(t).Get(srv.URL + "/api/auth/session")
 	require.NoError(t, err)
@@ -86,8 +86,8 @@ func TestActivity_ARequestThatIsRejectedIsNotUse(t *testing.T) {
 func TestActivity_AHealthProbeIsNotUse(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
-	act := idleActivity(t, manager)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
+	act := idleActivity(t, service)
 
 	resp, err := testClient(t).Get(srv.URL + "/healthz")
 	require.NoError(t, err)
@@ -100,10 +100,10 @@ func TestActivity_AHealthProbeIsNotUse(t *testing.T) {
 func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	manager.EnsureIfAbsent(t.Context(), nil)
-	act := idleActivity(t, manager)
+	service.EnsureIfAbsent(t.Context(), nil)
+	act := idleActivity(t, service)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)
@@ -138,8 +138,8 @@ func postPresence(t *testing.T, srvURL string, cookie *http.Cookie, body string)
 func TestPresence_RequiresASession(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
-	act := idleActivity(t, manager)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
+	act := idleActivity(t, service)
 
 	status, _ := postPresence(t, srv.URL, nil, `{"viewerId":"tab-aaaaaaaa","visible":true}`)
 
@@ -150,9 +150,9 @@ func TestPresence_RequiresASession(t *testing.T) {
 func TestPresence_VisibleHoldsTheDashboardActiveAndAnswersTheTimings(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	act := idleActivity(t, manager)
+	act := idleActivity(t, service)
 
 	status, raw := postPresence(t, srv.URL, cookie, `{"viewerId":"tab-aaaaaaaa","visible":true}`)
 
@@ -175,11 +175,11 @@ func TestPresence_VisibleHoldsTheDashboardActiveAndAnswersTheTimings(t *testing.
 func TestPresence_HiddenIsNotUseAndLetsTheTabGo(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	clock := newAPIClock()
 	act := dashboard.NewActivity(15*time.Minute, clock.now)
-	manager.SetActivity(act)
+	service.SetActivity(act)
 
 	status, _ := postPresence(t, srv.URL, cookie, `{"viewerId":"tab-aaaaaaaa","visible":true}`)
 	require.Equal(t, http.StatusOK, status)
@@ -194,9 +194,9 @@ func TestPresence_HiddenIsNotUseAndLetsTheTabGo(t *testing.T) {
 func TestPresence_RejectsABodyItCannotUse(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	act := idleActivity(t, manager)
+	act := idleActivity(t, service)
 
 	for _, body := range []string{``, `{`, `{"visible":true}`, `{"viewerId":"x","visible":true}`, `{"viewerId":"tab-aaaaaaaa"}`} {
 		status, _ := postPresence(t, srv.URL, cookie, body)
@@ -208,9 +208,9 @@ func TestPresence_RejectsABodyItCannotUse(t *testing.T) {
 func TestActivity_ABackgroundReadIsNotUse(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
-	act := idleActivity(t, manager)
+	act := idleActivity(t, service)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
 	require.NoError(t, err)
@@ -227,10 +227,10 @@ func TestActivity_ABackgroundReadIsNotUse(t *testing.T) {
 func TestPresence_APersonalAPITokenIsRefusedAndHoldsNothingActive(t *testing.T) {
 	t.Parallel()
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, noSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	token := createTestAPIToken(t, srv.URL, cookie)
-	act := idleActivity(t, manager)
+	act := idleActivity(t, service)
 
 	resp := doWithBearer(t, http.MethodPost, srv.URL+"/api/presence", `{"viewerId":"tab-aaaaaaaa","visible":true}`, token)
 	defer func() { _ = resp.Body.Close() }()

@@ -363,18 +363,32 @@ func (c *Client) fetchRecord(ctx context.Context, id string) (record, error) {
 		DatabaseSpecific struct {
 			Severity string `json:"severity"`
 		} `json:"database_specific"`
+		Severity []struct {
+			Score string `json:"score"`
+		} `json:"severity"`
 	}
 	if err := c.do(ctx, http.MethodGet, "/v1/vulns/"+url.PathEscape(id), nil, &v); err != nil {
 		return record{}, err
 	}
 
-	return record{aliases: v.Aliases, withdrawn: v.Withdrawn != "", severity: normaliseSeverity(v.DatabaseSpecific.Severity)}, nil
+	// The database's own word wins; the CVSS vectors only fill in when it
+	// states none.
+	sev := normaliseSeverity(v.DatabaseSpecific.Severity)
+	if sev == "" {
+		vectors := make([]string, 0, len(v.Severity))
+		for _, s := range v.Severity {
+			vectors = append(vectors, s.Score)
+		}
+		sev = severityFromVectors(vectors)
+	}
+
+	return record{aliases: v.Aliases, withdrawn: v.Withdrawn != "", severity: sev}, nil
 }
 
 // normaliseSeverity maps the word GitHub's advisory database writes into an
 // OSV record ("LOW", "MODERATE", "HIGH", "CRITICAL") to the dashboard's four
-// levels. Anything else, including a record that only carries a CVSS vector,
-// is no severity: the advisory still counts.
+// levels. Anything else is no severity here: the caller then falls back to the
+// record's CVSS vectors, and the advisory counts either way.
 func normaliseSeverity(s string) string {
 	switch strings.ToLower(s) {
 	case "low":

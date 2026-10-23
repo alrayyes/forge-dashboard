@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 // Leaving the page inside that window used to lose the value from the server
 // copy. The page now sends it as it goes. Each test fills a box and loads
 // another page straight away, then reads the cookie and the server copy and
-// comes back. The saved state is per user, so this spec registers its own.
+// comes back. The saved state is on the server, so this spec registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
 const ISSUES = [1, 2].map((number) => ({

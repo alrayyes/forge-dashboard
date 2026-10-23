@@ -70,8 +70,8 @@ func findOwner(ctx context.Context, db *sql.DB, store *auth.Store) (*auth.User, 
 	return owner, nil
 }
 
-// resetForE2E empties per-user state, keeps the owner and their first passkey,
-// drops the in-memory aggregators, and answers 204 with a fresh session cookie.
+// resetForE2E empties saved state, keeps the owner and their first passkey,
+// drops the in-memory aggregator, and answers 204 with a fresh session cookie.
 func resetForE2E(ctx context.Context, db *sql.DB, deps api.Deps, w http.ResponseWriter) error {
 	owner, err := findOwner(ctx, db, deps.AuthStore)
 	if err != nil {

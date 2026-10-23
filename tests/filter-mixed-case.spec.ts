@@ -12,7 +12,7 @@ import { test } from './server-fixture';
 // #1620: an author or label with capitals ("Ryan", "Bug") is saved lowercase,
 // and used to be cleared the moment it was picked because the rebuilt select
 // compared exactly. The pick must stay, shown as written, and survive leaving
-// the page and coming back. The saved state is per user, so this spec
+// the page and coming back. The saved state is on the server, so this spec
 // registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 

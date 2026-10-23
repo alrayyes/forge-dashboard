@@ -3,7 +3,7 @@ import { test } from './server-fixture';
 
 // #1620: the Branches filter (status, forge, search) follows the account like
 // the other pages' filters: the cookie paints the first frame, the server copy
-// restores it in a browser that has no cookie. The saved state is per user, so
+// restores it in a browser that has no cookie. The saved state is on the server, so
 // each test registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 

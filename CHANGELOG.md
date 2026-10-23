@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.1](https://github.com/alrayyes/forge-dashboard/compare/v2.13.0...v2.13.1) (2026-10-23)
+
+
+### Performance Improvements
+
+* **forgejo:** read failed-job log excerpts lazily instead of inside the checks list ([#2612](https://github.com/alrayyes/forge-dashboard/issues/2612)) ([8d299f9](https://github.com/alrayyes/forge-dashboard/commit/8d299f95d1d47a4adcba3a867226299d7739ed41))
+
 ## [2.13.0](https://github.com/alrayyes/forge-dashboard/compare/v2.12.0...v2.13.0) (2026-10-23)
 
 

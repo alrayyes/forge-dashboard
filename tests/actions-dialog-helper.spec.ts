@@ -3,7 +3,7 @@ import { openActionsDialog } from './actions-dialog-helper';
 import { test } from './server-fixture';
 
 // The helper the specs use to reach a row's actions in its dialog. Mocks
-// /api/dashboard and the details endpoint only and writes no per-user state,
+// /api/dashboard and the details endpoint only and writes no saved state,
 // so it runs on the single-user fixture.
 
 const now = new Date().toISOString();

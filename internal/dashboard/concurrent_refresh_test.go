@@ -69,10 +69,10 @@ func TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	// An hour-long ticker means the only refreshes in this test are the
 	// one Ensure triggers immediately and the ones the test fires itself
 	// — nothing from the background schedule racing in unpredictably.
-	manager := dashboard.NewService(time.Hour)
-	t.Cleanup(manager.Stop)
+	service := dashboard.NewService(time.Hour)
+	t.Cleanup(service.Stop)
 
-	manager.Ensure(t.Context(), []dashboard.Source{client})
+	service.Ensure(t.Context(), []dashboard.Source{client})
 
 	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond,
 		"Ensure's own initial refresh should have completed")
@@ -85,7 +85,7 @@ func TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 	var wg sync.WaitGroup
 	for range triggers {
 		wg.Go(func() {
-			manager.RefreshNow(t.Context())
+			service.RefreshNow(t.Context())
 		})
 	}
 	// Deterministic window for the burst to actually reach coalescer.do

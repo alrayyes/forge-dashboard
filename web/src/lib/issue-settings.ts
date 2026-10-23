@@ -1,4 +1,4 @@
-// The two issue settings the server keeps per user and applies itself (#1630):
+// The two issue settings the server keeps and applies itself (#1630):
 // hideDependencyDashboard and ignoredTitles. The server leaves matching
 // issues out of the snapshot and the counts, so nothing here filters. This
 // only shapes what Settings sends and what the Issues and Insights pages read.

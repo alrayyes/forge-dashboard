@@ -14,7 +14,7 @@ import { test } from './server-fixture';
 // still loading is newer than it, so the copy must not overwrite it, and the
 // change must be saved. The other fields still take the copy. Each test holds
 // the copy's request, edits, releases it and reads the page and the server.
-// The saved state is per user, so this spec registers its own.
+// The saved state is on the server, so this spec registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1713
 
 function issue(number: number, overrides: Record<string, unknown> = {}) {

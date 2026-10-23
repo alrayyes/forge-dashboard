@@ -152,7 +152,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, buildSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
@@ -189,7 +189,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 	// real restart has — the session cookie (stored in the auth DB) and
 	// the saved Settings (stored in the settings DB) both survive it,
 	// only the in-memory Aggregator doesn't.
-	manager.Stop()
+	service.Stop()
 
 	// Without a fresh login, the existing session should still lazily
 	// rewarm from saved Settings — not show the zero-value empty

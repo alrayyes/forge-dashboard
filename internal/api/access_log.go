@@ -24,13 +24,13 @@ import (
 //
 // That same slot says the request was a signed-in one, so it is where the
 // dashboard learns someone is using it: a request that got past
-// auth.RequireAuth touches the manager's Activity, and a rejected one, a
+// auth.RequireAuth touches the service's Activity, and a rejected one, a
 // probe or a page for people does not. Touched after the handler returns,
 // because the slot is filled by then. The live stream is not use (it stays
 // open, or reconnects, in a tab nobody is looking at), and neither is the
 // presence report, which says whether anyone is, nor a read
 // the page marks as its own timer (X-Background-Read).
-func accessLogMiddleware(manager *dashboard.Service, next http.Handler) http.Handler {
+func accessLogMiddleware(service *dashboard.Service, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -41,7 +41,7 @@ func accessLogMiddleware(manager *dashboard.Service, next http.Handler) http.Han
 		next.ServeHTTP(rec, r)
 
 		if *usernameSlot != "" && countsAsUse(r) {
-			manager.Activity().Touch()
+			service.Activity().Touch()
 		}
 
 		duration := time.Since(start)
