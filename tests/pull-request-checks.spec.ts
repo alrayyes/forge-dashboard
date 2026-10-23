@@ -553,7 +553,12 @@ test.describe('pull request pipeline checks panel', () => {
     await expect.poll(() => asked.length).toBe(1);
     await expect(failed.locator('pre.pipeline-check-excerpt')).toHaveCount(0);
 
-    await page.clock.runFor(15_000);
+    // The retry timer is set once the empty answer is handled, which may be
+    // after the first request is seen, so advance the clock until it fires.
+    await expect(async () => {
+      await page.clock.runFor(15_000);
+      expect(asked.length).toBeGreaterThanOrEqual(2);
+    }).toPass();
 
     await expect(failed.locator('pre.pipeline-check-excerpt')).toContainText(
       'FAIL internal/api',
