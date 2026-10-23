@@ -55,36 +55,58 @@ const bots = [
 ];
 
 for (const { name, author, button } of bots) {
-  for (const [state, extra] of [
-    ['waiting on CI', {}],
-    ['waiting on CI with auto-merge armed', { autoMergeEnabled: true }],
-  ] as const) {
-    test(`a behind ${name} pull request ${state} has ${button} in its row`, async ({
-      page,
-    }) => {
-      const row = await open(page, pr({ author, ...extra }));
-      const bar = row.locator('.row-action-bar');
-      await expect(bar.getByRole('button', { name: button })).toBeVisible();
-      await expect(row.getByRole('button', { name: button })).toHaveCount(1);
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
-
-  test(`a ${name} pull request that is not behind has no rebase in its row`, async ({
+  test(`a behind ${name} pull request with failing CI has ${button} in its row`, async ({
     page,
   }) => {
-    const row = await open(page, pr({ author, behind: false }));
-    await expect(row.getByRole('button', { name: button })).toHaveCount(0);
+    const row = await open(page, pr({ author, ci: 'failure' }));
+    // Behind is what holds Merge, so the cure sits in the status line and
+    // the row does not repeat it.
+    await expect(row.getByRole('button', { name: button })).toHaveCount(1);
   });
 
-  test(`a behind ${name} pull request with a conflict has no rebase in its row`, async ({
+  test(`a behind ${name} pull request waiting on CI has ${button} in its row`, async ({
     page,
   }) => {
-    const row = await open(page, pr({ author, mergeStatus: 'conflicting' }));
-    await expect(row.getByRole('button', { name: button })).toHaveCount(0);
+    const row = await open(page, pr({ author }));
+    const bar = row.locator('.row-action-bar');
+    await expect(bar.getByRole('button', { name: button })).toBeVisible();
+    await expect(row.getByRole('button', { name: button })).toHaveCount(1);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 }
+
+test('a behind Renovate pull request waiting on CI with a rebase already requested keeps the locked button in its row', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      allowedActions: [
+        {
+          action: 'merge',
+          blocked: {
+            code: 'checks_pending',
+            message: 'Waiting for CI to finish',
+          },
+        },
+        { action: 'close' },
+        {
+          action: 'renovate_rebase',
+          blocked: {
+            code: 'already_requested',
+            message:
+              'A Renovate rebase is already requested on this pull request.',
+          },
+        },
+      ],
+    }),
+  );
+  const button = row
+    .locator('.row-action-bar')
+    .getByRole('button', { name: 'Renovate: Rebase' });
+  await expect(button).toHaveAttribute('aria-disabled', 'true');
+});

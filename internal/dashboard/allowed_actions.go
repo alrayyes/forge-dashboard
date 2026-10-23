@@ -124,9 +124,9 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 			return []ActionName{ActionMerge}
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
 			return []ActionName{ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase}
-		case a.Blocked != nil && botRebaseWorthOffering(pr, a.Blocked.Code):
-			return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
-		case a.Blocked == nil && pr.CI == CIFailure && botRebaseWorthOffering(pr, ""):
+		// Blocked, or open only because the failing checks aren't required (no
+		// block code then carries the behind state): the rule is the same.
+		case botRebaseWorthOffering(pr) && (a.Blocked != nil || pr.CI == CIFailure):
 			return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
 		}
 	}
@@ -138,12 +138,8 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 // conflict needs a person, it is a draft, or it is stacked on another one.
 // Only a bot pull request lists a bot rebase, so the caller's candidates
 // name nothing for any other.
-func botRebaseWorthOffering(pr PullRequest, mergeBlock ActionCode) bool {
-	if !pr.Behind || pr.MergeStatus == MergeConflicting || pr.Draft || pr.StackedOn != nil {
-		return false
-	}
-
-	return mergeBlock != ActionConflict && mergeBlock != ActionStacked
+func botRebaseWorthOffering(pr PullRequest) bool {
+	return pr.Behind && pr.MergeStatus != MergeConflicting && !pr.Draft && pr.StackedOn == nil
 }
 
 // dependabotRebaseAvailability: a Recreate that is pending rebuilds the whole

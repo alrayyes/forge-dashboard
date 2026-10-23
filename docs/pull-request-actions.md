@@ -12,10 +12,13 @@ and the phone card draw as the main button. The server picks it, so
 no client does. Merge is primary when it is offered and not blocked, unless CI
 is failing. An empty pull request has Close. When being behind the base branch
 is what holds Merge back, Update branch is primary, or the Renovate or
-Dependabot rebase for a bot pull request. A bot pull request that is behind
-and not conflicting, a draft or stacked has its rebase as primary whatever else
-holds Merge back (checks running or failing, auto-merge armed), so a stale bot
-branch can be fixed from the row. Every other state has no primary
+Dependabot rebase for a bot pull request. A behind bot pull request has its
+rebase as primary whatever else holds Merge back (checks running or failing,
+auto-merge armed), so a stale bot branch can be fixed from the row. A conflict,
+a draft or a stacked pull request never qualifies. Unlike Update branch, which
+is held back while checks run because it would restart them, the rebase is
+offered then: it does restart the checks, but only when someone clicks it, and
+a stuck bot pull request is the case it is for. Every other state has no primary
 action: a blocked, waiting, conflicting, draft or stacked pull request leaves
 its reason to `status`. A blocked action is never primary, and at most one
 entry is.
@@ -23,12 +26,14 @@ entry is.
 The row draws one button: the primary action, or, while Merge is locked, the
 greyed Merge with its reason. A pull request with neither draws none, so a
 draft, one waiting on CI, one with failing CI and one with nothing to act on
-show their status and nothing to click. A pull request that is behind the base
-branch is the one case where a locked Merge is not the row's button: the row
-draws no button of its own, because the cure (Update branch, or the bot's
-rebase) sits inside the status block above, and the greyed Merge is in the
-pop-up. Every other action is in the pop-up's footer, one click away, and there
-is no "More actions" menu.
+show their status and nothing to click, except a behind bot pull request,
+which shows its rebase. A behind bot pull request that is ready to merge keeps
+Merge as its one button, and its rebase is in the pop-up. A pull request that
+is behind the base branch is the one case where a locked Merge is not the row's
+button: the row draws no button of its own, because the cure (Update branch,
+or the bot's rebase) sits inside the status block above, and the greyed Merge
+is in the pop-up. Every other action is in the pop-up's footer, one click
+away, and there is no "More actions" menu.
 
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a
