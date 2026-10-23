@@ -102,7 +102,9 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 //     area explains that);
 //   - Merge blocked because the branch is behind: Update branch, or the
 //     Renovate or Dependabot rebase for a bot pull request, whichever is
-//     offered and not blocked;
+//     offered and not blocked. Not when runs wait for workflow approval, for a
+//     bot or anyone else: Merge then gives the approval as its reason, since a
+//     new head would be held again;
 //   - a bot pull request that is behind, and neither conflicting, a draft nor
 //     stacked, whatever else holds Merge back (checks running or failing,
 //     auto-merge armed): the bot's rebase, since a stale branch is worth
@@ -134,10 +136,6 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 		switch {
 		case a.Blocked == nil && pr.CI != CIFailure:
 			return []ActionName{ActionMerge}
-		case a.Blocked != nil && a.Blocked.Code == ActionBehind && pr.AwaitingWorkflowApproval:
-			// A new head would be held for approval again, so updating the
-			// branch adds nothing, whatever the checks read meanwhile.
-			return botRebases(pr)
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
 			return append([]ActionName{ActionUpdateBranch}, botRebases(pr)...)
 		// Merge is blocked for another reason, or open only because the failing
@@ -158,11 +156,14 @@ func botRebaseWorthOffering(pr PullRequest) bool {
 	return pr.Behind && pr.MergeStatus != MergeConflicting && !pr.Draft && pr.StackedOn == nil
 }
 
-// heldForApproval: Merge is blocked and the checks fail only because runs wait
-// for a maintainer. Merge gives that as its reason, and the bot rebase is not
-// offered then. Any other state with held runs is not this one.
+// heldForApproval: runs wait for a maintainer and nothing else explains why
+// Merge is closed: the forge says blocked or hasn't said yet, and the checks
+// aren't running. Merge gives that as its reason, ahead of being behind, and no
+// update or rebase is offered then, since a new head would be held again.
+// Pending checks are a plain wait and stay their own reason.
 func heldForApproval(pr PullRequest) bool {
-	return pr.MergeStatus == MergeBlocked && pr.CI == CIFailure && pr.AwaitingWorkflowApproval
+	return pr.AwaitingWorkflowApproval && pr.CI != CIPending &&
+		(pr.MergeStatus == MergeBlocked || pr.MergeStatus == MergeUnknown)
 }
 
 // botRebases is the bot rebases that may be primary. Runs held for workflow

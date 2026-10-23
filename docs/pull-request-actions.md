@@ -40,12 +40,13 @@ draws its rebase on the row. Every other action is in the pop-up's footer, one
 click away, and there is no "More actions" menu.
 
 When runs wait for someone to approve them, that is the reason Merge gives,
-ahead of being behind the base branch: a behind pull request in that state shows
-the approval in its status, with no `action`, and its row has no rebase, since
-updating the branch would only start runs that are held again. The same holds
-for a person's or release-please's behind pull request when the forge hasn't
-yet reported its merge state or checks: its status says it is behind, but
-Update branch is not primary until the runs are approved and have finished.
+ahead of being behind the base branch, whatever the merge state the forge
+reports (blocked, or not yet known) and for any author: a behind pull request in
+that state shows the approval in its status, with no `action`, and its row has
+no Update branch and no rebase, since updating the branch would only start runs
+that are held again. Checks that are still running are a plain wait and keep
+their own reason. Once the runs are approved, the pull request is an ordinary
+behind one and Update branch is primary again.
 
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a

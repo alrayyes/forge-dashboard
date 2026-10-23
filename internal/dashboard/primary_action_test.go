@@ -94,39 +94,28 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.CI = dashboard.CIFailure
 			p.AwaitingWorkflowApproval = true
 		}), []string{"dependabot_rebase"}},
-		{"Dependabot behind, awaiting approval but status unknown: the rebase, Merge says behind", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
+		{"Dependabot behind, awaiting approval but status unknown: none, Merge gives the approval reason", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
 			p.MergeStatus = dashboard.MergeUnknown
 			p.CI = dashboard.CINone
 			p.AwaitingWorkflowApproval = true
-		}), []string{"dependabot_rebase"}},
+		}), []string{}},
 		{"person behind, blocked, failing and awaiting approval: none, Merge gives the approval reason", ghPR(func(p *dashboard.PullRequest) {
 			p.Behind = true
 			p.MergeStatus = dashboard.MergeBlocked
 			p.CI = dashboard.CIFailure
 			p.AwaitingWorkflowApproval = true
 		}), []string{}},
-		{"person behind, unstable, failing and awaiting approval: none", ghPR(func(p *dashboard.PullRequest) {
-			p.Behind = true
-			p.MergeStatus = dashboard.MergeUnstable
-			p.CI = dashboard.CIFailure
-			p.AwaitingWorkflowApproval = true
-		}), []string{}},
-		{"person behind, awaiting approval but status unknown: none, not Update branch", ghPR(func(p *dashboard.PullRequest) {
+		{"person behind, awaiting approval but status unknown: none, Merge gives the approval reason", ghPR(func(p *dashboard.PullRequest) {
 			p.Behind = true
 			p.MergeStatus = dashboard.MergeUnknown
 			p.CI = dashboard.CINone
 			p.AwaitingWorkflowApproval = true
 		}), []string{}},
-		{"person behind, awaiting approval with CI pending: none", ghPR(func(p *dashboard.PullRequest) {
+		{"Forgejo person behind and awaiting approval: none", ghPR(func(p *dashboard.PullRequest) {
+			p.Forge = dashboard.ForgeForgejo
 			p.Behind = true
 			p.MergeStatus = dashboard.MergeBlocked
-			p.CI = dashboard.CIPending
-			p.AwaitingWorkflowApproval = true
-		}), []string{}},
-		{"person behind, awaiting approval, blocked and CI passing: none", ghPR(func(p *dashboard.PullRequest) {
-			p.Behind = true
-			p.MergeStatus = dashboard.MergeBlocked
-			p.CI = dashboard.CISuccess
+			p.CI = dashboard.CIFailure
 			p.AwaitingWorkflowApproval = true
 		}), []string{}},
 		{"person behind, approval granted and run finished: Update branch", ghPR(func(p *dashboard.PullRequest) {
@@ -232,23 +221,26 @@ func TestPullRequestStatus_BehindBotAwaitingApproval(t *testing.T) {
 	}
 }
 
-// A person's behind pull request whose runs wait for approval and whose
-// status reads unknown still says it is behind, but names no fix: updating
-// the branch would only start runs that are held again.
-func TestPullRequestStatus_BehindPersonAwaitingApprovalNamesNoFix(t *testing.T) {
+// A behind pull request whose runs wait for approval and whose merge state
+// the forge hasn't reported yet says the same as the blocked one: approve the
+// runs, not "bring it up to date", for a person and a bot alike.
+func TestPullRequestStatus_BehindAwaitingApprovalWithUnknownState(t *testing.T) {
 	t.Parallel()
 
-	pr := ghPR(func(p *dashboard.PullRequest) {
-		p.Behind = true
-		p.MergeStatus = dashboard.MergeUnknown
-		p.CI = dashboard.CINone
-		p.AwaitingWorkflowApproval = true
-	})
-	actions := dashboard.AllowedActions(pr, nil)
-	status := dashboard.PullRequestStatus(pr, actions)
+	for _, author := range []string{"someone", "dependabot[bot]"} {
+		pr := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = author
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+			p.CI = dashboard.CINone
+			p.AwaitingWorkflowApproval = true
+		})
+		actions := dashboard.AllowedActions(pr, nil)
+		status := dashboard.PullRequestStatus(pr, actions)
 
-	require.NotNil(t, status)
-	assert.Equal(t, dashboard.ActionBehind, status.Code)
-	assert.Empty(t, status.Action)
-	assert.Empty(t, primaries(actions))
+		require.NotNil(t, status, author)
+		assert.Equal(t, "Workflow runs are waiting for approval", status.Message, author)
+		assert.Empty(t, status.Action, author)
+		assert.Empty(t, primaries(actions), author)
+	}
 }
