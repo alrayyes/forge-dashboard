@@ -350,6 +350,15 @@ export function mountPickFilter(
   const groupId = `${host.id || 'pick'}-group`;
   let groupCount = 0;
 
+  function say(text: string) {
+    status.textContent = '';
+    // A changed node is what a live region speaks; the same text twice in a
+    // row needs a beat between.
+    setTimeout(() => {
+      status.textContent = text;
+    }, 50);
+  }
+
   function render(offered: PickChoice[], picked: string[]) {
     // One box per choice, whatever its case.
     const seen = new Set<string>();
@@ -360,6 +369,16 @@ export function mountPickFilter(
       return true;
     });
     pickedNow = picked;
+
+    // Moving a row to another parent (the repos group under their forge once a
+    // second forge shows up) or removing it blurs the box inside. Note which
+    // box the reader is on so focus can go back after the redraw.
+    const active = document.activeElement;
+    const focused =
+      active instanceof HTMLInputElement && options.contains(active)
+        ? active
+        : null;
+    const focusedName = focused?.closest('label')?.textContent?.trim() ?? '';
 
     const rows = new Map<string, HTMLElement>();
     for (const row of Array.from(
@@ -450,6 +469,18 @@ export function mountPickFilter(
     }
     for (const row of rows.values()) row.remove();
 
+    if (focused && document.activeElement !== focused) {
+      // The same box when it is still offered; otherwise the button, so focus
+      // stays inside the open panel's control rather than dropping to the page.
+      // A box disabled by the 20-pick cap counts as gone: it cannot take focus.
+      if (focused.isConnected && !focused.disabled)
+        focused.focus({ preventScroll: true });
+      else {
+        button.focus({ preventScroll: true });
+        say(`${focusedName || focused.value} is no longer offered`);
+      }
+    }
+
     empty.hidden = offeredNow.length > 0;
     clear.disabled = picked.length === 0;
     const full =
@@ -471,14 +502,7 @@ export function mountPickFilter(
     destroy() {
       document.removeEventListener('pointerdown', onOutside);
     },
-    announce(text) {
-      status.textContent = '';
-      // A changed node is what a live region speaks; the same text twice in a
-      // row needs a beat between.
-      setTimeout(() => {
-        status.textContent = text;
-      }, 50);
-    },
+    announce: say,
   };
 }
 
