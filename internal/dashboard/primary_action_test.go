@@ -82,6 +82,10 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 		{"Dependabot behind with auto-merge armed and CI pending: the Dependabot rebase", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"dependabot_rebase"}},
 		{"Renovate behind with CI failing: the Renovate rebase", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), []string{"renovate_rebase"}},
 		{"Renovate behind with CI pending and the rebase already requested: none, the locked rebase stays", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.RenovateRebaseRequested = true }), []string{}},
+		{"Dependabot behind with CI pending and a Recreate pending: none, the locked rebase stays", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
+			p.CI = dashboard.CIPending
+			p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: dashboard.BotRecreate, Phase: dashboard.BotQueued}
+		}), []string{}},
 		{"Renovate behind and draft: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Dependabot behind and draft: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Renovate behind and stacked: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{}},

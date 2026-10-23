@@ -93,9 +93,10 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 //   - Merge blocked because the branch is behind: Update branch, or the
 //     Renovate or Dependabot rebase for a bot pull request, whichever is
 //     offered and not blocked;
-//   - a bot pull request that is behind and not conflicting, whatever else holds
-//     Merge back (checks running or failing, auto-merge armed): the bot's rebase,
-//     since a stale branch is worth fixing while it waits;
+//   - a bot pull request that is behind, and neither conflicting, a draft nor
+//     stacked, whatever else holds Merge back (checks running or failing,
+//     auto-merge armed): the bot's rebase, since a stale branch is worth
+//     fixing while it waits;
 //   - anything else (checks running or failing, conflict, draft, stacked,
 //     blocked by the forge): none, since the status area gives the reason.
 func markPrimary(pr PullRequest, actions []ActionAvailability) {

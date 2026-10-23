@@ -4,7 +4,9 @@ import { test } from './server-fixture';
 
 // An out-of-date bot pull request offers its rebase in the row whatever Merge
 // or auto-merge are waiting on, the same way for Renovate and Dependabot.
-// Not behind, or conflicting, adds no button.
+// The Go table in primary_action_test.go pins the rule; these cases pin the
+// wiring: the button's place in the row, its accessible name and the locked
+// state.
 
 function pr(overrides: Record<string, unknown> = {}) {
   return {
@@ -58,9 +60,15 @@ for (const { name, author, button } of bots) {
   test(`a behind ${name} pull request with failing CI has ${button} in its row`, async ({
     page,
   }) => {
-    const row = await open(page, pr({ author, ci: 'failure' }));
-    // Behind is what holds Merge, so the cure sits in the status line and
-    // the row does not repeat it.
+    // Merge is open as unstable only because the failing checks aren't
+    // required, so the rebase is the row's own button, not part of a status line.
+    const row = await open(
+      page,
+      pr({ author, ci: 'failure', mergeStatus: 'unstable' }),
+    );
+    await expect(
+      row.locator('.row-action-bar').getByRole('button', { name: button }),
+    ).toBeVisible();
     await expect(row.getByRole('button', { name: button })).toHaveCount(1);
   });
 

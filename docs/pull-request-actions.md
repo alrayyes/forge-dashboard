@@ -19,9 +19,9 @@ a draft or a stacked pull request never qualifies. Unlike Update branch, which
 is held back while checks run because it would restart them, the rebase is
 offered then: it does restart the checks, but only when someone clicks it, and
 a stuck bot pull request is the case it is for. Every other state has no primary
-action: a blocked, waiting, conflicting, draft or stacked pull request leaves
-its reason to `status`. A blocked action is never primary, and at most one
-entry is.
+action, except a behind bot pull request as above: a blocked, waiting,
+conflicting, draft or stacked pull request leaves its reason to `status`. A
+blocked action is never primary, and at most one entry is.
 
 The row draws one button: the primary action, or, while Merge is locked, the
 greyed Merge with its reason. A pull request with neither draws none, so a
@@ -32,7 +32,9 @@ Merge as its one button, and its rebase is in the pop-up. A pull request that
 is behind the base branch is the one case where a locked Merge is not the row's
 button: the row draws no button of its own, because the cure (Update branch,
 or the bot's rebase) sits inside the status block above, and the greyed Merge
-is in the pop-up. Every other action is in the pop-up's footer, one click
+is in the pop-up. A behind bot pull request whose Merge is held back by
+something else too (checks running, say) draws its rebase on the row. Every
+other action is in the pop-up's footer, one click
 away, and there is no "More actions" menu.
 
 Each pull request also carries `status`: the one reason it is waiting on
