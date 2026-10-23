@@ -102,7 +102,9 @@ async function expectCopyApplied(
 ) {
   await expect.poll(() => pickedLabels(page)).toEqual(['bug']);
   if (edited !== 'author')
-    await expect.poll(() => pickedValues(page, 'author')).toEqual(['ryan']);
+    await expect
+      .poll(() => pickedValues(page, 'author'))
+      .toEqual(['github:ryan']);
   if (edited !== 'title')
     await expect(page.locator('input[data-col="title"]')).toHaveValue('issue');
   if (edited !== 'regex')
@@ -117,7 +119,7 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     // title text picked, and a hide-titles pattern.
     const put = await page.request.put(ENDPOINT, {
       data: {
-        shared: { label: 'bug', author: 'ryan', title: 'issue' },
+        shared: { label: 'bug', author: 'github:ryan', title: 'issue' },
         pr: {},
         issue: { hideDependencyDashboard: '1', hideTitleRegex: 'qqq' },
         view: {},
@@ -161,7 +163,7 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
           saved.issue?.hideTitleRegex,
         ];
       })
-      .toEqual(['', 'bug', 'ryan', 'issue', 'qqq']);
+      .toEqual(['', 'bug', 'github:ryan', 'issue', 'qqq']);
   });
 
   test('a cleared author stays cleared and is saved, the label still takes the copy', async ({
@@ -172,8 +174,8 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     await expect(issueRows(page)).toHaveCount(3);
     await copy.requested;
     // Ticked and unticked: the person's own change, so the copy leaves it.
-    await togglePicks(page, 'author', 'ryan');
-    await togglePicks(page, 'author', 'ryan');
+    await togglePicks(page, 'author', 'github:ryan');
+    await togglePicks(page, 'author', 'github:ryan');
     copy.release();
 
     await expectCopyApplied(page, 'author');
@@ -237,7 +239,7 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
       .toBe('bug');
     const put = await page.request.put(ENDPOINT, {
       data: {
-        shared: { label: 'bug', author: 'ryan' },
+        shared: { label: 'bug', author: 'github:ryan' },
         pr: {},
         issue: { hideDependencyDashboard: '1' },
         view: {},

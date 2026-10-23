@@ -618,6 +618,18 @@ export function reconcilePick(
   offered: string[],
   hold: boolean,
 ): boolean {
+  if (key === 'author') {
+    const migrated = migrateBareAuthors(state.shared.author, offered);
+    if (migrated !== undefined) state.shared.author = migrated;
+    const heldMigrated = migrateBareAuthors(
+      heldValue('shared', 'author'),
+      offered,
+    );
+    if (heldMigrated !== undefined) {
+      releaseHeld('shared', 'author');
+      held.push({ group: 'shared', key: 'author', value: heldMigrated });
+    }
+  }
   const { kept, dropped } = narrowLabels(
     parseLabels(state.shared[key]),
     offered,
@@ -635,6 +647,46 @@ export function reconcilePick(
   return true;
 }
 
+// An Author pick was saved as the bare login until it became forge-qualified
+// ("github:ann"), because one login on two forges is two people. A bare login
+// reads as the choices that have exactly that login (any case), on every
+// forge. Returns the rewritten pick, or undefined when nothing in it changed:
+// a login no choice here has stays bare, so the page sets it aside and says
+// it has no forge.
+function migrateBareAuthors(
+  saved: string | undefined,
+  offered: string[],
+): string | undefined {
+  const picked = parseLabels(saved);
+  let changed = false;
+  const next: string[] = [];
+  for (const value of picked) {
+    if (value.includes(':')) {
+      next.push(value);
+      continue;
+    }
+    const matches = offered.filter((o) => repoName(o) === value);
+    if (matches.length === 0) next.push(value);
+    else {
+      next.push(...matches);
+      changed = true;
+    }
+  }
+  if (!changed) return undefined;
+  authorMigrated = true;
+  return joinLabels(next);
+}
+
+// Set when a bare author login was rewritten, so the page saves the pick once
+// and the old form leaves the cookie and the server copy.
+let authorMigrated = false;
+
+export function takeMigratedAuthor(): boolean {
+  const was = authorMigrated;
+  authorMigrated = false;
+  return was;
+}
+
 // The user chose something else for this control (or cleared it): the held
 // value is no longer wanted.
 export function releaseHeld(group: StateGroup, key: string): void {
@@ -647,6 +699,8 @@ export function releaseAllHeld(): void {
 }
 
 export type HeldPick = {
+  // An author saved without a forge, which no choice here has.
+  noForge?: boolean;
   group: StateGroup;
   key: string;
   // What the control is called ("author", "repo").
@@ -661,12 +715,21 @@ export function heldPicks(): HeldPick[] {
   return held.map((h) => {
     let text = h.value;
     if (h.key === 'repo') text = parseLabels(h.value).map(repoName).join(', ');
-    if (h.key === 'author') text = parseLabels(h.value).join(', ');
+    if (h.key === 'author')
+      text = parseLabels(h.value).map(repoName).join(', ');
     const choices =
       h.key === 'created' || h.key === 'updated' ? AGE_RANGES : [];
     text = choices.find((c) => c.value === h.value)?.label ?? text;
     if (h.key === 'label') text = parseLabels(h.value).join(', ');
-    return { group: h.group, key: h.key, name: h.key, text };
+    const noForge =
+      h.key === 'author' && parseLabels(h.value).every((v) => !v.includes(':'));
+    return {
+      group: h.group,
+      key: h.key,
+      name: h.key,
+      text,
+      ...(noForge ? { noForge } : {}),
+    };
   });
 }
 
@@ -690,6 +753,8 @@ function heldPickPhrase(pick: HeldPick): string {
 }
 
 export function heldPickNote(pick: HeldPick): string {
+  if (pick.noForge)
+    return `Saved ${heldPickPhrase(pick)} has no forge and is not on this page.`;
   return `Saved ${heldPickPhrase(pick)} is not on this page.`;
 }
 
@@ -1162,7 +1227,8 @@ export function failingFilters(
   if (!pickedHas(shared.repo, repoKey)) failing.push('repo');
   if (shared.title && !matchesTitleTerm(item, shared.title))
     failing.push('title');
-  if (!pickedHas(shared.author, item.author || '')) failing.push('author');
+  if (!pickedHas(shared.author, `${item.forge}:${item.author || ''}`))
+    failing.push('author');
   if (shared.created && minutesAgo(item.createdAt) > Number(shared.created))
     failing.push('created');
   if (shared.updated && minutesAgo(item.updatedAt) > Number(shared.updated))
@@ -1681,17 +1747,21 @@ export function repoChoices(
   );
 }
 
-// What the Author filter offers: each login once, with the first avatar seen.
+// What the Author filter offers: forge-qualified so one login on two forges
+// (two different people) is two choices, each once with the first avatar seen,
+// listed under the forge's name only when several forges show.
 export function authorChoices(items: FilterableItem[]): PickChoice[] {
+  const grouped = new Set(items.map((i) => i.forge)).size > 1;
   const byKey = new Map<string, PickChoice>();
   for (const item of items) {
     if (!item.author) continue;
-    const key = item.author.toLowerCase();
+    const key = `${item.forge}:${item.author}`.toLowerCase();
     const have = byKey.get(key);
     if (!have)
       byKey.set(key, {
         value: key,
         text: item.author,
+        group: grouped ? FORGE_LABELS[item.forge] || item.forge : undefined,
         imageUrl: item.authorAvatarUrl || undefined,
         imageKind: 'avatar',
       });

@@ -608,7 +608,7 @@ test.describe('inline feedback and a saved filter', () => {
   }) => {
     await setup(page, [makePR(1), makePR(2, { author: 'alice' }), makePR(3)]);
     await updateBranch(rowFor(page, 2));
-    await pickOnly(page, 'author', 'claude');
+    await pickOnly(page, 'author', 'github:claude');
     await expect(rowFor(page, 2)).toHaveCount(0);
 
     await toasts(page)

@@ -65,22 +65,20 @@ test.describe('a pick with capitals stays picked (#1620)', () => {
     await expect(issueRows(page)).toHaveCount(3);
   });
 
-  for (const [control, value, kept] of [['author', 'Ryan', 2]] as const) {
+  for (const [control, value, saved, kept] of [
+    ['author', 'Ryan', 'github:ryan', 2],
+  ] as const) {
     test(`the ${control} pick ${value} is kept, and is still set after a full load`, async ({
       page,
     }) => {
-      await pickOnly(page, control, value);
+      await pickOnly(page, control, saved);
       await expect(issueRows(page)).toHaveCount(kept);
       // The page rebuilds its choices after a pick; the pick must outlast that.
-      await expect
-        .poll(() => pickedValues(page, control))
-        .toEqual([value.toLowerCase()]);
+      await expect.poll(() => pickedValues(page, control)).toEqual([saved]);
       await expect(pickButton(page, control)).toHaveText(value);
 
       await open(page, '/issues.html');
-      await expect
-        .poll(() => pickedValues(page, control))
-        .toEqual([value.toLowerCase()]);
+      await expect.poll(() => pickedValues(page, control)).toEqual([saved]);
       await expect(issueRows(page)).toHaveCount(kept);
     });
   }

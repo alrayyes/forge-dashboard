@@ -94,7 +94,7 @@ test.describe('age choices on the pull request page (#1427)', () => {
       pr(2, { ci: 'failure' }),
     ]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    await pickOnly(page, 'author', 'claude');
+    await pickOnly(page, 'author', 'github:claude');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

@@ -227,7 +227,7 @@ test.describe('the address of an issue', () => {
         value: encodeURIComponent(
           JSON.stringify({
             rev: 2_000_000_000,
-            shared: { author: 'someone-else' },
+            shared: { author: 'github:someone-else' },
           }),
         ),
         url: baseURL,

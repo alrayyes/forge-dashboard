@@ -5868,6 +5868,10 @@
     // budget is already exhausted.
     let lastForges: Forge[] = [];
     let sharedControlsRestored = false;
+    // The server's copy has been asked for and answered (or failed). A pick
+    // rewritten before that is saved after, so the cookie's version doesn't
+    // land on the server first.
+    let serverCopyLoaded = false;
 
     // #353: the cookie above is a fast local cache for this page's very
     // first paint, not the source of truth across devices — this fetch
@@ -5882,6 +5886,7 @@
       // Another page has loaded, or this one is gone: its state and touched
       // keys are not ours any more.
       if (destroyed || page !== Filters.currentPage()) return;
+      serverCopyLoaded = true;
       const before = JSON.stringify(sharedState);
       if (got) Filters.applyServerState(sharedState, got);
       reportDroppedPicks();
@@ -5905,6 +5910,11 @@
         syncSharedControlsToState();
         renderBoth();
       }
+      // An author saved as a bare login has been read as its forge-qualified
+      // choices; save it once so the old form leaves the cookie and the
+      // server copy.
+      if (sharedControlsRestored && Filters.takeMigratedAuthor())
+        Filters.saveState(sharedState);
     });
 
     // What the choices come from: the list on screen, not the newest snapshot,
@@ -6069,6 +6079,8 @@
       const cleared =
         !holdPicks && (stalePicks || staleCreated || staleUpdated);
       if (cleared) Filters.saveState(sharedState);
+      else if (serverCopyLoaded && Filters.takeMigratedAuthor())
+        Filters.saveState(sharedState);
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
       // cleared, since the pools are built from what is left.
@@ -6996,11 +7008,7 @@
         const picked = parseLabels(shared[key]);
         for (const value of picked) {
           const choice = choices.find((c) => labelKey(c.value) === value);
-          const text = choice
-            ? choiceText(choice)
-            : key === "repo"
-              ? repoName(value)
-              : value;
+          const text = choice ? choiceText(choice) : repoName(value);
           chips.push({
             label: `${noun} ${text}`,
             choice: choice ?? {

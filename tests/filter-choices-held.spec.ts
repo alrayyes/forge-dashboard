@@ -206,7 +206,7 @@ test('a saved pick only the held list has is kept when the saved copy arrives', 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        shared: { author: 'claude' },
+        shared: { author: 'github:claude' },
         pr: {},
         issue: {},
         view: { paused: '1' },
@@ -223,7 +223,9 @@ test('a saved pick only the held list has is kept when the saved copy arrives', 
   // The copy lands the held list, claude's pull request is in it, so the pick
   // stays and is not saved as cleared.
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
+  await expect
+    .poll(() => pickedValues(page, 'author'))
+    .toEqual(['github:claude']);
 });
 
 test('the Issues list lands too when the saved copy meets a paused view', async ({
@@ -241,7 +243,7 @@ test('the Issues list lands too when the saved copy meets a paused view', async 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        shared: { author: 'claude' },
+        shared: { author: 'github:claude' },
         pr: {},
         issue: {},
         view: { paused: '1' },
@@ -263,14 +265,16 @@ test('the Issues list lands too when the saved copy meets a paused view', async 
   // page: claude's issue is only in it, so the pick stays and shows it.
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
   await expect(page.locator('#issue-rows')).toContainText('Issue 2');
-  await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
+  await expect
+    .poll(() => pickedValues(page, 'author'))
+    .toEqual(['github:claude']);
 });
 
 test('a pick the landed list no longer offers is cleared and the list shows again', async ({
   page,
 }) => {
   await open(page, '/pull-requests.html', NEWER);
-  await pickOnly(page, 'author', 'claude');
+  await pickOnly(page, 'author', 'github:claude');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   await page.getByRole('button', { name: 'Pause live updates' }).click();
 

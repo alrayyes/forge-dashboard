@@ -1399,7 +1399,7 @@ test.describe('dashboard page', () => {
         page.locator('#shared-author-filter-panel .label-filter-option'),
       ).toHaveCount(2); // "All authors" plus the two.
 
-      await pickOnly(page, 'author', 'ryan');
+      await pickOnly(page, 'author', 'github:ryan');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Two');
     });
@@ -1555,7 +1555,7 @@ test.describe('dashboard page', () => {
     test('an author selection that no longer exists once the forge filter narrows clears itself', async ({
       page,
     }) => {
-      await pickOnly(page, 'author', 'claude');
+      await pickOnly(page, 'author', 'github:claude');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
       await selectForge(page, 'forgejo');
@@ -1604,7 +1604,7 @@ test.describe('dashboard page', () => {
       await expect(
         page.locator('#shared-author-filter-panel .label-filter-option'),
       ).toHaveCount(1); // All + claude.
-      expect(await offeredValues(page, 'author')).toEqual(['claude']);
+      expect(await offeredValues(page, 'author')).toEqual(['github:claude']);
       await expect(
         page.locator('#shared-label-filter-panel .label-filter-option'),
       ).toHaveCount(1); // bug.
@@ -1618,7 +1618,7 @@ test.describe('dashboard page', () => {
     test('picking an author narrows the repo and label selects to that author only', async ({
       page,
     }) => {
-      await pickOnly(page, 'author', 'claude');
+      await pickOnly(page, 'author', 'github:claude');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
       // claude has "GitHub A" (github:shared/tools, label bug) and
@@ -1660,7 +1660,7 @@ test.describe('dashboard page', () => {
       await expect(
         page.locator('#shared-author-filter-panel .label-filter-option'),
       ).toHaveCount(1); // All + claude.
-      expect(await offeredValues(page, 'author')).not.toContain('ryan');
+      expect(await offeredValues(page, 'author')).not.toContain('forgejo:ryan');
     });
 
     test('a repo+author combination that stops co-occurring clears both selections, not just one', async ({
@@ -1669,7 +1669,7 @@ test.describe('dashboard page', () => {
       // Both picks are valid together at the time they're made: the
       // Forgejo shared/tools repo really is authored by ryan.
       await pickOnly(page, 'repo', 'forgejo:shared/tools');
-      await pickOnly(page, 'author', 'ryan');
+      await pickOnly(page, 'author', 'forgejo:ryan');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
       // The underlying data changes under the still-active filters (a
@@ -1796,7 +1796,7 @@ test.describe('dashboard page', () => {
       // shared choices, which broke the rule that every choice matches
       // something in the list being shown.
       expect(await offeredValues(page, 'repo')).toEqual(['github:team/two']);
-      expect(await offeredValues(page, 'author')).toEqual(['ryan']);
+      expect(await offeredValues(page, 'author')).toEqual(['github:ryan']);
       expect(await labelChoices(page)).toEqual(['enhancement']);
     });
   });

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import {
   authorChoices,
   type FilterableItem,
+  heldPickNote,
   heldPicks,
   matchesFilters,
   reconcilePick,
@@ -10,6 +11,7 @@ import {
   repoChoices,
   type SharedFilterState,
   saveState,
+  takeMigratedAuthor,
 } from './filters';
 import { initialOf, pickSummary, REPO_CONFIG } from './label-filter';
 
@@ -34,7 +36,10 @@ const item = (
 const run = (shared: Record<string, string>, i: FilterableItem) =>
   matchesFilters(i, true, shared, undefined);
 
-afterEach(() => releaseAllHeld());
+afterEach(() => {
+  releaseAllHeld();
+  takeMigratedAuthor();
+});
 
 describe('matching any of the picked repos', () => {
   const pick = 'github:acme/api\nforgejo:acme/docs';
@@ -60,31 +65,34 @@ describe('matching any of the picked repos', () => {
 
 describe('matching any of the picked authors', () => {
   test('an item by either author passes, in any case', () => {
-    expect(run({ author: 'ann\nbob' }, item('github', 'a/b', 'Bob'))).toBe(
+    expect(
+      run({ author: 'github:ann\ngithub:bob' }, item('github', 'a/b', 'Bob')),
+    ).toBe(true);
+  });
+  test('an item by neither fails, and a part of a login is not enough', () => {
+    const author = 'github:ann\ngithub:bob';
+    expect(run({ author }, item('github', 'a/b', 'carol'))).toBe(false);
+    expect(run({ author }, item('github', 'a/b', 'annabel'))).toBe(false);
+  });
+  test('a single saved author still matches', () => {
+    expect(run({ author: 'github:ann' }, item('github', 'a/b', 'ann'))).toBe(
       true,
     );
   });
-  test('an item by neither fails, and a part of a login is not enough', () => {
-    expect(run({ author: 'ann\nbob' }, item('github', 'a/b', 'carol'))).toBe(
-      false,
-    );
-    expect(run({ author: 'ann\nbob' }, item('github', 'a/b', 'annabel'))).toBe(
-      false,
-    );
-  });
-  test('a single saved author still matches', () => {
-    expect(run({ author: 'ann' }, item('github', 'a/b', 'ann'))).toBe(true);
+  test('the same login on another forge is another person', () => {
+    const pick = { author: 'github:sam' };
+    expect(run(pick, item('github', 'a/b', 'sam'))).toBe(true);
+    expect(run(pick, item('forgejo', 'a/b', 'sam'))).toBe(false);
   });
   test('one saved login is the whole login, in any case, not a part of one', () => {
     // The author filter once matched any login containing the saved text.
     // Both controls now match the whole login, as the list offered it.
-    expect(run({ author: 'ann' }, item('github', 'a/b', 'ANN'))).toBe(true);
-    expect(run({ author: 'ann' }, item('github', 'a/b', 'annabel'))).toBe(
-      false,
-    );
-    expect(run({ author: 'bel' }, item('github', 'a/b', 'annabel'))).toBe(
-      false,
-    );
+    const ann = { author: 'github:ann' };
+    expect(run(ann, item('github', 'a/b', 'ANN'))).toBe(true);
+    expect(run(ann, item('github', 'a/b', 'annabel'))).toBe(false);
+    expect(
+      run({ author: 'github:bel' }, item('github', 'a/b', 'annabel')),
+    ).toBe(false);
   });
 });
 
@@ -105,16 +113,37 @@ describe('choices', () => {
     ]);
     expect(repoChoices([items[0]], () => undefined)[0].group).toBeUndefined();
   });
-  test('authors carry the first avatar seen, once each, sorted', () => {
+  test('authors carry the first avatar seen, once each per forge, sorted', () => {
     const choices = authorChoices([
       item('github', 'a/b', 'Bob'),
       item('github', 'a/b', 'ann', { authorAvatarUrl: 'https://a/ann.png' }),
-      item('forgejo', 'a/c', 'bob', { authorAvatarUrl: 'https://a/bob.png' }),
+      item('github', 'a/b', 'bob', { authorAvatarUrl: 'https://a/bob.png' }),
     ]);
-    expect(choices.map((c) => [c.value, c.text, c.imageUrl])).toEqual([
-      ['ann', 'ann', 'https://a/ann.png'],
-      ['bob', 'Bob', 'https://a/bob.png'],
+    expect(choices.map((c) => [c.value, c.text, c.group, c.imageUrl])).toEqual([
+      ['github:ann', 'ann', undefined, 'https://a/ann.png'],
+      ['github:bob', 'Bob', undefined, 'https://a/bob.png'],
     ]);
+  });
+  test('one login on two forges is two choices, under each forge', () => {
+    const choices = authorChoices([
+      item('github', 'a/b', 'sam', { authorAvatarUrl: 'https://a/g.png' }),
+      item('forgejo', 'a/c', 'Sam', { authorAvatarUrl: 'https://a/f.png' }),
+      item('forgejo', 'a/c', 'zed'),
+    ]);
+    expect(choices.map((c) => [c.value, c.text, c.group, c.imageUrl])).toEqual([
+      ['forgejo:sam', 'Sam', 'Forgejo', 'https://a/f.png'],
+      ['forgejo:zed', 'zed', 'Forgejo', undefined],
+      ['github:sam', 'sam', 'GitHub', 'https://a/g.png'],
+    ]);
+  });
+  test('a lone author on two forges is named with its forge', () => {
+    const both = authorChoices([
+      item('github', 'a/b', 'sam'),
+      item('forgejo', 'a/c', 'sam'),
+    ]);
+    expect(
+      pickSummary(['forgejo:sam'], both, { all: 'All', many: 'authors' }),
+    ).toBe('sam (Forgejo)');
   });
 });
 
@@ -163,14 +192,60 @@ describe('pickSummary and initialOf', () => {
 describe('a hand-edited partial login', () => {
   test('is set aside and named in the held note, not matched by part', () => {
     const s: SharedFilterState = {
-      shared: { author: 'ren' },
+      shared: { author: 'github:ren' },
       pr: {},
       issue: {},
       view: {},
     };
-    expect(reconcilePick(s, 'author', ['renovate[bot]'], true)).toBe(true);
+    expect(reconcilePick(s, 'author', ['github:renovate[bot]'], true)).toBe(
+      true,
+    );
     expect(s.shared.author).toBe('');
     expect(heldPicks().map((h) => h.text)).toEqual(['ren']);
+  });
+});
+
+describe('an author saved as a bare login by an earlier release', () => {
+  const state = (author: string): SharedFilterState => ({
+    shared: { author },
+    pr: {},
+    issue: {},
+    view: {},
+  });
+  test('reads as every forge-qualified choice with that whole login', () => {
+    const s = state('ryan');
+    const offered = ['forgejo:ryan', 'github:ann', 'github:ryan'];
+    expect(reconcilePick(s, 'author', offered, true)).toBe(false);
+    expect(s.shared.author).toBe('forgejo:ryan\ngithub:ryan');
+    expect(heldPicks()).toEqual([]);
+    expect(takeMigratedAuthor()).toBe(true);
+    expect(takeMigratedAuthor()).toBe(false);
+  });
+  test('matches the login in any case and keeps the other picks', () => {
+    const s = state('Ryan\ngithub:ann');
+    reconcilePick(s, 'author', ['github:ann', 'github:ryan'], false);
+    expect(s.shared.author).toBe('github:ryan\ngithub:ann');
+  });
+  test('is not matched by part of a login', () => {
+    const s = state('ry');
+    expect(reconcilePick(s, 'author', ['github:ryan'], true)).toBe(true);
+    expect(s.shared.author).toBe('');
+    expect(takeMigratedAuthor()).toBe(false);
+  });
+  test('on no forge here is set aside and named without a forge', () => {
+    const s = state('ghost');
+    expect(reconcilePick(s, 'author', ['github:ryan'], true)).toBe(true);
+    expect(s.shared.author).toBe('');
+    const [pick] = heldPicks();
+    expect(heldPickNote(pick)).toBe(
+      'Saved author "ghost" has no forge and is not on this page.',
+    );
+  });
+  test('a held bare login is rewritten in the saved copy too', () => {
+    const s = state('ghost');
+    reconcilePick(s, 'author', ['github:x'], true);
+    reconcilePick(s, 'author', ['github:ghost', 'forgejo:ghost'], true);
+    expect(heldPicks().map((h) => h.text)).toEqual(['ghost, ghost']);
   });
 });
 
@@ -188,9 +263,9 @@ describe('picks the page does not offer', () => {
     expect(heldPicks().map((p) => p.text)).toEqual(['gone/x']);
   });
   test('authors are dropped for good after the user narrowed them', () => {
-    const s = state({ author: 'ann\ngone' });
-    expect(reconcilePick(s, 'author', ['ann'], false)).toBe(true);
-    expect(s.shared.author).toBe('ann');
+    const s = state({ author: 'github:ann\ngithub:gone' });
+    expect(reconcilePick(s, 'author', ['github:ann'], false)).toBe(true);
+    expect(s.shared.author).toBe('github:ann');
     expect(heldPicks()).toEqual([]);
   });
   test('held authors stay in the saved copy next to the picked', () => {
@@ -201,10 +276,10 @@ describe('picks the page does not offer', () => {
       puts.push(JSON.parse(String(init?.body)));
       return Promise.resolve(new Response('{}'));
     }) as typeof fetch;
-    const s = state({ author: 'ann\ngone' });
-    reconcilePick(s, 'author', ['ann'], true);
+    const s = state({ author: 'github:ann\ngithub:gone' });
+    reconcilePick(s, 'author', ['github:ann'], true);
     saveState(s);
     globalThis.fetch = realFetch;
-    expect(puts[0].shared.author).toBe('ann\ngone');
+    expect(puts[0].shared.author).toBe('github:ann\ngithub:gone');
   });
 });

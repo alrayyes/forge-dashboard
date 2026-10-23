@@ -311,13 +311,17 @@ const CONTROLS: Control[] = [
     boards: ALL,
     group: 'shared',
     key: 'author',
-    stored: { issues: 'sam', other: 'dana' },
+    stored: { issues: 'forgejo:sam', other: 'forgejo:dana' },
     set: (page, board) =>
-      togglePicks(page, 'author', board === 'issues' ? 'sam' : 'dana'),
+      togglePicks(
+        page,
+        'author',
+        board === 'issues' ? 'forgejo:sam' : 'forgejo:dana',
+      ),
     show: (page, board) =>
       expect
         .poll(() => pickedValues(page, 'author'))
-        .toEqual([board === 'issues' ? 'sam' : 'dana']),
+        .toEqual([board === 'issues' ? 'forgejo:sam' : 'forgejo:dana']),
   },
   {
     name: 'label filter',

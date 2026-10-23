@@ -108,13 +108,13 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
   test.beforeEach(async ({ page }) => {
     await open(page, '/issues.html');
     await expect(issueRows(page)).toHaveCount(3);
-    await pickOnly(page, 'author', 'ryan');
+    await pickOnly(page, 'author', 'github:ryan');
     await expect(issueRows(page)).toHaveCount(2);
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
     // The page's own save has to land before a test seeds the server, or the
     // older write can arrive last and undo the seed.
-    await expect.poll(() => savedAuthor(page)).toBe('ryan');
+    await expect.poll(() => savedAuthor(page)).toBe('github:ryan');
   });
 
   const note = (page: Page) =>
@@ -132,7 +132,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
     await expect(note(page)).toBeVisible();
     await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     await expect(page.locator('#clear-filters-button')).toBeEnabled();
-    await expect.poll(() => savedAuthor(page)).toBe('ryan');
+    await expect.poll(() => savedAuthor(page)).toBe('github:ryan');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -301,7 +301,9 @@ test.describe('seeded saved picks (#1620)', () => {
       await expect(
         page
           .locator('#held-picks')
-          .getByText('Saved author "ryan" is not on this page.'),
+          .getByText(
+            'Saved author "ryan" has no forge and is not on this page.',
+          ),
       ).toBeVisible();
 
       await change(page);
