@@ -174,7 +174,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		finishedJobs:   newFinishedJobs(maxFinishedJobs),
 		excerpts:       newExcerptCache(maxExcerpts),
 		excerptTimeout: dashboard.ExcerptReadTimeout,
-		advisories:     &advisoryCache{},
+		advisories:     newAdvisoryCache(),
 	}}
 }
 
