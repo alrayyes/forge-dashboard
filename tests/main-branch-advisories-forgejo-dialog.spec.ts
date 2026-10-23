@@ -9,6 +9,8 @@ import { setTheme } from './theme-helper';
 
 const REPO = 'acme/lockfiles';
 
+let advisoriesOver: object = {};
+
 function branch() {
   return {
     forge: 'forgejo',
@@ -34,6 +36,7 @@ function branch() {
       state: 'known',
       count: 3,
       highest: 'critical',
+      ...advisoriesOver,
     },
   };
 }
@@ -175,6 +178,26 @@ test.describe('Branches page advisories dialog for a Forgejo row', () => {
     );
   });
 
+  test('a detail states the score and vector when OSV gives one', async ({
+    page,
+  }) => {
+    const vector = 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H';
+    await open(
+      page,
+      json({
+        ...LIST,
+        advisories: [advisory(1, 'critical', { cvss: { score: 9.8, vector } })],
+      }),
+    );
+    await page.locator('[data-number="1"]').click();
+
+    const detail = page.getByTestId('advisory-detail');
+    await expect(detail).toContainText('Severity score');
+    await expect(detail).toContainText('9.8 (Critical)');
+    await expect(detail).toContainText(vector);
+    await noViolations(page, 'detail with a vector');
+  });
+
   test('a failed read says why in Forgejo words, and a partly checked list says so', async ({
     page,
   }) => {
@@ -197,6 +220,7 @@ test.describe('Branches page advisories dialog for a Forgejo row', () => {
     await expect(page.getByTestId('advisories-partial')).toContainText(
       'left out',
     );
+    await noViolations(page, 'partial note');
   });
 
   test('has no axe violations and no overflow, list and detail, at 1280 and 390px', async ({
@@ -228,4 +252,22 @@ test.describe('Branches page advisories dialog for a Forgejo row', () => {
     }
     await setTheme(page, 'light');
   });
+});
+
+test('a partly checked pill carries its hint in the accessible name', async ({
+  page,
+}) => {
+  advisoriesOver = { partial: true };
+  try {
+    await open(page, json(LIST));
+    await page.keyboard.press('Escape');
+    const pill = page.getByTestId('main-branch-advisories');
+    const hint = await pill.getAttribute('title');
+    expect(hint).toBeTruthy();
+    const name = await pill.getAttribute('aria-label');
+    expect(name).toContain('(opens the advisories)');
+    expect(name?.endsWith(hint ?? '')).toBe(true);
+  } finally {
+    advisoriesOver = {};
+  }
 });

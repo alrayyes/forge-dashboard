@@ -1103,7 +1103,9 @@
                         data-testid="main-branch-advisories"
                         title={adv.hint}
                         aria-haspopup="dialog"
-                        aria-label="{adv.text} (opens the advisories)"
+                        aria-label="{adv.text} (opens the advisories){adv.hint
+                          ? `. ${adv.hint}`
+                          : ''}"
                         onclick={(e) =>
                           advisories?.open({
                             forge: b.forge,
