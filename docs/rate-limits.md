@@ -454,6 +454,72 @@ costs. The 56 repos are the whole account, so another account with the same
 number of repos but different pull requests and issues will differ, most of
 all in the REST column.
 
+## A full refresh that fetches only what changed
+
+A scheduled refresh no longer re-reads every repo. When a webhook is
+configured, it first asks GitHub one cheap question per 100 repos: when each
+repo was last pushed to or edited, how many open pull requests and issues it
+has, and when the newest-touched one last changed. A repo whose answer matches
+the last refresh, and whose webhook is switched on and subscribed to check
+events, is skipped: its pull requests, issues and main-branch row stay as they
+were, and only the repos that changed are fetched in full.
+
+What the answer can and can't see, found by reading a real repo:
+
+| Change                      | Moves repo `pushedAt` / `updatedAt`  | Moves a signal the probe reads        |
+| --------------------------- | ------------------------------------ | ------------------------------------- |
+| A push or a merge           | Moves both                           | Moves the repo stamp                  |
+| A comment on a pull request | Moves nothing                        | Moves that pull request's `updatedAt` |
+| A finished check run        | Leaves both alone                    | Nothing it reads changes              |
+| A label or a review         | Not isolated, so treated as not seen | Moves that pull request's `updatedAt` |
+
+GitHub's reference for the repository, pull request and issue objects doesn't
+say what moves a repo's `updatedAt`, so the table is what was observed, not a
+promise. Because a finished check is invisible to the probe, a repo is only
+skipped while its webhook is switched on and subscribed to the check or status
+events, since that webhook refreshes the repo on its own. Set up is not
+"delivering": if deliveries stop arriving, a skipped repo's checks stay stale
+until the next periodic full pass, which is the real bound (six refreshes at
+most). A repo with no such webhook (missing, switched off, or without those
+events) always counts as changed.
+
+Security advisories and the latest release live on the main-branch row, which
+a skipped repo keeps from its last fetch. Nothing the probe reads moves when
+an advisory is published, and a release may not move the push time, so both can
+lag by up to six refreshes on a skipped repo.
+
+Always a full pass:
+
+- the first refresh after a start, because the remembered answers live in
+  memory only;
+- every sixth refresh that fetched anything, as a safety net for a change the
+  probe can't see;
+- a refresh you ask for with Refresh now, and any refresh while you have one
+  pending;
+- a refresh where the probe itself failed.
+
+The webhook check still runs for a skipped repo, as the same conditional
+request it always was, so a repo that loses its webhook is noticed and fetched
+next time. The issues "changed since" marker advances per repo, only for repos
+actually fetched, so a skipped repo's issues are never missed.
+
+The probe also runs on a full pass, because the answers have to be taken
+before the fetch to be sure a change made during it is seen next time. It is
+about two points a page of 100 repos, so skipping it would not be worth the
+risk. It also raises what the dashboard counts a refresh as costing, which
+the reserve for your own actions is sized from, by the probe's two points a
+page.
+
+Cost, with a personal token. The probe measured 2 GraphQL points per page of
+100 repos (112 repos on the measured account, 2 pages, so about 4 points and 2
+requests). A refresh where nothing changed is that, plus the webhook checks.
+Before this change the same account's full refresh was the 5 requests and 606
+points of the [baseline](#baseline-what-each-kind-of-refresh-costs-today). A
+refresh where a few repos changed adds one batched query per 20 changed repos.
+The "after" figure for the probe is one measured query; the rest follows from
+the call counts the tests pin (no per-repo query for an unchanged account),
+not from a second full measurement.
+
 ## A repeated webhook check
 
 Measured on 2026-10-21 against GitHub with a personal access token, as a

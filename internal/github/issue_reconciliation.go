@@ -17,25 +17,66 @@ import (
 type issueState struct {
 	mu sync.Mutex
 
-	// lastPollTime is nil until the first successful Fetch — no prior
-	// poll means nothing to filter *since*, so the very first request
-	// has to ask for every open issue unconditionally rather than send
-	// some zero-value time that would filter almost everything out.
-	lastPollTime *time.Time
+	// fetchedAt is, per repo (keyed by fullName), when a poll that read its
+	// open issues began. A repo with no entry has never been read, so there is
+	// nothing to filter *since* for it. It moves only for a repo the poll
+	// actually fetched: a repo an incremental refresh skipped keeps its old
+	// time, so the next poll that does fetch it still asks for everything
+	// changed since it was last read.
+	fetchedAt map[string]time.Time
 	// issuesByRepo holds the last known full open-issue set per repo
-	// (keyed by fullName), rebuilt from scratch on every successful
-	// Fetch so a repo this client stops tracking doesn't linger here
-	// forever.
+	// (keyed by fullName), so a repo this client stops tracking doesn't
+	// linger here forever.
 	issuesByRepo map[string][]dashboard.Issue
 }
 
 // since returns the value to send as the issues connection's own
-// filterBy: {since: ...} argument — nil on the very first call.
+// filterBy: {since: ...} argument for a poll of every repo: the oldest time any
+// repo was read, nil when none has been.
 func (s *issueState) since() *time.Time {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.lastPollTime
+	return oldest(s.fetchedAt, nil)
+}
+
+// sinceFor is since for a poll of just names: nil when any of them has never
+// been read, since then the poll has to ask for every open issue.
+func (s *issueState) sinceFor(names []string) *time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(names) == 0 {
+		return nil
+	}
+	for _, n := range names {
+		if _, ok := s.fetchedAt[n]; !ok {
+			return nil
+		}
+	}
+
+	return oldest(s.fetchedAt, names)
+}
+
+// oldest is the earliest time in m among names (all of m when names is nil).
+func oldest(m map[string]time.Time, names []string) *time.Time {
+	var out *time.Time
+	consider := func(t time.Time) {
+		if out == nil || t.Before(*out) {
+			out = &t
+		}
+	}
+	if names == nil {
+		for _, t := range m {
+			consider(t)
+		}
+
+		return out
+	}
+	for _, n := range names {
+		consider(m[n])
+	}
+
+	return out
 }
 
 // previousIssues returns fullName's own last known open-issue set, and
@@ -51,15 +92,40 @@ func (s *issueState) previousIssues(fullName string) ([]dashboard.Issue, bool) {
 	return prev, ok
 }
 
-// commit replaces the tracked state wholesale with pollStartedAt (the
-// time captured right before this poll's own query ran — not after,
-// so a change landing mid-poll still has an updatedAt at or after the
-// next poll's own since and isn't silently missed) and issuesByRepo.
-func (s *issueState) commit(pollStartedAt time.Time, issuesByRepo map[string][]dashboard.Issue) {
+// commit records a poll that began at pollStartedAt (the time captured right
+// before its own query ran — not after, so a change landing mid-poll still has
+// an updatedAt at or after the next poll's own since and isn't silently
+// missed). fetchedNames are the repos the poll read and fetched their open
+// issues: those replace the old ones and move to pollStartedAt. Every other repo in tracked
+// keeps what it had, and anything not tracked any more is dropped.
+func (s *issueState) commit(pollStartedAt time.Time, fetchedNames []string, fetched map[string][]dashboard.Issue, tracked []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.lastPollTime = &pollStartedAt
-	s.issuesByRepo = issuesByRepo
+
+	wasFetched := make(map[string]bool, len(fetchedNames))
+	for _, name := range fetchedNames {
+		wasFetched[name] = true
+	}
+	times := make(map[string]time.Time, len(tracked))
+	issues := make(map[string][]dashboard.Issue, len(tracked))
+	for _, name := range tracked {
+		if wasFetched[name] {
+			// A repo whose reconciliation failed has no entry in fetched, so it
+			// is forgotten and the next poll reads it from scratch.
+			if list, ok := fetched[name]; ok {
+				times[name] = pollStartedAt
+				issues[name] = list
+			}
+
+			continue
+		}
+		if at, ok := s.fetchedAt[name]; ok {
+			times[name] = at
+			issues[name] = s.issuesByRepo[name]
+		}
+	}
+	s.fetchedAt = times
+	s.issuesByRepo = issues
 }
 
 // mergeIssueDelta combines prev (fullName's last known full open-issue

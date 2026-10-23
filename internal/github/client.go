@@ -169,6 +169,10 @@ type Client struct {
 	// see issue_reconciliation.go.
 	issueState issueState
 
+	// stamps is what the change probe saw of each repo the last time its rows
+	// were fetched whole; see incremental.go.
+	stamps stampBook
+
 	// recorder persists a request_log entry for every outbound request
 	// this Client makes (#482) — always non-nil (NewClient defaults it
 	// to requestlog.NoopRecorder{}), so every call site can call it
@@ -2083,6 +2087,9 @@ const appRepoFieldsTemplate = `
             state
           }
         }
+        comments {
+          totalCount
+        }
         reviewThreads(first: 30) {
           nodes {
             isResolved
@@ -2149,26 +2156,7 @@ var appRepoFields = fmt.Sprintf(appRepoFieldsTemplate, itemsPerRepo, defaultBran
 // injection-avoidance reason every other query in this file uses
 // variables for user-controlled values.
 func buildAppRepoQuery(repos []*ghsdk.Repository) (string, map[string]any) {
-	varDecls := make([]string, 0, len(repos)*2+1)
-	varDecls = append(varDecls, "$since: DateTime")
-	vars := make(map[string]any, len(repos)*2+1)
-
-	var fields strings.Builder
-	fields.WriteString("query(")
-	for i, r := range repos {
-		ownerVar, nameVar := fmt.Sprintf("owner%d", i), fmt.Sprintf("name%d", i)
-		varDecls = append(varDecls, fmt.Sprintf("$%s: String!", ownerVar), fmt.Sprintf("$%s: String!", nameVar))
-		vars[ownerVar] = r.GetOwner().GetLogin()
-		vars[nameVar] = r.GetName()
-	}
-	fields.WriteString(strings.Join(varDecls, ", "))
-	fields.WriteString(") {\n  rateLimit {\n    limit\n    cost\n    remaining\n    resetAt\n  }\n")
-	for i := range repos {
-		fmt.Fprintf(&fields, "  r%d: repository(owner: $owner%d, name: $name%d) {%s  }\n", i, i, i, appRepoFields)
-	}
-	fields.WriteString("}")
-
-	return fields.String(), vars
+	return buildAliasedQuery(repos, appRepoFields, true)
 }
 
 // decodeAppRepoBatch unpacks one buildAppRepoQuery response: its
@@ -2197,7 +2185,8 @@ func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]grap
 	result := make([]graphqlRepo, 0, len(repos))
 	for i, r := range repos {
 		raw, ok := envelope[fmt.Sprintf("r%d", i)]
-		if !ok {
+		if !ok || string(raw) == "null" {
+			// GitHub answers null for a repo it can no longer find.
 			continue
 		}
 		var repo graphqlRepo
@@ -2260,12 +2249,21 @@ func (c *Client) listAppRepos(ctx context.Context) ([]*ghsdk.Repository, error) 
 // requests/issues via a batched, aliased GraphQL query —
 // repository(owner:,name:) has no such viewer restriction (FetchRepo,
 // the webhook-delivery path, already relies on exactly that).
-func (c *Client) fetchAppRepos(ctx context.Context, since *time.Time) ([]graphqlRepo, *dashboard.RateLimit, error) {
-	candidates, err := c.listAppRepos(ctx)
-	if err != nil {
-		return nil, nil, err
+func (c *Client) fetchAppRepos(ctx context.Context, since *time.Time, listed []*ghsdk.Repository) ([]graphqlRepo, *dashboard.RateLimit, error) {
+	candidates := listed
+	if candidates == nil {
+		var err error
+		if candidates, err = c.listAppRepos(ctx); err != nil {
+			return nil, nil, err
+		}
 	}
 
+	return c.fetchRepoBatches(ctx, candidates, since)
+}
+
+// fetchRepoBatches fetches the pull requests, issues and default branch of the
+// candidate repos in aliased batches of appRepoBatchSize.
+func (c *Client) fetchRepoBatches(ctx context.Context, candidates []*ghsdk.Repository, since *time.Time) ([]graphqlRepo, *dashboard.RateLimit, error) {
 	var repos []graphqlRepo
 	var rateLimit *dashboard.RateLimit
 	for start := 0; start < len(candidates); start += appRepoBatchSize {
@@ -2610,8 +2608,18 @@ func repoLogoURL(r graphqlRepo) string {
 type hookProbe struct {
 	has     bool
 	refused bool
+	// active is whether the hook that was found is switched on.
+	active bool
 	// events is the event list of the hook that was found; nil when has is false.
 	events []string
+}
+
+// vouchesForChecks is whether the hook delivers finished checks, so a repo
+// whose probe saw nothing change can be skipped: it exists, is switched on and
+// subscribes to the check events. It says the hook is set up, not that
+// deliveries arrive.
+func (p hookProbe) vouchesForChecks() bool {
+	return p.has && p.active && (slices.Contains(p.events, "check_run") || slices.Contains(p.events, "status"))
 }
 
 // WebhookEvents returns the events the app's own hook on fullName subscribes
@@ -2687,22 +2695,40 @@ func trackedRepos(repos []graphqlRepo) []graphqlRepo {
 	return tracked
 }
 
+func (c *Client) fetchPlanned(ctx context.Context, plan *refreshPlan, since *time.Time) ([]graphqlRepo, *dashboard.RateLimit, error) {
+	switch {
+	case plan.partial():
+		repos, rateLimit, err := c.fetchNamedRepos(ctx, plan.changed, since)
+
+		return repos, cmp.Or(rateLimit, plan.rateLimit), err
+	case c.appAuthenticated:
+		var listed []*ghsdk.Repository
+		if plan != nil {
+			listed = plan.candidates
+		}
+
+		return c.fetchAppRepos(ctx, since, listed)
+	default:
+		return c.fetchTokenRepos(ctx, since)
+	}
+}
+
 func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	// Captured before the query runs, not after: an issue that changes
 	// mid-poll needs an updatedAt at or after the *next* poll's own
 	// since, or it's silently missed forever — using the end time
 	// instead would leave exactly that gap.
 	pollStartedAt := time.Now().UTC()
-	since := c.issueState.since()
 
-	var repos []graphqlRepo
-	var rateLimit *dashboard.RateLimit
-	var err error
-	if c.appAuthenticated {
-		repos, rateLimit, err = c.fetchAppRepos(ctx, since)
-	} else {
-		repos, rateLimit, err = c.fetchTokenRepos(ctx, since)
+	// With a webhook path the refresh probes first (one cheap query), so it
+	// has each repo's stamp from before the fetch and can skip the unchanged.
+	plan := c.planRefresh(ctx)
+	since := c.issueState.since()
+	if plan.partial() {
+		since = c.issueState.sinceFor(namesOf(plan.changed))
 	}
+
+	repos, rateLimit, err := c.fetchPlanned(ctx, plan, since)
 	if err != nil {
 		return c.unreachableResult(err)
 	}
@@ -2712,16 +2738,33 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	// isn't actually seeing anything. Surfaced at Warn (visible at the
 	// default Info level, not only under debug) so an operator sees a
 	// working-but-empty poll without having to change LOG_LEVEL.
-	if len(repos) == 0 {
+	listed := repos
+	if plan != nil {
+		listed = plan.listed
+	}
+	if len(listed) == 0 {
 		slog.Warn("github fetch returned no repositories", "forge", dashboard.ForgeGitHub, "appAuthenticated", c.appAuthenticated)
 	}
 
-	c.pruneHookChecks(ctx, repos)
+	c.pruneHookChecks(ctx, listed)
+	// tracked is every repo the dashboard follows; fetched is the ones whose
+	// pull requests and issues this refresh read (all of them unless the plan
+	// skipped some).
 	tracked := trackedRepos(repos)
-	advisoriesDone := c.startAdvisories(ctx, tracked)
-	probes := c.checkWebhooks(ctx, tracked)
-	issuesByRepo := c.reconcileIssues(ctx, tracked, since != nil)
-	c.issueState.commit(pollStartedAt, issuesByRepo)
+	fetched := tracked
+	if plan != nil {
+		tracked = plan.trackedRepos()
+	}
+	advisoriesDone := c.startAdvisories(ctx, fetched)
+	var probes map[string]hookProbe
+	if plan != nil {
+		probes = plan.hooks
+	} else {
+		probes = c.checkWebhooks(ctx, tracked)
+	}
+	issuesByRepo := c.reconcileIssues(ctx, fetched, since != nil)
+	c.issueState.commit(pollStartedAt, namesOfRepos(fetched), issuesByRepo, namesOfRepos(tracked))
+	c.recordStamps(plan, keysOf(issuesByRepo))
 
 	result := dashboard.Result{Health: dashboard.ForgeHealth{
 		Forge:            dashboard.ForgeGitHub,
@@ -2730,20 +2773,35 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		RateLimitREST:    c.lastRESTRate.Load(),
 		RepoCount:        len(tracked),
 	}}
-	c.withCheckedCommits(ctx, tracked)
+	if plan != nil {
+		result.Unchanged = plan.skipped
+		result.FailedRepos = plan.missingFrom(fetched)
+	}
+	c.withCheckedCommits(ctx, fetched)
 	advisories := <-advisoriesDone
-	var behindChecks []behindCheck
-	var unreported []missingRequiredCheck
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
 		result.Repos = append(result.Repos, repoFrom(fullName, r, probes[fullName], c.appAuthenticated))
+	}
+	c.appendFetched(ctx, &result, fetched, issuesByRepo, advisories)
+
+	return result
+}
+
+// appendFetched adds the pull requests, issues and main branches of the repos
+// this refresh read, then settles the checks those pull requests left open.
+func (c *Client) appendFetched(ctx context.Context, res *dashboard.Result, fetched []graphqlRepo, issuesByRepo map[string][]dashboard.Issue, advisories map[string]*dashboard.Advisories) {
+	var behindChecks []behindCheck
+	var unreported []missingRequiredCheck
+	for _, r := range fetched {
+		fullName := r.Owner.Login + "/" + r.Name
 
 		for _, p := range r.PullRequests.Nodes {
-			result.PullRequests = append(result.PullRequests, mapPullRequest(fullName, p))
-			unreported = appendUnreported(unreported, result.PullRequests, r.Owner.Login, r.Name, p)
+			res.PullRequests = append(res.PullRequests, mapPullRequest(fullName, p))
+			unreported = appendUnreported(unreported, res.PullRequests, r.Owner.Login, r.Name, p)
 			if ambiguousMergeState(p.MergeStateStatus) {
 				behindChecks = append(behindChecks, behindCheck{
-					prIndex: len(result.PullRequests) - 1,
+					prIndex: len(res.PullRequests) - 1,
 					owner:   r.Owner.Login,
 					name:    r.Name,
 					number:  p.Number,
@@ -2751,13 +2809,38 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 				})
 			}
 		}
-		result.Issues = append(result.Issues, issuesByRepo[fullName]...)
-		result.MainBranches = append(result.MainBranches, withAdvisories(mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef), advisories[fullName]))
+		res.Issues = append(res.Issues, issuesByRepo[fullName]...)
+		res.MainBranches = append(res.MainBranches, withAdvisories(mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef), advisories[fullName]))
 	}
-	c.resolveAmbiguousBehind(ctx, result.PullRequests, behindChecks)
-	c.settleUnreportedRequiredChecks(ctx, result.PullRequests, unreported)
+	c.resolveAmbiguousBehind(ctx, res.PullRequests, behindChecks)
+	c.settleUnreportedRequiredChecks(ctx, res.PullRequests, unreported)
+}
 
-	return result
+func namesOf(repos []probedRepo) []string {
+	out := make([]string, 0, len(repos))
+	for _, r := range repos {
+		out = append(out, r.fullName())
+	}
+
+	return out
+}
+
+func namesOfRepos(repos []graphqlRepo) []string {
+	out := make([]string, 0, len(repos))
+	for _, r := range repos {
+		out = append(out, r.Owner.Login+"/"+r.Name)
+	}
+
+	return out
+}
+
+func keysOf(m map[string][]dashboard.Issue) map[string]bool {
+	out := make(map[string]bool, len(m))
+	for k := range m {
+		out[k] = true
+	}
+
+	return out
 }
 
 // checkWebhooks calls HasWebhook for every tracked repo concurrently,
@@ -2829,6 +2912,7 @@ func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe
 	probe := hookProbe{has: hook != nil, refused: c.noteRefused(fullName, false, false)}
 	if hook != nil {
 		probe.events = hook.Events
+		probe.active = hook.GetActive()
 	}
 	c.noteOwnHook(fullName, &probe)
 	c.saveHookCheck(fullName, probe)
@@ -3231,6 +3315,9 @@ const pullRequestFields = `        number
           nodes {
             state
           }
+        }
+        comments {
+          totalCount
         }
         reviewThreads(first: 30) {
           nodes {

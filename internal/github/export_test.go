@@ -107,3 +107,19 @@ func (c *Client) SetLogProxyForTest(fn func(*http.Request) (*url.URL, error)) { 
 // LogBlobClientForTest is the shared client the log downloads use.
 func (c *Client) LogBlobClientForTest() *http.Client { return c.logBlobClient() }
 func DialAddressForTest(u *url.URL) string           { return dialAddress(u) }
+
+// IssueSinceForTest is the issues since marker held for fullName, nil for none.
+func (c *Client) IssueSinceForTest(fullName string) *time.Time {
+	return c.issueState.sinceFor([]string{fullName})
+}
+
+// PullRequestSelections are the three GraphQL selections a pull request is
+// read through: the account-wide listing, the per-repo batch and the
+// single-repo/pending lookups.
+func PullRequestSelections() map[string]string {
+	return map[string]string{
+		"account-wide": reposQuery,
+		"batch":        appRepoFields,
+		"lookup":       pullRequestFields,
+	}
+}
