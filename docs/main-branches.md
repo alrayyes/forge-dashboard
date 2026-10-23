@@ -187,6 +187,8 @@ directive counts as left out too. The pill then says "At least 3 advisories,
 high", and a count of zero says "None found, partly checked" instead of
 passing for a clean repo. A partly checked zero is in neither **Has advisories**
 nor **No advisories** in the filter, since it proves neither.
+The MCP `get_main_branches` tool and the in-page WebMCP tool say the same in their
+descriptions, so an agent doesn't read a partial zero as a clean repo.
 
 The page does not flag an unknown Forgejo row that has no reason, since most
 repos have no lock file, and nothing is said while advisories are off. It does
