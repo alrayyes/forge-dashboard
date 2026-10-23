@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.16.0](https://github.com/alrayyes/forge-dashboard/compare/v2.15.0...v2.16.0) (2026-10-23)
+
+
+### Features
+
+* **web:** say which choices a saved pick lost when it no longer fits ([#2624](https://github.com/alrayyes/forge-dashboard/issues/2624)) ([b65122e](https://github.com/alrayyes/forge-dashboard/commit/b65122e0d21cb44b4bcc15a878e7fc52a781aa69))
+
 ## [2.15.0](https://github.com/alrayyes/forge-dashboard/compare/v2.14.0...v2.15.0) (2026-10-23)
 
 
