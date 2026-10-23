@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.25.0](https://github.com/alrayyes/forge-dashboard/compare/v2.24.1...v2.25.0) (2026-10-23)
+
+
+### Features
+
+* **mcp:** offer a repository's open advisories as a tool ([#2684](https://github.com/alrayyes/forge-dashboard/issues/2684)) ([022833e](https://github.com/alrayyes/forge-dashboard/commit/022833e91b9ac94aeab81c2ab24ef339e42c03d4))
+
+
+### Bug Fixes
+
+* **web:** settle the auto-update checkbox once the write is saved and keep it there ([#2690](https://github.com/alrayyes/forge-dashboard/issues/2690)) ([f029a97](https://github.com/alrayyes/forge-dashboard/commit/f029a97d108b314488308226a7f549fea19562fc))
+
 ## [2.24.1](https://github.com/alrayyes/forge-dashboard/compare/v2.24.0...v2.24.1) (2026-10-23)
 
 
