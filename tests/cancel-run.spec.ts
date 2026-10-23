@@ -185,6 +185,23 @@ async function open(
   return dialog;
 }
 
+// Steps the fake clock one settle interval at a time and waits for each
+// re-read to reach the mock and be handled, so the next timer is armed before
+// the clock moves again. One big runFor outruns the mocked responses. The
+// last step is the cap, which reads nothing.
+async function settleAll(
+  page: Page,
+  state: { reads?: number; checks: unknown[] },
+) {
+  for (let i = 0; i < 8; i++) {
+    const before = state.reads ?? 0;
+    await page.clock.runFor(2500);
+    await expect.poll(() => state.reads ?? 0).toBeGreaterThan(before);
+    await page.waitForTimeout(50);
+  }
+  await page.clock.runFor(2500);
+}
+
 // The confirm button fades in; a scan caught mid-fade reads a washed-out
 // colour, so it runs with the animation off, as the other confirm specs do.
 async function axeClean(page: Page) {
@@ -457,7 +474,7 @@ test.describe('cancel a running pipeline', () => {
     ).toBeVisible();
 
     // Eight re-reads, 2.5 seconds apart, and the run is still going.
-    await page.clock.runFor(2500 * 9);
+    await settleAll(page, state);
 
     await expect(
       dialog.getByRole('status').filter({ hasText: 'still running' }),
@@ -579,7 +596,7 @@ test.describe('cancel a running pipeline', () => {
     await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
     state.readStatus = 502;
 
-    await page.clock.runFor(2500 * 9);
+    await settleAll(page, state);
 
     await expect(dialog).toContainText("Couldn't check whether ci has stopped");
     await expect(dialog).not.toContainText('still running');
@@ -594,7 +611,7 @@ test.describe('cancel a running pipeline', () => {
       await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
     }
 
-    await page.clock.runFor(2500 * 9);
+    await settleAll(page, state);
 
     const said = page.locator('.pipeline-live-status');
     await expect(said).toContainText('ci and release are still running');
@@ -607,7 +624,7 @@ test.describe('cancel a running pipeline', () => {
     await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
     await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
 
-    await page.clock.runFor(2500 * 9);
+    await settleAll(page, state);
 
     await expect(page.locator('.pipeline-live-status')).toContainText(
       'ci is still running',
@@ -629,7 +646,7 @@ test.describe('cancel a running pipeline', () => {
       await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
     }
 
-    await page.clock.runFor(2500 * 9);
+    await settleAll(page, state);
 
     const said = page.locator('.pipeline-live-status');
     await expect(said).toContainText('2 runs are still running');
