@@ -21,7 +21,7 @@ func ReadAdvisoriesOn(ctx context.Context, c *Client, owner, name, branch string
 }
 
 // SetAdvisoryClock replaces the clock the advisory cache expires by.
-func SetAdvisoryClock(c *Client, now func() time.Time) { c.advisories.now = now }
+func SetAdvisoryClock(c *Client, now func() time.Time) { c.advisories.Now = now }
 
 // SetAdvisoryDeadline replaces how long one repo's advisory read may take.
 func SetAdvisoryDeadline(c *Client, d time.Duration) { c.advisoryDeadline = d }
