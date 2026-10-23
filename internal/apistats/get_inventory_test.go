@@ -254,6 +254,8 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 		"internal/github/client.go:graphqlExec:Do":                    true, // POST
 		"internal/github/client.go:logExcerpt:Do":                     true, // job log download, listed as not conditional
 		"internal/github/job_log.go:fetchLogBlob:Do":                  true, // job log download, listed as not conditional
+		"internal/github/advisory_list.go:readAlertPage:NewRequest":   true, // alert pages read when the advisories dialog opens: a user-driven live read, never cached
+		"internal/github/advisory_list.go:readAlertPage:Do":           true, // same read
 
 		"internal/github/hook_check_persist.go:restoreHookChecks:Do": true, // sync.Once, sends nothing
 	}
