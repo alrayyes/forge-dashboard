@@ -1,16 +1,12 @@
 package forgejo
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"slices"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"code.gitea.io/sdk/gitea"
@@ -164,96 +160,66 @@ func (k excerptKey) settled(now time.Time) bool {
 	return !k.finished.IsZero() && now.Sub(k.finished) >= excerptSettleDelay
 }
 
-// addFailureExcerpts fills Excerpt on the newest few failed or timed-out Actions
-// jobs among checks, from the end of their logs, as the GitHub client does. A
-// pull request's list and a branch's list both come through here, so the two
-// boards agree. jobs[i] names check i's job. A job's log stops changing a
-// moment after it finishes, so an excerpt read from a settled log is kept for
-// good and a red default branch costs no log read per poll. One read before
-// that, or for a job with no finish time, is kept for a minute only, so a log
-// that was still being flushed is read once more. A read that failed, or found
-// the log empty, is remembered briefly too, so such a log isn't asked for on
-// every poll.
-//
-// It is best effort: a job with no id, or a log the token can't read, keeps its
-// check as it was, with the link to the run. Newest first (the highest job id),
-// so jobs of superseded runs don't use up the budget; only reads count against
-// dashboard.MaxExcerptJobs, not excerpts already kept. The reads run together,
-// each under dashboard.ExcerptReadTimeout; the first refusal for a missing
-// permission, or for a rate limit, cancels the rest and remembers the whole
-// batch as failed, since they would be refused the same way.
-func (c *Client) addFailureExcerpts(ctx context.Context, owner, name string, checks []dashboard.Check, jobs []excerptKey) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	var wg sync.WaitGroup
-	var refused atomic.Bool
-	var tried []string
-	reads := 0
+// rememberFailedJobs notes the excerpt key of each failed or timed-out job
+// among checks, so a later JobExcerpt can tell a settled log from one still
+// being flushed and a rerun from the first attempt, though the log endpoint
+// is asked for a job id alone. It reads no log. jobs[i] names check i's job.
+func (c *Client) rememberFailedJobs(owner, name string, checks []dashboard.Check, jobs []excerptKey) {
 	for _, i := range newestFailures(checks) {
-		key := jobs[i].key
-		if text, ok := c.excerpts.get(key); ok {
-			checks[i].Excerpt = text
-
-			continue
-		}
-		if c.excerpts.recentlyFailed(key) || reads == dashboard.MaxExcerptJobs {
-			// Older jobs may still have a kept excerpt, so keep looking.
-			continue
-		}
-		tried = append(tried, key)
-		// A refusal elsewhere in the list (or a gone caller) dooms every read
-		// not yet started; sending it would only record a failed request.
-		if ctx.Err() != nil {
-			continue
-		}
-		reads++
-		settled := jobs[i].settled(c.excerpts.now())
-		wg.Go(func() { c.fillExcerpt(ctx, cancel, &refused, owner, name, &checks[i], key, settled) })
-	}
-	wg.Wait()
-	if refused.Load() {
-		// The reads the refusal cancelled were never tried, so without this
-		// each later list would send them again.
-		for _, key := range tried {
-			c.excerpts.fail(key)
-		}
+		c.excerpts.remember(owner, name, checks[i].JobID, jobs[i])
 	}
 }
 
-// fillExcerpt reads one failed job's log into check.Excerpt and keeps the result
-// under key.
-func (c *Client) fillExcerpt(ctx context.Context, cancel context.CancelFunc, refused *atomic.Bool, owner, name string, check *dashboard.Check, key string, settled bool) {
-	text, err := c.readExcerpt(ctx, owner, name, check.JobID)
+// JobExcerpt reads the excerpt of one failed job: the end of its log as plain
+// text, the way the GitHub client fills it. It is read when someone is about to
+// look at the check, never while a checks list is built, so a slow log delays
+// only its own excerpt, bounded by dashboard.ExcerptReadTimeout.
+//
+// A job's log stops changing a moment after it finishes, so an excerpt read
+// from a settled log is kept for good. One read before that, or for a job with
+// no finish time, is kept for a minute only, so a log that was still being
+// flushed is read once more. A read that failed, or found the log empty, is
+// remembered briefly too and answers with no excerpt until then, so a log that
+// can't be read isn't asked for on every look.
+//
+// A missing log is no excerpt, not an error. A refused token or a rate limit
+// is returned, so the caller can stop asking for the rest.
+func (c *Client) JobExcerpt(ctx context.Context, owner, name string, id int64) (string, error) {
+	jk := c.excerpts.keyFor(owner, name, id)
+	if text, ok := c.excerpts.get(jk.key); ok {
+		return text, nil
+	}
+	if c.excerpts.recentlyFailed(jk.key) {
+		return "", nil
+	}
+	text, err := c.readExcerpt(ctx, owner, name, id)
 	if err != nil {
-		slog.Debug("forgejo job log unavailable", "job", check.JobID, "err", err)
-		// A sibling's cancel says nothing about this log; the read's own error
-		// does, even when it lands just after the cancel.
+		slog.Debug("forgejo job log unavailable", "job", id, "err", err)
+		// A caller that left says nothing about this log; the read's own error
+		// does, even when it lands just after.
 		if !errors.Is(err, context.Canceled) {
-			c.excerpts.fail(key)
+			c.excerpts.fail(jk.key)
 		}
-		// A refused token or a limited forge fails every sibling alike; a
-		// missing log is only that job's.
-		if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && (clientErr.Kind == dashboard.ForgeErrorUnauthorized || clientErr.Kind == dashboard.ForgeErrorRateLimited) {
-			refused.Store(true)
-			cancel()
+		if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && clientErr.Kind == dashboard.ForgeErrorNotFound {
+			return "", nil
 		}
 
-		return
+		return "", err
 	}
-	check.Excerpt = text
 	if text == "" {
 		// An empty log may only not have been flushed yet: ask again after the
-		// same short wait as a failed read, not on every poll, so it doesn't
-		// hold one of the read slots each time.
-		c.excerpts.fail(key)
+		// same short wait as a failed read, not on every look.
+		c.excerpts.fail(jk.key)
 
-		return
+		return "", nil
 	}
-	c.excerpts.put(key, text, settled)
+	c.excerpts.put(jk.key, text, jk.settled(c.excerpts.now()))
+
+	return text, nil
 }
 
 // newestFailures is the indexes of the failed or timed-out checks that have a
-// job id, newest first (the highest id).
+// job id.
 func newestFailures(checks []dashboard.Check) []int {
 	var picked []int
 	for i := range checks {
@@ -261,7 +227,6 @@ func newestFailures(checks []dashboard.Check) []int {
 			picked = append(picked, i)
 		}
 	}
-	slices.SortStableFunc(picked, func(a, b int) int { return cmp.Compare(checks[b].JobID, checks[a].JobID) })
 
 	return picked
 }

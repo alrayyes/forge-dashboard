@@ -1370,7 +1370,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			excerptKeys = append(excerptKeys, newExcerptKey(owner, name, j))
 		}
 	}
-	c.addFailureExcerpts(ctx, owner, name, checks, excerptKeys)
+	c.rememberFailedJobs(owner, name, checks, excerptKeys)
 
 	return checks, probes, nil
 }

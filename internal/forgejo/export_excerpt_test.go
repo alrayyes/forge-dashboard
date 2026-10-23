@@ -1,11 +1,6 @@
 package forgejo
 
-import (
-	"context"
-	"time"
-
-	"github.com/alrayyes/forge-dashboard/internal/dashboard"
-)
+import "time"
 
 // SetExcerptReadTimeoutForTest shortens how long c waits on one job log.
 func SetExcerptReadTimeoutForTest(c *Client, d time.Duration) {
@@ -33,16 +28,6 @@ func (e *ExcerptCacheForTest) RecentlyFailed(key string) bool { return e.c.recen
 
 // ExcerptReadWindow is the size of the log tail an excerpt read keeps.
 const ExcerptReadWindow = excerptReadWindow
-
-// AddFailureExcerptsForTest runs the excerpt reads for checks under ctx.
-func AddFailureExcerptsForTest(ctx context.Context, c *Client, owner, name string, checks []dashboard.Check, keys []string) {
-	jobs := make([]excerptKey, len(keys))
-	for i, k := range keys {
-		// Long finished, so the log is settled.
-		jobs[i] = excerptKey{key: k, finished: time.Unix(1, 0)}
-	}
-	c.addFailureExcerpts(ctx, owner, name, checks, jobs)
-}
 
 // MaxExcerptsForTest is how many entries the excerpt cache holds.
 const MaxExcerptsForTest = maxExcerpts
