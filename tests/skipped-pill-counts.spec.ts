@@ -333,13 +333,13 @@ test.describe('skipped counts on the Issues page pill', () => {
   test('says them in the text and the name', async ({ page }) => {
     await openIssues(page);
 
-    await expect(issuePill(page, 1)).toHaveText('#12 open Passed 6 2');
+    await expect(issuePill(page, 1)).toHaveText('#12 Passed 6 2');
     await expect(issuePill(page, 1)).toHaveAccessibleName(
-      'Pull request #12 open Passed 6 2: 6 passed, 2 skipped, closes this issue',
+      'Pull request #12 Passed 6 2: 6 passed, 2 skipped, closes this issue',
     );
-    await expect(issuePill(page, 2)).toHaveText('#13 open Skipped 3');
+    await expect(issuePill(page, 2)).toHaveText('#13 Skipped 3');
     await expect(issuePill(page, 2)).toHaveAccessibleName(
-      'Pull request #13 open Skipped 3: 3 skipped, closes this issue',
+      'Pull request #13 Skipped 3: 3 skipped, closes this issue',
     );
   });
 });

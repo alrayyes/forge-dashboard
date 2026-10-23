@@ -39,15 +39,13 @@ describe('a pill that carries a pipeline', () => {
   };
 
   test('reads the word and the counts after the number and state', () => {
-    expect(linkedPillText(pr(), 'alrayyes/app', ci)).toBe(
-      '#12 open Running 3 1',
-    );
+    expect(linkedPillText(pr(), 'alrayyes/app', ci)).toBe('#12 Running 3 1');
   });
 
   test('says the counts in words, after the visible text it contains', () => {
     const name = linkedPillName(pr(), 'alrayyes/app', ci);
     expect(name).toBe(
-      'Pull request #12 open Running 3 1: 3 passed, 1 failed, closes this issue',
+      'Pull request #12 Running 3 1: 3 passed, 1 failed, closes this issue',
     );
     expect(name).toContain(linkedPillText(pr(), 'alrayyes/app', ci));
   });
@@ -59,14 +57,14 @@ describe('a pill that carries a pipeline', () => {
       segments: [],
     };
     expect(linkedPillName(pr(), 'alrayyes/app', held)).toBe(
-      'Pull request #12 open Waiting for workflow approval, closes this issue',
+      'Pull request #12 Waiting for workflow approval, closes this issue',
     );
   });
 });
 
 describe('linkedPillText', () => {
   test('is the number and the state', () => {
-    expect(linkedPillText(pr(), 'alrayyes/app')).toBe('#12 open');
+    expect(linkedPillText(pr(), 'alrayyes/app')).toBe('#12');
     expect(linkedPillText(pr({ draft: true }), 'alrayyes/app')).toBe(
       '#12 draft',
     );
@@ -74,21 +72,19 @@ describe('linkedPillText', () => {
 
   test('names the repo when the pull request is in another one', () => {
     expect(linkedPillText(pr({ repo: 'alrayyes/other' }), 'alrayyes/app')).toBe(
-      'alrayyes/other#12 open',
+      'alrayyes/other#12',
     );
   });
 
   test('compares repos without regard to case, as Forgejo spells them lowercased', () => {
-    expect(linkedPillText(pr({ repo: 'Ryan/Hush' }), 'ryan/hush')).toBe(
-      '#12 open',
-    );
+    expect(linkedPillText(pr({ repo: 'Ryan/Hush' }), 'ryan/hush')).toBe('#12');
   });
 });
 
 describe('linkedPillName', () => {
   test('says what it is and that it closes the issue, and contains the visible text', () => {
     const name = linkedPillName(pr(), 'alrayyes/app');
-    expect(name).toBe('Pull request #12 open, closes this issue');
+    expect(name).toBe('Pull request #12, closes this issue');
     expect(name).toContain(linkedPillText(pr(), 'alrayyes/app'));
   });
 

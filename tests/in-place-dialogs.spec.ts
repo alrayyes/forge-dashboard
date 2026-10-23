@@ -234,7 +234,7 @@ test.describe('a linked pull request pill on the Issues page', () => {
 
     const pill = linkedPill(page, 1);
     await expect(pill).toHaveAccessibleName(
-      'Pull request #12 open, closes this issue',
+      'Pull request #12, closes this issue',
     );
     await pill.click();
 

@@ -40,7 +40,8 @@ export const SHOWN_PILLS = 2;
 
 const sameRepo = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-const stateOf = (pr: LinkedPullRequest) => (pr.draft ? 'draft' : 'open');
+// Every linked pull request is open, so only a draft says its state.
+const stateOf = (pr: LinkedPullRequest) => (pr.draft ? ' draft' : '');
 
 const numberOf = (pr: LinkedPullRequest, issueRepo: string) =>
   sameRepo(pr.repo, issueRepo) ? `#${pr.number}` : `${pr.repo}#${pr.number}`;
@@ -50,15 +51,15 @@ const ciText = (ci: PillCi) =>
   [ci.label, ...ci.segments.map((s) => String(s.n))].join(' ');
 
 /**
- * What the pill shows: the number and the state, with the whole repo when it is
- * not the issue's, then the pipeline's word and counts when it has any.
+ * What the pill shows: the number, and "draft" for a draft, with the whole repo
+ * when it is not the issue's, then the pipeline's word and counts when it has any.
  */
 export function linkedPillText(
   pr: LinkedPullRequest,
   issueRepo: string,
   ci?: PillCi | null,
 ) {
-  const head = `${numberOf(pr, issueRepo)} ${stateOf(pr)}`;
+  const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
   return ci ? `${head} ${ciText(ci)}` : head;
 }
 
@@ -71,7 +72,7 @@ export function linkedPillName(
   issueRepo: string,
   ci?: PillCi | null,
 ) {
-  const head = `${numberOf(pr, issueRepo)} ${stateOf(pr)}`;
+  const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
   if (!ci) return `Pull request ${head}, closes this issue`;
   const said =
     ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
