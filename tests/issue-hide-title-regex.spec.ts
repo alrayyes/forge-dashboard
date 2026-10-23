@@ -4,7 +4,7 @@ import { choicesOf } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // #1593: "Hide titles matching (regex)" on the Issues page, next to the Hide
-// Dependency Dashboard box. The filter state is saved per user, so this spec
+// Dependency Dashboard box. The filter state is saved on the server, so this spec
 // registers its own user rather than sharing the session.
 // https://github.com/alrayyes/forge-dashboard/issues/1593
 

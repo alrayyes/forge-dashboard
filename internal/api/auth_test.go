@@ -55,25 +55,25 @@ func newTestServer(tb testing.TB) *httptest.Server {
 
 func newTestServerWithSources(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source) *httptest.Server {
 	tb.Helper()
-	srv, _, _ := newTestServerWithSourcesAndManager(tb, buildSources)
+	srv, _, _ := newTestServerWithSourcesAndService(tb, buildSources)
 
 	return srv
 }
 
-// newTestServerWithSourcesAndManager is newTestServerWithSources plus
+// newTestServerWithSourcesAndService is newTestServerWithSources plus
 // the *dashboard.Service itself — for a test that needs to simulate a
-// process restart (manager.Stop(), which cancels every running loop and
+// process restart (service.Stop(), which cancels every running loop and
 // clears it, the same effect on Service state a real restart has)
 // without tearing down the rest of the server — and the *auth.Store,
 // for a test that needs to seed state (like a request-log row) with no
 // HTTP endpoint of its own to create one through.
-func newTestServerWithSourcesAndManager(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Service, *authpkg.Store) {
+func newTestServerWithSourcesAndService(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source) (*httptest.Server, *dashboard.Service, *authpkg.Store) {
 	tb.Helper()
 
 	return newTestServerWithAutoMerge(tb, buildSources, false)
 }
 
-// newTestServerWithAutoMerge is newTestServerWithSourcesAndManager with the
+// newTestServerWithAutoMerge is newTestServerWithSourcesAndService with the
 // auto-merge hook switched on, as main.go does: it merges armed Forgejo pull
 // requests and cancels an armed auto-merge on one that went empty (#1375). Off
 // elsewhere, since it reads the armed set on every refresh.
@@ -88,9 +88,9 @@ func newTestServerWithAutoMerge(tb testing.TB, buildSources func(settingspkg.Cre
 // holding a refresh open needs it short, or its read blocks for the default.
 func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration) (*httptest.Server, *dashboard.Service, *authpkg.Store) {
 	tb.Helper()
-	srv, manager, authStore, _ := newTestServerWithSettingsStore(tb, buildSources, autoMerge, firstLoadWait)
+	srv, service, authStore, _ := newTestServerWithSettingsStore(tb, buildSources, autoMerge, firstLoadWait)
 
-	return srv, manager, authStore
+	return srv, service, authStore
 }
 
 // newTestServerWithSettingsStore is newTestServerWithFirstLoadWait plus the
@@ -98,9 +98,9 @@ func newTestServerWithFirstLoadWait(tb testing.TB, buildSources func(settingspkg
 // (say, that a read created no webhook credentials). opts adjust the Deps before the mux is built.
 func newTestServerWithSettingsStore(tb testing.TB, buildSources func(settingspkg.Credentials) []dashboard.Source, autoMerge bool, firstLoadWait time.Duration, opts ...func(*api.Deps)) (*httptest.Server, *dashboard.Service, *authpkg.Store, *settingspkg.Store) {
 	tb.Helper()
-	srv, manager, authStore, settingsStore, _, _ := newTestServerWithDatabase(tb, buildSources, autoMerge, firstLoadWait, opts...)
+	srv, service, authStore, settingsStore, _, _ := newTestServerWithDatabase(tb, buildSources, autoMerge, firstLoadWait, opts...)
 
-	return srv, manager, authStore, settingsStore
+	return srv, service, authStore, settingsStore
 }
 
 // newTestServerWithDatabase is newTestServerWithSettingsStore plus the open
@@ -130,11 +130,11 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func(settingspkg.Cred
 	settingsStore := settingspkg.NewStore(db, cipher)
 	require.NoError(tb, settingsStore.Init(tb.Context()))
 
-	manager := dashboard.NewService(testRefreshInterval)
+	service := dashboard.NewService(testRefreshInterval)
 	if autoMerge {
-		manager.SetAutoMergeStore(settingsStore)
+		service.SetAutoMergeStore(settingsStore)
 	}
-	tb.Cleanup(manager.Stop)
+	tb.Cleanup(service.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())
 	tb.Cleanup(cancel)
@@ -144,7 +144,7 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func(settingspkg.Cred
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		Service:       manager,
+		Service:       service,
 		BuildSources:  buildSources,
 		AppContext:    appCtx,
 
@@ -159,7 +159,7 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func(settingspkg.Cred
 	testStores.Store(srv.URL, authStore)
 	tb.Cleanup(func() { testStores.Delete(srv.URL) })
 
-	return srv, manager, authStore, settingsStore, db, dbPath
+	return srv, service, authStore, settingsStore, db, dbPath
 }
 
 func testEncryptionKey(tb testing.TB) string {
@@ -226,8 +226,8 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, disp
 	return nil, cred, authenticator
 }
 
-// testStores maps a test server's URL to its auth store, so a test of per-user
-// isolation can add a second user the way no public flow can any more:
+// testStores maps a test server's URL to its auth store, so a test of owner-only
+// access can add a second user the way no public flow can any more:
 // registration closes once the first user holds a passkey.
 var testStores sync.Map
 

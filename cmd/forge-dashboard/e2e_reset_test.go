@@ -127,13 +127,13 @@ func TestE2EReset_ForgetsTheTabsThePreviousTestLeftReportingVisible(t *testing.T
 	require.NoError(t, err)
 	require.NoError(t, authStore.AddCredential(ctx, webauthn.Credential{ID: []byte{1}}))
 
-	manager := dashboard.NewService(time.Minute)
+	service := dashboard.NewService(time.Minute)
 	activity := dashboard.NewActivity(time.Minute, nil)
-	manager.SetActivity(activity)
+	service.SetActivity(activity)
 	activity.Present("left-open-tab", true)
 	require.Equal(t, 1, activity.ViewerCount())
 
-	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Service: manager}
+	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Service: service}
 	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
 	t.Cleanup(srv.Close)
 
@@ -171,16 +171,16 @@ func TestE2EReset_ReturnsTheServiceToAFreshProcessState(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, authStore.AddCredential(ctx, webauthn.Credential{ID: []byte{1}}))
 
-	manager := dashboard.NewService(time.Hour)
-	t.Cleanup(manager.Stop)
-	manager.Ensure(ctx, []dashboard.Source{emptySource{}})
-	require.Eventually(t, manager.FirstRefreshDone, time.Second, 5*time.Millisecond)
-	_, ok := manager.ForceRefresh(ctx)
+	service := dashboard.NewService(time.Hour)
+	t.Cleanup(service.Stop)
+	service.Ensure(ctx, []dashboard.Source{emptySource{}})
+	require.Eventually(t, service.FirstRefreshDone, time.Second, 5*time.Millisecond)
+	_, ok := service.ForceRefresh(ctx)
 	require.True(t, ok)
-	retryAfter, _ := manager.ForceRefresh(ctx)
+	retryAfter, _ := service.ForceRefresh(ctx)
 	require.Positive(t, retryAfter, "the warm-up leaves a cooldown behind")
 
-	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Service: manager}
+	deps := api.Deps{AuthStore: authStore, Database: schemaPinger{db: db}, Service: service}
 	srv := httptest.NewServer(withE2EHooks(http.NotFoundHandler(), deps))
 	t.Cleanup(srv.Close)
 
@@ -189,11 +189,11 @@ func TestE2EReset_ReturnsTheServiceToAFreshProcessState(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 
-	assert.False(t, manager.FirstRefreshDone(), "the first-refresh mark is forgotten")
-	assert.False(t, manager.Running())
-	manager.Ensure(ctx, []dashboard.Source{emptySource{}})
-	require.Eventually(t, manager.FirstRefreshDone, time.Second, 5*time.Millisecond)
-	retryAfter, ok = manager.ForceRefresh(ctx)
+	assert.False(t, service.FirstRefreshDone(), "the first-refresh mark is forgotten")
+	assert.False(t, service.Running())
+	service.Ensure(ctx, []dashboard.Source{emptySource{}})
+	require.Eventually(t, service.FirstRefreshDone, time.Second, 5*time.Millisecond)
+	retryAfter, ok = service.ForceRefresh(ctx)
 	assert.True(t, ok)
 	assert.Zero(t, retryAfter, "the force-refresh cooldown is forgotten")
 }

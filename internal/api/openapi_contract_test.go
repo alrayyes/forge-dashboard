@@ -189,7 +189,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		},
 		branches: contractBranches(now),
 	}
-	srv, manager, _ := newTestServerWithSourcesAndManager(t, func(c settingspkg.Credentials) []dashboard.Source {
+	srv, service, _ := newTestServerWithSourcesAndService(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
 		}
@@ -201,7 +201,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 	// loaded CPU (-race, parallel packages) can push the second call past it
 	// and the Retry-After header never appears. Nothing here depends on the
 	// real window.
-	manager.SetForceRefreshCooldown(time.Hour)
+	service.SetForceRefreshCooldown(time.Hour)
 	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()

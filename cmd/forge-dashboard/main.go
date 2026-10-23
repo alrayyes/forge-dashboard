@@ -334,8 +334,8 @@ func run() error {
 		return fmt.Errorf("github app setup failed: %w", err)
 	}
 
-	manager := newService(settingsStore, refreshInterval, ciPollInterval)
-	defer manager.Stop()
+	service := newService(settingsStore, refreshInterval, ciPollInterval)
+	defer service.Stop()
 
 	// One writer for every request-log row (#902). On the way out it flushes
 	// what's queued, but only for so long: a locked database must not hold the
@@ -350,9 +350,9 @@ func run() error {
 		AuthService:   authService,
 		AuthStore:     authStore,
 		SettingsStore: settingsStore,
-		Service:       manager,
+		Service:       service,
 		Database:      schemaPinger{db: db},
-		Dashboard:     manager,
+		Dashboard:     service,
 		APIStats:      apistats.New(),
 		AppContext:    ctx,
 		// The env var buildAuth already requires for WebAuthn's RPOrigins; see
@@ -362,7 +362,7 @@ func run() error {
 	}
 	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
 
-	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, manager)
+	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, service)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 
 	return listenAndServe(ctx, newServer(addr, deps), &drain)
@@ -395,22 +395,22 @@ func keepGitHubAnswersAcrossRestarts(store *settings.Store) {
 // newService is the refresh service, with the settings store as its
 // list of repos to keep up to date.
 func newService(settingsStore *settings.Store, refreshInterval, ciPollInterval time.Duration) *dashboard.Service {
-	manager := dashboard.NewService(refreshInterval)
-	manager.SetActivity(dashboard.NewActivity(resolveIdleAfter(os.Getenv("IDLE_AFTER")), nil))
+	service := dashboard.NewService(refreshInterval)
+	service.SetActivity(dashboard.NewActivity(resolveIdleAfter(os.Getenv("IDLE_AFTER")), nil))
 	// Existing app-created webhooks get new events without a click on
 	// "Add a webhook" (#1555); same origin the ensure endpoint builds URLs from.
-	manager.SetWebhookUpgrade(settingsStore, envOr("RP_ORIGIN", "http://localhost:8080"))
+	service.SetWebhookUpgrade(settingsStore, envOr("RP_ORIGIN", "http://localhost:8080"))
 	// settingsStore satisfies dashboard.AutoUpdateBranchLister (#365)
 	// with its own AutoUpdateBranchRepos/RenovateRebaseLabel methods.
-	manager.SetAutoUpdateBranchLister(settingsStore)
-	manager.SetAutoMergeStore(settingsStore)
-	manager.SetQueuedActionStore(settingsStore)
+	service.SetAutoUpdateBranchLister(settingsStore)
+	service.SetAutoMergeStore(settingsStore)
+	service.SetQueuedActionStore(settingsStore)
 	// The last snapshot survives a restart, shown as stale until a refresh lands.
-	manager.SetSnapshotCache(settingsStore)
-	manager.SetWebhookSeenStore(settingsStore)
-	manager.SetCIPollInterval(ciPollInterval)
+	service.SetSnapshotCache(settingsStore)
+	service.SetWebhookSeenStore(settingsStore)
+	service.SetCIPollInterval(ciPollInterval)
 
-	return manager
+	return service
 }
 
 // listenAndServe binds srv.Addr and serves it with the production shutdown
@@ -668,7 +668,7 @@ func openUpgradedDatabase(ctx context.Context) (*sql.DB, error) {
 }
 
 // cleanUpForSingleUser keeps the oldest user and deletes the rest, once. It
-// runs before the manager starts, so no refresh loop ever exists for a user the
+// runs before the service starts, so no refresh loop ever exists for a user the
 // cleanup is about to remove. A failure leaves the database untouched and the
 // next start tries again, so it is logged and startup goes on.
 func cleanUpForSingleUser(ctx context.Context, db *sql.DB) {
@@ -750,8 +750,8 @@ func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error
 }
 
 // buildGitHubApp reads the GitHub App server-wide identity (#620) — the
-// App itself is one thing shared by every user who installs it, so this
-// is process-wide config, not per-user settings.Credentials, the same
+// App itself is one thing shared by the whole instance, so this
+// is process-wide config, not the saved settings.Credentials, the same
 // split ENCRYPTION_KEY already draws for the settings cipher. Returns
 // appID == 0 when GITHUB_APP_ID is unset: App-mode is entirely optional,
 // and every existing PAT-only deployment must keep working with no env

@@ -178,7 +178,7 @@ func TestService_Subscribe_NothingEnsured_ReturnsFalse(t *testing.T) {
 // Running() and, if false, separately call Ensure() - two unlocked
 // operations with a DB read in between. Several requests for the same
 // user landing in that gap (multiple browser tabs and an SSE reconnect,
-// all arriving right after a restart wipes the Manager clean) each saw
+// all arriving right after a restart wipes the Service clean) each saw
 // "not running" and each spun up their own brand-new Aggregator with its
 // own immediate Refresh.
 func TestService_EnsureIfAbsent_ConcurrentCalls_OnlyCreateOneAggregator(t *testing.T) {
@@ -269,7 +269,7 @@ func TestService_Ensure_NoAutoUpdateBranchListerSet_NeverCallsUpdateBranch(t *te
 }
 
 // TestService_SetCIPollInterval_ThenEnsure_WiresItIntoTheAggregator is
-// #177's own fix, at the Manager level: SetCIPollInterval has to
+// #177's own fix, at the Service level: SetCIPollInterval has to
 // actually reach the Aggregator Ensure builds, not just be recorded
 // and forgotten. A long Run interval (time.Hour) isolates PollCI's own
 // scoped fetches from Run's full ones — repoFetchCallCount only moves

@@ -236,7 +236,7 @@ func TestAggregator_Refresh_NoAutoUpdateEnabled_NeverCallsLister(t *testing.T) {
 	}}}
 
 	// EnableAutoUpdateBranch never called — same as every Aggregator
-	// before #365, and Manager's own construction when no
+	// before #365, and Service's own construction when no
 	// AutoUpdateBranchLister is configured.
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 	agg.Refresh(t.Context())

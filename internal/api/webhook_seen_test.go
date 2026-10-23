@@ -21,7 +21,7 @@ func TestWebhook_RecordsTheEventClassPerRepo(t *testing.T) {
 	t.Parallel()
 
 	source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
-	srvURL, sessionCookie, manager := newTestServerWithManager(t, source, func(_ time.Duration, f func()) func() bool {
+	srvURL, sessionCookie, service := newTestServerWithService(t, source, func(_ time.Duration, f func()) func() bool {
 		return time.AfterFunc(time.Millisecond, f).Stop
 	})
 	require.Eventually(t, func() bool { return source.fetchCalls.Load() >= 1 }, time.Second, 5*time.Millisecond)
@@ -43,7 +43,7 @@ func TestWebhook_RecordsTheEventClassPerRepo(t *testing.T) {
 	send("chatty", "issue_comment")
 
 	seen := func(repo string, class dashboard.EventClass) bool {
-		_, ok := manager.LastDelivery(dashboard.ForgeGitHub, "alrayyes/"+repo, class)
+		_, ok := service.LastDelivery(dashboard.ForgeGitHub, "alrayyes/"+repo, class)
 
 		return ok
 	}
@@ -51,8 +51,8 @@ func TestWebhook_RecordsTheEventClassPerRepo(t *testing.T) {
 	require.Eventually(t, func() bool { return seen("chatty", dashboard.EventClassOther) }, time.Second, 5*time.Millisecond)
 	assert.False(t, seen("chatty", dashboard.EventClassCheck), "a comment delivery must not mark checks seen")
 
-	_, shaSeen := manager.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/checked", headSHA)
+	_, shaSeen := service.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/checked", headSHA)
 	assert.True(t, shaSeen, "a check delivery marks the commit it is about")
-	_, otherSeen := manager.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/checked", otherSHA)
+	_, otherSeen := service.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/checked", otherSHA)
 	assert.False(t, otherSeen, "and no other commit of the repo")
 }

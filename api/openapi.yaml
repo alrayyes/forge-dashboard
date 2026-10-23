@@ -88,7 +88,7 @@ tags:
   - name: queued-actions
     description: |
       Safe actions (Update branch, Dependabot and Renovate rebase) queued to
-      run when a rate-limited forge resets. Per user, stored on the
+      run when a rate-limited forge resets. Stored on the
       server, so they survive a reload and a restart.
   - name: tokens
     description: |
@@ -2834,7 +2834,7 @@ paths:
         briefly unreachable, instead of waiting for the next scheduled
         background refresh.
 
-        The server holds a five-second cooldown per user, so this can't
+        The server holds a five-second cooldown, so this can't
         be used to hammer a forge's API budget. A call inside that
         window does not fetch: it answers 200 with the current snapshot
         and a `Retry-After` header carrying the seconds left. Never a
@@ -3710,7 +3710,7 @@ components:
           description: |
             Whether this server has a GitHub App configured at all
             (server-wide GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY_BASE64 —
-            not a per-user setting). The Settings page uses this to
+            not a saved setting). The Settings page uses this to
             explain why githubAppInstallationId can't be saved when
             it's false.
         forgejoUrl:
