@@ -385,3 +385,77 @@ func TestWithBudget_StillEndsAScanThatIsSlowItself(t *testing.T) {
 	require.ErrorIs(t, ctx.Err(), context.Canceled)
 	assert.ErrorIs(t, context.Cause(ctx), context.DeadlineExceeded)
 }
+
+func TestFind_GroupsAliasesAndKeepsWhatTheRecordStates(t *testing.T) {
+	t.Parallel()
+	s := &osvServer{
+		vulns: map[string][]string{
+			"a@1.0.0": {"GHSA-3"},
+			"b@2.0.0": {"PYSEC-9", "GHSA-4"},
+		},
+		detail: map[string]map[string]any{
+			"GHSA-3": {
+				"aliases": []string{"CVE-2026-1", "PYSEC-9"}, "summary": "Prototype pollution",
+				"details": "Long **text**", "published": "2026-02-03T04:05:06Z",
+				"database_specific": map[string]any{"severity": "HIGH", "cwe_ids": []string{"CWE-1321"}},
+				"severity": []map[string]any{
+					{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},
+				},
+				"references": []map[string]any{{"type": "WEB", "url": "https://example.com/a"}},
+				"affected": []map[string]any{
+					{
+						"package": map[string]any{"name": "a", "ecosystem": "npm"},
+						"ranges":  []map[string]any{{"events": []map[string]any{{"introduced": "0"}, {"fixed": "1.0.1"}}}},
+					},
+					{
+						"package": map[string]any{"name": "other", "ecosystem": "npm"},
+						"ranges":  []map[string]any{{"events": []map[string]any{{"fixed": "9.9.9"}}}},
+					},
+				},
+			},
+			"PYSEC-9": {"aliases": []string{"GHSA-3"}, "summary": "Same flaw, other id", "affected": []map[string]any{
+				{"package": map[string]any{"name": "b", "ecosystem": "npm"},
+					"ranges": []map[string]any{{"events": []map[string]any{{"fixed": "2.1.0"}}}}},
+			}},
+			"GHSA-4": {"summary": "Second", "database_specific": map[string]any{"severity": "LOW"}},
+		},
+	}
+
+	got, err := s.start(t).Find(t.Context(), []osv.Package{
+		{Ecosystem: "npm", Name: "a", Version: "1.0.0"},
+		{Ecosystem: "npm", Name: "b", Version: "2.0.0"},
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	byID := map[string]osv.Finding{}
+	for _, f := range got {
+		byID[f.ID] = f
+	}
+
+	first := byID["GHSA-3"]
+	assert.Equal(t, []string{"CVE-2026-1", "GHSA-3", "PYSEC-9"}, first.IDs)
+	assert.Equal(t, "Prototype pollution", first.Summary)
+	assert.Equal(t, "Long **text**", first.Details)
+	assert.Equal(t, "high", first.Severity)
+	assert.Equal(t, "2026-02-03T04:05:06Z", first.Published)
+	assert.Equal(t, []string{"CWE-1321"}, first.CWEs)
+	assert.Equal(t, []string{"https://example.com/a"}, first.References)
+	assert.Equal(t, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", first.CVSSVector)
+	assert.InDelta(t, 9.8, first.CVSSScore, 0.001)
+	assert.Equal(t, []osv.Hit{
+		{Package: osv.Package{Ecosystem: "npm", Name: "a", Version: "1.0.0"}, Fixed: []string{"1.0.1"}},
+		{Package: osv.Package{Ecosystem: "npm", Name: "b", Version: "2.0.0"}, Fixed: []string{"2.1.0"}},
+	}, first.Hits)
+
+	second := byID["GHSA-4"]
+	assert.Empty(t, second.CVSSVector, "a vector the record does not state stays empty")
+	assert.Zero(t, second.CVSSScore)
+	assert.Equal(t, []osv.Hit{{Package: osv.Package{Ecosystem: "npm", Name: "b", Version: "2.0.0"}}}, second.Hits)
+}
+
+func TestFind_NoMatchesIsAnEmptyList(t *testing.T) {
+	t.Parallel()
+	got, err := (&osvServer{}).start(t).Find(t.Context(), []osv.Package{{Ecosystem: "npm", Name: "a", Version: "1.0.0"}})
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
