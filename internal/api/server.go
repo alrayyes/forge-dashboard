@@ -109,6 +109,7 @@ func NewMux(deps Deps) http.Handler {
 
 	mux.Handle("GET /api/dashboard", auth.RequireAuth(deps.AuthStore)(handleDashboard(deps)))
 	mux.Handle("GET /api/main-branches", auth.RequireAuth(deps.AuthStore)(handleMainBranches(deps)))
+	mux.Handle("GET /api/main-branches/advisories", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindAdvisories, handleAdvisoryList(deps))))
 	mux.Handle("GET /api/main-branches/checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleMainBranchChecks(deps))))
 	mux.Handle("GET /api/checks/log", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleJobLog(deps))))
 	mux.Handle("GET /api/stats/forge-api", auth.RequireAuth(deps.AuthStore)(handleForgeAPIStats(deps)))
