@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.28.0](https://github.com/alrayyes/forge-dashboard/compare/v2.27.0...v2.28.0) (2026-10-23)
+
+
+### Features
+
+* cancel a running pipeline from the pipeline checks dialog ([#2703](https://github.com/alrayyes/forge-dashboard/issues/2703)) ([4499870](https://github.com/alrayyes/forge-dashboard/commit/44998706855013d08815d901477e37503f35a9f3))
+
 ## [2.27.0](https://github.com/alrayyes/forge-dashboard/compare/v2.26.0...v2.27.0) (2026-10-23)
 
 
