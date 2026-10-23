@@ -80,10 +80,13 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	if IsFailingCI(pr) {
 		out = append(out, ActionAvailability{Action: ActionRerunChecks})
 	}
-	// A pipeline that is still going can be cancelled, a run at a time. The
-	// list only knows the CI is pending, not whether an Actions run is behind
-	// it, so the pipeline dialog offers Cancel only on checks that name a run.
-	if pr.CI == CIPending {
+	// A pipeline that is still going can be cancelled, a run at a time. A job
+	// that already failed rolls the CI up to failing while the others still run,
+	// which is when cancelling a doomed pipeline matters most, so a running or
+	// waiting check counts as well as a pending roll-up. The list can't tell
+	// whether an Actions run is behind them, so the pipeline dialog offers
+	// Cancel only on checks that name a run.
+	if pr.CI == CIPending || pr.Checks.Running > 0 || pr.Checks.Waiting > 0 {
 		out = append(out, ActionAvailability{Action: ActionCancelRun})
 	}
 	markPrimary(pr, out)

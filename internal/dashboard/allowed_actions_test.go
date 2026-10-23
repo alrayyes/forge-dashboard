@@ -80,6 +80,8 @@ func TestAllowedActions(t *testing.T) {
 		{"failing CI on Forgejo offers rerunning the failed checks (#1032)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
 		{"passing CI on Forgejo has nothing to rerun", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"running CI on Forgejo offers cancelling the run", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending"}},
+		{"a failed job beside jobs still running offers cancelling the rest", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.Checks.Running = 1 }), []string{"auto_merge", "cancel_run", "close", "merge", "rerun_checks"}},
+		{"a failed job beside jobs waiting to start offers cancelling them", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.Checks.Waiting = 1 }), []string{"auto_merge", "cancel_run", "close", "merge", "rerun_checks"}},
 		{"finished CI offers nothing to cancel", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"blocked otherwise", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:blocked_by_protection"}},
 		{"merge status not known yet", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }), []string{"auto_merge", "close", "merge:not_mergeable"}},
