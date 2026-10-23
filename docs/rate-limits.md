@@ -464,12 +464,12 @@ changed are fetched in full.
 
 What the answer can and can't see, found by reading a real repo:
 
-| Change                      | Moves repo `pushedAt` / `updatedAt`  | Moves a signal the probe reads            |
-| --------------------------- | ------------------------------------ | ----------------------------------------- |
-| A push or a merge           | It does                              | It does                                   |
-| A comment on a pull request | It doesn't                           | It does (that pull request's `updatedAt`) |
-| A finished check run        | It doesn't                           | It doesn't                                |
-| A label or a review         | Not isolated, so treated as not seen | Moves that pull request's `updatedAt`     |
+| Change                      | Moves repo `pushedAt` / `updatedAt`  | Moves a signal the probe reads        |
+| --------------------------- | ------------------------------------ | ------------------------------------- |
+| A push or a merge           | Moves both                           | Moves the repo stamp                  |
+| A comment on a pull request | Moves nothing                        | Moves that pull request's `updatedAt` |
+| A finished check run        | Leaves both alone                    | Nothing it reads changes              |
+| A label or a review         | Not isolated, so treated as not seen | Moves that pull request's `updatedAt` |
 
 GitHub's reference for the repository, pull request and issue objects doesn't
 say what moves a repo's `updatedAt`, so the table is what was observed, not a
