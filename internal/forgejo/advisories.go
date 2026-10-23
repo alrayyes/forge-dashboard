@@ -385,6 +385,7 @@ func (c *Client) treeLockfiles(ctx context.Context, owner, name, branch string) 
 		return nil, nil, err
 	}
 	base := fmt.Sprintf("/repos/%s/%s/git/trees/%s", url.PathEscape(owner), url.PathEscape(name), url.PathEscape(ref))
+	seen := 0 // entries received so far; the server may page smaller than asked
 	for page := 1; ; page++ {
 		if page > maxTreePages {
 			return nil, []string{"file tree past " + strconv.Itoa(maxTreePages) + " pages"}, nil
@@ -395,7 +396,8 @@ func (c *Client) treeLockfiles(ctx context.Context, owner, name, branch string) 
 		}
 		f, sk := tree.lockfiles()
 		files, skipped = append(files, f...), append(skipped, sk...)
-		if page*treePageItems >= tree.TotalCount || len(tree.Tree) == 0 {
+		seen += len(tree.Tree)
+		if seen >= tree.TotalCount || len(tree.Tree) == 0 {
 			return files, skipped, nil
 		}
 	}

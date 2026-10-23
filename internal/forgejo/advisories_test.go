@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/http"
@@ -55,6 +56,7 @@ type lockfileServer struct {
 	url      string // set by start
 
 	branch      string // a slashed branch name the fake resolves to a commit
+	maxPerPage  int    // the server's own page size limit; zero means 1000
 	filler      int    // extra files ahead of the rest in the tree, to make it span pages
 	mu          sync.Mutex
 	treeQueries []string // "ref?query" of each tree call
@@ -94,7 +96,7 @@ func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *f
 		entries = append(filler, entries...)
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 		perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
-		page, perPage = max(page, 1), min(max(perPage, 1), 1000)
+		page, perPage = max(page, 1), min(max(perPage, 1), cmp.Or(s.maxPerPage, 1000))
 		lo := min((page-1)*perPage, len(entries))
 		hi := min(lo+perPage, len(entries))
 		// Like Forgejo, truncated is set whenever the whole tree is bigger than a page.
@@ -831,4 +833,17 @@ func TestReadAdvisories_NoDefaultBranchIsUnknownWithoutACall(t *testing.T) {
 	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
 	assert.Empty(t, got.Reason, "an empty repo is not a failed read")
 	assert.Zero(t, forge.requests.Load())
+}
+
+func TestReadAdvisories_AServerWithASmallerPageSizeIsStillReadInFull(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{summary: osv.Summary{Count: 1}}
+	// 900 entries in all: README.md, src and the lock file make three of them. The server
+	// hands out 500 at a time whatever per_page says, so the second page holds the lock file.
+	forge := &lockfileServer{files: map[string]string{"web/package-lock.json": lockJSON}, filler: 897, maxPerPage: 500}
+
+	got, err := forgejo.ReadAdvisories(t.Context(), forge.start(t, scanner), "alrayyes", "a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 1}, got)
+	assert.Len(t, forge.treeQueries, 2)
 }
