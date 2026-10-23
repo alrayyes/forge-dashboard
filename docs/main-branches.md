@@ -119,7 +119,10 @@ so in the dialog with the same causes as
 [When advisories can't be read](#when-advisories-cant-be-read), and a failed
 request offers **Try again**. Forgejo rows keep their count without the dialog
 for now. `GET /api/main-branches/advisories?forge=github&fullName=owner/repo`
-answers the list for the dialog and is not offered as an MCP tool.
+answers the list for the dialog. An MCP client reads the same list with the
+`get_repository_advisories` tool, and the in-page WebMCP tool of that name does
+the same. An alerts list that cannot be read comes back as unknown with the
+reason, never as an empty list, so an assistant does not report a clean repo.
 
 ## Forgejo advisories
 

@@ -94,6 +94,10 @@ and the cost are in
   budget too: one request for the commits plus one per commit until one has
   checks on GitHub, 3 plus one per run on Forgejo (and one log read per
   failed job, five at most).
+  `get_repository_advisories` mirrors `GET /api/main-branches/advisories` (a
+  GitHub repository's open dependency advisories in full, the worst first). It
+  spends budget too: one REST request per page of alerts. A list that cannot
+  be read is state unknown with a reason, never an empty list.
   `get_check_log` mirrors `GET /api/checks/log` (one CI job's output as plain
   text, the last 256 KiB at most, by the `jobId` a check carries). It spends
   one request on Forgejo and one plus a short-lived download on GitHub. It refuses
@@ -171,8 +175,9 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   to read them.
 - **[WebMCP](https://github.com/webmachinelearning/webmcp) tools in the frontend
   itself: `get_dashboard`, `get_main_branches`, `get_main_branch_checks`,
-  `get_check_log`, `get_pull_request_checks`, `get_pull_request_details`,
-  `list_queued_actions`, `get_settings` and `set_pull_request_auto_update`.**
+  `get_check_log`, `get_repository_advisories`, `get_pull_request_checks`,
+  `get_pull_request_details`, `list_queued_actions`, `get_settings` and
+  `set_pull_request_auto_update`.**
   Experimental — as of this writing it's an Origin Trial in Chrome 149+/Edge
   150+ only, with no stable spec yet — so this is a no-op everywhere else rather
   than a real dependency the page needs. Where it's present, it lets an
