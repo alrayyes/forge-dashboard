@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.19.0](https://github.com/alrayyes/forge-dashboard/compare/v2.18.1...v2.19.0) (2026-10-23)
+
+
+### Features
+
+* **web:** cut the filter cookie to its size limit and say what went ([#2646](https://github.com/alrayyes/forge-dashboard/issues/2646)) ([fc1a03f](https://github.com/alrayyes/forge-dashboard/commit/fc1a03ffc1a4d4715371108e50c0b04f49b5249b))
+
+
+### Bug Fixes
+
+* **web:** settle enable and cancel auto-merge quietly when the request drops after it ran ([#2650](https://github.com/alrayyes/forge-dashboard/issues/2650)) ([135be17](https://github.com/alrayyes/forge-dashboard/commit/135be17938f379db4fa4b4a8c57598356e1be532))
+
 ## [2.18.1](https://github.com/alrayyes/forge-dashboard/compare/v2.18.0...v2.18.1) (2026-10-23)
 
 
