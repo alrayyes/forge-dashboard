@@ -299,9 +299,9 @@
                 <span class="adv-row-meta">
                   {#if item.manifestPath}{words.foundIn}
                     <code>{item.manifestPath}</code>{/if}
-                  {#if item.openedAt}
-                    {item.manifestPath ? " · " : ""}{words.dateWord}
-                    {ago(item.openedAt)}{/if}
+                  {#if item.openedAt}{item.manifestPath
+                      ? " · "
+                      : ""}{`${words.dateWord} ${ago(item.openedAt)}`}{/if}
                 </span>
               </span>
             </button>
