@@ -278,9 +278,20 @@ function cookieSize(state: SharedFilterState, rev: number): number {
   );
 }
 
+const GROUPS = [
+  'shared',
+  'pr',
+  'issue',
+  'view',
+  'branches',
+  'webhooks',
+] as const;
+type CookieGroup = (typeof GROUPS)[number];
+
 // Cuts the state down to what the cookie can hold, on purpose: the title
-// search first, then the last name of whichever pick is largest. Returns the
-// copy to write and what it left out.
+// search first, then the last name of whichever pick is largest in encoded
+// bytes, then, with no pick left, the largest remaining saved value. Returns
+// the copy to write and what it left out.
 export function fitToCookie(
   state: SharedFilterState,
   rev: number,
@@ -289,26 +300,48 @@ export function fitToCookie(
   const copy: SharedFilterState = {
     ...state,
     shared: { ...state.shared },
+    pr: { ...state.pr },
+    issue: { ...state.issue },
+    view: { ...state.view },
+    branches: state.branches ? { ...state.branches } : undefined,
+    webhooks: state.webhooks ? { ...state.webhooks } : undefined,
   };
   const cut: string[] = [];
   if (typeof copy.shared.title === 'string' && copy.shared.title) {
     cut.push('the title search');
     delete copy.shared.title;
   }
+  const bytes = (v: string | undefined) => encodeURIComponent(v ?? '').length;
   while (cookieSize(copy, rev) > COOKIE_LIMIT) {
     let widest: string | null = null;
     for (const key of PICK_KEYS) {
       const pick = copy.shared[key];
       if (typeof pick !== 'string' || !pick) continue;
-      if (widest === null || pick.length > (copy.shared[widest] ?? '').length)
+      if (widest === null || bytes(pick) > bytes(copy.shared[widest]))
         widest = key;
     }
-    if (widest === null) break;
-    const parts = (copy.shared[widest] ?? '').split('\n');
-    const last = parts.pop() ?? '';
-    if (parts.length > 0) copy.shared[widest] = parts.join('\n');
-    else delete copy.shared[widest];
-    cut.push(widest === 'repo' ? repoName(last) : last);
+    if (widest !== null) {
+      const parts = (copy.shared[widest] ?? '').split('\n');
+      const last = parts.pop() ?? '';
+      if (parts.length > 0) copy.shared[widest] = parts.join('\n');
+      else delete copy.shared[widest];
+      cut.push(widest === 'repo' ? repoName(last) : last);
+      continue;
+    }
+    // No pick is left: drop the largest saved value of any other group.
+    let biggest: { group: CookieGroup; key: string } | null = null;
+    for (const group of GROUPS) {
+      for (const [key, value] of Object.entries(copy[group] ?? {})) {
+        if (
+          biggest === null ||
+          bytes(value) > bytes(copy[biggest.group]?.[biggest.key])
+        )
+          biggest = { group, key };
+      }
+    }
+    if (biggest === null) break;
+    delete copy[biggest.group]?.[biggest.key];
+    cut.push(`the ${biggest.key} filter`);
   }
   return { state: copy, cut };
 }
@@ -327,7 +360,7 @@ function showTrimmedNotice(cut: string[]): void {
   note.id = TRIMMED_NOTICE_ID;
   note.className = 'error-banner';
   note.setAttribute('role', 'alert');
-  note.textContent = `Your filters were too large for this browser to keep, so these were left out of its copy: ${cut.join(', ')}.`;
+  note.textContent = `Your filters were too large for this browser to keep, so these were left out of its copy: ${cut.join(', ')}. Your saved filters on the server are whole.`;
   const bar = document.querySelector('.filter-bar');
   if (bar?.parentElement) bar.parentElement.insertBefore(note, bar);
   else document.body?.prepend(note);
