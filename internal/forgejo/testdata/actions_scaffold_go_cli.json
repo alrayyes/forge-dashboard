@@ -1,0 +1,188 @@
+{
+  "workflow_runs": [
+    {
+      "id": 15130,
+      "prettyref": "main",
+      "commit_sha": "42381c96dd09f3ea3150e01a7a1a2016d8bc19fb",
+      "status": "success",
+      "event": "push",
+      "workflow_id": "release.yml",
+      "html_url": "https://git.higherlearning.eu/scaffolding/scaffold-go-cli/actions/runs/582",
+      "started": "2026-10-23T16:26:52Z",
+      "stopped": "2026-10-23T16:27:52Z",
+      "title": "Merge pull request 'chore(deps): update golang:1.27-alpine docker digest to b8c9b82' (#111) from renovate/golang-1.27-alpine into main",
+      "index_in_repo": 582
+    },
+    {
+      "id": 15129,
+      "prettyref": "main",
+      "commit_sha": "42381c96dd09f3ea3150e01a7a1a2016d8bc19fb",
+      "status": "success",
+      "event": "push",
+      "workflow_id": "gitleaks.yml",
+      "html_url": "https://git.higherlearning.eu/scaffolding/scaffold-go-cli/actions/runs/581",
+      "started": "2026-10-23T16:26:44Z",
+      "stopped": "2026-10-23T16:30:49Z",
+      "title": "Merge pull request 'chore(deps): update golang:1.27-alpine docker digest to b8c9b82' (#111) from renovate/golang-1.27-alpine into main",
+      "index_in_repo": 581
+    },
+    {
+      "id": 15128,
+      "prettyref": "main",
+      "commit_sha": "42381c96dd09f3ea3150e01a7a1a2016d8bc19fb",
+      "status": "success",
+      "event": "push",
+      "workflow_id": "ci.yml",
+      "html_url": "https://git.higherlearning.eu/scaffolding/scaffold-go-cli/actions/runs/580",
+      "started": "2026-10-23T16:26:28Z",
+      "stopped": "2026-10-23T17:05:00Z",
+      "title": "Merge pull request 'chore(deps): update golang:1.27-alpine docker digest to b8c9b82' (#111) from renovate/golang-1.27-alpine into main",
+      "index_in_repo": 580
+    },
+    {
+      "id": 15127,
+      "prettyref": "main",
+      "commit_sha": "e6d6f0dc60573d76752f1bfc91a6e529f8e78b72",
+      "status": "failure",
+      "event": "push",
+      "workflow_id": "release.yml",
+      "html_url": "https://git.higherlearning.eu/scaffolding/scaffold-go-cli/actions/runs/579",
+      "started": "2026-10-23T16:25:44Z",
+      "stopped": "2026-10-23T16:26:28Z",
+      "title": "Merge pull request 'chore(deps): update docker:29-cli docker digest to 5e6baf6' (#110) from renovate/docker-29-cli into main",
+      "index_in_repo": 579
+    },
+    {
+      "id": 15126,
+      "prettyref": "main",
+      "commit_sha": "e6d6f0dc60573d76752f1bfc91a6e529f8e78b72",
+      "status": "cancelled",
+      "event": "push",
+      "workflow_id": "gitleaks.yml",
+      "html_url": "https://git.higherlearning.eu/scaffolding/scaffold-go-cli/actions/runs/578",
+      "started": "1970-01-01T00:00:00Z",
+      "stopped": "2026-10-23T15:26:02Z",
+      "title": "Merge pull request 'chore(deps): update docker:29-cli docker digest to 5e6baf6' (#110) from renovate/docker-29-cli into main",
+      "index_in_repo": 578
+    },
+    {
+      "id": 15125,
+      "prettyref": "main",
+      "commit_sha": "e6d6f0dc60573d76752f1bfc91a6e529f8e78b72",
+      "status": "cancelled",
+      "event": "push",
+      "workflow_id": "ci.yml",
+      "html_url": "https://git.higherlearning.eu/scaffolding/scaffold-go-cli/actions/runs/577",
+      "started": "1970-01-01T00:00:00Z",
+      "stopped": "2026-10-23T15:26:01Z",
+      "title": "Merge pull request 'chore(deps): update docker:29-cli docker digest to 5e6baf6' (#110) from renovate/docker-29-cli into main",
+      "index_in_repo": 577
+    }
+  ],
+  "jobs": {
+    "15130": [
+      {
+        "id": 84350,
+        "run_id": 15130,
+        "attempt": 1,
+        "name": "release",
+        "status": "success"
+      },
+      {
+        "id": 84351,
+        "run_id": 15130,
+        "attempt": 1,
+        "name": "artefacts",
+        "status": "skipped"
+      }
+    ],
+    "15129": [
+      {
+        "id": 84349,
+        "run_id": 15129,
+        "attempt": 1,
+        "name": "secrets",
+        "status": "success"
+      }
+    ],
+    "15128": [
+      {
+        "id": 84338,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "changes",
+        "status": "success"
+      },
+      {
+        "id": 84339,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "lint",
+        "status": "skipped"
+      },
+      {
+        "id": 84340,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "test",
+        "status": "skipped"
+      },
+      {
+        "id": 84341,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "build",
+        "status": "skipped"
+      },
+      {
+        "id": 84342,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "gomod",
+        "status": "skipped"
+      },
+      {
+        "id": 84343,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "gomod-tidy",
+        "status": "skipped"
+      },
+      {
+        "id": 84344,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "dockerfile",
+        "status": "skipped"
+      },
+      {
+        "id": 84345,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "docker-build",
+        "status": "skipped"
+      },
+      {
+        "id": 84346,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "prose",
+        "status": "success"
+      },
+      {
+        "id": 84347,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "advisories",
+        "status": "skipped"
+      },
+      {
+        "id": 84348,
+        "run_id": 15128,
+        "attempt": 1,
+        "name": "commits",
+        "status": "skipped"
+      }
+    ]
+  }
+}
