@@ -91,7 +91,8 @@ stale.
   Forgejo has no alerts of its own. Its advisories come from the repo's lock
   files, matched against [OSV](https://osv.dev), and only if you switch that on:
   see [Privacy](#privacy). If OSV can't be reached or a lock file can't be
-  read, the Branches page says so instead of showing nothing.
+  read, the Branches page says so instead of showing nothing. When some
+  packages were left out for not being public, the count reads "at least".
 
 ## Privacy
 

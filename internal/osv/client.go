@@ -300,9 +300,13 @@ func (c *Client) record(ctx context.Context, id string) (record, error) {
 			break // still holding c.mu: this caller fetches
 		}
 		c.mu.Unlock()
+		served := queued(ctx)
 		select {
 		case <-f.done:
+			served()
 		case <-ctx.Done():
+			served()
+
 			return record{}, fmt.Errorf("osv: wait for advisory record: %w", ctx.Err())
 		}
 		// The fetch's own scan may have been cut short; that is its deadline,
@@ -329,10 +333,14 @@ func (c *Client) record(ctx context.Context, id string) (record, error) {
 }
 
 func (c *Client) fetchLimited(ctx context.Context, id string) (record, error) {
+	served := queued(ctx)
 	select {
 	case c.sem <- struct{}{}:
+		served()
 		defer func() { <-c.sem }()
 	case <-ctx.Done():
+		served()
+
 		return record{}, fmt.Errorf("osv: wait to fetch advisory record: %w", ctx.Err())
 	}
 

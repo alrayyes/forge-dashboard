@@ -96,6 +96,8 @@ type clientState struct {
 	// each repo's last answer.
 	advisoryScanner AdvisoryScanner
 	advisories      *advisoryCache
+	// advisoryReads counts the background reads in flight, for tests to wait on.
+	advisoryReads sync.WaitGroup
 	// advisoryDeadline overrides advisoryDeadline; zero keeps it. For tests.
 	advisoryDeadline time.Duration
 	// excerpts keeps the log excerpt of each finished failed job.
