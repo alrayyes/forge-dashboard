@@ -4691,9 +4691,10 @@
     // The board asks the server again, so the row leaves or returns at once
     // instead of waiting for the pointer to leave the list.
     function refreshBoard(): Promise<void> {
+      const seq = ++requestSeq;
       return refreshSnapshot()
         .then((data) => {
-          if (data) applySnapshot(data, true);
+          if (data) applySnapshot(data, true, seq);
         })
         .catch(() => {});
     }
@@ -4758,6 +4759,52 @@
     // shows `latest` until the board has been read again, so neither a poll nor
     // a slow answer puts the old value back under the user's hand.
     const autoUpdateWrites: Record<string, { latest: boolean | null }> = {};
+    // What the server last accepted for a pull request, kept until a read that
+    // began after that write says the same or answers on its own. A read that
+    // began earlier is stale and would draw the old value again.
+    const autoUpdateChoices: Record<string, { enabled: boolean; seq: number }> =
+      {};
+
+    function withAutoUpdateChoices(
+      prs: PullRequestItem[],
+      startedSeq: number | undefined,
+    ): PullRequestItem[] {
+      return prs.map((p) => {
+        const key = prKey(p);
+        const choice = autoUpdateChoices[key];
+        if (!choice || !p.autoUpdate) return p;
+        const au = p.autoUpdate;
+        const same =
+          au.source === "pullRequest" && au.enabled === choice.enabled;
+        if (same || (startedSeq !== undefined && startedSeq > choice.seq)) {
+          delete autoUpdateChoices[key];
+          return p;
+        }
+        if (au.unavailable) return p;
+        return {
+          ...p,
+          autoUpdate: { ...au, enabled: choice.enabled, source: "pullRequest" },
+        };
+      });
+    }
+
+    // Draws the accepted choice on the rows already on the board, so the box
+    // and the row marker follow the write without waiting for a read.
+    function rememberAutoUpdateChoice(item: PullRequestItem, enabled: boolean) {
+      const key = prKey(item);
+      autoUpdateChoices[key] = { enabled, seq: requestSeq };
+      const patch = (list: PullRequestItem[]) => {
+        for (const p of list) {
+          if (prKey(p) !== key || !p.autoUpdate || p.autoUpdate.unavailable)
+            continue;
+          p.autoUpdate = { ...p.autoUpdate, enabled, source: "pullRequest" };
+        }
+      };
+      patch([item]);
+      patch(allPRs);
+      patch(rawPRs);
+      patch(latestPRs ?? []);
+    }
 
     function postAutoUpdate(
       item: PullRequestItem,
@@ -4808,7 +4855,12 @@
         sent = mine.latest;
         ok = await postAutoUpdate(item, sent);
       } while (ok && mine.latest !== sent);
-      if (ok) await refreshBoard();
+      if (ok && mine.latest !== null) {
+        // The write is done; the dialog settles now. The read that follows can
+        // be slow under load and must not hold the box.
+        rememberAutoUpdateChoice(item, mine.latest);
+        void refreshBoard();
+      } else if (ok) await refreshBoard();
       else {
         autoUpdateFailure[key] =
           `Couldn't change automatic updates for ${item.repo}#${item.number}. Try again.`;
@@ -8338,10 +8390,13 @@
       issueSettingsKnown = true;
       settingsHiddenIssues = data.settingsHiddenIssueCount ?? 0;
       syncQueuedActions(data.queuedActions ?? []);
-      const prs = (data.pullRequests || []).filter((p) =>
-        viewKind
-          ? p.kind === viewKind
-          : p.kind !== "release" && p.kind !== "dependency",
+      const prs = withAutoUpdateChoices(
+        (data.pullRequests || []).filter((p) =>
+          viewKind
+            ? p.kind === viewKind
+            : p.kind !== "release" && p.kind !== "dependency",
+        ),
+        startedSeq,
       );
       hiddenDrafts = data.hiddenDrafts ?? 0;
       syncDraftsToggle();

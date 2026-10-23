@@ -55,6 +55,10 @@ async function serve(
     respond?: (body: Record<string, unknown>) => AutoUpdate | null;
     // Holds the answer to the post with this index, to race a second click.
     delay?: (index: number) => Promise<void> | undefined;
+    // Holds the answer to the refresh with this index. The answer is the
+    // state when the refresh arrived, as a slow server would give it.
+    refreshDelay?: (index: number) => Promise<void> | undefined;
+    refreshes?: number;
   },
 ) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -72,7 +76,22 @@ async function serve(
       }),
     });
   await page.route('**/api/dashboard*', snapshot);
-  await page.route('**/api/dashboard/refresh*', snapshot);
+  await page.route('**/api/dashboard/refresh*', async (route) => {
+    const index = state.refreshes ?? 0;
+    state.refreshes = index + 1;
+    const body = JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      pullRequests: [state.pr],
+      issues: [],
+    });
+    await state.refreshDelay?.(index);
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body,
+    });
+  });
   await page.route('**/api/pull-requests/auto-update', async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     const index = state.posts.length;
@@ -280,6 +299,80 @@ test.describe('A pull request can have its own automatic branch update', () => {
     await expect(box).toBeChecked();
     expect(state.posts.map((p) => p.enabled)).toEqual([false, true]);
     expect(state.pr.autoUpdate).toMatchObject({ enabled: true });
+  });
+
+  test('the box settles once the write is saved, without waiting for a slow refresh', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const state = {
+      pr: makePR(FOLLOWS_REPO_ON),
+      posts: [] as Record<string, unknown>[],
+      refreshDelay: () => held,
+      respond: (body: Record<string, unknown>): AutoUpdate => ({
+        enabled: body.enabled as boolean,
+        source: 'pullRequest',
+        unavailable: null,
+      }),
+    };
+    await serve(page, state);
+    await page.goto('/pull-requests.html');
+    const dialog = await openActionsDialog(row(page));
+    const box = dialog.getByRole('checkbox', {
+      name: 'Update this branch automatically',
+    });
+
+    await box.uncheck();
+
+    await expect(dialog.getByText('Set for this pull request.')).toBeVisible();
+    await expect(dialog.getByText('Saving…')).toHaveCount(0);
+    await expect(dialog.locator('.auto-update-option')).not.toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    await expect(box).not.toBeChecked();
+    release();
+    await expect(box).not.toBeChecked();
+  });
+
+  test('a read that started before a write finished cannot put the old value back', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const state = {
+      pr: makePR(FOLLOWS_REPO_ON),
+      posts: [] as Record<string, unknown>[],
+      // The first refresh answers late, with the state after the first write.
+      refreshDelay: (index: number) => (index === 0 ? held : undefined),
+      respond: (body: Record<string, unknown>): AutoUpdate => ({
+        enabled: body.enabled as boolean,
+        source: 'pullRequest',
+        unavailable: null,
+      }),
+    };
+    await serve(page, state);
+    await page.goto('/pull-requests.html');
+    const dialog = await openActionsDialog(row(page));
+    const box = dialog.getByRole('checkbox', {
+      name: 'Update this branch automatically',
+    });
+
+    await box.uncheck();
+    await expect(dialog.getByText('Set for this pull request.')).toBeVisible();
+    await box.check();
+    await expect.poll(() => state.posts.length).toBe(2);
+    await expect(dialog.getByText('Saving…')).toHaveCount(0);
+    release();
+
+    await page.waitForTimeout(500);
+    await expect(box).toBeChecked();
+    await expect(row(page)).toContainText('Auto-update on');
   });
 
   test('a change refused twice in a row puts the box back each time', async ({
