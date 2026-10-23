@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.18.0](https://github.com/alrayyes/forge-dashboard/compare/v2.17.4...v2.18.0) (2026-10-23)
+
+
+### Features
+
+* **web:** show the pull requests that close an issue in its dialog ([#2643](https://github.com/alrayyes/forge-dashboard/issues/2643)) ([7b7d408](https://github.com/alrayyes/forge-dashboard/commit/7b7d4085d4e89f481396287710a7f70478e9a451))
+
 ## [2.17.4](https://github.com/alrayyes/forge-dashboard/compare/v2.17.3...v2.17.4) (2026-10-23)
 
 
