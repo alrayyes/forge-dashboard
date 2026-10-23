@@ -1,0 +1,134 @@
+package forgejo_test
+
+import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"testing"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+var _ dashboard.RunCanceler = (*forgejo.Client)(nil)
+
+// cancelServer plays Forgejo for pull request 5: run 42 (workflow ci.yaml) has
+// a finished, a running and a waiting job. cancelStatus is what the cancel
+// route answers, 0 for 200.
+type cancelServer struct {
+	cancelStatus int
+	mu           sync.Mutex
+	canceled     []string
+}
+
+func (s *cancelServer) start(t *testing.T) *forgejo.Client {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"id": 42, "path": ".forgejo/workflows/ci.yaml", "event": "pull_request", "status": "running"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 3, "jobs": []map[string]any{
+			{"id": 1, "name": "lint", "status": "success"},
+			{"id": 2, "name": "test", "status": "running"},
+			{"id": 3, "name": "build", "status": "waiting"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": []map[string]string{}})
+	})
+	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/runs/{run}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		s.canceled = append(s.canceled, r.PathValue("run"))
+		s.mu.Unlock()
+		if s.cancelStatus != 0 {
+			w.WriteHeader(s.cancelStatus)
+			writeJSON(t, w, map[string]any{"message": "run is already finished"})
+
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func TestListChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
+	t.Parallel()
+
+	checks, err := (&cancelServer{}).start(t).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	byName := map[string]dashboard.Check{}
+	for _, c := range checks {
+		byName[c.Name] = c
+	}
+	assert.Zero(t, byName["lint"].RunID, "a finished job has no run to cancel")
+	assert.Equal(t, int64(42), byName["test"].RunID)
+	assert.Equal(t, "ci", byName["test"].RunName, "the workflow file without its extension")
+	assert.Equal(t, int64(42), byName["build"].RunID, "a waiting job belongs to its run too")
+}
+
+func TestListDefaultBranchChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
+	t.Parallel()
+	s := &mainBranchServer{
+		runs:   []map[string]any{actionRun(3, "main", "cafef00dcafef00d", "running", "2026-10-10T09:01:00Z", "2026-10-10T09:05:00Z")},
+		jobs:   map[string][]map[string]any{"3": {{"name": "test", "status": "running"}, {"name": "lint", "status": "success"}}},
+		commit: goodCommit(),
+	}
+
+	checks, err := s.start(t).ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, int64(3), checks[0].RunID)
+	assert.Equal(t, "ci", checks[0].RunName)
+	assert.Zero(t, checks[1].RunID)
+}
+
+func TestCancelRun(t *testing.T) {
+	t.Parallel()
+
+	t.Run("cancels the named run", func(t *testing.T) {
+		t.Parallel()
+		s := &cancelServer{}
+
+		require.NoError(t, s.start(t).CancelRun(t.Context(), "alrayyes", "a", 42))
+
+		assert.Equal(t, []string{"42"}, s.canceled)
+	})
+
+	t.Run("a refusal comes back classified, with Forgejo's own words", func(t *testing.T) {
+		t.Parallel()
+		s := &cancelServer{cancelStatus: http.StatusConflict}
+
+		err := s.start(t).CancelRun(t.Context(), "alrayyes", "a", 42)
+
+		clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+		require.True(t, ok, "want a ClientError, got %v", err)
+		assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+		assert.Contains(t, err.Error(), "run is already finished")
+	})
+
+	t.Run("an instance without the route says so", func(t *testing.T) {
+		t.Parallel()
+		s := &cancelServer{cancelStatus: http.StatusNotFound}
+
+		err := s.start(t).CancelRun(t.Context(), "alrayyes", "a", 42)
+
+		clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+		require.True(t, ok, "want a ClientError, got %v", err)
+		assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+	})
+}
