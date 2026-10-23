@@ -9,6 +9,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +55,20 @@ const (
 // OSV already returned is kept, so the next try gets further.
 const advisoryDeadline = 10 * time.Second
 
+// maxLockfiles is the most lock files one repo may have before it reads as
+// unknown, and maxTreePages the most pages of the repo's file tree that are
+// read to find them. Both keep a monorepo from costing an unbounded number of
+// calls; a repo past either cap is unknown rather than counted from a part.
+const (
+	maxLockfiles  = 20
+	maxTreePages  = 5
+	treePageItems = 1000
+)
+
+// ignoredDirs hold copies of other projects' files, not this repo's own
+// dependencies: their lock files are not read.
+var ignoredDirs = map[string]bool{"node_modules": true, "vendor": true, "testdata": true}
+
 // maxLockfileBytes is the largest lockfile read. A bigger one is left alone and
 // the repo reads as unknown.
 const maxLockfileBytes = 8 << 20
@@ -64,7 +81,7 @@ type AdvisoryScanner interface {
 	Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary, error)
 }
 
-// lockfileReaders are the files in a repo's root that list its pinned
+// lockfileReaders are the file names, wherever they sit in a repo, that list its pinned
 // dependencies, with the reader for each.
 var lockfileReaders = map[string]func([]byte) ([]osv.Package, error){
 	"package-lock.json": osv.ParseNPMLock,
@@ -211,11 +228,11 @@ func (c *advisoryCache) evict(keep string) {
 	}
 }
 
-// readAdvisories reads a repo's advisories from the lockfiles in the root of
+// readAdvisories reads a repo's advisories from the lockfiles anywhere in
 // its default branch (any file in lockfileReaders: package-lock.json, bun.lock,
 // composer.lock, poetry.lock, uv.lock, Cargo.lock and go.mod), matched against OSV, or
 // starting from packages already read from the forge when known is set. Costs
-// one listing of the root plus one read per lockfile found. It returns the
+// one read of the file tree (up to maxTreePages) plus one read per lockfile found. It returns the
 // packages it read so a caller can keep them when OSV fails.
 //
 // A repo with no lockfile it can read is unknown, never zero. So is one where
@@ -223,7 +240,7 @@ func (c *advisoryCache) evict(keep string) {
 // would read as the whole answer, and one that matches more advisories than a
 // scan reads. A failed call to the forge or to OSV is an error. The package
 // names and versions in the lockfiles are sent to OSV; nothing else is.
-func (c *Client) readAdvisories(ctx context.Context, owner, name string, known []osv.Package) (dashboard.Advisories, []osv.Package, error) {
+func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string, known []osv.Package) (dashboard.Advisories, []osv.Package, error) {
 	if c.advisoryScanner == nil {
 		return dashboard.Advisories{}, nil, errNoAdvisoryScanner
 	}
@@ -231,7 +248,7 @@ func (c *Client) readAdvisories(ctx context.Context, owner, name string, known [
 
 	pkgs := known
 	if pkgs == nil {
-		got, answer, err := c.lockfilePackages(ctx, owner, name)
+		got, answer, err := c.lockfilePackages(ctx, owner, name, branch)
 		if err != nil || answer != nil {
 			if answer != nil {
 				return *answer, nil, nil
@@ -255,17 +272,22 @@ func (c *Client) readAdvisories(ctx context.Context, owner, name string, known [
 	}, nil, nil
 }
 
-// lockfilePackages reads the packages in the root lockfiles. When the answer
+// lockfilePackages reads the packages in the repo's lockfiles. When the answer
 // is already settled without asking OSV (no lockfile, or one that can't be
 // read in full) it returns that answer instead.
-func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]osv.Package, *dashboard.Advisories, error) {
+func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch string) ([]osv.Package, *dashboard.Advisories, error) {
 	repo := owner + "/" + name
-	files, skipped, err := c.rootLockfiles(ctx, owner, name)
+	files, skipped, err := c.treeLockfiles(ctx, owner, name, branch)
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(skipped) > 0 {
-		slog.Debug("lockfile too big to read", "forge", dashboard.ForgeForgejo, "repo", repo, "files", skipped)
+		slog.Debug("lockfiles left unread, so the repo is unknown", "forge", dashboard.ForgeForgejo, "repo", repo, "files", skipped)
+
+		return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
+	}
+	if len(files) > maxLockfiles {
+		slog.Debug("too many lockfiles to read", "forge", dashboard.ForgeForgejo, "repo", repo, "files", len(files))
 
 		return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 	}
@@ -284,7 +306,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]os
 		if err != nil {
 			return nil, nil, err
 		}
-		got, err := lockfileReaders[file](data)
+		got, err := lockfileReaders[path.Base(file)](data)
 		if err != nil {
 			slog.Debug("lockfile unreadable", "forge", dashboard.ForgeForgejo, "repo", repo, "file", file, "error", err)
 
@@ -292,6 +314,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name string) ([]os
 		}
 		pkgs = append(pkgs, got...)
 	}
+	pkgs = slices.Compact(slices.SortedFunc(slices.Values(pkgs), comparePackages))
 	pkgs, dropped := c.withoutOwnHost(pkgs)
 	if dropped > 0 && len(pkgs) == 0 {
 		slog.Debug("only modules on the forge's own host", "forge", dashboard.ForgeForgejo, "repo", repo)
@@ -339,41 +362,107 @@ func moduleHost(module string) string {
 	return strings.ToLower(first)
 }
 
-// rootLockfiles lists the lockfiles in the root of the default branch: the ones
-// small enough to read, and the names of the ones that are not.
-func (c *Client) rootLockfiles(ctx context.Context, owner, name string) (files, skipped []string, err error) {
-	path := fmt.Sprintf("/repos/%s/%s/contents", url.PathEscape(owner), url.PathEscape(name))
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+// comparePackages orders packages by ecosystem, name and version, so the same
+// package found in two lock files sits side by side and is sent once.
+func comparePackages(a, b osv.Package) int {
+	return cmp.Or(cmp.Compare(a.Ecosystem, b.Ecosystem), cmp.Compare(a.Name, b.Name), cmp.Compare(a.Version, b.Version))
+}
+
+// treeLockfiles lists the lock files anywhere in the default branch from its
+// file tree, read recursively in at most maxTreePages calls. It returns the
+// paths small enough to read and the names of what keeps the answer from being
+// whole: lock files too big to read, or a tree the cap cut short, since files
+// past the cap could change the answer.
+func (c *Client) treeLockfiles(ctx context.Context, owner, name, branch string) (files, skipped []string, err error) {
+	base := fmt.Sprintf("/repos/%s/%s/git/trees/%s", url.PathEscape(owner), url.PathEscape(name), url.PathEscape(branch))
+	for page := 1; ; page++ {
+		if page > maxTreePages {
+			return nil, []string{"file tree past " + strconv.Itoa(maxTreePages) + " pages"}, nil
+		}
+		tree, err := c.treePage(ctx, fmt.Sprintf("%s?recursive=true&per_page=%d&page=%d", base, treePageItems, page))
+		if err != nil {
+			return nil, nil, err
+		}
+		if tree.Truncated {
+			return nil, []string{"file tree cut short"}, nil
+		}
+		f, sk := tree.lockfiles()
+		files, skipped = append(files, f...), append(skipped, sk...)
+		if page*treePageItems >= tree.TotalCount || len(tree.Tree) == 0 {
+			return files, skipped, nil
+		}
 	}
-	var entries []struct {
-		Name string `json:"name"`
+}
+
+// gitTree is one page of Forgejo's recursive file tree.
+type gitTree struct {
+	Tree []struct {
+		Path string `json:"path"`
 		Type string `json:"type"`
 		Size int64  `json:"size"`
-	}
-	if err := json.Unmarshal(body, &entries); err != nil {
-		return nil, nil, fmt.Errorf("forgejo: read %s: %w", path, err)
-	}
-	for _, e := range entries {
-		if _, ok := lockfileReaders[e.Name]; !ok || e.Type != "file" {
+	} `json:"tree"`
+	Truncated  bool `json:"truncated"`
+	TotalCount int  `json:"total_count"`
+}
+
+// lockfiles are the lock files on this page: the paths small enough to read,
+// and those that are too big.
+func (t gitTree) lockfiles() (files, skipped []string) {
+	for _, e := range t.Tree {
+		if _, ok := lockfileReaders[path.Base(e.Path)]; !ok || e.Type != "blob" || inIgnoredDir(e.Path) {
 			continue
 		}
 		if e.Size > maxLockfileBytes {
-			skipped = append(skipped, e.Name)
+			skipped = append(skipped, e.Path)
 		} else {
-			files = append(files, e.Name)
+			files = append(files, e.Path)
 		}
 	}
 
-	return files, skipped, nil
+	return files, skipped
+}
+
+func (c *Client) treePage(ctx context.Context, reqPath string) (gitTree, error) {
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", reqPath)
+	body, resp, err := c.rawRequest(ctx, http.MethodGet, reqPath, nil)
+	if err != nil {
+		return gitTree{}, c.forgejoError(ctx, http.MethodGet, reqPath, resp, err)
+	}
+	var tree gitTree
+	if err := json.Unmarshal(body, &tree); err != nil {
+		return gitTree{}, fmt.Errorf("forgejo: read %s: %w", reqPath, err)
+	}
+
+	return tree, nil
+}
+
+// inIgnoredDir says whether any directory in p's path is one whose lock files
+// are not read.
+func inIgnoredDir(p string) bool {
+	dir, _ := path.Split(p)
+	for seg := range strings.SplitSeq(dir, "/") {
+		if ignoredDirs[seg] {
+			return true
+		}
+	}
+
+	return false
+}
+
+// escapePath escapes each segment of a repo path and keeps the slashes.
+func escapePath(p string) string {
+	segs := strings.Split(p, "/")
+	for i, s := range segs {
+		segs[i] = url.PathEscape(s)
+	}
+
+	return strings.Join(segs, "/")
 }
 
 // rawFile reads one file of the default branch, no more than maxLockfileBytes of
 // it whatever the listing said it weighs.
 func (c *Client) rawFile(ctx context.Context, owner, name, file string) ([]byte, error) {
-	path := fmt.Sprintf("/repos/%s/%s/raw/%s", url.PathEscape(owner), url.PathEscape(name), url.PathEscape(file))
+	path := fmt.Sprintf("/repos/%s/%s/raw/%s", url.PathEscape(owner), url.PathEscape(name), escapePath(file))
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequestMax(ctx, http.MethodGet, path, nil, maxLockfileBytes)
 	if errors.Is(err, errResponseTooBig) {
@@ -459,7 +548,7 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 	deadline := cmp.Or(c.advisoryDeadline, advisoryDeadline)
 	readCtx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
-	v, pkgs, err := c.readAdvisories(readCtx, repo.Owner, repo.Name, known)
+	v, pkgs, err := c.readAdvisories(readCtx, repo.Owner, repo.Name, repo.DefaultBranch, known)
 	if err != nil && ctx.Err() != nil {
 		// The caller gave up (shutdown, a superseded refresh): the forge and OSV
 		// did nothing wrong, so remember nothing and let the next ask read again.

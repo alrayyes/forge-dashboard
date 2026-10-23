@@ -93,8 +93,8 @@ offers **Reset filters**. A repo with no pipeline says no run was found.
 ## Forgejo advisories
 
 Forgejo has no alerts of its own, so the advisories on a Forgejo row come from
-the repo's lock files. The dashboard lists the root of the default branch, reads
-the lock files below if they are there, and asks
+the repo's lock files. The dashboard lists the file tree of the default branch,
+reads the lock files below wherever they sit, and asks
 [OSV](https://google.github.io/osv.dev/post-v1-querybatch/) which of the
 pinned packages have known advisories. The count is the number of
 distinct advisories, with one flaw listed under two ids counted once, and the
@@ -119,10 +119,13 @@ repo.
 - `go.mod` (Go). Modules on the Forgejo host itself and local replacements are
   kept out.
 
-Each file costs one raw read per refresh, on top of the one root listing, and
-the refresh interval and cache are the same as before. The binary `bun.lockb`
-is not read, and only the root of the branch is looked at. A repo with none of
-these files stays `unknown`.
+Lock files in subdirectories are read too, and their packages are counted
+together: a package that appears in two lock files is asked about once, and an
+advisory that hits both is counted once. Each file costs one raw read per
+refresh, on top of the file tree read, and the refresh interval and cache are
+the same as before. Lock files under `node_modules`, `vendor` and `testdata`
+directories belong to other projects and are not read. The binary `bun.lockb` is
+not read. A repo with none of these files stays `unknown`.
 
 This is off by default, because **the package names and versions in those files
 are sent to `api.osv.dev`**, for private repos too. Only what the list above
@@ -137,13 +140,13 @@ leaves it off. While it is off, every Forgejo row is `unknown` with the reason
 With it on, a repo with no lock file the dashboard reads is `unknown`, never
 zero. So is a repo where any lock file is over 8 megabytes, doesn't parse or,
 for `go.mod`, has no `module` line (it is asked again after an hour), and one
-that matches more than 300 distinct advisories. Only the repo root is read: a
-root `go.mod` alone reads as known even when the front end lives in a
-subdirectory, so a count is the advisories in the root lock files, not in the
-whole repo. A `replace` directive in `go.mod` is applied, and an aliased npm
-install is matched by its real name. A lock file lists many packages: past 3000
-distinct name and version pairs the repo is `unknown`. So is a repo where every
-package was left out for being private, since nothing was checked.
+that matches more than 300 distinct advisories. So is a repo with more than 20
+lock files, or whose file tree is too big to list in five calls, since a count
+over part of the repo would read as the whole. A `replace` directive in `go.mod`
+is applied, and an aliased npm install is matched by its real name. A lock file
+lists many packages: past 3000 distinct name and version pairs the repo is
+`unknown`. So is a repo where every package was left out for being private,
+since nothing was checked.
 
 The page does not flag an unknown Forgejo row that has no reason, since most
 repos have no lock file, and nothing is said while advisories are off. It does
@@ -157,9 +160,9 @@ Answers are cached for fifteen minutes. A failed read keeps the last answer for
 up to a day, or shows `unknown` if there is none or it is older, and is retried
 after five minutes, then ten, up to thirty while OSV stays down, without reading
 the lock files from the forge again. One repo's read gives up after ten seconds
-so a slow OSV can't hold up the CI row. A read costs one listing of the root
-plus one read per lock file, counted under the `advisories` kind in
-[Rate limits](rate-limits.md).
+so a slow OSV can't hold up the CI row. A read costs one read of the file tree
+(one call per 1000 files, at most five) plus one read per lock file, counted
+under the `advisories` kind in [Rate limits](rate-limits.md).
 
 ## When advisories can't be read
 

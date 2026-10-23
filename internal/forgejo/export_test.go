@@ -10,7 +10,7 @@ import (
 // ReadAdvisories reads a repo's advisories once, past the cache, deadline and
 // back-off that ReadMainBranch applies.
 func ReadAdvisories(ctx context.Context, c *Client, owner, name string) (dashboard.Advisories, error) {
-	v, _, err := c.readAdvisories(ctx, owner, name, nil)
+	v, _, err := c.readAdvisories(ctx, owner, name, "main", nil)
 
 	return v, err
 }
