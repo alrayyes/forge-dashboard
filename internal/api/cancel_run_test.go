@@ -47,6 +47,7 @@ func cancelBoard(t *testing.T, cancelErr error) (*httptest.Server, *http.Cookie,
 	const token = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	src := &cancelSource{err: cancelErr}
 	src.health = dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1}
+	src.repos = []dashboard.Repo{{Forge: dashboard.ForgeGitHub, FullName: "alrayyes/a"}}
 	srv := newTestServerWithSources(t, func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != token {
 			return nil
@@ -151,4 +152,16 @@ func TestCancelRun_Answers400_WhenTheForgeCannotCancel(t *testing.T) {
 	status, _ := postCancelRun(t, srv.URL, cookie, cancelBody)
 
 	assert.Equal(t, http.StatusBadRequest, status)
+}
+
+func TestCancelRun_RefusesARepositoryTheDashboardDoesNotTrack_WithoutAskingTheForge(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, src := cancelBoard(t, nil)
+
+	status, body := postCancelRun(t, srv.URL, cookie, `{"forge":"github","fullName":"alrayyes/elsewhere","runId":77}`)
+
+	assert.Equal(t, http.StatusNotFound, status)
+	assert.Contains(t, fmt.Sprint(body["error"]), "isn't tracked")
+	assert.Empty(t, src.calls())
 }

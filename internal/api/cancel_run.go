@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
@@ -13,6 +15,29 @@ type cancelRunRequest struct {
 	Forge    string `json:"forge"`
 	FullName string `json:"fullName"`
 	RunID    int64  `json:"runId"`
+}
+
+// trackedRepository reports whether the dashboard follows fullName on forge: a
+// repository it lists, one with a pull request on the board, or one whose
+// default branch the Main branches page shows. A run id alone doesn't say
+// which repository it belongs to, so this is what keeps the route from
+// cancelling runs in a repository the dashboard never shows.
+func trackedRepository(ctx context.Context, deps Deps, forge, fullName string) bool {
+	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
+	snap := deps.Service.Get()
+	if slices.ContainsFunc(snap.Repos, func(r dashboard.Repo) bool {
+		return string(r.Forge) == forge && r.FullName == fullName
+	}) {
+		return true
+	}
+	if slices.ContainsFunc(snap.PullRequests, func(p dashboard.PullRequest) bool {
+		return string(p.Forge) == forge && p.Repo == fullName
+	}) {
+		return true
+	}
+	_, ok := trackedMainBranch(ctx, deps, forge, fullName)
+
+	return ok
 }
 
 // handleCancelRun asks the forge to cancel the named workflow run, the one the
@@ -46,6 +71,12 @@ func handleCancelRun(deps Deps) http.HandlerFunc {
 		}
 		canceler, ok := capabilityOf[dashboard.RunCanceler](w, src, req.Forge, "doesn't support cancelling a run")
 		if !ok {
+			return
+		}
+
+		if !trackedRepository(r.Context(), deps, req.Forge, req.FullName) {
+			writeJSON(w, http.StatusNotFound, errorBody("that repository isn't tracked"))
+
 			return
 		}
 
