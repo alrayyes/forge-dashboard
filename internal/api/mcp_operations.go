@@ -10,16 +10,17 @@ package api
 
 // mcpToolOperations maps each registered MCP tool to the operation it covers.
 var mcpToolOperations = map[string]string{
-	"get_dashboard":            "getDashboard",
-	"get_main_branches":        "getMainBranches",
-	"get_main_branch_checks":   "getMainBranchChecks",
-	"get_check_log":            "getCheckLog",
-	"get_pull_request_details": "getPullRequestDetails",
-	"get_pull_request_checks":  "getPullRequestChecks",
-	"list_queued_actions":      "listQueuedActions",
-	"get_version":              "getVersion",
-	"get_forge_api_stats":      "getForgeApiStats",
-	"get_settings":             "getSettingsSummary",
+	"get_dashboard":             "getDashboard",
+	"get_main_branches":         "getMainBranches",
+	"get_main_branch_checks":    "getMainBranchChecks",
+	"get_check_log":             "getCheckLog",
+	"get_repository_advisories": "listAdvisories",
+	"get_pull_request_details":  "getPullRequestDetails",
+	"get_pull_request_checks":   "getPullRequestChecks",
+	"list_queued_actions":       "listQueuedActions",
+	"get_version":               "getVersion",
+	"get_forge_api_stats":       "getForgeApiStats",
+	"get_settings":              "getSettingsSummary",
 
 	"set_pull_request_auto_update": "setPullRequestAutoUpdate",
 }

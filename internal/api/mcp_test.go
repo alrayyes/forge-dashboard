@@ -464,6 +464,46 @@ func TestMCP_GetMainBranchChecks_RefusesBadInput(t *testing.T) {
 	assert.Empty(t, source.lastName, "nothing reached the forge")
 }
 
+func TestMCP_GetRepositoryAdvisories_RefusalCarriesTheEndpointsMessage(t *testing.T) {
+	t.Parallel()
+
+	githubSource := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub}
+	forgejoSource := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
+	githubURL, githubCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, githubSource)
+	forgejoURL, forgejoCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, forgejoSource)
+
+	for name, tc := range map[string]struct {
+		srvURL   string
+		cookie   *http.Cookie
+		forge    string
+		fullName string
+	}{
+		"malformed fullName": {githubURL, githubCookie, "github", "nope"},
+		"forgejo repository": {forgejoURL, forgejoCookie, "forgejo", "acme/tool"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			session := connectMCP(t, tc.srvURL, createAPIToken(t, tc.srvURL, tc.cookie))
+
+			resp := getAdvisoryList(t, tc.srvURL, tc.cookie, tc.forge, tc.fullName)
+			defer func() { _ = resp.Body.Close() }()
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			var body map[string]string
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+				Name:      "get_repository_advisories",
+				Arguments: map[string]any{"forge": tc.forge, "fullName": tc.fullName},
+			})
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			require.Len(t, result.Content, 1)
+			text, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Equal(t, body["error"], text.Text)
+		})
+	}
+}
+
 func TestMCP_GetPullRequestChecks_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
@@ -565,4 +605,92 @@ func TestMCP_GetPullRequestChecks_ForgeErrorCarriesTheEndpointsMessage(t *testin
 	text, ok := result.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
 	assert.Equal(t, body["error"], text.Text)
+}
+
+func TestMCP_GetRepositoryAdvisories_ListsTheTool(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
+
+	result, err := session.ListTools(t.Context(), nil)
+	require.NoError(t, err)
+
+	var found *mcp.Tool
+	for _, tool := range result.Tools {
+		if tool.Name == "get_repository_advisories" {
+			found = tool
+		}
+	}
+	require.NotNil(t, found)
+	for _, want := range []string{"Read-only", "on demand", "snapshot", "GitHub", "unknown", "not a finding", "untrusted"} {
+		assert.Contains(t, found.Description, want)
+	}
+}
+
+func TestMCP_GetRepositoryAdvisories_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "get_repository_advisories",
+		Arguments: map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	resp := getAdvisoryList(t, srvURL, cookie, "github", "alrayyes/tempus-fugit")
+	defer func() { _ = resp.Body.Close() }()
+	var httpContent map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&httpContent))
+	assert.Equal(t, httpContent, result.StructuredContent)
+}
+
+func TestMCP_GetRepositoryAdvisories_SaysUnknownRatherThanEmpty(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeAdvisoryListerSource{
+		forge: dashboard.ForgeGitHub,
+		list:  dashboard.AdvisoryList{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonRefused, Advisories: []dashboard.AdvisoryItem{}},
+	}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "get_repository_advisories",
+		Arguments: map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	content, ok := result.StructuredContent.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "unknown", content["state"])
+	assert.NotEmpty(t, content["reason"])
+	assert.Equal(t, []any{}, content["advisories"], "an unknown list is an empty array, not null")
+}
+
+func TestMCP_GetRepositoryAdvisories_RefusesBadInput(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	for name, args := range map[string]map[string]any{
+		"unknown forge":      {"forge": "gitlab", "fullName": "a/b"},
+		"malformed fullName": {"forge": "github", "fullName": "nope"},
+		"fullName missing":   {"forge": "github"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_repository_advisories", Arguments: args})
+
+			refused := err != nil || (result != nil && result.IsError)
+			assert.True(t, refused, "the tool should refuse as the endpoint answers 400")
+		})
+	}
+	assert.Empty(t, source.lastName, "nothing reached the forge")
 }
