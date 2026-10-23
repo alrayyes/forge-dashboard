@@ -120,8 +120,11 @@ so in the dialog with the same causes as
 request offers **Try again**. The pill on a Forgejo row opens the same dialog,
 described under [Forgejo advisories](#forgejo-advisories).
 `GET /api/main-branches/advisories?forge=github&fullName=owner/repo` (or
-`forge=forgejo`) answers the list for the dialog and is not offered as an MCP
-tool.
+`forge=forgejo`) answers the list for the dialog. An MCP client reads the same
+list with the `get_repository_advisories` tool, and the in-page WebMCP tool of
+that name does the same. An alerts list that cannot be read comes back as
+unknown with the reason, never as an empty list, so an assistant does not
+report a clean repo.
 
 ## Forgejo advisories
 

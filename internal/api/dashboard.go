@@ -44,6 +44,9 @@ type repoStatus struct {
 	// FailingSince: when the repo's fetch first failed, while it keeps failing
 	// (see dashboard.Repo). Absent for a repo that isn't failing.
 	FailingSince *time.Time `json:"failingSince,omitempty"`
+	// FailingForGood: the failure has outlasted the cutoff the refresh
+	// schedule uses, so retrying has not helped. Absent otherwise.
+	FailingForGood bool `json:"failingForGood,omitempty"`
 }
 
 // dashboardResponse is the wire shape for /api/dashboard and its SSE
@@ -371,6 +374,8 @@ type boardView struct {
 func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snapshot, view boardView) dashboardResponse {
 	board := loadBoardSettings(ctx, deps.SettingsStore)
 	board.autoMergeReport = deps.Service.AutoMergeReport()
+	board.refreshInterval = deps.Service.RefreshInterval()
+	board.now = time.Now()
 	board.forgetClosedHides(ctx, deps.SettingsStore, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
@@ -419,6 +424,11 @@ func firstRefreshDone(m *dashboard.Service) bool {
 // boardSettings is what the response is built with besides the snapshot: the
 // user's own state for each repo, and their login on each forge.
 type boardSettings struct {
+	// refreshInterval is the configured wait between full refreshes, which
+	// the failing-for-good cutoff is a multiple of.
+	refreshInterval time.Duration
+	// now is the one clock the payload is built against.
+	now              time.Time
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
@@ -501,8 +511,10 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 		// A scoped refresh clears StaleSince but keeps the clock for the
 		// refresh schedule, so only a still-stale row says it is failing.
 		var failingSince *time.Time
+		forGood := false
 		if r.StaleSince != nil {
 			failingSince = r.FailingSince
+			forGood = dashboard.FailingForGood(r, b.refreshInterval, b.now)
 		}
 		hasWebhook := r.HasWebhook
 		if !hasWebhook {
@@ -525,6 +537,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 			WebhookLockedByConnection: r.WebhookLockedByConnection,
 			WebhookNeedsToken:         r.WebhookNeedsToken,
 			FailingSince:              failingSince,
+			FailingForGood:            forGood,
 		})
 	}
 

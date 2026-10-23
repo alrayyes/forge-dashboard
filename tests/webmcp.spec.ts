@@ -64,6 +64,7 @@ test.describe('WebMCP tools', () => {
       'get_main_branches',
       'get_main_branch_checks',
       'get_check_log',
+      'get_repository_advisories',
       'get_pull_request_checks',
       'get_pull_request_details',
       'list_queued_actions',
@@ -135,6 +136,12 @@ test.describe('WebMCP tools', () => {
       input: { forge: 'forgejo', fullName: 'acme/api', jobId: 31 },
       path: '/api/checks/log',
       query: 'forge=forgejo&fullName=acme%2Fapi&jobId=31',
+    },
+    {
+      tool: 'get_repository_advisories',
+      input: { forge: 'github', fullName: 'acme/api' },
+      path: '/api/main-branches/advisories',
+      query: 'forge=github&fullName=acme%2Fapi',
     },
     {
       tool: 'get_pull_request_checks',
