@@ -26,8 +26,8 @@ for the row is cut to one line, with the whole tag on hover. A repo with no
 release, or only drafts and pre-releases, shows no tag, and so does every
 Forgejo repo for now. A GitHub repo with open Dependabot alerts on its default branch
 also shows a pill with the count and the highest severity in words, for example
-"3 advisories, critical". The pill is a button that opens the
-[advisories dialog](#advisories-dialog). The
+"3 advisories, critical". The pill is a button that opens a
+[dialog of the advisories](#advisories-dialog). The
 severity is the word, so the tint (red for high and critical, amber for medium,
 grey for low) is never the only signal. A repo with none open shows nothing. A
 repo whose alerts could not be read, because they are switched off or the

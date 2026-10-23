@@ -3,6 +3,8 @@
   "ltex.dictionary": {
     "en-GB": [
       "Dependabot",
+      "GHSA",
+      "EPSS",
       "ETag",
       "ETags",
       "lookahead",
