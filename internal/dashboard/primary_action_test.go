@@ -306,17 +306,25 @@ func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 			for action, message := range tc.blocked {
 				blocked, listed := got[action]
 				require.True(t, listed, "%s is not listed", action)
-				if message == "" {
-					if blocked != nil {
-						assert.NotEqual(t, approval, blocked.Message, "%s", action)
-					}
-
-					continue
-				}
-				require.NotNil(t, blocked, "%s is not blocked", action)
-				assert.Equal(t, dashboard.ActionBlockedByProtection, blocked.Code, "%s", action)
-				assert.Equal(t, message, blocked.Message, "%s", action)
+				assertHeldBlock(t, action, blocked, message)
 			}
 		})
 	}
+}
+
+// assertHeldBlock checks one action's block: the approval reason when message
+// is set, and anything but the approval reason when it is empty.
+func assertHeldBlock(t *testing.T, action dashboard.ActionName, blocked *dashboard.Blocked, message string) {
+	t.Helper()
+
+	if message == "" {
+		if blocked != nil {
+			assert.NotEqual(t, "Workflow runs are waiting for approval", blocked.Message, "%s", action)
+		}
+
+		return
+	}
+	require.NotNil(t, blocked, "%s is not blocked", action)
+	assert.Equal(t, dashboard.ActionBlockedByProtection, blocked.Code, "%s", action)
+	assert.Equal(t, message, blocked.Message, "%s", action)
 }
