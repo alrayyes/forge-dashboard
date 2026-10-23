@@ -86,6 +86,8 @@ async function openPanel(
     .click();
   const dialog = page.getByRole('dialog', { name: /pipeline/i });
   await expect(dialog.getByRole('listitem')).toHaveCount(state.checks.length);
+  // Mounted empty so it can be announced, and must not show until it speaks.
+  await expect(page.getByTestId('rerun-redraw-note')).toBeHidden();
   return dialog;
 }
 
@@ -481,20 +483,29 @@ test.describe('main branches rerun failed checks', () => {
       }),
     });
 
-  test('an earlier refusal does not come back after a lock lifts', async ({
+  // A forge answering 503 is the outage itself: the line says nothing once the
+  // forge is known to be down, and nothing true once it is back.
+  const unavailable = (route: Route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'The forge is down.' }),
+    });
+
+  test('an earlier outage failure does not come back after a lock lifts', async ({
     page,
   }) => {
     const forges: unknown[] = [
       { forge: 'github', reachable: true, repoCount: 1 },
     ];
-    await page.route('**/api/main-branches/rerun-checks', refuse);
+    await page.route('**/api/main-branches/rerun-checks', unavailable);
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       forges,
     });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
-    await expect(dialog.getByRole('alert')).toContainText('no failed job');
+    await expect(dialog.getByRole('alert')).toContainText('forge is down');
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
     await runUntilPolled(page);
@@ -506,6 +517,42 @@ test.describe('main branches rerun failed checks', () => {
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
     ).toBeVisible();
     await expect(dialog.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('a permission refusal is still shown after an outage passes', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.route('**/api/main-branches/rerun-checks', (route) =>
+      route.fulfill({
+        status: 403,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'permission',
+          message: 'The token cannot rerun workflows.',
+        }),
+      }),
+    );
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    await expect(dialog.getByRole('alert')).toContainText('cannot rerun');
+
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+
+    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    await runUntilPolled(page);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('alert')).toContainText('cannot rerun');
   });
 
   test('a poll leaves the failure box, and the focus on its Copy button, alone', async ({
@@ -548,6 +595,86 @@ test.describe('main branches rerun failed checks', () => {
           document.activeElement?.closest('dialog, [role="dialog"]') != null,
       ),
     ).resolves.toBe(true);
+  });
+
+  test('keyboard focus stays in the dialog when a lock removes the Copy button', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.route('**/api/main-branches/rerun-checks', unavailable);
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
+    const copy = dialog.getByRole('button', { name: 'Copy error details' });
+    await copy.focus();
+
+    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    await runUntilPolled(page);
+
+    await expect(copy).toHaveCount(0);
+    await expect(
+      page.evaluate(
+        () =>
+          document.activeElement?.closest('dialog, [role="dialog"]') != null,
+      ),
+    ).resolves.toBe(true);
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await expect(dialog.locator('.pipeline-rerun')).not.toHaveAttribute(
+      'tabindex',
+      /.*/,
+    );
+  });
+
+  test('a redraw that throws says so on the page and inside the dialog, and clears when it recovers', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    const pageNote = page.getByTestId('rerun-redraw-note');
+    const dialogNote = dialog.getByTestId('rerun-redraw-note-dialog');
+    await expect(dialogNote).toBeHidden();
+
+    // The redraw walks each control's node; make that throw.
+    await page.evaluate(() => {
+      const real = Object.getOwnPropertyDescriptor(
+        Node.prototype,
+        'isConnected',
+      ) as PropertyDescriptor;
+      (window as unknown as { __real: PropertyDescriptor }).__real = real;
+      Object.defineProperty(Node.prototype, 'isConnected', {
+        configurable: true,
+        get() {
+          throw new Error('draw failed');
+        },
+      });
+    });
+    await runUntilPolled(page);
+    await expect(pageNote).toBeVisible();
+    await expect(pageNote).toContainText('could not be updated');
+    await expect(dialogNote).toBeVisible();
+    await expect(dialogNote).toContainText('could not be updated');
+
+    await page.evaluate(() => {
+      Object.defineProperty(
+        Node.prototype,
+        'isConnected',
+        (window as unknown as { __real: PropertyDescriptor }).__real,
+      );
+    });
+    await runUntilPolled(page);
+    await expect(pageNote).toBeHidden();
+    await expect(dialogNote).toBeHidden();
   });
 
   test('keyboard focus returns to the button when the lock lifts', async ({

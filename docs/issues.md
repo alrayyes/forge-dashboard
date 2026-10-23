@@ -148,6 +148,13 @@ description closes the issue with a keyword such as "closes" or "fixes" and it
 aims at its repo's default branch, the same rule the pull request page uses for
 the issues it lists.
 
+The issue's pop-up shows the same links among its attributes, with the
+pipeline of each pull request as on the row, and nothing when no pull request
+closes it. They stay links to the
+[pull request page](pull-request-pages.md#pull-request-details)
+in the pop-up, so no second pop-up sits on top of it, and they follow the
+board while the pop-up stays open.
+
 The server works this out, from the pull requests it already holds, so it costs
 the forge no request. It counts a draft, and a pull request you hid, but not
 one in a repo whose pull requests you ignore. When it merges or closes, the
