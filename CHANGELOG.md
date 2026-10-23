@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.23.0](https://github.com/alrayyes/forge-dashboard/compare/v2.22.0...v2.23.0) (2026-10-23)
+
+
+### Features
+
+* **web:** open the advisories pill as a dialog with a list and a detail view ([#2672](https://github.com/alrayyes/forge-dashboard/issues/2672)) ([5e3f305](https://github.com/alrayyes/forge-dashboard/commit/5e3f30586f00d9bd5fe80d33ab87d711a3f1b465))
+
+
+### Bug Fixes
+
+* **web:** say so when a bare-login author pick expands past the 20-value cap ([#2678](https://github.com/alrayyes/forge-dashboard/issues/2678)) ([d5bb77e](https://github.com/alrayyes/forge-dashboard/commit/d5bb77eacbd1068bdf9ac4f7ee8bab18e5282ac9))
+
 ## [2.22.0](https://github.com/alrayyes/forge-dashboard/compare/v2.21.2...v2.22.0) (2026-10-23)
 
 
