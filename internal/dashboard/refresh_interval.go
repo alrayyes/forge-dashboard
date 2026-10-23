@@ -91,3 +91,9 @@ func (a *Aggregator) NextDelay(interval time.Duration) time.Duration {
 
 	return NextRefreshDelay(snap, interval)
 }
+
+// FailingForGood is failingForGood for callers outside the package, such as
+// the API saying which failing repos are past the cutoff.
+func FailingForGood(repo Repo, interval time.Duration, now time.Time) bool {
+	return failingForGood(repo, interval, now)
+}

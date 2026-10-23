@@ -98,6 +98,32 @@ func TestDashboard_RepoStatus_SerializesFailingSince(t *testing.T) {
 	assert.NotContains(t, plain, "failingSince")
 }
 
+// A repo that has kept failing past the cutoff the refresh schedule uses says
+// so, computed here so the page does no arithmetic of its own.
+func TestDashboard_RepoStatus_FlagsFailingForGood(t *testing.T) {
+	t.Parallel()
+
+	// The test server refreshes every 10ms, so the cutoff is 30ms.
+	long := time.Now().Add(-time.Hour)
+	forGood := repoStatusJSON(t, dashboard.Repo{
+		Forge:        dashboard.ForgeGitHub,
+		FullName:     "alrayyes/a",
+		StaleSince:   &long,
+		FailingSince: &long,
+	})
+	assert.Equal(t, true, forGood["failingForGood"])
+
+	recent := time.Now().Add(time.Hour)
+	justFailing := repoStatusJSON(t, dashboard.Repo{
+		Forge:        dashboard.ForgeGitHub,
+		FullName:     "alrayyes/b",
+		StaleSince:   &recent,
+		FailingSince: &recent,
+	})
+	assert.Contains(t, justFailing, "failingSince")
+	assert.NotContains(t, justFailing, "failingForGood")
+}
+
 // repoStatusJSON serves repo through the real handler and returns the JSON
 // object /api/dashboard wrote for it.
 func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {

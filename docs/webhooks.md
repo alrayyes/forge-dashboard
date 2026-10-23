@@ -40,8 +40,12 @@ sort, so a choice made on a phone shows in the column headers on a wide screen.
 
 A repo the dashboard can't fetch gets a "Failing since" badge next to its name,
 with the time its fetch first failed. Its pull requests and issues are then the
-last ones the dashboard could read. The badge goes when a fetch succeeds, and
-the time starts again after a restart.
+last ones the dashboard could read. Once a repo has failed for three times
+`REFRESH_INTERVAL` of clock time (the same cutoff after which it stops holding
+the short refresh wait, see [Rate limits](rate-limits.md)), the badge reads
+"Still failing since" and the note says the dashboard has stopped waiting on it.
+The server decides when that is. The badge goes when a fetch succeeds, and the
+time starts again after a restart.
 
 ## The easy way: "Add a webhook"
 
