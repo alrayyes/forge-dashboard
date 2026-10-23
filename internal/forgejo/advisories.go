@@ -75,6 +75,8 @@ var errNoAdvisoryScanner = errors.New("forgejo: no advisory scanner configured")
 // is the real one; a test stands in with its own.
 type AdvisoryScanner interface {
 	Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary, error)
+	// Find is Scan that keeps the advisories apart, for the advisories dialog.
+	Find(ctx context.Context, pkgs []osv.Package) ([]osv.Finding, error)
 }
 
 // SetAdvisoryScanner turns on advisories for this client's repos: with a
@@ -140,6 +142,8 @@ type advisoryEntry struct {
 type lockPackages struct {
 	pkgs    []osv.Package
 	partial bool
+	// files are the lock files each package was read from, for the list.
+	files map[osv.Package][]string
 }
 
 // advisoryCall is one repo's read in flight. A second ask for the repo while it
@@ -242,6 +246,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 	}
 
 	var pkgs []osv.Package
+	from := map[osv.Package][]string{}
 	left := 0 // packages the readers left out for not being public
 	for _, file := range files {
 		data, err := c.rawFile(ctx, owner, name, file)
@@ -260,6 +265,11 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 			return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 		}
 		pkgs = append(pkgs, got.Packages...)
+		for _, p := range got.Packages {
+			if !slices.Contains(from[p], file) {
+				from[p] = append(from[p], file)
+			}
+		}
 		left += got.Left
 	}
 	pkgs = slices.Compact(slices.SortedFunc(slices.Values(pkgs), comparePackages))
@@ -274,7 +284,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 		pkgs = []osv.Package{} // read, and empty: not "not read yet"
 	}
 
-	return &lockPackages{pkgs: pkgs, partial: left > 0}, nil, nil
+	return &lockPackages{pkgs: pkgs, partial: left > 0, files: from}, nil, nil
 }
 
 // withoutOwnHost drops the Go modules whose path starts with this forge's own

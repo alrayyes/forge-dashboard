@@ -11,6 +11,10 @@ type AdvisoryList struct {
 	State AdvisoryState `json:"state"`
 	// Reason says why the state is unknown, when the dashboard knows.
 	Reason AdvisoryReason `json:"reason,omitempty"`
+	// Partial is set on a known Forgejo list that covers only the packages the
+	// dashboard may send to OSV: some were left out as private, so the list
+	// proves nothing about them.
+	Partial bool `json:"partial,omitempty"`
 	// URL is the repo's advisories page on the forge. Empty when there are none.
 	URL string `json:"url,omitempty"`
 	// Advisories is sorted by severity, highest first, then newest first.
@@ -25,8 +29,11 @@ type AdvisoryItem struct {
 	State    string           `json:"state"`
 	Severity AdvisorySeverity `json:"severity,omitempty"`
 	Summary  string           `json:"summary"`
-	GHSAID   string           `json:"ghsaId,omitempty"`
-	CVEID    string           `json:"cveId,omitempty"`
+	// ID is the advisory's own id in the database that states it, for a source
+	// that has no GHSA or CVE id of its own to show.
+	ID     string `json:"id,omitempty"`
+	GHSAID string `json:"ghsaId,omitempty"`
+	CVEID  string `json:"cveId,omitempty"`
 	// Package and Ecosystem name the vulnerable dependency.
 	Package   string `json:"package,omitempty"`
 	Ecosystem string `json:"ecosystem,omitempty"`
