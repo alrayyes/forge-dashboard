@@ -47,11 +47,13 @@ one step that is sure to be needed. Checks that are still running are a plain
 wait and keep their own reason. For a behind pull request in that state, Update
 branch, the Renovate and Dependabot rebases and Dependabot's Recreate are listed
 but blocked with the approval reason, because a new head would be held again.
-None is primary, so the row draws no such button, and the status shows the
-approval with no `action`. A stacked or draft pull request keeps its own
-reason, a conflicting one keeps its rebase, and one that is not behind is
-unchanged. Once the runs are approved, the pull request is an ordinary behind
-one and Update branch is primary again.
+Each says to approve the runs first, then it can run. None is primary, so the
+status shows the approval with no `action`, and the blocked Update branch and
+rebases show locked on the row with that reason, Recreate in its menu. A
+stacked, draft or empty pull request keeps what it had, and so does one that is
+not behind. A conflicting pull request is never in this state, so its rebase
+stays. Once the runs are approved, the pull request is an ordinary behind one
+and Update branch is primary again.
 
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a

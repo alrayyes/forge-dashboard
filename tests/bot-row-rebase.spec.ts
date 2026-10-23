@@ -118,8 +118,13 @@ const approval = {
   message: 'Workflow runs are waiting for approval',
   next: 'Approve them on GitHub to unlock Merge',
 };
+// What the server lists on the actions that would push a held head.
+const headPush = {
+  ...approval,
+  next: 'Approve them on GitHub, then this can run',
+};
 
-test('a behind bot pull request waiting for workflow approval has no rebase and says why', async ({
+test('a behind bot pull request waiting for workflow approval has its rebase and Recreate locked and says why', async ({
   page,
 }) => {
   const row = await open(
@@ -132,8 +137,8 @@ test('a behind bot pull request waiting for workflow approval has no rebase and 
       allowedActions: [
         { action: 'merge', blocked: approval },
         { action: 'close' },
-        { action: 'dependabot_rebase', blocked: approval },
-        { action: 'dependabot_recreate' },
+        { action: 'dependabot_rebase', blocked: headPush },
+        { action: 'dependabot_recreate', blocked: headPush },
       ],
       status: approval,
     }),
@@ -141,8 +146,16 @@ test('a behind bot pull request waiting for workflow approval has no rebase and 
   await expect(row.locator('.status-area')).toContainText(
     'Workflow runs are waiting for approval',
   );
-  await expect(
-    row.getByRole('button', { name: 'Dependabot: Rebase' }),
-  ).toHaveCount(0);
+  // Listed blocked, so Rebase stays on the row locked with the reason, and
+  // Recreate is locked the same way in its menu: neither can send a command
+  // the server would refuse.
+  const reason = 'Workflow runs are waiting for approval';
+  const rebase = row.getByRole('button', { name: 'Dependabot: Rebase' });
+  await expect(rebase).toHaveAttribute('aria-disabled', 'true');
+  await expect(rebase).toHaveAccessibleDescription(reason);
+  await row.getByRole('button', { name: 'More Dependabot actions' }).click();
+  const recreate = row.getByRole('menuitem', { name: 'Dependabot: Recreate' });
+  await expect(recreate).toHaveAttribute('aria-disabled', 'true');
+  await expect(row).toContainText(reason);
   await expectNoAxeViolations(page);
 });

@@ -34,7 +34,7 @@ export function dependabotActionKey(
 // Why a command can't be sent because the other one is pending, or undefined.
 // Local state answers first, so the lock is there the moment a click queues
 // the other command; the server's own entry covers a request made elsewhere
-// or before a reload.
+// or before a reload, and any other block it lists (runs held for approval).
 export function dependabotPendingReason(
   prKey: string,
   action: DependabotAction,
@@ -45,9 +45,7 @@ export function dependabotPendingReason(
   const phase = states[dependabotActionKey(prKey, other)]?.phase;
   if (phase === 'queued' || phase === 'rebasing')
     return `A Dependabot ${other === 'rebase' ? 'Rebase' : 'Recreate'} is pending on this pull request.`;
-  return serverEntry?.blocked?.code === 'already_requested'
-    ? serverEntry.blocked.message
-    : undefined;
+  return serverEntry?.blocked ? serverEntry.blocked.message : undefined;
 }
 
 export type DependabotButtonInput = {
