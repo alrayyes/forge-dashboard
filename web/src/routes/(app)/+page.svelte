@@ -50,6 +50,8 @@
     type AdvisoryFilter,
     advisoryUnknownReason,
     advisoryReasonNeedsGrant,
+    advisoryRowUnreadable,
+    FORGEJO_ADVISORY_REASON_TEXT,
     ADVISORY_REASON_TEXT,
     type MainBranch,
     type MainBranches,
@@ -88,6 +90,10 @@
   const advisoryTally = $derived(advisoryCounts(branches));
   const advisoryState = $derived(advisoryCoverage(branches));
   const advisoryReason = $derived(advisoryUnknownReason(branches));
+  const forgejoAdvisoryState = $derived(advisoryCoverage(branches, "forgejo"));
+  const forgejoAdvisoryReason = $derived(
+    advisoryUnknownReason(branches, "forgejo"),
+  );
   const staleSplit = $derived(
     splitStaleRows(
       branches.filter((b) => b.stale),
@@ -817,6 +823,33 @@
       </div>
     {/if}
 
+    {#if forgejoAdvisoryState === "none"}
+      <div
+        class="mb-banner"
+        role="status"
+        data-testid="forgejo-advisories-notice"
+      >
+        <p>
+          Advisories can't be read for your Forgejo repositories, so none are
+          shown.
+          {#if forgejoAdvisoryReason && FORGEJO_ADVISORY_REASON_TEXT[forgejoAdvisoryReason]}
+            {FORGEJO_ADVISORY_REASON_TEXT[forgejoAdvisoryReason]}
+          {:else}
+            OSV may be unreachable, or a lock file could not be read, was over 8
+            megabytes or lists too many packages.
+          {/if}
+          <a
+            href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#forgejo-advisories"
+            target="_blank"
+            rel="noopener noreferrer"
+            >How Forgejo advisories are read<span class="sr-only">
+              (opens in a new tab)</span
+            ></a
+          >.
+        </p>
+      </div>
+    {/if}
+
     {#if branchesAwaitingFlag(firstRefresh.settled, data.counts.total)}
       <p class="mb-loading" data-testid="branches-awaiting-flag">
         Loading the main branches…
@@ -991,7 +1024,7 @@
                       ><span class="mb-release-tag">{release.tag}</span></button
                     >
                   {/if}
-                  {#if advisoryState === "partial" && b.forge !== "forgejo" && b.advisories?.state === "unknown"}
+                  {#if (b.forge === "forgejo" ? forgejoAdvisoryState : advisoryState) === "partial" && advisoryRowUnreadable(b)}
                     <span
                       class="mb-advisory-cue"
                       data-testid="main-branch-advisories-cue"

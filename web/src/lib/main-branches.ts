@@ -355,38 +355,53 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
   };
 }
 
-// How much of the list's advisory data was readable. 'none': every row that
+// How much of one forge's advisory data was readable. 'none': every row that
 // has an answer says unknown, so the page shows one notice about the cause.
 // 'partial': a mix, so only the unknown rows get a quiet cue. 'full': nothing
-// to say. Rows with no field (no source reads that forge) don't count, and
-// neither do Forgejo rows: their unknown is usually a repo with no lockfile,
-// and the notice is about the GitHub credential.
+// to say. Rows with no field (no source reads that forge) don't count. A
+// Forgejo row counts only when its answer is unknown for a stated reason, since
+// an unknown with none is usually a repo with no lock file, and `not_enabled`
+// means advisories are off for the whole forge.
 export type AdvisoryCoverage = 'full' | 'partial' | 'none';
+export type AdvisoryForge = 'github' | 'forgejo';
+
+const rowForge = (b: MainBranch): AdvisoryForge =>
+  b.forge === 'forgejo' ? 'forgejo' : 'github';
+
+// Whether the row's advisories are unknown in a way the page should say.
+export function advisoryRowUnreadable(b: MainBranch): boolean {
+  if (b.advisories?.state !== 'unknown') return false;
+  if (rowForge(b) === 'github') return true;
+  const r = b.advisories.reason;
+  return !!r && r !== 'not_enabled';
+}
 
 export function advisoryCoverage(
   branches: readonly MainBranch[],
+  forge: AdvisoryForge = 'github',
 ): AdvisoryCoverage {
   let unknown = 0;
   let known = 0;
   for (const b of branches) {
-    if (b.forge === 'forgejo') continue;
-    if (b.advisories?.state === 'unknown') unknown++;
-    else if (b.advisories) known++;
+    if (rowForge(b) !== forge || !b.advisories) continue;
+    if (advisoryRowUnreadable(b)) unknown++;
+    else if (b.advisories.state !== 'unknown') known++;
   }
   if (unknown === 0) return 'full';
   return known === 0 ? 'none' : 'partial';
 }
 
-// The one cause every unknown row shares, or null when the rows disagree or
-// the server named none. The page notice names a cause only when it is sure.
+// The one cause every unreadable row of a forge shares, or null when the rows
+// disagree or the server named none. The page notice names a cause only when
+// it is sure.
 export function advisoryUnknownReason(
   branches: readonly MainBranch[],
+  forge: AdvisoryForge = 'github',
 ): Exclude<AdvisoryReason, 'not_enabled'> | null {
   let shared: Exclude<AdvisoryReason, 'not_enabled'> | null = null;
   for (const b of branches) {
-    if (b.forge === 'forgejo') continue;
-    if (b.advisories?.state !== 'unknown') continue;
-    const r = b.advisories.reason;
+    if (rowForge(b) !== forge || !advisoryRowUnreadable(b)) continue;
+    const r = b.advisories?.reason;
     if (!r || r === 'not_enabled') return null;
     if (shared && shared !== r) return null;
     shared = r;
@@ -410,6 +425,17 @@ export const ADVISORY_REASON_TEXT: Record<
     'GitHub returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.',
   too_many:
     'A repository has more open alerts than the dashboard reads in one go, so it shows no count rather than a short one.',
+};
+
+// What the Forgejo notice says for a cause. Forgejo has no permission to grant:
+// advisories come from the lock files through OSV.
+export const FORGEJO_ADVISORY_REASON_TEXT: Partial<
+  Record<Exclude<AdvisoryReason, 'not_enabled'>, string>
+> = {
+  failed:
+    'OSV could not be reached, or a lock file could not be read or is over 8 megabytes. The dashboard tries again shortly.',
+  too_many:
+    'A lock file lists more packages, or a repository matches more advisories, than the dashboard reads in one go, so it shows no count rather than a short one.',
 };
 
 // Only a refusal or switched-off alerts are fixed with the permission steps.

@@ -124,15 +124,21 @@ install is matched by its real name. A lock file lists many packages: past 3000
 distinct name and version pairs the repo is `unknown`. So is a repo where every
 package was left out for being private, since nothing was checked.
 
-The page does not flag an unknown Forgejo row, since most repos have no lock
-file: neither the notice above the list nor the grey dash is about them. Answers
-are cached for fifteen minutes. A failed read keeps the last answer for up to a
-day, or shows `unknown` if there is none or it is older, and is retried after
-five minutes, then ten, up to thirty while OSV stays down, without reading the
-lock files from the forge again. One repo's read gives up after ten seconds so a
-slow OSV can't hold up the CI row. A read costs one listing of the root plus one
-read per lock file, counted under the `advisories` kind in [Rate
-limits](rate-limits.md).
+The page does not flag an unknown Forgejo row that has no reason, since most
+repos have no lock file, and nothing is said while advisories are off. It does
+say when a read failed: a row that is `unknown` with the reason `failed` (OSV
+unreachable, or a lock file that can't be read or is too big) or `too_many` gets
+a grey dash when other Forgejo rows have an answer, and when none has, one
+notice above the list names the cause. That notice is about Forgejo only and
+sends nobody to a GitHub permission.
+
+Answers are cached for fifteen minutes. A failed read keeps the last answer for
+up to a day, or shows `unknown` if there is none or it is older, and is retried
+after five minutes, then ten, up to thirty while OSV stays down, without reading
+the lock files from the forge again. One repo's read gives up after ten seconds
+so a slow OSV can't hold up the CI row. A read costs one listing of the root
+plus one read per lock file, counted under the `advisories` kind in
+[Rate limits](rate-limits.md).
 
 ## When advisories can't be read
 
@@ -163,7 +169,8 @@ GitHub error shows as unknown too, so an unknown row does not always mean a
 missing permission. The API says which in `reason` on the unknown answer
 (`refused`, `switched_off`, `throttled`, `failed` or `too_many`; a Forgejo
 repo can also say `not_enabled`, which only the API reports), and the notice on
-the page names the cause when every unknown GitHub row shares one. GitHub's reference:
+the page names the cause when every unknown GitHub row shares one (a Forgejo
+notice does the same for its own rows). GitHub's reference:
 [List Dependabot alerts for a repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
 
 ## Main branches API
