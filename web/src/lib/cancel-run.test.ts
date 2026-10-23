@@ -139,6 +139,11 @@ describe('runStopped', () => {
     expect(runStopped(run, [job({ jobId: 2, state: 'running' })])).toBe(false);
   });
 
+  test('is false on an empty list, which says nothing about the run', () => {
+    expect(runStopped(run, [])).toBe(false);
+    expect(runStopped({ ...run, jobIds: [] }, [])).toBe(false);
+  });
+
   test('is true when none of its jobs is listed any more, a new push replaced them', () => {
     expect(runStopped(run, [job({ jobId: 99, state: 'running' })])).toBe(true);
   });

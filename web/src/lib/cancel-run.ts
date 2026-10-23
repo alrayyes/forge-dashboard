@@ -53,6 +53,8 @@ const going = (c: Check) => c.state === 'running' || c.state === 'queued';
 // so it is over. A stand-in run (no job ids) is the one check named for it; it
 // vanishing means its jobs became readable and none is going.
 export function runStopped(run: ActiveRun, list: Check[]): boolean {
+  // An empty list (an unparseable body reads as one) says nothing about the run.
+  if (list.length === 0) return false;
   // Whatever the list now holds for this run, a going check means it runs on:
   // Forgejo may have become able to list a stand-in run's jobs.
   if (list.some((c) => c.runId === run.runId && going(c))) return false;
