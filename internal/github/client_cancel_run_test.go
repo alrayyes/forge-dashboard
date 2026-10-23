@@ -43,35 +43,7 @@ func (s *cancelServer) start(t *testing.T) *github.Client {
 			{"id": 79, "name": "publish", "status": "in_progress", "html_url": u},
 		}})
 	})
-	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
-		if s.runsStatus != 0 {
-			w.WriteHeader(s.runsStatus)
-			writeJSON(t, w, map[string]any{"message": "boom"})
-
-			return
-		}
-		all := []map[string]any{
-			{"id": 800, "name": "Old", "status": "completed"},
-			{"id": 900, "name": "CI", "status": "in_progress"},
-			{"id": 901, "name": "Release", "status": "queued"},
-		}
-		status := r.URL.Query().Get("status")
-		if s.pagedRuns && status == "" {
-			// A commit with many finished runs: the unfiltered first page holds
-			// only those.
-			writeJSON(t, w, map[string]any{"workflow_runs": all[:1]})
-
-			return
-		}
-		list := []map[string]any{}
-		for _, run := range all {
-			if status == "" || run["status"] == status {
-				list = append(list, run)
-			}
-		}
-		writeJSON(t, w, map[string]any{"workflow_runs": list})
-	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", s.runsHandler(t))
 	jobs := func(ids ...int) func(http.ResponseWriter, *http.Request) {
 		return func(w http.ResponseWriter, _ *http.Request) {
 			list := []map[string]any{}
@@ -103,6 +75,41 @@ func (s *cancelServer) start(t *testing.T) *github.Client {
 	t.Cleanup(srv.Close)
 
 	return github.NewClient("test-token", "", srv.URL)
+}
+
+// runsHandler answers the commit's workflow runs, honouring the status filter.
+func (s *cancelServer) runsHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
+		if s.runsStatus != 0 {
+			w.WriteHeader(s.runsStatus)
+			writeJSON(t, w, map[string]any{"message": "boom"})
+
+			return
+		}
+		all := []map[string]any{
+			{"id": 800, "name": "Old", "status": "completed"},
+			{"id": 900, "name": "CI", "status": "in_progress"},
+			{"id": 901, "name": "Release", "status": "queued"},
+		}
+		status := r.URL.Query().Get("status")
+		if s.pagedRuns && status == "" {
+			// A commit with many finished runs: the unfiltered first page holds
+			// only those.
+			writeJSON(t, w, map[string]any{"workflow_runs": all[:1]})
+
+			return
+		}
+		list := []map[string]any{}
+		for _, run := range all {
+			if status == "" || run["status"] == status {
+				list = append(list, run)
+			}
+		}
+		writeJSON(t, w, map[string]any{"workflow_runs": list})
+	}
 }
 
 func TestListChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
