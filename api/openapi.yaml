@@ -1483,6 +1483,98 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
+  /api/checks/cancel-run:
+    post:
+      operationId: cancelWorkflowRun
+      summary: Cancel one running or queued Actions workflow run, on the signed-in user's behalf
+      description: |
+        Asks the forge to cancel a whole workflow run: every job of it stops,
+        because neither GitHub nor Forgejo can stop one job of a running
+        workflow. A client takes `runId` from a check in a checks list
+        (`GET /api/pull-requests/checks` or `GET /api/main-branches/checks`),
+        where a job that is still queued or running carries the id and name of
+        its run. A check with no `runId` (a third-party check, a legacy commit
+        status, an external CI) belongs to no Actions run and can't be
+        cancelled here.
+
+        It answers once the forge has accepted the cancel, not when the run
+        has stopped, so a client shows the run as cancelling and lets the next
+        snapshot carry the result. A pull request offers it as a `cancel_run`
+        entry in `allowedActions` while any of its checks is running or
+        waiting, even when another check has already failed. The list can't
+        tell an Actions check from an external CI, so a pull request whose
+        only running check is an external one (on Forgejo, a pending commit
+        status too) still offers it, and the checks list then has no `runId`
+        to send.
+
+        It is never queued for a rate-limit reset. After the reset the run may
+        be a different one, started by a newer push, and a cancel can't be
+        undone. A rate limit arrives as a 429 and the person decides again.
+
+        Refusals are an `ActionError` (see Merge) and carry the forge's own
+        plain-words `message`: the token may not write to Actions, the run
+        already finished, or a Forgejo instance too old to have the route.
+        An old Forgejo answers the missing route with a 404, which looks the
+        same as a run that is gone, so it is reported as that and doesn't
+        stop the dialog offering the action.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelRunRequest"
+      responses:
+        "204":
+          description: The forge accepted the cancel.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `runId` wasn't a positive
+            integer, `fullName` wasn't "owner/repo", no credentials are saved
+            for that forge, or that forge's client doesn't support cancelling
+            a run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized. The saved token can't write to Actions on that repo. `code` is `permission`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The dashboard doesn't track that repository (it dropped off the board since the checks were read), so the forge wasn't asked; or the forge reported the repo or run doesn't exist, or the instance has no cancel route. `code` is `unknown` for both.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "409":
+          description: The run has already finished, or the forge otherwise can't cancel it now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
   /api/pull-requests/hide:
     post:
       operationId: hidePullRequest
@@ -4510,6 +4602,25 @@ components:
             The Actions job (or check run) id to pass to GET /api/checks/log.
             Absent for a legacy commit status and for a workflow held for
             approval, which have no output to read.
+        runId:
+          type: integer
+          minimum: 1
+          description: |
+            The Actions workflow run this job belongs to, to pass to
+            `POST /api/checks/cancel-run`. Present only while the job is
+            queued or running, and only for an Actions job: a finished job,
+            a third-party check and a legacy commit status have none, and
+            nothing is left to cancel.
+
+            A Forgejo run whose jobs couldn't be read is listed as one check
+            named for the run, with a `runId` and no `jobId`. A client treats
+            a check with a `runId` and no `jobId` as the run itself, not as a
+            job of it, and doesn't list its name among the run's jobs.
+        runName:
+          type: string
+          description: |
+            The name of that workflow run, for a client to say which run a
+            cancel stops. Present with `runId`.
         required:
           type: boolean
           description: |
@@ -5702,6 +5813,22 @@ components:
           type: string
           format: uri
 
+    CancelRunRequest:
+      type: object
+      required: [forge, fullName, runId]
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: The repository, as "owner/repo".
+        runId:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          description: The workflow run to cancel, from a check's `runId`.
+
     AllowedAction:
       type: object
       required: [action]
@@ -5723,6 +5850,7 @@ components:
             - dependabot_recreate
             - renovate_rebase
             - rerun_checks
+            - cancel_run
         primary:
           type: boolean
           description: |

@@ -16,7 +16,7 @@ func TestQueueableAction_OnlyTheSafeIdempotentOnes(t *testing.T) {
 	}
 	for _, a := range []dashboard.ActionName{
 		dashboard.ActionMerge, dashboard.ActionClose, dashboard.ActionAutoMerge, dashboard.ActionCancelAutoMerge,
-		dashboard.ActionDependabotRecreate, dashboard.ActionRerunChecks, "nonsense", "",
+		dashboard.ActionDependabotRecreate, dashboard.ActionRerunChecks, dashboard.ActionCancelRun, "nonsense", "",
 	} {
 		assert.False(t, dashboard.QueueableAction(a), a)
 	}

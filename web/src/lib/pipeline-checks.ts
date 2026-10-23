@@ -18,6 +18,11 @@ export type Check = {
   excerpt?: string;
   // The forge's job id, which the output is read by; absent when it has none.
   jobId?: number;
+  // The Actions run a queued or running job belongs to, and its workflow's
+  // name; absent once the job finished and for a check that isn't an Actions
+  // job (external CI), which has nothing to cancel.
+  runId?: number;
+  runName?: string;
 };
 
 // What tells one run of a job from another, for the forge that reuses the job

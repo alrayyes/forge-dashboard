@@ -5870,6 +5870,15 @@
         paused: updatesPaused,
         controls: (failed) =>
           failed && pipelineItem ? pipelineRerunControl(pipelineItem) : null,
+        // Cancel run is offered while the server lists cancel_run for the row,
+        // which it does for a pull request whose CI is running.
+        cancel: {
+          forge: item.forge,
+          fullName: item.repo,
+          allowed: () =>
+            pipelineItem !== null &&
+            findAction(pipelineItem, "cancel_run") !== undefined,
+        },
         // renderPRBoard() rebuilds the row from scratch first (the same
         // poll-driven rebuild every other row action already lives with), so
         // the refocus has to find the freshly built pill by its stable id.

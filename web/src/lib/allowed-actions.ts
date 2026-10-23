@@ -14,7 +14,8 @@ export type ActionName =
   | 'dependabot_rebase'
   | 'dependabot_recreate'
   | 'renovate_rebase'
-  | 'rerun_checks';
+  | 'rerun_checks'
+  | 'cancel_run';
 
 export type Blocked = {
   code: string;

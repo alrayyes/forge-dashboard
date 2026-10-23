@@ -114,6 +114,7 @@ const PENDING_OPERATIONS = [
   'commentOnIssue',
   'rerunPullRequestChecks',
   'rerunMainBranchChecks',
+  'cancelWorkflowRun',
   'hidePullRequest',
   'unhidePullRequest',
   'updatePullRequestBranch',
