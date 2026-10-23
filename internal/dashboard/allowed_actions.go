@@ -209,12 +209,6 @@ func renovateRebaseAvailability(pr PullRequest) ActionAvailability {
 	}}
 }
 
-// behindAndHeldForApproval: behind, with failing runs that only wait for a
-// maintainer's approval.
-func behindAndHeldForApproval(pr PullRequest) bool {
-	return pr.Behind && pr.AwaitingWorkflowApproval && pr.MergeStatus == MergeBlocked && pr.CI == CIFailure
-}
-
 // mergeAvailability is Merge's rules in the order they apply. Merge is blocked
 // rather than hidden while waiting or fixing something can unlock it. Only an
 // empty pull request, which nothing can unlock, is left without it.
@@ -251,20 +245,15 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		}
 
 		return blocked(ActionChecksPending, "Waiting for CI to finish", next)
-	case behindAndHeldForApproval(pr):
-		// Held runs report nothing until a maintainer approves them, and
-		// bringing the branch up to date would only make a new held head, so
-		// the approval is the reason to give, ahead of being behind.
+	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure && pr.AwaitingWorkflowApproval:
+		// Held runs report nothing until a maintainer approves them (#1929),
+		// so "CI is failing" would send the user the wrong way. Bringing a
+		// behind branch up to date would only make a new held head, so this
+		// is the reason to give ahead of being behind.
 		return blocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
 		return blocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
-		if pr.AwaitingWorkflowApproval {
-			// Held runs report nothing until a maintainer approves them
-			// (#1929), so "CI is failing" would send the user the wrong way.
-			return blocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
-		}
-
 		return blocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
 	case pr.MergeStatus == MergeBlocked:
 		return blocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")
