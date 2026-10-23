@@ -516,7 +516,8 @@ export function heldPicks(): HeldPick[] {
   return held.map((h) => {
     let text = h.value;
     if (h.key === 'repo') text = parseLabels(h.value).map(repoName).join(', ');
-    if (h.key === 'author') text = parseLabels(h.value).join(', ');
+    if (h.key === 'author')
+      text = parseLabels(h.value).map(repoName).join(', ');
     const choices =
       h.key === 'created' || h.key === 'updated' ? AGE_RANGES : [];
     text = choices.find((c) => c.value === h.value)?.label ?? text;
@@ -1014,7 +1015,8 @@ export function failingFilters(
   if (!pickedHas(shared.repo, repoKey)) failing.push('repo');
   if (shared.title && !matchesTitleTerm(item, shared.title))
     failing.push('title');
-  if (!pickedHas(shared.author, item.author || '')) failing.push('author');
+  if (!pickedHas(shared.author, `${item.forge}:${item.author || ''}`))
+    failing.push('author');
   if (shared.created && minutesAgo(item.createdAt) > Number(shared.created))
     failing.push('created');
   if (shared.updated && minutesAgo(item.updatedAt) > Number(shared.updated))
@@ -1533,17 +1535,21 @@ export function repoChoices(
   );
 }
 
-// What the Author filter offers: each login once, with the first avatar seen.
+// What the Author filter offers: forge-qualified so one login on two forges
+// (two different people) is two choices, each once with the first avatar seen,
+// listed under the forge's name only when several forges show.
 export function authorChoices(items: FilterableItem[]): PickChoice[] {
+  const grouped = new Set(items.map((i) => i.forge)).size > 1;
   const byKey = new Map<string, PickChoice>();
   for (const item of items) {
     if (!item.author) continue;
-    const key = item.author.toLowerCase();
+    const key = `${item.forge}:${item.author}`.toLowerCase();
     const have = byKey.get(key);
     if (!have)
       byKey.set(key, {
         value: key,
         text: item.author,
+        group: grouped ? FORGE_LABELS[item.forge] || item.forge : undefined,
         imageUrl: item.authorAvatarUrl || undefined,
         imageKind: 'avatar',
       });

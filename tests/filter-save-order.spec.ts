@@ -65,7 +65,7 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
     return route.continue();
   });
 
-  await pickOnly(page, 'author', 'ryan');
+  await pickOnly(page, 'author', 'github:ryan');
   await toggleLabels(page, 'bug');
   await expect.poll(() => puts, { timeout: 5000 }).toBeGreaterThan(0);
 
@@ -78,10 +78,10 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
       },
       { timeout: 5000 },
     )
-    .toBe('ryan/bug');
+    .toBe('github:ryan/bug');
   // Wait for the slow request to have landed too: the answer must not revert.
   await expect.poll(() => landed, { timeout: 5000 }).toBe(puts);
   const res = await page.request.get('/api/settings/filter-state');
   const body = await res.json();
-  expect(body.shared).toMatchObject({ author: 'ryan', label: 'bug' });
+  expect(body.shared).toMatchObject({ author: 'github:ryan', label: 'bug' });
 });

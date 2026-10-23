@@ -150,7 +150,7 @@ test('a pick the sort-landed list lacks is cleared once, and the rows agree', as
   page,
 }) => {
   await open(page, TWO);
-  await pickOnly(page, 'author', 'claude');
+  await pickOnly(page, 'author', 'github:claude');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
   await page.getByRole('button', { name: 'Pause live updates' }).click();
   await push(page, ONE);
@@ -193,7 +193,7 @@ test('a saved pick the first list lacks is set aside and the list shows', async 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        shared: { author: 'ghost' },
+        shared: { author: 'github:ghost' },
         pr: {},
         issue: {},
         view: {},

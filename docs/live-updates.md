@@ -238,7 +238,11 @@ two choices. Each heading is a named group for a screen reader, and a single
 picked repo is named with its forge in the button and the chip ("acme/web
 (Forgejo)").
 
-An author matches on the whole login, in any case. The filter used to match
+An author is listed the way a repo is: one login on two forges is two people,
+so it is two choices, each under its forge's heading when more than one forge
+is on screen, and a pick matches only that forge's pull requests and issues. A
+single picked author is named with its forge in the button, as a repo is. An
+author matches on the whole login, in any case. The filter used to match
 any login that contained the saved text, so a saved `ann` also showed
 `annabel`; it no longer does, and the list offers whole logins to tick. A
 partial login saved by hand, such as `ren` for `renovate[bot]`, is not on offer

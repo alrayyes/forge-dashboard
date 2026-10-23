@@ -268,7 +268,7 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect(rows(page)).toHaveCount(2);
     await expect(patternBox(page)).toBeHidden();
     await nav('pull-requests').click();
-    await pickOnly(page, 'author', 'claude');
+    await pickOnly(page, 'author', 'github:claude');
     await nav('issues').click();
     await expect(rows(page)).toHaveCount(2);
 

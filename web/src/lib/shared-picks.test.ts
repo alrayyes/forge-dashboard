@@ -70,9 +70,9 @@ describe('SharedPicks.refresh', () => {
 
   test('sets aside a saved pick the page does not offer', () => {
     const picks = new SharedPicks(() => undefined);
-    const s = state({ author: 'ann\ngone' });
+    const s = state({ author: 'github:ann\ngithub:gone' });
     expect(picks.refresh(s, () => pool, false)).toBe(true);
-    expect(s.shared.author).toBe('ann');
+    expect(s.shared.author).toBe('github:ann');
   });
 });
 

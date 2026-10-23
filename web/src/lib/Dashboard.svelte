@@ -6853,11 +6853,7 @@
         const picked = parseLabels(shared[key]);
         for (const value of picked) {
           const choice = choices.find((c) => labelKey(c.value) === value);
-          const text = choice
-            ? choiceText(choice)
-            : key === "repo"
-              ? repoName(value)
-              : value;
+          const text = choice ? choiceText(choice) : repoName(value);
           chips.push({
             label: `${noun} ${text}`,
             choice: choice ?? {

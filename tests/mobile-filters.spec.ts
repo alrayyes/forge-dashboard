@@ -188,7 +188,7 @@ for (const size of [
       page,
     }) => {
       await filtersButton(page).click();
-      await togglePicks(page, 'author', 'claude');
+      await togglePicks(page, 'author', 'github:claude');
       await page.keyboard.press('Escape');
 
       const chip = page.getByRole('button', {

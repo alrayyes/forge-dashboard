@@ -97,7 +97,7 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
   });
 
   for (const [control, value, kept] of [
-    ['author', 'ryan', 2],
+    ['author', 'github:ryan', 2],
     ['repo', 'github:acme/docs', 1],
   ] as const) {
     test(`the ${control} pick on Issues is still set after a client navigation through Pull requests`, async ({
@@ -161,36 +161,38 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
   test('the same pick follows the account to a second browser after the detour', async ({
     page,
   }) => {
-    await pickOnly(page, 'author', 'ryan');
+    await pickOnly(page, 'author', 'github:ryan');
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
 
     const saved = await (
       await page.request.get('/api/settings/filter-state')
     ).json();
-    expect(saved.shared.author).toBe('ryan');
+    expect(saved.shared.author).toBe('github:ryan');
   });
 
   test('a pick changed on the page that does not offer the old one replaces it', async ({
     page,
   }) => {
-    await pickOnly(page, 'author', 'ryan');
+    await pickOnly(page, 'author', 'github:ryan');
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
-    await pickOnly(page, 'author', 'claude');
+    await pickOnly(page, 'author', 'github:claude');
     await expect(prRows(page)).toHaveCount(1);
 
     await nav(page, 'issues').click();
     // claude wrote no issue, so the list is whole and the old pick is gone.
     await expect(issueRows(page)).toHaveCount(3);
     await nav(page, 'pull-requests').click();
-    await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
+    await expect
+      .poll(() => pickedValues(page, 'author'))
+      .toEqual(['github:claude']);
   });
 
   test('clearing the held author on the other page forgets it', async ({
     page,
   }) => {
-    await pickOnly(page, 'author', 'ryan');
+    await pickOnly(page, 'author', 'github:ryan');
     await nav(page, 'pull-requests').click();
     await expect(prRows(page)).toHaveCount(2);
     // Nothing is ticked here, so the held pick is cleared from its note.

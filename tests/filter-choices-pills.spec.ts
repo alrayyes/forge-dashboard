@@ -109,7 +109,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     ]);
     await expect(pill(page, 'Failing CI')).toBeVisible();
 
-    await pickOnly(page, 'author', 'claude');
+    await pickOnly(page, 'author', 'github:claude');
 
     await expect(pill(page, 'Failing CI')).toBeHidden();
     await expect(pill(page, 'Ready to Merge')).toBeVisible();

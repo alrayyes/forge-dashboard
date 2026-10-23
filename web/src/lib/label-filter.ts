@@ -135,7 +135,8 @@ export function pickSummary(
   return unoffered(picked[0]);
 }
 
-// A repo is saved forge-qualified ("github:acme/api") and read without it.
+// A repo or author is saved forge-qualified ("github:acme/api") and read
+// without it.
 export function repoName(value: string): string {
   return value.slice(value.indexOf(':') + 1);
 }
@@ -510,4 +511,5 @@ export const AUTHOR_CONFIG: PickFilterConfig = {
   emptyText: 'No authors on this page.',
   ariaName: 'Filter by author',
   imageSrc: avatarSrc,
+  unoffered: repoName,
 };

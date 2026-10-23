@@ -557,7 +557,7 @@ test.describe('insights page', () => {
       );
       await expect(page.locator('#repo-pr-ranking .rank-row')).toHaveCount(2);
 
-      await pickOnly(page, 'author', 'alice');
+      await pickOnly(page, 'author', 'github:alice');
 
       await expect(page.locator('#repo-issue-ranking .rank-row')).toHaveCount(
         1,

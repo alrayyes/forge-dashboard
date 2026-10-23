@@ -146,7 +146,7 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
       page.locator('#shared-repo-filter-panel .label-filter-option'),
     ).toHaveCount(2);
 
-    await pickOnly(page, 'author', 'claude');
+    await pickOnly(page, 'author', 'github:claude');
 
     await expect(
       page.locator('#shared-repo-filter-panel .label-filter-option'),
@@ -185,7 +185,7 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
   test('has no axe-core violations with the narrowed choices', async ({
     page,
   }) => {
-    await pickOnly(page, 'author', 'claude');
+    await pickOnly(page, 'author', 'github:claude');
     await expect(
       page.locator('#shared-repo-filter-panel .label-filter-option'),
     ).toHaveCount(1);

@@ -229,7 +229,7 @@ test.describe('the address of a pull request', () => {
         value: encodeURIComponent(
           JSON.stringify({
             rev: 2_000_000_000,
-            shared: { author: 'someone-else' },
+            shared: { author: 'github:someone-else' },
           }),
         ),
         url: baseURL,

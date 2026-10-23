@@ -71,7 +71,7 @@ async function queueOnFirst(page: Page) {
 }
 
 async function filtersByAuthor(page: Page) {
-  await pickOnly(page, 'author', 'claude');
+  await pickOnly(page, 'author', 'github:claude');
 }
 
 async function showRow(page: Page) {
@@ -108,13 +108,15 @@ test.describe('Show row clears the filter that hides the row', () => {
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(titles(page)).toHaveCount(2);
     // Only what hid the row is cleared.
-    await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
+    await expect
+      .poll(() => pickedValues(page, 'author'))
+      .toEqual(['github:claude']);
     await expect(async () => {
       const { cookie, server } = await savedCopies(page);
       expect(cookie?.pr?.quick || '').toBe('');
       expect(server?.pr?.quick || '').toBe('');
-      expect(cookie?.shared?.author).toBe('claude');
-      expect(server?.shared?.author).toBe('claude');
+      expect(cookie?.shared?.author).toBe('github:claude');
+      expect(server?.shared?.author).toBe('github:claude');
     }).toPass();
   });
 
@@ -132,13 +134,15 @@ test.describe('Show row clears the filter that hides the row', () => {
     await expect(
       page.locator('.filter-bar > .am-group [data-am="any"]'),
     ).toHaveAttribute('aria-pressed', 'true');
-    await expect.poll(() => pickedValues(page, 'author')).toEqual(['claude']);
+    await expect
+      .poll(() => pickedValues(page, 'author'))
+      .toEqual(['github:claude']);
     await expect(async () => {
       const { cookie, server } = await savedCopies(page);
       expect(cookie?.pr?.autoMerge || '').toBe('');
       expect(server?.pr?.autoMerge || '').toBe('');
-      expect(cookie?.shared?.author).toBe('claude');
-      expect(server?.shared?.author).toBe('claude');
+      expect(cookie?.shared?.author).toBe('github:claude');
+      expect(server?.shared?.author).toBe('github:claude');
     }).toPass();
   });
 });
