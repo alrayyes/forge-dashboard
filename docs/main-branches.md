@@ -51,6 +51,8 @@ failed row names its first failing jobs. The status pill is a button, as on the
 pull request pages: it opens the pipeline panel, a side panel that lists every
 job of the branch's newest pipeline with its state and how long it took, a link
 to each job, and, for a failed job, the step that broke and the tail of its log.
+On Forgejo the list reads no log: the tail of a failed job's log appears a moment
+after the panel opens, for the newest five failed jobs.
 The panel also links to the run on the forge, in a new tab. Escape, the close
 button or a click outside closes it and focus goes back to the pill, and a
 screen reader hears the pill as, for example, "Failed. Open pipeline". The jobs

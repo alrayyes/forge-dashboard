@@ -698,19 +698,21 @@ panel opens. A check that isn't an Actions job, or a log the token can't read
 or that has expired, shows without them and keeps its link.
 
 On Forgejo, a failed job carries the same kind of excerpt, but no steps and no
-timing, since its API doesn't serve them. The log is read while the checks are
-listed, so each time the panel loads or refreshes its checks, not only when
-someone asks to see a log: one request per failed job, for at most five jobs
-per list, newest first, each given 15 seconds. The reads run together, so a
-slow forge can delay the answer to a request for checks by up to about 15
-seconds, until the excerpts are kept. A log with text is read once per
-finished job and kept, so a branch that stays red costs no more reads. A log
-that can't be read, or that is empty, is not asked for again for a minute, and
-a token that is refused stops the rest of that list's reads, none of which is
-tried again for a minute. A log that is gone for good is asked for again every
-minute while the panel stays open, and an excerpt of a job with no finish time
-is kept for a minute only; both are bounded by the five reads. A job whose
-log can't be read keeps its link.
+timing, since its API doesn't serve them. The checks list reads no log, so it
+answers at the speed of the forge's job list, and a failed check shows at once
+with its link. The panel then asks for the excerpts of the newest five failed
+jobs, one after another, and fills each in as it lands, announcing it politely
+to a screen reader ("Log excerpt loaded for test."). That is one request per
+failed job, each given 15 seconds, made only when the panel is open and the
+person is about to look at the check, through `GET /api/checks/log` with
+`excerpt=true`. A log with text is read once per finished job and kept, so a
+branch that stays red costs no more reads. A log that can't be read, or that is
+empty, is not asked for again for a minute, and a token that is refused, or a
+forge that limits requests, stops the rest of the panel's reads. A log that is
+gone for good is asked for again every minute while the panel stays open, and
+an excerpt of a job with no finish time is kept for a minute only; both are
+bounded by the five reads. A job whose log can't be read keeps its link and
+shows without an excerpt.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
