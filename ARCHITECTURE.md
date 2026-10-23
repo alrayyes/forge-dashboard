@@ -95,7 +95,7 @@ and the cost are in
   checks on GitHub, 3 plus one per run on Forgejo (and one log read per
   failed job, five at most).
   `get_repository_advisories` mirrors `GET /api/main-branches/advisories` (a
-  GitHub repository's open dependency advisories in full, worst first). It
+  GitHub repository's open dependency advisories in full, the worst first). It
   spends budget too: one REST request per page of alerts. A list that cannot
   be read is state unknown with a reason, never an empty list.
   `get_check_log` mirrors `GET /api/checks/log` (one CI job's output as plain
