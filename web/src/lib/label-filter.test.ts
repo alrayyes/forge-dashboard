@@ -229,3 +229,28 @@ describe('labels the page does not offer', () => {
     expect(s.shared.label).toBe('bug');
   });
 });
+
+describe('reading a saved pick once for many items', () => {
+  test('the same saved pick reads back as the same list', () => {
+    const saved = 'bug\nchore';
+    expect(parseLabels(saved)).toBe(parseLabels(saved));
+  });
+
+  test('the shared list cannot be changed by a caller', () => {
+    const picked = parseLabels('bug\nchore');
+    expect(() => (picked as string[]).push('x')).toThrow();
+    expect(parseLabels('bug\nchore')).toEqual(['bug', 'chore']);
+  });
+
+  test('a changed pick reads fresh and many items match as before', () => {
+    const items = Array.from({ length: 500 }, (_, i) => ({
+      name: i % 2 ? 'bug' : 'chore',
+    }));
+    const hits = (saved: string) =>
+      items.filter((l) => carriesAny([l], saved)).length;
+    expect(hits('bug')).toBe(250);
+    expect(hits('bug\nchore')).toBe(500);
+    expect(hits('')).toBe(500);
+    expect(hits('nope')).toBe(0);
+  });
+});

@@ -71,8 +71,22 @@ export function splitLabels(saved: string | undefined): {
   return { kept: [...seen], dropped };
 }
 
+// Matching reads the same saved pick for every item on the board, so the list
+// is worked out once per distinct saved string and shared. It is frozen so no
+// caller can change what the next one reads, and the table is emptied when it
+// fills, so it never holds more than a few picks.
+const MAX_REMEMBERED = 64;
+const remembered = new Map<string, readonly string[]>();
+
 export function parseLabels(saved: string | undefined): string[] {
-  return splitLabels(saved).kept;
+  const key = saved ?? '';
+  let kept = remembered.get(key);
+  if (!kept) {
+    kept = Object.freeze(splitLabels(key).kept);
+    if (remembered.size >= MAX_REMEMBERED) remembered.clear();
+    remembered.set(key, kept);
+  }
+  return kept as string[];
 }
 
 export function joinLabels(labels: string[]): string {
