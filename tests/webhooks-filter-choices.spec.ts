@@ -8,7 +8,7 @@ import { test } from './server-fixture';
 // filters leave out is left out of the choices too.
 // https://github.com/alrayyes/forge-dashboard/issues/1427
 
-// The filters are saved per user now, and these tests share one: keep what one
+// The filters are saved on the server now, and these tests share one: keep what one
 // picks from becoming the next test's starting point.
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/settings/filter-state', (route: Route) =>

@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // The board header no longer has a "CI status" pulldown: the quick pills say
 // the same thing, and a "No checks" pill covers the one state they lacked.
-// The saved state is per user, so this spec registers its own.
+// The saved state is on the server, so this spec registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/2084
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];

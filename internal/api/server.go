@@ -20,7 +20,7 @@ var staticFiles embed.FS
 
 // Deps is everything NewMux needs — passed as one struct rather than a
 // long parameter list, since it's grown one dependency per feature slice
-// (auth, then per-user settings) and reads better named than positional.
+// (auth, then settings) and reads better named than positional.
 type Deps struct {
 	// APIStats counts the forge requests every client makes (#2008). Nil counts
 	// nothing and serves an empty list.
@@ -70,7 +70,7 @@ type Deps struct {
 	// GitHubAppConfigured is whether this deployment has a GitHub App set
 	// up at all (#620) — server-wide GITHUB_APP_ID/
 	// GITHUB_APP_PRIVATE_KEY_BASE64, read once at startup, never a
-	// per-user setting. handleSettingsGet/handleSettingsPut use it to
+	// saved setting. handleSettingsGet/handleSettingsPut use it to
 	// explain and enforce why a saved githubAppInstallationId can't work
 	// on a server with no App configured.
 	GitHubAppConfigured bool
@@ -84,7 +84,7 @@ type Deps struct {
 }
 
 // NewMux wires the handlers registered against api/openapi.yaml: liveness, readiness,
-// passkey registration/login/session, per-user settings, the aggregated
+// passkey registration/login/session, settings, the aggregated
 // dashboard snapshot, and the static frontend that consumes it.
 //
 // The dashboard itself, and the page that renders it, require a valid

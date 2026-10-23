@@ -10,7 +10,7 @@ import { test } from './server-fixture';
 // #1620: a filter set on one page is still set when you come back to it. The
 // shared bar's repo, author and label choices are built from the page's own
 // items (#1071), so a pick that the page you pass through does not offer used
-// to be cleared there and saved as cleared. The saved state is per user; the
+// to be cleared there and saved as cleared. The saved state is on the server; the
 // server fixture resets it between tests.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 

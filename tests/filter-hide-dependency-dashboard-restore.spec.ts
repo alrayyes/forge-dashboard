@@ -3,7 +3,7 @@ import { test } from './server-fixture';
 
 // The page's own "Hide Dependency Dashboard" checkbox has to come back the way
 // it was left, from the cookie and, on a browser without the cookie, from the
-// saved copy on the server. The saved state is per user, so each test
+// saved copy on the server. The saved state is on the server, so each test
 // registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 

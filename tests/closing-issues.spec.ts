@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // A pull request that will close issues shows a pill for each, and the link
 // opens that issue's pop-up on the Issues page. Mocks /api/dashboard and the
-// details endpoints only and writes no per-user state.
+// details endpoints only and writes no saved state.
 
 const NOW = new Date();
 const ago = (minutes: number) =>

@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 // #1637: two picks made one after the other each send a PUT. The server keeps
 // whichever lands last, so if the first is slow the older snapshot used to
 // overwrite the newer one. The first PUT is held back here to force that
-// order. The saved state is per user, so this spec registers its own.
+// order. The saved state is on the server, so this spec registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1637
 
 const ISSUES = [

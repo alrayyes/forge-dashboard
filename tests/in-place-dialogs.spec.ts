@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 // The pill on a pull request row that closes an issue, and the pill on an
 // issue row that a pull request will close, open that item's dialog where the
 // reader is. They do not load the other page first. Mocks /api/dashboard and
-// the details endpoints only and writes no per-user state.
+// the details endpoints only and writes no saved state.
 // https://github.com/alrayyes/forge-dashboard/issues/2146
 
 const NOW = new Date();

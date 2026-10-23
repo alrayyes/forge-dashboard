@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // An issue row opens a dialog like a pull request's: the description and the
 // conversation, fetched from GET /api/issues/details when it opens. Mocks
-// /api/dashboard and the details endpoint only and writes no per-user state.
+// /api/dashboard and the details endpoint only and writes no saved state.
 
 const NOW = new Date();
 const ago = (minutes: number) =>

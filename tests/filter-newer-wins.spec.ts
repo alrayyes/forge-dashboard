@@ -7,7 +7,7 @@ import { test } from './server-fixture';
 // saved state now carries a revision, and the copy is applied unless the cookie
 // is newer. Each test types over an older saved value, loses the save on its
 // way out (held back, as a slow link would), reloads at once, and orders the
-// copy's read and the lost save both ways. The saved state is per user, so
+// copy's read and the lost save both ways. The saved state is on the server, so
 // this spec registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1760
 

@@ -7971,7 +7971,7 @@
     // answering from a cache.
     // Resolves to how many seconds the server wants this client to wait
     // before forcing another one: the Retry-After of an answer given inside
-    // the per-user cooldown, which carries the current snapshot instead of a
+    // the refresh cooldown, which carries the current snapshot instead of a
     // fetch. undefined when the server did fetch.
     function refreshDashboardNow(): Promise<number | undefined> {
       const seq = ++requestSeq;

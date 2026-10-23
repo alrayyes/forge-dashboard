@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // A filter save the server turns away used to vanish without a word. The page
 // now says the filter was not saved, once, and does not send it again by
-// itself. The saved state is per user, so this spec registers its own.
+// itself. The saved state is on the server, so this spec registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/2100
 
 const ISSUES = [

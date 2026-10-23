@@ -750,8 +750,8 @@ func buildSettingsStore(ctx context.Context, db *sql.DB) (*settings.Store, error
 }
 
 // buildGitHubApp reads the GitHub App server-wide identity (#620) — the
-// App itself is one thing shared by every user who installs it, so this
-// is process-wide config, not per-user settings.Credentials, the same
+// App itself is one thing shared by the whole instance, so this
+// is process-wide config, not the saved settings.Credentials, the same
 // split ENCRYPTION_KEY already draws for the settings cipher. Returns
 // appID == 0 when GITHUB_APP_ID is unset: App-mode is entirely optional,
 // and every existing PAT-only deployment must keep working with no env

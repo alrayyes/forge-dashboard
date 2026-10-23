@@ -8,7 +8,7 @@ import { test } from './server-fixture';
 // settingsHiddenIssueCount; the pages only stop drawing the fields the
 // settings replace and say how many are hidden. The server half is a separate
 // pull request, so /api/dashboard is a stand-in shaped
-// like api/openapi.yaml. Filter state is saved per user: the spec has its own.
+// like api/openapi.yaml. Filter state is saved on the server: the spec has its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1630
 
 function issue(number: number, title: string) {

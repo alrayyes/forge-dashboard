@@ -226,8 +226,8 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, disp
 	return nil, cred, authenticator
 }
 
-// testStores maps a test server's URL to its auth store, so a test of per-user
-// isolation can add a second user the way no public flow can any more:
+// testStores maps a test server's URL to its auth store, so a test of owner-only
+// access can add a second user the way no public flow can any more:
 // registration closes once the first user holds a passkey.
 var testStores sync.Map
 

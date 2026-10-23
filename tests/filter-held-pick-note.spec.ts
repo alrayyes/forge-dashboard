@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 
 // #1620: a saved pick the page you are on does not offer is kept for the page
 // that does, so it has to be said out loud, with a way to drop it. The saved
-// state is per user, so this spec registers its own.
+// state is on the server, so this spec registers its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
 function pr(number: number, overrides: Record<string, unknown> = {}) {
