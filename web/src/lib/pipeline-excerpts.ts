@@ -13,9 +13,11 @@ export const MAX_EXCERPT_READS = 5;
 // A job that just failed may not have flushed its log yet, so a read that
 // comes back with an empty answer is tried again after this pause, at most
 // twice more. The server remembers an empty log for less time than this, so
-// the retry reads the forge afresh. A read that failed, or a log that is gone,
-// is not retried: the server remembers it for a minute and would answer the
-// retry with nothing.
+// the retry reads the forge afresh. A read that failed (a non-2xx answer) is
+// not retried: the server remembers it for a minute and would answer the retry
+// with nothing. A log that is gone is answered like an empty one, so it is
+// retried too; the server answers those from its memory without a forge read,
+// but each retry still takes one of the five reads.
 export const EXCERPT_RETRY_DELAY_MS = 15_000;
 const EXCERPT_RETRIES = 2;
 
@@ -107,7 +109,8 @@ export async function fillExcerpts(
         if (!res.ok) continue;
         const body = await res.json().catch(() => null);
         if (stopped()) return;
-        if (typeof body?.text === 'string' && body.text) fill(check, body.text);
+        if (typeof body?.text !== 'string') continue;
+        if (body.text) fill(check, body.text);
         else empty.push(check);
       } catch {
         // This one shows without an excerpt; the next may still land.

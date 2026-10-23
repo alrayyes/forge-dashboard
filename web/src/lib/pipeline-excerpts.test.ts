@@ -334,6 +334,51 @@ describe('fillExcerpts', () => {
     expect(calls).toBe(MAX_EXCERPT_READS);
   });
 
+  test('retries spend from the reads left, so three empty jobs make five reads', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ text: '' }));
+    }) as unknown as typeof fetch;
+    const reads = newExcerptReads();
+    const picks = pickExcerptJobs(
+      [1, 2, 3].map((id) => failed(id)),
+      reads,
+    );
+
+    await fillExcerpts(
+      picks,
+      FORGEJO,
+      () => {},
+      fetchImpl,
+      () => false,
+      async () => {},
+      reads,
+    );
+
+    expect(calls).toBe(MAX_EXCERPT_READS);
+    expect(reads.left).toBe(0);
+  });
+
+  test('an answer that is not JSON with text is not retried', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response('<html>proxy</html>');
+    }) as unknown as typeof fetch;
+
+    await fillExcerpts(
+      [failed(1)],
+      FORGEJO,
+      () => {},
+      fetchImpl,
+      () => false,
+      async () => {},
+    );
+
+    expect(calls).toBe(1);
+  });
+
   test('a retry takes the places two overlapping runs have left between them', async () => {
     let calls = 0;
     const fetchImpl = (async () => {
