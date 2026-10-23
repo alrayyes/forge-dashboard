@@ -23,9 +23,7 @@ type cancelRunRequest struct {
 // which repository it belongs to, so this is what keeps the route from
 // cancelling runs in a repository the dashboard never shows.
 func trackedRepository(ctx context.Context, deps Deps, forge, fullName string) bool {
-	warmUpAggregator(ctx, deps)
-	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
-	snap := deps.Service.Get()
+	snap, rows := followedSnapshot(ctx, deps)
 
 	if slices.ContainsFunc(snap.Repos, func(r dashboard.Repo) bool {
 		return string(r.Forge) == forge && r.FullName == fullName
@@ -37,11 +35,8 @@ func trackedRepository(ctx context.Context, deps Deps, forge, fullName string) b
 	}) {
 		return true
 	}
-	// Only the one row is looked up: the whole Main branches response isn't
-	// built for a cancel.
-	board := loadBoardSettings(ctx, deps.SettingsStore)
 
-	return slices.ContainsFunc(board.mainBranchRows(snap.MainBranches), func(b dashboard.MainBranch) bool {
+	return slices.ContainsFunc(rows, func(b dashboard.MainBranch) bool {
 		return string(b.Forge) == forge && b.FullName == fullName
 	})
 }
