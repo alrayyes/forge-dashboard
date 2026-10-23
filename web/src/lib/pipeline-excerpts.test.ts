@@ -3,10 +3,10 @@ import { describe, expect, test } from 'bun:test';
 import type { Check } from './pipeline-checks';
 import {
   EXCERPT_RETRY_DELAY_MS,
-  excerptKey,
   excerptUrl,
   fillExcerpts,
   MAX_EXCERPT_READS,
+  newExcerptReads,
   pickExcerptJobs,
 } from './pipeline-excerpts';
 
@@ -43,9 +43,9 @@ describe('pickExcerptJobs', () => {
   test('takes the newest five failed jobs that have no excerpt', () => {
     const checks = [1, 2, 3, 4, 5, 6, 7].map((id) => failed(id));
 
-    expect(pickExcerptJobs(checks, new Set()).map((c) => c.jobId)).toEqual([
-      7, 6, 5, 4, 3,
-    ]);
+    expect(
+      pickExcerptJobs(checks, newExcerptReads()).map((c) => c.jobId),
+    ).toEqual([7, 6, 5, 4, 3]);
     expect(MAX_EXCERPT_READS).toBe(5);
   });
 
@@ -57,45 +57,75 @@ describe('pickExcerptJobs', () => {
       { name: 'status', state: 'failure', url: 'x' },
     ];
 
-    expect(pickExcerptJobs(checks, new Set()).map((c) => c.jobId)).toEqual([1]);
+    expect(
+      pickExcerptJobs(checks, newExcerptReads()).map((c) => c.jobId),
+    ).toEqual([1]);
   });
 
   test('leaves out a check that carries its excerpt already', () => {
     expect(
-      pickExcerptJobs([failed(1, { excerpt: 'boom' })], new Set()),
+      pickExcerptJobs([failed(1, { excerpt: 'boom' })], newExcerptReads()),
     ).toEqual([]);
   });
 
   test('leaves out a job already asked for, but it still uses a place of the five', () => {
     const checks = [1, 2, 3, 4, 5, 6].map((id) => failed(id));
-    const asked = new Set([excerptKey(checks[5])]);
+    const reads = newExcerptReads();
+    pickExcerptJobs([checks[5]], reads);
 
-    expect(pickExcerptJobs(checks, asked).map((c) => c.jobId)).toEqual([
+    expect(pickExcerptJobs(checks, reads).map((c) => c.jobId)).toEqual([
       5, 4, 3, 2,
     ]);
   });
 
   test('asks for nothing more once five were read, though a newer job appeared', () => {
-    const checks = [3, 4, 5, 6, 7, 8].map((id) => failed(id));
-    const asked = new Set([3, 4, 5, 6, 7].map((id) => excerptKey(failed(id))));
+    const reads = newExcerptReads();
+    pickExcerptJobs(
+      [3, 4, 5, 6, 7].map((id) => failed(id)),
+      reads,
+    );
 
-    expect(pickExcerptJobs(checks, asked)).toEqual([]);
+    expect(
+      pickExcerptJobs(
+        [3, 4, 5, 6, 7, 8].map((id) => failed(id)),
+        reads,
+      ),
+    ).toEqual([]);
   });
 
   test('asks for the places left of the five, newest first', () => {
-    const checks = [3, 4, 5, 6, 7, 8].map((id) => failed(id));
-    const asked = new Set([4, 5, 6].map((id) => excerptKey(failed(id))));
+    const reads = newExcerptReads();
+    pickExcerptJobs(
+      [4, 5, 6].map((id) => failed(id)),
+      reads,
+    );
 
-    expect(pickExcerptJobs(checks, asked).map((c) => c.jobId)).toEqual([8, 7]);
+    expect(
+      pickExcerptJobs(
+        [3, 4, 5, 6, 7, 8].map((id) => failed(id)),
+        reads,
+      ).map((c) => c.jobId),
+    ).toEqual([8, 7]);
   });
 
-  test('asks again for a rerun of the same job', () => {
-    const first = failed(1);
-    const asked = new Set([excerptKey(first)]);
+  test('a rerun of an asked job is a new read and takes a place of its own', () => {
+    const reads = newExcerptReads();
+    pickExcerptJobs([failed(1)], reads);
 
-    expect(pickExcerptJobs([failed(1, { runAttempt: 2 })], asked)).toHaveLength(
-      1,
-    );
+    const picked = pickExcerptJobs([failed(1, { runAttempt: 2 })], reads);
+
+    expect(picked).toHaveLength(1);
+    expect(reads.left).toBe(MAX_EXCERPT_READS - 2);
+  });
+
+  test('a job that left the list takes nothing from the places left', () => {
+    const reads = newExcerptReads();
+    pickExcerptJobs([failed(1), failed(2)], reads);
+
+    // Only the places spent count, whatever the list holds now.
+    expect(reads.left).toBe(MAX_EXCERPT_READS - 2);
+    expect(pickExcerptJobs([], reads)).toEqual([]);
+    expect(reads.left).toBe(MAX_EXCERPT_READS - 2);
   });
 });
 
@@ -185,7 +215,8 @@ describe('fillExcerpts', () => {
       async () => {},
     );
 
-    expect(got).toEqual(['boom', 'boom']);
+    expect(got).toEqual(['boom']);
+    expect(calls).toBe(2);
   });
 
   test('stops once told the dialog moved on', async () => {
@@ -252,20 +283,19 @@ describe('fillExcerpts', () => {
     expect(calls).toBe(3);
   });
 
-  test('retries a failed read too, and only the jobs still without text', async () => {
+  test('retries only the jobs whose log came back empty, not a failed read', async () => {
     const seen: string[] = [];
     const fetchImpl = (async (url: string) => {
       seen.push(url);
-      const first = seen.length <= 2;
-      if (url.includes('jobId=1') && first) throw new TypeError('network');
-      if (url.includes('jobId=2') && first)
-        return new Response(JSON.stringify({ text: 'two' }));
-      return new Response(JSON.stringify({ text: 'one' }));
+      if (url.includes('jobId=1')) throw new TypeError('network');
+      if (url.includes('jobId=3')) return new Response('{}', { status: 500 });
+      const empty = seen.filter((u) => u.includes('jobId=2')).length === 1;
+      return new Response(JSON.stringify({ text: empty ? '' : 'two' }));
     }) as unknown as typeof fetch;
     const got: [number | undefined, string][] = [];
 
     await fillExcerpts(
-      [failed(1), failed(2)],
+      [failed(1), failed(2), failed(3)],
       FORGEJO,
       (c, t) => got.push([c.jobId, t]),
       fetchImpl,
@@ -273,11 +303,62 @@ describe('fillExcerpts', () => {
       async () => {},
     );
 
-    expect(got).toEqual([
-      [2, 'two'],
-      [1, 'one'],
+    expect(got).toEqual([[2, 'two']]);
+    expect(seen.filter((u) => u.includes('jobId=1'))).toHaveLength(1);
+    expect(seen.filter((u) => u.includes('jobId=3'))).toHaveLength(1);
+    expect(seen.filter((u) => u.includes('jobId=2'))).toHaveLength(2);
+  });
+
+  test('retries spend the five reads of one open, so they never pass five', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ text: '' }));
+    }) as unknown as typeof fetch;
+    const reads = newExcerptReads();
+    const picks = pickExcerptJobs(
+      [1, 2, 3, 4, 5, 6].map((id) => failed(id)),
+      reads,
+    );
+
+    await fillExcerpts(
+      picks,
+      FORGEJO,
+      () => {},
+      fetchImpl,
+      () => false,
+      async () => {},
+      reads,
+    );
+
+    expect(calls).toBe(MAX_EXCERPT_READS);
+  });
+
+  test('a retry takes the places two overlapping runs have left between them', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ text: '' }));
+    }) as unknown as typeof fetch;
+    const reads = newExcerptReads();
+    const none = async () => {};
+    const run = (list: Check[]) =>
+      fillExcerpts(
+        pickExcerptJobs(list, reads),
+        FORGEJO,
+        () => {},
+        fetchImpl,
+        () => false,
+        none,
+        reads,
+      );
+
+    await Promise.all([
+      run([1, 2, 3].map((id) => failed(id))),
+      run([4, 5, 6].map((id) => failed(id))),
     ]);
-    expect(seen).toHaveLength(3);
+
+    expect(calls).toBe(MAX_EXCERPT_READS);
   });
 
   test('a refusal on a retry stops everything, and no retry follows one', async () => {
