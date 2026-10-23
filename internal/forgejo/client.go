@@ -1352,7 +1352,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 
 	var checks []dashboard.Check
 	var probes []string
-	var excerptKeys []excerptKey
+	excerptKeys := map[int64]excerptKey{}
 	for _, run := range runs.WorkflowRuns {
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
 		if err != nil {
@@ -1367,7 +1367,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				RunAttempt: j.RunAttempt,
 			})
 			probes = append(probes, workflowContext(run, j.Name))
-			excerptKeys = append(excerptKeys, newExcerptKey(owner, name, j))
+			excerptKeys[j.ID] = newExcerptKey(owner, name, j)
 		}
 	}
 	c.rememberFailedJobs(owner, name, checks, excerptKeys)
