@@ -2263,11 +2263,10 @@ test.describe('dashboard page', () => {
       await expect(pill).toContainText('Out of date');
     });
 
-    // #359's own reasoning applies here too: a non-bot pull request
-    // already gets the Update-branch button as its one clear signal, so
-    // a second, generic pill saying the same thing would just be the
-    // duplication that issue fixed, restated for a new status.
-    test('a behind, non-bot-managed pull request offers Update branch in its pop-up but shows no Out of date pill', async ({
+    // Every behind pull request is badged, not only a bot-managed one, so a
+    // stale hand-written pull request stands out the same way. The Update
+    // branch action still lives in the pop-up.
+    test('a behind, non-bot-managed pull request shows the Out of date pill and offers Update branch in its pop-up', async ({
       page,
     }) => {
       await mockDashboard(page, [pr({ behind: true })]);
@@ -2276,7 +2275,7 @@ test.describe('dashboard page', () => {
       // Merge stays the primary action while only behind, so the row draws
       // no Update branch; the pop-up's footer offers it.
       const row = page.locator('#pr-rows .row').first();
-      await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
+      await expect(row.locator('.attr-chip.behind')).toHaveText('Out of date');
       const dialog = await openActionsDialog(row);
       await expect(
         actionsFooter(dialog).getByRole('button', { name: 'Update branch' }),

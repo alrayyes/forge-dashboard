@@ -60,8 +60,8 @@ const BOARDS: Record<
 };
 
 // Every filter choice exists on every board: two forges, two repos, authors,
-// labels, every CI state, ready, needs review, review requested, conflicts and
-// both auto-merge answers. Thirty-two rows per board, so the pager shows at the default 25.
+// labels, every CI state, ready, needs review, review requested, conflicts, out of
+// date and both auto-merge answers. Thirty-two rows per board, so the pager shows at the default 25.
 function pr(n: number, kind: string | undefined, extra = {}) {
   return {
     forge: 'github',
@@ -95,7 +95,7 @@ function prsFor(base: number, kind: string | undefined) {
       autoMergeEnabled: false,
     }),
     pr(base + 3, kind, { ci: 'pending', needsReview: true }),
-    pr(base + 4, kind, { reviewRequestedFromMe: true }),
+    pr(base + 4, kind, { reviewRequestedFromMe: true, behind: true }),
     pr(base + 5, kind, { ci: 'none' }),
     ...Array.from({ length: 27 }, (_, i) => pr(base + 6 + i, kind)),
   ];
@@ -289,6 +289,7 @@ const CONTROLS: Control[] = [
   pill('Passing CI', 'passing', PULLS_ONLY),
   pill('No checks', 'no-checks', PULLS_ONLY),
   pill('Conflicts', 'conflicting', PULLS_ONLY),
+  pill('Out of date', 'out-of-date', PR_BOARDS),
   pill('Ready to Merge', 'ready', PULLS_ONLY),
   pill('Needs Review', 'needs-review', PULLS_ONLY),
   pill('Review requested from me', 'review-requested', PR_BOARDS),

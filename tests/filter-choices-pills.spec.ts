@@ -95,6 +95,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     for (const name of [
       'Forgejo',
       'Conflicts',
+      'Out of date',
       'Needs Review',
       'Review requested from me',
     ]) {

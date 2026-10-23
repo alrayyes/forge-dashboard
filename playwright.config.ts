@@ -6,6 +6,7 @@ import { unlistedSpecs } from './scripts/unlisted-e2e-specs';
 // between tests (tests/server-fixture.ts). Every spec must be listed here.
 const singleUserSpecs = [
   '**/page-tops.spec.ts',
+  '**/out-of-date-filter.spec.ts',
   '**/branch-pill-dialog-agree.spec.ts',
   '**/repo-name-hover.spec.ts',
   '**/filter-persistence.spec.ts',

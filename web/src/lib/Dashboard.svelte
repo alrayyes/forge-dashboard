@@ -962,32 +962,14 @@
       return pill;
     }
 
-    // Dependabot and Renovate pull requests never get
-    // updateBranchActionCell's own inline button — that function returns
-    // null for them on purpose (see its own doc comment: their own Rebase
-    // actions do that job). release-please does get the button (#728),
-    // so it's left out here the same way a plain pull request is. Without this
-    // pill a bot-managed row that's actually behind had no visible sign
-    // of it at all — confirmed live against a real Dependabot PR
-    // (hush-hush-python#153) that GitHub itself flagged "out-of-date
-    // with the base branch" while this dashboard showed nothing, with
-    // the one relevant action (Dependabot: Rebase) nowhere on the row.
-    // Silent for every non-bot pull request:
-    // those already get the Update-branch button as their one clear
-    // signal (#359), and a second pill saying the same thing would be
-    // exactly the duplication #359 fixed.
+    // The Out of date badge: a pull request whose base branch has moved on,
+    // with something left to merge. It is drawn for every such row, in the
+    // warning colour with an icon and the words, so a stale pull request
+    // stands out without a person reading each row for a quiet chip, and the
+    // Out of date quick filter reads the same two fields. Empty ones get
+    // none: there is nothing to update.
     function behindPill(item: PullRequestItem): HTMLElement | null {
-      // Behind, with something to merge, on a pull request a bot rebases:
-      // the server lists that rebase for exactly those (#805).
-      if (
-        !item.behind ||
-        item.empty ||
-        !(
-          findAction(item, "dependabot_rebase") ||
-          findAction(item, "renovate_rebase")
-        )
-      )
-        return null;
+      if (!item.behind || item.empty) return null;
       return attrChip("behind", "Out of date");
     }
 
@@ -1314,8 +1296,8 @@
       const attributes = attributeCluster(item);
       attributes.setAttribute("role", "group");
       attributes.setAttribute("aria-label", "Attributes when opened");
-      // The row only flags a bot's pull request as out of date (it has an
-      // Update branch button otherwise); the dialog keeps saying it for any.
+      // The dialog keeps saying a pull request is out of date even when it
+      // is empty, which the row's badge leaves out.
       if (item.behind && !attributes.querySelector(".behind"))
         attributes.appendChild(attrChip("behind", "Out of date"));
       if (item.kind === "release") {
@@ -8883,6 +8865,12 @@
           class="quick-pill"
           data-pill="conflicting"
           aria-pressed="false">Conflicts</button
+        >
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="out-of-date"
+          aria-pressed="false">Out of date</button
         >
         <button
           type="button"
