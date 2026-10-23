@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // The issue dialog lists the pull requests that will close the issue, drawn
@@ -102,6 +102,39 @@ test('the dialog shows the closing pull request with the row pill, same name and
   await expect(dialogPills(page)).toHaveAttribute('href', linked(12).pageUrl);
 });
 
+test('the dialog pill shows the same CI state as the row, failing and passing', async ({
+  page,
+}) => {
+  const failing = linked(12, {
+    ci: 'failure',
+    checks: { ...none, passed: 2, failed: 1 },
+  });
+  const passing = linked(13);
+  await mockBoard(page, () => [issue(1, [failing, passing])]);
+  await page.goto('/issues.html');
+  await openDialog(page);
+  await expect(dialogPills(page)).toHaveCount(2);
+
+  const signature = (pill: Locator) =>
+    pill.evaluate((el) => ({
+      text: el.textContent,
+      ci: [...el.querySelectorAll('*')].map((n) => ({
+        cls: n.className,
+        color: getComputedStyle(n).color,
+        bg: getComputedStyle(n).backgroundColor,
+      })),
+    }));
+  for (const i of [0, 1]) {
+    expect(await signature(dialogPills(page).nth(i))).toEqual(
+      await signature(rowPills(page).nth(i)),
+    );
+  }
+  // The two pipelines differ, so the comparison above is not vacuous.
+  expect(await signature(dialogPills(page).nth(0))).not.toEqual(
+    await signature(dialogPills(page).nth(1)),
+  );
+});
+
 test('an issue nothing closes shows no pills in the dialog', async ({
   page,
 }) => {
@@ -126,11 +159,18 @@ test('the pills follow the pull request list while the dialog stays open', async
   await openDialog(page);
   await expect(dialog(page)).toBeVisible();
   await expect(dialogPills(page)).toHaveCount(0);
+  const name = await dialog(page).getAttribute('aria-label');
+  const group = (label: string) =>
+    dialog(page).getByRole('group', { name: label });
+  await expect(group('Labels when opened')).toBeVisible();
 
   list = [linked(12)];
   await refresh();
   await expect(dialogPills(page)).toHaveCount(1);
   await expect(dialog(page)).toBeVisible();
+  await expect(group('Attributes when opened')).toBeVisible();
+  await expect(group('Labels when opened')).toHaveCount(0);
+  await expect(dialog(page)).toHaveAttribute('aria-label', name ?? '');
 
   list = [linked(12, { draft: true }), linked(13)];
   await refresh();
@@ -141,6 +181,9 @@ test('the pills follow the pull request list while the dialog stays open', async
   await refresh();
   await expect(dialogPills(page)).toHaveCount(0);
   await expect(dialog(page)).toBeVisible();
+  await expect(group('Labels when opened')).toBeVisible();
+  await expect(group('Attributes when opened')).toHaveCount(0);
+  await expect(dialog(page)).toHaveAttribute('aria-label', name ?? '');
 });
 
 for (const width of [1280, 390]) {
