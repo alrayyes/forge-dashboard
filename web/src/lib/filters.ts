@@ -198,6 +198,7 @@ import {
   type PickChoice,
   parseLabels,
   repoName,
+  splitLabels,
   unionLabels,
 } from './label-filter';
 
@@ -307,6 +308,7 @@ export function loadState(): SharedFilterState {
   // page before it is now stale.
   pageGeneration++;
   resetTouched();
+  droppedPicks.length = 0;
   loadedCookieRev = cookieRev();
   if (loadedCookieRev !== null) knownRev = Math.max(knownRev, loadedCookieRev);
   return readCookieState();
@@ -431,8 +433,40 @@ function trimLabelPick(state: SharedFilterState): void {
     const pick = state.shared[key];
     if (pick === undefined) continue;
     if (typeof pick !== 'string') delete state.shared[key];
-    else state.shared[key] = joinLabels(parseLabels(pick));
+    else {
+      const { kept, dropped } = splitLabels(pick);
+      state.shared[key] = joinLabels(kept);
+      if (dropped.length > 0) droppedPicks.push({ key, names: dropped });
+    }
   }
+}
+
+// Picks cut because they no longer fit, noted as the saved filters are read so
+// the page can tell the reader once, not leave a filter quietly smaller.
+const droppedPicks: { key: string; names: string[] }[] = [];
+
+export function takeDroppedPicks(): { key: string; names: string[] }[] {
+  return droppedPicks.splice(0);
+}
+
+const PICK_WORDS: Record<string, string> = {
+  label: 'label',
+  repo: 'repo',
+  author: 'author',
+};
+
+// One sentence for what a saved pick lost, e.g. "The Label filter no longer
+// fits: dropped bug, docs.". Repos are named without their forge.
+export function droppedPicksText(
+  dropped: { key: string; names: string[] }[],
+): string {
+  return dropped
+    .map(({ key, names }) => {
+      const shown = key === 'repo' ? names.map(repoName) : names;
+      const word = PICK_WORDS[key] ?? key;
+      return `Your ${word} filter held more than fits, so these were dropped: ${shown.join(', ')}.`;
+    })
+    .join(' ');
 }
 
 // A pick the page being shown does not offer (an author who wrote no pull
