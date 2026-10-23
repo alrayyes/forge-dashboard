@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,30 +44,6 @@ func TestReadMainBranch_RecordedScaffoldGoCli(t *testing.T) {
 	assert.Equal(t, dashboard.CheckCounts{Passed: 14, Skipped: 10}, row.Checks)
 }
 
-// countsOf tallies a dialog's job list the way the pill's counts read: passed
-// includes skipped, cancelled counts in none.
-func countsOf(checks []dashboard.Check) dashboard.CheckCounts {
-	var out dashboard.CheckCounts
-	for _, c := range checks {
-		switch c.State {
-		case dashboard.CheckSuccess:
-			out.Passed++
-		case dashboard.CheckSkipped:
-			out.Passed++
-			out.Skipped++
-		case dashboard.CheckRunning:
-			out.Running++
-		case dashboard.CheckQueued:
-			out.Waiting++
-		case dashboard.CheckFailure:
-			out.Failed++
-		case dashboard.CheckCancelled:
-		}
-	}
-
-	return out
-}
-
 func TestPillAndDialogCountTheSameJobs(t *testing.T) {
 	t.Parallel()
 
@@ -78,7 +56,7 @@ func TestPillAndDialogCountTheSameJobs(t *testing.T) {
 		checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
 		require.NoError(t, err)
 
-		assert.Equal(t, row.Checks, countsOf(checks))
+		assert.Equal(t, row.Checks, forgejo.CountChecks(checks))
 	}
 
 	t.Run("the recorded scaffold-go-cli commit", func(t *testing.T) {
@@ -127,4 +105,51 @@ func TestReadMainBranch_DoesNotKeepAJobListWithAJobStillGoing(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.CheckCounts{Passed: 2}, second.Checks)
+}
+
+func TestReadMainBranch_KeepsAFailedRunsJobsEvenWithAJobStillQueued(t *testing.T) {
+	t.Parallel()
+
+	s := &mainBranchServer{
+		runs: []map[string]any{actionRun(1, "main", "cafef00d", "failure", started, stopped)},
+		jobs: map[string][]map[string]any{"1": jobsOf("failure", "waiting")},
+	}
+	client := s.start(t)
+
+	for range 2 {
+		_, err := client.ReadMainBranch(t.Context(), repoA)
+		require.NoError(t, err)
+	}
+
+	var jobRequests int
+	for _, p := range s.requests() {
+		if strings.HasSuffix(p, "/jobs") {
+			jobRequests++
+		}
+	}
+	assert.Equal(t, 1, jobRequests, "a failed run that stays queued is final once the forge has caught up")
+}
+
+func TestListDefaultBranchChecks_NamesARunWhoseJobsCannotBeRead(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		workflow, title, want string
+	}{
+		"the workflow without its suffix":     {"ci.yaml@refs/heads/main", "title", "ci"},
+		"the title when there is no workflow": {"", "Build the thing", "Build the thing"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			run := actionRun(1, "main", "cafef00d", "success", started, stopped)
+			run["workflow_id"], run["title"] = tc.workflow, tc.title
+			s := &mainBranchServer{runs: []map[string]any{run}, jobsFail: map[string]int{"1": 500}}
+
+			checks, err := s.start(t).ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+			require.NoError(t, err)
+			require.Len(t, checks, 1)
+			assert.Equal(t, tc.want, checks[0].Name)
+		})
+	}
 }

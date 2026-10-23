@@ -41,3 +41,6 @@ func ReadMainBranchSettled(ctx context.Context, c *Client, repo dashboard.RepoRe
 
 	return c.ReadMainBranch(ctx, repo)
 }
+
+// CountChecks exposes the production tally of a check list to the black-box tests.
+var CountChecks = countChecks
