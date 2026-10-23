@@ -624,7 +624,7 @@ func TestMCP_GetRepositoryAdvisories_ListsTheTool(t *testing.T) {
 		}
 	}
 	require.NotNil(t, found)
-	for _, want := range []string{"Read-only", "on demand", "snapshot", "GitHub", "unknown", "never an empty list", "untrusted"} {
+	for _, want := range []string{"Read-only", "on demand", "snapshot", "GitHub", "unknown", "not a finding", "untrusted"} {
 		assert.Contains(t, found.Description, want)
 	}
 }

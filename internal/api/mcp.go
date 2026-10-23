@@ -202,10 +202,9 @@ func addAdvisoriesTool(server *mcp.Server, deps Deps) {
 			"the Main branches page. Only GitHub reads them; a Forgejo repository is " +
 			"refused. A state of unknown means the alerts could not be read, with the " +
 			"reason (alerts switched off, a token without the Dependabot alerts " +
-			"permission, a rate limit, or more open alerts than one read pages through): " +
-			"then the list is empty because it is unknown, never because none are open, " +
-			"and it is never an empty list to report. An empty list with state known means " +
-			"nothing is open. Read-only: this app never writes to either forge through " +
+			"permission, a rate limit, or more open alerts than one read pages through). " +
+			"The empty list is not a finding, so don't report the repository as clean. " +
+			"An empty list with state known means nothing is open. Read-only: this app never writes to either forge through " +
 			"this tool. Fetched on demand from the forge, never from the snapshot, so " +
 			"each call spends forge budget: GitHub REST requests, one per page of " +
 			"alerts. Call it for the repositories you need, not for every row; " +

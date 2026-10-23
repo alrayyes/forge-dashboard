@@ -152,7 +152,7 @@ describe('WebMCP read tools', () => {
     const { tool } = setup();
     const { description } = tool('get_repository_advisories');
     expect(description).toContain('unknown');
-    expect(description).toContain('never an empty list');
+    expect(description).toContain('not a finding');
     expect(description).toContain('Read-only');
   });
 
