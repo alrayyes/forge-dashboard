@@ -123,7 +123,7 @@ func TestForgejoAutoMerge_Arm_BoardOffersCancelInsteadOfEnable(t *testing.T) {
 
 	pr := boardPR(t, srv, cookie)
 
-	assert.Equal(t, []string{"merge", "close", "cancel_auto_merge"}, allowedActionNames(t, pr))
+	assert.Equal(t, []string{"merge", "close", "cancel_auto_merge", "cancel_run"}, allowedActionNames(t, pr))
 }
 
 func TestForgejoAutoMerge_NotArmed_BoardOffersEnable(t *testing.T) {

@@ -52,6 +52,7 @@ var mcpPending = []string{
 	"commentOnIssue",
 	"rerunPullRequestChecks",
 	"rerunMainBranchChecks",
+	"cancelWorkflowRun",
 	"hidePullRequest",
 	"unhidePullRequest",
 	"updatePullRequestBranch",
