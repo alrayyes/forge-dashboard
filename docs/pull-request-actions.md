@@ -774,25 +774,30 @@ it), and nothing is sent until you press `Yes, cancel run`. `Keep running` sends
 nothing. When the forge accepts, the panel says "Cancelling" and reads the
 checks again every few seconds until the run has stopped, then says it was
 cancelled. If the run is still going after eight reads, the panel says so, and
-the button comes back. When the forge refuses (the token can't write to Actions,
-the run already finished, a Forgejo too old to have the cancel route, a rate
-limit), the panel shows the forge's own reason and draws no button for that run.
-A refused permission also removes the button from every run of that repository
-for five minutes, so a fixed token works without a reload. It needs the same
-write access to Actions as the rerun. A job that isn't an Actions job, such as
-an external CI, belongs to no run and has no button, though a pull request with
-only an external CI running still lists `cancel_run`, since the list can't tell
-the two apart. A Forgejo too old to have the cancel route answers with a 404,
-which reads the same as a run that is gone, so the panel shows that reason and
-doesn't lock. A cancel is never queued for a rate-limit reset: by then the run
-may be a different one, started by a newer push, and a cancel can't be undone
-(`POST /api/checks/cancel-run` with `{forge, fullName, runId}`, listed as
-`cancel_run` in `allowedActions`).
-To name the run of a running job, GitHub's checks list makes two more reads of
-the commit, its workflow runs and the jobs of the unfinished ones, and only
-while some check is still running or queued. A finished pipeline costs nothing
-extra, and a failed lookup leaves the list without the button rather than
-failing it.
+the button comes back; if no read came back, it says it couldn't check. When the
+forge refuses (the token can't write to Actions, the run already finished, a
+Forgejo too old to have the cancel route, a rate limit), the panel shows the
+forge's own reason and draws no button for that run. A refused permission also
+removes the button from every run of that repository for five minutes, so a
+fixed token works without a reload. It needs the same write access to Actions as
+the rerun. A job that isn't an Actions job, such as an external CI, belongs to
+no run and has no button, though a pull request with only an external CI running
+still lists `cancel_run`, since the list can't tell the two apart. A Forgejo
+external CI that reports a pending commit status counts the same way. A Forgejo
+too old to have the cancel route answers with a 404, which reads the same as a
+run that is gone, so the panel shows that reason and doesn't lock. A cancel is
+never queued for a rate-limit reset: by then the run may be a different one,
+started by a newer push, and a cancel can't be undone (`POST
+/api/checks/cancel-run` with `{forge, fullName, runId}`, listed as `cancel_run`
+in `allowedActions`).
+To name the run of a running job, GitHub's checks list makes more reads of
+the commit, only while some check is still running or queued: its queued
+workflow runs, its running ones, and the jobs of each. That is three reads for
+a commit with one active run, and the same three again on every re-read after
+a cancel. A finished pipeline costs nothing extra, and a failed lookup leaves
+the list without the button rather than failing it. In that case the panel
+doesn't claim a run has finished or stopped until it sees the run's own jobs
+finish.
 
 When the forge says which checks the base branch's protection requires,
 the panel groups them: a `Required` group first, with a failing required

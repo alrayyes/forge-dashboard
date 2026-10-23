@@ -1503,8 +1503,9 @@ paths:
         entry in `allowedActions` while any of its checks is running or
         waiting, even when another check has already failed. The list can't
         tell an Actions check from an external CI, so a pull request whose
-        only running check is an external one still offers it, and the
-        checks list then has no `runId` to send.
+        only running check is an external one (on Forgejo, a pending commit
+        status too) still offers it, and the checks list then has no `runId`
+        to send.
 
         It is never queued for a rate-limit reset. After the reset the run may
         be a different one, started by a newer push, and a cancel can't be
@@ -1550,7 +1551,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
         "404":
-          description: The forge reported the repo or run doesn't exist, or the instance has no cancel route. `code` is `unknown`.
+          description: The dashboard doesn't track that repository (it dropped off the board since the checks were read), so the forge wasn't asked; or the forge reported the repo or run doesn't exist, or the instance has no cancel route. `code` is `unknown` for both.
           content:
             application/json:
               schema:
@@ -4610,6 +4611,11 @@ components:
             queued or running, and only for an Actions job: a finished job,
             a third-party check and a legacy commit status have none, and
             nothing is left to cancel.
+
+            A Forgejo run whose jobs couldn't be read is listed as one check
+            named for the run, with a `runId` and no `jobId`. A client treats
+            a check with a `runId` and no `jobId` as the run itself, not as a
+            job of it, and doesn't list its name among the run's jobs.
         runName:
           type: string
           description: |
