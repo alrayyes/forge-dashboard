@@ -95,7 +95,11 @@ type clientState struct {
 	// advisories from the default branch's lockfiles; advisories remembers
 	// each repo's last answer.
 	advisoryScanner AdvisoryScanner
-	advisories      *advisoryCache
+	// listCalls are the dialog's reads in flight, by repo, so opens that overlap
+	// share one.
+	listMu     sync.Mutex
+	listCalls  map[string]*listCall
+	advisories *advisoryCache
 	// advisoryReads counts the background reads in flight, for tests to wait on.
 	advisoryReads sync.WaitGroup
 	// advisoryDeadline overrides advisoryDeadline; zero keeps it. For tests.

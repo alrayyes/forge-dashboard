@@ -140,18 +140,21 @@ since OSV has no page for a whole repo to link to.
 
 The dialog is the same as the GitHub one, with the facts OSV states. Opening it
 reads the file tree and the lock files again, then asks OSV, so it costs the
-same as one refresh of that repo (see [Rate limits](rate-limits.md)), and it
-works only while `OSV_ADVISORIES=on`. Each row shows the severity, the title,
-the package with its installed version and ecosystem, the lock files it was
+same as one refresh of that repo (see [Rate limits](rate-limits.md)), and a
+double click shares one read. It works only while `OSV_ADVISORIES=on`. Each
+row shows the severity, the title, the package with its installed version and
+ecosystem, the lock files it was
 found in and when the advisory was published. The detail adds the advisory ids,
-the version that fixes it, the CVSS score and vector when the record states
+the versions that fix it (OSV lists one per release branch, so this can include
+branches the repo is not on), the CVSS score and vector when the record states
 one, the weaknesses, the description and the references, and **Open on OSV**
 goes to the OSV page for that advisory. What OSV does not state is left out
 rather than shown empty: the exploit probability (EPSS), whether a dependency
 is direct or transitive, whether it is for runtime or development, and the
 affected version range. An advisory that hits several packages lists them all.
 A list over a partly checked repo says that packages were left out. When the
-read fails, the dialog gives the Forgejo cause (OSV unreachable, a lock file
+read fails, the dialog gives the Forgejo cause (OSV unreachable, the forge not
+answering, a lock file
 that can't be read, too much to read, advisories not switched on, or no lock
 file found) and never sends anyone to a GitHub permission.
 

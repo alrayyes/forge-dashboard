@@ -27,7 +27,49 @@ const osvAdvisoryPage = "https://osv.dev/vulnerability/"
 // What the row would call unknown (advisories off, no lock file, one that can't
 // be read, OSV or the forge failing, too many advisories) is an unknown list
 // with the cause, never an empty one.
+//
+// Opens that overlap on one repo share a single read: a double click costs
+// once. The shared read doesn't stop when the first caller goes away; its own
+// time budget bounds it.
 func (c *Client) ListAdvisories(ctx context.Context, owner, name string) (dashboard.AdvisoryList, error) {
+	repo := owner + "/" + name
+	c.listMu.Lock()
+	call, running := c.listCalls[repo]
+	if !running {
+		call = &listCall{done: make(chan struct{})}
+		if c.listCalls == nil {
+			c.listCalls = map[string]*listCall{}
+		}
+		c.listCalls[repo] = call
+	}
+	c.listMu.Unlock()
+
+	if running {
+		select {
+		case <-call.done:
+			return call.list, call.err
+		case <-ctx.Done():
+			return dashboard.AdvisoryList{}, fmt.Errorf("list advisories for %s: %w", repo, ctx.Err())
+		}
+	}
+
+	call.list, call.err = c.readAdvisoryList(context.WithoutCancel(ctx), owner, name)
+	c.listMu.Lock()
+	delete(c.listCalls, repo)
+	c.listMu.Unlock()
+	close(call.done)
+
+	return call.list, call.err
+}
+
+// listCall is one repo's dialog read in flight, and its outcome once done.
+type listCall struct {
+	done chan struct{}
+	list dashboard.AdvisoryList
+	err  error
+}
+
+func (c *Client) readAdvisoryList(ctx context.Context, owner, name string) (dashboard.AdvisoryList, error) {
 	repo := owner + "/" + name
 	if c.advisoryScanner == nil {
 		return unknownList(dashboard.ReasonNotEnabled), nil

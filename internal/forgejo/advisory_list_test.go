@@ -1,8 +1,12 @@
 package forgejo_test
 
 import (
+	"context"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
@@ -133,3 +137,48 @@ func TestListAdvisories_WithoutAScannerItIsNotEnabled(t *testing.T) {
 }
 
 var _ dashboard.AdvisoryLister = (*forgejo.Client)(nil)
+
+// gatedFinder holds every Find until release is closed and counts the calls.
+type gatedFinder struct {
+	fakeScanner
+	release chan struct{}
+	started chan struct{}
+	finds   atomic.Int32
+}
+
+func (g *gatedFinder) Find(ctx context.Context, pkgs []osv.Package) ([]osv.Finding, error) {
+	if g.finds.Add(1) == 1 {
+		close(g.started)
+	}
+	<-g.release
+
+	return g.fakeScanner.Find(ctx, pkgs)
+}
+
+func TestListAdvisories_ConcurrentOpensOfOneRepoShareOneRead(t *testing.T) {
+	t.Parallel()
+	scanner := &gatedFinder{release: make(chan struct{}), started: make(chan struct{})}
+	scanner.findings = []osv.Finding{{ID: "GHSA-1", Summary: "S", Hits: []osv.Hit{{Package: leftPad}}}}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
+
+	const opens = 3
+	results := make([]dashboard.AdvisoryList, opens)
+	var wg sync.WaitGroup
+	for i := range opens {
+		wg.Go(func() {
+			got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+			assert.NoError(t, err)
+			results[i] = got
+		})
+	}
+	<-scanner.started
+	time.Sleep(200 * time.Millisecond) // let the other opens reach the read in flight
+	close(scanner.release)
+	wg.Wait()
+
+	assert.EqualValues(t, 1, scanner.finds.Load(), "a double click costs one read")
+	for _, got := range results {
+		require.Len(t, got.Advisories, 1)
+		assert.Equal(t, "GHSA-1", got.Advisories[0].ID)
+	}
+}
