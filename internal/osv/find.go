@@ -126,7 +126,7 @@ func hitsOf(pkgs []Package, order []string, recs map[string]record) []Hit {
 		hit := Hit{Package: p}
 		for _, id := range order {
 			for _, a := range recs[id].affected {
-				if a.name == p.Name {
+				if a.name == p.Name && sameEcosystem(a.ecosystem, p.Ecosystem) {
 					hit.Fixed = appendNew(hit.Fixed, a.fixed...)
 				}
 			}
@@ -146,4 +146,12 @@ func appendNew(dst []string, values ...string) []string {
 	}
 
 	return dst
+}
+
+// sameEcosystem compares two ecosystem names the way OSV writes them: case
+// aside, and without a release suffix such as "Debian:11".
+func sameEcosystem(a, b string) bool {
+	base := func(s string) string { return strings.ToLower(strings.SplitN(s, ":", 2)[0]) }
+
+	return base(a) == base(b)
 }

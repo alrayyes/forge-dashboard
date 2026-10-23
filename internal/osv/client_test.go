@@ -461,3 +461,27 @@ func TestFind_NoMatchesIsAnEmptyList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestFind_FixVersionsComeFromTheSameEcosystem(t *testing.T) {
+	t.Parallel()
+	s := &osvServer{
+		vulns: map[string][]string{"lib@1.0.0": {"GHSA-5"}},
+		detail: map[string]map[string]any{
+			"GHSA-5": {"summary": "Same name twice", "affected": []map[string]any{
+				{
+					"package": map[string]any{"name": "lib", "ecosystem": "npm"},
+					"ranges":  []map[string]any{{"events": []map[string]any{{"fixed": "1.0.1"}}}},
+				},
+				{
+					"package": map[string]any{"name": "lib", "ecosystem": "PyPI"},
+					"ranges":  []map[string]any{{"events": []map[string]any{{"fixed": "7.7.7"}}}},
+				},
+			}},
+		},
+	}
+
+	got, err := s.start(t).Find(t.Context(), []osv.Package{{Ecosystem: "npm", Name: "lib", Version: "1.0.0"}})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, []string{"1.0.1"}, got[0].Hits[0].Fixed)
+}
