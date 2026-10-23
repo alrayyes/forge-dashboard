@@ -223,6 +223,38 @@ test('focus on a pill survives a poll that changes the list', async ({
   ).toBe(true);
 });
 
+test('focus outside the pills stays put when a poll changes the list', async ({
+  page,
+}) => {
+  let list: unknown[] = [linked(12)];
+  await mockBoard(page, () => [issue(1, list)]);
+  const refresh = () =>
+    page.evaluate(() =>
+      document.querySelector<HTMLElement>('#force-refresh-button')?.click(),
+    );
+  const focusedIsDialog = () =>
+    dialog(page).evaluate((d) => document.activeElement === d);
+  await page.goto('/issues.html');
+  await openDialog(page);
+  // Park focus on the dialog itself: not a pill, and not the close button
+  // the restore would fall back to.
+  await dialog(page).evaluate((d) => {
+    d.tabIndex = -1;
+    d.focus();
+  });
+  await expect.poll(focusedIsDialog).toBe(true);
+
+  list = [linked(12), linked(13)];
+  await refresh();
+  await expect(dialogPills(page)).toHaveCount(2);
+  await expect.poll(focusedIsDialog).toBe(true);
+
+  list = [];
+  await refresh();
+  await expect(dialogPills(page)).toHaveCount(0);
+  await expect.poll(focusedIsDialog).toBe(true);
+});
+
 for (const width of [1280, 390]) {
   for (const scheme of ['light', 'dark'] as const) {
     test(`has no axe violations with a closing pull request in the dialog, ${scheme} at ${width}px`, async ({
