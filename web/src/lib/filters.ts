@@ -339,6 +339,7 @@ export function fitToCookie(
           biggest = { group, key };
       }
     }
+    // Safe: a first cut always fills `cut`, so the caller still shows the notice.
     if (biggest === null) break;
     delete copy[biggest.group]?.[biggest.key];
     cut.push(`the ${biggest.key} filter`);
