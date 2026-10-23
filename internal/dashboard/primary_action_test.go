@@ -105,6 +105,39 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.CI = dashboard.CIFailure
 			p.AwaitingWorkflowApproval = true
 		}), []string{}},
+		{"person behind, unstable, failing and awaiting approval: none", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnstable
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
+		{"person behind, awaiting approval but status unknown: none, not Update branch", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+			p.CI = dashboard.CINone
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
+		{"person behind, awaiting approval with CI pending: none", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIPending
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
+		{"person behind, awaiting approval, blocked and CI passing: none", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CISuccess
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
+		{"person behind, approval granted and run finished: Update branch", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIFailure
+		}), []string{"update_branch"}},
+		{"person behind, not awaiting approval: Update branch", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+		}), []string{"update_branch"}},
 		{"Renovate behind and draft: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Dependabot behind and draft: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Renovate behind and stacked: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{}},
@@ -197,4 +230,25 @@ func TestPullRequestStatus_BehindBotAwaitingApproval(t *testing.T) {
 		assert.Empty(t, status.Action, author)
 		assert.Empty(t, primaries(actions), author)
 	}
+}
+
+// A person's behind pull request whose runs wait for approval and whose
+// status reads unknown still says it is behind, but names no fix: updating
+// the branch would only start runs that are held again.
+func TestPullRequestStatus_BehindPersonAwaitingApprovalNamesNoFix(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) {
+		p.Behind = true
+		p.MergeStatus = dashboard.MergeUnknown
+		p.CI = dashboard.CINone
+		p.AwaitingWorkflowApproval = true
+	})
+	actions := dashboard.AllowedActions(pr, nil)
+	status := dashboard.PullRequestStatus(pr, actions)
+
+	require.NotNil(t, status)
+	assert.Equal(t, dashboard.ActionBehind, status.Code)
+	assert.Empty(t, status.Action)
+	assert.Empty(t, primaries(actions))
 }

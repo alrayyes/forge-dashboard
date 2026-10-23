@@ -26,7 +26,7 @@ function pr(number: number, title: string, awaiting: boolean) {
 
 const PRS = [pr(1, 'Held for approval', true), pr(2, 'Really failing', false)];
 
-async function open(page: Page) {
+async function open(page: Page, prs: unknown[] = PRS) {
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
@@ -35,7 +35,7 @@ async function open(page: Page) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues: [],
         openIssueCount: 0,
         repos: [],
@@ -44,7 +44,7 @@ async function open(page: Page) {
     }),
   );
   await page.goto('/pull-requests.html');
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(prs.length);
 }
 
 const row = (page: Page, title: string) =>
@@ -211,4 +211,36 @@ test.describe('Awaiting workflow approval (#1280)', () => {
       expect(results.violations).toEqual([]);
     });
   }
+
+  test('a behind pull request whose merge state is not yet known has no Update branch button', async ({
+    page,
+  }) => {
+    const behind = {
+      code: 'behind',
+      message: 'Behind the base branch',
+      next: 'Bring it up to date to unlock Merge',
+    };
+    await open(page, [
+      {
+        ...pr(3, 'Behind and held', true),
+        ci: 'none',
+        mergeStatus: 'unknown',
+        behind: true,
+        // What the server answers for this state (pinned in its Go tests).
+        allowedActions: [
+          { action: 'merge', blocked: behind },
+          { action: 'update_branch' },
+          { action: 'close' },
+        ],
+        status: behind,
+      },
+    ]);
+    const held = row(page, 'Behind and held');
+    await expect(held.locator('.status-area')).toContainText(
+      'Behind the base branch',
+    );
+    await expect(
+      held.getByRole('button', { name: /update branch/i }),
+    ).toHaveCount(0);
+  });
 });

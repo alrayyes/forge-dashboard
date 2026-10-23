@@ -134,6 +134,10 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 		switch {
 		case a.Blocked == nil && pr.CI != CIFailure:
 			return []ActionName{ActionMerge}
+		case a.Blocked != nil && a.Blocked.Code == ActionBehind && pr.AwaitingWorkflowApproval:
+			// A new head would be held for approval again, so updating the
+			// branch adds nothing, whatever the checks read meanwhile.
+			return botRebases(pr)
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
 			return append([]ActionName{ActionUpdateBranch}, botRebases(pr)...)
 		// Merge is blocked for another reason, or open only because the failing
