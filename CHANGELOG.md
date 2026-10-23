@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.1](https://github.com/alrayyes/forge-dashboard/compare/v2.21.0...v2.21.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** open the closing pull request in place from the issue dialog ([#2667](https://github.com/alrayyes/forge-dashboard/issues/2667)) ([976d0cf](https://github.com/alrayyes/forge-dashboard/commit/976d0cf260931095e466b14b5cf59d92966996e9))
+
 ## [2.21.0](https://github.com/alrayyes/forge-dashboard/compare/v2.20.0...v2.21.0) (2026-10-23)
 
 
