@@ -142,6 +142,7 @@ const singleUserSpecs = [
   '**/settings.spec.ts',
   '**/filter-dropped-pick-notice.spec.ts',
   '**/filter-save-refused.spec.ts',
+  '**/filter-cookie-trimmed.spec.ts',
   '**/main-branch-release-link.spec.ts',
   '**/main-branch-advisories.spec.ts',
   '**/main-branches-advisory-filter.spec.ts',
