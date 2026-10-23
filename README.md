@@ -90,7 +90,8 @@ stale.
   [When advisories can't be read](docs/main-branches.md#when-advisories-cant-be-read).
   Forgejo has no alerts of its own. Its advisories come from the repo's lock
   files, matched against [OSV](https://osv.dev), and only if you switch that on:
-  see [Privacy](#privacy).
+  see [Privacy](#privacy). If OSV can't be reached or a lock file can't be
+  read, the Branches page says so instead of showing nothing.
 
 ## Privacy
 
