@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.20.0](https://github.com/alrayyes/forge-dashboard/compare/v2.19.0...v2.20.0) (2026-10-23)
+
+
+### Features
+
+* **web:** retry an unflushed Forgejo log excerpt and hold the five-read cap ([#2652](https://github.com/alrayyes/forge-dashboard/issues/2652)) ([14d00c7](https://github.com/alrayyes/forge-dashboard/commit/14d00c738765282ff11a4cb676dd29930d58b52b))
+
 ## [2.19.0](https://github.com/alrayyes/forge-dashboard/compare/v2.18.1...v2.19.0) (2026-10-23)
 
 
