@@ -727,20 +727,21 @@ seconds. A read that comes back empty is asked for again by the panel after 15
 seconds, at most twice more, while it stays open, so the excerpt of a job that
 just failed appears when its log lands. A read that failed is not asked for
 again by the panel, since the server would answer it with nothing for the
-minute. A token that is refused, or a forge that limits requests, stops the rest
-of the panel's reads and every retry. The five reads are a budget for one time
-the panel is open, and the retries spend from it: each job's first read and each
-retry takes one of the five, so an open never makes a sixth read, and with five
-failed jobs there is no room left to retry. A failed job that appears later
-takes only the places left, and a rerun of a job already read takes a place of
-its own. An excerpt of a job with no finish time is kept for a minute only.
-Whether a log has settled is judged by comparing the forge's finish time with
-this machine's clock, so the two are assumed to agree to within the settle delay
-of 30 seconds. A job whose log can't be read keeps its link and shows without an
-excerpt. A Forgejo too old to serve job logs answers those reads with a bare 404
-that carries none of its own error body; the request log records that as an
-error rather than as a pruned log, so the gap stays visible there. The API stats
-page counts requests only and doesn't show outcomes.
+minute. A job with no log address shows without an excerpt and costs no read;
+the other jobs still get theirs. A token that is refused, or a forge that limits
+requests, stops the rest of the panel's reads and every retry. The five reads
+are a budget for one time the panel is open, and the retries spend from it: each
+job's first read and each retry takes one of the five, so an open never makes a
+sixth read, and with five failed jobs there is no room left to retry. A failed
+job that appears later takes only the places left, and a rerun of a job already
+read takes a place of its own. An excerpt of a job with no finish time is kept
+for a minute only. Whether a log has settled is judged by comparing the forge's
+finish time with this machine's clock, so the two are assumed to agree to within
+the settle delay of 30 seconds. A job whose log can't be read keeps its link and
+shows without an excerpt. A Forgejo too old to serve job logs answers those
+reads with a bare 404 that carries none of its own error body; the request log
+records that as an error rather than as a pruned log, so the gap stays visible
+there. The API stats page counts requests only and doesn't show outcomes.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
