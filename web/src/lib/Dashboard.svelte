@@ -141,7 +141,6 @@
     type ForgeHealthEntry,
     dependabotBlockedReason,
     forgeLockReason,
-    isUnreachable,
     spentLimit,
   } from "#lib/forge-lock.js";
   import {
@@ -149,6 +148,7 @@
     chipLabel,
     healthSentence,
     isOutage,
+    isUnreachable,
     staleNote,
   } from "#lib/forge-starting.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
@@ -1865,6 +1865,10 @@
       repo: string;
       number: number;
       seenUpdatedAt: string | undefined;
+      // The row's reference, and a fingerprint of what the attributes show
+      // (labels and the pills), so a poll redraws them only when they change.
+      item: IssueDialogItem;
+      shown: string;
     } | null = null;
 
     function listedIssue(
@@ -1881,15 +1885,26 @@
     // A snapshot that no longer lists the open dialog's issue (it was
     // closed), lists it again (reopened), or lists it changed has the dialog
     // read the forge again, quietly, so its status and thread follow.
+    function attributesSignature(item: IssueDialogItem): string {
+      return JSON.stringify([item.labels, item.linkedPullRequests]);
+    }
+
     function followIssueDialog(issues: IssueItem[]) {
       const open = issueDialog;
       if (!open || !detailsDialog) return;
-      const now = listedIssue(
-        open.forge,
-        open.repo,
-        open.number,
-        issues,
-      )?.updatedAt;
+      const listed = listedIssue(open.forge, open.repo, open.number, issues);
+      if (listed) {
+        // The pills come from the snapshot, not from the forge read, so they
+        // follow every poll; the labels come along with them.
+        const item = { ...open.item, ...listed };
+        const shown = attributesSignature(item);
+        if (shown !== open.shown) {
+          open.item = item;
+          open.shown = shown;
+          detailsDialog.setAttributes(issueStatus(item).attributes);
+        }
+      }
+      const now = listed?.updatedAt;
       if (now === open.seenUpdatedAt) return;
       open.seenUpdatedAt = now;
       void detailsDialog.reload().then((ok) => {
@@ -1935,6 +1950,8 @@
         number: item.number,
         seenUpdatedAt: listedIssue(item.forge, item.repo, item.number)
           ?.updatedAt,
+        item,
+        shown: attributesSignature(item),
       };
       detailsDialog?.open(
         { ...item, subject: "issue", status: issueStatus(item) },
@@ -2170,6 +2187,20 @@
       attributes.setAttribute("aria-label", "Labels when opened");
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
+      // The pull requests that will close it, as the row's pills. Plain links
+      // here, as the pull request dialog's closing pills are, so a second
+      // dialog does not stack on this one.
+      const pills = linkedPills(
+        prKey(item),
+        item.repo,
+        item.linkedPullRequests,
+        undefined,
+        linkedCi,
+      );
+      if (pills) {
+        attributes.setAttribute("aria-label", "Attributes when opened");
+        attributes.appendChild(pills);
+      }
       return { state, attributes };
     }
 
@@ -2720,7 +2751,7 @@
       // calls, so REST's budget decides them; auto-merge is a GraphQL
       // mutation and asks for that budget instead. An unreachable forge
       // (#1199) draws no controls, and one banner says why, once (#360, #755).
-      return forgeLockReason(lastForges, forgeName, Date.now(), budget);
+      return forgeLockReason(lastForges, forgeName, { budget });
     }
 
     // A forge whose budget is spent, or that can't be reached, is read-only
@@ -2741,7 +2772,7 @@
       budget: "rest" | "graphql" = "rest",
     ): string {
       // Every entry of the kind, but only the budget the action spends.
-      const limit = known ?? spentLimit(lastForges, forgeName, budget);
+      const limit = known ?? spentLimit(lastForges, forgeName, { budget });
       return rateLimitReasonText(
         FORGE_LABELS[forgeName] || forgeName,
         limit?.resetsAt,
@@ -2765,10 +2796,16 @@
       fkey: string,
       what: string,
       setState: (next: ActionState) => void,
-      retryable?: ReadonlySet<ActionCode>,
-      actionName?: string,
-      // The budget the action spends, for a refusal that names no reset time.
-      budget: "rest" | "graphql" = "rest",
+      {
+        retryable,
+        actionName,
+        // The budget the action spends, for a refusal that names no reset time.
+        budget = "rest",
+      }: {
+        retryable?: ReadonlySet<ActionCode>;
+        actionName?: string;
+        budget?: "rest" | "graphql";
+      } = {},
     ) {
       // The raw answer for Copy, made once for whichever line this ends in.
       const details = failureDetails(
@@ -3255,9 +3292,7 @@
             (next) => {
               autoMergeState[key] = next;
             },
-            AUTO_MERGE_RETRYABLE,
-            undefined,
-            "graphql",
+            { retryable: AUTO_MERGE_RETRYABLE, budget: "graphql" },
           );
         });
     }
@@ -3380,9 +3415,7 @@
             (next) => {
               cancelAutoMergeState[key] = next;
             },
-            undefined,
-            undefined,
-            "graphql",
+            { budget: "graphql" },
           );
         });
     }
@@ -4068,8 +4101,7 @@
             (next) => {
               dependabotActionState[key] = next;
             },
-            undefined,
-            `dependabot-${action}`,
+            { actionName: `dependabot-${action}` },
           );
         });
     }
@@ -7281,7 +7313,7 @@
         // covers that case at the top of the page, per-budget and with a
         // countdown — repeating "Rate limit exceeded." and a raw-error
         // disclosure here is noise, not a second source of detail.
-        if (!f.reachable && f.error && f.errorKind !== "rate_limited") {
+        if (isUnreachable(f) && f.error && f.errorKind !== "rate_limited") {
           item.appendChild(
             el("span", "forge-health-error", forgeErrorHeadline(f)),
           );
@@ -8155,7 +8187,7 @@
 
       renderForgeHealth(data.forges || []);
       const wasUnreachable = new Set(
-        lastForges.filter((f) => !f.reachable).map((f) => f.forge),
+        lastForges.filter((f) => isUnreachable(f)).map((f) => f.forge),
       );
       // Starting up is locked like an outage, but nothing was lost, so
       // coming out of it is not news.
@@ -8168,7 +8200,7 @@
       // has to redraw them (#1199).
       const reachabilityChanged = lastForges.some(
         (f) =>
-          wasUnreachable.has(f.forge) === f.reachable ||
+          wasUnreachable.has(f.forge) !== isUnreachable(f) ||
           // Starting up and then an outage are both unreachable, but the
           // lock reason on the controls differs.
           (wasStarting.has(f.forge) && !f.starting),
@@ -8176,7 +8208,7 @@
       // A forge that answers again gets its controls back, and one polite
       // line saying so.
       for (const f of lastForges) {
-        if (!f.reachable || !wasUnreachable.has(f.forge)) continue;
+        if (isUnreachable(f) || !wasUnreachable.has(f.forge)) continue;
         if (wasStarting.has(f.forge)) continue;
         const label = FORGE_LABELS[f.forge] || f.forge;
         feedback.notify({
