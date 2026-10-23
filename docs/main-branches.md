@@ -100,8 +100,8 @@ severity is the highest the advisory database states. An advisory with no
 stated severity but a CVSS v3.x or v4 vector gets one from the vector's base
 score: under 4.0 is low, 4.0 to 6.9 medium, 7.0 to 8.9 high and 9.0 or more
 critical. An advisory with neither still counts, and the pill then shows the
-count alone. The pill does not
-link anywhere, since OSV has no page for a whole repo.
+count alone. The pill does not link anywhere, since OSV has no page for a whole
+repo.
 
 This is off by default, because **the package names and versions in those files
 are sent to `api.osv.dev`**, for private repos too. Only two things are kept
