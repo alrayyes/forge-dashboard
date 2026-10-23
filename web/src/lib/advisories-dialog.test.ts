@@ -7,9 +7,11 @@ import {
   cvssBand,
   epssText,
   filterBySeverity,
+  forgeWords,
   readAdvisoryList,
   referenceLinks,
   severityCounts,
+  unreadableText,
 } from './advisories-dialog';
 
 const item = (over: Partial<AdvisoryItem> = {}): AdvisoryItem => ({
@@ -178,5 +180,53 @@ describe('readAdvisoryList', () => {
       throw new TypeError('network down');
     });
     expect(result).toEqual({ kind: 'error', message: 'network down' });
+  });
+});
+
+describe('forgeWords', () => {
+  test('a Forgejo list talks about OSV and lock files, not alerts', () => {
+    const w = forgeWords('forgejo');
+    expect(w.linkName).toBe('OSV');
+    expect(w.fileLabel).toBe('Lock file');
+    expect(w.dateWord).toBe('Published');
+    expect(w.patchedLabel).toBe('Fixed in');
+    expect(w.empty).toContain('OSV');
+    expect(w.empty).not.toContain('Dependabot');
+  });
+
+  test('a GitHub list keeps the alert words', () => {
+    const w = forgeWords('github');
+    expect(w.linkName).toBe('GitHub');
+    expect(w.foundIn).toBe('Detected in');
+    expect(w.dateWord).toBe('Opened');
+    expect(w.patchedLabel).toBe('Patched in');
+    expect(w.empty).toContain('Dependabot');
+  });
+});
+
+describe('unreadableText', () => {
+  test('a Forgejo failure also names the forge not answering', () => {
+    expect(unreadableText('forgejo', 'failed')).toMatch(/forge did not answer/);
+  });
+
+  test('a Forgejo cause is never the GitHub permission advice', () => {
+    for (const reason of [undefined, 'not_enabled', 'failed', 'too_many']) {
+      const text = unreadableText('forgejo', reason);
+      expect(text).not.toMatch(/Dependabot|permission|GitHub/);
+    }
+  });
+
+  test('each Forgejo cause says what happened', () => {
+    expect(unreadableText('forgejo', 'not_enabled')).toContain(
+      'OSV_ADVISORIES',
+    );
+    expect(unreadableText('forgejo', 'failed')).toContain('OSV could not');
+    expect(unreadableText('forgejo', 'too_many')).toContain('more');
+    expect(unreadableText('forgejo', undefined)).toContain('lock file');
+  });
+
+  test('a GitHub cause keeps the permission advice', () => {
+    expect(unreadableText('github', 'refused')).toContain('Dependabot');
+    expect(unreadableText('github', 'throttled')).toContain('rate limiting');
   });
 });

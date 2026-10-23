@@ -28,6 +28,8 @@ type fakeScanner struct {
 	asked   [][]osv.Package
 	summary osv.Summary
 	err     error
+
+	findings []osv.Finding
 }
 
 func (f *fakeScanner) Scan(_ context.Context, pkgs []osv.Package) (osv.Summary, error) {
@@ -36,6 +38,14 @@ func (f *fakeScanner) Scan(_ context.Context, pkgs []osv.Package) (osv.Summary, 
 	f.asked = append(f.asked, pkgs)
 
 	return f.summary, f.err
+}
+
+func (f *fakeScanner) Find(_ context.Context, pkgs []osv.Package) ([]osv.Finding, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.asked = append(f.asked, pkgs)
+
+	return f.findings, f.err
 }
 
 func (f *fakeScanner) calls() int {
@@ -55,11 +65,12 @@ type lockfileServer struct {
 	requests atomic.Int32
 	url      string // set by start
 
-	branch      string // a slashed branch name the fake resolves to a commit
-	maxPerPage  int    // the server's own page size limit; zero means 1000
-	filler      int    // extra files ahead of the rest in the tree, to make it span pages
-	mu          sync.Mutex
-	treeQueries []string // "ref?query" of each tree call
+	defaultBranch string // what the repo answers as its default branch; main when empty
+	branch        string // a slashed branch name the fake resolves to a commit
+	maxPerPage    int    // the server's own page size limit; zero means 1000
+	filler        int    // extra files ahead of the rest in the tree, to make it span pages
+	mu            sync.Mutex
+	treeQueries   []string // "ref?query" of each tree call
 }
 
 func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *forgejo.Client {
@@ -101,6 +112,10 @@ func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *f
 		hi := min(lo+perPage, len(entries))
 		// Like Forgejo, truncated is set whenever the whole tree is bigger than a page.
 		writeJSON(t, w, map[string]any{"tree": entries[lo:hi], "page": page, "total_count": len(entries), "truncated": len(entries) > perPage})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		s.requests.Add(1)
+		writeJSON(t, w, map[string]any{"name": "a", "full_name": "alrayyes/a", "default_branch": cmp.Or(s.defaultBranch, "main")})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/branches/{name...}", func(w http.ResponseWriter, r *http.Request) {
 		s.requests.Add(1)
@@ -873,3 +888,8 @@ func TestReadMainBranch_AColdStartAcrossManyReposStartsEveryReadAtOnce(t *testin
 		assert.Equal(t, 1, row.Advisories.Count)
 	}
 }
+
+// The row's tests never open the dialog, so these scanners have nothing to list.
+func (blockingScanner) Find(context.Context, []osv.Package) ([]osv.Finding, error) { return nil, nil }
+
+func (*gatedScanner) Find(context.Context, []osv.Package) ([]osv.Finding, error) { return nil, nil }

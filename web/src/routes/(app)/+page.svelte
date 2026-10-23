@@ -1092,16 +1092,20 @@
                   {#if adv}
                     <!-- Severity is the word beside the count; the colour
                       only echoes it. -->
-                    {#if adv.href && b.forge === "github"}
-                      <!-- A GitHub row's pill opens the list of its advisories
-                        here; the dialog links on to GitHub. -->
+                    {#if (adv.href && b.forge === "github") || b.forge === "forgejo"}
+                      <!-- A pill opens the list of the row's advisories here;
+                        a GitHub dialog links on to GitHub, a Forgejo one to
+                        OSV's page for each advisory. -->
                       <button
                         type="button"
                         class="mb-advisory"
                         data-tone={adv.tone}
                         data-testid="main-branch-advisories"
+                        title={adv.hint}
                         aria-haspopup="dialog"
-                        aria-label="{adv.text} (opens the advisories)"
+                        aria-label="{adv.text} (opens the advisories){adv.hint
+                          ? `. ${adv.hint}`
+                          : ''}"
                         onclick={(e) =>
                           advisories?.open({
                             forge: b.forge,

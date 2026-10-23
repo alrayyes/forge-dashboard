@@ -199,10 +199,11 @@ func addAdvisoriesTool(server *mcp.Server, deps Deps) {
 		Description: "List one repository's open dependency advisories in full, worst first: " +
 			"each Dependabot alert with its severity, package, summary, the version that " +
 			"fixes it and the links -- the same data as the web UI's advisories dialog on " +
-			"the Main branches page. Only GitHub reads them; a Forgejo repository is " +
-			"refused. A state of unknown means the alerts could not be read, with the " +
-			"reason (alerts switched off, a token without the Dependabot alerts " +
-			"permission, a rate limit, or more open alerts than one read pages through). " +
+			"the Main branches page. A Forgejo repository lists what OSV matches in its " +
+			"lock files instead, and only while lock file checking is on. A state of " +
+			"unknown means the list could not be read, with the reason (alerts switched " +
+			"off, a token without the Dependabot alerts permission, a rate limit, lock " +
+			"file checking off, or more advisories than one read pages through). " +
 			"The empty list is not a finding, so don't report the repository as clean. " +
 			"An empty list with state known means nothing is open. Read-only: this app never writes to either forge through " +
 			"this tool. Fetched on demand from the forge, never from the snapshot, so " +

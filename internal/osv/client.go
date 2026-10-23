@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -97,6 +98,21 @@ type record struct {
 	aliases   []string
 	severity  string
 	withdrawn bool
+	// The rest is what Find shows; a scan only counts.
+	summary    string
+	details    string
+	published  string
+	vectors    []string
+	cwes       []string
+	references []string
+	affected   []affectedPackage
+}
+
+// affectedPackage is one package an advisory names, with the versions that fix
+// it.
+type affectedPackage struct {
+	name, ecosystem string
+	fixed           []string
 }
 
 // NewClient returns a Client against base (BaseURL for the public API). A nil
@@ -132,22 +148,7 @@ type batchResult struct {
 // list of packages is a clean scan. Any failed call is an error, since a
 // partial answer would read as fewer advisories than there are.
 func (c *Client) Scan(ctx context.Context, pkgs []Package) (Summary, error) {
-	pkgs = distinct(pkgs)
-	if len(pkgs) > MaxPackages {
-		return Summary{}, ErrTooMany
-	}
-	ids := map[string]struct{}{}
-	for start := 0; start < len(pkgs); start += batchSize {
-		end := min(start+batchSize, len(pkgs))
-		if err := c.queryBatch(ctx, pkgs[start:end], ids); err != nil {
-			return Summary{}, err
-		}
-	}
-	if len(ids) > maxRecordIDs {
-		return Summary{}, ErrTooMany
-	}
-
-	recs, err := c.loadRecords(ctx, ids)
+	recs, _, err := c.match(ctx, pkgs)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -158,6 +159,33 @@ func (c *Client) Scan(ctx context.Context, pkgs []Package) (Summary, error) {
 	}
 
 	return sum, nil
+}
+
+// match asks OSV which advisories hit pkgs and reads their records. It also
+// says which of the packages each advisory id was found for.
+func (c *Client) match(ctx context.Context, pkgs []Package) (map[string]record, map[string][]Package, error) {
+	pkgs = distinct(pkgs)
+	if len(pkgs) > MaxPackages {
+		return nil, nil, ErrTooMany
+	}
+	ids := map[string]struct{}{}
+	hits := map[string][]Package{}
+	for start := 0; start < len(pkgs); start += batchSize {
+		end := min(start+batchSize, len(pkgs))
+		if err := c.queryBatch(ctx, pkgs[start:end], ids, hits); err != nil {
+			return nil, nil, err
+		}
+	}
+	if len(ids) > maxRecordIDs {
+		return nil, nil, ErrTooMany
+	}
+
+	recs, err := c.loadRecords(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return recs, hits, nil
 }
 
 // distinct drops repeats of one package: a lockfile lists the same name and
@@ -177,7 +205,8 @@ func distinct(pkgs []Package) []Package {
 
 // queryBatch asks about pkgs, following each package's page tokens, and adds
 // the advisory ids it finds to ids.
-func (c *Client) queryBatch(ctx context.Context, pkgs []Package, ids map[string]struct{}) error {
+func (c *Client) queryBatch(ctx context.Context, pkgs []Package, ids map[string]struct{}, hits map[string][]Package) error {
+	owners := pkgs // the package each query asks about
 	queries := make([]query, len(pkgs))
 	for i, p := range pkgs {
 		queries[i] = query{Version: p.Version, Package: queryPackage{Name: p.Name, Ecosystem: p.Ecosystem}}
@@ -192,32 +221,39 @@ func (c *Client) queryBatch(ctx context.Context, pkgs []Package, ids map[string]
 		if len(resp.Results) != len(queries) {
 			return fmt.Errorf("%w: %d results for %d queries", errBatchShape, len(resp.Results), len(queries))
 		}
-		next := collect(queries, resp.Results, ids)
+		next, nextOwners := collect(queries, owners, resp.Results, ids, hits)
 		if len(next) == 0 {
 			return nil
 		}
-		queries = next
+		queries, owners = next, nextOwners
 	}
 
 	return ErrTooMany
 }
 
-// collect adds the ids in results to ids and returns the queries that have a
-// further page.
-func collect(queries []query, results []batchResult, ids map[string]struct{}) []query {
-	var next []query
+// collect adds the ids in results to ids, and each id's package to hits, and
+// returns the queries that have a further page with the packages they ask about.
+func collect(queries []query, owners []Package, results []batchResult, ids map[string]struct{}, hits map[string][]Package) ([]query, []Package) {
+	var (
+		next       []query
+		nextOwners []Package
+	)
 	for i, r := range results {
 		for _, v := range r.Vulns {
 			ids[v.ID] = struct{}{}
+			if !slices.Contains(hits[v.ID], owners[i]) {
+				hits[v.ID] = append(hits[v.ID], owners[i])
+			}
 		}
 		if r.NextPageToken != "" {
 			q := queries[i]
 			q.PageToken = r.NextPageToken
 			next = append(next, q)
+			nextOwners = append(nextOwners, owners[i])
 		}
 	}
 
-	return next
+	return next, nextOwners
 }
 
 // loadRecords returns the record of every id, fetching the ones not held with
@@ -368,29 +404,65 @@ func (c *Client) fetchRecord(ctx context.Context, id string) (record, error) {
 	var v struct {
 		Aliases          []string `json:"aliases"`
 		Withdrawn        string   `json:"withdrawn"`
+		Summary          string   `json:"summary"`
+		Details          string   `json:"details"`
+		Published        string   `json:"published"`
 		DatabaseSpecific struct {
-			Severity string `json:"severity"`
+			Severity string   `json:"severity"`
+			CWEIDs   []string `json:"cwe_ids"`
 		} `json:"database_specific"`
 		Severity []struct {
 			Score string `json:"score"`
 		} `json:"severity"`
+		References []struct {
+			URL string `json:"url"`
+		} `json:"references"`
+		Affected []struct {
+			Package struct {
+				Name      string `json:"name"`
+				Ecosystem string `json:"ecosystem"`
+			} `json:"package"`
+			Ranges []struct {
+				Events []struct {
+					Fixed string `json:"fixed"`
+				} `json:"events"`
+			} `json:"ranges"`
+		} `json:"affected"`
 	}
 	if err := c.do(ctx, http.MethodGet, "/v1/vulns/"+url.PathEscape(id), nil, &v); err != nil {
 		return record{}, err
 	}
 
+	vectors := make([]string, 0, len(v.Severity))
+	for _, s := range v.Severity {
+		vectors = append(vectors, s.Score)
+	}
 	// The database's own word wins; the CVSS vectors only fill in when it
 	// states none.
 	sev := normaliseSeverity(v.DatabaseSpecific.Severity)
 	if sev == "" {
-		vectors := make([]string, 0, len(v.Severity))
-		for _, s := range v.Severity {
-			vectors = append(vectors, s.Score)
-		}
 		sev = severityFromVectors(vectors)
 	}
+	rec := record{
+		aliases: v.Aliases, withdrawn: v.Withdrawn != "", severity: sev, summary: v.Summary, details: v.Details,
+		published: v.Published, vectors: vectors, cwes: v.DatabaseSpecific.CWEIDs,
+	}
+	for _, r := range v.References {
+		rec.references = append(rec.references, r.URL)
+	}
+	for _, a := range v.Affected {
+		entry := affectedPackage{name: a.Package.Name, ecosystem: a.Package.Ecosystem}
+		for _, r := range a.Ranges {
+			for _, e := range r.Events {
+				if e.Fixed != "" && !slices.Contains(entry.fixed, e.Fixed) {
+					entry.fixed = append(entry.fixed, e.Fixed)
+				}
+			}
+		}
+		rec.affected = append(rec.affected, entry)
+	}
 
-	return record{aliases: v.Aliases, withdrawn: v.Withdrawn != "", severity: sev}, nil
+	return rec, nil
 }
 
 // normaliseSeverity maps the word GitHub's advisory database writes into an

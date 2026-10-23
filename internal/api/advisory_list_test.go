@@ -148,3 +148,36 @@ func TestContract_AdvisoryList(t *testing.T) {
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)
 }
+
+func TestAdvisoryList_ForgejoLister_ReturnsOSVMatchesAndPartial(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeForgejo, list: dashboard.AdvisoryList{
+		State: dashboard.AdvisoriesKnown, Partial: true,
+		Advisories: []dashboard.AdvisoryItem{{
+			Number: 1, State: "open", ID: "GHSA-aaaa-bbbb-cccc", Severity: dashboard.SeverityHigh, Summary: "A flaw",
+			Package: "lodash@4.17.0", Ecosystem: "npm", ManifestPath: "package-lock.json",
+			PatchedVersion: "4.17.21", URL: "https://osv.dev/vulnerability/GHSA-aaaa-bbbb-cccc",
+		}},
+	}}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := getAdvisoryList(t, srvURL, sessionCookie, "forgejo", "acme/lockfiles")
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "acme", source.lastOwner)
+	assert.Equal(t, "lockfiles", source.lastName)
+	assert.Equal(t, apistats.KindAdvisories, source.kind)
+	var body struct {
+		State      string           `json:"state"`
+		Partial    bool             `json:"partial"`
+		Advisories []map[string]any `json:"advisories"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, "known", body.State)
+	assert.True(t, body.Partial)
+	require.Len(t, body.Advisories, 1)
+	assert.Equal(t, "GHSA-aaaa-bbbb-cccc", body.Advisories[0]["id"])
+	assert.Equal(t, "https://osv.dev/vulnerability/GHSA-aaaa-bbbb-cccc", body.Advisories[0]["url"])
+}

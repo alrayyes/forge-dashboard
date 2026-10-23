@@ -29,11 +29,12 @@
     cvssBand,
     epssText,
     filterBySeverity,
+    forgeWords,
+    unreadableText,
     readAdvisoryList,
     referenceLinks,
     severityCounts,
   } from "#lib/advisories-dialog.js";
-  import { ADVISORY_REASON_TEXT } from "#lib/main-branches.js";
 
   let dialog: HTMLDialogElement;
   let body: HTMLDivElement | undefined = $state();
@@ -60,6 +61,7 @@
   const forgeName = $derived(
     target ? (FORGE_LABELS[target.forge] ?? target.forge) : "",
   );
+  const words = $derived(forgeWords(target?.forge ?? ""));
   const FILTERS: { key: SeverityFilter; label: string }[] = [
     { key: "all", label: "All open" },
     { key: "critical", label: "Critical" },
@@ -67,6 +69,8 @@
     { key: "medium", label: "Medium" },
     { key: "low", label: "Low" },
   ];
+  const partialNote =
+    "Some packages were left out because they may be private, so this list covers only the rest.";
   const countOf = (key: SeverityFilter) =>
     key === "all" ? items.length : counts[key];
 
@@ -138,11 +142,6 @@
       ?.focus({ preventScroll: true });
   }
 
-  function reasonText(reason: string | undefined): string {
-    const known = ADVISORY_REASON_TEXT as Record<string, string>;
-    return (reason && known[reason]) || "GitHub did not answer the read.";
-  }
-
   function pick(key: SeverityFilter) {
     filter = key;
   }
@@ -200,8 +199,8 @@
           href={current?.url ?? list?.url}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Open on {forgeName} (opens in a new tab)"
-          >Open on {forgeName}</a
+          aria-label="Open on {words.linkName} (opens in a new tab)"
+          >Open on {words.linkName}</a
         >
       {/if}
       <button
@@ -239,14 +238,22 @@
       >
     {:else if list?.state === "unknown"}
       <p class="adv-status" data-testid="advisories-unknown" role="status">
-        The advisories could not be read. {reasonText(list.reason)}
+        The advisories could not be read. {unreadableText(
+          target?.forge ?? "",
+          list.reason,
+        )}
       </p>
     {:else if current}
       {@render detail(current)}
     {:else if items.length === 0}
       <p class="adv-status" data-testid="advisories-empty" role="status">
-        No open advisories. Dependabot reports none for this repository.
+        {words.empty}
       </p>
+      {#if list?.partial}
+        <p class="adv-status" data-testid="advisories-partial" role="status">
+          {partialNote}
+        </p>
+      {/if}
     {:else}
       <div class="adv-filters" role="group" aria-label="Filter by severity">
         {#each FILTERS as f (f.key)}
@@ -263,6 +270,11 @@
         {/each}
         <span class="adv-sorted">Sorted by severity, then age</span>
       </div>
+      {#if list?.partial}
+        <p class="adv-status" data-testid="advisories-partial" role="status">
+          {partialNote}
+        </p>
+      {/if}
       <ul class="adv-list">
         {#each shown as item (item.number)}
           <li>
@@ -285,12 +297,11 @@
                   {/each}
                 </span>
                 <span class="adv-row-meta">
-                  {#if item.manifestPath}Detected in
+                  {#if item.manifestPath}{words.foundIn}
                     <code>{item.manifestPath}</code>{/if}
-                  {#if item.openedAt}
-                    {item.manifestPath ? " · " : ""}Opened {ago(
-                      item.openedAt,
-                    )}{/if}
+                  {#if item.openedAt}{item.manifestPath
+                      ? " · "
+                      : ""}{`${words.dateWord} ${ago(item.openedAt)}`}{/if}
                 </span>
               </span>
             </button>
@@ -334,6 +345,9 @@
   <div class="adv-badges">
     <span class="adv-chip">{item.state === "open" ? "Open" : item.state}</span>
     {@render sev(item.severity)}
+    {#if item.id && item.id !== item.ghsaId && item.id !== item.cveId}<span
+        class="adv-chip adv-id">{item.id}</span
+      >{/if}
     {#if item.ghsaId}<span class="adv-chip adv-id">{item.ghsaId}</span>{/if}
     {#if item.cveId}<span class="adv-chip adv-id">{item.cveId}</span>{/if}
   </div>
@@ -352,13 +366,13 @@
     {/if}
     {#if item.manifestPath}
       <div>
-        <dt>Detected in</dt>
+        <dt>{words.fileLabel}</dt>
         <dd><code>{item.manifestPath}</code></dd>
       </div>
     {/if}
     {#if item.openedAt}
       <div>
-        <dt>Opened</dt>
+        <dt>{words.dateWord}</dt>
         <dd>{formatDateTime(item.openedAt)} ({ago(item.openedAt)})</dd>
       </div>
     {/if}
@@ -369,7 +383,7 @@
       </div>
     {/if}
     <div>
-      <dt>Patched in</dt>
+      <dt>{words.patchedLabel}</dt>
       <dd>
         {#if item.patchedVersion}<code>{item.patchedVersion}</code>{:else}No
           patched version yet{/if}

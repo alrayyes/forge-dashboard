@@ -42,5 +42,8 @@ func ReadMainBranchSettled(ctx context.Context, c *Client, repo dashboard.RepoRe
 	return c.ReadMainBranch(ctx, repo)
 }
 
+// ListJoined is how many opens have joined a dialog read already in flight.
+func ListJoined(c *Client) int { return int(c.listJoined.Load()) }
+
 // CountChecks exposes the production tally of a check list to the black-box tests.
 var CountChecks = countChecks
