@@ -149,6 +149,14 @@ npm install is matched by its real name. A lock file lists many packages: past
 3000 distinct name and version pairs the repo is `unknown`. So is a repo where
 every package was left out for being private, since nothing was checked.
 
+When only some packages were left out, the answer is `known` and marked
+`partial`: it counts the advisories among what was checked, so read it as "at
+least this many". A module on the Forgejo host itself or a local `replace`
+directive counts as left out too. The pill then says "At least 3 advisories,
+high", and a count of zero says "None found, partly checked" instead of
+passing for a clean repo. A partly checked zero is in neither **Has advisories**
+nor **No advisories** in the filter, since it proves neither.
+
 The page does not flag an unknown Forgejo row that has no reason, since most
 repos have no lock file, and nothing is said while advisories are off. It does
 say when a read failed: a row that is `unknown` with the reason `failed` (OSV
@@ -160,10 +168,15 @@ sends nobody to a GitHub permission.
 Answers are cached for fifteen minutes. A failed read keeps the last answer for
 up to a day, or shows `unknown` if there is none or it is older, and is retried
 after five minutes, then ten, up to thirty while OSV stays down, without reading
-the lock files from the forge again. One repo's read gives up after ten seconds
-so a slow OSV can't hold up the CI row. A read costs one read of the file tree
-(one call per 1000 files, at most five) plus one read per lock file, counted
-under the `advisories` kind in [Rate limits](rate-limits.md).
+the lock files from the forge again. The read runs in the background, off the CI
+row. A row whose advisories are not cached comes back at once with the last
+answer, or `unknown` with no reason on a cold start, and the next refresh
+carries what the read found. One repo's read gives up after ten seconds of its
+own work; time spent queued behind the shared limit on OSV record fetches does
+not count, so a cold start across many repos doesn't time repos out. A read
+costs one read of the file tree (one call per 1000 files, at most five) plus one
+read per lock file, counted under the `advisories` kind in [Rate
+limits](rate-limits.md).
 
 ## When advisories can't be read
 

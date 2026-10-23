@@ -1098,6 +1098,7 @@
                       <span
                         class="mb-advisory"
                         data-tone={adv.tone}
+                        title={adv.hint}
                         data-testid="main-branch-advisories">{adv.text}</span
                       >
                     {/if}
