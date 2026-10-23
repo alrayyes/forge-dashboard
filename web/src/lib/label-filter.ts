@@ -44,20 +44,35 @@ export function labelKey(name: string): string {
     .toLowerCase();
 }
 
-export function parseLabels(saved: string | undefined): string[] {
+// Splits a saved pick into what fits the limits and the names that do not, so
+// a caller can say what was left out.
+export function splitLabels(saved: string | undefined): {
+  kept: string[];
+  dropped: string[];
+} {
   const seen = new Set<string>();
+  const dropped: string[] = [];
   let chars = 0;
   for (const part of (saved ?? '').split(SEPARATOR)) {
     const name = labelKey(part);
-    if (!name || seen.has(name)) continue;
-    if (seen.size >= MAX_LABELS) break;
+    if (!name || seen.has(name) || dropped.includes(name)) continue;
     const size = [...name].length + (seen.size > 0 ? 1 : 0);
-    if (chars + size > MAX_CHARS) continue;
-    if (encodedSize([...seen, name].join(SEPARATOR)) > MAX_ENCODED) continue;
+    if (
+      seen.size >= MAX_LABELS ||
+      chars + size > MAX_CHARS ||
+      encodedSize([...seen, name].join(SEPARATOR)) > MAX_ENCODED
+    ) {
+      dropped.push(name);
+      continue;
+    }
     chars += size;
     seen.add(name);
   }
-  return [...seen];
+  return { kept: [...seen], dropped };
+}
+
+export function parseLabels(saved: string | undefined): string[] {
+  return splitLabels(saved).kept;
 }
 
 export function joinLabels(labels: string[]): string {

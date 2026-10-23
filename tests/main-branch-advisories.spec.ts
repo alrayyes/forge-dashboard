@@ -213,6 +213,115 @@ test.describe('Branches page advisories pill', () => {
     ).toHaveCount(1);
   });
 
+  test('a failed Forgejo read gets its own notice, with no GitHub permission advice', async ({
+    page,
+  }) => {
+    const fj = (name: string, advisories?: object) => ({
+      ...row(name, advisories),
+      forge: 'forgejo',
+    });
+    await open(page, [
+      row('acme/gh', { state: 'known', count: 0 }),
+      fj('acme/a', { state: 'unknown', count: 0, reason: 'failed' }),
+      fj('acme/b', { state: 'unknown', count: 0, reason: 'failed' }),
+      // A repo with no lock file says nothing, and neither does a switched-off row.
+      fj('acme/nolock', { state: 'unknown', count: 0 }),
+    ]);
+
+    const notice = page.getByTestId('forgejo-advisories-notice');
+    await expect(notice).toHaveCount(1);
+    await expect(notice).toContainText('Forgejo repositories');
+    await expect(notice).toContainText('OSV could not be reached');
+    await expect(notice).not.toContainText('permission');
+    await expect(notice).not.toContainText('GitHub');
+    await expect(page.getByTestId('advisories-notice')).toHaveCount(0);
+    await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(0);
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 800 });
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations, `${theme} ${width}px`).toEqual([]);
+      }
+    }
+    await setTheme(page, 'light');
+  });
+
+  test('one unreadable Forgejo row among readable ones gets the quiet cue, not a notice', async ({
+    page,
+  }) => {
+    const fj = (name: string, advisories?: object) => ({
+      ...row(name, advisories),
+      forge: 'forgejo',
+    });
+    await open(page, [
+      fj('acme/a', { state: 'unknown', count: 0, reason: 'failed' }),
+      fj('acme/b', { state: 'known', count: 0 }),
+      fj('acme/nolock', { state: 'unknown', count: 0 }),
+      fj('acme/off', { state: 'unknown', count: 0, reason: 'not_enabled' }),
+    ]);
+
+    await expect(page.getByTestId('forgejo-advisories-notice')).toHaveCount(0);
+    await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(1);
+    await expect(
+      page
+        .locator('[data-testid="main-branch-row"]', { hasText: 'acme/a' })
+        .getByTestId('main-branch-advisories-cue'),
+    ).toHaveCount(1);
+  });
+
+  test('a Forgejo cue names why the row is unknown, and a GitHub cue keeps its plain name', async ({
+    page,
+  }) => {
+    const fj = (name: string, advisories?: object) => ({
+      ...row(name, advisories),
+      forge: 'forgejo',
+    });
+    await open(page, [
+      fj('acme/a', { state: 'unknown', count: 0, reason: 'failed' }),
+      fj('acme/big', { state: 'unknown', count: 0, reason: 'too_many' }),
+      fj('acme/b', { state: 'known', count: 0 }),
+    ]);
+
+    const cueOf = (repo: string) =>
+      page
+        .locator('[data-testid="main-branch-row"]', { hasText: repo })
+        .getByTestId('main-branch-advisories-cue');
+    await expect(cueOf('acme/a')).toHaveAccessibleName(
+      'Advisories unknown: the read failed',
+    );
+    await expect(cueOf('acme/big')).toHaveAccessibleName(
+      'Advisories unknown: too much to read',
+    );
+  });
+
+  test('a failed GitHub row and a failed Forgejo row each get their own notice, and a GitHub-only page has no Forgejo cue', async ({
+    page,
+  }) => {
+    const fj = (name: string, advisories?: object) => ({
+      ...row(name, advisories),
+      forge: 'forgejo',
+    });
+    await open(page, [
+      row('acme/gh', { state: 'unknown', count: 0, reason: 'failed' }),
+      fj('acme/fj', { state: 'unknown', count: 0, reason: 'failed' }),
+    ]);
+
+    await expect(page.getByTestId('advisories-notice')).toHaveCount(1);
+    await expect(page.getByTestId('forgejo-advisories-notice')).toHaveCount(1);
+    await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(0);
+
+    await open(page, [
+      row('acme/gh', { state: 'unknown', count: 0, reason: 'failed' }),
+      row('acme/ok', { state: 'known', count: 0 }),
+    ]);
+    await expect(page.getByTestId('forgejo-advisories-notice')).toHaveCount(0);
+    await expect(page.getByTestId('advisories-notice')).toHaveCount(0);
+    await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(1);
+  });
+
   test('a stale row keeps its pill beside the same stale chip every row gets', async ({
     page,
   }) => {

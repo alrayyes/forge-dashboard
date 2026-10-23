@@ -20,6 +20,25 @@ The system SHALL default the background refresh interval to no less than 15 minu
 - **WHEN** `REFRESH_INTERVAL` is set to a specific value
 - **THEN** the background refresh loop uses that value instead of the default
 
+### Requirement: The first refresh starts when the process does
+
+The system SHALL start the background refresh as the process starts, from the credentials saved in Settings, without waiting for a session or a request. It SHALL start nothing when no credentials are saved or they cannot be read, and a sign-in SHALL NOT rebuild a refresh that is already running. `/readyz` SHALL NOT wait for this refresh.
+
+#### Scenario: A restart refreshes before anyone asks
+
+- **WHEN** the server starts with credentials saved in Settings
+- **THEN** the first refresh begins without any request
+
+#### Scenario: Nothing saved starts nothing
+
+- **WHEN** the server starts with no credentials saved
+- **THEN** no refresh starts until settings are saved
+
+#### Scenario: Readiness stays independent of the forges
+
+- **WHEN** the boot refresh is still running against a slow forge
+- **THEN** `/readyz` answers ready
+
 ### Requirement: A webhook-triggered refresh is unaffected by the background poll's interval
 
 The system SHALL continue to trigger an immediate refresh on a verified webhook delivery regardless of how long remains until the next scheduled background poll.

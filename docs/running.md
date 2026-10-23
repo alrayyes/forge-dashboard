@@ -32,13 +32,12 @@ docker run --rm -p 8080:8080 \
 
 The image carries a `HEALTHCHECK` that runs `/forge-dashboard healthcheck`,
 which asks `GET /readyz`. It means "can serve": the database answers and its
-tables exist. Once someone has signed in and a first dashboard refresh has
-finished, it also waits on that, and a forge that failed the refresh still
-counts. A freshly started container has no refresh to wait for, since the
-app only fetches from the forges after a sign-in. The database ping gets 2
-seconds and its result is reused for about 3, so a stuck database answers
-503 instead of hanging the probe. On SIGTERM it answers 503 at once, then
-the server waits `SHUTDOWN_DRAIN` before it stops. A 200 also reports the
+tables exist. It does not wait for the first dashboard refresh, which the app
+starts itself as the process boots, from the credentials saved in Settings. A
+fresh installation with nothing saved has no refresh to start. The database ping
+gets 2 seconds and its result is reused for about 3, so a stuck database answers
+503 instead of hanging the probe. On SIGTERM it answers 503 at once, then the
+server waits `SHUTDOWN_DRAIN` before it stops. A 200 also reports the
 `goroutines` and OS `threads` the process holds. The container's process limit
 counts threads, so watch `threads` to see growth before the healthcheck can no
 longer start. A 50-repo refresh from six tabs peaks at about 20 threads, so
@@ -48,12 +47,14 @@ longer start. A 50-repo refresh from six tabs peaks at about 20 threads, so
 docker inspect --format '{{.State.Health.Status}}' <container>
 ```
 
-Readiness does not wait for the forges, on purpose. Ready means the app can
-serve its last saved view, and tying it to a third-party outage would take
-the dashboard down with the forge. After a restart the page shows the saved
-rows with a "Starting up, showing data from" line and a "loading" chip
-for each forge, until the first refresh has asked it. Only a fetch that
-fails is drawn as unreachable.
+Readiness does not wait for the forges, on purpose. The first refresh starts as
+the process boots, so it is usually done by the time the deploy has settled and
+you sign in, but a slow forge never holds the container back. Ready means the
+app can serve its last saved view, and tying it to a third-party outage would
+take the dashboard down with the forge. After a restart the page shows the saved
+rows with a "Starting up, showing data from" line and a "loading" chip for each
+forge, until the first refresh has asked it. Only a fetch that fails is drawn as
+unreachable.
 
 `starting` is normal for up to 30 seconds after boot, then `healthy`. A
 healthy container stays healthy when a forge goes unreachable. That shows

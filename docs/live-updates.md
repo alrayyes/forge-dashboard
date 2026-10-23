@@ -93,10 +93,11 @@ user ends. A snapshot restored from the last run already counts as loaded, so
 snapshot tells an empty board from one that hasn't loaded: it is `false` from
 process start until the viewer's first refresh has finished, whether it
 succeeded or failed (a failed one shows in the forge health), and `true` from
-then on, including after later refreshes and settings saves. It is not
-stored, so a restart resets it. An account with no saved settings has
-nothing to refresh, so it reads `true` at once. `GET /api/dashboard`, the
-stream and the `get_dashboard` MCP tool all carry it.
+then on, including after later refreshes and settings saves. It is not stored,
+so a restart resets it. The first refresh starts when the process does, from the
+saved credentials, so it is usually done before you sign in. An account with no
+saved settings has nothing to refresh, so it reads `true` at once. `GET
+/api/dashboard`, the stream and the `get_dashboard` MCP tool all carry it.
 
 The page doesn't wait for that answer to say it is loading. The server can hold
 `GET /api/dashboard` for up to 15 seconds on a cold start, so if nothing has
@@ -220,7 +221,8 @@ bytes a letter run out of room sooner, and the page stops ticking more once
 the room is gone. A saved pick over any of these limits is cut down to fit
 when the page loads. That includes a pick saved by an earlier build, which
 allowed up to 2000 characters as the cookie writes it: one over 1000 is cut to
-fit without a notice, so tick the rest again. If the server still refuses a
+fit. The page shows a notice naming each filter and the choices it dropped, once
+when it loads, so tick the rest again. If the server still refuses a
 save, the page says the filter was not saved and does not send it again by
 itself. The pick is saved in the same field as before, the labels in
 lowercase one after another. A page that doesn't offer one of the saved labels
