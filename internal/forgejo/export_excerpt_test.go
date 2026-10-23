@@ -22,9 +22,15 @@ func (e *ExcerptCacheForTest) Put(key, text string, final bool) { e.c.put(key, t
 
 func (e *ExcerptCacheForTest) Get(key string) (string, bool) { return e.c.get(key) }
 
-func (e *ExcerptCacheForTest) Fail(key string) { e.c.fail(key) }
+func (e *ExcerptCacheForTest) Fail(key string) { e.c.fail(key, failedExcerptDelay) }
+
+// FailEmpty remembers an empty log the way JobExcerpt does.
+func (e *ExcerptCacheForTest) FailEmpty(key string) { e.c.fail(key, emptyExcerptDelay) }
 
 func (e *ExcerptCacheForTest) RecentlyFailed(key string) bool { return e.c.recentlyFailed(key) }
+
+// EmptyExcerptDelay is how long an empty log is remembered.
+const EmptyExcerptDelay = emptyExcerptDelay
 
 // ExcerptReadWindow is the size of the log tail an excerpt read keeps.
 const ExcerptReadWindow = excerptReadWindow

@@ -419,6 +419,21 @@ func TestExcerptCache_AFailureIsForgottenAfterTheDelay(t *testing.T) {
 	assert.False(t, cache.RecentlyFailed("7@1"))
 }
 
+func TestExcerptCache_AnEmptyLogIsAskedForAgainSoonerThanAFailedRead(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	cache := forgejo.NewExcerptCacheForTest(func() time.Time { return now })
+	cache.FailEmpty("empty")
+	cache.Fail("broken")
+	require.True(t, cache.RecentlyFailed("empty"))
+
+	now = now.Add(forgejo.EmptyExcerptDelay)
+
+	assert.False(t, cache.RecentlyFailed("empty"), "a log still being flushed is worth another look soon")
+	assert.True(t, cache.RecentlyFailed("broken"), "a read that failed waits the full delay")
+}
+
 func TestExcerptCache_PastTheCapANewFailureIsStillRemembered(t *testing.T) {
 	t.Parallel()
 

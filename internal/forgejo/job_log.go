@@ -203,7 +203,7 @@ func (c *Client) rememberFailedJobs(owner, name string, checks []dashboard.Check
 // from a settled log is kept for good. One read before that, or for a job with
 // no finish time, is kept for a minute only, so a log that was still being
 // flushed is read once more. A read that failed, or found the log empty, is
-// remembered briefly too and answers with no excerpt until then, so a log that
+// remembered briefly too (an empty log for ten seconds, a failed read for a minute) and answers with no excerpt until then, so a log that
 // can't be read isn't asked for on every look.
 //
 // A missing log is no excerpt, not an error. A refused token or a rate limit
@@ -222,7 +222,7 @@ func (c *Client) JobExcerpt(ctx context.Context, owner, name string, id int64) (
 		// A caller that left says nothing about this log; the read's own error
 		// does, even when it lands just after.
 		if !errors.Is(err, context.Canceled) {
-			c.excerpts.fail(jk.key)
+			c.excerpts.fail(jk.key, failedExcerptDelay)
 		}
 		if clientErr, ok := errors.AsType[*dashboard.ClientError](err); ok && clientErr.Kind == dashboard.ForgeErrorNotFound {
 			return "", nil
@@ -232,8 +232,8 @@ func (c *Client) JobExcerpt(ctx context.Context, owner, name string, id int64) (
 	}
 	if text == "" {
 		// An empty log may only not have been flushed yet: ask again after the
-		// same short wait as a failed read, not on every look.
-		c.excerpts.fail(jk.key)
+		// short wait, not on every look.
+		c.excerpts.fail(jk.key, emptyExcerptDelay)
 
 		return "", nil
 	}
