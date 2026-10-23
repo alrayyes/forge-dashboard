@@ -1500,7 +1500,11 @@ paths:
         It answers once the forge has accepted the cancel, not when the run
         has stopped, so a client shows the run as cancelling and lets the next
         snapshot carry the result. A pull request offers it as a `cancel_run`
-        entry in `allowedActions` while its CI is running.
+        entry in `allowedActions` while any of its checks is running or
+        waiting, even when another check has already failed. The list can't
+        tell an Actions check from an external CI, so a pull request whose
+        only running check is an external one still offers it, and the
+        checks list then has no `runId` to send.
 
         It is never queued for a rate-limit reset. After the reset the run may
         be a different one, started by a newer push, and a cancel can't be
@@ -1509,6 +1513,9 @@ paths:
         Refusals are an `ActionError` (see Merge) and carry the forge's own
         plain-words `message`: the token may not write to Actions, the run
         already finished, or a Forgejo instance too old to have the route.
+        An old Forgejo answers the missing route with a 404, which looks the
+        same as a run that is gone, so it is reported as that and doesn't
+        stop the dialog offering the action.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:

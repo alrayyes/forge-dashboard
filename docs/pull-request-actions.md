@@ -764,21 +764,28 @@ rerun and is skipped; a pull request with nothing left to rerun answers "no
 failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
 `rerun_checks` in `allowedActions`).
 
-While a pull request's CI is running, the same panel offers `Cancel run: <workflow>`
-for each workflow run that still has a queued or running job, on GitHub and on
-Forgejo. Neither forge can stop one job of a running workflow, so the unit is
-the run: the confirm step names the whole run and the unfinished jobs that stop
-with it, and nothing is sent until you press `Yes, cancel run`. `Keep running`
-sends nothing. When the forge accepts, the panel says "Cancelling" and reads the
+While a pull request has a check running or waiting, even beside one that
+already failed, the same panel offers `Cancel run: <workflow>` for each workflow
+run that still has a queued or running job, on GitHub and on Forgejo. Neither
+forge can stop one job of a running workflow, so the unit is the run: the
+confirm step names the whole run and the unfinished jobs that stop with it (a
+Forgejo run whose jobs can't be read says it stops everything still going in
+it), and nothing is sent until you press `Yes, cancel run`. `Keep running` sends
+nothing. When the forge accepts, the panel says "Cancelling" and reads the
 checks again every few seconds until the run has stopped, then says it was
-cancelled. When the forge refuses (the token can't write to Actions, the run
-already finished, a Forgejo too old to have the cancel route, a rate limit), the
-panel shows the forge's own reason and draws no button for that run. A refused
-permission also removes the button from every run of that repository until the
-page is reloaded. It needs the same write access to Actions as the rerun. A job
-that isn't an Actions job, such as an external CI, belongs to no run and has no
-button. A cancel is never queued for a rate-limit reset: by then the run may be
-a different one, started by a newer push, and a cancel can't be undone
+cancelled. If the run is still going after eight reads, the panel says so, and
+the button comes back. When the forge refuses (the token can't write to Actions,
+the run already finished, a Forgejo too old to have the cancel route, a rate
+limit), the panel shows the forge's own reason and draws no button for that run.
+A refused permission also removes the button from every run of that repository
+for five minutes, so a fixed token works without a reload. It needs the same
+write access to Actions as the rerun. A job that isn't an Actions job, such as
+an external CI, belongs to no run and has no button, though a pull request with
+only an external CI running still lists `cancel_run`, since the list can't tell
+the two apart. A Forgejo too old to have the cancel route answers with a 404,
+which reads the same as a run that is gone, so the panel shows that reason and
+doesn't lock. A cancel is never queued for a rate-limit reset: by then the run
+may be a different one, started by a newer push, and a cancel can't be undone
 (`POST /api/checks/cancel-run` with `{forge, fullName, runId}`, listed as
 `cancel_run` in `allowedActions`).
 To name the run of a running job, GitHub's checks list makes two more reads of
