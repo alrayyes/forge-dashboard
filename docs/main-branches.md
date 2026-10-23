@@ -141,12 +141,13 @@ With it on, a repo with no lock file the dashboard reads is `unknown`, never
 zero. So is a repo where any lock file is over 8 megabytes, doesn't parse or,
 for `go.mod`, has no `module` line (it is asked again after an hour), and one
 that matches more than 300 distinct advisories. So is a repo with more than 20
-lock files, or whose file tree is too big to list in five calls, since a count
-over part of the repo would read as the whole. A `replace` directive in `go.mod`
-is applied, and an aliased npm install is matched by its real name. A lock file
-lists many packages: past 3000 distinct name and version pairs the repo is
-`unknown`. So is a repo where every package was left out for being private,
-since nothing was checked.
+lock files, or whose file tree has more than 5000 entries (five pages of 1000,
+files and directories together), so a huge repo of many projects is `unknown`; a
+count over part of the repo would read as the whole. A `replace` directive in
+`go.mod` is applied, and an aliased npm install is matched by its real name. A
+lock file lists many packages: past 3000 distinct name and version pairs the
+repo is `unknown`. So is a repo where every package was left out for being
+private, since nothing was checked.
 
 The page does not flag an unknown Forgejo row that has no reason, since most
 repos have no lock file, and nothing is said while advisories are off. It does

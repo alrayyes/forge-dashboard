@@ -73,6 +73,8 @@ var ignoredDirs = map[string]bool{"node_modules": true, "vendor": true, "testdat
 // the repo reads as unknown.
 const maxLockfileBytes = 8 << 20
 
+var errNoCommitID = errors.New("branch has no commit id")
+
 var errNoAdvisoryScanner = errors.New("forgejo: no advisory scanner configured")
 
 // AdvisoryScanner matches packages against a vulnerability database. osv.Client
@@ -228,9 +230,10 @@ func (c *advisoryCache) evict(keep string) {
 	}
 }
 
-// readAdvisories reads a repo's advisories from the lockfiles anywhere in
-// its default branch (any file in lockfileReaders: package-lock.json, bun.lock,
-// composer.lock, poetry.lock, uv.lock, Cargo.lock and go.mod), matched against OSV, or
+// readAdvisories reads a repo's advisories from the lockfiles anywhere in its
+// default branch (any file in lockfileReaders: package-lock.json, bun.lock,
+// composer.lock, poetry.lock, uv.lock, Cargo.lock and go.mod), matched against
+// OSV, or
 // starting from packages already read from the forge when known is set. Costs
 // one read of the file tree (up to maxTreePages) plus one read per lockfile found. It returns the
 // packages it read so a caller can keep them when OSV fails.
@@ -245,6 +248,9 @@ func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string,
 		return dashboard.Advisories{}, nil, errNoAdvisoryScanner
 	}
 	ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
+	if branch == "" && known == nil {
+		return *dashboard.UnknownAdvisories(), nil, nil // an empty repo has no branch to read
+	}
 
 	pkgs := known
 	if pkgs == nil {
@@ -374,7 +380,11 @@ func comparePackages(a, b osv.Package) int {
 // whole: lock files too big to read, or a tree the cap cut short, since files
 // past the cap could change the answer.
 func (c *Client) treeLockfiles(ctx context.Context, owner, name, branch string) (files, skipped []string, err error) {
-	base := fmt.Sprintf("/repos/%s/%s/git/trees/%s", url.PathEscape(owner), url.PathEscape(name), url.PathEscape(branch))
+	ref, err := c.treeRef(ctx, owner, name, branch)
+	if err != nil {
+		return nil, nil, err
+	}
+	base := fmt.Sprintf("/repos/%s/%s/git/trees/%s", url.PathEscape(owner), url.PathEscape(name), url.PathEscape(ref))
 	for page := 1; ; page++ {
 		if page > maxTreePages {
 			return nil, []string{"file tree past " + strconv.Itoa(maxTreePages) + " pages"}, nil
@@ -382,9 +392,6 @@ func (c *Client) treeLockfiles(ctx context.Context, owner, name, branch string) 
 		tree, err := c.treePage(ctx, fmt.Sprintf("%s?recursive=true&per_page=%d&page=%d", base, treePageItems, page))
 		if err != nil {
 			return nil, nil, err
-		}
-		if tree.Truncated {
-			return nil, []string{"file tree cut short"}, nil
 		}
 		f, sk := tree.lockfiles()
 		files, skipped = append(files, f...), append(skipped, sk...)
@@ -394,6 +401,31 @@ func (c *Client) treeLockfiles(ctx context.Context, owner, name, branch string) 
 	}
 }
 
+// treeRef is what to ask the tree route for. The route's {sha} segment can't
+// hold a slash, so a branch like release/1 is resolved to its commit id first,
+// at the cost of one more call. Other names go in as they are.
+func (c *Client) treeRef(ctx context.Context, owner, name, branch string) (string, error) {
+	if !strings.Contains(branch, "/") {
+		return branch, nil
+	}
+	reqPath := fmt.Sprintf("/repos/%s/%s/branches/%s", url.PathEscape(owner), url.PathEscape(name), escapePath(branch))
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", reqPath)
+	body, resp, err := c.rawRequest(ctx, http.MethodGet, reqPath, nil)
+	if err != nil {
+		return "", c.forgejoError(ctx, http.MethodGet, reqPath, resp, err)
+	}
+	var b struct {
+		Commit struct {
+			ID string `json:"id"`
+		} `json:"commit"`
+	}
+	if err := json.Unmarshal(body, &b); err != nil || b.Commit.ID == "" {
+		return "", fmt.Errorf("forgejo: read %s: %w", reqPath, errNoCommitID)
+	}
+
+	return b.Commit.ID, nil
+}
+
 // gitTree is one page of Forgejo's recursive file tree.
 type gitTree struct {
 	Tree []struct {
@@ -401,8 +433,7 @@ type gitTree struct {
 		Type string `json:"type"`
 		Size int64  `json:"size"`
 	} `json:"tree"`
-	Truncated  bool `json:"truncated"`
-	TotalCount int  `json:"total_count"`
+	TotalCount int `json:"total_count"`
 }
 
 // lockfiles are the lock files on this page: the paths small enough to read,

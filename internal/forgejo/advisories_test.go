@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -52,30 +54,60 @@ type lockfileServer struct {
 	requests atomic.Int32
 	url      string // set by start
 
-	truncated   bool     // the tree answer says it left entries out
-	treeQueries []string // query strings the tree was asked with
+	branch      string // a slashed branch name the fake resolves to a commit
+	filler      int    // extra files ahead of the rest in the tree, to make it span pages
+	mu          sync.Mutex
+	treeQueries []string // "ref?query" of each tree call
 }
 
 func (s *lockfileServer) start(t *testing.T, scanner forgejo.AdvisoryScanner) *forgejo.Client {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/repos/alrayyes/a/git/trees/main", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/git/trees/{ref}", func(w http.ResponseWriter, r *http.Request) {
 		s.requests.Add(1)
-		s.treeQueries = append(s.treeQueries, r.URL.RawQuery)
+		s.mu.Lock()
+		s.treeQueries = append(s.treeQueries, r.PathValue("ref")+"?"+r.URL.RawQuery)
+		s.mu.Unlock()
 		if s.listCode != 0 {
 			w.WriteHeader(s.listCode)
 
 			return
 		}
 		entries := []map[string]any{{"path": "README.md", "type": "blob", "size": 10}, {"path": "src", "type": "tree"}}
-		for name, body := range s.files {
-			size := len(body)
+		names := make([]string, 0, len(s.files))
+		for name := range s.files {
+			names = append(names, name)
+		}
+		slices.Sort(names)
+		for _, name := range names {
+			size := len(s.files[name])
 			if n, ok := s.sizes[name]; ok {
 				size = n
 			}
 			entries = append(entries, map[string]any{"path": name, "type": "blob", "size": size})
 		}
-		writeJSON(t, w, map[string]any{"tree": entries, "page": 1, "total_count": len(entries), "truncated": s.truncated})
+		// Filler goes first so a lock file lands on a later page, as in a big repo.
+		filler := make([]map[string]any, 0, s.filler+len(entries))
+		for i := range s.filler {
+			filler = append(filler, map[string]any{"path": fmt.Sprintf("assets/f%05d.txt", i), "type": "blob", "size": 1})
+		}
+		entries = append(filler, entries...)
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+		page, perPage = max(page, 1), min(max(perPage, 1), 1000)
+		lo := min((page-1)*perPage, len(entries))
+		hi := min(lo+perPage, len(entries))
+		// Like Forgejo, truncated is set whenever the whole tree is bigger than a page.
+		writeJSON(t, w, map[string]any{"tree": entries[lo:hi], "page": page, "total_count": len(entries), "truncated": len(entries) > perPage})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/branches/{name...}", func(w http.ResponseWriter, r *http.Request) {
+		s.requests.Add(1)
+		if r.PathValue("name") != s.branch {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+		writeJSON(t, w, map[string]any{"name": s.branch, "commit": map[string]any{"id": "abc123"}})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/raw/{file...}", func(w http.ResponseWriter, r *http.Request) {
 		s.requests.Add(1)
@@ -689,6 +721,7 @@ func TestReadAdvisories_FindsLockfilesInSubdirectoriesWithOneTreeRead(t *testing
 	assert.EqualValues(t, 4, forge.requests.Load(), "one tree read and three raw reads")
 	require.Len(t, forge.treeQueries, 1)
 	assert.Contains(t, forge.treeQueries[0], "recursive=true")
+	assert.True(t, strings.HasPrefix(forge.treeQueries[0], "main?"))
 }
 
 func TestReadAdvisories_LeavesVendoredAndTestdataLockfilesAlone(t *testing.T) {
@@ -723,13 +756,79 @@ func TestReadAdvisories_TooManyLockfilesMakesTheRepoUnknown(t *testing.T) {
 	assert.EqualValues(t, 1, forge.requests.Load(), "no lock file is read past the cap")
 }
 
-func TestReadAdvisories_ATruncatedTreeMakesTheRepoUnknown(t *testing.T) {
+func TestReadAdvisories_ALockfileOnASecondTreePageIsFound(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{summary: osv.Summary{Count: 1}}
+	forge := &lockfileServer{files: map[string]string{"web/package-lock.json": lockJSON}, filler: 1500}
+
+	got, err := forgejo.ReadAdvisories(t.Context(), forge.start(t, scanner), "alrayyes", "a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 1}, got, "a big tree is paged, not given up on")
+	require.Len(t, forge.treeQueries, 2)
+	assert.Contains(t, forge.treeQueries[0], "page=1")
+	assert.Contains(t, forge.treeQueries[1], "page=2")
+	assert.EqualValues(t, 3, forge.requests.Load(), "two tree pages and one raw read")
+}
+
+func TestReadAdvisories_ATreeNeedingASixthPageIsUnknown(t *testing.T) {
 	t.Parallel()
 	scanner := &fakeScanner{}
-	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}, truncated: true}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}, filler: 5000}
 
 	got, err := forgejo.ReadAdvisories(t.Context(), forge.start(t, scanner), "alrayyes", "a")
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, got)
 	assert.Zero(t, scanner.calls())
+	assert.Len(t, forge.treeQueries, 5, "five pages are read, never a sixth")
+}
+
+func TestReadAdvisories_ATreeOfExactlyFivePagesIsRead(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{}
+	// README.md, src and the lock file make three entries.
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}, filler: 5000 - 3}
+
+	got, err := forgejo.ReadAdvisories(t.Context(), forge.start(t, scanner), "alrayyes", "a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AdvisoriesKnown, got.State)
+	assert.Len(t, forge.treeQueries, 5)
+}
+
+func TestReadAdvisories_SkipRulesMatchWholeDirectoryNames(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{}
+	forge := &lockfileServer{files: map[string]string{
+		"vendored/package-lock.json":           lockJSON,
+		"mynode_modules/go.mod":                "module x\n\nrequire github.com/a/b v1.2.3\n",
+		"web/node_modules/x/package-lock.json": "not json",
+	}}
+
+	got, err := forgejo.ReadAdvisories(t.Context(), forge.start(t, scanner), "alrayyes", "a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AdvisoriesKnown, got.State, "the nested node_modules file would not parse")
+	assert.EqualValues(t, 3, forge.requests.Load(), "one tree read and the two look-alike directories")
+}
+
+func TestReadAdvisories_ASlashedBranchIsResolvedToItsCommit(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}, branch: "release/1"}
+
+	got, err := forgejo.ReadAdvisoriesOn(t.Context(), forge.start(t, scanner), "alrayyes", "a", "release/1")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AdvisoriesKnown, got.State)
+	require.Len(t, forge.treeQueries, 1)
+	assert.True(t, strings.HasPrefix(forge.treeQueries[0], "abc123?"), "the tree is asked for by commit id: %s", forge.treeQueries[0])
+}
+
+func TestReadAdvisories_NoDefaultBranchIsUnknownWithoutACall(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
+
+	got, err := forgejo.ReadAdvisoriesOn(t.Context(), forge.start(t, scanner), "alrayyes", "a", "")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
+	assert.Empty(t, got.Reason, "an empty repo is not a failed read")
+	assert.Zero(t, forge.requests.Load())
 }
