@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.18.1](https://github.com/alrayyes/forge-dashboard/compare/v2.18.0...v2.18.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** drop the state word from the pull request pills on the issues page ([#2657](https://github.com/alrayyes/forge-dashboard/issues/2657)) ([acb9b5c](https://github.com/alrayyes/forge-dashboard/commit/acb9b5c91e4fc6a6e01228665e591a0f0036eaaf))
+
 ## [2.18.0](https://github.com/alrayyes/forge-dashboard/compare/v2.17.4...v2.18.0) (2026-10-23)
 
 
