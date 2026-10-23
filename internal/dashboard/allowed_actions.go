@@ -253,6 +253,16 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		return blocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
 		return blocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
+	default:
+		return forgeMergeAvailability(pr, blocked)
+	}
+}
+
+// forgeMergeAvailability is the last of Merge's rules: what the forge itself
+// says once the pull request is not stacked, conflicting, a draft, waiting on
+// CI or behind.
+func forgeMergeAvailability(pr PullRequest, blocked func(ActionCode, string, string) ActionAvailability) ActionAvailability {
+	switch {
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
 		return blocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
 	case pr.MergeStatus == MergeBlocked:
