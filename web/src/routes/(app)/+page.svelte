@@ -76,6 +76,18 @@
   // The branch whose dialog is open, to follow its row from each refresh.
   let openRow: MainBranch | null = null;
   const rerun = createBranchRerun();
+  const REDRAW_NOTE =
+    "The rerun control could not be updated, so it may be out of date. Reload the page if it looks wrong.";
+  // The same note inside the open dialog, where a screen reader user is; the
+  // page behind it is inert. Always mounted, so filling it is announced.
+  let dialogNote: HTMLElement | null = null;
+  $effect(() => {
+    // Read first, so the effect depends on it even while no dialog is open.
+    const failed = redrawFailed;
+    if (!dialogNote) return;
+    dialogNote.hidden = !failed;
+    dialogNote.textContent = failed ? REDRAW_NOTE : "";
+  });
   const redrawGuard = createRedrawGuard((err) =>
     console.error("The rerun control could not be redrawn", err),
   );
@@ -185,17 +197,30 @@
       errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
       runUrl: b.runUrl,
       forgeName: FORGE_LABELS[b.forge] ?? b.forge,
-      controls: (failed) =>
-        failed && openRow
-          ? rerun.control(
-              openRow,
-              () => branchSignature(latest(openRow ?? b)),
-              () => forgeLockReason(data?.forges, b.forge),
-            )
-          : null,
+      controls: (failed) => {
+        if (!failed || !openRow) return null;
+        const wrap = document.createElement("div");
+        const note = document.createElement("p");
+        note.className = "rerun-redraw-note";
+        note.setAttribute("role", "status");
+        note.dataset.testid = "rerun-redraw-note-dialog";
+        note.hidden = !redrawFailed;
+        note.textContent = redrawFailed ? REDRAW_NOTE : "";
+        dialogNote = note;
+        wrap.append(
+          rerun.control(
+            openRow,
+            () => branchSignature(latest(openRow ?? b)),
+            () => forgeLockReason(data?.forges, b.forge),
+          ),
+          note,
+        );
+        return wrap;
+      },
       opener,
       onClose: () => {
         openRow = null;
+        dialogNote = null;
       },
     });
   }
@@ -407,6 +432,10 @@
     .mb-banner {
       border-left-color: var(--warning);
       background: var(--warning-bg);
+    }
+    /* An author display: flex beats the UA's [hidden] { display: none }. */
+    .mb-banner[hidden] {
+      display: none;
     }
     .mb-note.good {
       border-left-color: var(--good);
@@ -769,9 +798,7 @@
     data-testid="rerun-redraw-note"
     hidden={!redrawFailed}
   >
-    {redrawFailed
-      ? "The rerun control could not be updated, so it may be out of date. Reload the page if it looks wrong."
-      : ""}
+    {redrawFailed ? REDRAW_NOTE : ""}
   </p>
   {#if pending}
     <div class="list-region" aria-busy="true">

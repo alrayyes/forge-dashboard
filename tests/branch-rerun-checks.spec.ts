@@ -86,6 +86,8 @@ async function openPanel(
     .click();
   const dialog = page.getByRole('dialog', { name: /pipeline/i });
   await expect(dialog.getByRole('listitem')).toHaveCount(state.checks.length);
+  // Mounted empty so it can be announced, and must not show until it speaks.
+  await expect(page.getByTestId('rerun-redraw-note')).toBeHidden();
   return dialog;
 }
 
@@ -626,6 +628,53 @@ test.describe('main branches rerun failed checks', () => {
       'tabindex',
       /.*/,
     );
+  });
+
+  test('a redraw that throws says so on the page and inside the dialog, and clears when it recovers', async ({
+    page,
+  }) => {
+    const forges: unknown[] = [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ];
+    await page.clock.install();
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      forges,
+    });
+    const pageNote = page.getByTestId('rerun-redraw-note');
+    const dialogNote = dialog.getByTestId('rerun-redraw-note-dialog');
+    await expect(dialogNote).toBeHidden();
+
+    // The redraw walks each control's node; make that throw.
+    await page.evaluate(() => {
+      const real = Object.getOwnPropertyDescriptor(
+        Node.prototype,
+        'isConnected',
+      ) as PropertyDescriptor;
+      (window as unknown as { __real: PropertyDescriptor }).__real = real;
+      Object.defineProperty(Node.prototype, 'isConnected', {
+        configurable: true,
+        get() {
+          throw new Error('draw failed');
+        },
+      });
+    });
+    await runUntilPolled(page);
+    await expect(pageNote).toBeVisible();
+    await expect(pageNote).toContainText('could not be updated');
+    await expect(dialogNote).toBeVisible();
+    await expect(dialogNote).toContainText('could not be updated');
+
+    await page.evaluate(() => {
+      Object.defineProperty(
+        Node.prototype,
+        'isConnected',
+        (window as unknown as { __real: PropertyDescriptor }).__real,
+      );
+    });
+    await runUntilPolled(page);
+    await expect(pageNote).toBeHidden();
+    await expect(dialogNote).toBeHidden();
   });
 
   test('keyboard focus returns to the button when the lock lifts', async ({
