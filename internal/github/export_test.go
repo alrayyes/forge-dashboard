@@ -1,11 +1,12 @@
 package github
 
 import (
-	"github.com/alrayyes/forge-dashboard/internal/advisorycache"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/advisorycache"
 )
 
 // ExpireAdvisories ages every cached advisory answer past its TTL and retry delay.
