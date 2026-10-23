@@ -117,9 +117,11 @@ A repo with no open alerts says so. An answer GitHub would not give (the
 permission is missing, alerts are switched off, a rate limit or an error) says
 so in the dialog with the same causes as
 [When advisories can't be read](#when-advisories-cant-be-read), and a failed
-request offers **Try again**. Forgejo rows keep their count without the dialog
-for now. `GET /api/main-branches/advisories?forge=github&fullName=owner/repo`
-answers the list for the dialog and is not offered as an MCP tool.
+request offers **Try again**. The pill on a Forgejo row opens the same dialog,
+described under [Forgejo advisories](#forgejo-advisories).
+`GET /api/main-branches/advisories?forge=github&fullName=owner/repo` (or
+`forge=forgejo`) answers the list for the dialog and is not offered as an MCP
+tool.
 
 ## Forgejo advisories
 
@@ -133,8 +135,25 @@ severity is the highest the advisory database states. An advisory with no
 stated severity but a CVSS v3.x or v4 vector gets one from the vector's base
 score: under 4.0 is low, 4.0 to 6.9 medium, 7.0 to 8.9 high and 9.0 or more
 critical. An advisory with neither still counts, and the pill then shows the
-count alone. The pill does not link anywhere, since OSV has no page for a whole
-repo.
+count alone. The pill opens a dialog that lists the advisories behind the count,
+since OSV has no page for a whole repo to link to.
+
+The dialog is the same as the GitHub one, with the facts OSV states. Opening it
+reads the file tree and the lock files again, then asks OSV, so it costs the
+same as one refresh of that repo (see [Rate limits](rate-limits.md)), and it
+works only while `OSV_ADVISORIES=on`. Each row shows the severity, the title,
+the package with its installed version and ecosystem, the lock files it was
+found in and when the advisory was published. The detail adds the advisory ids,
+the version that fixes it, the CVSS score and vector when the record states
+one, the weaknesses, the description and the references, and **Open on OSV**
+goes to the OSV page for that advisory. What OSV does not state is left out
+rather than shown empty: the exploit probability (EPSS), whether a dependency
+is direct or transitive, whether it is for runtime or development, and the
+affected version range. An advisory that hits several packages lists them all.
+A list over a partly checked repo says that packages were left out. When the
+read fails, the dialog gives the Forgejo cause (OSV unreachable, a lock file
+that can't be read, too much to read, advisories not switched on, or no lock
+file found) and never sends anyone to a GitHub permission.
 
 - `package-lock.json`, any lock file version (npm). Packages not resolved from
   the public npm registry are kept out.

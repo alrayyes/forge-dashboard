@@ -1,3 +1,5 @@
+import { ADVISORY_REASON_TEXT } from './main-branches';
+
 // Pure helpers for the advisories dialog: the shapes the endpoint returns,
 // the severity filter, and the text the list and detail views print.
 
@@ -18,6 +20,8 @@ export interface AdvisoryItem {
   state: string;
   severity?: AdvisorySeverity | string;
   summary: string;
+  // The advisory's own id, for a source with no GHSA or CVE id to show.
+  id?: string;
   ghsaId?: string;
   cveId?: string;
   package?: string;
@@ -39,6 +43,8 @@ export interface AdvisoryItem {
 export interface AdvisoryList {
   state: 'known' | 'unknown';
   reason?: string;
+  // A Forgejo list that leaves out packages it may not send to OSV.
+  partial?: boolean;
   url?: string;
   advisories: AdvisoryItem[];
 }
@@ -167,4 +173,50 @@ export async function readAdvisoryList(
       message: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+// The words that differ between a GitHub list (Dependabot alerts) and a
+// Forgejo one (OSV matches against lock files).
+export function forgeWords(forge: string) {
+  if (forge === 'forgejo') {
+    return {
+      linkName: 'OSV',
+      foundIn: 'Found in',
+      fileLabel: 'Lock file',
+      dateWord: 'Published',
+      empty:
+        'No known advisories. OSV lists none for the packages in this repository’s lock files.',
+    };
+  }
+  return {
+    linkName: 'GitHub',
+    foundIn: 'Detected in',
+    fileLabel: 'Detected in',
+    dateWord: 'Opened',
+    empty: 'No open advisories. Dependabot reports none for this repository.',
+  };
+}
+
+const FORGEJO_UNREADABLE: Record<string, string> = {
+  not_enabled:
+    'Advisories are switched off for Forgejo repositories. Set OSV_ADVISORIES=on to check lock files against OSV; the package names and versions in them are sent to api.osv.dev.',
+  failed:
+    'OSV could not be reached, or a lock file could not be read or is over 8 megabytes. Try again in a moment.',
+  too_many:
+    'A lock file lists more packages, or the repository matches more advisories, than the dashboard reads in one go.',
+};
+
+// Why a list could not be read, in the words of the forge it came from.
+export function unreadableText(
+  forge: string,
+  reason: string | undefined,
+): string {
+  if (forge === 'forgejo') {
+    return (
+      (reason && FORGEJO_UNREADABLE[reason]) ||
+      'The dashboard found no lock file it reads on the default branch, so nothing was checked.'
+    );
+  }
+  const known = ADVISORY_REASON_TEXT as Record<string, string>;
+  return (reason && known[reason]) || 'GitHub did not answer the read.';
 }
