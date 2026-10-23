@@ -37,6 +37,10 @@ export interface FilterableItem {
   autoMergeEnabled?: boolean;
   draft?: boolean;
   mergeStatus?: string;
+  // Whether the base branch has moved on, and whether nothing is left to
+  // merge. Both are the server's answers; absent from an older server.
+  behind?: boolean;
+  empty?: boolean;
   labels?: { name: string }[];
   review?: { decision: string; requestedReviewers: number };
   // True for a bot's housekeeping issue; the server decides (#980).
@@ -70,6 +74,7 @@ export const QUICK_FILTERS = [
   'needs-review',
   'review-requested',
   'conflicting',
+  'out-of-date',
 ] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
 
@@ -122,6 +127,11 @@ export function matchesQuickFilter(
       // rule of its own. A draft that conflicts still needs the conflict
       // fixed, so it is listed too (#1215).
       return item.mergeStatus === 'conflicting';
+    case 'out-of-date':
+      // The fields the row's own Out of date badge reads: behind its base,
+      // with something left to merge. An empty pull request has nothing to
+      // update, so the row draws no badge and the filter skips it too.
+      return item.behind === true && item.empty !== true;
     default:
       return true;
   }

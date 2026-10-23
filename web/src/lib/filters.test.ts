@@ -296,6 +296,40 @@ describe('the No checks quick filter', () => {
   });
 });
 
+// The Out of date pill lists the pull requests whose base branch moved on. It
+// reads the same `behind` field as the row's badge, and an empty pull request
+// is left out because the row draws no badge for one.
+describe('the Out of date quick filter', () => {
+  test('is a quick filter', () => {
+    expect(QUICK_FILTERS).toContain('out-of-date');
+  });
+
+  test('matches a behind pull request that has something to merge', () => {
+    expect(
+      matchesQuickFilter(choiceItem({ behind: true }), 'out-of-date'),
+    ).toBe(true);
+    expect(
+      matchesQuickFilter(
+        choiceItem({ behind: true, draft: true }),
+        'out-of-date',
+      ),
+    ).toBe(true);
+  });
+
+  test('leaves out one that is up to date, empty or not reported', () => {
+    expect(
+      matchesQuickFilter(choiceItem({ behind: false }), 'out-of-date'),
+    ).toBe(false);
+    expect(matchesQuickFilter(choiceItem(), 'out-of-date')).toBe(false);
+    expect(
+      matchesQuickFilter(
+        choiceItem({ behind: true, empty: true }),
+        'out-of-date',
+      ),
+    ).toBe(false);
+  });
+});
+
 // The title box on the Issues, Pull requests and Bot PRs pages also takes a number. Pure, so it runs
 // without a browser; the page wiring is in issues-number-filter.spec.ts.
 // https://github.com/alrayyes/forge-dashboard/issues/2155
