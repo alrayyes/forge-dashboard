@@ -163,5 +163,7 @@ func TestCancelRun_RefusesARepositoryTheDashboardDoesNotTrack_WithoutAskingTheFo
 
 	assert.Equal(t, http.StatusNotFound, status)
 	assert.Contains(t, fmt.Sprint(body["error"]), "isn't tracked")
+	assert.Equal(t, "unknown", body["code"], "an ActionError, so a dialog shows its message")
+	assert.Contains(t, fmt.Sprint(body["message"]), "isn't tracked")
 	assert.Empty(t, src.calls())
 }

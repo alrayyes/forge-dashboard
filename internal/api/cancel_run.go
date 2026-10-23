@@ -23,8 +23,10 @@ type cancelRunRequest struct {
 // which repository it belongs to, so this is what keeps the route from
 // cancelling runs in a repository the dashboard never shows.
 func trackedRepository(ctx context.Context, deps Deps, forge, fullName string) bool {
+	warmUpAggregator(ctx, deps)
 	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
 	snap := deps.Service.Get()
+
 	if slices.ContainsFunc(snap.Repos, func(r dashboard.Repo) bool {
 		return string(r.Forge) == forge && r.FullName == fullName
 	}) {
@@ -35,9 +37,13 @@ func trackedRepository(ctx context.Context, deps Deps, forge, fullName string) b
 	}) {
 		return true
 	}
-	_, ok := trackedMainBranch(ctx, deps, forge, fullName)
+	// Only the one row is looked up: the whole Main branches response isn't
+	// built for a cancel.
+	board := loadBoardSettings(ctx, deps.SettingsStore)
 
-	return ok
+	return slices.ContainsFunc(board.mainBranchRows(snap.MainBranches), func(b dashboard.MainBranch) bool {
+		return string(b.Forge) == forge && b.FullName == fullName
+	})
 }
 
 // handleCancelRun asks the forge to cancel the named workflow run, the one the
@@ -75,7 +81,8 @@ func handleCancelRun(deps Deps) http.HandlerFunc {
 		}
 
 		if !trackedRepository(r.Context(), deps, req.Forge, req.FullName) {
-			writeJSON(w, http.StatusNotFound, errorBody("that repository isn't tracked"))
+			const msg = "That repository isn't tracked by the dashboard."
+			writeJSON(w, http.StatusNotFound, actionErrorBody{Error: "that repository isn't tracked", Code: string(dashboard.ActionUnknown), Message: msg})
 
 			return
 		}
