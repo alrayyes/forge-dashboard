@@ -130,8 +130,7 @@ func TestListAdvisories_ScoresFromTheNewestCVSSWhenTheTopLevelOneIsEmpty(t *test
 
 	client := advisoryClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		a := fullAlert(1, "critical", "2026-10-22T13:02:20Z")
-		adv, ok := a["security_advisory"].(map[string]any)
-		require.True(t, ok)
+		adv, _ := a["security_advisory"].(map[string]any)
 		adv["cvss"] = map[string]any{"score": 0.0, "vector_string": nil}
 		adv["epss"] = nil
 		adv["cvss_severities"] = map[string]any{
