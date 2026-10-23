@@ -36,10 +36,9 @@ func (c *Client) CancelRun(ctx context.Context, owner, name string, runID int64)
 }
 
 // activeRunStatuses are the workflow run statuses of a run that has not
-// finished: the ones a cancel can still stop.
-var activeRunStatuses = map[string]bool{
-	"queued": true, "in_progress": true, "waiting": true, "pending": true, "requested": true,
-}
+// finished and is being worked on: the ones a cancel can still stop. A run held
+// for approval ("waiting") has no job going and is left out.
+var activeRunStatuses = map[string]bool{"queued": true, "in_progress": true}
 
 // jobStillGoing reports whether ch is a job that is queued or running.
 func jobStillGoing(ch dashboard.Check) bool {
@@ -70,10 +69,6 @@ func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks
 	}
 }
 
-// maxRunPages bounds the runs read for one commit. A commit with more runs
-// than this many pages is not a pipeline anyone cancels by hand.
-const maxRunPages = 5
-
 // activeRunJobs maps the id of each job of an unfinished run on sha to its run.
 func (c *Client) activeRunJobs(ctx context.Context, owner, name, sha string) map[int64]runRef {
 	byJob := map[int64]runRef{}
@@ -98,33 +93,32 @@ func (c *Client) activeRunJobs(ctx context.Context, owner, name, sha string) map
 	return byJob
 }
 
-// unfinishedRuns lists the queued and running workflow runs of sha. It follows
-// the pages, so an active run is not lost behind a hundred finished ones, and
-// it returns what it has read when a page fails.
+// unfinishedRuns lists the queued and running workflow runs of sha. It asks
+// the forge for each status in turn, so the active runs come back on the first
+// page however many finished runs the commit has. A status that fails to read
+// leaves the other's runs, never an error.
 func (c *Client) unfinishedRuns(ctx context.Context, owner, name, sha string) []*ghsdk.WorkflowRun {
 	var active []*ghsdk.WorkflowRun
+	seen := map[int64]bool{}
 
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
-	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha}
-	opts.PerPage = perPage
-	for range maxRunPages {
-		slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
+	for _, status := range []string{"queued", "in_progress"} {
+		slog.Debug("github request", "method", http.MethodGet, "url", runsPath, "status", status)
+		opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha, Status: status}
+		opts.PerPage = perPage
 		runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, opts)
 		if err != nil {
-			slog.Debug("github workflow runs unavailable", "path", runsPath, "err", err)
+			slog.Debug("github workflow runs unavailable", "path", runsPath, "status", status, "err", err)
 
-			return active
+			continue
 		}
 		c.recordRESTSuccess(ctx, http.MethodGet, runsPath, resp)
 		for _, run := range runs.WorkflowRuns {
-			if activeRunStatuses[run.GetStatus()] {
+			if activeRunStatuses[run.GetStatus()] && !seen[run.GetID()] {
+				seen[run.GetID()] = true
 				active = append(active, run)
 			}
 		}
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
 	}
 
 	return active

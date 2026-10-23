@@ -51,28 +51,26 @@ func (s *cancelServer) start(t *testing.T) *github.Client {
 
 			return
 		}
-		if s.pagedRuns && r.URL.Query().Get("page") != "2" {
-			// The active runs sit on the second page, past a finished one.
-			w.Header().Set("Link", `<http://`+r.Host+`/repos/alrayyes/a/actions/runs?head_sha=cafef00d&page=2>; rel="next"`)
-			writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
-				{"id": 800, "name": "Old", "status": "completed"},
-			}})
-
-			return
-		}
-		if s.pagedRuns {
-			writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
-				{"id": 900, "name": "CI", "status": "in_progress"},
-				{"id": 901, "name": "Release", "status": "queued"},
-			}})
-
-			return
-		}
-		writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
+		all := []map[string]any{
 			{"id": 800, "name": "Old", "status": "completed"},
 			{"id": 900, "name": "CI", "status": "in_progress"},
 			{"id": 901, "name": "Release", "status": "queued"},
-		}})
+		}
+		status := r.URL.Query().Get("status")
+		if s.pagedRuns && status == "" {
+			// A commit with many finished runs: the unfiltered first page holds
+			// only those.
+			writeJSON(t, w, map[string]any{"workflow_runs": all[:1]})
+
+			return
+		}
+		list := []map[string]any{}
+		for _, run := range all {
+			if status == "" || run["status"] == status {
+				list = append(list, run)
+			}
+		}
+		writeJSON(t, w, map[string]any{"workflow_runs": list})
 	})
 	jobs := func(ids ...int) func(http.ResponseWriter, *http.Request) {
 		return func(w http.ResponseWriter, _ *http.Request) {
@@ -125,9 +123,9 @@ func TestListChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
 	assert.Equal(t, "Release", byName["publish"].RunName)
 }
 
-// A commit with many runs spills over one page; an active run past the first
-// page still gets its name.
-func TestListChecks_NamesARunFoundOnALaterPage(t *testing.T) {
+// A commit with many runs spills over one page; asking the forge for queued and
+// running runs only keeps an active run from being pushed off it.
+func TestListChecks_NamesAnActiveRunAmongManyFinishedOnes(t *testing.T) {
 	t.Parallel()
 
 	checks, err := (&cancelServer{pagedRuns: true}).start(t).ListChecks(t.Context(), "alrayyes", "a", 5)
