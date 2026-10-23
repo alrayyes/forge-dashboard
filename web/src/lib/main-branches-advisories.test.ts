@@ -7,9 +7,12 @@ import {
   advisoryCoverage,
   advisoryPill,
   advisoryReasonNeedsGrant,
+  advisoryRowHint,
+  advisoryRowUnreadable,
   advisoryUnknownReason,
   applyFilter,
   DEFAULT_FILTER,
+  forgejoAdvisoryReasonText,
   isFiltered,
   type MainBranch,
   offeredAdvisories,
@@ -108,7 +111,7 @@ describe('advisoryCoverage', () => {
     expect(advisoryCoverage([b(unknown), b(known)])).toBe('partial');
   });
 
-  test('Forgejo rows never raise the GitHub notice or a cue', () => {
+  test('Forgejo rows without a reason never raise the GitHub notice or a cue', () => {
     const fj = (a?: Advisories) =>
       ({ forge: 'forgejo', advisories: a }) as MainBranch;
     const gh = (a?: Advisories) =>
@@ -118,6 +121,47 @@ describe('advisoryCoverage', () => {
     expect(advisoryCoverage([gh(known), fj(unknown)])).toBe('full');
     expect(advisoryCoverage([gh(unknown), fj(known)])).toBe('none');
     expect(advisoryUnknownReason([fj(unknown), gh(unknown)])).toBeNull();
+  });
+
+  test('a Forgejo row unknown for a reason counts, one with none or not_enabled does not', () => {
+    const fj = (a?: Advisories) =>
+      ({ forge: 'forgejo', advisories: a }) as MainBranch;
+    const why = (reason: Advisories['reason']): Advisories => ({
+      ...unknown,
+      reason,
+    });
+    expect(
+      advisoryCoverage([fj(why('failed')), fj(why('failed'))], 'forgejo'),
+    ).toBe('none');
+    expect(advisoryCoverage([fj(why('too_many')), fj(known)], 'forgejo')).toBe(
+      'partial',
+    );
+    // No lock file (no reason) and advisories off (not_enabled) say nothing.
+    expect(
+      advisoryCoverage([fj(unknown), fj(why('not_enabled'))], 'forgejo'),
+    ).toBe('full');
+    expect(advisoryCoverage([fj(why('failed')), fj(unknown)], 'forgejo')).toBe(
+      'none',
+    );
+    // The GitHub cue is not about Forgejo rows, and the other way round.
+    expect(advisoryCoverage([fj(why('failed'))])).toBe('full');
+    expect(advisoryCoverage([b(why('failed')), b(known)], 'forgejo')).toBe(
+      'full',
+    );
+  });
+
+  test('a row is unreadable when unknown for a reason a user can act on or wait out', () => {
+    const fj = (a?: Advisories) =>
+      ({ forge: 'forgejo', advisories: a }) as MainBranch;
+    expect(advisoryRowUnreadable(fj({ ...unknown, reason: 'failed' }))).toBe(
+      true,
+    );
+    expect(advisoryRowUnreadable(fj(unknown))).toBe(false);
+    expect(
+      advisoryRowUnreadable(fj({ ...unknown, reason: 'not_enabled' })),
+    ).toBe(false);
+    expect(advisoryRowUnreadable(fj(known))).toBe(false);
+    expect(advisoryRowUnreadable(b(unknown))).toBe(true);
   });
 
   test('all known, or no source at all, has nothing to say', () => {
@@ -152,6 +196,21 @@ describe('advisoryUnknownReason', () => {
 
   test('ignores known rows and says nothing without unknown ones', () => {
     expect(advisoryUnknownReason([b(known), b()])).toBeNull();
+  });
+
+  test('names the one cause Forgejo rows share, for the Forgejo notice only', () => {
+    const fj = (reason?: Advisories['reason']) =>
+      ({
+        forge: 'forgejo',
+        advisories: { ...unknown, reason },
+      }) as MainBranch;
+    expect(
+      advisoryUnknownReason([fj('failed'), fj('failed'), fj()], 'forgejo'),
+    ).toBe('failed');
+    expect(
+      advisoryUnknownReason([fj('failed'), fj('too_many')], 'forgejo'),
+    ).toBeNull();
+    expect(advisoryUnknownReason([fj('failed')])).toBeNull();
   });
 
   test('only a refusal or switched-off alerts point at the permission steps', () => {
@@ -219,5 +278,32 @@ describe('the advisories filter', () => {
     expect([
       ...offeredAdvisories(mixed, { ...DEFAULT_FILTER, status: 'passed' }),
     ]).not.toContain('has');
+  });
+});
+
+describe('Forgejo cue wording', () => {
+  const fj = (reason?: string) =>
+    ({
+      forge: 'forgejo',
+      advisories: { state: 'unknown', count: 0, reason },
+    }) as unknown as MainBranch;
+
+  test('hints at the cause on a Forgejo row and keeps the plain label elsewhere', () => {
+    expect(advisoryRowHint(fj('failed'))).toContain('read failed');
+    expect(advisoryRowHint(fj('too_many'))).toContain('too much');
+    expect(advisoryRowHint(fj())).toBe('Advisories unknown');
+    expect(
+      advisoryRowHint({
+        forge: 'github',
+        advisories: { state: 'unknown', count: 0, reason: 'failed' },
+      } as unknown as MainBranch),
+    ).toBe('Advisories unknown');
+  });
+
+  test('has notice text only for the causes Forgejo can report', () => {
+    expect(forgejoAdvisoryReasonText('failed')).toContain('OSV');
+    expect(forgejoAdvisoryReasonText('too_many')).toContain('more packages');
+    expect(forgejoAdvisoryReasonText('refused')).toBeNull();
+    expect(forgejoAdvisoryReasonText(null)).toBeNull();
   });
 });

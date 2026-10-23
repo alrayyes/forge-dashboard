@@ -836,8 +836,8 @@ func handleDashboard(deps Deps) http.HandlerFunc {
 // last saved in Settings, if the Service doesn't already have one
 // running. The Service holds no state across a process restart
 // — every deploy wipes it — and a request against an already-valid
-// session cookie never goes through startSession's own warm-up again the
-// way a fresh login does, so without this a dashboard that survived a
+// session cookie can arrive before the boot start has run or after a Stop,
+// so without this a dashboard that survived a
 // restart would show the zero-value empty snapshot forever, not just
 // until the next scheduled refresh. Nothing saved yet is a
 // no-op, same as Service.Get's empty-snapshot default.
@@ -864,27 +864,6 @@ func warmUpAggregator(ctx context.Context, deps Deps) {
 		return
 	}
 	deps.Service.EnsureIfAbsent(deps.AppContext, deps.BuildSources(creds))
-}
-
-// loadAndEnsure loads the saved Settings and (re)builds the
-// Aggregator from them — unconditionally, unlike warmUpAggregator, since
-// startSession calls this on every login regardless of whether one's
-// already running, to pick up whatever was most recently saved.
-func loadAndEnsure(ctx context.Context, deps Deps) {
-	// The read happens under the Service's lock, so a settings save that lands
-	// meanwhile queues behind this swap instead of being overwritten by it.
-	deps.Service.EnsureFrom(deps.AppContext, func() ([]dashboard.Source, bool) {
-		creds, err := deps.SettingsStore.Get(ctx)
-		if err != nil {
-			if !errors.Is(err, settings.ErrNotFound) {
-				slog.Warn("could not load settings to warm up dashboard", "error", err)
-			}
-
-			return nil, false
-		}
-
-		return deps.BuildSources(creds), true
-	})
 }
 
 // handleDashboardRefresh triggers an immediate, out-of-band refresh of
