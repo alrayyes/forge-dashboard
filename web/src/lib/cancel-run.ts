@@ -48,15 +48,20 @@ const going = (c: Check) => c.state === 'running' || c.state === 'queued';
 // Whether a later read of the checks shows the run's own jobs finished. A run
 // missing from the active runs doesn't say so: GitHub's run lookup can fail and
 // leave the same jobs listed as running with no run id. So the jobs themselves
-// are looked up, and one that is missing or still going means not stopped yet.
-// A stand-in run (no job ids) is the one check named for it; Forgejo has no
-// lookup to fail, so it vanishing means it stopped.
+// are looked up, and one still going (or any check naming the run as going)
+// means not stopped yet. A job no longer listed was replaced by a newer push,
+// so it is over. A stand-in run (no job ids) is the one check named for it; it
+// vanishing means its jobs became readable and none is going.
 export function runStopped(run: ActiveRun, list: Check[]): boolean {
+  // Whatever the list now holds for this run, a going check means it runs on:
+  // Forgejo may have become able to list a stand-in run's jobs.
+  if (list.some((c) => c.runId === run.runId && going(c))) return false;
   if (run.jobIds.length) {
     const byId = new Map(list.filter((c) => c.jobId).map((c) => [c.jobId, c]));
+    // A job gone from a newer list (a new push replaced the checks) is over.
     return run.jobIds.every((id) => {
       const check = byId.get(id);
-      return check !== undefined && !going(check);
+      return check === undefined || !going(check);
     });
   }
   const standIn = list.find((c) => !c.jobId && c.name === run.runName);

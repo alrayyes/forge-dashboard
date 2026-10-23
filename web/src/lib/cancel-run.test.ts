@@ -135,10 +135,29 @@ describe('runStopped', () => {
     ).toBe(false);
   });
 
-  test('is false when a job of it is missing from the list', () => {
-    expect(runStopped(run, [job({ jobId: 2, state: 'cancelled' })])).toBe(
-      false,
-    );
+  test('is false while a listed job is going, though another is not listed', () => {
+    expect(runStopped(run, [job({ jobId: 2, state: 'running' })])).toBe(false);
+  });
+
+  test('is true when none of its jobs is listed any more, a new push replaced them', () => {
+    expect(runStopped(run, [job({ jobId: 99, state: 'running' })])).toBe(true);
+  });
+
+  test('is false while any check still names the run as going', () => {
+    expect(
+      runStopped(run, [
+        job({ jobId: 99, runId: 7, runName: 'ci', state: 'running' }),
+      ]),
+    ).toBe(false);
+  });
+
+  test('a stand-in that vanished because its jobs became readable and run is not stopped', () => {
+    const standIn = { runId: 9, runName: 'ci', jobs: [], jobIds: [] };
+    expect(
+      runStopped(standIn, [
+        job({ jobId: 40, runId: 9, runName: 'ci', state: 'running' }),
+      ]),
+    ).toBe(false);
   });
 
   test('a stand-in run is stopped when its one check finished', () => {
