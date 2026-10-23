@@ -89,9 +89,36 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	if pr.CI == CIPending || pr.Checks.Running > 0 || pr.Checks.Waiting > 0 {
 		out = append(out, ActionAvailability{Action: ActionCancelRun})
 	}
+	if heldForApproval(pr) {
+		blockHeldHeads(out)
+	}
 	markPrimary(pr, out)
 
 	return out
+}
+
+// blockHeldHeads lists the actions that push a new head blocked with Merge's
+// approval reason, since that head would be held again. A rebase already
+// blocked for its own reason keeps it.
+func blockHeldHeads(actions []ActionAvailability) {
+	var reason *Blocked
+	for _, a := range actions {
+		if a.Action == ActionMerge {
+			reason = a.Blocked
+		}
+	}
+	if reason == nil {
+		return
+	}
+	for i := range actions {
+		switch actions[i].Action {
+		case ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase:
+			if actions[i].Blocked == nil {
+				actions[i].Blocked = reason
+			}
+		default:
+		}
+	}
 }
 
 // markPrimary sets Primary on the one action that is the pull request's main

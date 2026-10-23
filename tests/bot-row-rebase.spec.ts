@@ -132,7 +132,7 @@ test('a behind bot pull request waiting for workflow approval has no rebase and 
       allowedActions: [
         { action: 'merge', blocked: approval },
         { action: 'close' },
-        { action: 'dependabot_rebase' },
+        { action: 'dependabot_rebase', blocked: approval },
         { action: 'dependabot_recreate' },
       ],
       status: approval,

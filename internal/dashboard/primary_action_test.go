@@ -111,11 +111,12 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.CI = dashboard.CINone
 			p.AwaitingWorkflowApproval = true
 		}), []string{}},
-		{"Forgejo person behind and awaiting approval: none", ghPR(func(p *dashboard.PullRequest) {
-			p.Forge = dashboard.ForgeForgejo
+		// One unrelated held run is enough: the approval is the one step that is
+		// sure to be needed, so it is the reason even beside a missing review.
+		{"person behind, blocked, CI passing and one held run: none, Merge gives the approval reason", ghPR(func(p *dashboard.PullRequest) {
 			p.Behind = true
 			p.MergeStatus = dashboard.MergeBlocked
-			p.CI = dashboard.CIFailure
+			p.CI = dashboard.CISuccess
 			p.AwaitingWorkflowApproval = true
 		}), []string{}},
 		{"person behind, approval granted and run finished: Update branch", ghPR(func(p *dashboard.PullRequest) {
@@ -242,5 +243,31 @@ func TestPullRequestStatus_BehindAwaitingApprovalWithUnknownState(t *testing.T) 
 		assert.Equal(t, "Workflow runs are waiting for approval", status.Message, author)
 		assert.Empty(t, status.Action, author)
 		assert.Empty(t, primaries(actions), author)
+	}
+}
+
+// A held pull request would only get a head that is held again, so Update
+// branch and the bot rebases are listed blocked with Merge's reason: a queued
+// run or an API call is refused truthfully, and the board hides them.
+func TestAllowedActions_HeldBehindBlocksUpdateAndRebase(t *testing.T) {
+	t.Parallel()
+
+	for _, author := range []string{"someone", "renovate", "dependabot[bot]"} {
+		pr := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = author
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+			p.CI = dashboard.CINone
+			p.AwaitingWorkflowApproval = true
+		})
+		for _, a := range dashboard.AllowedActions(pr, []string{"renovate"}) {
+			switch a.Action {
+			case dashboard.ActionUpdateBranch, dashboard.ActionRenovateRebase, dashboard.ActionDependabotRebase:
+				if assert.NotNil(t, a.Blocked, "%s %s", author, a.Action) {
+					assert.Equal(t, "Workflow runs are waiting for approval", a.Blocked.Message, "%s %s", author, a.Action)
+				}
+			default:
+			}
+		}
 	}
 }

@@ -43,10 +43,14 @@ When runs wait for someone to approve them, that is the reason Merge gives,
 ahead of being behind the base branch, whatever the merge state the forge
 reports (blocked, or not yet known) and for any author: a behind pull request in
 that state shows the approval in its status, with no `action`, and its row has
-no Update branch and no rebase, since updating the branch would only start runs
-that are held again. Checks that are still running are a plain wait and keep
-their own reason. Once the runs are approved, the pull request is an ordinary
-behind one and Update branch is primary again.
+no Update branch and no rebase button, since updating the branch would only
+start runs that are held again. Update branch and the bot rebases are still
+listed, but blocked with the approval reason, so a queued run or an API call is
+refused. A single held run is enough, even when a missing review also blocks
+Merge: the approval is the one step that is sure to be needed. Checks that are
+still running are a plain wait and keep their own reason. Once the runs are
+approved, the pull request is an ordinary behind one and Update branch is
+primary again.
 
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a
