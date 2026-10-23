@@ -464,6 +464,46 @@ func TestMCP_GetMainBranchChecks_RefusesBadInput(t *testing.T) {
 	assert.Empty(t, source.lastName, "nothing reached the forge")
 }
 
+func TestMCP_GetRepositoryAdvisories_RefusalCarriesTheEndpointsMessage(t *testing.T) {
+	t.Parallel()
+
+	githubSource := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub}
+	forgejoSource := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
+	githubURL, githubCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, githubSource)
+	forgejoURL, forgejoCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, forgejoSource)
+
+	for name, tc := range map[string]struct {
+		srvURL   string
+		cookie   *http.Cookie
+		forge    string
+		fullName string
+	}{
+		"malformed fullName": {githubURL, githubCookie, "github", "nope"},
+		"forgejo repository": {forgejoURL, forgejoCookie, "forgejo", "acme/tool"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			session := connectMCP(t, tc.srvURL, createAPIToken(t, tc.srvURL, tc.cookie))
+
+			resp := getAdvisoryList(t, tc.srvURL, tc.cookie, tc.forge, tc.fullName)
+			defer func() { _ = resp.Body.Close() }()
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			var body map[string]string
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+			result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+				Name:      "get_repository_advisories",
+				Arguments: map[string]any{"forge": tc.forge, "fullName": tc.fullName},
+			})
+			require.NoError(t, err)
+			require.True(t, result.IsError)
+			require.Len(t, result.Content, 1)
+			text, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Equal(t, body["error"], text.Text)
+		})
+	}
+}
+
 func TestMCP_GetPullRequestChecks_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
@@ -630,6 +670,7 @@ func TestMCP_GetRepositoryAdvisories_SaysUnknownRatherThanEmpty(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "unknown", content["state"])
 	assert.NotEmpty(t, content["reason"])
+	assert.Equal(t, []any{}, content["advisories"], "an unknown list is an empty array, not null")
 }
 
 func TestMCP_GetRepositoryAdvisories_RefusesBadInput(t *testing.T) {
