@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.24.0](https://github.com/alrayyes/forge-dashboard/compare/v2.23.0...v2.24.0) (2026-10-23)
+
+
+### Features
+
+* **mcp:** tell clients what a partial advisories answer means ([#2681](https://github.com/alrayyes/forge-dashboard/issues/2681)) ([2055a8c](https://github.com/alrayyes/forge-dashboard/commit/2055a8c3ad10c4121884e24cd2101ce992a1ab99))
+
 ## [2.23.0](https://github.com/alrayyes/forge-dashboard/compare/v2.22.0...v2.23.0) (2026-10-23)
 
 
