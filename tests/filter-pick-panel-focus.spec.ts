@@ -152,4 +152,48 @@ test.describe('the open pick panel keeps keyboard focus through a redraw', () =>
         .first(),
     ).toBeAttached();
   });
+  test('a box the 20-pick cap disables hands focus to the panel button', async ({
+    page,
+  }) => {
+    const many = Array.from({ length: 22 }, (_, i) =>
+      pr('github', `alrayyes/r${String(i).padStart(2, '0')}`, 'alice', i + 1),
+    );
+    await open(page);
+    await push(page, many);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(many.length);
+    const button = page.locator('#shared-repo-filter-button').first();
+    await button.focus();
+    await page.keyboard.press('Enter');
+    const host = button.locator('xpath=..');
+    const boxes = host.getByRole('checkbox');
+    // Tick 19 without moving focus, then rest on a 20th, still-open box.
+    await boxes.first().waitFor();
+    await page.evaluate(() => {
+      const list = Array.from(
+        document.querySelectorAll<HTMLInputElement>(
+          '.label-filter-option input[type=checkbox]',
+        ),
+      ).filter((box) => box.offsetParent !== null);
+      for (const box of list.slice(0, 19)) box.click();
+    });
+    const target = host.getByRole('checkbox', { name: 'alrayyes/r20' });
+    await target.focus();
+    await expect(target).toBeFocused();
+    await expect(target).toBeEnabled();
+
+    // The 20th pick lands from elsewhere, so the box the reader is on is out
+    // of room, and a second forge regroups the rows at the same time.
+    await page.evaluate(() => {
+      const box = Array.from(
+        document.querySelectorAll<HTMLInputElement>(
+          '.label-filter-option input[type=checkbox]',
+        ),
+      ).find((b) => b.value.endsWith('/r19') || b.value === 'r19');
+      box?.click();
+    });
+    await push(page, [...many, pr('forgejo', 'team/site', 'carol', 99)]);
+    await expect(target).toBeDisabled();
+    await expect(button).toBeFocused();
+    await expect(button).toHaveAttribute('aria-expanded', 'true');
+  });
 });
