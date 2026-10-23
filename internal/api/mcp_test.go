@@ -215,8 +215,8 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 const advisoriesWording = "The advisories key is absent when no source reads the repository's forge. " +
 	"A state of unknown means the source could not say, never zero; a Forgejo repo " +
 	"is unknown unless the operator switched lockfile checking on (reason not_enabled). " +
-	"A partial: true answer covers only some of the repository's lock files, so a zero count " +
-	"in it does not mean the repository is clean."
+	"A partial: true answer left out some of the repository's packages (private ones), so its " +
+	"count is a floor and a zero does not mean the repository is clean."
 
 func TestMCP_GetMainBranches_ReturnsAdvisoriesUnchanged(t *testing.T) {
 	t.Parallel()
