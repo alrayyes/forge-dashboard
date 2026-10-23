@@ -3260,7 +3260,9 @@
         })
         .catch(async (err: ActionRequestError) => {
           // No status: the request may have run. A fresh snapshot showing
-          // auto-merge on for this pull request means it did.
+          // auto-merge on for this pull request means it did. One armed
+          // elsewhere a moment earlier reads the same; the end state is
+          // what was asked for, so that is fine.
           if (err.status === undefined) {
             const outcome = await readAmbiguousOutcome(
               refreshSnapshot,
@@ -3408,10 +3410,8 @@
           if (err.status === undefined) {
             const outcome = await readAmbiguousOutcome(
               refreshSnapshot,
-              (data) => {
-                const on = autoMergeOf(data, key);
-                return on !== undefined && on !== true;
-              },
+              // null is the forge not saying, which proves nothing.
+              (data) => autoMergeOf(data, key) === false,
             );
             if (outcome.ran && outcome.data) {
               delete cancelAutoMergeState[key];

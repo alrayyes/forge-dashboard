@@ -178,6 +178,9 @@ test.describe('an action request that got no answer', () => {
         "Couldn't reach the server",
       );
       await expect(line(page)).toHaveCount(0);
+      // The fresh snapshot was applied: the row shows the new state.
+      const pill = row(page).locator('.attr-chip.auto-merge');
+      await expect(pill).toHaveCount(armed ? 0 : 1);
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
@@ -199,4 +202,17 @@ test.describe('an action request that got no answer', () => {
       expect(results.violations).toEqual([]);
     });
   }
+
+  test('cancel auto-merge: a snapshot that cannot say still reports the dropped request', async ({
+    page,
+  }) => {
+    const armed = { ...WAITING, autoMergeEnabled: true };
+    await setup(page, () => [{ ...WAITING, autoMergeEnabled: null }], armed);
+    await page.route('**/api/pull-requests/auto-merge/cancel', (r) =>
+      r.abort('failed'),
+    );
+    await page.goto('/pull-requests.html');
+    await clickAction(page, 'Cancel auto-merge');
+    await expect(line(page)).toContainText("Couldn't reach the server");
+  });
 });

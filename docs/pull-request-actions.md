@@ -248,10 +248,10 @@ auto-merge read the pull request again first and, when it shows the action ran
 settle on that with no error. Rerun failed checks does not: a rerun leaves
 nothing in a snapshot that tells it from a pull request whose checks changed for
 another reason, so a rerun request that gets no answer says so and can be
-retried. The refresh an
-action asks for once the forge has accepted it never reports an error of its
-own: if that call drops, the action still counts as done and the next poll
-brings the board up to date. Copy holds the status the forge answered with
+retried. The refresh an action asks for once the forge has accepted it never
+reports an error of its own: if that call drops, the action still counts as
+done and the next poll brings the board up to date. Copy holds the status the forge
+answered with
 (`upstreamStatus`) and, from GitHub, its request id (`requestId`), which is what
 its support asks for, and the server log line carries both. That line clears
 itself after ten seconds, holds while you hover it or have focus in it, and when
