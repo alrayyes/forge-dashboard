@@ -34,13 +34,13 @@ The image carries a `HEALTHCHECK` that runs `/forge-dashboard healthcheck`,
 which asks `GET /readyz`. It means "can serve": the database answers and its
 tables exist. It does not wait for the first dashboard refresh, which the app
 starts itself as the process boots, from the credentials saved in Settings. A
-fresh install with nothing saved has no refresh to start. The database ping gets
-2 seconds and its result is reused for about 3, so a stuck database answers 503
-instead of hanging the probe. On SIGTERM it answers 503 at once, then the server
-waits `SHUTDOWN_DRAIN` before it stops. A 200 also reports the `goroutines` and
-OS `threads` the process holds. The container's process limit counts threads, so
-watch `threads` to see growth before the healthcheck can no longer start. A
-50-repo refresh from six tabs peaks at about 20 threads, so
+fresh installation with nothing saved has no refresh to start. The database ping
+gets 2 seconds and its result is reused for about 3, so a stuck database answers
+503 instead of hanging the probe. On SIGTERM it answers 503 at once, then the
+server waits `SHUTDOWN_DRAIN` before it stops. A 200 also reports the
+`goroutines` and OS `threads` the process holds. The container's process limit
+counts threads, so watch `threads` to see growth before the healthcheck can no
+longer start. A 50-repo refresh from six tabs peaks at about 20 threads, so
 `--pids-limit=64` leaves room. Read it with:
 
 ```sh
