@@ -14,7 +14,7 @@ import {
   joinLabels,
   labelSummary,
   narrowLabels,
-  parseLabels,
+  parsePick,
   toggleLabel,
   unionLabels,
 } from './label-filter';
@@ -23,38 +23,38 @@ import {
 // them. It is saved as one string so a single label saved before the list
 // existed reads back as a list of one.
 
-describe('parseLabels', () => {
+describe('parsePick', () => {
   test('nothing saved is no labels', () => {
-    expect(parseLabels(undefined)).toEqual([]);
-    expect(parseLabels('')).toEqual([]);
+    expect(parsePick(undefined)).toEqual([]);
+    expect(parsePick('')).toEqual([]);
   });
 
   test('a single saved label is a list of one', () => {
-    expect(parseLabels('bug')).toEqual(['bug']);
-    expect(parseLabels('kind/bug')).toEqual(['kind/bug']);
+    expect(parsePick('bug')).toEqual(['bug']);
+    expect(parsePick('kind/bug')).toEqual(['kind/bug']);
   });
 
   test('a label with a comma or a space stays whole', () => {
-    expect(parseLabels('good first issue, again')).toEqual([
+    expect(parsePick('good first issue, again')).toEqual([
       'good first issue, again',
     ]);
   });
 
   test('several labels read back in order, lowercased, without repeats', () => {
-    expect(parseLabels('bug\nSecurity\nBUG\n')).toEqual(['bug', 'security']);
+    expect(parsePick('bug\nSecurity\nBUG\n')).toEqual(['bug', 'security']);
   });
 });
 
 describe('the size of a pick', () => {
   test('keeps at most twenty labels', () => {
     const many = Array.from({ length: 25 }, (_, i) => `l${i}`).join('\n');
-    expect(parseLabels(many)).toHaveLength(20);
-    expect(parseLabels(many)[19]).toBe('l19');
+    expect(parsePick(many)).toHaveLength(20);
+    expect(parsePick(many)[19]).toBe('l19');
   });
 
   test('keeps at most a thousand characters, skipping a label that would pass it', () => {
     const big = 'a'.repeat(980);
-    expect(parseLabels(`${big}\n${'b'.repeat(20)}\nc`)).toEqual([big, 'c']);
+    expect(parsePick(`${big}\n${'b'.repeat(20)}\nc`)).toEqual([big, 'c']);
   });
 
   test('does not tick a twenty-first label', () => {
@@ -67,7 +67,7 @@ describe('the size of a pick', () => {
 describe('a label name with a control character', () => {
   test('stays one label, never two', () => {
     expect(toggleLabel([], 'bug\nfix')).toEqual(['bug fix']);
-    expect(parseLabels(joinLabels(toggleLabel([], 'a\r\nb')))).toEqual(['a b']);
+    expect(parsePick(joinLabels(toggleLabel([], 'a\r\nb')))).toEqual(['a b']);
   });
 
   test('still matches the item that carries it', () => {
@@ -84,13 +84,13 @@ describe('case', () => {
   });
 
   test('a mixed-case pick is read as lowercase', () => {
-    expect(parseLabels('Kind/Bug')).toEqual(['kind/bug']);
+    expect(parsePick('Kind/Bug')).toEqual(['kind/bug']);
   });
 });
 
 describe('joinLabels', () => {
-  test('is the inverse of parseLabels for a list', () => {
-    expect(parseLabels(joinLabels(['bug', 'docs']))).toEqual(['bug', 'docs']);
+  test('is the inverse of parsePick for a list', () => {
+    expect(parsePick(joinLabels(['bug', 'docs']))).toEqual(['bug', 'docs']);
   });
 
   test('one label is saved exactly as a single label was before', () => {
@@ -233,13 +233,13 @@ describe('labels the page does not offer', () => {
 describe('reading a saved pick once for many items', () => {
   test('the same saved pick reads back as the same list', () => {
     const saved = 'bug\nchore';
-    expect(parseLabels(saved)).toBe(parseLabels(saved));
+    expect(parsePick(saved)).toBe(parsePick(saved));
   });
 
   test('the shared list cannot be changed by a caller', () => {
-    const picked = parseLabels('bug\nchore');
+    const picked = parsePick('bug\nchore');
     expect(() => (picked as string[]).push('x')).toThrow();
-    expect(parseLabels('bug\nchore')).toEqual(['bug', 'chore']);
+    expect(parsePick('bug\nchore')).toEqual(['bug', 'chore']);
   });
 
   test('a changed pick reads fresh and many items match as before', () => {

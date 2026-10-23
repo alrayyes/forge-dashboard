@@ -14,7 +14,7 @@ import {
 import {
   MAX_ENCODED,
   MAX_LABELS,
-  parseLabels,
+  parsePick,
   toggleLabel,
 } from './label-filter';
 
@@ -71,7 +71,7 @@ describe('a saved label pick over the limits', () => {
   test('is trimmed to 20 labels when the cookie loads, and the next save is within them', async () => {
     seedCookie(many(25));
     const state = loadState();
-    expect(parseLabels(state.shared.label)).toHaveLength(MAX_LABELS);
+    expect(parsePick(state.shared.label)).toHaveLength(MAX_LABELS);
     saveState(state);
     await tick();
     expect(puts[0].shared.label.split('\n')).toHaveLength(MAX_LABELS);

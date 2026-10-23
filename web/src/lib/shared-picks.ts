@@ -16,7 +16,7 @@ import {
   mountPickFilter,
   type PickChoice,
   type PickFilterControl,
-  parseLabels,
+  parsePick,
   REPO_CONFIG,
 } from './label-filter';
 
@@ -116,7 +116,7 @@ export class SharedPicks {
   }
 
   private draw(key: PickKey, choices: PickChoice[], state: SharedFilterState) {
-    const picked = parseLabels(state.shared[key]);
+    const picked = parsePick(state.shared[key]);
     const signature = JSON.stringify([choices, picked]);
     if (this.drawn[key] === signature) return;
     this.drawn[key] = signature;
