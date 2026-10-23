@@ -67,7 +67,12 @@ type AdvisoryScanner interface {
 // lockfileReaders are the files in a repo's root that list its pinned
 // dependencies, with the reader for each.
 var lockfileReaders = map[string]func([]byte) ([]osv.Package, error){
-	"package-lock.json": osv.ParsePackageLock,
+	"package-lock.json": osv.ParseNPMLock,
+	"bun.lock":          osv.ParseBunLock,
+	"composer.lock":     osv.ParseComposerLock,
+	"poetry.lock":       osv.ParsePoetryLock,
+	"uv.lock":           osv.ParseUvLock,
+	"Cargo.lock":        osv.ParseCargoLock,
 	"go.mod":            osv.ParseGoMod,
 }
 

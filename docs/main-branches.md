@@ -92,19 +92,37 @@ offers **Reset filters**. A repo with no pipeline says no run was found.
 
 Forgejo has no alerts of its own, so the advisories on a Forgejo row come from
 the repo's lock files. The dashboard lists the root of the default branch, reads
-`package-lock.json` (npm lock file version 2 or 3) and `go.mod` if they are
-there, and asks [OSV](https://google.github.io/osv.dev/post-v1-querybatch/)
-which of the pinned packages have known advisories. The count is the number of
+the lock files below if they are there, and asks
+[OSV](https://google.github.io/osv.dev/post-v1-querybatch/) which of the
+pinned packages have known advisories. The count is the number of
 distinct advisories, with one flaw listed under two ids counted once, and the
 severity is the highest the advisory database states. An advisory that states
 none still counts, and the pill then shows the count alone. The pill does not
 link anywhere, since OSV has no page for a whole repo.
 
+- `package-lock.json`, any lock file version (npm). Packages not resolved from
+  the public npm registry are kept out.
+- `bun.lock` (npm). Packages from another registry, git or a tarball, and
+  workspace members, are kept out.
+- `composer.lock` (Packagist). Branch checkouts such as `dev-main` are kept
+  out. Composer doesn't record the repository, so private packages are still
+  sent by name.
+- `poetry.lock` and `uv.lock` (PyPI). Packages from git, a path, a URL or
+  another index are kept out, and so is the project itself.
+- `Cargo.lock` (crates.io). Crates from git or another registry, and the
+  crates built from the workspace itself, are kept out.
+- `go.mod` (Go). Modules on the Forgejo host itself and local replacements are
+  kept out.
+
+Each file costs one raw read per refresh, on top of the one root listing, and
+the refresh interval and cache are the same as before. The binary `bun.lockb`
+is not read, and only the root of the branch is looked at. A repo with none of
+these files stays `unknown`.
+
 This is off by default, because **the package names and versions in those files
-are sent to `api.osv.dev`**, for private repos too. Only two things are kept
-out: Go modules whose path starts with the Forgejo host itself, and npm packages
-that don't resolve to the public npm registry. A private Go module on another
-host, or a private scoped package on the public npm registry, is still sent by
+are sent to `api.osv.dev`**, for private repos too. Only what the list above
+keeps out stays home. A private Go module on another host, a private scoped
+package on the public npm registry, or any Composer package, is still sent by
 name, which is why this is off by default. Nothing else is sent: no repo name,
 URL or token. Set `OSV_ADVISORIES=on` to turn it on; a line in the log at
 startup says so, and a value that is neither `on` nor `off` logs a warning and
