@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.0](https://github.com/alrayyes/forge-dashboard/compare/v2.12.0...v2.13.0) (2026-10-23)
+
+
+### Features
+
+* **web:** close an issue from its dialog, with or without a comment ([#2603](https://github.com/alrayyes/forge-dashboard/issues/2603)) ([687e9ec](https://github.com/alrayyes/forge-dashboard/commit/687e9ec6ac09db45689015cdcc3f10fcedfec3b0))
+
 ## [2.12.0](https://github.com/alrayyes/forge-dashboard/compare/v2.11.6...v2.12.0) (2026-10-22)
 
 
