@@ -2087,6 +2087,9 @@ const appRepoFieldsTemplate = `
             state
           }
         }
+        comments {
+          totalCount
+        }
         reviewThreads(first: 30) {
           nodes {
             isResolved
@@ -3299,6 +3302,9 @@ const pullRequestFields = `        number
           nodes {
             state
           }
+        }
+        comments {
+          totalCount
         }
         reviewThreads(first: 30) {
           nodes {

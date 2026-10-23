@@ -112,3 +112,14 @@ func DialAddressForTest(u *url.URL) string           { return dialAddress(u) }
 func (c *Client) IssueSinceForTest(fullName string) *time.Time {
 	return c.issueState.sinceFor([]string{fullName})
 }
+
+// PullRequestSelections are the three GraphQL selections a pull request is
+// read through: the account-wide listing, the per-repo batch and the
+// single-repo/pending lookups.
+func PullRequestSelections() map[string]string {
+	return map[string]string{
+		"account-wide": reposQuery,
+		"batch":        appRepoFields,
+		"lookup":       pullRequestFields,
+	}
+}
