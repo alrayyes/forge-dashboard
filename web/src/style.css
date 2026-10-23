@@ -1303,6 +1303,11 @@ select.col-filter {
 }
 
 .repo-name {
+  /* Above the stretched overlay (.title::after), so the pointer reaches the
+     text and the browser can show its hover text. A click on it is passed on
+     to the row's title in repoCell. */
+  position: relative;
+  z-index: 1;
   font-family: "IBM Plex Mono", monospace;
   font-size: 12.5px;
   color: var(--ink-2);

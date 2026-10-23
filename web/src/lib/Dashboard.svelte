@@ -666,6 +666,12 @@
       // (#1961); the truncation is purely visual, so a screen reader
       // already reads the untruncated text content regardless.
       titleHover.track(repoName, item.repo);
+      // The name sits above the row's stretched link so the pointer reaches
+      // it and the hover text shows; a click on it still does what a click
+      // anywhere else on the row does.
+      repoName.addEventListener("click", () => {
+        repoName.closest(".row")?.querySelector<HTMLElement>(".title")?.click();
+      });
       wrap.appendChild(repoName);
       return wrap;
     }

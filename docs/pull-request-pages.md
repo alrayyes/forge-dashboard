@@ -142,6 +142,14 @@ straight from the forge by your browser. A repository with no logo, an image
 that isn't HTTPS or one that can't load shows the name alone. The unauthenticated
 username-only listing carries no images, so it shows none.
 
+## Long repository names
+
+A repository name that is too long for its column is cut with an ellipsis. Hover
+it and the whole `owner/name` shows as hover text, the same as a cut pull
+request title. A name that fits has no hover text, since it would only repeat
+what is on screen. A click on the name opens the pull request, like a click
+anywhere else on the row.
+
 ## Releases
 
 Release pull requests have their own page, `/releases.html`, reached from the
