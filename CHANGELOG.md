@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.0](https://github.com/alrayyes/forge-dashboard/compare/v2.21.2...v2.22.0) (2026-10-23)
+
+
+### Features
+
+* **forgejo:** mark a partly checked lock file and keep the advisory read off the CI row ([#2669](https://github.com/alrayyes/forge-dashboard/issues/2669)) ([8af0c96](https://github.com/alrayyes/forge-dashboard/commit/8af0c96ce3a0aa9ee21df012eabf8afca287ebda))
+
 ## [2.21.2](https://github.com/alrayyes/forge-dashboard/compare/v2.21.1...v2.21.2) (2026-10-23)
 
 

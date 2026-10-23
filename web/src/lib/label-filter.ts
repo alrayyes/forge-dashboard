@@ -78,7 +78,7 @@ export function splitLabels(saved: string | undefined): {
 const MAX_REMEMBERED = 64;
 const remembered = new Map<string, readonly string[]>();
 
-export function parseLabels(saved: string | undefined): string[] {
+export function parsePick(saved: string | undefined): string[] {
   const key = saved ?? '';
   let kept = remembered.get(key);
   if (!kept) {
@@ -90,7 +90,7 @@ export function parseLabels(saved: string | undefined): string[] {
 }
 
 export function joinLabels(labels: string[]): string {
-  return parseLabels(labels.join(SEPARATOR)).join(SEPARATOR);
+  return parsePick(labels.join(SEPARATOR)).join(SEPARATOR);
 }
 
 export function hasLabel(labels: string[], name: string): boolean {
@@ -102,7 +102,7 @@ export function hasLabel(labels: string[], name: string): boolean {
 export function toggleLabel(labels: string[], name: string): string[] {
   const key = labelKey(name);
   if (hasLabel(labels, key)) return labels.filter((l) => l !== key);
-  const next = parseLabels([...labels, key].join(SEPARATOR));
+  const next = parsePick([...labels, key].join(SEPARATOR));
   return next.includes(key) ? next : labels;
 }
 
@@ -122,7 +122,7 @@ export function narrowLabels(
 // The saved copy keeps what this page set aside for the page that offers it
 // (#1620's held picks), next to what is picked here.
 export function unionLabels(picked: string, setAside: string): string {
-  return joinLabels([...parseLabels(picked), ...parseLabels(setAside)]);
+  return joinLabels([...parsePick(picked), ...parsePick(setAside)]);
 }
 
 // Does an item carry any of the picked labels? Nothing picked lets it through.
@@ -130,7 +130,7 @@ export function carriesAny(
   itemLabels: { name: string }[] | undefined,
   saved: string | undefined,
 ): boolean {
-  const picked = parseLabels(saved);
+  const picked = parsePick(saved);
   if (picked.length === 0) return true;
   return (itemLabels ?? []).some((l) => picked.includes(labelKey(l.name)));
 }
