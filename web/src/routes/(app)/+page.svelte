@@ -5,6 +5,7 @@
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { ciSignature } from "#lib/pipeline-live.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
+  import { createRedrawGuard } from "#lib/redraw-guard.js";
   import { forgeLockReason } from "#lib/forge-lock.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
@@ -70,12 +71,29 @@
 
   let data = $state<MainBranches | null>(null);
   let failed = $state(false);
+  // The rerun control could not be redrawn on the last poll.
+  let redrawFailed = $state(false);
   let loading = $state(true);
   let filter = $state<MainBranchFilter>({ ...DEFAULT_FILTER });
   let pipeline = $state<PipelineDialog>();
   // The branch whose dialog is open, to follow its row from each refresh.
   let openRow: MainBranch | null = null;
   const rerun = createBranchRerun();
+  const REDRAW_NOTE =
+    "The rerun control could not be updated, so it may be out of date. Reload the page if it looks wrong.";
+  // The same note inside the open dialog, where a screen reader user is; the
+  // page behind it is inert. Always mounted, so filling it is announced.
+  let dialogNote: HTMLElement | null = null;
+  $effect(() => {
+    // Read first, so the effect depends on it even while no dialog is open.
+    const failed = redrawFailed;
+    if (!dialogNote) return;
+    dialogNote.hidden = !failed;
+    dialogNote.textContent = failed ? REDRAW_NOTE : "";
+  });
+  const redrawGuard = createRedrawGuard((err) =>
+    console.error("The rerun control could not be redrawn", err),
+  );
 
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
@@ -186,17 +204,30 @@
       errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
       runUrl: b.runUrl,
       forgeName: FORGE_LABELS[b.forge] ?? b.forge,
-      controls: (failed) =>
-        failed && openRow
-          ? rerun.control(
-              openRow,
-              () => branchSignature(latest(openRow ?? b)),
-              () => forgeLockReason(data?.forges, b.forge),
-            )
-          : null,
+      controls: (failed) => {
+        if (!failed || !openRow) return null;
+        const wrap = document.createElement("div");
+        const note = document.createElement("p");
+        note.className = "rerun-redraw-note";
+        note.setAttribute("role", "status");
+        note.dataset.testid = "rerun-redraw-note-dialog";
+        note.hidden = !redrawFailed;
+        note.textContent = redrawFailed ? REDRAW_NOTE : "";
+        dialogNote = note;
+        wrap.append(
+          rerun.control(
+            openRow,
+            () => branchSignature(latest(openRow ?? b)),
+            () => forgeLockReason(data?.forges, b.forge),
+          ),
+          note,
+        );
+        return wrap;
+      },
       opener,
       onClose: () => {
         openRow = null;
+        dialogNote = null;
       },
     });
   }
@@ -258,11 +289,11 @@
     // The forge may have gone down, or come back, since the last poll; a
     // failed poll still moves the clock. Outside the try, so a throw here is
     // not a failed poll.
-    try {
+    // A control that can't draw must not fail the page's load, but a lock left
+    // on screen from the last draw should not go unexplained.
+    redrawFailed = redrawGuard.run(() => {
       if (openRow) rerun.redraw(openRow);
-    } catch {
-      // A control that can't draw must not fail the page's load.
-    }
+    });
   }
 
   function retry() {
@@ -408,6 +439,10 @@
     .mb-banner {
       border-left-color: var(--warning);
       background: var(--warning-bg);
+    }
+    /* An author display: flex beats the UA's [hidden] { display: none }. */
+    .mb-banner[hidden] {
+      display: none;
     }
     .mb-note.good {
       border-left-color: var(--good);
@@ -762,6 +797,16 @@
   <!-- Always mounted, so it is empty before it speaks and a screen reader
        announces the change (#1672). -->
   <FirstRefreshStatus {pending} />
+  <!-- Always mounted, so it is empty before it speaks and is announced when
+       filled. -->
+  <p
+    class="mb-banner"
+    role="status"
+    data-testid="rerun-redraw-note"
+    hidden={!redrawFailed}
+  >
+    {redrawFailed ? REDRAW_NOTE : ""}
+  </p>
   {#if pending}
     <div class="list-region" aria-busy="true">
       <ListSkeleton />

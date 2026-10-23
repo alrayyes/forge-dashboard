@@ -3,6 +3,7 @@
 // branches page lock a control on this, with the same wording, instead of
 // letting a click fail.
 
+import { isUnreachable } from './forge-starting';
 import { FORGE_LABELS } from './forges';
 import {
   isRateLimited,
@@ -29,12 +30,6 @@ export type ForgeLock = {
   // When a rate limit lifts, so a caller can look again then.
   resetsAt?: string;
 };
-
-// A host that says it can't be reached. One that is silent on it is not
-// treated as down.
-export function isUnreachable(health: { reachable?: boolean }): boolean {
-  return health.reachable === false;
-}
 
 function lockOf(
   health: ForgeHealthEntry,
@@ -65,13 +60,16 @@ function lockOf(
   };
 }
 
+// `budget` is the one the write spends; `now` is for a caller that already
+// holds the clock.
+export type LockOptions = { budget?: 'rest' | 'graphql'; now?: number };
+
 // A row names its forge kind, not the host, so with several entries of one
 // kind the control is locked only when every one of them would refuse it.
 export function forgeLockReason(
   forges: readonly ForgeHealthEntry[] | undefined,
   forge: string,
-  now: number = Date.now(),
-  budget: 'rest' | 'graphql' = 'rest',
+  { now = Date.now(), budget = 'rest' }: LockOptions = {},
 ): ForgeLock | null {
   const locks = (forges ?? [])
     .filter((f) => f.forge === forge)
@@ -94,8 +92,7 @@ export function forgeLockReason(
 export function spentLimit(
   forges: readonly ForgeHealthEntry[] | undefined,
   forge: string,
-  budget: 'rest' | 'graphql',
-  now: number = Date.now(),
+  { budget, now = Date.now() }: LockOptions & { budget: 'rest' | 'graphql' },
 ): RateLimit | undefined {
   const limits = (forges ?? [])
     .filter((f) => f.forge === forge)
