@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.21.0](https://github.com/alrayyes/forge-dashboard/compare/v2.20.0...v2.21.0) (2026-10-23)
+
+
+### Features
+
+* **forgejo:** find lock files in subdirectories when reading advisories ([#2649](https://github.com/alrayyes/forge-dashboard/issues/2649)) ([6d75967](https://github.com/alrayyes/forge-dashboard/commit/6d7596776673bf57f8eecfc888caa22ad65172d3))
+
+
+### Bug Fixes
+
+* **web:** skip a job with no log address instead of dropping the other excerpts ([#2663](https://github.com/alrayyes/forge-dashboard/issues/2663)) ([666d574](https://github.com/alrayyes/forge-dashboard/commit/666d5748b065f3585bafefc674373cb5cb869420))
+
 ## [2.20.0](https://github.com/alrayyes/forge-dashboard/compare/v2.19.0...v2.20.0) (2026-10-23)
 
 
