@@ -4761,9 +4761,22 @@
     const autoUpdateWrites: Record<string, { latest: boolean | null }> = {};
     // What the server last accepted for a pull request, kept until a read that
     // began after that write says the same or answers on its own. A read that
-    // began earlier is stale and would draw the old value again.
-    const autoUpdateChoices: Record<string, { enabled: boolean; seq: number }> =
-      {};
+    // began earlier is stale and would draw the old value again. null is the
+    // reset to the repo's setting, whose value this page does not know.
+    // requestSeq is shared by every request (polls, hides, refreshes), so a
+    // later read whose snapshot still predates the write is trusted too. That
+    // is the trade: it rests on the server finishing its write before it
+    // serves any read that arrives after the 204.
+    const autoUpdateChoices: Record<
+      string,
+      { enabled: boolean | null; seq: number }
+    > = {};
+
+    function imposeChoice(au: AutoUpdate, enabled: boolean | null): AutoUpdate {
+      return enabled === null
+        ? { ...au, source: "repo" }
+        : { ...au, enabled, source: "pullRequest" };
+    }
 
     function withAutoUpdateChoices(
       prs: PullRequestItem[],
@@ -4775,29 +4788,31 @@
         if (!choice || !p.autoUpdate) return p;
         const au = p.autoUpdate;
         const same =
-          au.source === "pullRequest" && au.enabled === choice.enabled;
+          choice.enabled === null
+            ? au.source === "repo"
+            : au.source === "pullRequest" && au.enabled === choice.enabled;
         if (same || (startedSeq !== undefined && startedSeq > choice.seq)) {
           delete autoUpdateChoices[key];
           return p;
         }
         if (au.unavailable) return p;
-        return {
-          ...p,
-          autoUpdate: { ...au, enabled: choice.enabled, source: "pullRequest" },
-        };
+        return { ...p, autoUpdate: imposeChoice(au, choice.enabled) };
       });
     }
 
     // Draws the accepted choice on the rows already on the board, so the box
     // and the row marker follow the write without waiting for a read.
-    function rememberAutoUpdateChoice(item: PullRequestItem, enabled: boolean) {
+    function rememberAutoUpdateChoice(
+      item: PullRequestItem,
+      enabled: boolean | null,
+    ) {
       const key = prKey(item);
       autoUpdateChoices[key] = { enabled, seq: requestSeq };
       const patch = (list: PullRequestItem[]) => {
         for (const p of list) {
           if (prKey(p) !== key || !p.autoUpdate || p.autoUpdate.unavailable)
             continue;
-          p.autoUpdate = { ...p.autoUpdate, enabled, source: "pullRequest" };
+          p.autoUpdate = imposeChoice(p.autoUpdate, enabled);
         }
       };
       patch([item]);
@@ -4851,17 +4866,24 @@
       refreshDialogChrome();
       let ok = true;
       let sent: boolean | null;
+      let saved: { value: boolean | null } | null = null;
       do {
         sent = mine.latest;
         ok = await postAutoUpdate(item, sent);
+        if (ok) saved = { value: sent };
       } while (ok && mine.latest !== sent);
-      if (ok && mine.latest !== null) {
-        // The write is done; the dialog settles now. The read that follows can
-        // be slow under load and must not hold the box.
-        rememberAutoUpdateChoice(item, mine.latest);
+      // Whatever the server accepted last is what it holds, even when a later
+      // post in the loop was refused. The dialog settles now; the read that
+      // follows can be slow under load and must not hold the box.
+      if (saved) {
+        rememberAutoUpdateChoice(item, saved.value);
         void refreshBoard();
-      } else if (ok) await refreshBoard();
-      else {
+      }
+      if (ok) {
+        feedback.announce(
+          `Automatic updates saved for ${item.repo}#${item.number}.`,
+        );
+      } else {
         autoUpdateFailure[key] =
           `Couldn't change automatic updates for ${item.repo}#${item.number}. Try again.`;
         feedback.announce(autoUpdateFailure[key]);
@@ -4915,6 +4937,7 @@
         "auto-update-note",
         saving ? "Saving…" : control.note,
       );
+      note.setAttribute("role", "status");
       note.id = `${id}-note`;
       wrap.appendChild(note);
       if (control.canReset && !saving) {
