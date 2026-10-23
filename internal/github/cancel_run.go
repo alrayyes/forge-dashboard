@@ -70,26 +70,15 @@ func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks
 	}
 }
 
+// maxRunPages bounds the runs read for one commit. A commit with more runs
+// than this many pages is not a pipeline anyone cancels by hand.
+const maxRunPages = 5
+
 // activeRunJobs maps the id of each job of an unfinished run on sha to its run.
 func (c *Client) activeRunJobs(ctx context.Context, owner, name, sha string) map[int64]runRef {
 	byJob := map[int64]runRef{}
 
-	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
-	slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
-	runOpts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha}
-	runOpts.PerPage = perPage
-	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, runOpts)
-	if err != nil {
-		slog.Debug("github workflow runs unavailable", "path", runsPath, "err", err)
-
-		return byJob
-	}
-	c.recordRESTSuccess(ctx, http.MethodGet, runsPath, resp)
-
-	for _, run := range runs.WorkflowRuns {
-		if !activeRunStatuses[run.GetStatus()] {
-			continue
-		}
+	for _, run := range c.unfinishedRuns(ctx, owner, name, sha) {
 		jobsPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs", owner, name, run.GetID())
 		slog.Debug("github request", "method", http.MethodGet, "url", jobsPath)
 		jobOpts := &ghsdk.ListWorkflowJobsOptions{}
@@ -107,4 +96,36 @@ func (c *Client) activeRunJobs(ctx context.Context, owner, name, sha string) map
 	}
 
 	return byJob
+}
+
+// unfinishedRuns lists the queued and running workflow runs of sha. It follows
+// the pages, so an active run is not lost behind a hundred finished ones, and
+// it returns what it has read when a page fails.
+func (c *Client) unfinishedRuns(ctx context.Context, owner, name, sha string) []*ghsdk.WorkflowRun {
+	var active []*ghsdk.WorkflowRun
+
+	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
+	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha}
+	opts.PerPage = perPage
+	for range maxRunPages {
+		slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
+		runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, opts)
+		if err != nil {
+			slog.Debug("github workflow runs unavailable", "path", runsPath, "err", err)
+
+			return active
+		}
+		c.recordRESTSuccess(ctx, http.MethodGet, runsPath, resp)
+		for _, run := range runs.WorkflowRuns {
+			if activeRunStatuses[run.GetStatus()] {
+				active = append(active, run)
+			}
+		}
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return active
 }

@@ -22,6 +22,7 @@ var _ dashboard.RunCanceler = (*github.Client)(nil)
 type cancelServer struct {
 	cancelStatus int
 	runsStatus   int
+	pagedRuns    bool
 	mu           sync.Mutex
 	canceled     []string
 }
@@ -47,6 +48,23 @@ func (s *cancelServer) start(t *testing.T) *github.Client {
 		if s.runsStatus != 0 {
 			w.WriteHeader(s.runsStatus)
 			writeJSON(t, w, map[string]any{"message": "boom"})
+
+			return
+		}
+		if s.pagedRuns && r.URL.Query().Get("page") != "2" {
+			// The active runs sit on the second page, past a finished one.
+			w.Header().Set("Link", `<http://`+r.Host+`/repos/alrayyes/a/actions/runs?head_sha=cafef00d&page=2>; rel="next"`)
+			writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
+				{"id": 800, "name": "Old", "status": "completed"},
+			}})
+
+			return
+		}
+		if s.pagedRuns {
+			writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{
+				{"id": 900, "name": "CI", "status": "in_progress"},
+				{"id": 901, "name": "Release", "status": "queued"},
+			}})
 
 			return
 		}
@@ -105,6 +123,22 @@ func TestListChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
 	assert.Equal(t, int64(900), byName["build"].RunID, "a queued job belongs to its run too")
 	assert.Equal(t, int64(901), byName["publish"].RunID)
 	assert.Equal(t, "Release", byName["publish"].RunName)
+}
+
+// A commit with many runs spills over one page; an active run past the first
+// page still gets its name.
+func TestListChecks_NamesARunFoundOnALaterPage(t *testing.T) {
+	t.Parallel()
+
+	checks, err := (&cancelServer{pagedRuns: true}).start(t).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	byName := map[string]dashboard.Check{}
+	for _, c := range checks {
+		byName[c.Name] = c
+	}
+	assert.Equal(t, int64(900), byName["test"].RunID)
+	assert.Equal(t, int64(901), byName["publish"].RunID)
 }
 
 // Which run a job is in is a convenience for the dialog, never a reason to
