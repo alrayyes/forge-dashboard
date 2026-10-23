@@ -25,6 +25,15 @@ type JobLogReader interface {
 	JobLog(ctx context.Context, owner, name string, jobID int64) (JobLog, error)
 }
 
+// JobExcerptReader is implemented by a Source (or a ForgeClient behind a
+// GenericSource) that reads the excerpt of one failed job on request: the end
+// of its log, cut to the size a checks list shows. A job whose log is gone or
+// empty has an empty excerpt, not an error; a refused token or a rate limit is
+// an error.
+type JobExcerptReader interface {
+	JobExcerpt(ctx context.Context, owner, name string, jobID int64) (string, error)
+}
+
 // jobLogEscape matches a terminal escape: an OSC string (title, hyperlink),
 // a CSI sequence (colour, cursor), or a short ESC sequence such as a charset
 // switch. Stray control characters other than newline and tab go with them.

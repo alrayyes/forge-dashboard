@@ -69,18 +69,50 @@ func repoTracked(snap dashboard.Snapshot, forge, fullName string) bool {
 	})
 }
 
+// resolveJobSource checks a job read's input and finds the source that serves
+// it: the repository must be well formed and one the person tracks, so the
+// forge is never asked on a token's authority alone. The source is then asked
+// for the capability the caller needs.
+func resolveJobSource(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (src dashboard.Source, owner, name string, serr *statusError) {
+	owner, name, ok := splitFullName(fullName)
+	if !ok || !validRepoSegment(owner) || !validRepoSegment(name) {
+		return nil, "", "", &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+	}
+	if jobID <= 0 {
+		return nil, "", "", &statusError{http.StatusBadRequest, "jobId must be a positive integer"}
+	}
+
+	src, _, serr = lookupForgeSource(ctx, deps, forge)
+	if serr != nil {
+		return nil, "", "", serr
+	}
+
+	return src, owner, name, nil
+}
+
+// checkJobTracked refuses a repository the dashboard doesn't track. A
+// repository the person never added could still be readable with the token, so
+// this runs before the forge is called.
+func checkJobTracked(ctx context.Context, deps Deps, forge, fullName string) *statusError {
+	warmUpAggregator(ctx, deps)
+	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
+	snap := deps.Service.Get()
+	if len(snap.Repos) == 0 {
+		// A cold start, an outage or a slow first refresh also looks like this,
+		// so it can't be told apart from "not tracked": ask the caller to retry.
+		return &statusError{http.StatusServiceUnavailable, "your repositories aren't loaded yet, retry shortly"}
+	}
+	if !repoTracked(snap, forge, fullName) {
+		return &statusError{http.StatusNotFound, "that repository isn't on your board"}
+	}
+
+	return nil
+}
+
 // resolveJobLogFor reads the output of one Actions job. Shared by
 // handleJobLog and the MCP get_check_log tool so the two can't drift.
 func resolveJobLogFor(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
-	owner, name, ok := splitFullName(fullName)
-	if !ok || !validRepoSegment(owner) || !validRepoSegment(name) {
-		return dashboard.JobLog{}, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
-	}
-	if jobID <= 0 {
-		return dashboard.JobLog{}, &statusError{http.StatusBadRequest, "jobId must be a positive integer"}
-	}
-
-	src, _, serr := lookupForgeSource(ctx, deps, forge)
+	src, owner, name, serr := resolveJobSource(ctx, deps, forge, fullName, jobID)
 	if serr != nil {
 		return dashboard.JobLog{}, serr
 	}
@@ -88,19 +120,8 @@ func resolveJobLogFor(ctx context.Context, deps Deps, forge, fullName string, jo
 	if serr != nil {
 		return dashboard.JobLog{}, serr
 	}
-
-	// A repository the dashboard doesn't track is one the person never added;
-	// the token could still read it, so refuse before the forge is called.
-	warmUpAggregator(ctx, deps)
-	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
-	snap := deps.Service.Get()
-	if len(snap.Repos) == 0 {
-		// A cold start, an outage or a slow first refresh also looks like this,
-		// so it can't be told apart from "not tracked": ask the caller to retry.
-		return dashboard.JobLog{}, &statusError{http.StatusServiceUnavailable, "your repositories aren't loaded yet, retry shortly"}
-	}
-	if !repoTracked(snap, forge, fullName) {
-		return dashboard.JobLog{}, &statusError{http.StatusNotFound, "that repository isn't on your board"}
+	if serr := checkJobTracked(ctx, deps, forge, fullName); serr != nil {
+		return dashboard.JobLog{}, serr
 	}
 
 	log, err := reader.JobLog(ctx, owner, name, jobID)
@@ -113,7 +134,34 @@ func resolveJobLogFor(ctx context.Context, deps Deps, forge, fullName string, jo
 	return log, nil
 }
 
-// handleJobLog serves resolveJobLogFor over HTTP: a GET that fetches on demand,
+// resolveJobExcerptFor reads the excerpt of one failed job: the last lines of
+// its log, the shape a checks list shows. Only a forge whose client reads
+// excerpts on request serves it; a missing or empty log answers an empty
+// excerpt, not an error.
+func resolveJobExcerptFor(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
+	src, owner, name, serr := resolveJobSource(ctx, deps, forge, fullName, jobID)
+	if serr != nil {
+		return dashboard.JobLog{}, serr
+	}
+	reader, serr := capabilityFor[dashboard.JobExcerptReader](src, forge, "doesn't support reading job log excerpts")
+	if serr != nil {
+		return dashboard.JobLog{}, serr
+	}
+	if serr := checkJobTracked(ctx, deps, forge, fullName); serr != nil {
+		return dashboard.JobLog{}, serr
+	}
+
+	text, err := reader.JobExcerpt(ctx, owner, name, jobID)
+	if err != nil {
+		slog.Warn("job log excerpt fetch failed", "forge", forge, "repo", fullName, "job", jobID, "error", redactURLs(err))
+
+		return dashboard.JobLog{}, jobLogFailure(err)
+	}
+
+	return dashboard.JobLog{Text: text}, nil
+}
+
+// handleJobLog serves resolveJobLogFor (or, with excerpt=true, resolveJobExcerptFor) over HTTP: a GET that fetches on demand,
 // like GET /api/pull-requests/checks, since a log is never part of a snapshot.
 func handleJobLog(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +172,17 @@ func handleJobLog(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		log, serr := resolveJobLogFor(r.Context(), deps, q.Get("forge"), q.Get("fullName"), jobID)
+		resolve := resolveJobLogFor
+		switch q.Get("excerpt") {
+		case "", "false":
+		case "true":
+			resolve = resolveJobExcerptFor
+		default:
+			writeJSON(w, http.StatusBadRequest, errorBody("excerpt must be true or false"))
+
+			return
+		}
+		log, serr := resolve(r.Context(), deps, q.Get("forge"), q.Get("fullName"), jobID)
 		if serr != nil {
 			serr.write(w)
 
