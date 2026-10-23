@@ -88,7 +88,7 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 		}), []string{}},
 		// A rebase can't clear a hold for workflow approval, so the status area
 		// keeps the reason and the row has no rebase.
-		{"Renovate behind, blocked, failing and awaiting workflow approval: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.AwaitingWorkflowApproval = true }), []string{}},
+		{"Renovate behind, blocked, failing and awaiting workflow approval: none", botBehindWith("renovate", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.AwaitingWorkflowApproval = true }), []string{}},
 		{"Dependabot behind, blocked, failing and awaiting workflow approval: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.AwaitingWorkflowApproval = true }), []string{}},
 		{"Dependabot behind, unstable, failing and awaiting workflow approval: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
 			p.MergeStatus = dashboard.MergeUnstable
@@ -163,4 +163,29 @@ func readFixtureFile(t *testing.T) fixtureFile {
 	require.NoError(t, json.Unmarshal(raw, &file))
 
 	return file
+}
+
+// A behind bot pull request whose runs wait for approval has no row button,
+// since a rebase can't release them, so its status says what does: approve
+// the runs, not "bring it up to date".
+func TestPullRequestStatus_BehindBotAwaitingApproval(t *testing.T) {
+	t.Parallel()
+
+	for _, author := range []string{"renovate", "dependabot[bot]"} {
+		pr := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = author
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		})
+		actions := dashboard.AllowedActions(pr, []string{"renovate"})
+		status := dashboard.PullRequestStatus(pr, actions)
+
+		require.NotNil(t, status, author)
+		assert.Equal(t, dashboard.ActionBlockedByProtection, status.Code, author)
+		assert.Equal(t, "Workflow runs are waiting for approval", status.Message, author)
+		assert.Empty(t, status.Action, author)
+		assert.Empty(t, primaries(actions), author)
+	}
 }

@@ -99,8 +99,8 @@ for (const { name, author, button } of bots) {
       .locator('.row-action-bar')
       .getByRole('button', { name: button });
     await expect(button_).toBeVisible();
-    const box = await button_.boundingBox();
-    expect(box && box.x >= 0 && box.x + box.width <= 360).toBe(true);
+    await button_.scrollIntoViewIfNeeded();
+    await expect(button_).toBeInViewport({ ratio: 1 });
     expect(
       await page.evaluate(
         () =>
@@ -142,5 +142,39 @@ test('a behind Renovate pull request waiting on CI with a rebase already request
     .locator('.row-action-bar')
     .getByRole('button', { name: 'Renovate: Rebase' });
   await expect(button).toHaveAttribute('aria-disabled', 'true');
+  await expectNoAxeViolations(page);
+});
+
+const approval = {
+  code: 'blocked_by_protection',
+  message: 'Workflow runs are waiting for approval',
+  next: 'Approve them on GitHub to unlock Merge',
+};
+
+test('a behind bot pull request waiting for workflow approval has no rebase and says why', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      author: 'dependabot[bot]',
+      ci: 'failure',
+      awaitingWorkflowApproval: true,
+      // What the server answers for this state (pinned in its Go tests).
+      allowedActions: [
+        { action: 'merge', blocked: approval },
+        { action: 'close' },
+        { action: 'dependabot_rebase' },
+        { action: 'dependabot_recreate' },
+      ],
+      status: approval,
+    }),
+  );
+  await expect(row.locator('.status-area')).toContainText(
+    'Workflow runs are waiting for approval',
+  );
+  await expect(
+    row.getByRole('button', { name: 'Dependabot: Rebase' }),
+  ).toHaveCount(0);
   await expectNoAxeViolations(page);
 });

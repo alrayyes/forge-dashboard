@@ -245,6 +245,11 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		}
 
 		return blocked(ActionChecksPending, "Waiting for CI to finish", next)
+	case pr.Behind && pr.AwaitingWorkflowApproval && pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
+		// Held runs report nothing until a maintainer approves them, and
+		// bringing the branch up to date would only make a new held head, so
+		// the approval is the reason to give, ahead of being behind.
+		return blocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
 		return blocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
