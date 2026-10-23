@@ -266,6 +266,83 @@ let knownRev = 0;
 // was still requested before it, and the touched keys already protect the edit.
 let loadedCookieRev: number | null = null;
 
+// What the cookie may hold, name and value together. Browsers keep about 4096
+// bytes and drop a larger cookie whole, so this leaves room under that.
+export const COOKIE_LIMIT = 3800;
+
+function cookieSize(state: SharedFilterState, rev: number): number {
+  return (
+    FILTERS_COOKIE.length +
+    1 +
+    encodeURIComponent(JSON.stringify({ ...state, rev })).length
+  );
+}
+
+// Cuts the state down to what the cookie can hold, on purpose: the title
+// search first, then the last name of whichever pick is largest. Returns the
+// copy to write and what it left out.
+export function fitToCookie(
+  state: SharedFilterState,
+  rev: number,
+): { state: SharedFilterState; cut: string[] } {
+  if (cookieSize(state, rev) <= COOKIE_LIMIT) return { state, cut: [] };
+  const copy: SharedFilterState = {
+    ...state,
+    shared: { ...state.shared },
+  };
+  const cut: string[] = [];
+  if (typeof copy.shared.title === 'string' && copy.shared.title) {
+    cut.push('the title search');
+    delete copy.shared.title;
+  }
+  while (cookieSize(copy, rev) > COOKIE_LIMIT) {
+    let widest: string | null = null;
+    for (const key of PICK_KEYS) {
+      const pick = copy.shared[key];
+      if (typeof pick !== 'string' || !pick) continue;
+      if (widest === null || pick.length > (copy.shared[widest] ?? '').length)
+        widest = key;
+    }
+    if (widest === null) break;
+    const parts = (copy.shared[widest] ?? '').split('\n');
+    const last = parts.pop() ?? '';
+    if (parts.length > 0) copy.shared[widest] = parts.join('\n');
+    else delete copy.shared[widest];
+    cut.push(widest === 'repo' ? repoName(last) : last);
+  }
+  return { state: copy, cut };
+}
+
+const TRIMMED_NOTICE_ID = 'filter-cookie-trimmed';
+
+function clearTrimmedNotice(): void {
+  if (typeof document?.getElementById !== 'function') return;
+  document.getElementById(TRIMMED_NOTICE_ID)?.remove();
+}
+
+function showTrimmedNotice(cut: string[]): void {
+  if (typeof document?.getElementById !== 'function') return;
+  document.getElementById(TRIMMED_NOTICE_ID)?.remove();
+  const note = document.createElement('p');
+  note.id = TRIMMED_NOTICE_ID;
+  note.className = 'error-banner';
+  note.setAttribute('role', 'alert');
+  note.textContent = `Your filters were too large for this browser to keep, so these were left out of its copy: ${cut.join(', ')}.`;
+  const bar = document.querySelector('.filter-bar');
+  if (bar?.parentElement) bar.parentElement.insertBefore(note, bar);
+  else document.body?.prepend(note);
+}
+
+let trimmedHandler: (cut: string[]) => void = showTrimmedNotice;
+
+// For tests: what happens when the cookie had to be cut. Null puts the notice
+// back.
+export function setCookieTrimmedHandler(
+  handler: ((cut: string[]) => void) | null,
+): void {
+  trimmedHandler = handler ?? showTrimmedNotice;
+}
+
 function revOf(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -827,10 +904,13 @@ export function saveState(
   // Another tab may have saved since: go one past the newest revision known.
   knownRev = Math.max(knownRev, cookieRev() ?? 0) + 1;
   try {
+    const fitted = fitToCookie(savedCopy(state), knownRev);
     setCookie(
       FILTERS_COOKIE,
-      JSON.stringify({ ...savedCopy(state), rev: knownRev }),
+      JSON.stringify({ ...fitted.state, rev: knownRev }),
     );
+    if (fitted.cut.length > 0) trimmedHandler(fitted.cut);
+    else clearTrimmedNotice();
   } catch {
     /* ignore */
   }
