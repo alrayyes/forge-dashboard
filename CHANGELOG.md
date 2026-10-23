@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.3](https://github.com/alrayyes/forge-dashboard/compare/v2.17.2...v2.17.3) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** keep keyboard focus on the same pick box through a redraw ([#2639](https://github.com/alrayyes/forge-dashboard/issues/2639)) ([8ffa38f](https://github.com/alrayyes/forge-dashboard/commit/8ffa38f54938c0e4c2c61cfda53f28c484464757))
+
 ## [2.17.2](https://github.com/alrayyes/forge-dashboard/compare/v2.17.1...v2.17.2) (2026-10-23)
 
 
