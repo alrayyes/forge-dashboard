@@ -4548,8 +4548,6 @@
         .catch(() => false);
     }
 
-    // The board asks the server again, so the row leaves or returns at once
-    // instead of waiting for the pointer to leave the list.
     function refreshSnapshot(): Promise<DashboardSnapshot | null> {
       return fetch(withDrafts("/api/dashboard/refresh"), {
         method: "POST",
@@ -4557,12 +4555,10 @@
       }).then((res) => (res.ok ? res.json() : null));
     }
 
+    // The board asks the server again, so the row leaves or returns at once
+    // instead of waiting for the pointer to leave the list.
     function refreshBoard(): Promise<void> {
-      return fetch(withDrafts("/api/dashboard/refresh"), {
-        method: "POST",
-        headers: { Accept: "application/json" },
-      })
-        .then((res) => (res.ok ? res.json() : null))
+      return refreshSnapshot()
         .then((data) => {
           if (data) applySnapshot(data, true);
         })
