@@ -156,6 +156,7 @@ const singleUserSpecs = [
   '**/nav-branches-pill-matches-page.spec.ts',
   '**/branch-pipeline-panel-live.spec.ts',
   '**/branch-rerun-checks.spec.ts',
+  '**/cancel-run.spec.ts',
   '**/in-place-dialogs.spec.ts',
   '**/issue-close.spec.ts',
   '**/issue-dialog.spec.ts',

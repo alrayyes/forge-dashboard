@@ -31,7 +31,17 @@
     // The call is untracked, so the control must redraw itself when anything
     // else it reads changes (the Main branches page does, after each poll).
     controls?: (failed: boolean) => HTMLElement | null;
+    // Offers Cancel run for each queued or running Actions run among the
+    // checks. `allowed` is the board's own rule, read each time the checks
+    // change: the pull request board passes whether the server offers
+    // cancel_run, a branch has no such list and omits it.
+    cancel?: { forge: string; fullName: string; allowed?: () => boolean };
   };
+
+  // Repositories whose token was refused permission to cancel, with the forge's
+  // reason, kept for the page's life so the next dialog on that repository
+  // doesn't offer a button it already knows will fail.
+  const cancelLocks = new Map<string, string>();
 </script>
 
 <script lang="ts">
@@ -47,6 +57,13 @@
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
   import { canCopyLog } from "#lib/run-log.js";
+  import {
+    activeRuns,
+    cancelLocksRepo,
+    cancelRun,
+    runLabel,
+    type ActiveRun,
+  } from "#lib/cancel-run.js";
   import {
     blockingFirst,
     CHECK_STATE_LABELS,
@@ -96,6 +113,118 @@
   let reads = newExcerptReads();
   let excerptRun = 0;
 
+  // Cancel run: one entry per run the person has started to cancel, by run id.
+  // `confirm` waits for the second click, `cancelling` is the forge accepting,
+  // `cancelled` is a snapshot that no longer shows the run going, and `refused`
+  // keeps the forge's own reason.
+  type RunState = {
+    phase: "confirm" | "cancelling" | "cancelled" | "refused";
+    run: ActiveRun;
+    message?: string;
+  };
+  let runStates = $state<Record<number, RunState>>({});
+  // Bumped when a repository is locked, so the lock redraws.
+  let lockTick = $state(0);
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  const SETTLE_MS = 2500;
+  const SETTLE_TRIES = 8;
+
+  const cancelKey = (c: { forge: string; fullName: string }) =>
+    `${c.forge}|${c.fullName}`;
+  const cancelLock = $derived.by(() => {
+    void lockTick;
+    return target?.cancel
+      ? (cancelLocks.get(cancelKey(target.cancel)) ?? "")
+      : "";
+  });
+  // The runs that can be cancelled, as the checks now name them.
+  const runs = $derived(
+    target?.cancel && (target.cancel.allowed?.() ?? true)
+      ? activeRuns(checks)
+      : [],
+  );
+  // What the section draws: the runs still going, and any run the person has
+  // acted on whose state still has something to say.
+  const runEntries = $derived.by(() => {
+    const rows: { run: ActiveRun; state?: RunState }[] = runs.map((run) => ({
+      run,
+      state: runStates[run.runId],
+    }));
+    for (const state of Object.values(runStates)) {
+      if (!runs.some((r) => r.runId === state.run.runId))
+        rows.push({ run: state.run, state });
+    }
+    return rows;
+  });
+
+  function startCancel(run: ActiveRun) {
+    runStates[run.runId] = { phase: "confirm", run };
+    void tick().then(() =>
+      dialog
+        .querySelector<HTMLElement>(`[data-cancel-confirm="${run.runId}"]`)
+        ?.focus({ preventScroll: true }),
+    );
+  }
+
+  function keepRunning(run: ActiveRun) {
+    delete runStates[run.runId];
+    void tick().then(() =>
+      dialog
+        .querySelector<HTMLElement>(`[data-cancel-run="${run.runId}"]`)
+        ?.focus({ preventScroll: true }),
+    );
+  }
+
+  async function confirmCancel(run: ActiveRun) {
+    const cancel = target?.cancel;
+    if (!cancel) return;
+    const row = target;
+    runStates[run.runId] = { phase: "cancelling", run };
+    try {
+      await cancelRun(cancel, run.runId);
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      const message = e.message || "The forge refused to cancel this run.";
+      runStates[run.runId] = { phase: "refused", run, message };
+      if (cancelLocksRepo(e)) {
+        cancelLocks.set(cancelKey(cancel), message);
+        lockTick++;
+      }
+      speak(`Couldn't cancel ${runLabel(run)}. ${message}`);
+      // A run that already finished is the commonest refusal: read again so
+      // the list says so.
+      if (row && target === row) void load(row, true);
+      return;
+    }
+    speak(`Cancelling ${runLabel(run)}.`);
+    settle(row, SETTLE_TRIES);
+  }
+
+  // The forge takes a moment to stop a run, and the board's own snapshot may be
+  // slower still, so read the checks again a few times until the run is gone.
+  function settle(row: PipelineTarget | null, left: number) {
+    clearTimeout(settleTimer);
+    if (!row || left <= 0 || target !== row) return;
+    if (!Object.values(runStates).some((s) => s.phase === "cancelling")) return;
+    settleTimer = setTimeout(async () => {
+      if (target !== row) return;
+      await load(row, true);
+      settle(row, left - 1);
+    }, SETTLE_MS);
+  }
+
+  // A run the person cancelled that the checks no longer show going has
+  // stopped.
+  function reconcileRuns(list: Check[]) {
+    const going = new Set(activeRuns(list).map((r) => r.runId));
+    for (const state of Object.values(runStates)) {
+      if (state.phase === "cancelling" && !going.has(state.run.runId)) {
+        runStates[state.run.runId] = { ...state, phase: "cancelled" };
+        speak(`${runLabel(state.run)} was cancelled.`);
+      }
+    }
+  }
+
   function askForExcerpts(list: Check[], url: string) {
     const picks = pickExcerptJobs(list, reads);
     if (!picks.length) return;
@@ -123,6 +252,8 @@
     excerptRun++;
     excerpts = {};
     reads = newExcerptReads();
+    runStates = {};
+    clearTimeout(settleTimer);
     speak.clear();
     live = createLiveChecks({
       signature: next.signature,
@@ -185,6 +316,7 @@
           .querySelector(".pipeline-dialog-body")
           ?.contains(document.activeElement);
         checks = ordered;
+        reconcileRuns(ordered);
         askForExcerpts(ordered, row.checksUrl);
         if (line) speak(line);
         // The control the keyboard was on is gone: its node went with it, so
@@ -200,6 +332,7 @@
       }
       live?.refreshed();
       checks = blockingFirst(next);
+      reconcileRuns(checks);
       phase = "ready";
       askForExcerpts(checks, row.checksUrl);
     } catch (err) {
@@ -219,6 +352,7 @@
   function closed() {
     request++;
     excerptRun++;
+    clearTimeout(settleTimer);
     live = null;
     speak.clear();
     const done = target;
@@ -370,6 +504,60 @@
   </ul>
 {/snippet}
 
+{#snippet cancelRow(run: ActiveRun, state: RunState | undefined)}
+  <div class="pipeline-run-cancel" data-testid="cancel-run-{run.runId}">
+    {#if state?.phase === "confirm"}
+      <div
+        class="pipeline-cancel-confirm"
+        role="group"
+        aria-label="Confirm cancelling {runLabel(run)}"
+      >
+        <p>
+          Cancel the whole run <strong>{runLabel(run)}</strong>? It stops
+          {run.jobs.length === 1
+            ? `its one unfinished job: ${run.jobs[0]}.`
+            : `all ${run.jobs.length} of its unfinished jobs: ${run.jobs.join(", ")}.`}
+          This can't be undone.
+        </p>
+        <button
+          type="button"
+          class="row-action confirm"
+          data-cancel-confirm={run.runId}
+          onclick={() => confirmCancel(run)}>Yes, cancel run</button
+        >
+        <button
+          type="button"
+          class="row-action"
+          onclick={() => keepRunning(run)}>Keep running</button
+        >
+      </div>
+    {:else if state?.phase === "cancelling"}
+      <p class="pipeline-rerun-status" role="status">
+        Cancelling {runLabel(run)}…
+      </p>
+    {:else if state?.phase === "cancelled"}
+      <p class="pipeline-rerun-status" role="status">
+        {runLabel(run)} was cancelled.
+      </p>
+    {:else if state?.phase === "refused"}
+      <p class="pipeline-cancel-refused" role="alert">
+        Couldn't cancel {runLabel(run)}: {state.message}
+      </p>
+    {:else if cancelLock}
+      <p class="pipeline-rerun-status">
+        Cancel run: {runLabel(run)} isn't available. {cancelLock}
+      </p>
+    {:else}
+      <button
+        type="button"
+        class="row-action"
+        data-cancel-run={run.runId}
+        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+      >
+    {/if}
+  </div>
+{/snippet}
+
 <dialog
   bind:this={dialog}
   id="pipeline-dialog"
@@ -423,6 +611,13 @@
       <p class="pipeline-status">{target?.emptyText ?? ""}</p>
     {:else}
       <div class="pipeline-controls" {@attach controls}></div>
+      {#if runEntries.length}
+        <div class="pipeline-runs">
+          {#each runEntries as { run, state } (run.runId)}
+            {@render cancelRow(run, state)}
+          {/each}
+        </div>
+      {/if}
       {#each groups as group (group.id)}
         {#if group.id === ""}
           {@render list(group.checks)}
@@ -455,5 +650,26 @@
   /* The slot the board's own control is drawn into adds no box of its own. */
   .pipeline-controls {
     display: contents;
+  }
+  .pipeline-runs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .pipeline-cancel-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .pipeline-cancel-confirm p,
+  .pipeline-cancel-refused {
+    margin: 0;
+    flex-basis: 100%;
+    font-size: 12.5px;
+  }
+  .pipeline-cancel-refused {
+    color: var(--critical);
   }
 </style>
