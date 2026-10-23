@@ -96,7 +96,12 @@ something set on the pull request that holds until someone changes it:
 of its rows, since every row there is a bot's; the details pop-up still shows
 it.
 Attributes are quiet outlined chips with a small icon and no fill or motion,
-in a cluster beside the CI slot, never inside it. Conflicts and Blocked stay
+in a cluster beside the CI slot, never inside it. `Out of date` is the one
+exception: it is drawn for every pull request that is behind its base and has
+something left to merge, on the overview and the Bots page alike, in the
+warning colour on a tinted fill with a larger icon and heavier text, so a stale
+pull request stands out. It is readable in both themes (4.5:1 for the words,
+3:1 for the outline). Conflicts and Blocked stay
 as merge pills, since they say what the merge needs. On a phone the CI slot sits
 at the top right and the attributes take a line of their own.
 

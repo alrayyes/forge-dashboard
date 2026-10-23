@@ -9,7 +9,11 @@ import { readFileSync } from 'node:fs';
 // --surface-sunken on hover) is what sits behind it. 4.5:1 is WCAG 2.2
 // 1.4.3 for text, which also covers the icon's 3:1 (1.4.11).
 // https://www.w3.org/TR/WCAG22/#contrast-minimum
-// The outline is not measured: the word names the chip, so the outline is not
+// The Out of date chip is the one exception: it is drawn in the warning
+// colour on --warning-bg so a stale pull request stands out. Its text and icon
+// are measured against its own fill at 4.5:1, and its outline and the fill's
+// edge against the row at 3:1 (1.4.11), so it holds in both themes.
+// The outline of the other chips is not measured: the word names the chip, so the outline is not
 // needed to identify it (1.4.11 covers parts needed to understand a control).
 
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
@@ -95,6 +99,15 @@ function chipProblems(source: string): string[] {
     const selectors = m[1].replace(/\/\*[\s\S]*?\*\//g, '');
     if (!/\.attr-chip\b/.test(selectors) || selectors.trim() === '.attr-chip')
       continue;
+    if (selectors.trim() === '.attr-chip.behind') {
+      for (const prop of ['color', 'background', 'border-color']) {
+        if (!declared(m[2], prop))
+          problems.push(`.attr-chip.behind sets no ${prop}`);
+      }
+      if (declared(m[2], 'opacity'))
+        problems.push('.attr-chip.behind sets opacity');
+      continue;
+    }
     for (const prop of ['color', 'background', 'opacity', 'border-color']) {
       if (declared(m[2], prop))
         problems.push(`${selectors.trim()} sets ${prop}`);
@@ -115,6 +128,24 @@ function failures(source: string, theme: Map<string, string>): string[] {
   });
 }
 
+// The Out of date chip: its own text on its own fill, and its outline against
+// the two row backgrounds.
+function behindFailures(source: string, theme: Map<string, string>): string[] {
+  const own = block(source, '.attr-chip.behind {');
+  const text = resolve(declared(own, 'color') ?? '', theme);
+  const fill = resolve(declared(own, 'background') ?? '', theme);
+  const edge = resolve(declared(own, 'border-color') ?? '', theme);
+  const out: string[] = [];
+  const t = ratio(text, fill);
+  if (t < 4.5) out.push(`text on its fill is ${t.toFixed(2)}:1`);
+  for (const token of ['--surface', '--surface-sunken']) {
+    const bg = resolve(`var(${token})`, theme);
+    const e = ratio(edge, bg);
+    if (e < 3) out.push(`outline on ${token} is ${e.toFixed(2)}:1`);
+  }
+  return out;
+}
+
 describe('attribute chip colours', () => {
   test('nothing else changes a chip colour, fill or opacity', () => {
     const problems = chipProblems(css);
@@ -127,6 +158,10 @@ describe('attribute chip colours', () => {
   for (const [name, theme] of themes) {
     test(`text and icon read at 4.5:1 in the ${name} theme`, () => {
       expect(failures(css, theme)).toEqual([]);
+    });
+
+    test(`the Out of date chip is readable in the ${name} theme`, () => {
+      expect(behindFailures(css, theme)).toEqual([]);
     });
   }
 });

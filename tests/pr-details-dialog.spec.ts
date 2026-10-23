@@ -1051,10 +1051,13 @@ test.describe('pull request details dialog', () => {
         };
       }),
     );
-    for (const s of styles) {
+    // Out of date is the one chip with a fill and the warning colour; the
+    // rest stay quiet.
+    const quiet = styles.filter((_, i) => i !== 3);
+    for (const s of quiet) {
       expect(s.bg).toBe('rgba(0, 0, 0, 0)');
       expect(s.border).toBe('1px');
-      expect(s.color).toBe(styles[0].color);
+      expect(s.color).toBe(quiet[0].color);
     }
   });
 

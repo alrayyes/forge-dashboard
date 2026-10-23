@@ -173,10 +173,13 @@ status dropdown, on this page, Releases and Bots. The **No checks** pill shows
 the pull requests that have no CI configured. A CI status saved from when the
 dropdown existed becomes the matching pill when the page loads, unless a pill or
 a forge is already picked, in which case it is dropped, so nothing stays
-filtered out of sight. Next to them an **Auto-merge** control has Any, On and
-Off. On shows only pull requests that have auto-merge armed, Off only those
-without. It combines with a pill, so Failing CI with Auto-merge On finds armed
-pull requests whose checks have since failed.
+filtered out of sight. The **Out of date** pill, on this page and on Bots,
+keeps the pull requests whose base branch has moved on, the same ones that
+carry the row's Out of date badge. An empty pull request is left out. The
+choice is saved like the other pills. Next to them an **Auto-merge** control
+has Any, On and Off. On shows only pull requests that have auto-merge armed, Off
+only those without. It combines with a pill, so Failing CI with Auto-merge On
+finds armed pull requests whose checks have since failed.
 
 A **Closing issue** control beside it has Any, **Closes an issue** and **Closes
 no issue**. The first keeps the pull requests that will close at least one

@@ -254,10 +254,12 @@ test.describe('row status grammar (#1563)', () => {
     }
   }
 
-  test('no attribute chip uses a state colour', async ({ page }) => {
+  // Out of date is the one chip that asks to be seen, so it is drawn in the
+  // warning colour on purpose (out-of-date-filter.spec.ts holds it to that).
+  test('no other attribute chip uses a state colour', async ({ page }) => {
     await open(page, [everything()], '/bots.html');
     const colours = await firstRow(page)
-      .locator('.attr-chip')
+      .locator('.attr-chip:not(.behind)')
       .evaluateAll((els) => {
         const probe = document.createElement('span');
         const resolve = (token: string) => {
@@ -276,7 +278,7 @@ test.describe('row status grammar (#1563)', () => {
           isState: states.includes(getComputedStyle(el).color),
         }));
       });
-    expect(colours.length).toBe(3);
+    expect(colours.length).toBe(2);
     for (const c of colours) expect(c.isState, c.text ?? '').toBe(false);
   });
 

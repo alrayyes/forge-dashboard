@@ -101,6 +101,11 @@ they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
 `conflicting`, the same field behind the row's own Conflicting pill, so the page
 holds no rule of its own. A draft that conflicts is listed too.
 
+The **Out of date** quick filter keeps the pull requests whose base branch has
+moved on, so they can be updated in one pass. It reads the `behind` and `empty`
+fields of each pull request, the same ones behind the row's Out of date badge,
+and leaves out an empty pull request, which has nothing to update.
+
 Draft pull requests are left out of `/api/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in
 `hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
