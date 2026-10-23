@@ -64,7 +64,7 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 	jobs := c.runJobs(ctx, repo, runs)
 	runs = settledRuns(runs, jobs)
 	row.Status = mainBranchStatus(runs)
-	row.Checks = jobCounts(runs, jobs)
+	row.Checks = countChecks(branchChecks(runs, jobs))
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
 	case row.Status == dashboard.MainBranchFailed:
@@ -86,10 +86,17 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 
 // ListDefaultBranchChecks implements dashboard.DefaultBranchChecker: the jobs of
 // every Actions run on the newest commit of owner/name's default branch that has
-// one, the commit ReadMainBranch reports. Fetched on demand. A repo with no
+// one, the commit ReadMainBranch reports, gathered the way it gathers them and
+// listed as it counts them (branchChecks). Fetched on demand. A repo with no
 // default branch, or no run on it, has none, as its row reads none; a failed
 // lookup is an error. "Required" is a pull request's base-branch notion and
 // stays unknown.
+//
+// The list is the pill's, on purpose: it has no commit-status or commit-scoped
+// run fallback, since a Forgejo default branch's checks are its Actions runs
+// and the pill counts nothing else. A job list that can't be read gives the
+// run as one check, here as in the count, rather than an error that would hide
+// the rest of the pipeline.
 func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string) ([]dashboard.Check, error) {
 	c = c.withContext(ctx)
 
@@ -104,18 +111,20 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 		return nil, nil
 	}
 
-	runs, err := c.branchRuns(ctx, dashboard.RepoRef{
-		FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch,
-	})
+	ref := dashboard.RepoRef{FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch}
+	runs, err := c.branchRuns(ctx, ref)
 	if err != nil || len(runs) == 0 {
 		return nil, err
 	}
 
-	// branchRuns sorts newest first and keeps one commit's runs, so runs[0] is
-	// the commit the row reports.
-	checks, _, err := c.listChecksForSHA(ctx, owner, name, runs[0].CommitSHA)
+	// The same runs and jobs the row counts (see ReadMainBranch), so the list
+	// and the pill can't describe different pipelines. branchRuns sorts newest
+	// first and keeps one commit's runs, so runs[0] is the commit the row reports.
+	jobs := c.runJobs(ctx, ref, runs)
+	checks := branchChecks(runs, jobs)
+	c.rememberFailedJobs(owner, name, checks, jobExcerptKeys(ref, jobs))
 
-	return checks, err
+	return checks, nil
 }
 
 // branchRun is one entry of Forgejo's Actions runs list, decoded by hand: the
@@ -280,9 +289,9 @@ func jobsOutcome(list []*gitea.ActionWorkflowJob) (status string, stopped time.T
 const jobsPageSize = 30
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be
-// read is left out, and counts as one check (see jobCounts). A finished run's
-// jobs are kept (see finishedJobs), so only runs still going cost a
-// request on a repeat poll.
+// read is left out, and counts as one check (see branchChecks, countChecks). A
+// finished run's jobs are kept (see finishedJobs), so only runs still going
+// cost a request on a repeat poll.
 func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) map[int64][]*gitea.ActionWorkflowJob {
 	out := make(map[int64][]*gitea.ActionWorkflowJob, len(runs))
 	for _, run := range runs {
@@ -305,7 +314,14 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 		// An empty list for a run that just finished may be the forge catching
 		// up, so it is read again rather than kept. Once the run is older than
 		// jobsCatchUp the list is final, however short.
-		if key != "" && (len(jobs) > 0 || time.Since(run.StoppedAt) > jobsCatchUp) {
+		// A list with a job still going is read again too: the run was listed as
+		// finished, but the jobs may have been read before the forge caught up,
+		// and a kept list would show that job running for as long as we live.
+		// A run that ended in failure or cancellation can leave a job queued for
+		// good, so once the forge has had time to catch up its list is final.
+		_, _, over := jobsOutcome(jobs)
+		final := over || (!isPassing(run.Status) && time.Since(run.StoppedAt) > jobsCatchUp)
+		if key != "" && final && (len(jobs) > 0 || time.Since(run.StoppedAt) > jobsCatchUp) {
 			c.finishedJobs.put(key, jobs)
 		}
 	}
@@ -316,6 +332,18 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 // jobsCatchUp is how long after a run finishes the forge may still answer an
 // empty job list for it.
 const jobsCatchUp = 5 * time.Minute
+
+// isPassing reports whether status is one a run ends well in.
+func isPassing(status string) bool {
+	switch checkStateFromWorkflowStatus(status) {
+	case dashboard.CheckSuccess, dashboard.CheckSkipped:
+		return true
+	case dashboard.CheckFailure, dashboard.CheckCancelled, dashboard.CheckRunning, dashboard.CheckQueued:
+		return false
+	}
+
+	return false
+}
 
 // isFinished reports whether status is one a run ends in, by the same reading
 // of the forge's words that checkStateFromWorkflowStatus gives the checks.
@@ -330,22 +358,65 @@ func isFinished(status string) bool {
 	return false
 }
 
-// jobCounts tallies the jobs of the commit's runs into passed, running,
-// waiting and failed (#2357). A run with no readable job list counts as one
-// check by its own status, so a failed read shows less detail, never nothing.
-// A cancelled job or run is in none of the four, as for a pull request:
-// nothing broke, and mainBranchStatus reads it the same way.
-func jobCounts(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) dashboard.CheckCounts {
-	var out dashboard.CheckCounts
+// branchChecks is the checks of the commit's runs: each run's jobs, or, for a
+// run with no readable job list, the run itself as one check named after its
+// workflow, so a failed read shows less detail, never nothing. It is the one
+// list both the pill's counts (countChecks) and the pipeline dialog come from,
+// so a count never has a job behind it that the dialog hides.
+func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) []dashboard.Check {
+	var out []dashboard.Check
 	for _, r := range runs {
 		if list := jobs[r.ID]; len(list) > 0 {
 			for _, j := range list {
-				tally(&out, checkStateFromWorkflowStatus(j.Status))
+				out = append(out, dashboard.Check{
+					Name:       j.Name,
+					State:      checkStateFromWorkflowStatus(j.Status),
+					URL:        j.HTMLURL,
+					JobID:      j.ID,
+					RunAttempt: j.RunAttempt,
+				})
 			}
 
 			continue
 		}
-		tally(&out, checkStateFromWorkflowStatus(r.Status))
+		out = append(out, dashboard.Check{Name: runName(r), State: checkStateFromWorkflowStatus(r.Status), URL: r.HTMLURL})
+	}
+
+	return out
+}
+
+// runName names a run for the one check that stands in for its unreadable jobs:
+// its workflow file without the ref and extension ("ci.yaml@refs/heads/main"
+// is "ci"), else the run's title.
+func runName(r *branchRun) string {
+	workflow, _, _ := strings.Cut(r.WorkflowID, "@")
+	workflow = strings.TrimSuffix(strings.TrimSuffix(workflow, ".yaml"), ".yml")
+	if workflow != "" {
+		return workflow
+	}
+
+	return r.Title
+}
+
+// jobExcerptKeys keys each listed job's log excerpt, by job id.
+func jobExcerptKeys(repo dashboard.RepoRef, jobs map[int64][]*gitea.ActionWorkflowJob) map[int64]excerptKey {
+	keys := map[int64]excerptKey{}
+	for _, list := range jobs {
+		for _, j := range list {
+			keys[j.ID] = newExcerptKey(repo.Owner, repo.Name, j)
+		}
+	}
+
+	return keys
+}
+
+// countChecks tallies checks into passed, running, waiting and failed. A
+// cancelled check is in none of the four, as for a pull request: nothing
+// broke, and mainBranchStatus reads it the same way.
+func countChecks(checks []dashboard.Check) dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	for _, c := range checks {
+		tally(&out, c.State)
 	}
 
 	return out

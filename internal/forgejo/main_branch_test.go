@@ -38,6 +38,8 @@ type mainBranchServer struct {
 	runsCode int
 	jobs     map[string][]map[string]any
 	jobsCode int
+	// jobsFail makes the jobs route answer with that status for one run id.
+	jobsFail map[string]int
 	bareJobs bool // answer the jobs list as a bare array, as the live instance does
 	commit   map[string]any
 
@@ -51,32 +53,13 @@ func (s *mainBranchServer) start(t *testing.T) *forgejo.Client {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		s.paths = append(s.paths, r.URL.Path)
-		s.query = map[string]string{"branch": r.URL.Query().Get("branch")}
-		s.mu.Unlock()
-		if s.runsCode != 0 {
-			w.WriteHeader(s.runsCode)
-
-			return
-		}
-		writeJSON(t, w, map[string]any{"total_count": len(s.runs), "workflow_runs": s.runs})
+		s.serveRuns(t, w, r)
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"name": "a", "full_name": "alrayyes/a", "default_branch": "main"})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/{run}/jobs", func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		s.paths = append(s.paths, r.URL.Path)
-		s.mu.Unlock()
-		if s.jobsCode != 0 {
-			w.WriteHeader(s.jobsCode)
-
-			return
-		}
-		if s.bareJobs {
-			writeJSON(t, w, s.jobs[r.PathValue("run")])
-
-			return
-		}
-		writeJSON(t, w, map[string]any{"total_count": 1, "jobs": s.jobs[r.PathValue("run")]})
+		s.serveJobs(t, w, r)
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/git/commits/{sha}", func(w http.ResponseWriter, _ *http.Request) {
 		if s.commit == nil {
@@ -90,6 +73,55 @@ func (s *mainBranchServer) start(t *testing.T) *forgejo.Client {
 	t.Cleanup(srv.Close)
 
 	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func (s *mainBranchServer) serveRuns(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	s.mu.Lock()
+	s.paths = append(s.paths, r.URL.Path)
+	s.query = map[string]string{"branch": r.URL.Query().Get("branch")}
+	s.mu.Unlock()
+	if s.runsCode != 0 {
+		w.WriteHeader(s.runsCode)
+
+		return
+	}
+	runs := s.runs
+	if sha := r.URL.Query().Get("head_sha"); sha != "" {
+		// Forgejo filters by commit here; the branch filter it ignores.
+		runs = nil
+		for _, run := range s.runs {
+			if run["commit_sha"] == sha {
+				runs = append(runs, run)
+			}
+		}
+	}
+	writeJSON(t, w, map[string]any{"total_count": len(runs), "workflow_runs": runs})
+}
+
+func (s *mainBranchServer) serveJobs(t *testing.T, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+
+	s.mu.Lock()
+	s.paths = append(s.paths, r.URL.Path)
+	s.mu.Unlock()
+	if s.jobsCode != 0 {
+		w.WriteHeader(s.jobsCode)
+
+		return
+	}
+	if code := s.jobsFail[r.PathValue("run")]; code != 0 {
+		w.WriteHeader(code)
+
+		return
+	}
+	if s.bareJobs {
+		writeJSON(t, w, s.jobs[r.PathValue("run")])
+
+		return
+	}
+	writeJSON(t, w, map[string]any{"total_count": 1, "jobs": s.jobs[r.PathValue("run")]})
 }
 
 func (s *mainBranchServer) branchParam() string {
