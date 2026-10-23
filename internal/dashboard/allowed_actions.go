@@ -17,6 +17,7 @@ const (
 	ActionDependabotRecreate ActionName = "dependabot_recreate"
 	ActionRenovateRebase     ActionName = "renovate_rebase"
 	ActionRerunChecks        ActionName = "rerun_checks"
+	ActionCancelRun          ActionName = "cancel_run"
 )
 
 // ActionAvailability says one action applies to a pull request and, when it
@@ -78,6 +79,12 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	// A pull request held only for workflow approval has no failed run to rerun.
 	if IsFailingCI(pr) {
 		out = append(out, ActionAvailability{Action: ActionRerunChecks})
+	}
+	// A pipeline that is still going can be cancelled, a run at a time. The
+	// list only knows the CI is pending, not whether an Actions run is behind
+	// it, so the pipeline dialog offers Cancel only on checks that name a run.
+	if pr.CI == CIPending {
+		out = append(out, ActionAvailability{Action: ActionCancelRun})
 	}
 	markPrimary(pr, out)
 

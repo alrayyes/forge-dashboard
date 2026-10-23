@@ -157,7 +157,7 @@ func TestQueuedActions_MergeAndCloseAndTheRest_AreRefusedWith400(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
-	for _, action := range []string{"merge", "close", "auto_merge", "cancel_auto_merge", "dependabot_recreate", "rerun_checks", "nonsense", ""} {
+	for _, action := range []string{"merge", "close", "auto_merge", "cancel_auto_merge", "dependabot_recreate", "rerun_checks", "cancel_run", "nonsense", ""} {
 		t.Run("action "+action, func(t *testing.T) {
 			t.Parallel()
 			resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody(action, 5), cookie)

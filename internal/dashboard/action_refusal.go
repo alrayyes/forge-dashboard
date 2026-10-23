@@ -138,6 +138,9 @@ const (
 	PullRequestActionDependabot      PullRequestAction = "dependabot"
 	PullRequestActionRenovateRebase  PullRequestAction = "renovate_rebase"
 	PullRequestActionRerunChecks     PullRequestAction = "rerun_checks"
+	// PullRequestActionCancelRun is the cancel of one Actions run. It names a
+	// run, not a pull request, but it fails the same ways.
+	PullRequestActionCancelRun PullRequestAction = "cancel_run"
 	// PullRequestActionRerunBranchChecks is the rerun of a default branch's
 	// failed checks. It has no pull request, but it fails the same ways.
 	PullRequestActionRerunBranchChecks PullRequestAction = "rerun_branch_checks"
@@ -200,7 +203,7 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 		if r, ok := classifyReopenRefusal(actionErr); ok {
 			return r
 		}
-	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionRerunChecks, PullRequestActionRerunBranchChecks:
+	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionRerunChecks, PullRequestActionRerunBranchChecks, PullRequestActionCancelRun:
 	}
 
 	return unknownRefusal(actionErr, forgeText)
