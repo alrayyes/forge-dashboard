@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.1](https://github.com/alrayyes/forge-dashboard/compare/v2.17.0...v2.17.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** don't report an accepted action as unreachable when the follow-up refresh drops ([#2632](https://github.com/alrayyes/forge-dashboard/issues/2632)) ([c9104a3](https://github.com/alrayyes/forge-dashboard/commit/c9104a3cd72db6d7005379315adf088b6c08e73f))
+
 ## [2.17.0](https://github.com/alrayyes/forge-dashboard/compare/v2.16.0...v2.17.0) (2026-10-23)
 
 
