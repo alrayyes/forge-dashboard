@@ -1576,7 +1576,11 @@
                     Metadata — Read-only (mandatory on every fine-grained token
                     regardless)
                   </li>
-                  <li>Issues — Read-only</li>
+                  <li>
+                    Issues — Read and write (write is what closing an issue or
+                    commenting on one from its dialog needs; read-only still
+                    lists them)
+                  </li>
                   <li>Pull requests — Read-only</li>
                   <li>Commit statuses — Read-only</li>
                   <li>Checks — Read-only</li>
@@ -1736,7 +1740,11 @@
                     separate read-only scope, so even just checking coverage
                     needs write, not just <code>read:repository</code>
                   </li>
-                  <li><code>read:issue</code></li>
+                  <li>
+                    <code>write:issue</code> — closing an issue or commenting on
+                    one from its dialog needs write; <code>read:issue</code> still
+                    lists them
+                  </li>
                   <li>
                     <code>read:user</code> — easy to miss since it isn't
                     obviously related to repos, but <code>GET /user/repos</code> (how

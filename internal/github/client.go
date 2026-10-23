@@ -1109,6 +1109,13 @@ func (c *Client) updateBranchOnce(ctx context.Context, owner, name string, numbe
 // Issues API a regular issue comment uses, since every pull request is
 // also an issue.
 func (c *Client) CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error {
+	return c.postComment(ctx, owner, name, number, body)
+}
+
+// postComment posts body as a comment on issue or pull request number: both
+// share GitHub's one comments endpoint. With a personal token saved beside an
+// App, the comment goes out as that person.
+func (c *Client) postComment(ctx context.Context, owner, name string, number int, body string) error {
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d/comments", owner, name, number)
 	slog.Debug("github request", "method", http.MethodPost, "url", path)
 	rest := c.restClient

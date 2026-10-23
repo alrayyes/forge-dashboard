@@ -159,8 +159,8 @@ func TestDashboardStream_EndsWhenTheDrainStopsStreams(t *testing.T) {
 
 	before := open()
 	select {
-	case <-before:
-		t.Fatal("stream ended before the drain stopped it")
+	case err := <-before:
+		t.Fatalf("stream ended before the drain stopped it: %v", err)
 	case <-time.After(200 * time.Millisecond):
 	}
 
