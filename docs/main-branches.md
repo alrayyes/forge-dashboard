@@ -95,7 +95,7 @@ offers **Reset filters**. A repo with no pipeline says no run was found.
 
 The advisories pill on a GitHub row opens a dialog with that repository's open
 Dependabot alerts. It lists them with the worst first (critical, high, medium,
-low, then the oldest first). Each row shows the severity word, the title, the
+low, then the newest first). Each row shows the severity word, the title, the
 package and its ecosystem, whether it is a runtime or development dependency
 and a direct or transitive one, the file that pulled it in, and how long ago it
 opened. Severity chips above the list (All open, Critical, High, Medium, Low,
