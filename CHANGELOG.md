@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.0](https://github.com/alrayyes/forge-dashboard/compare/v2.14.0...v2.15.0) (2026-10-23)
+
+
+### Features
+
+* **osv:** more lock file formats for Forgejo advisories ([#2608](https://github.com/alrayyes/forge-dashboard/issues/2608)) ([99d8551](https://github.com/alrayyes/forge-dashboard/commit/99d85511702847fa50c1fbca3096ebea3e783f40))
+
 ## [2.14.0](https://github.com/alrayyes/forge-dashboard/compare/v2.13.1...v2.14.0) (2026-10-23)
 
 
