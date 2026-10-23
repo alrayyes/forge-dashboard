@@ -125,7 +125,7 @@ func TestListAdvisories_RefusalsAreUnknownWithTheirCause(t *testing.T) {
 	}
 }
 
-func TestListAdvisories_ScoresFromTheNewestCVSSWhenTheTopLevelOneIsEmpty(t *testing.T) {
+func TestListAdvisories_ScoresFromCVSS3Or4WhenTheTopLevelOneIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	client := advisoryClient(t, func(w http.ResponseWriter, _ *http.Request) {
@@ -146,4 +146,37 @@ func TestListAdvisories_ScoresFromTheNewestCVSSWhenTheTopLevelOneIsEmpty(t *test
 	require.Len(t, got.Advisories, 1)
 	assert.Equal(t, &dashboard.AdvisoryCVSS{Score: 9.1, Vector: "CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"}, got.Advisories[0].CVSS)
 	assert.Nil(t, got.Advisories[0].EPSS)
+}
+
+func TestListAdvisories_EveryPageHavingANextIsUnknownNotAShortList(t *testing.T) {
+	t.Parallel()
+
+	client := advisoryClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `<https://api.github.com/repos/alrayyes/a/dependabot/alerts?after=more>; rel="next"`)
+		writeJSON(t, w, []map[string]any{fullAlert(1, "high", "2026-10-22T00:00:00Z")})
+	})
+
+	got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
+	assert.Equal(t, dashboard.ReasonTooMany, got.Reason)
+	assert.Empty(t, got.Advisories)
+}
+
+func TestListAdvisories_KeepsAScoreWhenNoCVSSBlockHasAVector(t *testing.T) {
+	t.Parallel()
+
+	client := advisoryClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		a := fullAlert(1, "high", "2026-10-22T13:02:20Z")
+		adv, _ := a["security_advisory"].(map[string]any)
+		adv["cvss"] = map[string]any{"score": 7.5, "vector_string": nil}
+		writeJSON(t, w, []map[string]any{a})
+	})
+
+	got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	require.Len(t, got.Advisories, 1)
+	assert.Equal(t, &dashboard.AdvisoryCVSS{Score: 7.5}, got.Advisories[0].CVSS)
 }

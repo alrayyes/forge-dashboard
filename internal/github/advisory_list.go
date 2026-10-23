@@ -179,6 +179,7 @@ func advisoryItemOf(a *alertListItem) dashboard.AdvisoryItem {
 
 // scoredCVSS picks the first score that has a vector: the advisory's own, then
 // version 3 and 4. An advisory scored only under version 4 has an empty one.
+// With no vector at all, the first non-zero score stands.
 func scoredCVSS(top *alertCVSS, versions *alertCVSSVersions) *alertCVSS {
 	candidates := []*alertCVSS{top}
 	if versions != nil {
@@ -186,6 +187,12 @@ func scoredCVSS(top *alertCVSS, versions *alertCVSSVersions) *alertCVSS {
 	}
 	for _, c := range candidates {
 		if c != nil && c.VectorString != "" {
+			return c
+		}
+	}
+	// No vector anywhere: keep a score GitHub did state.
+	for _, c := range candidates {
+		if c != nil && c.Score > 0 {
 			return c
 		}
 	}
