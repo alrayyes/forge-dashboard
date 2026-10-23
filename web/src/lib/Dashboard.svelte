@@ -130,6 +130,7 @@
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
   import { isReadOnlyLock, type LockInfo } from "#lib/lock-info.js";
+  import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
     dependabotActionKey,
@@ -1831,10 +1832,10 @@
       refreshDialogChrome();
     }
 
-    // An issue opens the same dialog as a pull request, with nothing in the
-    // footer but the link to the forge: there is no action on an issue. The
-    // board's dialog state (dialogKey) stays null, so a poll neither redraws
-    // its footer nor reloads it.
+    // An issue opens the same dialog as a pull request. Its footer carries
+    // the issue actions (issueActions below), not the board's. The board's
+    // dialog state (dialogKey) stays null, so a poll neither redraws its
+    // footer nor reloads it.
     // The issue the open dialog shows, and the updatedAt the snapshot had for
     // it when the dialog last read the forge (undefined while the snapshot
     // does not list it). The dialog draws its status from its own details, so
@@ -1877,6 +1878,23 @@
       });
     }
 
+    // The footer's Close, Close with a comment and Reopen.
+    const issueActions = createIssueActions({
+      render: (chrome) => detailsDialog?.setChrome(chrome),
+      showClosed: (closed) =>
+        detailsDialog?.setHeaderState(issueStateElement(closed)),
+      refresh: () => {
+        refreshDashboardNow().catch(() => {});
+      },
+      announce: (text) => feedback.announce(text),
+      forgeLock: (forge) => proactiveActionLockReason(forge),
+      rateLimitReason: (forge, resetsAt) =>
+        resetsAt
+          ? rateLimitReasonText(FORGE_LABELS[forge] || forge, resetsAt)
+          : rateLimitedReason(forge),
+      forgeLabel: (forge) => FORGE_LABELS[forge] || forge,
+    });
+
     function openIssueDialog(
       item: IssueDialogItem,
       triggerId: string,
@@ -1886,11 +1904,10 @@
       dialogGone = false;
       lastChromeSig = "";
       lastChromeItem = undefined;
-      detailsDialog?.setChrome({
-        status: null,
-        feedback: null,
-        option: null,
-        actions: [],
+      issueActions.open({
+        forge: item.forge,
+        repo: item.repo,
+        number: item.number,
       });
       issueDialog = {
         forge: item.forge,
@@ -2121,8 +2138,10 @@
       return state;
     }
 
-    issueStateShown = (closed) =>
-      detailsDialog?.setHeaderState(issueStateElement(closed));
+    issueStateShown = (closed) => {
+      if (issueActions.forgeState(closed))
+        detailsDialog?.setHeaderState(issueStateElement(closed));
+    };
 
     function issueStatus(item: IssueDialogItem): DetailsStatus {
       const state = issueStateElement(false);
@@ -2136,7 +2155,7 @@
 
     // An armed confirm in the footer ends on the first Escape, and goes
     // with the dialog when it closes.
-    escapeDetails = () => confirmArm.disarm("escape");
+    escapeDetails = () => confirmArm.disarm("escape") || issueActions.escape();
     detailsClosed = () => {
       if (dialogKey !== null) {
         // A queued or in-flight rerun outlives the dialog; only a failure line goes.
@@ -2148,6 +2167,7 @@
       dialogKey = null;
       dialogClosed = null;
       issueDialog = null;
+      issueActions.dispose();
       if (confirmArm.disarm("dropped")) renderPRBoard();
       // The dialog hands focus back to its row. When that row left the board
       // while it was open, focus would fall to the page: put it on the first

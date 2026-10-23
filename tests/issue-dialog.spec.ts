@@ -128,7 +128,7 @@ test.describe('an issue row opens its dialog', () => {
     expect(url.searchParams.get('number')).toBe('7');
   });
 
-  test('the header says it is open and shows its labels, and the footer links to the forge only', async ({
+  test('the header says it is open and shows its labels, and the footer links to the forge and offers only the issue actions', async ({
     page,
   }) => {
     await mockDashboard(page);
@@ -141,10 +141,11 @@ test.describe('an issue row opens its dialog', () => {
     const link = dialog(page).getByRole('link', { name: /Open on GitHub/ });
     await expect(link).toHaveAttribute('href', 'https://example.com/issues/7');
     await expect(link).toHaveAttribute('target', '_blank');
-    // An issue has no actions: no merge, close or rebase.
-    await expect(dialog(page).locator('.details-actions button')).toHaveCount(
-      0,
-    );
+    // An issue has no merge or rebase: it closes, with or without a comment.
+    await expect(dialog(page).locator('.details-actions button')).toHaveText([
+      'Close issue',
+      'Close with a comment',
+    ]);
   });
 
   test('the header says who filed it, with their avatar', async ({ page }) => {

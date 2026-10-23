@@ -55,6 +55,9 @@ var optionalCapabilities = []optionalCapability{
 	capabilityNamed[dashboard.PullRequestChecker](false),
 	capabilityNamed[dashboard.PullRequestLabeler](false),
 	capabilityNamed[dashboard.PullRequestBodyEditor](false),
+	capabilityNamed[dashboard.IssueCloser](false),
+	capabilityNamed[dashboard.IssueReopener](false),
+	capabilityNamed[dashboard.IssueCommenter](false),
 
 	// Forgejo cancels a merge scheduled on the forge (#1571).
 	capabilityNamed[dashboard.PullRequestAutoMergeDisabler](false),
