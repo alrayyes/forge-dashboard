@@ -69,8 +69,8 @@ type Aggregator struct {
 	// (#982), under botMu too and keyed the same way.
 	updateRequests map[string]*updateEntry
 	fetchSeq       atomic.Uint64
-	// passes counts the full refreshes started, so every fullPassEvery-th one,
-	// and the first after a start, is a full pass (see incrementalAllowed).
+	// passes counts the refreshes that fetched since the last full pass, so every
+	// fullPassEvery-th one, and the first after a start, is full (see notePass).
 	passes atomic.Uint64
 	now    func() time.Time
 	// after and debounce hold back the scoped refresh a webhook delivery
@@ -668,6 +668,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 	a.mu.RUnlock()
 
 	var wg sync.WaitGroup
+	fetched := false
 	for i, src := range a.sources {
 		if health, ok := exhaustedHealth(earlier, src.Forge(), a.now()); ok {
 			// No budget left until the reset: a call would only fail, and
@@ -687,12 +688,14 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 			}
 		}
 		wg.Add(1)
+		fetched = true
 		go func(i int, src Source) {
 			defer wg.Done()
 			results[i] = src.Fetch(ctx)
 		}(i, src)
 	}
 	wg.Wait()
+	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
 	return results

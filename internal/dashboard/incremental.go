@@ -28,13 +28,12 @@ func Incremental(ctx context.Context) bool {
 	return v
 }
 
-// incrementalAllowed counts this refresh and says whether it may skip
+// incrementalAllowed says whether it may skip
 // unchanged repos. It may not when it is the first after a start or every
 // sixth one, or when a person asked for it ("Refresh now", a sign-in): a
 // background run that a person's request coalesced into counts as theirs.
 func (a *Aggregator) incrementalAllowed(ctx context.Context) bool {
-	n := a.passes.Add(1) - 1
-	if n%fullPassEvery == 0 {
+	if a.passes.Load()%fullPassEvery == 0 {
 		return false
 	}
 
@@ -74,4 +73,18 @@ func (a *Aggregator) refreshContext(ctx context.Context) context.Context {
 	}
 
 	return ctx
+}
+
+// notePass counts a refresh that fetched something. A full pass restarts the
+// cycle, however it came about (the first, the sixth, or a person's), so the
+// safety net is every sixth real fetch, not every sixth tick: a pass that
+// every source sat out on a budget hold uses up no slot.
+func (a *Aggregator) notePass(ctx context.Context, fetched bool) {
+	switch {
+	case !fetched:
+	case Incremental(ctx):
+		a.passes.Add(1)
+	default:
+		a.passes.Store(1)
+	}
 }

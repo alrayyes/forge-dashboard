@@ -212,7 +212,7 @@ func (c *Client) planRefresh(ctx context.Context) *refreshPlan {
 	known := c.stamps.get()
 	for _, p := range plan.tracked {
 		name := p.fullName()
-		if before, ok := known[name]; incremental && ok && before == p.stamp && plan.hooks[name].has {
+		if before, ok := known[name]; incremental && ok && before == p.stamp && plan.hooks[name].vouchesForChecks() {
 			plan.skipped = append(plan.skipped, name)
 
 			continue
@@ -221,6 +221,27 @@ func (c *Client) planRefresh(ctx context.Context) *refreshPlan {
 	}
 
 	return plan
+}
+
+// missingFrom names the repos the plan meant to fetch that the answer left out,
+// say because one was deleted or renamed between the probe and the fetch. Their
+// earlier rows are kept, and with no stamp they are fetched again next time.
+func (p *refreshPlan) missingFrom(fetched []graphqlRepo) []dashboard.FailedRepo {
+	if !p.partial() {
+		return nil
+	}
+	got := make(map[string]bool, len(fetched))
+	for _, r := range fetched {
+		got[r.Owner.Login+"/"+r.Name] = true
+	}
+	var failed []dashboard.FailedRepo
+	for _, c := range p.changed {
+		if name := c.fullName(); !got[name] {
+			failed = append(failed, dashboard.FailedRepo{FullName: name, PullRequests: true, Issues: true, MainBranch: true})
+		}
+	}
+
+	return failed
 }
 
 func trackedProbed(probed []probedRepo) []probedRepo {
@@ -301,6 +322,10 @@ func (c *Client) probeAppRepos(ctx context.Context) ([]probedRepo, *dashboard.Ra
 	candidates, err := c.listAppRepos(ctx)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	if candidates == nil {
+		// An empty listing is still a listing, and nil would read as "not listed".
+		candidates = []*ghsdk.Repository{}
 	}
 	var probed []probedRepo
 	var rateLimit *dashboard.RateLimit

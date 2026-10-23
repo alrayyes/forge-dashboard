@@ -2185,7 +2185,8 @@ func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]grap
 	result := make([]graphqlRepo, 0, len(repos))
 	for i, r := range repos {
 		raw, ok := envelope[fmt.Sprintf("r%d", i)]
-		if !ok {
+		if !ok || string(raw) == "null" {
+			// GitHub answers null for a repo it can no longer find.
 			continue
 		}
 		var repo graphqlRepo
@@ -2607,8 +2608,18 @@ func repoLogoURL(r graphqlRepo) string {
 type hookProbe struct {
 	has     bool
 	refused bool
+	// active is whether the hook that was found is switched on.
+	active bool
 	// events is the event list of the hook that was found; nil when has is false.
 	events []string
+}
+
+// vouchesForChecks is whether the hook delivers finished checks, so a repo
+// whose probe saw nothing change can be skipped: it exists, is switched on and
+// subscribes to the check events. It says the hook is set up, not that
+// deliveries arrive.
+func (p hookProbe) vouchesForChecks() bool {
+	return p.has && p.active && (slices.Contains(p.events, "check_run") || slices.Contains(p.events, "status"))
 }
 
 // WebhookEvents returns the events the app's own hook on fullName subscribes
@@ -2764,6 +2775,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 	}}
 	if plan != nil {
 		result.Unchanged = plan.skipped
+		result.FailedRepos = plan.missingFrom(fetched)
 	}
 	c.withCheckedCommits(ctx, fetched)
 	advisories := <-advisoriesDone
@@ -2900,6 +2912,7 @@ func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe
 	probe := hookProbe{has: hook != nil, refused: c.noteRefused(fullName, false, false)}
 	if hook != nil {
 		probe.events = hook.Events
+		probe.active = hook.GetActive()
 	}
 	c.noteOwnHook(fullName, &probe)
 	c.saveHookCheck(fullName, probe)

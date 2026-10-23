@@ -49,7 +49,7 @@ func newAppIncrementalServer(t *testing.T, repos ...string) *appIncrementalServe
 	mux.HandleFunc("/graphql", s.graphql)
 	mux.HandleFunc("/repos/alrayyes/", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, []map[string]any{{
-			"id": 1, "events": []string{"pull_request", "check_run"},
+			"id": 1, "active": true, "events": []string{"pull_request", "check_run"},
 			"config": map[string]any{"url": "https://dashboard.example" + incrementalHookPath},
 		}})
 	})
@@ -195,4 +195,14 @@ func TestAppFetch_Incremental_OneChanged_FetchesOnlyThatRepo(t *testing.T) {
 	assert.Equal(t, 1, s.listings, "candidates come from the probe's listing")
 	assert.Len(t, result.Repos, 3)
 	assert.Equal(t, appLogo, repoRow(t, result.Repos, "alrayyes/a").LogoURL)
+}
+
+func TestAppFetch_EmptyInstallation_IsListedOnce(t *testing.T) {
+	t.Parallel()
+
+	s := newAppIncrementalServer(t)
+	result := s.client().Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 1, s.listings, "an empty listing is still a listing")
 }

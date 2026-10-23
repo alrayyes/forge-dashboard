@@ -26,6 +26,9 @@ type incrementalServer struct {
 	mu         sync.Mutex
 	pushedAt   map[string]string // repo name -> pushedAt in the probe
 	noHook     map[string]bool
+	hookEvents map[string][]string // repo name -> events its hook subscribes to
+	inactive   map[string]bool
+	missing    map[string]bool // repo name -> left out of the batch answer
 	probeFails bool
 	probes     int
 	listings   int
@@ -37,7 +40,7 @@ type incrementalServer struct {
 func newIncrementalServer(t *testing.T, repos ...string) *incrementalServer {
 	t.Helper()
 
-	s := &incrementalServer{t: t, pushedAt: map[string]string{}, noHook: map[string]bool{}}
+	s := &incrementalServer{t: t, pushedAt: map[string]string{}, noHook: map[string]bool{}, hookEvents: map[string][]string{}, inactive: map[string]bool{}, missing: map[string]bool{}}
 	for _, r := range repos {
 		s.pushedAt[r] = "2026-01-01T00:00:00Z"
 	}
@@ -66,8 +69,12 @@ func (s *incrementalServer) hooks(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	events := []string{"pull_request", "check_run"}
+	if e, ok := s.hookEvents[parts[2]]; ok {
+		events = e
+	}
 	writeJSON(s.t, w, []map[string]any{{
-		"id": 1, "events": []string{"pull_request", "check_run"},
+		"id": 1, "active": !s.inactive[parts[2]], "events": events,
 		"config": map[string]any{"url": "https://dashboard.example" + incrementalHookPath},
 	}})
 }
@@ -114,6 +121,11 @@ func (s *incrementalServer) graphql(w http.ResponseWriter, r *http.Request) {
 			name, _ := body.Variables["name"+itoa(i)].(string)
 			assert.Equal(s.t, "alrayyes", owner)
 			batch = append(batch, name)
+			if s.missing[name] {
+				data["r"+itoa(i)] = nil
+
+				continue
+			}
 			data["r"+itoa(i)] = map[string]any{
 				"pullRequests": map[string]any{"nodes": []map[string]any{}},
 				"issuesTotal":  map[string]any{"totalCount": 0},
@@ -268,4 +280,38 @@ func TestFetch_Incremental_IssuesSinceAdvancesOnlyForFetchedRepos(t *testing.T) 
 	advanced := client.IssueSinceForTest("alrayyes/a")
 	require.NotNil(t, advanced)
 	assert.True(t, advanced.After(*first), "the fetched repo's marker moves on")
+}
+
+func TestFetch_Incremental_HookThatMissesCheckEvents_CountsAsChanged(t *testing.T) {
+	t.Parallel()
+
+	s := newIncrementalServer(t, "a", "b", "c")
+	s.hookEvents["b"] = []string{"push", "pull_request"}
+	s.inactive["c"] = true
+	client := s.client()
+	client.Fetch(t.Context())
+	s.reset()
+
+	result := client.Fetch(dashboard.WithIncremental(t.Context()))
+
+	require.Len(t, s.batches, 1)
+	assert.ElementsMatch(t, []string{"b", "c"}, s.batches[0],
+		"a hook that isn't active, or doesn't deliver checks, can't vouch for a skipped repo")
+	assert.Equal(t, []string{"alrayyes/a"}, result.Unchanged)
+}
+
+func TestFetch_Incremental_ChangedRepoMissingFromTheAnswer_IsReportedFailed(t *testing.T) {
+	t.Parallel()
+
+	s := newIncrementalServer(t, "a", "b")
+	client := s.client()
+	client.Fetch(t.Context())
+	s.reset()
+	s.pushedAt["a"] = "2026-02-01T00:00:00Z"
+	s.missing["a"] = true
+
+	result := client.Fetch(dashboard.WithIncremental(t.Context()))
+
+	assert.Equal(t, []dashboard.FailedRepo{{FullName: "alrayyes/a", PullRequests: true, Issues: true, MainBranch: true}},
+		result.FailedRepos, "its earlier rows are kept rather than dropped")
 }

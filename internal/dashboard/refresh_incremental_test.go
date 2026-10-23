@@ -98,3 +98,21 @@ func TestAggregator_Refresh_ForcedRefresh_IsAlwaysFull(t *testing.T) {
 
 	assert.Equal(t, []bool{false, true, false}, src.incremental)
 }
+
+func TestAggregator_Refresh_ForcedRefresh_RestartsTheSafetyNetCycle(t *testing.T) {
+	t.Parallel()
+
+	src := &probingSource{skip: []string{"o/a"}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	bg := dashboard.BackgroundForTest(t.Context())
+
+	agg.Refresh(bg)
+	agg.Refresh(bg)
+	agg.Refresh(t.Context()) // a person's "Refresh now" is a full pass too
+	for range 6 {
+		agg.Refresh(bg)
+	}
+
+	assert.Equal(t, []bool{false, true, false, true, true, true, true, true, false}, src.incremental,
+		"five scheduled refreshes follow a full pass, however it came about")
+}
