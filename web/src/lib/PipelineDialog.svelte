@@ -41,7 +41,11 @@
   // Repositories whose token was refused permission to cancel, with the forge's
   // reason, kept for the page's life so the next dialog on that repository
   // doesn't offer a button it already knows will fail.
-  const cancelLocks = new Map<string, string>();
+  const cancelLocks = new Map<string, { message: string; at: number }>();
+  // A refused permission is remembered for this long. The token may be fixed
+  // meanwhile, and the next try then simply works, so the lock is a short rest
+  // and not a verdict.
+  const LOCK_MS = 5 * 60_000;
 </script>
 
 <script lang="ts">
@@ -115,10 +119,11 @@
 
   // Cancel run: one entry per run the person has started to cancel, by run id.
   // `confirm` waits for the second click, `cancelling` is the forge accepting,
-  // `cancelled` is a snapshot that no longer shows the run going, and `refused`
-  // keeps the forge's own reason.
+  // `stalled` is the forge accepting but the run still going after the last
+  // re-read, `cancelled` is a snapshot that no longer shows the run going, and
+  // `refused` keeps the forge's own reason.
   type RunState = {
-    phase: "confirm" | "cancelling" | "cancelled" | "refused";
+    phase: "confirm" | "cancelling" | "stalled" | "cancelled" | "refused";
     run: ActiveRun;
     message?: string;
   };
@@ -133,9 +138,15 @@
     `${c.forge}|${c.fullName}`;
   const cancelLock = $derived.by(() => {
     void lockTick;
-    return target?.cancel
-      ? (cancelLocks.get(cancelKey(target.cancel)) ?? "")
-      : "";
+    if (!target?.cancel) return "";
+    const key = cancelKey(target.cancel);
+    const lock = cancelLocks.get(key);
+    if (!lock) return "";
+    if (Date.now() - lock.at > LOCK_MS) {
+      cancelLocks.delete(key);
+      return "";
+    }
+    return lock.message;
   });
   // The runs that can be cancelled, as the checks now name them.
   const runs = $derived(
@@ -185,17 +196,23 @@
     } catch (err) {
       const e = err as { code?: string; message?: string };
       const message = e.message || "The forge refused to cancel this run.";
-      runStates[run.runId] = { phase: "refused", run, message };
+      // That the token may not cancel is true of the repository whichever
+      // dialog is open, so the lock is kept. What the person sees and hears is
+      // for the dialog they asked in: a refusal that lands after it closed
+      // must not turn up in the next one.
       if (cancelLocksRepo(e)) {
-        cancelLocks.set(cancelKey(cancel), message);
+        cancelLocks.set(cancelKey(cancel), { message, at: Date.now() });
         lockTick++;
       }
+      if (!row || target !== row) return;
+      runStates[run.runId] = { phase: "refused", run, message };
       speak(`Couldn't cancel ${runLabel(run)}. ${message}`);
       // A run that already finished is the commonest refusal: read again so
       // the list says so.
-      if (row && target === row) void load(row, true);
+      void load(row, true);
       return;
     }
+    if (!row || target !== row) return;
     speak(`Cancelling ${runLabel(run)}.`);
     settle(row, SETTLE_TRIES);
   }
@@ -204,8 +221,20 @@
   // slower still, so read the checks again a few times until the run is gone.
   function settle(row: PipelineTarget | null, left: number) {
     clearTimeout(settleTimer);
-    if (!row || left <= 0 || target !== row) return;
+    if (!row || target !== row) return;
     if (!Object.values(runStates).some((s) => s.phase === "cancelling")) return;
+    if (left <= 0) {
+      // The forge took the cancel and the run is still going after every
+      // re-read: say so, and give the button back.
+      for (const state of Object.values(runStates)) {
+        if (state.phase !== "cancelling") continue;
+        runStates[state.run.runId] = { ...state, phase: "stalled" };
+        speak(
+          `${runLabel(state.run)} is still running. The forge hasn't stopped it yet.`,
+        );
+      }
+      return;
+    }
     settleTimer = setTimeout(async () => {
       if (target !== row) return;
       await load(row, true);
@@ -214,13 +243,18 @@
   }
 
   // A run the person cancelled that the checks no longer show going has
-  // stopped.
+  // stopped. A run they were asked to confirm that finished on its own has
+  // nothing left to cancel, so its question goes.
   function reconcileRuns(list: Check[]) {
     const going = new Set(activeRuns(list).map((r) => r.runId));
     for (const state of Object.values(runStates)) {
-      if (state.phase === "cancelling" && !going.has(state.run.runId)) {
+      if (going.has(state.run.runId)) continue;
+      if (state.phase === "cancelling" || state.phase === "stalled") {
         runStates[state.run.runId] = { ...state, phase: "cancelled" };
         speak(`${runLabel(state.run)} was cancelled.`);
+      } else if (state.phase === "confirm") {
+        delete runStates[state.run.runId];
+        speak(`${runLabel(state.run)} has finished.`);
       }
     }
   }
@@ -514,9 +548,11 @@
       >
         <p>
           Cancel the whole run <strong>{runLabel(run)}</strong>? It stops
-          {run.jobs.length === 1
-            ? `its one unfinished job: ${run.jobs[0]}.`
-            : `all ${run.jobs.length} of its unfinished jobs: ${run.jobs.join(", ")}.`}
+          {run.jobs.length === 0
+            ? "everything still going in it."
+            : run.jobs.length === 1
+              ? `its one unfinished job: ${run.jobs[0]}.`
+              : `all ${run.jobs.length} of its unfinished jobs: ${run.jobs.join(", ")}.`}
           This can't be undone.
         </p>
         <button
@@ -535,6 +571,16 @@
       <p class="pipeline-rerun-status" role="status">
         Cancelling {runLabel(run)}…
       </p>
+    {:else if state?.phase === "stalled"}
+      <p class="pipeline-rerun-status" role="status">
+        {runLabel(run)} is still running. The forge hasn't stopped it yet.
+      </p>
+      <button
+        type="button"
+        class="row-action"
+        data-cancel-run={run.runId}
+        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+      >
     {:else if state?.phase === "cancelled"}
       <p class="pipeline-rerun-status" role="status">
         {runLabel(run)} was cancelled.

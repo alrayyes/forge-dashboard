@@ -5,6 +5,7 @@ import type { Check } from './pipeline-checks';
 
 const job = (over: Partial<Check>): Check => ({
   name: 'build',
+  jobId: 1,
   state: 'running',
   url: '',
   ...over,
@@ -37,6 +38,26 @@ describe('activeRuns', () => {
     ]);
 
     expect(runs[0]?.jobs).toEqual(['lint']);
+  });
+});
+
+describe('a run whose jobs the forge could not list', () => {
+  test('is still cancellable but names no job, not its own title as one', () => {
+    // Forgejo stands in one check named for the run when it can't read the
+    // jobs; it has a run id and no job id.
+    const runs = activeRuns([
+      job({ name: 'ci', jobId: undefined, runId: 7, runName: 'ci' }),
+    ]);
+
+    expect(runs).toEqual([{ runId: 7, runName: 'ci', jobs: [] }]);
+  });
+
+  test('a job that shares the workflow name still counts as a job', () => {
+    const runs = activeRuns([
+      job({ name: 'ci', jobId: 5, runId: 7, runName: 'ci' }),
+    ]);
+
+    expect(runs[0]?.jobs).toEqual(['ci']);
   });
 });
 

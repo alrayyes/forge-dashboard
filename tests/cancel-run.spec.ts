@@ -38,6 +38,7 @@ const RUNNING = [
     name: 'lint',
     state: 'running',
     url: 'https://example.com/r/2',
+    jobId: 2,
     runId: 77,
     runName: 'ci',
   },
@@ -45,6 +46,7 @@ const RUNNING = [
     name: 'test',
     state: 'queued',
     url: 'https://example.com/r/3',
+    jobId: 3,
     runId: 77,
     runName: 'ci',
   },
@@ -59,19 +61,46 @@ const STOPPED = [
 
 type Cancel = { status: number; body?: unknown };
 
+declare global {
+  interface Window {
+    __push: (data: unknown) => void;
+  }
+}
+
+const snapshot = (item: ReturnType<typeof pr>) => ({
+  generatedAt: new Date().toISOString(),
+  forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+  pullRequests: [item],
+  issues: [],
+});
+
 async function open(
   page: Page,
   item: ReturnType<typeof pr>,
-  state: { checks: unknown[]; cancel?: Cancel; posted: unknown[] },
+  state: {
+    checks: unknown[];
+    cancel?: Cancel;
+    posted: unknown[];
+    // Resolve to let a held cancel answer.
+    hold?: Promise<void>;
+    reads?: number;
+  },
 ) {
   await page.addInitScript(() => {
     class StubEventSource {
-      onmessage: unknown = null;
+      onmessage: ((e: { data: string }) => void) | null = null;
+      constructor() {
+        (window as unknown as { __es: StubEventSource }).__es = this;
+      }
       close() {}
       addEventListener() {}
     }
     (window as unknown as { EventSource: unknown }).EventSource =
       StubEventSource;
+    window.__push = (data) =>
+      (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
+        data: JSON.stringify(data),
+      });
   });
   await page.route('**/api/dashboard', (route: Route) =>
     route.fulfill({
@@ -85,15 +114,17 @@ async function open(
       }),
     }),
   );
-  await page.route('**/api/pull-requests/checks*', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/pull-requests/checks*', (route: Route) => {
+    state.reads = (state.reads ?? 0) + 1;
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ checks: state.checks }),
-    }),
-  );
-  await page.route('**/api/checks/cancel-run', (route: Route) => {
+    });
+  });
+  await page.route('**/api/checks/cancel-run', async (route: Route) => {
     state.posted.push(route.request().postDataJSON());
+    await state.hold;
     const answer = state.cancel ?? { status: 204 };
     return route.fulfill({
       status: answer.status,
@@ -277,6 +308,185 @@ test.describe('cancel a running pipeline', () => {
     await expect(dialog).toContainText(
       'Resource not accessible by integration',
     );
+  });
+
+  test('a refusal that lands after the dialog closed does not turn up in the next one', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const state = {
+      checks: RUNNING,
+      posted: [] as unknown[],
+      hold: new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+      cancel: {
+        status: 409,
+        body: {
+          error: 'x',
+          code: 'conflict',
+          message: 'Cannot cancel a workflow run that is completed.',
+        },
+      },
+    };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    await expect.poll(() => state.posted.length).toBe(1);
+
+    await dialog.getByRole('button', { name: 'Close pipeline checks' }).click();
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    await expect(dialog.locator('.pipeline-check')).toHaveCount(RUNNING.length);
+    release();
+    await page.waitForTimeout(500);
+
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Cancel run: ci' }),
+    ).toBeVisible();
+  });
+
+  test('a run that finishes while its confirm is open stops asking', async ({
+    page,
+  }) => {
+    const state = { checks: RUNNING, posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Yes, cancel run' }),
+    ).toBeVisible();
+
+    state.checks = STOPPED;
+    await page.evaluate(
+      (item) => window.__push(item),
+      snapshot({
+        ...pr([{ action: 'cancel_run' }]),
+        ci: 'success',
+        checks: { passed: 3, running: 0, waiting: 0, failed: 0 },
+      }),
+    );
+
+    await expect(
+      dialog.getByRole('button', { name: 'Yes, cancel run' }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: /Cancel run/ }),
+    ).toHaveCount(0);
+    expect(state.posted).toEqual([]);
+  });
+
+  test('a run with no readable jobs is cancellable and is not said to have a job named for itself', async ({
+    page,
+  }) => {
+    const standIn = [
+      {
+        name: 'ci',
+        state: 'running',
+        url: 'https://example.com/r/9',
+        runId: 9,
+        runName: 'ci',
+      },
+    ];
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), {
+      checks: standIn,
+      posted: [],
+    });
+
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+
+    const confirm = dialog.getByRole('group', {
+      name: 'Confirm cancelling ci',
+    });
+    await expect(confirm).toContainText('everything still going in it');
+    await expect(confirm).not.toContainText('unfinished job');
+  });
+
+  test('a cancel the forge accepted but the run outlasts ends as still running, with the button back, and a close stops the reads', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const state = { checks: RUNNING, posted: [] as unknown[], reads: 0 };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    await expect(
+      dialog.getByRole('status').filter({ hasText: 'Cancelling ci' }),
+    ).toBeVisible();
+
+    // Eight re-reads, 2.5 seconds apart, and the run is still going.
+    await page.clock.runFor(2500 * 9);
+
+    await expect(
+      dialog.getByRole('status').filter({ hasText: 'still running' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('status').filter({ hasText: 'Cancelling ci' }),
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Cancel run: ci' }),
+    ).toBeVisible();
+
+    // And the reads stop for good: none happen after the cap.
+    const after = state.reads;
+    await page.clock.runFor(2500 * 4);
+    expect(state.reads).toBe(after);
+  });
+
+  test('closing the dialog while a run is cancelling stops the re-reads', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const state = { checks: RUNNING, posted: [] as unknown[], reads: 0 };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    await expect(
+      dialog.getByRole('status').filter({ hasText: 'Cancelling ci' }),
+    ).toBeVisible();
+    await dialog.getByRole('button', { name: 'Close pipeline checks' }).click();
+    const after = state.reads;
+
+    await page.clock.runFor(2500 * 4);
+
+    expect(state.reads).toBe(after);
+  });
+
+  test('a permission refusal is forgotten after a while, so a fixed token works', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const state = {
+      checks: RUNNING,
+      posted: [] as unknown[],
+      cancel: {
+        status: 403,
+        body: {
+          error: 'x',
+          code: 'permission',
+          message: 'Resource not accessible by integration',
+        },
+      },
+    };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci' }).click();
+    await dialog.getByRole('button', { name: 'Yes, cancel run' }).click();
+    await expect(dialog.getByRole('alert')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Close pipeline checks' }).click();
+
+    await page.clock.runFor(6 * 60_000);
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+
+    await expect(
+      dialog.getByRole('button', { name: 'Cancel run: ci' }),
+    ).toBeVisible();
   });
   test('the Main branches dialog offers it too, with no allowed-actions list to ask', async ({
     page,

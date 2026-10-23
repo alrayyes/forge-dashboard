@@ -10,6 +10,7 @@ export type ActiveRun = {
   // The workflow's name; empty when the forge didn't give one.
   runName: string;
   // The jobs of the run that are still queued or running, which stop with it.
+  // Empty when the forge couldn't list the run's jobs.
   jobs: string[];
 };
 
@@ -28,7 +29,9 @@ export function activeRuns(checks: Check[]): ActiveRun[] {
       runName: check.runName ?? '',
       jobs: [],
     };
-    run.jobs.push(check.name);
+    // A check with a run id and no job id stands in for a run whose jobs the
+    // forge couldn't list (it is named for the run), so it names no job.
+    if (check.jobId) run.jobs.push(check.name);
     runs.set(check.runId, run);
   }
   return [...runs.values()];
