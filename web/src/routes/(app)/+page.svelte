@@ -67,6 +67,8 @@
 
   let data = $state<MainBranches | null>(null);
   let failed = $state(false);
+  // The rerun control could not be redrawn on the last poll.
+  let redrawFailed = $state(false);
   let loading = $state(true);
   let filter = $state<MainBranchFilter>({ ...DEFAULT_FILTER });
   let pipeline = $state<PipelineDialog>();
@@ -253,10 +255,14 @@
     // not a failed poll.
     try {
       if (openRow) rerun.redraw(openRow);
+      redrawFailed = false;
     } catch (err) {
       // A control that can't draw must not fail the page's load, but a lock
-      // left on screen from the last draw should not go unexplained.
-      console.error("The rerun control could not be redrawn", err);
+      // left on screen from the last draw should not go unexplained. Said once
+      // per run of failures, not on every poll.
+      if (!redrawFailed)
+        console.error("The rerun control could not be redrawn", err);
+      redrawFailed = true;
     }
   }
 
@@ -769,6 +775,14 @@
       <button type="button" class="mb-toggle" onclick={retry}>Retry</button>
     </div>
   {:else if data}
+    {#if redrawFailed}
+      <div class="mb-banner" role="status" data-testid="rerun-redraw-note">
+        <p>
+          The rerun control could not be updated, so it may be out of date.
+          Reload the page if it looks wrong.
+        </p>
+      </div>
+    {/if}
     {#if startingRows.length > 0}
       <div class="mb-banner" role="status" data-testid="starting-banner">
         <p>

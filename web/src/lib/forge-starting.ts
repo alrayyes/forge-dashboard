@@ -13,7 +13,9 @@ export type StartingHealth = {
 };
 
 // A forge that says it can't be reached. One that is silent on it is not
-// treated as down. Every lock, banner and chip follows this one rule.
+// treated as down: a missing `reachable` counts as reachable, where the old
+// `!reachable` test read it as down. The server always sends the field, so
+// only a hand-built entry is affected. Every lock, banner and chip follows this one rule.
 export function isUnreachable(h: { reachable?: boolean }): boolean {
   return h.reachable === false;
 }

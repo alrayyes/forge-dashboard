@@ -119,6 +119,21 @@ export function createBranchRerun() {
     failure.setAttribute('role', 'alert');
     failureBox.appendChild(failure);
 
+    // Keep keyboard focus in the control when the element holding it goes: on
+    // the button if it is on screen, else on the wrapper, which leaves the tab
+    // order again as soon as focus moves on.
+    const keepFocus = () => {
+      if (button.isConnected) {
+        button.focus();
+        return;
+      }
+      wrap.tabIndex = -1;
+      wrap.addEventListener('blur', () => wrap.removeAttribute('tabindex'), {
+        once: true,
+      });
+      wrap.focus();
+    };
+
     let shownFailure: unknown = null;
     const sync = () => {
       const isHeld = held(t, signature());
@@ -135,11 +150,9 @@ export function createBranchRerun() {
       const sending = state?.phase === 'requesting';
       if (locked) {
         // Take keyboard focus along, or it drops to the page.
-        if (document.activeElement === button) {
-          wrap.tabIndex = -1;
-          wrap.focus();
-        }
+        const hadFocus = document.activeElement === button;
         button.remove();
+        if (hadFocus) keepFocus();
       } else if (!button.isConnected) {
         wrap.prepend(button);
         // Focus was parked on the wrapper while the button was away.
@@ -195,10 +208,8 @@ export function createBranchRerun() {
           focused instanceof HTMLElement &&
           failureBox.contains(focused) &&
           focused !== failure
-        ) {
-          wrap.tabIndex = -1;
-          wrap.focus();
-        }
+        )
+          keepFocus();
         for (const extra of failureBox.querySelectorAll(
           '.pipeline-rerun-copy, .feedback-details',
         ))
