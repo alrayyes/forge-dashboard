@@ -150,10 +150,13 @@ pull request page uses for the issues it lists.
 
 The issue's pop-up shows the same links among its attributes, with the
 pipeline of each pull request as on the row, and nothing when no pull request
-closes it. They stay links to the
-[pull request page](pull-request-pages.md#pull-request-details)
-in the pop-up, so no second pop-up sits on top of it, and they follow the
-board while the pop-up stays open.
+closes it. They are links to the
+[pull request page](pull-request-pages.md#pull-request-details), so a middle
+or modified click opens that page in a new tab. A plain click closes the
+issue's pop-up and opens the pull request's in its place, on the Issues page, so
+you stay where you are and the address and the browser history don't change.
+Closing that pop-up puts keyboard focus back on the pill in the list. The links
+follow the board while the pop-up stays open.
 
 The server works this out, from the pull requests it already holds, so it costs
 the forge no request. It counts a draft, and a pull request you hid, but not

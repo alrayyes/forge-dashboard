@@ -37,7 +37,29 @@ const issue = (number: number, linkedPullRequests: unknown[]) => ({
   linkedPullRequests,
 });
 
-async function mockBoard(page: Page, issues: () => unknown[]) {
+const pullRequest = (number: number) => ({
+  forge: 'github',
+  repo: REPO,
+  number,
+  title: `Pull request ${number}`,
+  url: `https://example.com/pull/${number}`,
+  author: 'ryankes',
+  draft: false,
+  ci: 'success',
+  labels: [],
+  createdAt: ago(60),
+  updatedAt: ago(5),
+  mergeStatus: 'mergeable',
+  behind: false,
+  kind: 'regular',
+  closesIssues: [],
+});
+
+async function mockBoard(
+  page: Page,
+  issues: () => unknown[],
+  pullRequests: unknown[] = [],
+) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   const snapshot = (route: Route) =>
     route.fulfill({
@@ -46,12 +68,34 @@ async function mockBoard(page: Page, issues: () => unknown[]) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: [],
+        pullRequests,
         issues: issues(),
       }),
     });
   await page.route('**/api/dashboard/refresh', snapshot);
   await page.route('**/api/dashboard*', snapshot);
+  await page.route('**/api/pull-requests/details*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        description: {
+          text: 'The pull request text.',
+          format: 'markdown',
+          truncated: false,
+          edited: false,
+          reactions: {
+            thumbsUp: { count: 0, logins: [] },
+            thumbsDown: { count: 0, logins: [] },
+          },
+        },
+        comments: [],
+        commentCount: 0,
+        commentsTruncated: false,
+        releaseNotes: null,
+      }),
+    }),
+  );
   await page.route('**/api/issues/details*', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -253,6 +297,65 @@ test('focus outside the pills stays put when a poll changes the list', async ({
   await refresh();
   await expect(dialogPills(page)).toHaveCount(0);
   await expect.poll(focusedIsDialog).toBe(true);
+});
+
+// https://github.com/alrayyes/forge-dashboard/issues/2666
+test('a click on the closing pull request in the dialog opens its dialog and stays on the page', async ({
+  page,
+}) => {
+  await mockBoard(page, () => [issue(1, [linked(12)])], [pullRequest(12)]);
+  await page.goto('/issues.html');
+  await openDialog(page);
+  const before = page.url();
+  const historyBefore = await page.evaluate(() => history.length);
+
+  await dialogPills(page).first().click();
+
+  await expect(
+    page.getByRole('dialog', { name: /^Pull request details/ }),
+  ).toBeVisible();
+  await expect(dialog(page)).toHaveCount(0);
+  expect(page.url()).toBe(before);
+  expect(await page.evaluate(() => history.length)).toBe(historyBefore);
+
+  // Back leaves the Issues page the way it was, with no stray entry.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#issue-rows .row')).toHaveCount(1);
+  expect(page.url()).toBe(before);
+});
+
+test('the pull request dialog opened from the issue dialog gives focus back to the row pill', async ({
+  page,
+}) => {
+  await mockBoard(page, () => [issue(1, [linked(12)])], [pullRequest(12)]);
+  await page.goto('/issues.html');
+  await openDialog(page);
+  await dialogPills(page).first().click();
+  const prDialog = page.getByRole('dialog', { name: /^Pull request details/ });
+  await expect(prDialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(prDialog).toBeHidden();
+  await expect(rowPills(page).first()).toBeFocused();
+});
+
+test('a modified click on the dialog pill is left to the browser and opens the page in a new tab', async ({
+  page,
+  context,
+}) => {
+  await mockBoard(page, () => [issue(1, [linked(12)])], [pullRequest(12)]);
+  await page.goto('/issues.html');
+  await openDialog(page);
+  const before = page.url();
+
+  const opened = context.waitForEvent('page');
+  await dialogPills(page)
+    .first()
+    .click({ modifiers: ['Control'] });
+  const tab = await opened;
+
+  expect(tab.url()).toContain('/pull-requests.html?pr=github/');
+  expect(page.url()).toBe(before);
+  await expect(dialog(page)).toBeVisible();
 });
 
 for (const width of [1280, 390]) {

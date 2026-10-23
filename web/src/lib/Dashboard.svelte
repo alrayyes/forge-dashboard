@@ -102,6 +102,7 @@
   import {
     type LinkedPullRequest,
     linkedPills,
+    linkedPillId,
     missingNote,
     type PillCi,
     parsePullRequestAddress,
@@ -1860,6 +1861,7 @@
     // it when the dialog last read the forge (undefined while the snapshot
     // does not list it). The dialog draws its status from its own details, so
     // a close or a reopen in the forge reaches it through a re-read.
+    let afterDetailsClosed: (() => void) | null = null;
     let issueDialog: {
       forge: string;
       repo: string;
@@ -2094,6 +2096,17 @@
       note.hidden = false;
     }
 
+    // One dialog at a time: the issue's closes, then the pull request's opens
+    // once its close has run, with focus returning to the issue's row pill.
+    function followLinkedFromDialog(
+      item: IssueDialogItem,
+      linked: LinkedPullRequest,
+    ) {
+      afterDetailsClosed = () =>
+        void openLinkedPullRequest(linked, linkedPillId(prKey(item), linked));
+      detailsDialog?.close();
+    }
+
     async function openAddressedPullRequest(listed: PullRequestItem[]) {
       const wanted = addressed;
       if (!wanted) return;
@@ -2187,15 +2200,16 @@
       attributes.setAttribute("aria-label", "Labels when opened");
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
-      // The pull requests that will close it, as the row's pills. Plain links
-      // here, as the pull request dialog's closing pills are, so a second
-      // dialog does not stack on this one.
+      // The pull requests that will close it, as the row's pills. Links here,
+      // so a modified click still opens the page in a new tab, but a plain
+      // click swaps this dialog for the pull request's, on this page.
       const pills = linkedPills(
         prKey(item),
         item.repo,
         item.linkedPullRequests,
         undefined,
         linkedCi,
+        (linked) => followLinkedFromDialog(item, linked),
       );
       if (pills) {
         attributes.setAttribute("aria-label", "Attributes when opened");
@@ -2208,6 +2222,9 @@
     // with the dialog when it closes.
     escapeDetails = () => confirmArm.disarm("escape") || issueActions.escape();
     detailsClosed = () => {
+      const next = afterDetailsClosed;
+      afterDetailsClosed = null;
+      if (next) setTimeout(next, 0);
       if (dialogKey !== null) {
         // A queued or in-flight rerun outlives the dialog; only a failure line goes.
         if (!["queued", "requesting"].includes(rerunState[dialogKey]?.phase))

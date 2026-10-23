@@ -146,7 +146,8 @@ export const linkedPillId = (issueKey: string, pr: LinkedPullRequest) =>
  * rest in place. Null when no pull request will close the issue. With onOpen,
  * each pill is a button that opens that pull request's dialog where the
  * reader is, and hands over the pill's id so focus can return to it. Without
- * it, the pill is a link to the pull request page with its pop-up open.
+ * it, the pill is a link to the pull request page with its pop-up open; with
+ * onFollow too, a plain click on that link calls it instead of leaving the page.
  * With renderCi, a pill whose pull request has a pipeline carries it.
  */
 export function linkedPills(
@@ -155,6 +156,7 @@ export function linkedPills(
   list: LinkedPullRequest[] | undefined,
   onOpen?: (pr: LinkedPullRequest, triggerId: string) => void,
   renderCi?: PillCiRenderer,
+  onFollow?: (pr: LinkedPullRequest) => void,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
@@ -164,7 +166,25 @@ export function linkedPills(
       onOpen !== undefined ? 'button' : 'a',
       ['linked-pr', pr.draft ? 'draft' : ''].filter(Boolean).join(' '),
     );
-    if (link instanceof HTMLAnchorElement) link.href = pr.pageUrl;
+    if (link instanceof HTMLAnchorElement) {
+      link.href = pr.pageUrl;
+      // A plain click opens the dialog where the reader is; the address stays
+      // a real link, so a middle or modified click opens it in a new tab.
+      if (onFollow)
+        link.addEventListener('click', (event) => {
+          if (
+            event.defaultPrevented ||
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
+          event.preventDefault();
+          onFollow(pr);
+        });
+    }
     if (link instanceof HTMLButtonElement && onOpen) {
       link.type = 'button';
       link.id = linkedPillId(issueKey, pr);
