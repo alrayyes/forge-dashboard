@@ -3222,6 +3222,18 @@
       "checks_pending",
     ]);
 
+    // Whether a snapshot has auto-merge on for one pull request: true, false
+    // or null (the forge can't say), and undefined when it isn't listed.
+    function autoMergeOf(
+      data: DashboardSnapshot,
+      key: string,
+    ): boolean | null | undefined {
+      const found = (data.pullRequests || []).find(
+        (p: PullRequestItem) => prKey(p) === key,
+      );
+      return found ? found.autoMergeEnabled : undefined;
+    }
+
     // No confirm step — arming auto-merge doesn't merge anything by
     // itself, the same reasoning doUpdateBranch's own comment gives.
     function doEnableAutoMerge(
@@ -3283,7 +3295,28 @@
           // failed action: the next poll brings the board up to date.
           return refreshBoard();
         })
-        .catch((err: ActionRequestError) => {
+        .catch(async (err: ActionRequestError) => {
+          // No status: the request may have run. A fresh snapshot showing
+          // auto-merge on for this pull request means it did. One armed
+          // elsewhere a moment earlier reads the same; the end state is
+          // what was asked for, so that is fine.
+          if (err.status === undefined) {
+            const outcome = await readAmbiguousOutcome(
+              refreshSnapshot,
+              (data) => autoMergeOf(data, key) === true,
+            );
+            if (outcome.ran && outcome.data) {
+              delete autoMergeState[key];
+              feedback.update(fkey, {
+                phase: "done",
+                message: "Auto-merge enabled.",
+                toast: true,
+                announce: "Auto-merge enabled.",
+              });
+              applySnapshot(outcome.data, true);
+              return;
+            }
+          }
           renderActionRefusal(
             item,
             err,
@@ -3406,7 +3439,27 @@
           // failed action: the next poll brings the board up to date.
           return refreshBoard();
         })
-        .catch((err: ActionRequestError) => {
+        .catch(async (err: ActionRequestError) => {
+          // No status: the cancel may have run. A fresh snapshot showing
+          // this pull request without auto-merge on means it did.
+          if (err.status === undefined) {
+            const outcome = await readAmbiguousOutcome(
+              refreshSnapshot,
+              // null is the forge not saying, which proves nothing.
+              (data) => autoMergeOf(data, key) === false,
+            );
+            if (outcome.ran && outcome.data) {
+              delete cancelAutoMergeState[key];
+              feedback.update(fkey, {
+                phase: "done",
+                message: cancelled,
+                toast: true,
+                announce: cancelled,
+              });
+              applySnapshot(outcome.data, true);
+              return;
+            }
+          }
           renderActionRefusal(
             item,
             err,

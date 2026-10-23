@@ -25,6 +25,9 @@ const PR = {
   kind: 'regular',
 };
 
+// Auto-merge is offered while checks are still running.
+const WAITING = { ...PR, ci: 'pending', mergeStatus: 'blocked', behind: false };
+
 const snapshot = (prs: object[]) =>
   JSON.stringify({
     generatedAt: new Date().toISOString(),
@@ -34,13 +37,17 @@ const snapshot = (prs: object[]) =>
   });
 
 // `afterAction` is what a forced refresh answers once the action was sent.
-async function setup(page: Page, afterAction: () => object[] | null) {
+async function setup(
+  page: Page,
+  afterAction: () => object[] | null,
+  initial: object = PR,
+) {
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: snapshot([PR]),
+      body: snapshot([initial]),
     }),
   );
   await page.route('**/api/dashboard/refresh', (route: Route) => {
@@ -56,6 +63,12 @@ async function setup(page: Page, afterAction: () => object[] | null) {
 
 const row = (page: Page) => page.locator('#pr-rows .row').first();
 const line = (page: Page) => row(page).locator('.row-feedback-line');
+
+async function clickAction(page: Page, name: string) {
+  await viaActionsDialog(row(page), async (footer) => {
+    await footer.getByRole('button', { name }).click();
+  });
+}
 
 async function clickUpdate(page: Page) {
   await viaActionsDialog(row(page), async (footer) => {
@@ -139,5 +152,67 @@ test.describe('an action request that got no answer', () => {
     await expect(page.locator('body')).not.toContainText(
       "Couldn't reach the server",
     );
+  });
+
+  for (const [name, button, armed] of [
+    ['enable auto-merge', 'Enable auto-merge', false],
+    ['cancel auto-merge', 'Cancel auto-merge', true],
+  ] as const) {
+    const route = armed
+      ? '**/api/pull-requests/auto-merge/cancel'
+      : '**/api/pull-requests/auto-merge';
+
+    test(`${name}: a dropped request the server ran shows no error`, async ({
+      page,
+    }) => {
+      await setup(page, () => [{ ...WAITING, autoMergeEnabled: !armed }], {
+        ...WAITING,
+        autoMergeEnabled: armed,
+      });
+      await page.route(route, (r) => r.abort('failed'));
+      await page.goto('/pull-requests.html');
+      const refreshed = page.waitForRequest('**/api/dashboard/refresh');
+      await clickAction(page, button);
+      await refreshed;
+      await expect(page.locator('body')).not.toContainText(
+        "Couldn't reach the server",
+      );
+      await expect(line(page)).toHaveCount(0);
+      // The fresh snapshot was applied: the row shows the new state.
+      const pill = row(page).locator('.attr-chip.auto-merge');
+      await expect(pill).toHaveCount(armed ? 0 : 1);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+
+    test(`${name}: a request that never got through still says so`, async ({
+      page,
+    }) => {
+      const same = { ...WAITING, autoMergeEnabled: armed };
+      await setup(page, () => [same], same);
+      await page.route(route, (r) => r.abort('failed'));
+      await page.goto('/pull-requests.html');
+      await clickAction(page, button);
+      await expect(line(page)).toContainText("Couldn't reach the server");
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
+  test('cancel auto-merge: a snapshot that cannot say still reports the dropped request', async ({
+    page,
+  }) => {
+    const armed = { ...WAITING, autoMergeEnabled: true };
+    await setup(page, () => [{ ...WAITING, autoMergeEnabled: null }], armed);
+    await page.route('**/api/pull-requests/auto-merge/cancel', (r) =>
+      r.abort('failed'),
+    );
+    await page.goto('/pull-requests.html');
+    await clickAction(page, 'Cancel auto-merge');
+    await expect(line(page)).toContainText("Couldn't reach the server");
   });
 });

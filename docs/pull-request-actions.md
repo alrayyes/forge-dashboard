@@ -242,11 +242,16 @@ forge had a server error. Try again in a moment." instead of the forge's own
 words. Update branch is tried a second time on the server first, after a short
 wait, since asking again changes nothing it shouldn't; every other action is
 left for you to retry. A request that gets no answer is not taken as a failure
-straight away. Update branch and Close read the pull request again first and,
-when it shows the action ran, settle on that with no error. The refresh an
-action asks for once the forge has accepted it never reports an error of its
-own: if that call drops, the action still counts as done and the next poll
-brings the board up to date. Copy holds the status the forge answered with
+straight away. Update branch, Merge, Close, Enable auto-merge and Cancel
+auto-merge read the pull request again first and, when it shows the action ran
+(no longer behind, gone from the board, closed, or with auto-merge on or off),
+settle on that with no error. Rerun failed checks does not: a rerun leaves
+nothing in a snapshot that tells it from a pull request whose checks changed for
+another reason, so a rerun request that gets no answer says so and can be
+retried. The refresh an action asks for once the forge has accepted it never
+reports an error of its own: if that call drops, the action still counts as
+done and the next poll brings the board up to date. Copy holds the status the forge
+answered with
 (`upstreamStatus`) and, from GitHub, its request id (`requestId`), which is what
 its support asks for, and the server log line carries both. That line clears
 itself after ten seconds, holds while you hover it or have focus in it, and when
