@@ -164,6 +164,10 @@ func heldForApproval(pr PullRequest) bool {
 // botRebases is the bot rebases that may be primary. Runs held for workflow
 // approval report nothing until a maintainer approves them, and a rebase can't
 // do that, so none is offered then and Merge's reason stays in the status.
+//
+// The guard relies on case order in mergeAvailability: held runs are answered
+// before the behind block, so it can't fire on the ActionBehind branch today.
+// Keep that order, or this stops mattering without a test failing.
 func botRebases(pr PullRequest) []ActionName {
 	if heldForApproval(pr) {
 		return nil
