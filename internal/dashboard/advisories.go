@@ -77,6 +77,11 @@ type Advisories struct {
 	// Reason says why the state is unknown, when the dashboard knows. Empty
 	// when the state is known or the cause is not known.
 	Reason AdvisoryReason `json:"reason,omitempty"`
+	// Partial marks a known answer that covers only some of the repo's
+	// dependencies: a lock file listed packages the source left out, because
+	// they are not public. Count is then a floor, and a zero is not "none".
+	// Omitted when the answer covers everything it read.
+	Partial bool `json:"partial,omitempty"`
 }
 
 // UnknownAdvisories is the answer when a source can't say.

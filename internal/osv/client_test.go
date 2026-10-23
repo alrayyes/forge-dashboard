@@ -382,6 +382,6 @@ func TestWithBudget_StillEndsAScanThatIsSlowItself(t *testing.T) {
 	_, err := client.Scan(ctx, []osv.Package{{Ecosystem: "npm", Name: "a", Version: "1.0.0"}})
 
 	require.Error(t, err)
-	assert.ErrorIs(t, ctx.Err(), context.Canceled)
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
 	assert.ErrorIs(t, context.Cause(ctx), context.DeadlineExceeded)
 }
