@@ -42,6 +42,7 @@ describe('WebMCP read tools', () => {
       'get_main_branches',
       'get_main_branch_checks',
       'get_check_log',
+      'get_repository_advisories',
       'get_pull_request_checks',
       'get_pull_request_details',
       'list_queued_actions',
@@ -118,6 +119,41 @@ describe('WebMCP read tools', () => {
       t.execute({ forge: 'github', fullName: 'nope' }),
     ).rejects.toThrow('fullName');
     expect(calls).toHaveLength(0);
+  });
+
+  test('get_repository_advisories reads /api/main-branches/advisories with the repository', async () => {
+    const { calls, tool } = setup({
+      body: { state: 'known', advisories: [] },
+    });
+    expect(
+      await tool('get_repository_advisories').execute({
+        forge: 'github',
+        fullName: 'acme/api',
+      }),
+    ).toEqual({ state: 'known', advisories: [] });
+    expect(calls[0].url).toBe(
+      '/api/main-branches/advisories?forge=github&fullName=acme%2Fapi',
+    );
+  });
+
+  test('get_repository_advisories refuses input the endpoint would reject, without calling it', async () => {
+    const { calls, tool } = setup();
+    const t = tool('get_repository_advisories');
+    await expect(
+      t.execute({ forge: 'gitlab', fullName: 'acme/api' }),
+    ).rejects.toThrow('forge');
+    await expect(
+      t.execute({ forge: 'github', fullName: 'nope' }),
+    ).rejects.toThrow('fullName');
+    expect(calls).toHaveLength(0);
+  });
+
+  test('get_repository_advisories says an unknown list is not an empty one', () => {
+    const { tool } = setup();
+    const { description } = tool('get_repository_advisories');
+    expect(description).toContain('unknown');
+    expect(description).toContain('never an empty list');
+    expect(description).toContain('Read-only');
   });
 
   test('get_check_log reads /api/checks/log with the repository and the job', async () => {

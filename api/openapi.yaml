@@ -3131,7 +3131,6 @@ paths:
   /api/main-branches/advisories:
     get:
       operationId: listAdvisories
-      x-mcp-excluded: "Not offered to MCP clients yet: only the Main branches page's advisories dialog reads it. The count, highest severity and link per repository are already in get_main_branches. The pull request tool (get_pull_request_details) is the model if that changes."
       summary: List a repository's open dependency advisories in full, on demand
       description: |
         What the advisories dialog on the Main branches page shows for one
