@@ -644,3 +644,61 @@ func TestService_EnsureFrom_LoaderDeclines_KeepsTheRunningAggregator(t *testing.
 	require.True(t, m.Running())
 	require.Eventually(t, func() bool { return len(m.Get().Forges) == 1 }, 2*time.Second, 5*time.Millisecond)
 }
+
+func TestService_StartAtBoot_RefreshesWithoutAnyRequest(t *testing.T) {
+	t.Parallel()
+
+	src := &countingSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.StartAtBoot(t.Context(), []dashboard.Source{src})
+
+	require.Eventually(t, func() bool { return src.calls.Load() > 0 }, time.Second, 5*time.Millisecond)
+}
+
+func TestService_StartAtBoot_KeepsAnAggregatorThatIsAlreadyRunning(t *testing.T) {
+	t.Parallel()
+
+	first := &countingSource{}
+	second := &countingSource{}
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.Ensure(t.Context(), []dashboard.Source{first})
+	m.StartAtBoot(t.Context(), []dashboard.Source{second})
+
+	require.Eventually(t, func() bool { return first.calls.Load() > 0 }, time.Second, 5*time.Millisecond)
+	assert.Zero(t, second.calls.Load())
+}
+
+// Readiness says the app can serve its saved view, so a refresh the process
+// started for itself must not hold it back while a forge is slow.
+func TestService_StartAtBoot_ReadinessDoesNotWaitForTheRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := &gatedSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(src.release) })
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.StartAtBoot(t.Context(), []dashboard.Source{src})
+
+	assert.True(t, m.FirstRefreshComplete(), "the refresh is still blocked, and the service can serve")
+}
+
+func TestService_Reset_ReadinessWaitsForARefreshAgainAfterABootStart(t *testing.T) {
+	t.Parallel()
+
+	src := &gatedSource{release: make(chan struct{})}
+	t.Cleanup(func() { close(src.release) })
+	m := dashboard.NewService(time.Hour)
+	t.Cleanup(m.Stop)
+
+	m.StartAtBoot(t.Context(), []dashboard.Source{src})
+	m.Stop()
+	m.Reset()
+	m.Ensure(t.Context(), []dashboard.Source{src})
+
+	assert.False(t, m.FirstRefreshComplete(), "a sign-in's refresh gates readiness again on a fresh process")
+}

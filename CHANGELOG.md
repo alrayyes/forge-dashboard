@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.17.1](https://github.com/alrayyes/forge-dashboard/compare/v2.17.0...v2.17.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** don't report an accepted action as unreachable when the follow-up refresh drops ([#2632](https://github.com/alrayyes/forge-dashboard/issues/2632)) ([c9104a3](https://github.com/alrayyes/forge-dashboard/commit/c9104a3cd72db6d7005379315adf088b6c08e73f))
+
+## [2.17.0](https://github.com/alrayyes/forge-dashboard/compare/v2.16.0...v2.17.0) (2026-10-23)
+
+
+### Features
+
+* **dashboard:** start the first refresh at boot, not at the first request ([#2629](https://github.com/alrayyes/forge-dashboard/issues/2629)) ([d424dbc](https://github.com/alrayyes/forge-dashboard/commit/d424dbc892b7f0cdce86db465a1045ef4b9dd57c))
+* **web:** say on the Branches page when Forgejo advisories could not be read ([#2618](https://github.com/alrayyes/forge-dashboard/issues/2618)) ([c684d1f](https://github.com/alrayyes/forge-dashboard/commit/c684d1f5c2cabfba841fb07a9e625221876f6880))
+
+## [2.16.0](https://github.com/alrayyes/forge-dashboard/compare/v2.15.0...v2.16.0) (2026-10-23)
+
+
+### Features
+
+* **web:** say which choices a saved pick lost when it no longer fits ([#2624](https://github.com/alrayyes/forge-dashboard/issues/2624)) ([b65122e](https://github.com/alrayyes/forge-dashboard/commit/b65122e0d21cb44b4bcc15a878e7fc52a781aa69))
+
+## [2.15.0](https://github.com/alrayyes/forge-dashboard/compare/v2.14.0...v2.15.0) (2026-10-23)
+
+
+### Features
+
+* **osv:** more lock file formats for Forgejo advisories ([#2608](https://github.com/alrayyes/forge-dashboard/issues/2608)) ([99d8551](https://github.com/alrayyes/forge-dashboard/commit/99d85511702847fa50c1fbca3096ebea3e783f40))
+
 ## [2.14.0](https://github.com/alrayyes/forge-dashboard/compare/v2.13.1...v2.14.0) (2026-10-23)
 
 

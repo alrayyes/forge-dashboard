@@ -50,6 +50,9 @@ type Service struct {
 	// logins or saves during a slow first refresh can't keep restarting the
 	// grace. Reset clears it.
 	firstStarted time.Time
+	// bootStarted is set when the process started the Aggregator itself, so
+	// readiness has no first refresh to wait for.
+	bootStarted bool
 	// refreshedOnce is set once the first refresh since this process started
 	// has finished, whether it succeeded or failed (#1673). It lives here and
 	// not on the Aggregator because a settings save replaces the Aggregator,
@@ -260,6 +263,23 @@ func (s *Service) EnsureIfAbsent(ctx context.Context, sources []Source) {
 	s.startLocked(ctx, sources)
 }
 
+// StartAtBoot is EnsureIfAbsent for the process starting itself: the first
+// refresh runs while the deploy settles instead of waiting for a request.
+// Readiness then never waits on that refresh. The app can serve its last saved
+// view without it, and a slow forge only means older data. Reset undoes this,
+// as a fresh process would.
+func (s *Service) StartAtBoot(ctx context.Context, sources []Source) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.current != nil {
+		return
+	}
+
+	s.startLocked(ctx, sources)
+	s.bootStarted = true
+}
+
 // startLocked builds the Aggregator from sources, with every hook this
 // Service has been given, and starts its background loops. The caller holds s.mu.
 func (s *Service) startLocked(ctx context.Context, sources []Source) {
@@ -344,7 +364,7 @@ func (s *Service) FirstRefreshComplete() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.firstRefreshSeen || s.current == nil {
+	if s.firstRefreshSeen || s.current == nil || s.bootStarted {
 		return true
 	}
 	if s.current.agg.FirstRefreshDone() || time.Since(s.firstStarted) > s.firstRefreshGrace {
@@ -604,7 +624,8 @@ func (s *Service) Subscribe() (<-chan Snapshot, func(), bool) {
 
 // Stop cancels the running refresh loop and nothing else. The first-refresh
 // marks and the force-refresh cooldown stay, so a pause or shutdown can't hand
-// out a free refresh. Reset puts those back to a fresh process.
+// out a free refresh. That includes bootStarted, which stays set until Reset.
+// Reset puts those back to a fresh process.
 func (s *Service) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -627,5 +648,6 @@ func (s *Service) Reset() {
 	s.refreshedOnce = false
 	s.firstRefreshSeen = false
 	s.firstStarted = time.Time{}
+	s.bootStarted = false
 	s.lastForced = time.Time{}
 }

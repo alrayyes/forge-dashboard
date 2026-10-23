@@ -362,7 +362,7 @@ func run() error {
 	}
 	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
 
-	resumeQueuedActions(ctx, settingsStore, settingsStore, deps.BuildSources, service)
+	startDashboardAtBoot(ctx, settingsStore, deps.BuildSources, service)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
 
 	return listenAndServe(ctx, newServer(addr, deps), &drain)
