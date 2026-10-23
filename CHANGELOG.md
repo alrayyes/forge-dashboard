@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.16.0](https://github.com/alrayyes/forge-dashboard/compare/v2.15.0...v2.16.0) (2026-10-23)
+
+
+### Features
+
+* **web:** say which choices a saved pick lost when it no longer fits ([#2624](https://github.com/alrayyes/forge-dashboard/issues/2624)) ([b65122e](https://github.com/alrayyes/forge-dashboard/commit/b65122e0d21cb44b4bcc15a878e7fc52a781aa69))
+
+## [2.15.0](https://github.com/alrayyes/forge-dashboard/compare/v2.14.0...v2.15.0) (2026-10-23)
+
+
+### Features
+
+* **osv:** more lock file formats for Forgejo advisories ([#2608](https://github.com/alrayyes/forge-dashboard/issues/2608)) ([99d8551](https://github.com/alrayyes/forge-dashboard/commit/99d85511702847fa50c1fbca3096ebea3e783f40))
+
+## [2.14.0](https://github.com/alrayyes/forge-dashboard/compare/v2.13.1...v2.14.0) (2026-10-23)
+
+
+### Features
+
+* **osv:** derive an advisory's severity from its CVSS vector ([#2607](https://github.com/alrayyes/forge-dashboard/issues/2607)) ([12d945e](https://github.com/alrayyes/forge-dashboard/commit/12d945e629e94c14941847ba0f57dde4d0efef09))
+
 ## [2.13.1](https://github.com/alrayyes/forge-dashboard/compare/v2.13.0...v2.13.1) (2026-10-23)
 
 

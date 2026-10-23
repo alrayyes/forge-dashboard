@@ -98,3 +98,4 @@ lookahead
 lookbehind
 backreferences?
 ETags?
+Packagist

@@ -634,3 +634,33 @@ func TestReadAdvisories_AQuotedOwnHostModuleIsNotSent(t *testing.T) {
 	require.Equal(t, 1, scanner.calls())
 	assert.Equal(t, []osv.Package{{Ecosystem: "Go", Name: "github.com/a/b", Version: "1.2.3"}}, scanner.asked[0])
 }
+
+func TestReadAdvisories_ReadsEachSupportedLockfileWithOneRawRead(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		file, content string
+		want          osv.Package
+	}{
+		{"bun.lock", `{"packages":{"left-pad":["left-pad@1.3.0","",{},"sha512-a"],},}`, osv.Package{Ecosystem: "npm", Name: "left-pad", Version: "1.3.0"}},
+		{"composer.lock", `{"packages":[{"name":"monolog/monolog","version":"3.5.0"}],"packages-dev":[]}`, osv.Package{Ecosystem: "Packagist", Name: "monolog/monolog", Version: "3.5.0"}},
+		{"poetry.lock", "[[package]]\nname = \"requests\"\nversion = \"2.31.0\"\n", osv.Package{Ecosystem: "PyPI", Name: "requests", Version: "2.31.0"}},
+		{"uv.lock", "[[package]]\nname = \"requests\"\nversion = \"2.31.0\"\nsource = { registry = \"https://pypi.org/simple\" }\n", osv.Package{Ecosystem: "PyPI", Name: "requests", Version: "2.31.0"}},
+		{"Cargo.lock", "[[package]]\nname = \"serde\"\nversion = \"1.0.190\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n", osv.Package{Ecosystem: "crates.io", Name: "serde", Version: "1.0.190"}},
+		{"package-lock.json", `{"lockfileVersion":1,"dependencies":{"left-pad":{"version":"1.3.0","resolved":"https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz"}}}`, osv.Package{Ecosystem: "npm", Name: "left-pad", Version: "1.3.0"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.file, func(t *testing.T) {
+			t.Parallel()
+			scanner := &fakeScanner{summary: osv.Summary{Count: 1, Highest: "high"}}
+			forge := &lockfileServer{files: map[string]string{tc.file: tc.content}}
+			client := forge.start(t, scanner)
+
+			got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
+			require.NoError(t, err)
+			assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 1, Highest: dashboard.SeverityHigh}, got)
+			require.Equal(t, 1, scanner.calls())
+			assert.Equal(t, []osv.Package{tc.want}, scanner.asked[0])
+			assert.EqualValues(t, 2, forge.requests.Load(), "one listing and one raw read")
+		})
+	}
+}
