@@ -140,13 +140,13 @@ Nothing is saved then, not the other patterns and not the other settings.
 ## Pull requests that close an issue
 
 An issue that an open pull request is set to close shows a small link after its
-title and labels: the pull request's number with a hash sign, then whether it
-is `open` or a `draft`. A pull request in another repository than the issue's
-adds the repo name before the number. Screen readers hear "Pull request", the
-number, its state and "closes this issue". A pull request counts when its
-description closes the issue with a keyword such as "closes" or "fixes" and it
-aims at its repo's default branch, the same rule the pull request page uses for
-the issues it lists.
+title and labels: the pull request's number with a hash sign, followed by
+`draft` when it is a draft. A pull request in another repository than the
+issue's adds the repo name before the number. Screen readers hear "Pull
+request", the number, "draft" when it is one, and "closes this issue". A pull
+request counts when its description closes the issue with a keyword such as
+"closes" or "fixes" and it aims at its repo's default branch, the same rule the
+pull request page uses for the issues it lists.
 
 The issue's pop-up shows the same links among its attributes, with the
 pipeline of each pull request as on the row, and nothing when no pull request

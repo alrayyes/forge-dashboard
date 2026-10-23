@@ -100,20 +100,20 @@ exception. Forgejo has no dependency alerts, so the dashboard can match a
 repo's lock files against the public [OSV](https://osv.dev) database instead.
 That is off by default. Set `OSV_ADVISORIES=on` to turn it on.
 
-When it is on, **the package names and versions in each Forgejo repo's root
-lock files (`package-lock.json`, `bun.lock`, `composer.lock`, `poetry.lock`,
-`uv.lock`, `Cargo.lock` and `go.mod`) are sent to `api.osv.dev`**, private repos
-included. Only some things are kept out: Go modules on the Forgejo host itself,
-and packages that a lock file shows don't come from the public registry of their
-ecosystem (Composer's doesn't say, so its packages are all sent). A private Go
-module on another host, or a private scoped package on the public npm registry,
-is still sent by name, which is why this is off by default, so think before
-enabling it on a server that holds private repos. Nothing else is sent: no repo
-name, URL or token. The dashboard logs a line at startup when it is on, and a
-warning when the value is neither `on` nor `off`, which leaves it off. While it
-is off, Forgejo rows say the repo was not checked. GitHub repos are not
-affected: they read Dependabot alerts from GitHub. See [Main
-branches](docs/main-branches.md#forgejo-advisories).
+When it is on, **the package names and versions in each Forgejo repo's lock
+files, in the root or any subdirectory (`package-lock.json`, `bun.lock`,
+`composer.lock`, `poetry.lock`, `uv.lock`, `Cargo.lock` and `go.mod`) are sent
+to `api.osv.dev`**, private repos included. Only some things are kept out: Go
+modules on the Forgejo host itself, and packages that a lock file shows don't
+come from the public registry of their ecosystem (Composer's doesn't say, so its
+packages are all sent). A private Go module on another host, or a private scoped
+package on the public npm registry, is still sent by name, which is why this is
+off by default, so think before enabling it on a server that holds private
+repos. Nothing else is sent: no repo name, URL or token. The dashboard logs a
+line at startup when it is on, and a warning when the value is neither `on` nor
+`off`, which leaves it off. While it is off, Forgejo rows say the repo was not
+checked. GitHub repos are not affected: they read Dependabot alerts from GitHub.
+See [Main branches](docs/main-branches.md#forgejo-advisories).
 
 ## Documentation
 

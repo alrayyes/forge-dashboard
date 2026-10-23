@@ -59,6 +59,7 @@
   import {
     excerptKey,
     fillExcerpts,
+    newExcerptReads,
     pickExcerptJobs,
   } from "#lib/pipeline-excerpts.js";
   import {
@@ -88,16 +89,16 @@
 
   // Forgejo's list carries no log excerpt, so a failed check shows at once with
   // its link and the excerpt is filled in as each read lands. Keyed by
-  // excerptKey; `asked` keeps a check from being asked for twice, and a new
-  // number stops reads still waiting from an earlier open.
+  // excerptKey; `reads` keeps a check from being asked for twice and holds the
+  // five reads of one open, retries included, and a new number stops reads
+  // still waiting from an earlier open.
   let excerpts = $state<Record<string, string>>({});
-  const asked = new Set<string>();
+  let reads = newExcerptReads();
   let excerptRun = 0;
 
   function askForExcerpts(list: Check[], url: string) {
-    const picks = pickExcerptJobs(list, asked);
+    const picks = pickExcerptJobs(list, reads);
     if (!picks.length) return;
-    for (const check of picks) asked.add(excerptKey(check));
     const mine = excerptRun;
     void fillExcerpts(
       picks,
@@ -108,6 +109,8 @@
       },
       fetch,
       () => mine !== excerptRun,
+      undefined,
+      reads,
     );
   }
 
@@ -119,7 +122,7 @@
     staleNote = "";
     excerptRun++;
     excerpts = {};
-    asked.clear();
+    reads = newExcerptReads();
     speak.clear();
     live = createLiveChecks({
       signature: next.signature,

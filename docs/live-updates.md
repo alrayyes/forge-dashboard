@@ -222,7 +222,16 @@ the room is gone. A saved pick over any of these limits is cut down to fit
 when the page loads. That includes a pick saved by an earlier build, which
 allowed up to 2000 characters as the cookie writes it: one over 1000 is cut to
 fit. The page shows a notice naming each filter and the choices it dropped, once
-when it loads, so tick the rest again. If the server still refuses a
+when it loads, so tick the rest again.
+
+A long title search on top of the picks can still push the cookie past its
+limit when the page saves. The page then cuts the title search first, then the
+last names of the largest pick one at a time, then the largest other saved
+value, and stops as soon as the cookie fits. A notice names what was cut. The
+notice shows only on the save that cut: after a reload the cookie is already
+trimmed, so nothing is left to report. The copy kept on the server stays whole.
+
+If the server still refuses a
 save, the page says the filter was not saved and does not send it again by
 itself. The pick is saved in the same field as before, the labels in
 lowercase one after another. A page that doesn't offer one of the saved labels

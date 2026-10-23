@@ -1,5 +1,43 @@
 # Changelog
 
+## [2.21.0](https://github.com/alrayyes/forge-dashboard/compare/v2.20.0...v2.21.0) (2026-10-23)
+
+
+### Features
+
+* **forgejo:** find lock files in subdirectories when reading advisories ([#2649](https://github.com/alrayyes/forge-dashboard/issues/2649)) ([6d75967](https://github.com/alrayyes/forge-dashboard/commit/6d7596776673bf57f8eecfc888caa22ad65172d3))
+
+
+### Bug Fixes
+
+* **web:** skip a job with no log address instead of dropping the other excerpts ([#2663](https://github.com/alrayyes/forge-dashboard/issues/2663)) ([666d574](https://github.com/alrayyes/forge-dashboard/commit/666d5748b065f3585bafefc674373cb5cb869420))
+
+## [2.20.0](https://github.com/alrayyes/forge-dashboard/compare/v2.19.0...v2.20.0) (2026-10-23)
+
+
+### Features
+
+* **web:** retry an unflushed Forgejo log excerpt and hold the five-read cap ([#2652](https://github.com/alrayyes/forge-dashboard/issues/2652)) ([14d00c7](https://github.com/alrayyes/forge-dashboard/commit/14d00c738765282ff11a4cb676dd29930d58b52b))
+
+## [2.19.0](https://github.com/alrayyes/forge-dashboard/compare/v2.18.1...v2.19.0) (2026-10-23)
+
+
+### Features
+
+* **web:** cut the filter cookie to its size limit and say what went ([#2646](https://github.com/alrayyes/forge-dashboard/issues/2646)) ([fc1a03f](https://github.com/alrayyes/forge-dashboard/commit/fc1a03ffc1a4d4715371108e50c0b04f49b5249b))
+
+
+### Bug Fixes
+
+* **web:** settle enable and cancel auto-merge quietly when the request drops after it ran ([#2650](https://github.com/alrayyes/forge-dashboard/issues/2650)) ([135be17](https://github.com/alrayyes/forge-dashboard/commit/135be17938f379db4fa4b4a8c57598356e1be532))
+
+## [2.18.1](https://github.com/alrayyes/forge-dashboard/compare/v2.18.0...v2.18.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** drop the state word from the pull request pills on the issues page ([#2657](https://github.com/alrayyes/forge-dashboard/issues/2657)) ([acb9b5c](https://github.com/alrayyes/forge-dashboard/commit/acb9b5c91e4fc6a6e01228665e591a0f0036eaaf))
+
 ## [2.18.0](https://github.com/alrayyes/forge-dashboard/compare/v2.17.4...v2.18.0) (2026-10-23)
 
 
