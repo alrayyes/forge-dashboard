@@ -203,10 +203,8 @@
       if (cancelLocksRepo(e)) {
         cancelLocks.set(cancelKey(cancel), { message, at: Date.now() });
         lockTick++;
-        // Redraw when the rest is over, in a dialog that is still open. One
-        // timer: a later refusal moves it rather than stacking another.
-        clearTimeout(lockTimer);
-        lockTimer = setTimeout(() => lockTick++, LOCK_MS + 1);
+        // Redraw when the rest is over, in a dialog that is still open.
+        if (row && target === row) armLockTimer(cancel);
       }
       if (!row || target !== row) return;
       runStates[run.runId] = { phase: "refused", run, message };
@@ -339,6 +337,17 @@
     );
   }
 
+  // One timer: redraw when the target's lock runs out. Moves rather than
+  // stacks, and a lock left from an earlier dialog is picked up on open().
+  function armLockTimer(cancel: { forge: string; fullName: string }) {
+    clearTimeout(lockTimer);
+    const lock = cancelLocks.get(cancelKey(cancel));
+    if (!lock) return;
+    const left = LOCK_MS - (Date.now() - lock.at);
+    if (left < 0) return;
+    lockTimer = setTimeout(() => lockTick++, left + 1);
+  }
+
   export function open(next: PipelineTarget) {
     // Already open: showModal() would throw, and the dialog is modal, so only
     // a stray second call gets here.
@@ -351,6 +360,7 @@
     runStates = {};
     clearTimeout(settleTimer);
     clearTimeout(lockTimer);
+    if (next.cancel) armLockTimer(next.cancel);
     speak.clear();
     live = createLiveChecks({
       signature: next.signature,
@@ -396,11 +406,11 @@
         headers: { Accept: "application/json" },
       });
       // A read a newer one overtook still came back; only a failed one didn't.
-      if (mine !== request) return res.ok;
       if (res.status === 401) {
         window.location.href = "/login.html";
         return false;
       }
+      if (mine !== request) return res.ok;
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(body?.error || `backend answered ${res.status}`);
