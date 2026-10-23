@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.0](https://github.com/alrayyes/forge-dashboard/compare/v2.13.1...v2.14.0) (2026-10-23)
+
+
+### Features
+
+* **osv:** derive an advisory's severity from its CVSS vector ([#2607](https://github.com/alrayyes/forge-dashboard/issues/2607)) ([12d945e](https://github.com/alrayyes/forge-dashboard/commit/12d945e629e94c14941847ba0f57dde4d0efef09))
+
 ## [2.13.1](https://github.com/alrayyes/forge-dashboard/compare/v2.13.0...v2.13.1) (2026-10-23)
 
 
