@@ -62,6 +62,7 @@
     findAction,
     primaryAction,
   } from "#lib/allowed-actions.js";
+  import { readAmbiguousOutcome } from "#lib/ambiguous-outcome.js";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
   import * as Stacks from "#lib/stacks.js";
@@ -1645,19 +1646,7 @@
           });
           // The row returns with the next snapshot; the dialog goes back to
           // its normal state once it is in.
-          return (
-            fetch(withDrafts("/api/dashboard/refresh"), {
-              method: "POST",
-              headers: { Accept: "application/json" },
-            })
-              .then((res) => (res.ok ? res.json() : null))
-              .then((data) => {
-                if (data) applySnapshot(data, true);
-              })
-              // The forge already took the action. A refresh that fails is not
-              // a failed action: the next poll brings the board up to date.
-              .catch(() => {})
-          );
+          return refreshBoard();
         })
         .then(() => {
           if (dialogClosed !== closed) return;
@@ -2870,14 +2859,9 @@
           // call the "Refresh now" button makes — so the just-merged PR
           // drops off the board as soon as the forge itself reflects
           // the merge.
-          return fetch(withDrafts("/api/dashboard/refresh"), {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data) applySnapshot(data, true);
-            });
+          // The forge already took the action. A refresh that fails is not a
+          // failed action: the next poll brings the board up to date.
+          return refreshBoard();
         })
         .catch((err: ActionRequestError) => {
           // A raw network failure (no HTTP status at all — the fetch
@@ -3227,14 +3211,9 @@
           // use, so the row's Auto-merge pill (autoMergePill) reflects
           // the new state without waiting out the rest of the background
           // poll's own interval.
-          return fetch(withDrafts("/api/dashboard/refresh"), {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data) applySnapshot(data, true);
-            });
+          // The forge already took the action. A refresh that fails is not a
+          // failed action: the next poll brings the board up to date.
+          return refreshBoard();
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -3357,14 +3336,9 @@
             toast: true,
             announce: cancelled,
           });
-          return fetch(withDrafts("/api/dashboard/refresh"), {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data) applySnapshot(data, true);
-            });
+          // The forge already took the action. A refresh that fails is not a
+          // failed action: the next poll brings the board up to date.
+          return refreshBoard();
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -3701,21 +3675,26 @@
             announce: inDialog ? CLOSED_STATUS : "Closed.",
           });
           if (inDialog) showClosedInDialog(item);
-          return (
-            fetch(withDrafts("/api/dashboard/refresh"), {
-              method: "POST",
-              headers: { Accept: "application/json" },
-            })
-              .then((res) => (res.ok ? res.json() : null))
-              .then((data) => {
-                if (data) applySnapshot(data, true);
-              })
-              // The forge already took the action. A refresh that fails is not
-              // a failed action: the next poll brings the board up to date.
-              .catch(() => {})
-          );
+          return refreshBoard();
         })
-        .catch((err: ActionRequestError) => {
+        .catch(async (err: ActionRequestError) => {
+          // No status: the close may have run. Gone from a fresh snapshot
+          // means it did.
+          if (err.status === undefined) {
+            const outcome = await readAmbiguousOutcome(
+              refreshSnapshot,
+              (data) =>
+                !(data.pullRequests || []).some(
+                  (p: PullRequestItem) => prKey(p) === key,
+                ),
+            );
+            if (outcome.ran && outcome.data) {
+              delete closeState[key];
+              feedback.update(fkey, { phase: "done", message: "Closed." });
+              applySnapshot(outcome.data, true);
+              return;
+            }
+          }
           renderActionRefusal(item, err, fkey, "close", (next) => {
             closeState[key] = next;
           });
@@ -3866,16 +3845,31 @@
             toast: true,
             announce: requestedAnnouncement("update-branch"),
           });
-          return fetch(withDrafts("/api/dashboard/refresh"), {
-            method: "POST",
-            headers: { Accept: "application/json" },
-          })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data) applySnapshot(data, true);
-            });
+          // The forge already took the action. A refresh that fails is not a
+          // failed action: the next poll brings the board up to date.
+          return refreshBoard();
         })
-        .catch((err: ActionRequestError) => {
+        .catch(async (err: ActionRequestError) => {
+          // No status: the browser never saw an answer, and the update may
+          // have run. Read the pull request again before reporting failure.
+          if (err.status === undefined) {
+            const outcome = await readAmbiguousOutcome(
+              refreshSnapshot,
+              (data) =>
+                !(data.pullRequests || []).some(
+                  (p: PullRequestItem) => prKey(p) === key && p.behind,
+                ),
+            );
+            if (outcome.ran && outcome.data) {
+              confirmRequest(updateBranchState, key);
+              feedback.update(fkey, {
+                toast: true,
+                announce: requestedAnnouncement("update-branch"),
+              });
+              applySnapshot(outcome.data, true);
+              return;
+            }
+          }
           renderActionRefusal(item, err, fkey, "update the branch", (next) => {
             updateBranchState[key] = next;
           });
@@ -4554,14 +4548,17 @@
         .catch(() => false);
     }
 
-    // The board asks the server again, so the row leaves or returns at once
-    // instead of waiting for the pointer to leave the list.
-    function refreshBoard(): Promise<void> {
+    function refreshSnapshot(): Promise<DashboardSnapshot | null> {
       return fetch(withDrafts("/api/dashboard/refresh"), {
         method: "POST",
         headers: { Accept: "application/json" },
-      })
-        .then((res) => (res.ok ? res.json() : null))
+      }).then((res) => (res.ok ? res.json() : null));
+    }
+
+    // The board asks the server again, so the row leaves or returns at once
+    // instead of waiting for the pointer to leave the list.
+    function refreshBoard(): Promise<void> {
+      return refreshSnapshot()
         .then((data) => {
           if (data) applySnapshot(data, true);
         })
