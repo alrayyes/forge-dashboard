@@ -2,6 +2,7 @@ package forgejo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -73,9 +74,12 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 		}
 
 		refusal := fmt.Errorf("%w: %s", errForgeRefused, reason)
-		if missingIsOrdinary && httpResp.StatusCode == http.StatusNotFound {
+		if missingIsOrdinary && httpResp.StatusCode == http.StatusNotFound && isAPIMessage(msg) {
 			// A log that was pruned, or a job that keeps none, is an ordinary
-			// answer: the request is logged as made, not as an error.
+			// answer: the request is logged as made, not as an error. Only
+			// Forgejo's own error body says so. A 404 without one comes from a
+			// server with no such route (a Forgejo too old to serve job logs, or
+			// a proxy in front), a capability gap that stays visible as an error.
 			clientErr, status := classifyForgejoError(http.MethodGet, path, resp, refusal)
 			c.recordRequest(ctx, http.MethodGet, path, status, requestlog.OutcomeSuccess)
 
@@ -96,6 +100,16 @@ func (c *Client) jobLog(ctx context.Context, owner, name string, id int64, windo
 	c.recordRequest(ctx, http.MethodGet, path, httpResp.StatusCode, requestlog.OutcomeSuccess)
 
 	return dashboard.NewJobLog(tail, cut), nil
+}
+
+// isAPIMessage reports whether body is the JSON error envelope Forgejo's API
+// answers with, as opposed to a router's bare "404 page not found".
+func isAPIMessage(body []byte) bool {
+	var envelope struct {
+		Message string `json:"message"`
+	}
+
+	return json.Unmarshal(body, &envelope) == nil && envelope.Message != ""
 }
 
 // readTail reads r to the end and returns its last window bytes, and whether

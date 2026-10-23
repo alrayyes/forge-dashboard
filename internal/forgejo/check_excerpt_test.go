@@ -38,7 +38,9 @@ func excerptServer(t *testing.T, jobs []map[string]any, logs map[int]string, log
 		_, _ = fmt.Sscanf(strings.TrimPrefix(r.URL.Path, "/api/v1/repos/alrayyes/a/actions/jobs/"), "%d/logs", &id)
 		text, ok := logs[id]
 		if !ok {
+			// What Forgejo says of a log it no longer has: its own error body.
 			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"message":"log not found"}`)
 
 			return
 		}
@@ -448,4 +450,29 @@ func TestJobExcerpt_AFailedReadIsNotRetriedAtOnce(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(1), calls.Load(), "a log that failed to read waits out the retry delay")
+}
+
+func TestJobExcerpt_AForgeWithoutTheJobLogEndpointIsRecordedAsAnError(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/", http.NotFound)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	rec := &fakeRecorder{}
+	client := forgejo.NewClient(srv.URL, "test-token", "", rec)
+
+	text, err := client.JobExcerpt(t.Context(), "alrayyes", "a", 4)
+
+	require.NoError(t, err, "the check still shows, without an excerpt")
+	assert.Empty(t, text)
+	var seen bool
+	for _, e := range rec.all() {
+		if strings.Contains(e.Endpoint, "/jobs/4/logs") {
+			seen = true
+			assert.Equal(t, http.StatusNotFound, e.StatusCode)
+			assert.NotEqual(t, requestlog.OutcomeSuccess, e.Outcome, "a missing endpoint is a capability gap, not a pruned log")
+		}
+	}
+	assert.True(t, seen, "the read is recorded")
 }
