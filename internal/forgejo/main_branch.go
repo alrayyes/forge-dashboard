@@ -64,7 +64,8 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 	jobs := c.runJobs(ctx, repo, runs)
 	runs = settledRuns(runs, jobs)
 	row.Status = mainBranchStatus(runs)
-	row.Checks = jobCounts(runs, jobs)
+	checks, _ := branchChecks(repo, runs, jobs)
+	row.Checks = countChecks(checks)
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
 	case row.Status == dashboard.MainBranchFailed:
@@ -86,7 +87,8 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 
 // ListDefaultBranchChecks implements dashboard.DefaultBranchChecker: the jobs of
 // every Actions run on the newest commit of owner/name's default branch that has
-// one, the commit ReadMainBranch reports. Fetched on demand. A repo with no
+// one, the commit ReadMainBranch reports, gathered the way it gathers them and
+// listed as it counts them (branchChecks). Fetched on demand. A repo with no
 // default branch, or no run on it, has none, as its row reads none; a failed
 // lookup is an error. "Required" is a pull request's base-branch notion and
 // stays unknown.
@@ -104,18 +106,19 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 		return nil, nil
 	}
 
-	runs, err := c.branchRuns(ctx, dashboard.RepoRef{
-		FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch,
-	})
+	ref := dashboard.RepoRef{FullName: owner + "/" + name, Owner: owner, Name: name, DefaultBranch: repo.DefaultBranch}
+	runs, err := c.branchRuns(ctx, ref)
 	if err != nil || len(runs) == 0 {
 		return nil, err
 	}
 
-	// branchRuns sorts newest first and keeps one commit's runs, so runs[0] is
-	// the commit the row reports.
-	checks, _, err := c.listChecksForSHA(ctx, owner, name, runs[0].CommitSHA)
+	// The same runs and jobs the row counts (see ReadMainBranch), so the list
+	// and the pill can't describe different pipelines. branchRuns sorts newest
+	// first and keeps one commit's runs, so runs[0] is the commit the row reports.
+	checks, keys := branchChecks(ref, runs, c.runJobs(ctx, ref, runs))
+	c.rememberFailedJobs(owner, name, checks, keys)
 
-	return checks, err
+	return checks, nil
 }
 
 // branchRun is one entry of Forgejo's Actions runs list, decoded by hand: the
@@ -305,7 +308,10 @@ func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*br
 		// An empty list for a run that just finished may be the forge catching
 		// up, so it is read again rather than kept. Once the run is older than
 		// jobsCatchUp the list is final, however short.
-		if key != "" && (len(jobs) > 0 || time.Since(run.StoppedAt) > jobsCatchUp) {
+		// A list with a job still going is read again too: the run was listed as
+		// finished, but the jobs may have been read before the forge caught up,
+		// and a kept list would show that job running for as long as we live.
+		if _, _, over := jobsOutcome(jobs); key != "" && over && (len(jobs) > 0 || time.Since(run.StoppedAt) > jobsCatchUp) {
 			c.finishedJobs.put(key, jobs)
 		}
 	}
@@ -330,22 +336,44 @@ func isFinished(status string) bool {
 	return false
 }
 
-// jobCounts tallies the jobs of the commit's runs into passed, running,
-// waiting and failed (#2357). A run with no readable job list counts as one
-// check by its own status, so a failed read shows less detail, never nothing.
-// A cancelled job or run is in none of the four, as for a pull request:
-// nothing broke, and mainBranchStatus reads it the same way.
-func jobCounts(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) dashboard.CheckCounts {
-	var out dashboard.CheckCounts
+// branchChecks is the checks of the commit's runs: each run's jobs, or, for a
+// run with no readable job list, the run itself as one check named after its
+// workflow, so a failed read shows less detail, never nothing. It is the one
+// list both the pill's counts (countChecks) and the pipeline dialog come from,
+// so a count never has a job behind it that the dialog hides. The second
+// result keys each job's log excerpt.
+func branchChecks(repo dashboard.RepoRef, runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) ([]dashboard.Check, map[int64]excerptKey) {
+	var out []dashboard.Check
+	keys := map[int64]excerptKey{}
 	for _, r := range runs {
 		if list := jobs[r.ID]; len(list) > 0 {
 			for _, j := range list {
-				tally(&out, checkStateFromWorkflowStatus(j.Status))
+				out = append(out, dashboard.Check{
+					Name:       j.Name,
+					State:      checkStateFromWorkflowStatus(j.Status),
+					URL:        j.HTMLURL,
+					JobID:      j.ID,
+					RunAttempt: j.RunAttempt,
+				})
+				keys[j.ID] = newExcerptKey(repo.Owner, repo.Name, j)
 			}
 
 			continue
 		}
-		tally(&out, checkStateFromWorkflowStatus(r.Status))
+		workflow, _, _ := strings.Cut(r.WorkflowID, "@")
+		out = append(out, dashboard.Check{Name: workflow, State: checkStateFromWorkflowStatus(r.Status), URL: r.HTMLURL})
+	}
+
+	return out, keys
+}
+
+// countChecks tallies checks into passed, running, waiting and failed. A
+// cancelled check is in none of the four, as for a pull request: nothing
+// broke, and mainBranchStatus reads it the same way.
+func countChecks(checks []dashboard.Check) dashboard.CheckCounts {
+	var out dashboard.CheckCounts
+	for _, c := range checks {
+		tally(&out, c.State)
 	}
 
 	return out
