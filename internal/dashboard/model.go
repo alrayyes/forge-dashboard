@@ -107,6 +107,12 @@ type Check struct {
 	// takes, 0 and omitted for a legacy commit status or a held workflow,
 	// which have no log to read.
 	JobID int64 `json:"jobId,omitempty"`
+	// RunID is the Actions workflow run the job belongs to and RunName that
+	// run's workflow, set only while the run is queued or running: the unit a
+	// cancel acts on, since no forge cancels one job. 0 and omitted for a
+	// finished run, a legacy commit status or a held workflow.
+	RunID   int64  `json:"runId,omitempty"`
+	RunName string `json:"runName,omitempty"`
 	// Required reports whether the base branch's protection makes this
 	// check block the merge. A pointer so "unknown" (nil, omitted from
 	// the JSON) stays distinct from "advisory" (false): a token that

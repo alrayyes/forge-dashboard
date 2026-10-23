@@ -212,6 +212,15 @@ type DefaultBranchRerunner interface {
 	RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, defaultBranch string) error
 }
 
+// RunCanceler is implemented by a ForgeClient (or, for github.Client, a Source
+// directly) that can cancel one Actions workflow run. The run is the unit: no
+// forge cancels a single job. A run that already finished, a token without
+// write access to Actions and a forge without the route are refused with the
+// forge's own reason.
+type RunCanceler interface {
+	CancelRun(ctx context.Context, owner, name string, runID int64) error
+}
+
 // BranchUpdater is implemented by a ForgeClient (or, for github.Client, a
 // Source directly) that can bring one of its own pull requests' head
 // branch up to date with its base — checked via a type assertion, the

@@ -1333,7 +1333,7 @@ func TestListChecks_ReturnsEveryJobAcrossEveryRunForTheHeadSHA(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, checks, 2)
 	assert.Equal(t, dashboard.Check{Name: "build", State: dashboard.CheckSuccess, URL: "https://git.example/alrayyes/a/actions/runs/42/jobs/1"}, checks[0])
-	assert.Equal(t, dashboard.Check{Name: "test", State: dashboard.CheckRunning, URL: "https://git.example/alrayyes/a/actions/runs/42/jobs/2"}, checks[1])
+	assert.Equal(t, dashboard.Check{Name: "test", State: dashboard.CheckRunning, URL: "https://git.example/alrayyes/a/actions/runs/42/jobs/2", RunID: 42}, checks[1])
 }
 
 // TestListChecks_JobsEndpointReturnsBareArray_StillParses guards against

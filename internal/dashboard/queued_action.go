@@ -41,7 +41,9 @@ type QueuedAction struct {
 // idempotent ones are: each is re-checked when it runs and does nothing if it
 // no longer applies. Merge and Close are not, since they would act unattended
 // on a pull request whose checks or commits may have changed; for merging,
-// the forge's own auto-merge covers waiting for the reset.
+// the forge's own auto-merge covers waiting for the reset. Cancel run is not
+// either: a run cancelled after the reset is a different run, perhaps one a
+// newer push started, and it can't be undone, so it waits for a person.
 func QueueableAction(a ActionName) bool {
 	switch a {
 	case ActionUpdateBranch, ActionDependabotRebase, ActionRenovateRebase:

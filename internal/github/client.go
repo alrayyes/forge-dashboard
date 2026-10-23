@@ -3991,6 +3991,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			})
 		}
 		c.addFailureDetail(ctx, owner, name, runs.CheckRuns, checks)
+		c.attachRuns(ctx, owner, name, sha, checks)
 
 		return checks, nil
 	}

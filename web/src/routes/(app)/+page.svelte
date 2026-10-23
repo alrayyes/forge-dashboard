@@ -206,6 +206,9 @@
       errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
       runUrl: b.runUrl,
       forgeName: FORGE_LABELS[b.forge] ?? b.forge,
+      // A branch has no allowed-actions list: Cancel run is offered for each
+      // run the checks name as going.
+      cancel: { forge: b.forge, fullName: b.fullName },
       controls: (failed) => {
         if (!failed || !openRow) return null;
         const wrap = document.createElement("div");

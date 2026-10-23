@@ -31,7 +31,21 @@
     // The call is untracked, so the control must redraw itself when anything
     // else it reads changes (the Main branches page does, after each poll).
     controls?: (failed: boolean) => HTMLElement | null;
+    // Offers Cancel run for each queued or running Actions run among the
+    // checks. `allowed` is the board's own rule, read each time the checks
+    // change: the pull request board passes whether the server offers
+    // cancel_run, a branch has no such list and omits it.
+    cancel?: { forge: string; fullName: string; allowed?: () => boolean };
   };
+
+  // Repositories whose token was refused permission to cancel, with the forge's
+  // reason, kept for the page's life so the next dialog on that repository
+  // doesn't offer a button it already knows will fail.
+  const cancelLocks = new Map<string, { message: string; at: number }>();
+  // A refused permission is remembered for this long. The token may be fixed
+  // meanwhile, and the next try then simply works, so the lock is a short rest
+  // and not a verdict.
+  const LOCK_MS = 5 * 60_000;
 </script>
 
 <script lang="ts">
@@ -47,6 +61,14 @@
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
   import { canCopyLog } from "#lib/run-log.js";
+  import {
+    activeRuns,
+    cancelLocksRepo,
+    cancelRun,
+    runStopped,
+    runLabel,
+    type ActiveRun,
+  } from "#lib/cancel-run.js";
   import {
     blockingFirst,
     CHECK_STATE_LABELS,
@@ -96,6 +118,207 @@
   let reads = newExcerptReads();
   let excerptRun = 0;
 
+  // Cancel run: one entry per run the person has started to cancel, by run id.
+  // `confirm` waits for the second click, `cancelling` is the forge accepting,
+  // `stalled` is the forge accepting but the run still going after the last
+  // re-read, `cancelled` is a snapshot that no longer shows the run going, and
+  // `refused` keeps the forge's own reason.
+  type RunState = {
+    phase: "confirm" | "cancelling" | "stalled" | "cancelled" | "refused";
+    run: ActiveRun;
+    message?: string;
+  };
+  let runStates = $state<Record<number, RunState>>({});
+  // Bumped when a repository is locked, so the lock redraws.
+  let lockTick = $state(0);
+  let settleTimer: ReturnType<typeof setTimeout> | undefined;
+  let lockTimer: ReturnType<typeof setTimeout> | undefined;
+  // Whether any re-read since the cancel was accepted came back.
+  let settleRead = false;
+  const SETTLE_MS = 2500;
+  const SETTLE_TRIES = 8;
+
+  const cancelKey = (c: { forge: string; fullName: string }) =>
+    `${c.forge}|${c.fullName}`;
+  const cancelLock = $derived.by(() => {
+    void lockTick;
+    if (!target?.cancel) return "";
+    const key = cancelKey(target.cancel);
+    const lock = cancelLocks.get(key);
+    if (!lock) return "";
+    return Date.now() - lock.at > LOCK_MS ? "" : lock.message;
+  });
+  // The runs that can be cancelled, as the checks now name them.
+  const runs = $derived(
+    target?.cancel && (target.cancel.allowed?.() ?? true)
+      ? activeRuns(checks)
+      : [],
+  );
+  // What the section draws: the runs still going, and any run the person has
+  // acted on whose state still has something to say.
+  const runEntries = $derived.by(() => {
+    const rows: { run: ActiveRun; state?: RunState }[] = runs.map((run) => ({
+      run,
+      state: runStates[run.runId],
+    }));
+    for (const state of Object.values(runStates)) {
+      if (!runs.some((r) => r.runId === state.run.runId))
+        rows.push({ run: state.run, state });
+    }
+    return rows;
+  });
+
+  function startCancel(run: ActiveRun) {
+    runStates[run.runId] = { phase: "confirm", run };
+    void tick().then(() =>
+      dialog
+        .querySelector<HTMLElement>(`[data-cancel-confirm="${run.runId}"]`)
+        ?.focus({ preventScroll: true }),
+    );
+  }
+
+  function keepRunning(run: ActiveRun) {
+    delete runStates[run.runId];
+    void tick().then(() =>
+      dialog
+        .querySelector<HTMLElement>(`[data-cancel-run="${run.runId}"]`)
+        ?.focus({ preventScroll: true }),
+    );
+  }
+
+  async function confirmCancel(run: ActiveRun) {
+    const cancel = target?.cancel;
+    if (!cancel) return;
+    const row = target;
+    runStates[run.runId] = { phase: "cancelling", run };
+    try {
+      await cancelRun(cancel, run.runId);
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      const message = e.message || "The forge refused to cancel this run.";
+      // That the token may not cancel is true of the repository whichever
+      // dialog is open, so the lock is kept. What the person sees and hears is
+      // for the dialog they asked in: a refusal that lands after it closed
+      // must not turn up in the next one.
+      if (cancelLocksRepo(e)) {
+        cancelLocks.set(cancelKey(cancel), { message, at: Date.now() });
+        lockTick++;
+        // Redraw when the rest is over, in a dialog that is still open.
+        if (row && target === row) armLockTimer(cancel);
+      }
+      if (!row || target !== row) return;
+      runStates[run.runId] = { phase: "refused", run, message };
+      speak(`Couldn't cancel ${runLabel(run)}. ${message}`);
+      // A run that already finished is the commonest refusal: read again so
+      // the list says so.
+      void load(row, true);
+      return;
+    }
+    if (!row || target !== row) return;
+    speak(`Cancelling ${runLabel(run)}.`);
+    settleRead = false;
+    settle(row, SETTLE_TRIES);
+  }
+
+  // The forge takes a moment to stop a run, and the board's own snapshot may be
+  // slower still, so read the checks again a few times until the run is gone.
+  function settle(row: PipelineTarget | null, left: number) {
+    clearTimeout(settleTimer);
+    if (!row || target !== row) return;
+    if (!Object.values(runStates).some((s) => s.phase === "cancelling")) return;
+    if (left <= 0) {
+      // The forge took the cancel and no re-read showed the run stopped: give
+      // the button back. It says the run is still going only if a re-read
+      // actually saw that; otherwise it says it couldn't check.
+      const runs: ActiveRun[] = [];
+      for (const state of Object.values(runStates)) {
+        if (state.phase !== "cancelling") continue;
+        runs.push(state.run);
+        runStates[state.run.runId] = {
+          ...state,
+          phase: "stalled",
+          message: settleRead
+            ? `${runsPhrase([state.run])} still running. The forge hasn't stopped it yet.`
+            : `Couldn't check whether ${runLabel(state.run)} has stopped.`,
+        };
+      }
+      speak(
+        settleRead
+          ? `${runsPhrase(runs)} still running. The forge hasn't stopped ${runs.length === 1 ? "it" : "them"} yet.`
+          : `Couldn't check whether ${runsPhrase(runs, "or")} stopped.`,
+      );
+      return;
+    }
+    settleTimer = setTimeout(async () => {
+      if (target !== row) return;
+      if (await load(row, true)) settleRead = true;
+      settle(row, left - 1);
+    }, SETTLE_MS);
+  }
+
+  // A run the person cancelled that the checks no longer show going has
+  // stopped. A run they were asked to confirm that finished on its own has
+  // nothing left to cancel, so its question goes.
+  // Returns what to say, so a read that also changed jobs speaks it once.
+  function reconcileRuns(list: Check[]): string {
+    const stopped: string[] = [];
+    const finished: string[] = [];
+    for (const state of Object.values(runStates)) {
+      // Missing from the active runs isn't enough: a failed run lookup leaves
+      // the same jobs going with no run id. The run's own jobs must be seen
+      // finished.
+      if (!runStopped(state.run, list)) continue;
+      if (state.phase === "cancelling" || state.phase === "stalled") {
+        runStates[state.run.runId] = { ...state, phase: "cancelled" };
+        stopped.push(runLabel(state.run));
+      } else if (state.phase === "confirm") {
+        delete runStates[state.run.runId];
+        finished.push(runLabel(state.run));
+      }
+    }
+    const lines: string[] = [];
+    if (stopped.length) {
+      lines.push(
+        `${joinLabels(stopped, "and")} ${stopped.length === 1 ? "was" : "were"} cancelled.`,
+      );
+    }
+    if (finished.length) {
+      lines.push(
+        `${joinLabels(finished, "and")} ${finished.length === 1 ? "has" : "have"} finished.`,
+      );
+    }
+    return lines.join(" ");
+  }
+
+  // "ci is", "ci and release are", "This run is", "2 runs are". Unnamed runs
+  // are counted, since "this run and this run" says nothing. With a word the
+  // list is closed by it and no verb follows ("ci or release").
+  function runsPhrase(runs: ActiveRun[], word?: string): string {
+    const named = runs.filter((r) => r.runName).map((r) => r.runName);
+    const unnamed = runs.length - named.length;
+    const parts = [...named];
+    if (unnamed) {
+      parts.push(
+        named.length
+          ? `${unnamed} other ${unnamed === 1 ? "run" : "runs"}`
+          : unnamed === 1
+            ? "this run"
+            : `${unnamed} runs`,
+      );
+    }
+    let text = joinLabels(parts, word ?? "and");
+    if (word) return text;
+    if (!named.length && unnamed === 1)
+      text = text.charAt(0).toUpperCase() + text.slice(1);
+    return `${text} ${runs.length === 1 ? "is" : "are"}`;
+  }
+
+  // "ci", "ci and release", "ci, release and deploy".
+  function joinLabels(labels: string[], word = "and"): string {
+    if (labels.length < 2) return labels[0] ?? "";
+    return `${labels.slice(0, -1).join(", ")} ${word} ${labels[labels.length - 1]}`;
+  }
+
   function askForExcerpts(list: Check[], url: string) {
     const picks = pickExcerptJobs(list, reads);
     if (!picks.length) return;
@@ -114,6 +337,17 @@
     );
   }
 
+  // One timer: redraw when the target's lock runs out. Moves rather than
+  // stacks, and a lock left from an earlier dialog is picked up on open().
+  function armLockTimer(cancel: { forge: string; fullName: string }) {
+    clearTimeout(lockTimer);
+    const lock = cancelLocks.get(cancelKey(cancel));
+    if (!lock) return;
+    const left = LOCK_MS - (Date.now() - lock.at);
+    if (left < 0) return;
+    lockTimer = setTimeout(() => lockTick++, left + 1);
+  }
+
   export function open(next: PipelineTarget) {
     // Already open: showModal() would throw, and the dialog is modal, so only
     // a stray second call gets here.
@@ -123,6 +357,10 @@
     excerptRun++;
     excerpts = {};
     reads = newExcerptReads();
+    runStates = {};
+    clearTimeout(settleTimer);
+    clearTimeout(lockTimer);
+    if (next.cancel) armLockTimer(next.cancel);
     speak.clear();
     live = createLiveChecks({
       signature: next.signature,
@@ -150,7 +388,11 @@
     live?.resume();
   }
 
-  async function load(row: PipelineTarget, wantAgain = false) {
+  // Resolves true when the read came back, whether or not anything changed.
+  async function load(
+    row: PipelineTarget,
+    wantAgain = false,
+  ): Promise<boolean> {
     // A change before the first read has drawn restarts that read.
     const again = wantAgain && phase === "ready";
     const mine = ++request;
@@ -163,30 +405,34 @@
       const res = await fetch(row.checksUrl, {
         headers: { Accept: "application/json" },
       });
-      if (mine !== request) return;
+      // A read a newer one overtook still came back; only a failed one didn't.
       if (res.status === 401) {
         window.location.href = "/login.html";
-        return;
+        return false;
       }
+      if (mine !== request) return res.ok;
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(body?.error || `backend answered ${res.status}`);
       }
-      if (mine !== request) return;
+      if (mine !== request) return true;
       const next: Check[] = body?.checks ?? [];
       if (again) {
         // Each check changes where it stands; nothing moves or redraws when no
         // check changed.
         const ordered = keepOrder(checks, next);
         staleNote = "";
-        if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
+        if (JSON.stringify(ordered) === JSON.stringify(checks)) return true;
         const line = announceChange(checks, ordered);
         const hadFocus = dialog
           .querySelector(".pipeline-dialog-body")
           ?.contains(document.activeElement);
         checks = ordered;
+        const said = reconcileRuns(ordered);
         askForExcerpts(ordered, row.checksUrl);
-        if (line) speak(line);
+        // One message per read: the announcer holds one at a time.
+        const both = [said, line].filter(Boolean).join(" ");
+        if (both) speak(both);
         // The control the keyboard was on is gone: its node went with it, so
         // focus goes to the close button instead of the page behind.
         if (hadFocus) {
@@ -196,21 +442,25 @@
               .querySelector<HTMLElement>(".pipeline-dialog-close")
               ?.focus({ preventScroll: true });
         }
-        return;
+        return true;
       }
       live?.refreshed();
       checks = blockingFirst(next);
+      const said = reconcileRuns(checks);
       phase = "ready";
+      if (said) speak(said);
       askForExcerpts(checks, row.checksUrl);
+      return true;
     } catch (err) {
-      if (mine !== request) return;
+      if (mine !== request) return false;
       if (again) {
         live?.failed();
         staleNote = "Couldn't refresh these checks. They may be out of date.";
-        return;
+        return false;
       }
       message = `${row.errorText}: ${err instanceof Error ? err.message : String(err)}`;
       phase = "error";
+      return false;
     }
   }
 
@@ -219,6 +469,8 @@
   function closed() {
     request++;
     excerptRun++;
+    clearTimeout(settleTimer);
+    clearTimeout(lockTimer);
     live = null;
     speak.clear();
     const done = target;
@@ -370,6 +622,72 @@
   </ul>
 {/snippet}
 
+{#snippet cancelRow(run: ActiveRun, state: RunState | undefined)}
+  <div class="pipeline-run-cancel" data-testid="cancel-run-{run.runId}">
+    {#if state?.phase === "confirm"}
+      <div
+        class="pipeline-cancel-confirm"
+        role="group"
+        aria-label="Confirm cancelling {runLabel(run)}"
+      >
+        <p>
+          Cancel the whole run <strong>{runLabel(run)}</strong>? It stops
+          {run.jobs.length === 0
+            ? "everything still going in it."
+            : run.jobs.length === 1
+              ? `its one unfinished job: ${run.jobs[0]}.`
+              : `all ${run.jobs.length} of its unfinished jobs: ${run.jobs.join(", ")}.`}
+          This can't be undone.
+        </p>
+        <button
+          type="button"
+          class="row-action confirm"
+          data-cancel-confirm={run.runId}
+          onclick={() => confirmCancel(run)}>Yes, cancel run</button
+        >
+        <button
+          type="button"
+          class="row-action"
+          onclick={() => keepRunning(run)}>Keep running</button
+        >
+      </div>
+    {:else if state?.phase === "cancelling"}
+      <p class="pipeline-rerun-status" role="status">
+        Cancelling {runLabel(run)}…
+      </p>
+    {:else if state?.phase === "stalled"}
+      <p class="pipeline-rerun-status" role="status">
+        {state.message}
+      </p>
+      <button
+        type="button"
+        class="row-action"
+        data-cancel-run={run.runId}
+        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+      >
+    {:else if state?.phase === "cancelled"}
+      <p class="pipeline-rerun-status" role="status">
+        {runLabel(run)} was cancelled.
+      </p>
+    {:else if state?.phase === "refused"}
+      <p class="pipeline-cancel-refused" role="alert">
+        Couldn't cancel {runLabel(run)}: {state.message}
+      </p>
+    {:else if cancelLock}
+      <p class="pipeline-rerun-status">
+        Cancel run: {runLabel(run)} isn't available. {cancelLock}
+      </p>
+    {:else}
+      <button
+        type="button"
+        class="row-action"
+        data-cancel-run={run.runId}
+        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+      >
+    {/if}
+  </div>
+{/snippet}
+
 <dialog
   bind:this={dialog}
   id="pipeline-dialog"
@@ -423,6 +741,13 @@
       <p class="pipeline-status">{target?.emptyText ?? ""}</p>
     {:else}
       <div class="pipeline-controls" {@attach controls}></div>
+      {#if runEntries.length}
+        <div class="pipeline-runs">
+          {#each runEntries as { run, state } (run.runId)}
+            {@render cancelRow(run, state)}
+          {/each}
+        </div>
+      {/if}
       {#each groups as group (group.id)}
         {#if group.id === ""}
           {@render list(group.checks)}
@@ -455,5 +780,26 @@
   /* The slot the board's own control is drawn into adds no box of its own. */
   .pipeline-controls {
     display: contents;
+  }
+  .pipeline-runs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .pipeline-cancel-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .pipeline-cancel-confirm p,
+  .pipeline-cancel-refused {
+    margin: 0;
+    flex-basis: 100%;
+    font-size: 12.5px;
+  }
+  .pipeline-cancel-refused {
+    color: var(--critical);
   }
 </style>

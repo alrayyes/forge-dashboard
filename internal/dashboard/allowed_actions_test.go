@@ -61,46 +61,50 @@ func TestAllowedActions(t *testing.T) {
 		{"draft that is not mergeable", ghPR(func(p *dashboard.PullRequest) { p.Draft = true; p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:not_mergeable"}},
 		{"draft that GitHub calls clean is still blocked (#957)", ghPR(func(p *dashboard.PullRequest) { p.Draft = true }), []string{"close", "merge:not_mergeable"}},
 		{"unstable with a failing optional check still merges (#955)", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
-		{"unstable with an optional check pending still merges (#956)", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge"}},
-		{"CI pending locks merge even when mergeable", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge:checks_pending"}},
+		{"unstable with an optional check pending still merges (#956)", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge"}},
+		{"CI pending locks merge even when mergeable", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending"}},
 		{"behind and not mergeable", ghPR(func(p *dashboard.PullRequest) { p.Behind = true; p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:behind", "update_branch"}},
 		{"behind and waiting for CI (Forgejo): update branch is locked with Merge's reason", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
 			p.Behind = true
 			p.CI = dashboard.CIPending
-		}), []string{"auto_merge", "close", "merge:checks_pending", "update_branch:checks_pending"}},
+		}), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending", "update_branch:checks_pending"}},
 		{"behind and waiting for CI (GitHub): update branch is locked with Merge's reason", ghPR(func(p *dashboard.PullRequest) {
 			p.Behind = true
 			p.CI = dashboard.CIPending
-		}), []string{"auto_merge", "close", "merge:checks_pending", "update_branch:checks_pending"}},
+		}), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending", "update_branch:checks_pending"}},
 		{"behind but mergeable keeps merge (Forgejo)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.Behind = true }), []string{"auto_merge", "close", "merge", "update_branch"}},
 		{"blocked with CI failing", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge:checks_failing", "rerun_checks"}},
 		{"failing CI on GitHub offers rerunning the failed checks (#698)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
 		{"CI failing only because a workflow is held for approval offers no rerun (#1946)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.FailingOnlyForApproval = true }), []string{"auto_merge", "close", "merge"}},
 		{"failing CI on Forgejo offers rerunning the failed checks (#1032)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},
 		{"passing CI on Forgejo has nothing to rerun", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
+		{"running CI on Forgejo offers cancelling the run", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending"}},
+		{"a failed job beside jobs still running offers cancelling the rest", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.Checks.Running = 1 }), []string{"auto_merge", "cancel_run", "close", "merge", "rerun_checks"}},
+		{"a failed job beside jobs waiting to start offers cancelling them", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.Checks.Waiting = 1 }), []string{"auto_merge", "cancel_run", "close", "merge", "rerun_checks"}},
+		{"finished CI offers nothing to cancel", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"blocked otherwise", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:blocked_by_protection"}},
 		{"merge status not known yet", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }), []string{"auto_merge", "close", "merge:not_mergeable"}},
-		{"auto-merge already on is not offered again, but can be cancelled", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"cancel_auto_merge", "close", "merge:checks_pending"}},
-		{"auto-merge refused by the forge for this PR", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeAllowed = new(false) }), []string{"close", "merge:checks_pending"}},
-		{"Forgejo with CI pending offers the app's own auto-merge", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"auto_merge", "close", "merge:checks_pending"}},
+		{"auto-merge already on is not offered again, but can be cancelled", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"cancel_auto_merge", "cancel_run", "close", "merge:checks_pending"}},
+		{"auto-merge refused by the forge for this PR", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeAllowed = new(false) }), []string{"cancel_run", "close", "merge:checks_pending"}},
+		{"Forgejo with CI pending offers the app's own auto-merge", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending"}},
 		{"Forgejo that is already clean has nothing to wait for", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo }), []string{"close", "merge"}},
 		{"Forgejo draft is not offered auto-merge", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
 			p.Draft = true
 			p.CI = dashboard.CIPending
-		}), []string{"close", "merge:not_mergeable"}},
+		}), []string{"cancel_run", "close", "merge:not_mergeable"}},
 		{"Forgejo armed offers cancelling instead", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
 			p.CI = dashboard.CIPending
 			p.AutoMergeEnabled = new(true)
-		}), []string{"cancel_auto_merge", "close", "merge:checks_pending"}},
+		}), []string{"cancel_auto_merge", "cancel_run", "close", "merge:checks_pending"}},
 		{"Forgejo armed with conflicts can still be cancelled", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
 			p.MergeStatus = dashboard.MergeConflicting
 			p.AutoMergeEnabled = new(true)
 		}), []string{"cancel_auto_merge", "close", "merge:conflict"}},
-		{"GitHub armed offers cancelling too (#1293)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"cancel_auto_merge", "close", "merge:checks_pending"}},
+		{"GitHub armed offers cancelling too (#1293)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"cancel_auto_merge", "cancel_run", "close", "merge:checks_pending"}},
 		{"Dependabot behind on GitHub gets its own rebase, not update branch", ghPR(func(p *dashboard.PullRequest) { p.Author = "dependabot[bot]"; p.Behind = true }), []string{"auto_merge", "close", "dependabot_rebase", "dependabot_recreate", "merge"}},
 		{"Dependabot on Forgejo gets no bot commands", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
@@ -125,7 +129,7 @@ func TestAllowedActions(t *testing.T) {
 		{"stacked beats CI pending as the reason", ghPR(func(p *dashboard.PullRequest) {
 			p.StackedOn = &dashboard.StackRef{Number: 840}
 			p.CI = dashboard.CIPending
-		}), []string{"close", "merge:stacked"}},
+		}), []string{"cancel_run", "close", "merge:stacked"}},
 		{"empty beats stacked", ghPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840}; p.Empty = true }), []string{"close"}},
 		{"the bottom of a stack merges as usual", ghPR(func(p *dashboard.PullRequest) { p.StackChildren = []int{853} }), []string{"close", "merge"}},
 		{"empty and behind: no update branch", ghPR(func(p *dashboard.PullRequest) { p.Empty = true; p.Behind = true }), []string{"close"}},

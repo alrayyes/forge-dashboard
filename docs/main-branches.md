@@ -355,3 +355,10 @@ forge kind, the button is held back only when every one of them would refuse it.
 The response carries each forge's health in `forges`, the same entries the
 dashboard serves. A branch with nothing left to rerun answers "no failed job to
 rerun on this branch" with a 409.
+
+The pipeline panel of a running row offers `Cancel run: <workflow>` for each
+workflow run with a queued or running job, behind the same confirm step, with the
+same permission needs and the same reasons on a refusal as the pull request
+button (see [Pull request actions](pull-request-actions.md)). It sends
+`POST /api/checks/cancel-run` with `{forge, fullName, runId}`, the run id coming
+from the checks the panel lists.

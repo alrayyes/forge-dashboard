@@ -249,7 +249,9 @@ reference.
 
 You can queue Update branch, `Dependabot: Rebase` and `Renovate: Rebase`
 while a forge is limited. They run after the reset, when the pull request still
-needs them, and Merge and Close can't be queued. See
+needs them, and Merge, Close and Cancel run can't be queued: after the reset
+the run may be a different one, started by a newer push, and a cancel can't be
+undone. See
 [Pull request actions](pull-request-actions.md) for what happens to a queued
 action.
 
@@ -303,6 +305,7 @@ a new read can't skip the question of whether it can be conditional.
 
 | File                                       | Calls | Reads                                                                                                                                                               | Conditional                       |
 | ------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `internal/github/cancel_run.go`            | 2     | The queued and the running workflow runs of a commit, then the jobs of each, only while a check is running                                                          | Yes                               |
 | `internal/github/client.go`                | 22    | Hooks, repository, pull requests, files, issues, commits, check runs, statuses, runs, branch protection and rules, jobs, and installation and user repository lists | Yes, all but the job log download |
 | `internal/github/dependabot_ack.go`        | 2     | Comments and comment reactions                                                                                                                                      | Yes                               |
 | `internal/github/job_log.go`               | 2     | One job's log, then its download                                                                                                                                    | No, a log is never cached         |

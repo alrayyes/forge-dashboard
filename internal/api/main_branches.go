@@ -67,13 +67,28 @@ func buildMainBranchesResponse(generatedAt, now time.Time, forges []dashboard.Fo
 // read. Shared by handleMainBranches and the MCP get_main_branches tool so the
 // two can't drift.
 func resolveMainBranchesFor(ctx context.Context, deps Deps) mainBranchesResponse {
+	snap, rows := followedSnapshot(ctx, deps)
+
+	return buildMainBranchesResponse(snap.GeneratedAt, time.Now(), snap.Forges, rows)
+}
+
+// followedSnapshot waits for the first refresh, then returns the snapshot with
+// the main branch rows the user's Main branches page shows from it.
+func followedSnapshot(ctx context.Context, deps Deps) (dashboard.Snapshot, []dashboard.MainBranch) {
 	warmUpAggregator(ctx, deps)
 	deps.Service.WaitFirstRefresh(ctx, deps.firstLoadWait())
 
 	snap := deps.Service.Get()
-	board := loadBoardSettings(ctx, deps.SettingsStore)
 
-	return buildMainBranchesResponse(snap.GeneratedAt, time.Now(), snap.Forges, board.mainBranchRows(snap.MainBranches))
+	return snap, followedRows(ctx, deps, snap)
+}
+
+// followedRows is the one rule for which main branch rows the user follows,
+// shared by the page and by the routes that check a repository is followed.
+// It reads the board settings, so a caller that may not need the rows calls
+// it late.
+func followedRows(ctx context.Context, deps Deps, snap dashboard.Snapshot) []dashboard.MainBranch {
+	return loadBoardSettings(ctx, deps.SettingsStore).mainBranchRows(snap.MainBranches)
 }
 
 // handleMainBranches serves resolveMainBranchesFor over HTTP.
