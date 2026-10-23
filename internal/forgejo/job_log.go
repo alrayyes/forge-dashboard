@@ -177,10 +177,13 @@ func (k excerptKey) settled(now time.Time) bool {
 // rememberFailedJobs notes the excerpt key of each failed or timed-out job
 // among checks, so a later JobExcerpt can tell a settled log from one still
 // being flushed and a rerun from the first attempt, though the log endpoint
-// is asked for a job id alone. It reads no log. jobs[i] names check i's job.
-func (c *Client) rememberFailedJobs(owner, name string, checks []dashboard.Check, jobs []excerptKey) {
+// is asked for a job id alone. It reads no log. jobs holds each job's key by
+// its id, so no position in checks has to line up with it.
+func (c *Client) rememberFailedJobs(owner, name string, checks []dashboard.Check, jobs map[int64]excerptKey) {
 	for _, i := range newestFailures(checks) {
-		c.excerpts.remember(owner, name, checks[i].JobID, jobs[i])
+		if k, ok := jobs[checks[i].JobID]; ok {
+			c.excerpts.remember(owner, name, checks[i].JobID, k)
+		}
 	}
 }
 
