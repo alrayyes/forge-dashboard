@@ -43,8 +43,8 @@ func (f *finishedJobs) put(key string, jobs []*gitea.ActionWorkflowJob) {
 type excerptCache struct {
 	mu   sync.Mutex
 	text *lru[keptExcerpt]
-	// failed is when each key's read last failed, so a log that can't be read
-	// isn't asked for again within failedExcerptDelay.
+	// failed is when each key may be read again after a read that failed or found
+	// the log empty.
 	failed *lru[time.Time]
 	// keys is the excerpt key of each failed job a list showed, by repository
 	// and job id, so a read for a job id alone can find its finish time.
@@ -62,6 +62,11 @@ type keptExcerpt struct {
 // failedExcerptDelay is how long a failed read is remembered, and how long an
 // excerpt read before its log had settled is kept.
 const failedExcerptDelay = time.Minute
+
+// emptyExcerptDelay is how long an empty log is remembered. It is shorter than
+// a failed read's wait because an empty log is usually one the runner has not
+// flushed yet, and the panel asks again a few seconds later.
+const emptyExcerptDelay = 10 * time.Second
 
 // excerptSettleDelay is how long after a job finishes its log is trusted to be
 // complete. The runner may still be flushing its last lines just after.
@@ -103,20 +108,21 @@ func (e *excerptCache) put(key, text string, final bool) {
 	e.text.put(key, kept)
 }
 
-// fail remembers that key's log couldn't be read just now. Past maxExcerpts
-// entries the oldest memory goes first.
-func (e *excerptCache) fail(key string) {
+// fail remembers that key's log couldn't be read just now, for the given wait.
+// Past maxExcerpts entries the oldest memory goes first.
+func (e *excerptCache) fail(key string, wait time.Duration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.failed.put(key, e.now())
+	e.failed.put(key, e.now().Add(wait))
 }
 
-// recentlyFailed reports whether key's read failed within failedExcerptDelay.
+// recentlyFailed reports whether key's wait after a failed or empty read is
+// still running.
 func (e *excerptCache) recentlyFailed(key string) bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	at, ok := e.failed.peek(key)
-	if ok && e.now().Sub(at) >= failedExcerptDelay {
+	until, ok := e.failed.peek(key)
+	if ok && !e.now().Before(until) {
 		e.failed.remove(key)
 
 		return false

@@ -224,6 +224,32 @@ func TestJobExcerpt_AnEmptyLogIsNotRetriedAtOnce(t *testing.T) {
 	assert.Equal(t, int32(1), calls.Load())
 }
 
+func TestJobExcerpt_AnEmptyLogIsReadAgainAfterTenSeconds(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	logs := map[int]string{1: ""}
+	client := excerptServer(t, finishedFailures(1), logs, &calls)
+	now := time.Now()
+	forgejo.SetExcerptClockForTest(client, func() time.Time { return now })
+
+	first, err := listThenExcerpt(t, client, "a", 1)
+	require.NoError(t, err)
+	now = now.Add(forgejo.EmptyExcerptDelay - time.Second)
+	_, err = client.JobExcerpt(t.Context(), "alrayyes", "a", 1)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), calls.Load(), "still remembered just before the wait is up")
+
+	logs[1] = "FAIL internal/api\n"
+	now = now.Add(time.Second)
+	second, err := client.JobExcerpt(t.Context(), "alrayyes", "a", 1)
+
+	require.NoError(t, err)
+	assert.Empty(t, first)
+	assert.Equal(t, "FAIL internal/api", second)
+	assert.Equal(t, int32(2), calls.Load(), "the wait is ten seconds, not the minute of a failed read")
+}
+
 func TestJobExcerpt_ASlowLogIsGivenUpOn(t *testing.T) {
 	t.Parallel()
 
@@ -417,6 +443,21 @@ func TestExcerptCache_AFailureIsForgottenAfterTheDelay(t *testing.T) {
 	now = now.Add(2 * time.Minute)
 
 	assert.False(t, cache.RecentlyFailed("7@1"))
+}
+
+func TestExcerptCache_AnEmptyLogIsAskedForAgainSoonerThanAFailedRead(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	cache := forgejo.NewExcerptCacheForTest(func() time.Time { return now })
+	cache.FailEmpty("empty")
+	cache.Fail("broken")
+	require.True(t, cache.RecentlyFailed("empty"))
+
+	now = now.Add(forgejo.EmptyExcerptDelay)
+
+	assert.False(t, cache.RecentlyFailed("empty"), "a log still being flushed is worth another look soon")
+	assert.True(t, cache.RecentlyFailed("broken"), "a read that failed waits the full delay")
 }
 
 func TestExcerptCache_PastTheCapANewFailureIsStillRemembered(t *testing.T) {
