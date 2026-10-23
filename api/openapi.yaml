@@ -5871,8 +5871,9 @@ components:
             stacked, or its workflow runs wait for approval. In that last
             case, for any author, whenever Merge is blocked or not yet known
             and the checks aren't running, Merge gives the approval as its
-            reason and `update_branch` and the bot rebases are listed
-            blocked with it, so none is primary. Every other state has
+            reason. If the pull request is also behind (and not stacked or a
+            draft), `update_branch`, the bot rebases and `dependabot_recreate`
+            are listed blocked with it, so none is primary. Every other state has
             none: checks running or failing on a pull request that is not a
             behind bot one, a conflict, a draft, a stack parent, or the
             forge's own block. `status` gives the reason there.

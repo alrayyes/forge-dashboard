@@ -89,36 +89,40 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	if pr.CI == CIPending || pr.Checks.Running > 0 || pr.Checks.Waiting > 0 {
 		out = append(out, ActionAvailability{Action: ActionCancelRun})
 	}
-	if heldForApproval(pr) {
-		blockHeldHeads(out)
-	}
+	blockHeadPushes(pr, out)
 	markPrimary(pr, out)
 
 	return out
 }
 
-// blockHeldHeads lists the actions that push a new head blocked with Merge's
-// approval reason, since that head would be held again. A rebase already
+// headWouldBeHeld: a behind pull request whose runs wait for approval and
+// that Merge reports as exactly that, so a stacked or draft one (which Merge
+// reports as such) and a conflicting one (whose rebase is the fix) are not it.
+func headWouldBeHeld(pr PullRequest) bool {
+	return heldForApproval(pr) && pr.Behind && pr.StackedOn == nil && !pr.Draft
+}
+
+// blockHeadPushes lists the actions that push a new head blocked with the
+// approval reason, since that head would be held again. An action already
 // blocked for its own reason keeps it.
-func blockHeldHeads(actions []ActionAvailability) {
-	var reason *Blocked
-	for _, a := range actions {
-		if a.Action == ActionMerge {
-			reason = a.Blocked
-		}
-	}
-	if reason == nil {
+func blockHeadPushes(pr PullRequest, actions []ActionAvailability) {
+	if !headWouldBeHeld(pr) {
 		return
 	}
+	reason := approvalReason()
 	for i := range actions {
 		switch actions[i].Action {
-		case ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase:
+		case ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase, ActionDependabotRecreate:
 			if actions[i].Blocked == nil {
-				actions[i].Blocked = reason
+				actions[i].Blocked = &reason
 			}
 		default:
 		}
 	}
+}
+
+func approvalReason() Blocked {
+	return Blocked{Code: ActionBlockedByProtection, Message: "Workflow runs are waiting for approval", Next: "Approve them on GitHub to unlock Merge"}
 }
 
 // markPrimary sets Primary on the one action that is the pull request's main
@@ -164,11 +168,11 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 		case a.Blocked == nil && pr.CI != CIFailure:
 			return []ActionName{ActionMerge}
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
-			return append([]ActionName{ActionUpdateBranch}, botRebases(pr)...)
+			return append([]ActionName{ActionUpdateBranch}, botRebases()...)
 		// Merge is blocked for another reason, or open only because the failing
 		// checks aren't required: the rule is the same.
 		case botRebaseWorthOffering(pr):
-			return botRebases(pr)
+			return botRebases()
 		}
 	}
 
@@ -185,26 +189,17 @@ func botRebaseWorthOffering(pr PullRequest) bool {
 
 // heldForApproval: runs wait for a maintainer and nothing else explains why
 // Merge is closed: the forge says blocked or hasn't said yet, and the checks
-// aren't running. Merge gives that as its reason, ahead of being behind, and no
-// update or rebase is offered then, since a new head would be held again.
-// Pending checks are a plain wait and stay their own reason.
+// aren't running. Merge gives that as its reason, ahead of being behind, since
+// a new head would be held again. Pending checks are a plain wait and stay
+// their own reason.
 func heldForApproval(pr PullRequest) bool {
 	return pr.AwaitingWorkflowApproval && pr.CI != CIPending &&
 		(pr.MergeStatus == MergeBlocked || pr.MergeStatus == MergeUnknown)
 }
 
-// botRebases is the bot rebases that may be primary. Runs held for workflow
-// approval report nothing until a maintainer approves them, and a rebase can't
-// do that, so none is offered then and Merge's reason stays in the status.
-//
-// The guard relies on case order in mergeAvailability: held runs are answered
-// before the behind block, so it can't fire on the ActionBehind branch today.
-// Keep that order, or this stops mattering without a test failing.
-func botRebases(pr PullRequest) []ActionName {
-	if heldForApproval(pr) {
-		return nil
-	}
-
+// botRebases is the bot rebases that may be primary. A held behind pull
+// request lists them blocked, and markPrimary skips blocked actions.
+func botRebases() []ActionName {
 	return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
 }
 
@@ -289,7 +284,9 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		// so "CI is failing" would send the user the wrong way. Bringing a
 		// behind branch up to date would only make a new held head, so this
 		// is the reason to give ahead of being behind.
-		return mergeBlocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
+		r := approvalReason()
+
+		return mergeBlocked(r.Code, r.Message, r.Next)
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
 		return mergeBlocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
 	default:
