@@ -26,6 +26,47 @@ const (
 	EcosystemGo  = "Go"
 )
 
+// Lockfile is what a reader found in one lock file: the packages it can ask
+// OSV about, and how many it left out because they are not public (a private
+// registry, a git or path source). A file with any left out is only partly
+// checked, and its count says so.
+type Lockfile struct {
+	Packages []Package
+	Left     int
+}
+
+var errUnknownLockfile = errors.New("osv: not a lock file this package reads")
+
+// lockfileReaders are the readers by file name.
+var lockfileReaders = map[string]func([]byte) (Lockfile, error){
+	"package-lock.json": readNPMLock,
+	"bun.lock":          readBunLock,
+	"composer.lock":     readComposerLock,
+	"poetry.lock":       readPoetryLock,
+	"uv.lock":           readUvLock,
+	"Cargo.lock":        readCargoLock,
+	"go.mod":            readGoMod,
+}
+
+// IsLockfile says whether name (a file's base name) is one ParseLockfile reads.
+func IsLockfile(name string) bool {
+	_, ok := lockfileReaders[name]
+
+	return ok
+}
+
+// ParseLockfile reads the lock file called name (its base name, such as
+// "package-lock.json" or "go.mod") and says how many of its packages it left
+// out for not being public.
+func ParseLockfile(name string, data []byte) (Lockfile, error) {
+	read, ok := lockfileReaders[name]
+	if !ok {
+		return Lockfile{}, fmt.Errorf("%w: %s", errUnknownLockfile, name)
+	}
+
+	return read(data)
+}
+
 // ErrNoPublicPackages is a package-lock whose dependencies all come from
 // somewhere other than the public registry, so nothing in it was checked.
 var ErrNoPublicPackages = errors.New("osv: lockfile has no packages from the public registry")
@@ -40,6 +81,13 @@ var (
 // "dependencies" instead, and is refused rather than read as empty: no packages
 // would otherwise look like no advisories.
 func ParsePackageLock(data []byte) ([]Package, error) {
+	lf, err := readPackageLock(data)
+
+	return lf.Packages, err
+}
+
+// readPackageLock is ParsePackageLock with the count of packages it left out.
+func readPackageLock(data []byte) (Lockfile, error) {
 	var lock struct {
 		Packages map[string]struct {
 			Name     string `json:"name"`
@@ -49,10 +97,10 @@ func ParsePackageLock(data []byte) ([]Package, error) {
 		} `json:"packages"`
 	}
 	if err := json.Unmarshal(data, &lock); err != nil {
-		return nil, fmt.Errorf("osv: read package-lock.json: %w", err)
+		return Lockfile{}, fmt.Errorf("osv: read package-lock.json: %w", err)
 	}
 	if lock.Packages == nil {
-		return nil, errNoPackages
+		return Lockfile{}, errNoPackages
 	}
 
 	const marker = "node_modules/"
@@ -74,11 +122,8 @@ func ParsePackageLock(data []byte) ([]Package, error) {
 		}
 		out = append(out, Package{Ecosystem: EcosystemNPM, Name: name, Version: p.Version})
 	}
-	if left > 0 && len(out) == 0 {
-		return nil, ErrNoPublicPackages
-	}
 
-	return out, nil
+	return publicOrError(out, left)
 }
 
 // publicRegistries are the hosts of the public npm registry (and its yarn
@@ -104,12 +149,21 @@ func fromRegistry(resolved string) bool {
 // and drops the module. A file with no module directive is not a go.mod, and
 // is an error rather than a module with nothing to match.
 func ParseGoMod(data []byte) ([]Package, error) {
+	lf, err := readGoMod(data)
+
+	return lf.Packages, err
+}
+
+// readGoMod is ParseGoMod with the count of packages it left out.
+func readGoMod(data []byte) (Lockfile, error) {
 	requires, replaces, hasModule := goModLines(data)
 	if !hasModule {
-		return nil, errNoModule
+		return Lockfile{}, errNoModule
 	}
 
-	return applyReplaces(requires, replaces), nil
+	pkgs, left := applyReplaces(requires, replaces)
+
+	return Lockfile{Packages: pkgs, Left: left}, nil
 }
 
 // goModFields splits a go.mod line into words, taking the quotes off a path or
@@ -220,9 +274,8 @@ func (r replacements) find(module, version string) (replacement, bool) {
 
 // applyReplaces turns require lines (module, version) into packages, after the
 // replace lines.
-func applyReplaces(requires, replaces [][]string) []Package {
+func applyReplaces(requires, replaces [][]string) (out []Package, left int) {
 	repl := parseReplaces(replaces)
-	var out []Package
 	for _, f := range requires {
 		if len(f) < 2 {
 			continue
@@ -230,14 +283,16 @@ func applyReplaces(requires, replaces [][]string) []Package {
 		module, version := f[0], f[1]
 		if to, ok := repl.find(module, version); ok {
 			if to.version == "" {
-				continue // a local path: not a published module
+				left++ // a local path: not a published module
+
+				continue
 			}
 			module, version = to.module, to.version
 		}
 		out = append(out, goPackage(module, version))
 	}
 
-	return out
+	return out, left
 }
 
 func goPackage(module, version string) Package {

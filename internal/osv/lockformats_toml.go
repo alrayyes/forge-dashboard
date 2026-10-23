@@ -142,12 +142,12 @@ func inlineRegistry(table string) (string, bool) {
 // publicOrError turns the tables a reader kept into packages, or says that nothing
 // public was left when the lock file named packages and all of them came from
 // somewhere else.
-func publicOrError(out []Package, left int) ([]Package, error) {
+func publicOrError(out []Package, left int) (Lockfile, error) {
 	if left > 0 && len(out) == 0 {
-		return nil, ErrNoPublicPackages
+		return Lockfile{}, ErrNoPublicPackages
 	}
 
-	return out, nil
+	return Lockfile{Packages: out, Left: left}, nil
 }
 
 // ParsePoetryLock reads the packages in a poetry.lock. Poetry writes a
@@ -155,9 +155,16 @@ func publicOrError(out []Package, left int) ([]Package, error) {
 // package index other than PyPI; those stay out, since they are not the PyPI
 // package of that name.
 func ParsePoetryLock(data []byte) ([]Package, error) {
+	lf, err := readPoetryLock(data)
+
+	return lf.Packages, err
+}
+
+// readPoetryLock is ParsePoetryLock with the count of packages it left out.
+func readPoetryLock(data []byte) (Lockfile, error) {
 	tables, err := readTOMLPackages(data)
 	if err != nil {
-		return nil, fmt.Errorf("osv: read poetry.lock: %w", err)
+		return Lockfile{}, fmt.Errorf("osv: read poetry.lock: %w", err)
 	}
 	var out []Package
 	left := 0
@@ -185,9 +192,16 @@ var publicPyPIIndexes = []string{"https://pypi.org/simple", "https://pypi.python
 // (editable, virtual or a workspace member) and git, path or URL sources are
 // not PyPI releases.
 func ParseUvLock(data []byte) ([]Package, error) {
+	lf, err := readUvLock(data)
+
+	return lf.Packages, err
+}
+
+// readUvLock is ParseUvLock with the count of packages it left out.
+func readUvLock(data []byte) (Lockfile, error) {
 	tables, err := readTOMLPackages(data)
 	if err != nil {
-		return nil, fmt.Errorf("osv: read uv.lock: %w", err)
+		return Lockfile{}, fmt.Errorf("osv: read uv.lock: %w", err)
 	}
 	var out []Package
 	left := 0
@@ -225,9 +239,16 @@ var publicCrateIndexes = []string{
 // ParseCargoLock reads the packages in a Cargo.lock. A crate with no source is
 // the workspace's own; one from git or another registry is not on crates.io.
 func ParseCargoLock(data []byte) ([]Package, error) {
+	lf, err := readCargoLock(data)
+
+	return lf.Packages, err
+}
+
+// readCargoLock is ParseCargoLock with the count of packages it left out.
+func readCargoLock(data []byte) (Lockfile, error) {
 	tables, err := readTOMLPackages(data)
 	if err != nil {
-		return nil, fmt.Errorf("osv: read Cargo.lock: %w", err)
+		return Lockfile{}, fmt.Errorf("osv: read Cargo.lock: %w", err)
 	}
 	var out []Package
 	left := 0

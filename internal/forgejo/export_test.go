@@ -25,3 +25,19 @@ func SetAdvisoryClock(c *Client, now func() time.Time) { c.advisories.Now = now 
 
 // SetAdvisoryDeadline replaces how long one repo's advisory read may take.
 func SetAdvisoryDeadline(c *Client, d time.Duration) { c.advisoryDeadline = d }
+
+// WaitForAdvisories waits for the advisory reads ReadMainBranch started in the
+// background.
+func WaitForAdvisories(c *Client) { c.advisoryReads.Wait() }
+
+// ReadMainBranchSettled is ReadMainBranch as a caller sees it once the advisory
+// read it started has finished: the first call starts the read, and the second
+// one is answered from what it remembered.
+func ReadMainBranchSettled(ctx context.Context, c *Client, repo dashboard.RepoRef) (dashboard.MainBranch, error) {
+	if _, err := c.ReadMainBranch(ctx, repo); err != nil {
+		return dashboard.MainBranch{}, err
+	}
+	WaitForAdvisories(c)
+
+	return c.ReadMainBranch(ctx, repo)
+}

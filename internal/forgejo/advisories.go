@@ -41,10 +41,12 @@ const (
 	advisoriesStaleMax        = 24 * time.Hour
 )
 
-// advisoryDeadline bounds one repo's advisory read. It runs inline with the
-// repo's CI row, so a slow OSV must not hold that row up: a read that overruns
-// is a failed read, answered from the last answer and asked again later. What
-// OSV already returned is kept, so the next try gets further.
+// advisoryDeadline bounds one repo's advisory read. The read runs in the
+// background, off the repo's CI row, and the clock stops while it queues behind
+// OSV's shared fetch limit, so a cold start across many repos doesn't time out
+// reads that were only waiting their turn. A read that overruns is a failed
+// read, answered from the last answer and asked again later. What OSV already
+// returned is kept, so the next try gets further.
 const advisoryDeadline = 10 * time.Second
 
 // maxLockfiles is the most lock files one repo may have before it reads as
@@ -73,18 +75,6 @@ var errNoAdvisoryScanner = errors.New("forgejo: no advisory scanner configured")
 // is the real one; a test stands in with its own.
 type AdvisoryScanner interface {
 	Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary, error)
-}
-
-// lockfileReaders are the file names, wherever they sit in a repo, that list its pinned
-// dependencies, with the reader for each.
-var lockfileReaders = map[string]func([]byte) ([]osv.Package, error){
-	"package-lock.json": osv.ParseNPMLock,
-	"bun.lock":          osv.ParseBunLock,
-	"composer.lock":     osv.ParseComposerLock,
-	"poetry.lock":       osv.ParsePoetryLock,
-	"uv.lock":           osv.ParseUvLock,
-	"Cargo.lock":        osv.ParseCargoLock,
-	"go.mod":            osv.ParseGoMod,
 }
 
 // SetAdvisoryScanner turns on advisories for this client's repos: with a
@@ -140,40 +130,43 @@ type advisoryEntry struct {
 	pkgs      []osv.Package
 	havePkgs  bool
 	pkgsUntil time.Time
+	// pkgsPartial is whether those packages are only part of what the lock
+	// files list, so the retry's answer says so too.
+	pkgsPartial bool
 }
 
-// advisoryCall is one repo's read in flight, shared by everyone who asks for
-// the repo meanwhile: a refresh and a webhook-scoped refresh arrive together.
-type advisoryCall struct {
-	done  chan struct{}
-	value dashboard.Advisories
-	// cancelled is set when the leader's read ended only because its own
-	// context did: waiters with a live context read for themselves.
-	cancelled bool
+// lockPackages are the packages read from a repo's lock files, and whether
+// they are only some of what the files list.
+type lockPackages struct {
+	pkgs    []osv.Package
+	partial bool
 }
+
+// advisoryCall is one repo's read in flight. A second ask for the repo while it
+// runs doesn't start another: a refresh and a webhook-scoped refresh arrive
+// together.
+type advisoryCall struct{}
 
 // join returns the repo's read in flight, or starts one and says the caller
 // is to run it.
-func (c *advisoryCache) join(repo string) (call *advisoryCall, leader bool) {
+func (c *advisoryCache) join(repo string) (leader bool) {
 	c.callsMu.Lock()
 	defer c.callsMu.Unlock()
-	if call, ok := c.calls[repo]; ok {
-		return call, false
+	if _, ok := c.calls[repo]; ok {
+		return false
 	}
 	if c.calls == nil {
 		c.calls = map[string]*advisoryCall{}
 	}
-	call = &advisoryCall{done: make(chan struct{})}
-	c.calls[repo] = call
+	c.calls[repo] = &advisoryCall{}
 
-	return call, true
+	return true
 }
 
-func (c *advisoryCache) finish(repo string, call *advisoryCall) {
+func (c *advisoryCache) finish(repo string) {
 	c.callsMu.Lock()
 	delete(c.calls, repo)
 	c.callsMu.Unlock()
-	close(call.done)
 }
 
 // readAdvisories reads a repo's advisories from the lockfiles anywhere in its
@@ -189,7 +182,7 @@ func (c *advisoryCache) finish(repo string, call *advisoryCall) {
 // would read as the whole answer, and one that matches more advisories than a
 // scan reads. A failed call to the forge or to OSV is an error. The package
 // names and versions in the lockfiles are sent to OSV; nothing else is.
-func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string, known []osv.Package) (dashboard.Advisories, []osv.Package, error) {
+func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string, known *lockPackages) (dashboard.Advisories, *lockPackages, error) {
 	if c.advisoryScanner == nil {
 		return dashboard.Advisories{}, nil, errNoAdvisoryScanner
 	}
@@ -211,7 +204,7 @@ func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string,
 		pkgs = got
 	}
 
-	sum, err := c.advisoryScanner.Scan(ctx, pkgs)
+	sum, err := c.advisoryScanner.Scan(ctx, pkgs.pkgs)
 	switch {
 	case errors.Is(err, osv.ErrTooMany):
 		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonTooMany}, nil, nil
@@ -221,13 +214,14 @@ func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string,
 
 	return dashboard.Advisories{
 		State: dashboard.AdvisoriesKnown, Count: sum.Count, Highest: dashboard.AdvisorySeverity(sum.Highest),
+		Partial: pkgs.partial,
 	}, nil, nil
 }
 
 // lockfilePackages reads the packages in the repo's lockfiles. When the answer
 // is already settled without asking OSV (no lockfile, or one that can't be
 // read in full) it returns that answer instead.
-func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch string) ([]osv.Package, *dashboard.Advisories, error) {
+func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch string) (*lockPackages, *dashboard.Advisories, error) {
 	repo := owner + "/" + name
 	files, skipped, err := c.treeLockfiles(ctx, owner, name, branch)
 	if err != nil {
@@ -248,6 +242,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 	}
 
 	var pkgs []osv.Package
+	left := 0 // packages the readers left out for not being public
 	for _, file := range files {
 		data, err := c.rawFile(ctx, owner, name, file)
 		if errors.Is(err, errResponseTooBig) {
@@ -258,16 +253,18 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 		if err != nil {
 			return nil, nil, err
 		}
-		got, err := lockfileReaders[path.Base(file)](data)
+		got, err := osv.ParseLockfile(path.Base(file), data)
 		if err != nil {
 			slog.Debug("lockfile unreadable", "forge", dashboard.ForgeForgejo, "repo", repo, "file", file, "error", err)
 
 			return nil, &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, nil
 		}
-		pkgs = append(pkgs, got...)
+		pkgs = append(pkgs, got.Packages...)
+		left += got.Left
 	}
 	pkgs = slices.Compact(slices.SortedFunc(slices.Values(pkgs), comparePackages))
 	pkgs, dropped := c.withoutOwnHost(pkgs)
+	left += dropped
 	if dropped > 0 && len(pkgs) == 0 {
 		slog.Debug("only modules on the forge's own host", "forge", dashboard.ForgeForgejo, "repo", repo)
 
@@ -277,7 +274,7 @@ func (c *Client) lockfilePackages(ctx context.Context, owner, name, branch strin
 		pkgs = []osv.Package{} // read, and empty: not "not read yet"
 	}
 
-	return pkgs, nil, nil
+	return &lockPackages{pkgs: pkgs, partial: left > 0}, nil, nil
 }
 
 // withoutOwnHost drops the Go modules whose path starts with this forge's own
@@ -388,7 +385,7 @@ type gitTree struct {
 // and those that are too big.
 func (t gitTree) lockfiles() (files, skipped []string) {
 	for _, e := range t.Tree {
-		if _, ok := lockfileReaders[path.Base(e.Path)]; !ok || e.Type != "blob" || inIgnoredDir(e.Path) {
+		if !osv.IsLockfile(path.Base(e.Path)) || e.Type != "blob" || inIgnoredDir(e.Path) {
 			continue
 		}
 		if e.Size > maxLockfileBytes {
@@ -454,87 +451,65 @@ func (c *Client) rawFile(ctx context.Context, owner, name, file string) ([]byte,
 	return body, nil
 }
 
-// advisoriesFor answers a repo's advisories from the cache when fresh, else
-// reads them within advisoryDeadline. A failed read keeps the last answer for
+// advisoriesFor answers a repo's advisories from the cache when fresh. Else it
+// starts a read in the background and answers at once with the last answer, or
+// unknown with no reason when there is none, so the repo's CI row never waits
+// on the file tree, the lock files or OSV. The next refresh carries what the
+// read found. The read runs within advisoryDeadline, which stops while the scan
+// queues behind OSV's shared fetch limit. A failed read keeps the last answer for
 // up to a day, so a short outage never turns a known count into unknown or
 // zero and an old count never passes for current; it is asked again after a
 // back-off that grows with each failure in a row, and the packages already read
 // from the forge are kept for that retry. A lock file that can't be used is
-// asked again after an hour, since the repo may fix it. With nothing cached a
-// failure answers unknown. Without a scanner the answer is unknown, with the
-// reason that advisories are not enabled.
+// asked again after an hour, since the repo may fix it. Without a scanner the
+// answer is unknown, with the reason that advisories are not enabled.
 func (c *Client) advisoriesFor(ctx context.Context, repo dashboard.RepoRef) *dashboard.Advisories {
 	if c.advisoryScanner == nil {
 		return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonNotEnabled}
 	}
 	key := c.instanceURL + " " + repo.FullName
-	for {
-		old, fresh, _ := c.advisories.Get(key)
-		if fresh {
-			return &old.value
-		}
-		call, leader := c.advisories.join(key)
-		if leader {
-			return c.lead(ctx, key, call, repo)
-		}
-		select {
-		case <-call.done:
-			if !call.cancelled || ctx.Err() != nil {
-				return &call.value
-			}
-			// The leader gave up, not the forge: read for ourselves.
-		case <-ctx.Done():
-			return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
-		}
+	old, fresh, have := c.advisories.Get(key)
+	if fresh {
+		return &old.value
 	}
+	if c.advisories.join(key) {
+		// The read outlives this request: it is the next refresh that wants it.
+		bg := context.WithoutCancel(ctx)
+		c.advisoryReads.Go(func() { c.lead(bg, key, repo) })
+	}
+	if have {
+		return &old.value
+	}
+
+	return dashboard.UnknownAdvisories()
 }
 
 // lead runs the read the caller won the right to run. Another caller may have
 // finished the same repo between the cache check and the join, so it looks
 // again before reading.
-func (c *Client) lead(ctx context.Context, key string, call *advisoryCall, repo dashboard.RepoRef) *dashboard.Advisories {
-	defer c.advisories.finish(key, call)
-	old, fresh, have := c.advisories.Get(key)
-	if fresh {
-		call.value = old.value
-
-		return &call.value
+func (c *Client) lead(ctx context.Context, key string, repo dashboard.RepoRef) {
+	defer c.advisories.finish(key)
+	if _, fresh, _ := c.advisories.Get(key); fresh {
+		return
 	}
-	v, cancelled := c.refreshAdvisories(ctx, key, repo, old, have)
-	call.value, call.cancelled = *v, cancelled
-
-	return &call.value
-}
-
-// cancelledAnswer is what a read that its caller cancelled answers with: the
-// last answer, or unknown when there is none. Nothing is cached.
-func (*Client) cancelledAnswer(old advisoryEntry, have bool) *dashboard.Advisories {
-	if have {
-		return &old.value
-	}
-
-	return &dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}
+	old, _, have := c.advisories.Get(key)
+	c.refreshAdvisories(ctx, key, repo, old, have)
 }
 
 // refreshAdvisories reads a repo's advisories again and remembers the answer.
-// It says when the read ended only because the caller's context did, in which
-// case nothing is remembered.
-func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboard.RepoRef, old advisoryEntry, have bool) (*dashboard.Advisories, bool) {
-	var known []osv.Package
+func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboard.RepoRef, old advisoryEntry, have bool) {
+	var known *lockPackages
 	if old.havePkgs && c.advisories.Clock().Before(old.pkgsUntil) {
-		known = old.pkgs
+		known = &lockPackages{pkgs: old.pkgs, partial: old.pkgsPartial}
 	}
 	deadline := cmp.Or(c.advisoryDeadline, advisoryDeadline)
-	readCtx, cancel := context.WithTimeout(ctx, deadline)
+	readCtx, cancel := osv.WithBudget(ctx, deadline)
 	defer cancel()
 	v, pkgs, err := c.readAdvisories(readCtx, repo.Owner, repo.Name, repo.DefaultBranch, known)
-	if err != nil && ctx.Err() != nil {
-		// The caller gave up (shutdown, a superseded refresh): the forge and OSV
-		// did nothing wrong, so remember nothing and let the next ask read again.
-		return c.cancelledAnswer(old, have), true
-	}
 	if err != nil {
-		return c.failedRead(key, repo, old, have, known, pkgs, err), false
+		c.failedRead(key, repo, old, have, known, pkgs, err)
+
+		return
 	}
 	now := c.advisories.Clock()
 	if v.State == dashboard.AdvisoriesUnknown && v.Reason == dashboard.ReasonFailed {
@@ -544,20 +519,18 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 		}
 		c.advisories.Put(key, advisoryEntry{value: v, unreadable: true}, advisoriesUnreadableRetry)
 
-		return &v, false
+		return
 	}
 	ttl := advisorycache.TTL
 	if v.State == dashboard.AdvisoriesUnknown {
 		ttl = advisoriesUnreadableRetry // too many advisories: the same lock file gives the same answer
 	}
 	c.advisories.Put(key, advisoryEntry{value: v, answered: now}, ttl)
-
-	return &v, false
 }
 
 // failedRead remembers a read that failed: the last answer is kept while it is
 // young enough, and the next try waits longer after each failure in a row.
-func (c *Client) failedRead(key string, repo dashboard.RepoRef, old advisoryEntry, have bool, known, pkgs []osv.Package, err error) *dashboard.Advisories {
+func (c *Client) failedRead(key string, repo dashboard.RepoRef, old advisoryEntry, have bool, known, pkgs *lockPackages, err error) {
 	slog.Warn("dependency advisories read failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "error", err)
 	e := advisoryEntry{value: old.value, answered: old.answered, unreadable: old.unreadable, failures: old.failures + 1}
 	stale := old.value.State == dashboard.AdvisoriesKnown && c.advisories.Clock().Sub(old.answered) > advisoriesStaleMax
@@ -566,11 +539,9 @@ func (c *Client) failedRead(key string, repo dashboard.RepoRef, old advisoryEntr
 	}
 	switch {
 	case known != nil:
-		e.pkgs, e.havePkgs, e.pkgsUntil = old.pkgs, true, old.pkgsUntil
+		e.pkgs, e.havePkgs, e.pkgsUntil, e.pkgsPartial = old.pkgs, true, old.pkgsUntil, old.pkgsPartial
 	case pkgs != nil:
-		e.pkgs, e.havePkgs, e.pkgsUntil = pkgs, true, c.advisories.Clock().Add(advisorycache.TTL)
+		e.pkgs, e.havePkgs, e.pkgsUntil, e.pkgsPartial = pkgs.pkgs, true, c.advisories.Clock().Add(advisorycache.TTL), pkgs.partial
 	}
 	c.advisories.Put(key, e, advisorycache.Backoff(e.failures))
-
-	return &e.value
 }

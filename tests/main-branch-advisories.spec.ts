@@ -347,6 +347,30 @@ test.describe('Branches page advisories pill', () => {
     await expect(page.locator('a[href^="javascript:" i]')).toHaveCount(0);
   });
 
+  test('a count over a partly checked lock file reads as a floor, and a zero is not a clean bill', async ({
+    page,
+  }) => {
+    await open(page, [
+      row('acme/partial', {
+        state: 'known',
+        count: 3,
+        highest: 'high',
+        partial: true,
+      }),
+      row('acme/half-zero', { state: 'known', count: 0, partial: true }),
+      row('acme/whole', { state: 'known', count: 3, highest: 'high' }),
+    ]);
+
+    const floor = pill(page, 'acme/partial');
+    await expect(floor).toHaveText('At least 3 advisories, high');
+    await expect(floor).toHaveAttribute('title', /not public/);
+    await expect(pill(page, 'acme/half-zero')).toHaveText(
+      'None found, partly checked',
+    );
+    await expect(pill(page, 'acme/whole')).toHaveText('3 advisories, high');
+    await expect(pill(page, 'acme/whole')).not.toHaveAttribute('title', /.*/);
+  });
+
   test('has no axe violations and no overflow, in both themes at 1280 and 390px', async ({
     page,
   }) => {

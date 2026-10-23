@@ -13,14 +13,21 @@ import (
 // means the default (public) npm registry. A package from a custom registry,
 // git, a tarball or the workspace stays out. The binary bun.lockb is not read.
 func ParseBunLock(data []byte) ([]Package, error) {
+	lf, err := readBunLock(data)
+
+	return lf.Packages, err
+}
+
+// readBunLock is ParseBunLock with the count of packages it left out.
+func readBunLock(data []byte) (Lockfile, error) {
 	var lock struct {
 		Packages map[string][]json.RawMessage `json:"packages"`
 	}
 	if err := json.Unmarshal(jsoncToJSON(data), &lock); err != nil {
-		return nil, fmt.Errorf("osv: read bun.lock: %w", err)
+		return Lockfile{}, fmt.Errorf("osv: read bun.lock: %w", err)
 	}
 	if lock.Packages == nil {
-		return nil, errNoPackages
+		return Lockfile{}, errNoPackages
 	}
 
 	var out []Package
@@ -142,15 +149,22 @@ func trailingComma(out []byte) bool {
 // ("dev-main") has no release to match and a path package is a local directory; both are left out. A leading "v" is taken
 // off the version, as OSV writes them without.
 func ParseComposerLock(data []byte) ([]Package, error) {
+	lf, err := readComposerLock(data)
+
+	return lf.Packages, err
+}
+
+// readComposerLock is ParseComposerLock with the count of packages it left out.
+func readComposerLock(data []byte) (Lockfile, error) {
 	var lock struct {
 		Packages    *[]composerPackage `json:"packages"`
 		PackagesDev *[]composerPackage `json:"packages-dev"`
 	}
 	if err := json.Unmarshal(data, &lock); err != nil {
-		return nil, fmt.Errorf("osv: read composer.lock: %w", err)
+		return Lockfile{}, fmt.Errorf("osv: read composer.lock: %w", err)
 	}
 	if lock.Packages == nil && lock.PackagesDev == nil {
-		return nil, errNoPackages
+		return Lockfile{}, errNoPackages
 	}
 
 	var out []Package
@@ -196,18 +210,25 @@ type npmV1Entry struct {
 // and 3 keep a flat "packages" map (ParsePackageLock); version 1 keeps a tree
 // under "dependencies", read here with the same registry rules.
 func ParseNPMLock(data []byte) ([]Package, error) {
+	lf, err := readNPMLock(data)
+
+	return lf.Packages, err
+}
+
+// readNPMLock is ParseNPMLock with the count of packages it left out.
+func readNPMLock(data []byte) (Lockfile, error) {
 	var lock struct {
 		Packages     map[string]json.RawMessage `json:"packages"`
 		Dependencies map[string]npmV1Entry      `json:"dependencies"`
 	}
 	if err := json.Unmarshal(data, &lock); err != nil {
-		return nil, fmt.Errorf("osv: read package-lock.json: %w", err)
+		return Lockfile{}, fmt.Errorf("osv: read package-lock.json: %w", err)
 	}
 	if lock.Packages != nil {
-		return ParsePackageLock(data)
+		return readPackageLock(data)
 	}
 	if lock.Dependencies == nil {
-		return nil, errNoPackages
+		return Lockfile{}, errNoPackages
 	}
 
 	var w npmV1Walk

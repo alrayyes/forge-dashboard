@@ -43,6 +43,9 @@ export type Advisories = {
   count: number;
   highest?: AdvisorySeverity;
   url?: string;
+  // Forgejo only: the lock files list packages that were left out for not
+  // being public, so count is a floor and a zero is not "none".
+  partial?: boolean;
 };
 
 // Matches api/openapi.yaml's MainBranch.
@@ -193,7 +196,9 @@ export function applyFilter(
 // unknown or absent: no source reading a repo says nothing about it either.
 function advisoryChoice(b: MainBranch): 'has' | 'none' | null {
   if (b.advisories?.state !== 'known') return null;
-  return b.advisories.count > 0 ? 'has' : 'none';
+  if (b.advisories.count > 0) return 'has';
+  // A zero over part of the lock files is not a clean bill.
+  return b.advisories.partial ? null : 'none';
 }
 
 // How many rows each choice holds, and how many are under neither.
@@ -337,7 +342,12 @@ export type AdvisoryPill = {
   tone: AdvisorySeverity | 'counted';
   text: string;
   href: string | null;
+  // Said on hover, for a count that covers only part of the lock files.
+  hint?: string;
 };
+
+const PARTIAL_HINT =
+  'Some packages in the lock files are not public, so they were not checked.';
 
 // What the advisories pill on a row says, or null for no pill: no field means
 // no source reads this forge, a known zero is not worth an alarm, and an
@@ -345,13 +355,27 @@ export type AdvisoryPill = {
 // The severity is a word, so colour is never the only carrier (WCAG 1.4.1).
 export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
   if (!a || a.state === 'unknown') return null;
-  if (a.count <= 0) return null;
+  if (a.count <= 0) {
+    // Nothing found among what was checked is not "none" when part was not.
+    return a.partial
+      ? {
+          tone: 'counted',
+          text: 'None found, partly checked',
+          href: null,
+          hint: PARTIAL_HINT,
+        }
+      : null;
+  }
   const noun = a.count === 1 ? 'advisory' : 'advisories';
   const href = a.url ? httpHref(a.url) : null;
+  const words = a.highest
+    ? `${a.count} ${noun}, ${a.highest}`
+    : `${a.count} ${noun}`;
   return {
     tone: a.highest ?? 'counted',
-    text: a.highest ? `${a.count} ${noun}, ${a.highest}` : `${a.count} ${noun}`,
+    text: a.partial ? `At least ${words}` : words,
     href,
+    ...(a.partial ? { hint: PARTIAL_HINT } : {}),
   };
 }
 

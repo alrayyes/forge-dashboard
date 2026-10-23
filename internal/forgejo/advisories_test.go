@@ -207,7 +207,7 @@ func TestReadMainBranch_CarriesAdvisoriesAndReadsThemOncePerWindow(t *testing.T)
 	client := forge.start(t, scanner)
 
 	for range 3 {
-		row, err := client.ReadMainBranch(t.Context(), repoA)
+		row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 		require.NoError(t, err)
 		require.NotNil(t, row.Advisories)
 		assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 1, Highest: dashboard.SeverityLow}, *row.Advisories)
@@ -222,7 +222,7 @@ func TestReadMainBranch_AFailedReadKeepsTheLastAnswer(t *testing.T) {
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
 	clk := withClock(client)
 
-	first, err := client.ReadMainBranch(t.Context(), repoA)
+	first, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	require.Equal(t, 4, first.Advisories.Count)
 
@@ -230,7 +230,7 @@ func TestReadMainBranch_AFailedReadKeepsTheLastAnswer(t *testing.T) {
 	scanner.mu.Lock()
 	scanner.err = assert.AnError
 	scanner.mu.Unlock()
-	again, err := client.ReadMainBranch(t.Context(), repoA)
+	again, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.Equal(t, 4, again.Advisories.Count, "an OSV outage never turns a known count into zero")
 }
@@ -300,15 +300,15 @@ func TestReadMainBranch_AnUnreadableLockfileIsAskedAgainAfterAnHour(t *testing.T
 	client := forge.start(t, &fakeScanner{})
 	clk := withClock(client)
 
-	_, err := client.ReadMainBranch(t.Context(), repoA)
+	_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	clk.advance(50 * time.Minute)
-	_, err = client.ReadMainBranch(t.Context(), repoA)
+	_, err = forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, forge.requests.Load(), "a file that never parses is not read every five minutes")
 
 	clk.advance(11 * time.Minute)
-	_, err = client.ReadMainBranch(t.Context(), repoA)
+	_, err = forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.EqualValues(t, 4, forge.requests.Load(), "but the repo may fix it, so it is read again after an hour")
 }
@@ -320,7 +320,7 @@ func TestReadMainBranch_AnOSVOutageDoesNotReadTheForgeAgain(t *testing.T) {
 	client := forge.start(t, scanner)
 	clk := withClock(client)
 
-	_, err := client.ReadMainBranch(t.Context(), repoA)
+	_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, forge.requests.Load())
 
@@ -329,7 +329,7 @@ func TestReadMainBranch_AnOSVOutageDoesNotReadTheForgeAgain(t *testing.T) {
 	scanner.summary = osv.Summary{Count: 3, Highest: "high"}
 	scanner.mu.Unlock()
 	clk.advance(6 * time.Minute)
-	row, err := client.ReadMainBranch(t.Context(), repoA)
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.Equal(t, 3, row.Advisories.Count)
 	assert.Equal(t, 2, scanner.calls(), "OSV is asked again")
@@ -342,7 +342,7 @@ func TestReadMainBranch_RetriesBackOff(t *testing.T) {
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
 	clk := withClock(client)
 	read := func() {
-		_, err := client.ReadMainBranch(t.Context(), repoA)
+		_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 		require.NoError(t, err)
 	}
 
@@ -364,7 +364,7 @@ func TestReadMainBranch_ASlowReadGivesUpAtTheDeadline(t *testing.T) {
 	forgejo.SetAdvisoryDeadline(client, 50*time.Millisecond)
 
 	start := time.Now()
-	row, err := client.ReadMainBranch(t.Context(), repoA)
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.Less(t, time.Since(start), 5*time.Second)
 	require.NotNil(t, row.Advisories)
@@ -384,7 +384,7 @@ func TestReadMainBranch_AFailedFirstReadIsUnknown(t *testing.T) {
 	t.Parallel()
 	client := (&lockfileServer{listCode: http.StatusInternalServerError}).start(t, &fakeScanner{})
 
-	row, err := client.ReadMainBranch(t.Context(), repoA)
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	require.NotNil(t, row.Advisories)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, *row.Advisories)
@@ -399,7 +399,7 @@ func TestReadMainBranch_ManyFailuresInARowNeverMakeTheRetryImmediate(t *testing.
 	for i := range 60 {
 		before := scanner.calls()
 		for range 2 {
-			_, err := client.ReadMainBranch(t.Context(), repoA)
+			_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 			require.NoError(t, err)
 		}
 		require.Equal(t, before+1, scanner.calls(), "read %d: a failed read is not asked again at once", i)
@@ -425,7 +425,7 @@ func TestReadMainBranch_ConcurrentReadsOfOneRepoShareOneRead(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 5 {
 		wg.Go(func() {
-			row, err := client.ReadMainBranch(t.Context(), repoA)
+			row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 			if err != nil {
 				t.Error(err)
 
@@ -463,42 +463,6 @@ func TestReadAdvisories_AFileBiggerThanItsListingSaidIsUnknown(t *testing.T) {
 	assert.Zero(t, scanner.calls())
 }
 
-// cancelScanner cancels the caller's context mid-scan, as a shutdown or a
-// superseded refresh does, then fails with that cancellation.
-type cancelScanner struct{ cancel context.CancelFunc }
-
-func (s cancelScanner) Scan(ctx context.Context, _ []osv.Package) (osv.Summary, error) {
-	s.cancel()
-	<-ctx.Done()
-
-	return osv.Summary{}, fmt.Errorf("scan: %w", ctx.Err())
-}
-
-func TestReadMainBranch_ACancelledReadIsNotCachedAsAFailure(t *testing.T) {
-	t.Parallel()
-	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
-	ctx, cancel := context.WithCancel(t.Context())
-	client := forge.start(t, cancelScanner{cancel: cancel})
-	clk := withClock(client)
-
-	_, _ = client.ReadMainBranch(ctx, repoA)
-
-	good := &fakeScanner{summary: osv.Summary{Count: 3, Highest: "high"}}
-	client.SetAdvisoryScanner(good)
-	row, err := client.ReadMainBranch(t.Context(), repoA)
-	require.NoError(t, err)
-	require.NotNil(t, row.Advisories)
-	assert.Equal(t, 3, row.Advisories.Count, "the next ask reads again at once: a cancelled read is not a failed one")
-
-	clk.advance(16 * time.Minute)
-	good.mu.Lock()
-	good.err = assert.AnError
-	good.mu.Unlock()
-	_, err = client.ReadMainBranch(t.Context(), repoA)
-	require.NoError(t, err)
-	assert.Equal(t, 2, good.calls(), "the cancelled read did not count towards the back-off")
-}
-
 func TestReadMainBranch_ClientsShareAnAdvisoryCache(t *testing.T) {
 	t.Parallel()
 	scanner := &fakeScanner{summary: osv.Summary{Count: 2, Highest: "low"}}
@@ -507,14 +471,14 @@ func TestReadMainBranch_ClientsShareAnAdvisoryCache(t *testing.T) {
 
 	first := forge.start(t, scanner)
 	first.ShareAdvisoryCache(cache)
-	_, err := first.ReadMainBranch(t.Context(), repoA)
+	_, err := forgejo.ReadMainBranchSettled(t.Context(), first, repoA)
 	require.NoError(t, err)
 
 	// A login or a settings save builds a new client over the same forge.
 	second := forgejo.NewClient(forge.url, "test-token", "")
 	second.SetAdvisoryScanner(scanner)
 	second.ShareAdvisoryCache(cache)
-	row, err := second.ReadMainBranch(t.Context(), repoA)
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), second, repoA)
 	require.NoError(t, err)
 	require.NotNil(t, row.Advisories)
 	assert.Equal(t, 2, row.Advisories.Count)
@@ -555,19 +519,19 @@ func TestReadMainBranch_AStaleCountIsNotKeptForever(t *testing.T) {
 	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
 	clk := withClock(client)
 
-	_, err := client.ReadMainBranch(t.Context(), repoA)
+	_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	scanner.mu.Lock()
 	scanner.err = assert.AnError
 	scanner.mu.Unlock()
 
 	clk.advance(16 * time.Minute)
-	row, err := client.ReadMainBranch(t.Context(), repoA)
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.Equal(t, 4, row.Advisories.Count, "a short outage keeps the last count")
 
 	clk.advance(25 * time.Hour)
-	row, err = client.ReadMainBranch(t.Context(), repoA)
+	row, err = forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonFailed}, *row.Advisories,
 		"a day-old count must not pass for current")
@@ -595,66 +559,16 @@ func TestReadAdvisories_AnOversizeReadIsRecordedInTheRequestLog(t *testing.T) {
 	assert.Equal(t, 1, raw, "the download happened, so it is counted")
 }
 
-// leaderCancelScanner lets a test hold the first scan open, then cancel its
-// caller; later scans answer.
-type leaderCancelScanner struct {
-	cancel  context.CancelFunc
-	started chan struct{}
-	release chan struct{}
-	once    sync.Once
-	fakeScanner
-}
-
-func (s *leaderCancelScanner) Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary, error) {
-	first := false
-	s.once.Do(func() { first = true })
-	if !first {
-		return s.fakeScanner.Scan(ctx, pkgs)
-	}
-	close(s.started)
-	<-s.release
-	s.cancel()
-	<-ctx.Done()
-
-	return osv.Summary{}, fmt.Errorf("scan: %w", ctx.Err())
-}
-
-func TestReadMainBranch_AWaiterWhoseLeaderWasCancelledReadsItself(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithCancel(t.Context())
-	scanner := &leaderCancelScanner{cancel: cancel, started: make(chan struct{}), release: make(chan struct{})}
-	scanner.summary = osv.Summary{Count: 3, Highest: "high"}
-	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, scanner)
-
-	go func() { _, _ = client.ReadMainBranch(ctx, repoA) }()
-	<-scanner.started
-
-	done := make(chan *dashboard.Advisories, 1)
-	go func() {
-		row, err := client.ReadMainBranch(t.Context(), repoA)
-		if err != nil {
-			t.Error(err)
-		}
-		done <- row.Advisories
-	}()
-	time.Sleep(100 * time.Millisecond) // let the waiter join the leader's read
-	close(scanner.release)
-
-	got := <-done
-	require.NotNil(t, got)
-	assert.Equal(t, 3, got.Count, "the waiter's own context is live, so it reads for itself")
-}
-
 func TestReadMainBranch_TooManyAdvisoriesIsNotReadAgainForAnHour(t *testing.T) {
 	t.Parallel()
 	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
 	client := forge.start(t, &fakeScanner{err: osv.ErrTooMany})
 	clk := withClock(client)
 
-	_, err := client.ReadMainBranch(t.Context(), repoA)
+	_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	clk.advance(50 * time.Minute)
-	_, err = client.ReadMainBranch(t.Context(), repoA)
+	_, err = forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, forge.requests.Load(), "the same answer is not downloaded again every fifteen minutes")
 }
@@ -846,4 +760,116 @@ func TestReadAdvisories_AServerWithASmallerPageSizeIsStillReadInFull(t *testing.
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 1}, got)
 	assert.Len(t, forge.treeQueries, 2)
+}
+
+const mixedLockJSON = `{"lockfileVersion":3,"packages":{"":{},
+	"node_modules/left-pad":{"version":"1.3.0","resolved":"https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz"},
+	"node_modules/@corp/secret":{"version":"2.0.0","resolved":"https://npm.corp.example/@corp/secret/-/secret-2.0.0.tgz"}}}`
+
+func TestReadAdvisories_ALockfileWithPackagesLeftOutIsMarkedPartial(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{summary: osv.Summary{Count: 1, Highest: "low"}}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": mixedLockJSON}}).start(t, scanner)
+
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 1, Highest: dashboard.SeverityLow, Partial: true}, got)
+	assert.Equal(t, []osv.Package{{Ecosystem: "npm", Name: "left-pad", Version: "1.3.0"}}, scanner.asked[0], "the private name stays home")
+}
+
+func TestReadAdvisories_APartialFileMakesTheWholeRepoPartial(t *testing.T) {
+	t.Parallel()
+	forge := &lockfileServer{files: map[string]string{
+		"package-lock.json": lockJSON,
+		"go.mod":            "module x\n\nrequire github.com/a/b v1.2.3\nrequire github.com/c/d v1.0.0\nreplace github.com/c/d => ../d\n",
+	}}
+	client := forge.start(t, &fakeScanner{})
+
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
+	require.NoError(t, err)
+	assert.True(t, got.Partial, "the clean npm file does not hide the go.mod that left a module out")
+}
+
+func TestReadAdvisories_AWholeLockfileIsNotPartial(t *testing.T) {
+	t.Parallel()
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, &fakeScanner{})
+
+	got, err := forgejo.ReadAdvisories(t.Context(), client, "alrayyes", "a")
+	require.NoError(t, err)
+	assert.False(t, got.Partial)
+}
+
+func TestReadMainBranch_ARetryAfterAnOSVOutageStillSaysPartial(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{err: assert.AnError}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": mixedLockJSON}}).start(t, scanner)
+	clk := withClock(client)
+
+	_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
+	require.NoError(t, err)
+	scanner.mu.Lock()
+	scanner.err, scanner.summary = nil, osv.Summary{Count: 2}
+	scanner.mu.Unlock()
+	clk.advance(6 * time.Minute)
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: 2, Partial: true}, *row.Advisories)
+}
+
+// gatedScanner holds every scan until release is closed.
+type gatedScanner struct {
+	release chan struct{}
+	started atomic.Int32
+}
+
+func (g *gatedScanner) Scan(ctx context.Context, _ []osv.Package) (osv.Summary, error) {
+	g.started.Add(1)
+	select {
+	case <-g.release:
+		return osv.Summary{Count: 1}, nil
+	case <-ctx.Done():
+		return osv.Summary{}, fmt.Errorf("scan: %w", ctx.Err())
+	}
+}
+
+func TestReadMainBranch_AColdAdvisoryReadDoesNotHoldUpTheRow(t *testing.T) {
+	t.Parallel()
+	gate := &gatedScanner{release: make(chan struct{})}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, gate)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err, "the row comes back while OSV is still being asked")
+	require.NotNil(t, row.Advisories)
+	assert.Equal(t, dashboard.Advisories{State: dashboard.AdvisoriesUnknown}, *row.Advisories, "unknown with no reason: not read yet, not failed")
+
+	close(gate.release)
+	row, err = forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
+	require.NoError(t, err)
+	assert.Equal(t, 1, row.Advisories.Count, "the next refresh carries the answer")
+}
+
+func TestReadMainBranch_AColdStartAcrossManyReposStartsEveryReadAtOnce(t *testing.T) {
+	t.Parallel()
+	gate := &gatedScanner{release: make(chan struct{})}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, gate)
+	const repos = 25
+
+	for i := range repos {
+		repo := repoA
+		repo.FullName = fmt.Sprintf("alrayyes/a%d", i) // a cache key of its own, the same fake forge behind it
+		row, err := client.ReadMainBranch(t.Context(), repo)
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.AdvisoriesUnknown, row.Advisories.State)
+	}
+	assert.Eventually(t, func() bool { return gate.started.Load() == repos }, 5*time.Second, 5*time.Millisecond,
+		"no repo waits for another's read before its own starts")
+	close(gate.release)
+	forgejo.WaitForAdvisories(client)
+	for i := range repos {
+		repo := repoA
+		repo.FullName = fmt.Sprintf("alrayyes/a%d", i)
+		row, err := client.ReadMainBranch(t.Context(), repo)
+		require.NoError(t, err)
+		assert.Equal(t, 1, row.Advisories.Count)
+	}
 }

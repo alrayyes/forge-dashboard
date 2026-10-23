@@ -98,6 +98,63 @@ describe('advisoryPill', () => {
   });
 });
 
+describe('advisoryPill on a partly checked lock file', () => {
+  const hint =
+    'Some packages in the lock files are not public, so they were not checked.';
+
+  test('a count reads as a floor and says why', () => {
+    expect(
+      advisoryPill({
+        state: 'known',
+        count: 3,
+        highest: 'high',
+        partial: true,
+      }),
+    ).toEqual({
+      tone: 'high',
+      text: 'At least 3 advisories, high',
+      href: null,
+      hint,
+    });
+  });
+
+  test('one advisory is singular', () => {
+    expect(
+      advisoryPill({ state: 'known', count: 1, partial: true })?.text,
+    ).toBe('At least 1 advisory');
+  });
+
+  test('a zero is not a clean bill: the pill says it was partly checked', () => {
+    expect(advisoryPill({ state: 'known', count: 0, partial: true })).toEqual({
+      tone: 'counted',
+      text: 'None found, partly checked',
+      href: null,
+      hint,
+    });
+  });
+
+  test('a whole answer carries no hint', () => {
+    expect(
+      advisoryPill({ state: 'known', count: 2, partial: false })?.hint,
+    ).toBeUndefined();
+  });
+
+  test('a partly checked zero is neither in Has advisories nor in No advisories', () => {
+    const rows = [
+      b({ state: 'known', count: 0, partial: true }),
+      b({ state: 'known', count: 0 }),
+      b({ state: 'known', count: 2, partial: true }),
+    ];
+    expect(advisoryCounts(rows)).toEqual({ has: 1, none: 1, unknown: 1 });
+    expect(
+      applyFilter(rows, { ...DEFAULT_FILTER, advisories: 'none' }),
+    ).toEqual([rows[1]]);
+    expect(applyFilter(rows, { ...DEFAULT_FILTER, advisories: 'has' })).toEqual(
+      [rows[2]],
+    );
+  });
+});
+
 const b = (advisories?: Advisories) => ({ advisories }) as MainBranch;
 const unknown: Advisories = { state: 'unknown', count: 0 };
 const known: Advisories = { state: 'known', count: 0 };

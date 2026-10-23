@@ -315,3 +315,53 @@ func TestParseComposerLock_LeavesOutPathPackages(t *testing.T) {
 	_, err = osv.ParseComposerLock([]byte(`{"packages":[{"name":"acme/local","version":"1.0.0","dist":{"type":"path"}}]}`))
 	require.ErrorIs(t, err, osv.ErrNoPublicPackages)
 }
+
+func TestParseLockfile_CountsWhatItLeftOut(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, file, data string
+		packages, left   int
+	}{
+		{
+			"package-lock.json with one private package", "package-lock.json",
+			`{"lockfileVersion":3,"packages":{"":{"name":"app"},
+			"node_modules/a":{"version":"1.0.0","resolved":"https://registry.npmjs.org/a/-/a-1.0.0.tgz"},
+			"node_modules/b":{"version":"1.0.0","resolved":"https://npm.corp.example/b/-/b-1.0.0.tgz"}}}`,
+			1, 1,
+		},
+		{
+			"package-lock.json with nothing left out", "package-lock.json",
+			`{"lockfileVersion":3,"packages":{"node_modules/a":{"version":"1.0.0","resolved":"https://registry.npmjs.org/a/-/a-1.0.0.tgz"}}}`,
+			1, 0,
+		},
+		{
+			"go.mod with a local replacement", "go.mod",
+			"module example.com/app\n\nrequire (\n\tgithub.com/a/b v1.0.0\n\tgithub.com/c/d v1.0.0\n)\n\nreplace github.com/c/d => ../d\n",
+			1, 1,
+		},
+		{
+			"Cargo.lock with a git crate", "Cargo.lock",
+			"[[package]]\nname = \"a\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n\n" +
+				"[[package]]\nname = \"b\"\nversion = \"1.0.0\"\nsource = \"git+https://example.com/b\"\n",
+			1, 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := osv.ParseLockfile(tt.file, []byte(tt.data))
+			require.NoError(t, err)
+			assert.Len(t, got.Packages, tt.packages)
+			assert.Equal(t, tt.left, got.Left)
+		})
+	}
+}
+
+func TestParseLockfile_RefusesAnUnknownFileName(t *testing.T) {
+	t.Parallel()
+
+	_, err := osv.ParseLockfile("yarn.lock", []byte(""))
+	require.Error(t, err)
+}
