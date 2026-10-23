@@ -36,7 +36,7 @@
     choiceText,
     type PickChoice,
     pickImageNode,
-    parseLabels,
+    parsePick,
     toggleLabel,
   } from "#lib/label-filter.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
@@ -765,7 +765,7 @@
       // activeLabel (the shared label filter) is lowercase, one label or
       // several joined — so the comparison here has to lowercase label.name
       // to match.
-      const isActive = parseLabels(activeLabel).includes(
+      const isActive = parsePick(activeLabel).includes(
         label.name.toLowerCase(),
       );
       chip.className = `label-chip${isActive ? " active" : ""}`;
@@ -6207,7 +6207,7 @@
     function handleLabelClick(label: string) {
       applyPicks(
         "label",
-        toggleLabel(parseLabels(sharedState.shared.label), label),
+        toggleLabel(parsePick(sharedState.shared.label), label),
       );
     }
 
@@ -7005,7 +7005,7 @@
         noun: string,
         choices: PickChoice[],
       ) => {
-        const picked = parseLabels(shared[key]);
+        const picked = parsePick(shared[key]);
         for (const value of picked) {
           const choice = choices.find((c) => labelKey(c.value) === value);
           const text = choice ? choiceText(choice) : repoName(value);
@@ -7026,13 +7026,13 @@
       };
       pickChips("repo", "Repo", picks.repoChoices);
       pickChips("author", "Author", picks.authorChoices);
-      for (const name of parseLabels(shared.label))
+      for (const name of parsePick(shared.label))
         chips.push({
           label: `Label ${name}`,
           clear: () =>
             applyPicks(
               "label",
-              toggleLabel(parseLabels(sharedState.shared.label), name),
+              toggleLabel(parsePick(sharedState.shared.label), name),
             ),
         });
       if (shared.created)

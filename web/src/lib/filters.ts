@@ -196,7 +196,7 @@ import {
   labelKey,
   narrowLabels,
   type PickChoice,
-  parseLabels,
+  parsePick,
   repoName,
   splitLabels,
   unionLabels,
@@ -455,7 +455,7 @@ export function readCookieState(): SharedFilterState {
   dropUnknownClosing(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
-  trimLabelPick(state);
+  trimPicks(state);
   return state;
 }
 
@@ -530,12 +530,12 @@ function dropNonStringTitleRule(state: SharedFilterState): void {
 export const MAX_TITLE = 200;
 
 // The filters that hold a list of picks.
-export const PICK_KEYS = ['label', 'repo', 'author'];
+const PICK_KEYS = ['label', 'repo', 'author'];
 
 // A saved Label pick over the limits the server holds it to (a cookie from an
 // earlier build, or a hand-edited one) would make every later save a 400 that
 // drops the other filters with it. It is cut down to what fits as it is read.
-function trimLabelPick(state: SharedFilterState): void {
+function trimPicks(state: SharedFilterState): void {
   // The title search shares the cookie with the picks, so it is capped too.
   if (typeof state.shared.title === 'string')
     state.shared.title = state.shared.title.slice(0, MAX_TITLE);
@@ -630,10 +630,7 @@ export function reconcilePick(
       held.push({ group: 'shared', key: 'author', value: heldMigrated });
     }
   }
-  const { kept, dropped } = narrowLabels(
-    parseLabels(state.shared[key]),
-    offered,
-  );
+  const { kept, dropped } = narrowLabels(parsePick(state.shared[key]), offered);
   if (dropped.length === 0) return false;
   const before = heldValue('shared', key) ?? '';
   releaseHeld('shared', key);
@@ -657,7 +654,7 @@ function migrateBareAuthors(
   saved: string | undefined,
   offered: string[],
 ): string | undefined {
-  const picked = parseLabels(saved);
+  const picked = parsePick(saved);
   let changed = false;
   const next: string[] = [];
   for (const value of picked) {
@@ -714,15 +711,14 @@ export type HeldPick = {
 export function heldPicks(): HeldPick[] {
   return held.map((h) => {
     let text = h.value;
-    if (h.key === 'repo') text = parseLabels(h.value).map(repoName).join(', ');
-    if (h.key === 'author')
-      text = parseLabels(h.value).map(repoName).join(', ');
+    if (h.key === 'repo') text = parsePick(h.value).map(repoName).join(', ');
+    if (h.key === 'author') text = parsePick(h.value).map(repoName).join(', ');
     const choices =
       h.key === 'created' || h.key === 'updated' ? AGE_RANGES : [];
     text = choices.find((c) => c.value === h.value)?.label ?? text;
-    if (h.key === 'label') text = parseLabels(h.value).join(', ');
+    if (h.key === 'label') text = parsePick(h.value).join(', ');
     const noForge =
-      h.key === 'author' && parseLabels(h.value).every((v) => !v.includes(':'));
+      h.key === 'author' && parsePick(h.value).every((v) => !v.includes(':'));
     return {
       group: h.group,
       key: h.key,
@@ -1176,7 +1172,7 @@ export function applyServerState(
   dropUnknownClosing(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
-  trimLabelPick(state);
+  trimPicks(state);
 }
 
 export function minutesAgo(iso: string): number {
@@ -1714,7 +1710,7 @@ export function populateDatalist(
 // Does the item's value (a repo key, an author) match any of the picked ones?
 // Nothing picked lets it through.
 function pickedHas(saved: string | undefined, value: string): boolean {
-  const picked = parseLabels(saved);
+  const picked = parsePick(saved);
   return picked.length === 0 || picked.includes(labelKey(value));
 }
 
