@@ -120,7 +120,10 @@
     dialog.querySelector<HTMLElement>(".adv-back")?.focus();
     if (item.description && html[item.number] === undefined) {
       const number = item.number;
+      const mine = request;
       const text = await renderMarkdown(item.description).catch(() => "");
+      // The dialog may have closed, or opened on another repo, meanwhile.
+      if (mine !== request) return;
       html[number] = text;
     }
   }
@@ -270,9 +273,7 @@
               data-number={item.number}
               onclick={() => show(item)}
             >
-              <span class="adv-sev" data-severity={item.severity ?? "none"}
-                >{sevLabel(item.severity)}</span
-              >
+              {@render sev(item.severity)}
               <span class="adv-row-main">
                 <span class="adv-row-title">{item.summary}</span>
                 <span class="adv-chips">
@@ -311,12 +312,28 @@
   </div>
 </dialog>
 
+{#snippet sev(severity: string | undefined)}
+  <span class="adv-sev" data-severity={severity ?? "none"}
+    ><svg
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+      >{#if severity === "critical" || severity === "high"}<path
+          d="M8 1.5 15 14H1z"
+        />{:else if severity === "medium"}<path
+          d="M8 1.5 14.5 8 8 14.5 1.5 8z"
+        />{:else}<circle cx="8" cy="8" r="5.5" />{/if}</svg
+    >{sevLabel(severity)}</span
+  >
+{/snippet}
+
 {#snippet detail(item: AdvisoryItem)}
   <div class="adv-badges">
     <span class="adv-chip">{item.state === "open" ? "Open" : item.state}</span>
-    <span class="adv-sev" data-severity={item.severity ?? "none"}
-      >{sevLabel(item.severity)}</span
-    >
+    {@render sev(item.severity)}
     {#if item.ghsaId}<span class="adv-chip adv-id">{item.ghsaId}</span>{/if}
     {#if item.cveId}<span class="adv-chip adv-id">{item.cveId}</span>{/if}
   </div>
@@ -638,6 +655,9 @@
     background: var(--neutral-bg);
     color: var(--ink-2);
     white-space: nowrap;
+  }
+  .adv-sev {
+    gap: 4px;
   }
   .adv-sev[data-severity="critical"],
   .adv-sev[data-severity="high"] {
