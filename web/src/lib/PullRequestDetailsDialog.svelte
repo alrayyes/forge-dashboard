@@ -228,7 +228,7 @@
     target = { ...target, status: { ...target.status, attributes } };
     if (href === null) return;
     void tick().then(() => {
-      if (!dialogEl?.open || dialogEl.contains(document.activeElement)) return;
+      if (!dialogEl?.open) return;
       const same = [
         ...dialogEl.querySelectorAll<HTMLAnchorElement>(
           ".details-attributes a[href]",
