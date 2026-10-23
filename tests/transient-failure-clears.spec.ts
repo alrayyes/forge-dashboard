@@ -256,9 +256,13 @@ test.describe('a network failure line clears itself (#1206)', () => {
     // races that timer, so wait for the words in the pop-up's own region
     // before closing it, rather than hoping the page's region got them.
     const dialog = await openActionsDialog(row(page));
+    // The dropped request is read against a fresh snapshot before it is
+    // called a failure, so the words come after that answer.
+    const reread = page.waitForResponse('**/api/dashboard/refresh');
     await actionsFooter(dialog)
       .getByRole('button', { name: 'Update branch' })
       .click();
+    await reread;
     // The clock is paused, so run the 30 ms announcement timer by hand.
     await page.clock.runFor(100);
     await expect(
