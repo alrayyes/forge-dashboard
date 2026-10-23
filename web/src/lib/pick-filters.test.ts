@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
   authorChoices,
+  authorOverflowText,
   type FilterableItem,
   heldPickNote,
   heldPicks,
@@ -11,6 +12,7 @@ import {
   repoChoices,
   type SharedFilterState,
   saveState,
+  takeAuthorOverflow,
   takeMigratedAuthor,
 } from './filters';
 import { initialOf, pickSummary, REPO_CONFIG } from './label-filter';
@@ -39,6 +41,7 @@ const run = (shared: Record<string, string>, i: FilterableItem) =>
 afterEach(() => {
   releaseAllHeld();
   takeMigratedAuthor();
+  takeAuthorOverflow();
 });
 
 describe('matching any of the picked repos', () => {
@@ -246,6 +249,33 @@ describe('an author saved as a bare login by an earlier release', () => {
     reconcilePick(s, 'author', ['github:x'], true);
     reconcilePick(s, 'author', ['github:ghost', 'forgejo:ghost'], true);
     expect(heldPicks().map((h) => h.text)).toEqual(['ghost, ghost']);
+  });
+});
+
+describe('a bare login that expands past the 20-value cap', () => {
+  const others = Array.from({ length: 19 }, (_, i) => `github:u${i}`);
+  const offered = [...others, 'forgejo:ryan', 'github:ryan'];
+  const state = (author: string): SharedFilterState => ({
+    shared: { author },
+    pr: {},
+    issue: {},
+    view: {},
+  });
+  test('keeps 20, counts what was left out and says how many', () => {
+    const s = state(`${others.join('\n')}\nryan`);
+    reconcilePick(s, 'author', offered, true);
+    expect(s.shared.author.split('\n')).toHaveLength(20);
+    const left = takeAuthorOverflow();
+    expect(left).toBe(1);
+    expect(authorOverflowText(left)).toBe(
+      'Your author filter expanded to more choices than fit, so 1 was left out.',
+    );
+    expect(takeAuthorOverflow()).toBe(0);
+  });
+  test('within the cap says nothing', () => {
+    const s = state('ryan');
+    reconcilePick(s, 'author', offered, true);
+    expect(takeAuthorOverflow()).toBe(0);
   });
 });
 

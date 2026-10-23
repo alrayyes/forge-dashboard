@@ -674,7 +674,26 @@ function migrateBareAuthors(
   }
   if (!changed) return undefined;
   authorMigrated = true;
-  return joinLabels(next);
+  // The expansion can pass the cap; cut it here so the count is known.
+  const { kept, dropped } = splitLabels(next.join('\n'));
+  authorOverflow += dropped.length;
+  return joinLabels(kept);
+}
+
+// How many choices a bare login's expansion left out for the cap, so the page
+// can say so once.
+let authorOverflow = 0;
+
+export function takeAuthorOverflow(): number {
+  const n = authorOverflow;
+  authorOverflow = 0;
+  return n;
+}
+
+export function authorOverflowText(count: number): string {
+  return `Your author filter expanded to more choices than fit, so ${count} ${
+    count === 1 ? 'was' : 'were'
+  } left out.`;
 }
 
 // Set when a bare author login was rewritten, so the page saves the pick once

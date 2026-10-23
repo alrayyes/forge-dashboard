@@ -295,7 +295,9 @@ read as that whole login (in any case) on every forge that has it, and saved
 again in the forge-qualified form (`github:ann`) the first time the page
 reconciles its picks. A bare login no author on the page has is set aside like
 any other, and the note says it has no forge (`Saved author "ann" has no forge
-and is not on this page.`); Clear removes it.
+and is not on this page.`); Clear removes it. A pick holds at most 20 values, so
+a bare login that expands past that leaves the extra choices out, and a
+"Filters trimmed" notice says how many.
 Text typed in the title search or the hide-titles pattern is sent to the
 server half a second after the last key, and at once when you leave the page
 or switch tab, so a value typed just before leaving is kept. The title search
