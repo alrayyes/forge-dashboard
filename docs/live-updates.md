@@ -258,6 +258,11 @@ existed is read as a list of one. A pick holds up to 20 values, and the server
 refuses a longer one. A page that does not offer a saved repo or author leaves
 it saved and says so. The Insights page shows the same two controls.
 
+A live update redraws an open panel's choices without moving you: keyboard
+focus stays on the checkbox you are on, even when the update adds a second forge
+and the repos regroup under their headings. If that choice is gone, focus moves
+to the panel's button and the panel stays open.
+
 ## Remembered filters
 
 Filters are remembered per account, in a cookie and in a copy on the server,

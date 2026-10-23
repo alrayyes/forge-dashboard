@@ -346,6 +346,15 @@ export function mountPickFilter(
     });
     pickedNow = picked;
 
+    // Moving a row to another parent (the repos group under their forge once a
+    // second forge shows up) or removing it blurs the box inside. Note which
+    // box the reader is on so focus can go back after the redraw.
+    const active = document.activeElement;
+    const focused =
+      active instanceof HTMLInputElement && options.contains(active)
+        ? active
+        : null;
+
     const rows = new Map<string, HTMLElement>();
     for (const row of Array.from(
       options.querySelectorAll<HTMLElement>('.label-filter-option'),
@@ -434,6 +443,14 @@ export function mountPickFilter(
       }
     }
     for (const row of rows.values()) row.remove();
+
+    if (focused && document.activeElement !== focused) {
+      // The same box when it is still offered; otherwise the button, so focus
+      // stays inside the open panel's control rather than dropping to the page.
+      if (focused.isConnected && !focused.disabled)
+        focused.focus({ preventScroll: true });
+      else button.focus({ preventScroll: true });
+    }
 
     empty.hidden = offeredNow.length > 0;
     clear.disabled = picked.length === 0;

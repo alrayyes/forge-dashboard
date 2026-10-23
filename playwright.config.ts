@@ -27,6 +27,7 @@ const singleUserSpecs = [
   '**/auto-merge-filter.spec.ts',
   '**/conflicts-filter.spec.ts',
   '**/filter-choices-pills.spec.ts',
+  '**/filter-pick-panel-focus.spec.ts',
   '**/filter-choices-static.spec.ts',
   '**/filter-choices-held.spec.ts',
   '**/filter-choices-edges.spec.ts',
