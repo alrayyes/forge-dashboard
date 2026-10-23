@@ -248,13 +248,14 @@ func TestPullRequestStatus_BehindAwaitingApprovalWithUnknownState(t *testing.T) 
 
 // A held behind pull request would only get a head that is held again, so
 // Update branch, the bot rebases and Dependabot's Recreate are listed blocked
-// with the approval reason itself. Other states keep what they had: a stacked
-// or draft one its own reasons, a conflicting one its rebase (the fix), and an
-// up-to-date one its rebase.
+// with the approval reason and their own next step. Other states keep what
+// they had: a stacked or draft one its own, an empty one nothing to unlock,
+// an up-to-date one its rebase, and an action blocked for its own reason that
+// reason. A conflicting pull request is never held (its merge state is
+// conflicting), so it can't reach this rule.
 func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 	t.Parallel()
 
-	const approval = "Workflow runs are waiting for approval"
 	held := func(author string, edit func(*dashboard.PullRequest)) dashboard.PullRequest {
 		return ghPR(func(p *dashboard.PullRequest) {
 			p.Author = author
@@ -267,64 +268,70 @@ func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 			}
 		})
 	}
+	approval := &dashboard.Blocked{
+		Code:    dashboard.ActionBlockedByProtection,
+		Message: "Workflow runs are waiting for approval",
+		Next:    "Approve them on GitHub, then this can run",
+	}
+	ownBlock := &dashboard.Blocked{
+		Code:    dashboard.ActionAlreadyRequested,
+		Message: "A Dependabot Rebase is pending on this pull request.",
+		Next:    "It unlocks once Dependabot has finished.",
+	}
 	tests := []struct {
-		name    string
-		pr      dashboard.PullRequest
-		blocked map[dashboard.ActionName]string // action -> message, "" for unblocked
+		name string
+		pr   dashboard.PullRequest
+		want map[dashboard.ActionName]*dashboard.Blocked // nil: listed, not blocked
 	}{
-		{"person", held("someone", nil), map[dashboard.ActionName]string{
+		{"person", held("someone", nil), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionUpdateBranch: approval,
 		}},
-		{"Renovate", held("renovate", nil), map[dashboard.ActionName]string{
+		{"Renovate", held("renovate", nil), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionRenovateRebase: approval,
 		}},
-		{"Dependabot", held("dependabot[bot]", nil), map[dashboard.ActionName]string{
+		{"Dependabot", held("dependabot[bot]", nil), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionDependabotRebase:   approval,
 			dashboard.ActionDependabotRecreate: approval,
 		}},
-		{"stacked person keeps Update branch unblocked of the approval", held("someone", func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 9} }), map[dashboard.ActionName]string{
-			dashboard.ActionUpdateBranch: "",
+		{"Dependabot Recreate blocked for its own reason keeps it", held("dependabot[bot]", func(p *dashboard.PullRequest) {
+			p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: dashboard.BotRebase, Phase: dashboard.BotQueued}
+		}), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionDependabotRebase:   approval,
+			dashboard.ActionDependabotRecreate: ownBlock,
 		}},
-		{"draft Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Draft = true }), map[dashboard.ActionName]string{
-			dashboard.ActionRenovateRebase: "",
+		{"stacked person keeps Update branch", held("someone", func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 9} }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionUpdateBranch: nil,
 		}},
-		{"conflicting Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), map[dashboard.ActionName]string{
-			dashboard.ActionRenovateRebase: "",
+		{"draft Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Draft = true }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
 		}},
-		{"up-to-date Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Behind = false }), map[dashboard.ActionName]string{
-			dashboard.ActionRenovateRebase: "",
+		{"empty Renovate has no Merge to unlock", held("renovate", func(p *dashboard.PullRequest) { p.Empty = true }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
+		}},
+		{"empty Dependabot has no Merge to unlock", held("dependabot[bot]", func(p *dashboard.PullRequest) { p.Empty = true }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionDependabotRebase:   nil,
+			dashboard.ActionDependabotRecreate: nil,
+		}},
+		{"up-to-date Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Behind = false }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
 		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := map[dashboard.ActionName]*dashboard.Blocked{}
+			got := map[dashboard.ActionName]dashboard.ActionAvailability{}
 			for _, a := range dashboard.AllowedActions(tc.pr, []string{"renovate"}) {
-				got[a.Action] = a.Blocked
+				got[a.Action] = a
 			}
-			for action, message := range tc.blocked {
-				blocked, listed := got[action]
+			for action, want := range tc.want {
+				a, listed := got[action]
 				require.True(t, listed, "%s is not listed", action)
-				assertHeldBlock(t, action, blocked, message)
+				assert.Equal(t, want, a.Blocked, "%s", action)
+				if want != nil {
+					assert.False(t, a.Primary, "%s is blocked, so never primary", action)
+				}
 			}
 		})
 	}
-}
-
-// assertHeldBlock checks one action's block: the approval reason when message
-// is set, and anything but the approval reason when it is empty.
-func assertHeldBlock(t *testing.T, action dashboard.ActionName, blocked *dashboard.Blocked, message string) {
-	t.Helper()
-
-	if message == "" {
-		if blocked != nil {
-			assert.NotEqual(t, "Workflow runs are waiting for approval", blocked.Message, "%s", action)
-		}
-
-		return
-	}
-	require.NotNil(t, blocked, "%s is not blocked", action)
-	assert.Equal(t, dashboard.ActionBlockedByProtection, blocked.Code, "%s", action)
-	assert.Equal(t, message, blocked.Message, "%s", action)
 }

@@ -95,26 +95,36 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	return out
 }
 
-// headWouldBeHeld: a behind pull request whose runs wait for approval and
-// that Merge reports as exactly that, so a stacked or draft one (which Merge
-// reports as such) and a conflicting one (whose rebase is the fix) are not it.
-func headWouldBeHeld(pr PullRequest) bool {
-	return heldForApproval(pr) && pr.Behind && pr.StackedOn == nil && !pr.Draft
+// mergeHeldForApproval: Merge is offered and gives the approval as its reason.
+// Merge's own rules (empty, stacked, draft, pending checks, the forge's merge
+// state) decide that, so a head push is held back only where Merge says so.
+func mergeHeldForApproval(actions []ActionAvailability) bool {
+	for _, a := range actions {
+		if a.Action == ActionMerge {
+			return a.Blocked != nil && *a.Blocked == approvalReason()
+		}
+	}
+
+	return false
 }
 
 // blockHeadPushes lists the actions that push a new head blocked with the
-// approval reason, since that head would be held again. An action already
-// blocked for its own reason keeps it.
+// approval reason, since that head would be held again. Only a behind pull
+// request has such an action to run. An action already blocked for its own
+// reason keeps it.
 func blockHeadPushes(pr PullRequest, actions []ActionAvailability) {
-	if !headWouldBeHeld(pr) {
+	if !pr.Behind || !mergeHeldForApproval(actions) {
 		return
 	}
-	reason := approvalReason()
 	for i := range actions {
 		switch actions[i].Action {
 		case ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase, ActionDependabotRecreate:
 			if actions[i].Blocked == nil {
-				actions[i].Blocked = &reason
+				actions[i].Blocked = &Blocked{
+					Code:    ActionBlockedByProtection,
+					Message: approvalReason().Message,
+					Next:    "Approve them on GitHub, then this can run",
+				}
 			}
 		default:
 		}
