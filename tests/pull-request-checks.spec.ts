@@ -441,6 +441,101 @@ test.describe('pull request pipeline checks panel', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('a failed Forgejo check shows at once and its log excerpt is filled in when it lands, announced politely', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      'forgejo',
+      makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles', ci: 'failure' }),
+    );
+    await mockChecks(page, {
+      checks: [
+        {
+          name: 'test',
+          state: 'failure',
+          url: 'https://example.com/7',
+          jobId: 7,
+          runAttempt: 1,
+        },
+        { name: 'build', state: 'success', url: '' },
+      ],
+    });
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const asked: string[] = [];
+    await page.route('**/api/checks/log*', async (route) => {
+      asked.push(route.request().url());
+      await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          text: 'FAIL internal/api\n<img src=x onerror=alert(1)>',
+          truncated: false,
+        }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const failed = dialog.locator('.pipeline-check', { hasText: 'test' });
+    await expect(failed).toBeVisible();
+    await expect(
+      failed.getByRole('button', { name: 'View run: test' }),
+    ).toBeVisible();
+    await expect(failed.locator('pre.pipeline-check-excerpt')).toHaveCount(0);
+    await expect.poll(() => asked.length).toBe(1);
+    expect(asked[0]).toContain('excerpt=true');
+    expect(asked[0]).toContain('jobId=7');
+
+    release();
+
+    const excerpt = failed.locator('pre.pipeline-check-excerpt');
+    await expect(excerpt).toContainText('FAIL internal/api');
+    await expect(excerpt.locator('img')).toHaveCount(0);
+    await expect(dialog.locator('.pipeline-live-status')).toHaveText(
+      'Log excerpt loaded for test.',
+    );
+    expect(asked).toHaveLength(1);
+  });
+
+  test('a GitHub check that carries no excerpt is not asked for one', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
+    await mockChecks(page, {
+      checks: [
+        { name: 'test', state: 'failure', url: 'https://x/1', jobId: 9 },
+      ],
+    });
+    let asked = 0;
+    await page.route('**/api/checks/log*', async (route) => {
+      asked++;
+      await route.fulfill({ status: 404, body: '{}' });
+    });
+    await page.goto('/pull-requests.html');
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.locator('.pipeline-check')).toHaveCount(1);
+    await page.waitForTimeout(300);
+    expect(asked).toBe(0);
+  });
+
   test('a failing GitHub pull request offers "Rerun failed checks", which posts for that pull request and shows a queued state', async ({
     page,
   }) => {
