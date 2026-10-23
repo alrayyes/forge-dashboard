@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.17.2](https://github.com/alrayyes/forge-dashboard/compare/v2.17.1...v2.17.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **forgejo:** harden job-log excerpt reads, clock note and tests ([#2626](https://github.com/alrayyes/forge-dashboard/issues/2626)) ([d06b884](https://github.com/alrayyes/forge-dashboard/commit/d06b884f5f9c24ad10f908022dde19965dd39e62))
+* **web:** let the pointer reach a repo name so its full name shows on hover ([#2635](https://github.com/alrayyes/forge-dashboard/issues/2635)) ([408c2fa](https://github.com/alrayyes/forge-dashboard/commit/408c2fad26e27dba854790e5770fff944306ec0f))
+
 ## [2.17.1](https://github.com/alrayyes/forge-dashboard/compare/v2.17.0...v2.17.1) (2026-10-23)
 
 
