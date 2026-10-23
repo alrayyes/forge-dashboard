@@ -37,6 +37,12 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.MergeStatus = dashboard.MergeBlocked
 		})
 	}
+	botBehindWith := func(author string, forge dashboard.Forge, edit func(*dashboard.PullRequest)) dashboard.PullRequest {
+		pr := botBehind(author, forge)
+		edit(&pr)
+
+		return pr
+	}
 	cases := []struct {
 		name string
 		pr   dashboard.PullRequest
@@ -68,6 +74,47 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.RenovateRebaseRequested = true
 		}), []string{}},
 		{"Dependabot waiting on its rebase: the Dependabot rebase", botBehind("dependabot[bot]", dashboard.ForgeGitHub), []string{"dependabot_rebase"}},
+		// The same rule for both bots: behind and not conflicting puts the rebase in the row,
+		// whatever Merge or auto-merge are waiting on.
+		{"Renovate behind with CI pending: the Renovate rebase", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"renovate_rebase"}},
+		{"Dependabot behind with CI pending: the Dependabot rebase", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"dependabot_rebase"}},
+		{"Renovate behind with auto-merge armed and CI pending: the Renovate rebase", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"renovate_rebase"}},
+		{"Dependabot behind with auto-merge armed and CI pending: the Dependabot rebase", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"dependabot_rebase"}},
+		{"Renovate behind with CI pending and the rebase already requested: none, the locked rebase stays", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.RenovateRebaseRequested = true }), []string{}},
+		{"Dependabot behind with CI pending and a Recreate pending: none, the locked rebase stays", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
+			p.CI = dashboard.CIPending
+			p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: dashboard.BotRecreate, Phase: dashboard.BotQueued}
+		}), []string{}},
+		// A rebase can't clear a hold for workflow approval, so the status area
+		// keeps the reason and the row has no rebase.
+		{"Renovate behind, blocked, failing and awaiting workflow approval: none", botBehindWith("renovate", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.AwaitingWorkflowApproval = true }), []string{}},
+		{"Dependabot behind, blocked, failing and awaiting workflow approval: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.AwaitingWorkflowApproval = true }), []string{}},
+		{"Dependabot behind, unstable, failing and awaiting approval: the rebase, Merge is not held", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeUnstable
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		}), []string{"dependabot_rebase"}},
+		{"Dependabot behind, awaiting approval but status unknown: the rebase, Merge says behind", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeUnknown
+			p.CI = dashboard.CINone
+			p.AwaitingWorkflowApproval = true
+		}), []string{"dependabot_rebase"}},
+		{"person behind, blocked, failing and awaiting approval: none, Merge gives the approval reason", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
+		{"Renovate behind and draft: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
+		{"Dependabot behind and draft: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
+		{"Renovate behind and stacked: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{}},
+		{"Dependabot behind and stacked: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{}},
+		{"Renovate behind, unstable with CI failing (Merge open): the Renovate rebase", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIFailure }), []string{"renovate_rebase"}},
+		{"Dependabot behind, unstable with CI failing (Merge open): the Dependabot rebase", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIFailure }), []string{"dependabot_rebase"}},
+		{"Renovate behind and conflicting: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), []string{}},
+		{"Dependabot behind and conflicting: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), []string{}},
+		{"Renovate not behind with CI pending: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.Behind = false; p.CI = dashboard.CIPending }), []string{}},
+		{"Dependabot not behind with CI pending: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.Behind = false; p.CI = dashboard.CIPending }), []string{}},
 		{"conflicting: none", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }), []string{}},
 		{"draft: none", ghPR(func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"CI pending: none", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{}},
@@ -125,4 +172,29 @@ func readFixtureFile(t *testing.T) fixtureFile {
 	require.NoError(t, json.Unmarshal(raw, &file))
 
 	return file
+}
+
+// A behind bot pull request whose runs wait for approval has no row button,
+// since a rebase can't release them, so its status says what does: approve
+// the runs, not "bring it up to date".
+func TestPullRequestStatus_BehindBotAwaitingApproval(t *testing.T) {
+	t.Parallel()
+
+	for _, author := range []string{"renovate", "dependabot[bot]"} {
+		pr := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = author
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIFailure
+			p.AwaitingWorkflowApproval = true
+		})
+		actions := dashboard.AllowedActions(pr, []string{"renovate"})
+		status := dashboard.PullRequestStatus(pr, actions)
+
+		require.NotNil(t, status, author)
+		assert.Equal(t, dashboard.ActionBlockedByProtection, status.Code, author)
+		assert.Equal(t, "Workflow runs are waiting for approval", status.Message, author)
+		assert.Empty(t, status.Action, author)
+		assert.Empty(t, primaries(actions), author)
+	}
 }

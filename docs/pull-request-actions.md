@@ -7,25 +7,42 @@ own. Only
 live state is the page's: a rate-limited or unreachable forge, a missing token,
 an action already in flight.
 
-One entry in `allowedActions` can carry `primary: true`, the action the row
-and the phone card draw as the main button. The server picks it, so
-no client does. Merge is primary when it is offered and not blocked, unless CI
-is failing. An empty pull request has Close. When being behind the base branch
-is what holds Merge back, Update branch is primary, or the Renovate or
-Dependabot rebase for a bot pull request. Every other state has no primary
-action: a blocked, waiting, conflicting, draft or stacked pull request leaves
-its reason to `status`. A blocked action is never primary, and at most one
-entry is.
+One entry in `allowedActions` can carry `primary: true`, the action the row and
+the phone card draw as the main button. The server picks it, so no client does.
+Merge is primary when it is offered and not blocked, unless CI is failing. An
+empty pull request has Close. When being behind the base branch is what holds
+Merge back, Update branch is primary, or the Renovate or Dependabot rebase for a
+bot pull request. A behind bot pull request has its rebase as primary whatever
+else holds Merge back (checks running or failing, auto-merge armed), so a stale
+bot branch can be fixed from the row. A conflict, a draft or a stacked pull
+request never qualifies, and neither does one whose checks are held for workflow
+approval, which a rebase can't release. Unlike Update branch, which is held back
+while checks run because it would restart them, the rebase is offered then: it
+does restart the checks, but only when someone clicks it, and a stuck bot pull
+request is the case it is for. A rebase that is already requested, or locked by
+a pending Recreate, is blocked and so not primary; the row keeps its locked
+button. Every other state has no primary action: a blocked, waiting,
+conflicting, draft or stacked pull request leaves its reason to `status`. A
+blocked action is never primary, and at most one entry is.
 
 The row draws one button: the primary action, or, while Merge is locked, the
 greyed Merge with its reason. A pull request with neither draws none, so a
 draft, one waiting on CI, one with failing CI and one with nothing to act on
-show their status and nothing to click. A pull request that is behind the base
-branch is the one case where a locked Merge is not the row's button: the row
-draws no button of its own, because the cure (Update branch, or the bot's
-rebase) sits inside the status block above, and the greyed Merge is in the
-pop-up. Every other action is in the pop-up's footer, one click away, and there
-is no "More actions" menu.
+show their status and nothing to click, except a behind bot pull request, which
+shows its rebase (locked while one is already requested or pending). A behind
+bot pull request that is ready to merge keeps Merge as its one button, and its
+rebase is in the pop-up. A pull request that is behind the base branch is the
+one case where a locked Merge is not the row's button: the row draws no button
+of its own, because the cure (Update branch, or the bot's rebase) sits inside
+the status block above, and the greyed Merge is in the pop-up. A behind bot pull
+request whose Merge is held back by something else too (checks running, say)
+draws its rebase on the row. Every other action is in the pop-up's footer, one
+click away, and there is no "More actions" menu.
+
+When runs wait for someone to approve them, that is the reason Merge gives,
+ahead of being behind the base branch: a behind pull request in that state shows
+the approval in its status, with no `action`, and its row has no rebase, since
+updating the branch would only start runs that are held again.
 
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a

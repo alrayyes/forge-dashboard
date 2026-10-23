@@ -56,6 +56,7 @@ const singleUserSpecs = [
   '**/pipeline-panel-live.spec.ts',
   '**/pipeline-run-output.spec.ts',
   '**/behind-fix-button.spec.ts',
+  '**/bot-row-rebase.spec.ts',
   '**/ci-pill-counts.spec.ts',
   '**/running-pill-counts.spec.ts',
   '**/issue-author-avatar.spec.ts',

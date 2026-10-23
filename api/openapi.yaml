@@ -5865,9 +5865,14 @@ components:
             because the failing checks aren't required, and `status` explains
             it); `update_branch`, or `renovate_rebase` or `dependabot_rebase`
             for a bot pull request, when being behind the base branch is what
-            holds Merge back. Every other state has none: checks running or
-            failing, a conflict, a draft, a stack parent, or the forge's own
-            block. `status` gives the reason there.
+            holds Merge back. A bot pull request that is behind also has its
+            rebase here whatever else holds Merge back (checks running or
+            failing, auto-merge armed), unless it conflicts, is a draft, is
+            stacked, or Merge is blocked with failing checks because their
+            runs wait for approval. Every other state has
+            none: checks running or failing on a pull request that is not a
+            behind bot one, a conflict, a draft, a stack parent, or the
+            forge's own block. `status` gives the reason there.
         blocked:
           type: object
           required: [code, message]
@@ -5944,8 +5949,9 @@ components:
             action's button inside the status line and nowhere else on the
             row. Absent when no action clears it (a conflict, a check still
             running, a draft) and when the action is locked, such as a
-            Renovate rebase already waiting. Same action as the entry marked
-            `primary`, so a client that ignores this field still has it.
+            Renovate rebase already waiting. When set it is the entry marked
+            `primary`. The reverse doesn't hold: a behind bot pull request
+            that waits on checks has a primary rebase and no `action` here.
 
     ReviewState:
       type: object

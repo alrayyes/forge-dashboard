@@ -103,6 +103,11 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 //   - Merge blocked because the branch is behind: Update branch, or the
 //     Renovate or Dependabot rebase for a bot pull request, whichever is
 //     offered and not blocked;
+//   - a bot pull request that is behind, and neither conflicting, a draft nor
+//     stacked, whatever else holds Merge back (checks running or failing,
+//     auto-merge armed): the bot's rebase, since a stale branch is worth
+//     fixing while it waits. Runs held for workflow approval are the
+//     exception, as a rebase can't release them;
 //   - anything else (checks running or failing, conflict, draft, stacked,
 //     blocked by the forge): none, since the status area gives the reason.
 func markPrimary(pr PullRequest, actions []ActionAvailability) {
@@ -130,11 +135,45 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 		case a.Blocked == nil && pr.CI != CIFailure:
 			return []ActionName{ActionMerge}
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
-			return []ActionName{ActionUpdateBranch, ActionRenovateRebase, ActionDependabotRebase}
+			return append([]ActionName{ActionUpdateBranch}, botRebases(pr)...)
+		// Merge is blocked for another reason, or open only because the failing
+		// checks aren't required: the rule is the same.
+		case botRebaseWorthOffering(pr):
+			return botRebases(pr)
 		}
 	}
 
 	return nil
+}
+
+// botRebaseWorthOffering: a behind pull request can be rebased unless a
+// conflict needs a person, it is a draft, or it is stacked on another one.
+// Only a bot pull request lists a bot rebase, so the caller's candidates
+// name nothing for any other.
+func botRebaseWorthOffering(pr PullRequest) bool {
+	return pr.Behind && pr.MergeStatus != MergeConflicting && !pr.Draft && pr.StackedOn == nil
+}
+
+// heldForApproval: Merge is blocked and the checks fail only because runs wait
+// for a maintainer. Merge gives that as its reason, and the bot rebase is not
+// offered then. Any other state with held runs is not this one.
+func heldForApproval(pr PullRequest) bool {
+	return pr.MergeStatus == MergeBlocked && pr.CI == CIFailure && pr.AwaitingWorkflowApproval
+}
+
+// botRebases is the bot rebases that may be primary. Runs held for workflow
+// approval report nothing until a maintainer approves them, and a rebase can't
+// do that, so none is offered then and Merge's reason stays in the status.
+//
+// The guard relies on case order in mergeAvailability: held runs are answered
+// before the behind block, so it can't fire on the ActionBehind branch today.
+// Keep that order, or this stops mattering without a test failing.
+func botRebases(pr PullRequest) []ActionName {
+	if heldForApproval(pr) {
+		return nil
+	}
+
+	return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
 }
 
 // dependabotRebaseAvailability: a Recreate that is pending rebuilds the whole
@@ -185,10 +224,6 @@ func renovateRebaseAvailability(pr PullRequest) ActionAvailability {
 // rather than hidden while waiting or fixing something can unlock it. Only an
 // empty pull request, which nothing can unlock, is left without it.
 func mergeAvailability(pr PullRequest) ActionAvailability {
-	blocked := func(code ActionCode, message, next string) ActionAvailability {
-		return ActionAvailability{Action: ActionMerge, Blocked: &Blocked{Code: code, Message: message, Next: next}}
-	}
-
 	switch {
 	case pr.StackedOn != nil:
 		// Merging it would land it in the parent's branch, not the base it
@@ -196,12 +231,12 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		// that stays until the parent merges.
 		parent := "#" + strconv.Itoa(pr.StackedOn.Number)
 
-		return blocked(ActionStacked, "Stacked on "+parent+". Merge that one first.",
+		return mergeBlocked(ActionStacked, "Stacked on "+parent+". Merge that one first.",
 			"Merge unlocks once "+parent+" merges and this pull request is retargeted.")
 	case pr.MergeStatus == MergeConflicting:
-		return blocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
+		return mergeBlocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
 	case pr.Draft:
-		return blocked(ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge")
+		return mergeBlocked(ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge")
 	case pr.MergeStatus == MergeUnstable:
 		// GitHub says it can merge: only checks branch protection doesn't
 		// require are failing or running (#955, #956). Required ones would
@@ -216,21 +251,36 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 			next = ""
 		}
 
-		return blocked(ActionChecksPending, "Waiting for CI to finish", next)
+		return mergeBlocked(ActionChecksPending, "Waiting for CI to finish", next)
+	case heldForApproval(pr):
+		// Held runs report nothing until a maintainer approves them (#1929),
+		// so "CI is failing" would send the user the wrong way. Bringing a
+		// behind branch up to date would only make a new held head, so this
+		// is the reason to give ahead of being behind.
+		return mergeBlocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
-		return blocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
-	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
-		if pr.AwaitingWorkflowApproval {
-			// Held runs report nothing until a maintainer approves them
-			// (#1929), so "CI is failing" would send the user the wrong way.
-			return blocked(ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge")
-		}
+		return mergeBlocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
+	default:
+		return forgeMergeAvailability(pr)
+	}
+}
 
-		return blocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
+// mergeBlocked is Merge listed with the reason it can't be taken yet.
+func mergeBlocked(code ActionCode, message, next string) ActionAvailability {
+	return ActionAvailability{Action: ActionMerge, Blocked: &Blocked{Code: code, Message: message, Next: next}}
+}
+
+// forgeMergeAvailability is the last of Merge's rules: what the forge itself
+// says once the pull request is not stacked, conflicting, a draft, waiting on
+// CI or behind.
+func forgeMergeAvailability(pr PullRequest) ActionAvailability {
+	switch {
+	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
+		return mergeBlocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
 	case pr.MergeStatus == MergeBlocked:
-		return blocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")
+		return mergeBlocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")
 	case pr.MergeStatus != MergeMergeable:
-		return blocked(ActionNotMergeable, "Merge status not known yet", "Merge unlocks once the forge reports it")
+		return mergeBlocked(ActionNotMergeable, "Merge status not known yet", "Merge unlocks once the forge reports it")
 	}
 
 	return ActionAvailability{Action: ActionMerge}
