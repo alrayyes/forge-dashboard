@@ -7,6 +7,11 @@ func SetExcerptReadTimeoutForTest(c *Client, d time.Duration) {
 	c.excerptTimeout = d
 }
 
+// SetExcerptClockForTest gives c's excerpt memory a clock of its own.
+func SetExcerptClockForTest(c *Client, now func() time.Time) {
+	c.excerpts.now = now
+}
+
 // ExcerptCacheForTest exposes the failure memory with a clock of its own.
 type ExcerptCacheForTest struct{ c *excerptCache }
 

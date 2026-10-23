@@ -203,8 +203,10 @@ func (c *Client) rememberFailedJobs(owner, name string, checks []dashboard.Check
 // from a settled log is kept for good. One read before that, or for a job with
 // no finish time, is kept for a minute only, so a log that was still being
 // flushed is read once more. A read that failed, or found the log empty, is
-// remembered briefly too (an empty log for ten seconds, a failed read for a minute) and answers with no excerpt until then, so a log that
-// can't be read isn't asked for on every look.
+// remembered briefly too and answers with no excerpt until then, so a log that
+// can't be read isn't asked for on every look. An empty log, which the runner
+// may not have flushed yet, is remembered for ten seconds; a failed read, and a
+// log that is missing, for a minute.
 //
 // A missing log is no excerpt, not an error. A refused token or a rate limit
 // is returned, so the caller can stop asking for the rest.

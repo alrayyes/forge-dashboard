@@ -224,6 +224,32 @@ func TestJobExcerpt_AnEmptyLogIsNotRetriedAtOnce(t *testing.T) {
 	assert.Equal(t, int32(1), calls.Load())
 }
 
+func TestJobExcerpt_AnEmptyLogIsReadAgainAfterTenSeconds(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	logs := map[int]string{1: ""}
+	client := excerptServer(t, finishedFailures(1), logs, &calls)
+	now := time.Now()
+	forgejo.SetExcerptClockForTest(client, func() time.Time { return now })
+
+	first, err := listThenExcerpt(t, client, "a", 1)
+	require.NoError(t, err)
+	now = now.Add(forgejo.EmptyExcerptDelay - time.Second)
+	_, err = client.JobExcerpt(t.Context(), "alrayyes", "a", 1)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), calls.Load(), "still remembered just before the wait is up")
+
+	logs[1] = "FAIL internal/api\n"
+	now = now.Add(time.Second)
+	second, err := client.JobExcerpt(t.Context(), "alrayyes", "a", 1)
+
+	require.NoError(t, err)
+	assert.Empty(t, first)
+	assert.Equal(t, "FAIL internal/api", second)
+	assert.Equal(t, int32(2), calls.Load(), "the wait is ten seconds, not the minute of a failed read")
+}
+
 func TestJobExcerpt_ASlowLogIsGivenUpOn(t *testing.T) {
 	t.Parallel()
 
