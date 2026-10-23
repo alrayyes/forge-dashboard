@@ -83,7 +83,11 @@ test.describe('failing repo badge', () => {
     await expect(old.locator('.failing-badge')).toContainText(
       'Still failing since',
     );
-    await expect(old.locator('.failing-note')).toContainText('stopped waiting');
+    // The wording changes in place, so a screen reader is told.
+    await expect(old.locator('[role="status"] .failing-badge')).toHaveCount(1);
+    await expect(old.locator('.failing-note')).toContainText(
+      "Retrying hasn't helped",
+    );
   });
 
   for (const scheme of ['light', 'dark'] as const) {

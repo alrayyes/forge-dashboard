@@ -113,15 +113,15 @@ func TestDashboard_RepoStatus_FlagsFailingForGood(t *testing.T) {
 	})
 	assert.Equal(t, true, forGood["failingForGood"])
 
-	recent := time.Now().Add(time.Hour)
-	justFailing := repoStatusJSON(t, dashboard.Repo{
+	// A scoped refresh clears StaleSince but keeps the clock, so the row is
+	// fresh again and must not say it is failing, however old the clock is.
+	refreshed := repoStatusJSON(t, dashboard.Repo{
 		Forge:        dashboard.ForgeGitHub,
 		FullName:     "alrayyes/b",
-		StaleSince:   &recent,
-		FailingSince: &recent,
+		FailingSince: &long,
 	})
-	assert.Contains(t, justFailing, "failingSince")
-	assert.NotContains(t, justFailing, "failingForGood")
+	assert.NotContains(t, refreshed, "failingSince")
+	assert.NotContains(t, refreshed, "failingForGood")
 }
 
 // repoStatusJSON serves repo through the real handler and returns the JSON

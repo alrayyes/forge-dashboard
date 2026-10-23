@@ -1236,18 +1236,19 @@
                       target="_blank"
                       rel="noopener noreferrer">{repo.fullName}</a
                     >{:else}{repo.fullName}{/if}{#if repo.failingSince}
-                    <span
-                      class="failing-badge"
-                      class:failing-for-good={repo.failingForGood}
-                      >{repo.failingForGood ? "Still failing" : "Failing"} since {formatTime(
-                        repo.failingSince,
-                      )}</span
-                    ><span class="failing-note"
-                      >{#if repo.failingForGood}Retrying hasn't helped, so the
-                        dashboard has stopped waiting on this repo. Its pull
-                        requests and issues are the last ones it could read.{:else}The
-                        dashboard can't fetch this repo, so its pull requests
-                        and issues are the last ones it could read.{/if}</span
+                    <span class="failing-live" role="status"
+                      ><span
+                        class="failing-badge"
+                        class:failing-for-good={repo.failingForGood}
+                        >{repo.failingForGood ? "Still failing" : "Failing"} since
+                        {formatTime(repo.failingSince)}</span
+                      ><span class="failing-note"
+                        >{#if repo.failingForGood}Retrying hasn't helped. Its
+                          pull requests and issues are the last ones it could
+                          read.{:else}The dashboard can't fetch this repo, so
+                          its pull requests and issues are the last ones it
+                          could read.{/if}</span
+                      ></span
                     >{/if}</td
                 >
                 <td

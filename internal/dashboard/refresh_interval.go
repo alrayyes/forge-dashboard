@@ -64,7 +64,7 @@ func webhooksCover(snap Snapshot, interval time.Duration, now time.Time) bool {
 		if !repo.HasWebhook || !reachable[repo.Forge] {
 			return false
 		}
-		if repo.StaleSince != nil && !failingForGood(repo, interval, now) {
+		if repo.StaleSince != nil && !FailingForGood(repo, interval, now) {
 			return false
 		}
 	}
@@ -72,11 +72,11 @@ func webhooksCover(snap Snapshot, interval time.Duration, now time.Time) bool {
 	return true
 }
 
-// failingForGood reports whether a stale repo has kept failing for
+// FailingForGood reports whether a stale repo has kept failing for
 // permanentFailureIntervals configured intervals of clock time since its first
 // failed fetch. A repo with no recorded failure time, such as one restored from
 // the saved snapshot, has not shown that yet.
-func failingForGood(repo Repo, interval time.Duration, now time.Time) bool {
+func FailingForGood(repo Repo, interval time.Duration, now time.Time) bool {
 	return repo.FailingSince != nil && now.Sub(*repo.FailingSince) >= permanentFailureIntervals*interval
 }
 
@@ -90,10 +90,4 @@ func (a *Aggregator) NextDelay(interval time.Duration) time.Duration {
 	}
 
 	return NextRefreshDelay(snap, interval)
-}
-
-// FailingForGood is failingForGood for callers outside the package, such as
-// the API saying which failing repos are past the cutoff.
-func FailingForGood(repo Repo, interval time.Duration, now time.Time) bool {
-	return failingForGood(repo, interval, now)
 }

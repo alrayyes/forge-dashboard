@@ -375,6 +375,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	board := loadBoardSettings(ctx, deps.SettingsStore)
 	board.autoMergeReport = deps.Service.AutoMergeReport()
 	board.refreshInterval = deps.Service.RefreshInterval()
+	board.now = time.Now()
 	board.forgetClosedHides(ctx, deps.SettingsStore, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
@@ -425,7 +426,9 @@ func firstRefreshDone(m *dashboard.Service) bool {
 type boardSettings struct {
 	// refreshInterval is the configured wait between full refreshes, which
 	// the failing-for-good cutoff is a multiple of.
-	refreshInterval  time.Duration
+	refreshInterval time.Duration
+	// now is the one clock the payload is built against.
+	now              time.Time
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
@@ -511,7 +514,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 		forGood := false
 		if r.StaleSince != nil {
 			failingSince = r.FailingSince
-			forGood = dashboard.FailingForGood(r, b.refreshInterval, time.Now())
+			forGood = dashboard.FailingForGood(r, b.refreshInterval, b.now)
 		}
 		hasWebhook := r.HasWebhook
 		if !hasWebhook {

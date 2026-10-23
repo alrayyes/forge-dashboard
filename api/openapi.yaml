@@ -6639,12 +6639,13 @@ components:
         failingForGood:
           type: boolean
           description: |
-            Present and true when failingSince is at least three refresh
-            intervals old: the repository has kept failing for that long
-            of clock time, so retrying sooner has not helped and the
-            refresh schedule no longer waits on it. The server works this
-            out, so a client shows it without doing the arithmetic. Absent
-            otherwise.
+            Present and true when failingSince is older than the cutoff the
+            refresh schedule uses for a repository that keeps failing, a
+            fixed multiple of the refresh interval. Retrying has not helped
+            by then. The server works this out when it builds the response,
+            so a client shows it without doing the arithmetic, and a
+            repository crosses the cutoff in what the client sees at the
+            next refresh. Absent otherwise.
         autoUpdateBranch:
           type: boolean
           description: |
