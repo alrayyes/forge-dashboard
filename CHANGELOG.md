@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.17.1](https://github.com/alrayyes/forge-dashboard/compare/v2.17.0...v2.17.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** don't report an accepted action as unreachable when the follow-up refresh drops ([#2632](https://github.com/alrayyes/forge-dashboard/issues/2632)) ([c9104a3](https://github.com/alrayyes/forge-dashboard/commit/c9104a3cd72db6d7005379315adf088b6c08e73f))
+
+## [2.17.0](https://github.com/alrayyes/forge-dashboard/compare/v2.16.0...v2.17.0) (2026-10-23)
+
+
+### Features
+
+* **dashboard:** start the first refresh at boot, not at the first request ([#2629](https://github.com/alrayyes/forge-dashboard/issues/2629)) ([d424dbc](https://github.com/alrayyes/forge-dashboard/commit/d424dbc892b7f0cdce86db465a1045ef4b9dd57c))
+* **web:** say on the Branches page when Forgejo advisories could not be read ([#2618](https://github.com/alrayyes/forge-dashboard/issues/2618)) ([c684d1f](https://github.com/alrayyes/forge-dashboard/commit/c684d1f5c2cabfba841fb07a9e625221876f6880))
+
 ## [2.16.0](https://github.com/alrayyes/forge-dashboard/compare/v2.15.0...v2.16.0) (2026-10-23)
 
 

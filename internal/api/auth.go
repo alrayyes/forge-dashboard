@@ -165,15 +165,11 @@ func startSession(w http.ResponseWriter, r *http.Request, deps Deps, u *auth.Use
 	}
 	auth.SetSessionCookie(w, token, auth.IsHTTPS(r))
 
-	// Warm up the Aggregator from whatever was last saved in
-	// Settings — the Service holds no state across a restart, so this is
-	// what makes a returning user's dashboard start refreshing again
-	// without a trip to Settings first. Unconditional, unlike
-	// warmUpAggregator's use elsewhere: a login is a deliberate moment to
-	// pick up whatever was most recently saved, not just a gap to paper
-	// over. A user with nothing saved yet just gets Service.Get's
-	// empty-snapshot default, same as before this ran.
-	loadAndEnsure(r.Context(), deps)
+	// Start the Aggregator from whatever was last saved in Settings if the
+	// process hasn't yet. It normally started at boot, and a settings save
+	// rebuilds it, so a sign-in only fills a gap. Rebuilding here would cancel
+	// a first refresh that is already running.
+	warmUpAggregator(r.Context(), deps)
 
 	writeJSON(w, http.StatusOK, sessionUserOf(u))
 }
