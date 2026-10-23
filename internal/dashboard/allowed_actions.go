@@ -209,6 +209,12 @@ func renovateRebaseAvailability(pr PullRequest) ActionAvailability {
 	}}
 }
 
+// behindAndHeldForApproval: behind, with failing runs that only wait for a
+// maintainer's approval.
+func behindAndHeldForApproval(pr PullRequest) bool {
+	return pr.Behind && pr.AwaitingWorkflowApproval && pr.MergeStatus == MergeBlocked && pr.CI == CIFailure
+}
+
 // mergeAvailability is Merge's rules in the order they apply. Merge is blocked
 // rather than hidden while waiting or fixing something can unlock it. Only an
 // empty pull request, which nothing can unlock, is left without it.
@@ -245,7 +251,7 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 		}
 
 		return blocked(ActionChecksPending, "Waiting for CI to finish", next)
-	case pr.Behind && pr.AwaitingWorkflowApproval && pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
+	case behindAndHeldForApproval(pr):
 		// Held runs report nothing until a maintainer approves them, and
 		// bringing the branch up to date would only make a new held head, so
 		// the approval is the reason to give, ahead of being behind.
