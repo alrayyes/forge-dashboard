@@ -69,7 +69,10 @@ type Aggregator struct {
 	// (#982), under botMu too and keyed the same way.
 	updateRequests map[string]*updateEntry
 	fetchSeq       atomic.Uint64
-	now            func() time.Time
+	// passes counts the full refreshes started, so every fullPassEvery-th one,
+	// and the first after a start, is a full pass (see incrementalAllowed).
+	passes atomic.Uint64
+	now    func() time.Time
 	// after and debounce hold back the scoped refresh a webhook delivery
 	// asks for until its burst is over (RefreshRepoDebounced).
 	after    AfterFunc
@@ -714,7 +717,7 @@ func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bo
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
 	seq := a.fetchSeq.Add(1)
-	results := a.fetchSources(ctx)
+	results := a.fetchSources(a.refreshContext(ctx))
 
 	a.mu.RLock()
 	earlier := a.snap
@@ -727,7 +730,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		forge := a.sources[i].Forge()
 		if r.Health.Reachable {
 			goodAt[forge] = snap.GeneratedAt
-			r = keepFailedRepos(r, earlier, forge)
+			r = keepUnchangedRepos(keepFailedRepos(r, earlier, forge), earlier, forge)
 		} else if at, ok := goodAt[forge]; ok {
 			// A failed fetch carries no data. Showing none would drop every
 			// row of this forge until the next good refresh (#922), so show

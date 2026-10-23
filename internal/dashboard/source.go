@@ -30,6 +30,12 @@ type Result struct {
 	// MainBranches is one row per repo this forge reads the default-branch CI
 	// of (#1224). A repo whose read failed is in FailedRepos and missing here.
 	MainBranches []MainBranch
+	// Unchanged names the repos a Source skipped because its cheap probe saw
+	// nothing change since it last fetched them. Their pull requests, issues and
+	// default-branch rows are missing from this Result on purpose, and the
+	// aggregator keeps the last ones it had. Only a Source that was given an
+	// Incremental context sets it.
+	Unchanged []string
 	// Spent is what this fetch itself took from the forge's budgets, counted
 	// by the Source from its own calls. Nil means the Source does not measure
 	// it, so the reserve learns nothing from the fetch.
