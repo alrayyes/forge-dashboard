@@ -93,10 +93,11 @@ user ends. A snapshot restored from the last run already counts as loaded, so
 snapshot tells an empty board from one that hasn't loaded: it is `false` from
 process start until the viewer's first refresh has finished, whether it
 succeeded or failed (a failed one shows in the forge health), and `true` from
-then on, including after later refreshes and settings saves. It is not
-stored, so a restart resets it. An account with no saved settings has
-nothing to refresh, so it reads `true` at once. `GET /api/dashboard`, the
-stream and the `get_dashboard` MCP tool all carry it.
+then on, including after later refreshes and settings saves. It is not stored,
+so a restart resets it. The first refresh starts when the process does, from the
+saved credentials, so it is usually done before you sign in. An account with no
+saved settings has nothing to refresh, so it reads `true` at once. `GET
+/api/dashboard`, the stream and the `get_dashboard` MCP tool all carry it.
 
 The page doesn't wait for that answer to say it is loading. The server can hold
 `GET /api/dashboard` for up to 15 seconds on a cold start, so if nothing has
