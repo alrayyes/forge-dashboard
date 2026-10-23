@@ -271,7 +271,10 @@ queued" until the row's CI changes or ten minutes pass. When the row's forge
 can't be reached, or its REST rate limit is spent, the panel draws no button and
 says why in the pull request board's words. The button returns when the rate
 limit lifts, or on the first refresh that shows the forge healthy again. A queued
-note stays, with the reason after it on the same line. With several hosts of one
+note stays, with the reason after it on the same line. A failure line from an
+outage or a spent rate limit is dropped when the lock comes, since it is stale
+once the forge is back; a refusal (a missing permission, say) is kept, and
+still shows after the button returns. With several hosts of one
 forge kind, the button is held back only when every one of them would refuse it.
 The response carries each forge's health in `forges`, the same entries the
 dashboard serves. A branch with nothing left to rerun answers "no failed job to

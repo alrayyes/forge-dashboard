@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.4](https://github.com/alrayyes/forge-dashboard/compare/v2.17.3...v2.17.4) (2026-10-23)
+
+
+### Bug Fixes
+
+* **web:** keep a refusal across an outage and focus in the dialog when a lock removes Copy ([#2631](https://github.com/alrayyes/forge-dashboard/issues/2631)) ([f51f3d2](https://github.com/alrayyes/forge-dashboard/commit/f51f3d2c0855abc8096f262b2251f1fe43c31149))
+
 ## [2.17.3](https://github.com/alrayyes/forge-dashboard/compare/v2.17.2...v2.17.3) (2026-10-23)
 
 
