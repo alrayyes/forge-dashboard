@@ -7,10 +7,12 @@ import {
   advisoryCoverage,
   advisoryPill,
   advisoryReasonNeedsGrant,
+  advisoryRowHint,
   advisoryRowUnreadable,
   advisoryUnknownReason,
   applyFilter,
   DEFAULT_FILTER,
+  forgejoAdvisoryReasonText,
   isFiltered,
   type MainBranch,
   offeredAdvisories,
@@ -276,5 +278,32 @@ describe('the advisories filter', () => {
     expect([
       ...offeredAdvisories(mixed, { ...DEFAULT_FILTER, status: 'passed' }),
     ]).not.toContain('has');
+  });
+});
+
+describe('Forgejo cue wording', () => {
+  const fj = (reason?: string) =>
+    ({
+      forge: 'forgejo',
+      advisories: { state: 'unknown', count: 0, reason },
+    }) as unknown as MainBranch;
+
+  test('hints at the cause on a Forgejo row and keeps the plain label elsewhere', () => {
+    expect(advisoryRowHint(fj('failed'))).toContain('read failed');
+    expect(advisoryRowHint(fj('too_many'))).toContain('too much');
+    expect(advisoryRowHint(fj())).toBe('Advisories unknown');
+    expect(
+      advisoryRowHint({
+        forge: 'github',
+        advisories: { state: 'unknown', count: 0, reason: 'failed' },
+      } as unknown as MainBranch),
+    ).toBe('Advisories unknown');
+  });
+
+  test('has notice text only for the causes Forgejo can report', () => {
+    expect(forgejoAdvisoryReasonText('failed')).toContain('OSV');
+    expect(forgejoAdvisoryReasonText('too_many')).toContain('more packages');
+    expect(forgejoAdvisoryReasonText('refused')).toBeNull();
+    expect(forgejoAdvisoryReasonText(null)).toBeNull();
   });
 });

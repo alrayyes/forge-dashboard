@@ -51,7 +51,8 @@
     advisoryUnknownReason,
     advisoryReasonNeedsGrant,
     advisoryRowUnreadable,
-    FORGEJO_ADVISORY_REASON_TEXT,
+    forgejoAdvisoryReasonText,
+    advisoryRowHint,
     ADVISORY_REASON_TEXT,
     type MainBranch,
     type MainBranches,
@@ -832,8 +833,8 @@
         <p>
           Advisories can't be read for your Forgejo repositories, so none are
           shown.
-          {#if forgejoAdvisoryReason && FORGEJO_ADVISORY_REASON_TEXT[forgejoAdvisoryReason]}
-            {FORGEJO_ADVISORY_REASON_TEXT[forgejoAdvisoryReason]}
+          {#if forgejoAdvisoryReasonText(forgejoAdvisoryReason)}
+            {forgejoAdvisoryReasonText(forgejoAdvisoryReason)}
           {:else}
             OSV may be unreachable, or a lock file could not be read, was over 8
             megabytes or lists too many packages.
@@ -1028,7 +1029,7 @@
                     <span
                       class="mb-advisory-cue"
                       data-testid="main-branch-advisories-cue"
-                      title="Advisories unknown"
+                      title={advisoryRowHint(b)}
                       ><span aria-hidden="true">&#8211;</span><span
                         class="sr-only">Advisories unknown</span
                       ></span

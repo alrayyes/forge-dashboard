@@ -429,14 +429,35 @@ export const ADVISORY_REASON_TEXT: Record<
 
 // What the Forgejo notice says for a cause. Forgejo has no permission to grant:
 // advisories come from the lock files through OSV.
-export const FORGEJO_ADVISORY_REASON_TEXT: Partial<
-  Record<Exclude<AdvisoryReason, 'not_enabled'>, string>
+export const FORGEJO_ADVISORY_REASON_TEXT: Record<
+  Extract<AdvisoryReason, 'failed' | 'too_many'>,
+  string
 > = {
   failed:
     'OSV could not be reached, or a lock file could not be read or is over 8 megabytes. The dashboard tries again shortly.',
   too_many:
     'A lock file lists more packages, or a repository matches more advisories, than the dashboard reads in one go, so it shows no count rather than a short one.',
 };
+
+// The notice text for a shared Forgejo cause, or null when the cause is not one
+// Forgejo can report (the caller then falls back to the generic sentence).
+export function forgejoAdvisoryReasonText(
+  r: AdvisoryReason | null,
+): string | null {
+  return r === 'failed' || r === 'too_many'
+    ? FORGEJO_ADVISORY_REASON_TEXT[r]
+    : null;
+}
+
+// The hover hint on one unreadable row's cue. GitHub rows keep the plain label.
+export function advisoryRowHint(b: MainBranch): string {
+  if (rowForge(b) === 'forgejo') {
+    const r = b.advisories?.reason;
+    if (r === 'failed') return 'Advisories unknown: the read failed';
+    if (r === 'too_many') return 'Advisories unknown: too much to read';
+  }
+  return 'Advisories unknown';
+}
 
 // Only a refusal or switched-off alerts are fixed with the permission steps.
 export function advisoryReasonNeedsGrant(

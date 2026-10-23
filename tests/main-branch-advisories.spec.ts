@@ -272,6 +272,56 @@ test.describe('Branches page advisories pill', () => {
     ).toHaveCount(1);
   });
 
+  test('a Forgejo cue names why the row is unknown, and a GitHub cue keeps its plain name', async ({
+    page,
+  }) => {
+    const fj = (name: string, advisories?: object) => ({
+      ...row(name, advisories),
+      forge: 'forgejo',
+    });
+    await open(page, [
+      fj('acme/a', { state: 'unknown', count: 0, reason: 'failed' }),
+      fj('acme/big', { state: 'unknown', count: 0, reason: 'too_many' }),
+      fj('acme/b', { state: 'known', count: 0 }),
+    ]);
+
+    const cueOf = (repo: string) =>
+      page
+        .locator('[data-testid="main-branch-row"]', { hasText: repo })
+        .getByTestId('main-branch-advisories-cue');
+    await expect(cueOf('acme/a')).toHaveAccessibleName(
+      'Advisories unknown: the read failed',
+    );
+    await expect(cueOf('acme/big')).toHaveAccessibleName(
+      'Advisories unknown: too much to read',
+    );
+  });
+
+  test('a failed GitHub row and a failed Forgejo row each get their own notice, and a GitHub-only page has no Forgejo cue', async ({
+    page,
+  }) => {
+    const fj = (name: string, advisories?: object) => ({
+      ...row(name, advisories),
+      forge: 'forgejo',
+    });
+    await open(page, [
+      row('acme/gh', { state: 'unknown', count: 0, reason: 'failed' }),
+      fj('acme/fj', { state: 'unknown', count: 0, reason: 'failed' }),
+    ]);
+
+    await expect(page.getByTestId('advisories-notice')).toHaveCount(1);
+    await expect(page.getByTestId('forgejo-advisories-notice')).toHaveCount(1);
+    await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(0);
+
+    await open(page, [
+      row('acme/gh', { state: 'unknown', count: 0, reason: 'failed' }),
+      row('acme/ok', { state: 'known', count: 0 }),
+    ]);
+    await expect(page.getByTestId('forgejo-advisories-notice')).toHaveCount(0);
+    await expect(page.getByTestId('advisories-notice')).toHaveCount(0);
+    await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(1);
+  });
+
   test('a stale row keeps its pill beside the same stale chip every row gets', async ({
     page,
   }) => {
