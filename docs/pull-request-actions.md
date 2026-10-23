@@ -765,7 +765,7 @@ failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
 `rerun_checks` in `allowedActions`).
 
 While a pull request's CI is running, the same panel offers `Cancel run: <workflow>`
-for each Actions run that still has a queued or running job, on GitHub and on
+for each workflow run that still has a queued or running job, on GitHub and on
 Forgejo. Neither forge can stop one job of a running workflow, so the unit is
 the run: the confirm step names the whole run and the unfinished jobs that stop
 with it, and nothing is sent until you press `Yes, cancel run`. `Keep running`
