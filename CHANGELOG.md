@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.24.1](https://github.com/alrayyes/forge-dashboard/compare/v2.24.0...v2.24.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **forgejo:** count and list the default branch's jobs from one reading ([#2693](https://github.com/alrayyes/forge-dashboard/issues/2693)) ([a1af18a](https://github.com/alrayyes/forge-dashboard/commit/a1af18a42a600c59eb4a2ab7f239c60d89c74bf3))
+
 ## [2.24.0](https://github.com/alrayyes/forge-dashboard/compare/v2.23.0...v2.24.0) (2026-10-23)
 
 

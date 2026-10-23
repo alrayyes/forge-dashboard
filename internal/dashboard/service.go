@@ -165,6 +165,11 @@ func (s *Service) SetWebhookUpgrade(creds WebhookCredentialSource, origin string
 	s.webhookUpgrade = NewWebhookUpgrades(DefaultWebhookUpgradeJitter)
 }
 
+// RefreshInterval is the configured wait between full refreshes.
+func (s *Service) RefreshInterval() time.Duration {
+	return s.refreshInterval
+}
+
 // SetCIPollInterval turns on the CI-status poll fallback (#177) for
 // every Aggregator this Service builds from here on — a setter rather
 // than a NewService parameter, the same reason
