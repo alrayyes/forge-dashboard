@@ -189,6 +189,7 @@ describe('forgeWords', () => {
     expect(w.linkName).toBe('OSV');
     expect(w.fileLabel).toBe('Lock file');
     expect(w.dateWord).toBe('Published');
+    expect(w.patchedLabel).toBe('Fixed in');
     expect(w.empty).toContain('OSV');
     expect(w.empty).not.toContain('Dependabot');
   });
@@ -198,11 +199,16 @@ describe('forgeWords', () => {
     expect(w.linkName).toBe('GitHub');
     expect(w.foundIn).toBe('Detected in');
     expect(w.dateWord).toBe('Opened');
+    expect(w.patchedLabel).toBe('Patched in');
     expect(w.empty).toContain('Dependabot');
   });
 });
 
 describe('unreadableText', () => {
+  test('a Forgejo failure also names the forge not answering', () => {
+    expect(unreadableText('forgejo', 'failed')).toMatch(/forge did not answer/);
+  });
+
   test('a Forgejo cause is never the GitHub permission advice', () => {
     for (const reason of [undefined, 'not_enabled', 'failed', 'too_many']) {
       const text = unreadableText('forgejo', reason);

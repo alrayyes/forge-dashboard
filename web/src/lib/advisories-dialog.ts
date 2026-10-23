@@ -184,6 +184,9 @@ export function forgeWords(forge: string) {
       foundIn: 'Found in',
       fileLabel: 'Lock file',
       dateWord: 'Published',
+      // OSV lists a fix per branch, so these are the versions that fix it
+      // somewhere, not only on the installed version's branch.
+      patchedLabel: 'Fixed in',
       empty:
         'No known advisories. OSV lists none for the packages in this repository’s lock files.',
     };
@@ -193,6 +196,7 @@ export function forgeWords(forge: string) {
     foundIn: 'Detected in',
     fileLabel: 'Detected in',
     dateWord: 'Opened',
+    patchedLabel: 'Patched in',
     empty: 'No open advisories. Dependabot reports none for this repository.',
   };
 }
@@ -201,7 +205,7 @@ const FORGEJO_UNREADABLE: Record<string, string> = {
   not_enabled:
     'Advisories are switched off for Forgejo repositories. Set OSV_ADVISORIES=on to check lock files against OSV; the package names and versions in them are sent to api.osv.dev.',
   failed:
-    'OSV could not be reached, or a lock file could not be read or is over 8 megabytes. Try again in a moment.',
+    'OSV could not be reached, the forge did not answer, or a lock file could not be read or is over 8 megabytes. Try again in a moment.',
   too_many:
     'A lock file lists more packages, or the repository matches more advisories, than the dashboard reads in one go.',
 };

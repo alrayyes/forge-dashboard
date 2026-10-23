@@ -383,7 +383,7 @@
       </div>
     {/if}
     <div>
-      <dt>Patched in</dt>
+      <dt>{words.patchedLabel}</dt>
       <dd>
         {#if item.patchedVersion}<code>{item.patchedVersion}</code>{:else}No
           patched version yet{/if}
