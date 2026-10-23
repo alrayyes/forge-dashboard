@@ -715,7 +715,9 @@ empty, is not asked for again for a minute, and a token that is refused, or a
 forge that limits requests, stops the rest of the panel's reads. A log that is
 gone for good is asked for again every minute while the panel stays open, and
 an excerpt of a job with no finish time is kept for a minute only; both are
-bounded by the five reads. A job whose log can't be read keeps its link and
+bounded by the five reads. Whether a log has settled is judged by comparing the
+forge's finish time with this machine's clock, so the two are assumed to agree
+to within half a minute. A job whose log can't be read keeps its link and
 shows without an excerpt. A Forgejo too old to serve job logs answers those
 reads with a bare 404 that carries none of its own error body; the request log
 records that as an error rather than as a pruned log, so the gap shows on the

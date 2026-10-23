@@ -170,6 +170,11 @@ func newExcerptKey(owner, name string, j *gitea.ActionWorkflowJob) excerptKey {
 // settled reports whether the job's log is final: it has been finished a while,
 // since a read just after the finish may have missed lines the runner had yet
 // to flush.
+//
+// It compares the forge's finish time with this machine's clock, so it assumes
+// the two agree to within excerptSettleDelay. A forge clock that runs behind
+// ours makes a log look settled early; a forge clock that runs ahead makes it
+// look unsettled for longer, which only costs a re-read.
 func (k excerptKey) settled(now time.Time) bool {
 	return !k.finished.IsZero() && now.Sub(k.finished) >= excerptSettleDelay
 }
