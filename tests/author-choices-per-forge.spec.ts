@@ -43,7 +43,7 @@ const PRS = [
   pr(3, 'github', 'kim', 'acme/web'),
 ];
 
-async function open(page: Page) {
+async function open(page: Page, prs = PRS) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/dashboard*', (route) =>
     route.fulfill({
@@ -55,7 +55,7 @@ async function open(page: Page) {
           { forge: 'github', reachable: true, repoCount: 2 },
           { forge: 'forgejo', reachable: true, repoCount: 1 },
         ],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues: [],
         openIssueCount: 0,
         repos: [],
@@ -196,5 +196,48 @@ test.describe('an author saved as a bare login by an earlier release', () => {
     ).toBeVisible();
     expect(await pickedValues(page, 'author')).toEqual([]);
     expect((await serverShared(page)).author).toBe('ghost');
+  });
+
+  // 19 other authors and a bare `sam` that is two choices come to 21, one past
+  // the cap.
+  const MANY = [
+    ...Array.from({ length: 19 }, (_, i) =>
+      pr(10 + i, 'github', `user${i}`, 'acme/api'),
+    ),
+    ...PRS,
+  ];
+  const picks = Array.from({ length: 19 }, (_, i) => `github:user${i}`);
+
+  test('past the 20-value cap says how many choices were left out', async ({
+    page,
+  }) => {
+    await page.request.put('/api/settings/filter-state', {
+      data: {
+        shared: { author: [...picks, 'sam'].join('\n') },
+        pr: {},
+        issue: {},
+        view: {},
+      },
+    });
+    await open(page, MANY);
+    await expect(page.locator('#feedback-toasts')).toContainText(
+      'Your author filter expanded to more choices than fit, so 1 was left out.',
+    );
+    expect(await pickedValues(page, 'author')).toHaveLength(20);
+    const results = await new AxeBuilder({ page })
+      .include('#feedback-toasts')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('within the cap says nothing', async ({ page }) => {
+    await page.request.put('/api/settings/filter-state', {
+      data: { shared: { author: 'sam' }, pr: {}, issue: {}, view: {} },
+    });
+    await open(page, MANY);
+    await expect.poll(async () => pickedValues(page, 'author')).toHaveLength(2);
+    await expect(page.locator('#feedback-toasts')).not.toContainText(
+      'more choices than fit',
+    );
   });
 });

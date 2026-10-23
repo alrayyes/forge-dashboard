@@ -5855,6 +5855,17 @@
       });
     }
     reportDroppedPicks();
+    // A bare author login that expanded past the cap is said once too.
+    function reportAuthorOverflow() {
+      const left = Filters.takeAuthorOverflow();
+      if (left === 0) return;
+      const message = Filters.authorOverflowText(left);
+      feedback.notify({
+        title: "Filters trimmed",
+        message,
+        announce: message,
+      });
+    }
     // The cookie has every pick, including ones an earlier page held back.
     Filters.releaseAllHeld();
     let allPRs: PullRequestItem[] = [];
@@ -5913,6 +5924,7 @@
       // An author saved as a bare login has been read as its forge-qualified
       // choices; save it once so the old form leaves the cookie and the
       // server copy.
+      if (sharedControlsRestored) reportAuthorOverflow();
       if (sharedControlsRestored && Filters.takeMigratedAuthor())
         Filters.saveState(sharedState);
     });
@@ -6081,6 +6093,7 @@
       if (cleared) Filters.saveState(sharedState);
       else if (serverCopyLoaded && Filters.takeMigratedAuthor())
         Filters.saveState(sharedState);
+      reportAuthorOverflow();
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
       // cleared, since the pools are built from what is left.
