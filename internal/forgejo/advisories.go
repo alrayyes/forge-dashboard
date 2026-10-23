@@ -212,7 +212,8 @@ func (c *advisoryCache) evict(keep string) {
 }
 
 // readAdvisories reads a repo's advisories from the lockfiles in the root of
-// its default branch (package-lock.json and go.mod), matched against OSV, or
+// its default branch (any file in lockfileReaders: package-lock.json, bun.lock,
+// composer.lock, poetry.lock, uv.lock, Cargo.lock and go.mod), matched against OSV, or
 // starting from packages already read from the forge when known is set. Costs
 // one listing of the root plus one read per lockfile found. It returns the
 // packages it read so a caller can keep them when OSV fails.

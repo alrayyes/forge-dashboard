@@ -262,3 +262,56 @@ func TestParseNPMLock_ReadsVersionOneAndLaterFiles(t *testing.T) {
 }
 
 const lockJSONForNPM = `{"lockfileVersion":3,"packages":{"":{},"node_modules/left-pad":{"version":"1.3.0","resolved":"https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz"}}}`
+
+func TestParsePoetryLock_ReadsQuotedDottedKeys(t *testing.T) {
+	t.Parallel()
+
+	lock := `[[package]]
+name = "importlib-resources"
+version = "6.1.1"
+
+[package.dependencies]
+"zope.interface" = ">=1"
+"backports.zoneinfo" = {version = ">=0.2", markers = "python_version < '3.9'"}
+
+[[package]]
+name = "zope.interface"
+version = "6.1"
+`
+	got, err := osv.ParsePoetryLock([]byte(lock))
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []osv.Package{
+		{Ecosystem: "PyPI", Name: "importlib-resources", Version: "6.1.1"},
+		{Ecosystem: "PyPI", Name: "zope.interface", Version: "6.1"},
+	}, got)
+}
+
+func TestParseCargoLock_ReadsTheOldMetadataChecksumKeys(t *testing.T) {
+	t.Parallel()
+
+	lock := `[[package]]
+name = "serde"
+version = "1.0.190"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[metadata]
+"checksum serde 1.0.190 (registry+https://github.com/rust-lang/crates.io-index)" = "abc"
+`
+	got, err := osv.ParseCargoLock([]byte(lock))
+	require.NoError(t, err)
+	assert.Equal(t, []osv.Package{{Ecosystem: "crates.io", Name: "serde", Version: "1.0.190"}}, got)
+}
+
+func TestParseComposerLock_LeavesOutPathPackages(t *testing.T) {
+	t.Parallel()
+
+	lock := `{"packages":[
+		{"name":"acme/local","version":"1.0.0","dist":{"type":"path","url":"../local"}},
+		{"name":"monolog/monolog","version":"3.5.0","dist":{"type":"zip","url":"https://api.github.com/x"}}]}`
+	got, err := osv.ParseComposerLock([]byte(lock))
+	require.NoError(t, err)
+	assert.Equal(t, []osv.Package{{Ecosystem: "Packagist", Name: "monolog/monolog", Version: "3.5.0"}}, got)
+
+	_, err = osv.ParseComposerLock([]byte(`{"packages":[{"name":"acme/local","version":"1.0.0","dist":{"type":"path"}}]}`))
+	require.ErrorIs(t, err, osv.ErrNoPublicPackages)
+}

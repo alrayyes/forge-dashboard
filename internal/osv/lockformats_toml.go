@@ -22,7 +22,7 @@ var (
 )
 
 // tomlKey matches a top-level "key = value" line of a lock file.
-var tomlKey = regexp.MustCompile(`^([A-Za-z0-9_-]+)\s*=\s*(.*)$`)
+var tomlKey = regexp.MustCompile(`^("(?:[^"\\]|\\.)*"|[A-Za-z0-9_-]+)\s*=\s*(.*)$`)
 
 // tomlPackage is one [[package]] table of a TOML lock file: its plain string
 // values, keyed by name, and the keys of any table nested under it
@@ -79,7 +79,7 @@ func (r *tomlReader) line(line string) error {
 			r.depth = bracketDelta(m[2])
 		}
 		if r.cur != nil {
-			r.cur[r.prefix+m[1]] = tomlValue(m[2])
+			r.cur[r.prefix+tomlValue(m[1])] = tomlValue(m[2])
 		}
 	}
 
@@ -125,10 +125,13 @@ func tomlValue(v string) string {
 	return v
 }
 
-// inlineString is a string value out of an inline table's raw text:
-// inlineString(`{ registry = "https://pypi.org/simple" }`, "registry").
-func inlineString(table, key string) (string, bool) {
-	m := regexp.MustCompile(`[{,]\s*` + regexp.QuoteMeta(key) + `\s*=\s*"((?:[^"\\]|\\.)*)"`).FindStringSubmatch(table)
+// uvRegistry picks the registry URL out of a uv.lock source's inline table:
+// `{ registry = "https://pypi.org/simple" }`.
+var uvRegistry = regexp.MustCompile(`[{,]\s*registry\s*=\s*"((?:[^"\\]|\\.)*)"`)
+
+// inlineRegistry is the registry named in a uv.lock source table.
+func inlineRegistry(table string) (string, bool) {
+	m := uvRegistry.FindStringSubmatch(table)
 	if m == nil {
 		return "", false
 	}
@@ -192,7 +195,7 @@ func ParseUvLock(data []byte) ([]Package, error) {
 		if p["name"] == "" || p["version"] == "" {
 			continue
 		}
-		reg, ok := inlineString(p["source"], "registry")
+		reg, ok := inlineRegistry(p["source"])
 		if !ok {
 			if strings.Contains(p["source"], "registry") || strings.Contains(p["source"], "git") ||
 				strings.Contains(p["source"], "url") {

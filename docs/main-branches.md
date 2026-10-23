@@ -104,9 +104,9 @@ link anywhere, since OSV has no page for a whole repo.
   the public npm registry are kept out.
 - `bun.lock` (npm). Packages from another registry, git or a tarball, and
   workspace members, are kept out.
-- `composer.lock` (Packagist). Branch checkouts such as `dev-main` are kept
-  out. Composer doesn't record the repository, so private packages are still
-  sent by name.
+- `composer.lock` (Packagist). Branch checkouts such as `dev-main` and path
+  repositories are kept out. Composer doesn't record the repository, so
+  private packages are still sent by name.
 - `poetry.lock` and `uv.lock` (PyPI). Packages from git, a path, a URL or
   another index are kept out, and so is the project itself.
 - `Cargo.lock` (crates.io). Crates from git or another registry, and the

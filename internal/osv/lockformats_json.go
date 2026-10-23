@@ -139,7 +139,7 @@ func trailingComma(out []byte) bool {
 // ParseComposerLock reads the packages in a composer.lock, "packages" and
 // "packages-dev" alike. Composer doesn't record which repository a package came
 // from, so every release is looked up by name on Packagist; a branch checkout
-// ("dev-main") has no release to match and is left out. A leading "v" is taken
+// ("dev-main") has no release to match and a path package is a local directory; both are left out. A leading "v" is taken
 // off the version, as OSV writes them without.
 func ParseComposerLock(data []byte) ([]Package, error) {
 	var lock struct {
@@ -154,6 +154,7 @@ func ParseComposerLock(data []byte) ([]Package, error) {
 	}
 
 	var out []Package
+	left := 0
 	for _, list := range []*[]composerPackage{lock.Packages, lock.PackagesDev} {
 		if list == nil {
 			continue
@@ -163,16 +164,24 @@ func ParseComposerLock(data []byte) ([]Package, error) {
 			if p.Name == "" || version == "" || strings.HasPrefix(version, "dev-") || strings.HasSuffix(version, "-dev") {
 				continue
 			}
+			if p.Dist.Type == "path" {
+				left++ // a local directory, not a Packagist release
+
+				continue
+			}
 			out = append(out, Package{Ecosystem: EcosystemPackagist, Name: p.Name, Version: version})
 		}
 	}
 
-	return out, nil
+	return publicOrError(out, left)
 }
 
 type composerPackage struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
+	Dist    struct {
+		Type string `json:"type"`
+	} `json:"dist"`
 }
 
 // npmV1Entry is one dependency of an npm lock file version 1, which nests what
