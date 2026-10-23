@@ -364,3 +364,23 @@ type PendingCheckRefresher interface {
 type WebhookEventsReporter interface {
 	WebhookEvents(fullName string) (events []string, confirmed bool)
 }
+
+// IssueCloser is implemented by a ForgeClient (or, for github.Client, a Source
+// directly) that can close one of its own issues, checked by type assertion
+// like PullRequestCloser. Closing one that is already closed is not an error
+// on either forge.
+type IssueCloser interface {
+	CloseIssue(ctx context.Context, owner, name string, number int) error
+}
+
+// IssueReopener is the undo for IssueCloser.
+type IssueReopener interface {
+	ReopenIssue(ctx context.Context, owner, name string, number int) error
+}
+
+// IssueCommenter posts a comment on one of a forge's issues. Unlike
+// PullRequestCommenter it carries what a person typed, so the caller bounds
+// and trims the body; the forge is the judge of what it accepts.
+type IssueCommenter interface {
+	CommentIssue(ctx context.Context, owner, name string, number int, body string) error
+}

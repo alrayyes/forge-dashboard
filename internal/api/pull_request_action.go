@@ -27,12 +27,28 @@ type actionTarget struct {
 // when it can't.
 func readActionTarget(w http.ResponseWriter, r *http.Request) (actionTarget, bool) {
 	var req pullRequestActionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
-
+	if !decodeActionBody(w, r, &req) {
 		return actionTarget{}, false
 	}
 
+	return validateActionTarget(w, req)
+}
+
+// decodeActionBody reads the JSON body into into, answering 400 when it isn't
+// JSON.
+func decodeActionBody(w http.ResponseWriter, r *http.Request, into any) bool {
+	if err := json.NewDecoder(r.Body).Decode(into); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorBody("invalid request body"))
+
+		return false
+	}
+
+	return true
+}
+
+// validateActionTarget is readActionTarget once the body is decoded, for an
+// endpoint whose body carries more than the target.
+func validateActionTarget(w http.ResponseWriter, req pullRequestActionRequest) (actionTarget, bool) {
 	if overBound(w, bound{"fullName", req.FullName, maxRepoFullNameLen}) {
 		return actionTarget{}, false
 	}

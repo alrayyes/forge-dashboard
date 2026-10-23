@@ -150,9 +150,11 @@ To use it:
 1. [Register a GitHub App](https://github.com/settings/apps/new) —
    any name, no webhook of its own needed. Under **Repository
    permissions**, grant Contents, Issues, and Pull requests (read and
-   write) for repo discovery, plus **Webhooks (Read and write)** for
-   "Add a webhook", plus **Dependabot alerts (Read-only)** for the advisories
-   on the Branches page (optional, see
+   write) for repo discovery, and for closing an issue or commenting on one
+   from its pop-up (the Issues write permission), plus
+   **Webhooks (Read and write)** for "Add a webhook", plus
+   **Dependabot alerts (Read-only)** for the advisories on the Branches
+   page (optional, see
    [When advisories can't be read](main-branches.md#when-advisories-cant-be-read)),
    plus **Actions (Read and write)** for "Rerun failed
    checks" and for listing workflow runs held for approval; Metadata (read)

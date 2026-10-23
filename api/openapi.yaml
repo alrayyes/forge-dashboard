@@ -80,6 +80,11 @@ tags:
     description: |
       Actions against a pull request already listed on the dashboard,
       taken on the signed-in user's own behalf.
+  - name: issues
+    description: |
+      Actions against an issue the Issues page lists, taken on the signed-in
+      user's own behalf. They need write access to issues, which reading
+      does not.
   - name: queued-actions
     description: |
       Safe actions (Update branch, Dependabot and Renovate rebase) queued to
@@ -2142,6 +2147,209 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/issues/close:
+    post:
+      operationId: closeIssue
+      summary: Close one issue, on the signed-in user's behalf
+      description: |
+        Closes the named issue. The Issues page's dialog offers it, on its own
+        or after posting a comment with `POST /api/issues/comment`. Closing an
+        issue that is already closed is not refused: both forges treat it as
+        done, so the call succeeds and there is no `already_closed` answer.
+
+        A refusal is an `ActionError` classified from the forge's own answer:
+        `permission`, `rate_limited`, `forge_error`, or `unknown` with a
+        plain-words `message`. An issue has no allowed-actions list and no
+        re-read, unlike a pull request.
+
+        Closing, reopening and commenting change the issue, so they need write
+        access to issues, which reading does not: a GitHub token's Issues
+        permission (or the App's) set to Read and write, or a Forgejo token's
+        `write:issue` scope. Without it the forge answers 403 and this
+        endpoint answers an `ActionError` with `code` `permission`, whose
+        `message` names what to add.
+      tags: [issues]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueActionRequest"
+      responses:
+        "204":
+          description: Closed.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't "owner/repo", no credentials are saved for that forge, or that forge's client doesn't support closing issues at all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The forge rejected the request as unauthorized: the saved token or App installation lacks write access to issues, or isn't allowed to close on that repo. `code` is `permission`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The forge reported the repo or issue doesn't exist (or isn't visible to this token). `code` is `unknown`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
+  /api/issues/reopen:
+    post:
+      operationId: reopenIssue
+      summary: Reopen one issue that was closed, on the signed-in user's behalf
+      description: |
+        Reopens the named issue: the undo the dialog offers right after a
+        close. Reopening one that is already open is not refused.
+
+        A refusal is an `ActionError`, classified as for Close.
+
+        Closing, reopening and commenting change the issue, so they need write
+        access to issues, which reading does not: a GitHub token's Issues
+        permission (or the App's) set to Read and write, or a Forgejo token's
+        `write:issue` scope. Without it the forge answers 403 and this
+        endpoint answers an `ActionError` with `code` `permission`, whose
+        `message` names what to add.
+      tags: [issues]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueActionRequest"
+      responses:
+        "204":
+          description: Reopened.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't "owner/repo", no credentials are saved for that forge, or that forge's client doesn't support reopening issues at all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The forge rejected the request as unauthorized: the saved token or App installation lacks write access to issues. `code` is `permission`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The forge reported the repo or issue doesn't exist (or isn't visible to this token). `code` is `unknown`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
+  /api/issues/comment:
+    post:
+      operationId: commentOnIssue
+      summary: Post a comment on one issue, on the signed-in user's behalf
+      description: |
+        Posts `body` as a comment on the named issue. The dialog's "Close with
+        a comment" calls this first and Close second, so when the second call
+        fails the page knows the comment is already there and offers only the
+        close again. On GitHub, with the App as the credential and a personal
+        token saved beside it, the comment is posted as that person.
+
+        A refusal is an `ActionError`, classified as for Close.
+
+        Closing, reopening and commenting change the issue, so they need write
+        access to issues, which reading does not: a GitHub token's Issues
+        permission (or the App's) set to Read and write, or a Forgejo token's
+        `write:issue` scope. Without it the forge answers 403 and this
+        endpoint answers an `ActionError` with `code` `permission`, whose
+        `message` names what to add.
+      tags: [issues]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCommentRequest"
+      responses:
+        "204":
+          description: Posted.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't "owner/repo", `body` was empty, blank or over 65536 characters (the error names `body` as its `field`), no credentials are saved for that forge, or that forge's client doesn't support commenting on issues at all.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: "The forge rejected the request as unauthorized: the saved token or App installation lacks write access to issues. `code` is `permission`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The forge reported the repo or issue doesn't exist (or isn't visible to this token). `code` is `unknown`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
   /api/releases/details:
     get:
       operationId: getReleaseDetails
@@ -3966,6 +4174,43 @@ components:
           type: integer
           maximum: 2147483647
           description: Matching a PullRequest.number from GET /api/dashboard.
+
+    IssueActionRequest:
+      type: object
+      required: [forge, fullName, number]
+      description: Which issue to act on.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: '"owner/repo", matching an Issue.repo from GET /api/dashboard.'
+        number:
+          type: integer
+          maximum: 2147483647
+          description: Matching an Issue.number from GET /api/dashboard.
+
+    IssueCommentRequest:
+      type: object
+      required: [forge, fullName, number, body]
+      description: Which issue to comment on, and what to say.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        fullName:
+          type: string
+          maxLength: 255
+          description: '"owner/repo", matching an Issue.repo from GET /api/dashboard.'
+        number:
+          type: integer
+          maximum: 2147483647
+          description: Matching an Issue.number from GET /api/dashboard.
+        body:
+          type: string
+          minLength: 1
+          maxLength: 65536
+          description: The comment, as Markdown. Blank text is refused.
 
     MainBranchRerunRequest:
       type: object
