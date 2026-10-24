@@ -294,11 +294,16 @@ test.describe('a check run output in the pipeline dialog', () => {
   }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } }, [
       { name: 'queued-job', state: 'queued', url: runUrl, jobId: 7 },
+      { name: 'running-job', state: 'running', url: `${runUrl}1`, jobId: 8 },
       { name: 'done-job', state: 'success', url: `${runUrl}3`, jobId: 9 },
     ]);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
       dialog.getByRole('button', { name: 'View run: done-job' }),
+    ).toBeVisible();
+    // A running check has a log to read already, so View run shows at once.
+    await expect(
+      dialog.getByRole('button', { name: 'View run: running-job' }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('button', { name: 'View run: queued-job' }),
@@ -306,6 +311,23 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(
       dialog.getByRole('link', {
         name: 'Open on GitHub (opens in a new tab): queued-job',
+      }),
+    ).toBeVisible();
+  });
+
+  test('a queued Forgejo check links to Forgejo, not GitHub', async ({
+    page,
+  }) => {
+    await setup(
+      page,
+      { status: 200, body: { text: '', truncated: false } },
+      [{ name: 'queued-job', state: 'queued', url: runUrl, jobId: 7 }],
+      'forgejo',
+    );
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(
+      dialog.getByRole('link', {
+        name: 'Open on Forgejo (opens in a new tab): queued-job',
       }),
     ).toBeVisible();
   });
