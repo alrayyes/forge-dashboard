@@ -24,7 +24,9 @@ const maxClosingRefs = 20
 // (modules/references): a keyword at the start of the text or after
 // whitespace, ( or [; an optional colon; one space; then #N or owner/repo#N.
 // The keyword applies to the one reference right after it, so "closes #1, #2"
-// closes #1 only. !N names a pull request, which can't be closed this way.
+// closes #1 only. The space is a plain one: Forgejo's pattern ends in a literal
+// space, and a no-break or other Unicode space is not read as one. Mentions
+// accept those before a number, so it is still listed there. !N names a pull request, which can't be closed this way.
 var closingRefPattern = regexp.MustCompile(
 	`(?i)(?:^|[\s(\[])(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?):? ` +
 		`(?:([0-9A-Za-z._-]+/[0-9A-Za-z._-]+))?#([0-9]+)\b`)
