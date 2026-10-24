@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.31.5](https://github.com/alrayyes/forge-dashboard/compare/v2.31.4...v2.31.5) (2026-10-24)
+
+
+### Bug Fixes
+
+* **web:** let an issue title use the status column its row never fills ([#2805](https://github.com/alrayyes/forge-dashboard/issues/2805)) ([64a59b0](https://github.com/alrayyes/forge-dashboard/commit/64a59b079281f72b20d35120b5b5e79c441dcd16))
+
 ## [2.31.4](https://github.com/alrayyes/forge-dashboard/compare/v2.31.3...v2.31.4) (2026-10-24)
 
 
