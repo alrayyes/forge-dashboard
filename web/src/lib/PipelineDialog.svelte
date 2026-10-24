@@ -60,7 +60,7 @@
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
-  import { canCopyLog, checkControl } from "#lib/run-log.js";
+  import { canCopyLog, checkControl, checkLinkLabel } from "#lib/run-log.js";
   import {
     activeRuns,
     cancelLocksRepo,
@@ -623,8 +623,7 @@
             href={check.url}
             target="_blank"
             rel="noopener"
-            aria-label="{linkText} (opens in a new tab): {check.name}"
-            >{linkText}</a
+            aria-label={checkLinkLabel(linkText, check.name)}>{linkText}</a
           >
         {/if}
         {#if check.failedStep}
