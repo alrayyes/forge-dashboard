@@ -100,6 +100,33 @@ test.describe('passkey login, one owner', () => {
     await expect(page).toHaveURL(/\/login\.html$/);
   });
 
+  test('after reset-passkeys, signing in switches to creating the first passkey', async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    // The state reset-passkeys leaves: registration open, no passkey to sign in
+    // with. The server's answers are stood in for so the real owner stays put;
+    // which status each case gets is proved in the API tests.
+    await page.route('**/api/auth/registration-status', (route) =>
+      route.fulfill({ json: { open: true } }),
+    );
+    await page.route('**/api/auth/login/begin', (route) =>
+      route.fulfill({
+        status: 404,
+        json: { error: 'no passkey is registered yet' },
+      }),
+    );
+
+    await page.goto('/login.html');
+    await page.click('#login-submit');
+
+    await expect(page.locator('#register-submit')).toBeVisible();
+    await expect(page.locator('#status')).toHaveText(
+      'No passkey is registered yet. Create the first one.',
+    );
+  });
+
   test('the register button is absent once an owner exists', async ({
     page,
     context,

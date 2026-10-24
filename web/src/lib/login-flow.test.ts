@@ -43,4 +43,13 @@ describe('loginFailure', () => {
       message: 'Sign-in failed.',
     });
   });
+
+  test('a browser that found no passkey says where a missing one comes from', () => {
+    const err = new Error('The operation either timed out or was not allowed.');
+    err.name = 'NotAllowedError';
+    const got = loginFailure(err, false);
+    expect(got.action).toBe('show');
+    expect(got.message).toContain('no passkey saved for this site');
+    expect(got.message).toContain('Settings');
+  });
 });

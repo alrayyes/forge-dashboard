@@ -27,6 +27,14 @@ export function loginFailure(
       message: 'No passkey is registered yet. Create the first one.',
     };
   }
+  if (err instanceof Error && err.name === 'NotAllowedError') {
+    return {
+      action: 'show',
+      message:
+        'Sign-in was cancelled, or this device has no passkey saved for this site. ' +
+        'A passkey kept only on a security key can no longer sign in: sign in on a device that has a saved one and add a new passkey in Settings.',
+    };
+  }
   const message = err instanceof Error ? err.message : '';
   return { action: 'show', message: message || 'Sign-in failed.' };
 }
