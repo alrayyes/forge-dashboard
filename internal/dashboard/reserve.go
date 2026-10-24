@@ -67,7 +67,7 @@ func (l *reserveLedger) record(k costKey, points int) {
 // reads would keep the hold from ever learning. A REST count of zero is a
 // sample like any other, since a cached answer is free, but the hold goes by
 // the dearest recent one.
-func (a *Aggregator) noteSpend(results []Result) {
+func (a *Aggregator) noteSpend(results []sourceResult) {
 	for i, r := range results {
 		if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" {
 			continue
