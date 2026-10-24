@@ -4134,6 +4134,7 @@
       item: PullRequestItem,
       action: "rebase" | "recreate",
       button: HTMLButtonElement,
+      focusWasOnConfirm = false,
     ) {
       const key = dependabotActionKey(prKey(item), action);
       dependabotActionState[key] = {
@@ -4158,16 +4159,30 @@
       // the response lands. Focus goes back to the button that was clicked.
       // Recreate's confirm is gone once the request is queued, so focus goes
       // to the Recreate button that takes its place.
-      const focusId =
+      // In a row the Recreate button lives in a menu that is closed by now, so
+      // the row's own controls are the fallbacks, in order.
+      const safe = domSafeId(prKey(item));
+      const focusIds =
         action === "recreate"
-          ? button.id.replace("recreate-confirm-", "dependabot-recreate-")
-          : button.id;
-      // Confirming already redrew the confirm away and moved the focus off it,
-      // so the confirm of a Recreate always hands focus on.
-      const hadFocus =
-        action === "recreate" || document.activeElement === button;
+          ? [
+              button.id.replace("recreate-confirm-", "dependabot-recreate-"),
+              `recreate-arm-${safe}`,
+              `details-trigger-${safe}`,
+            ]
+          : [button.id];
+      // Confirming already redrew the confirm away, so the caller says whether
+      // the focus was on it. A mouse click or a retry from the toast was not.
+      const hadFocus = focusWasOnConfirm || document.activeElement === button;
       renderPRBoard();
-      if (hadFocus && focusId) document.getElementById(focusId)?.focus();
+      if (hadFocus) {
+        for (const id of focusIds) {
+          const target = id ? document.getElementById(id) : null;
+          if (target) {
+            target.focus();
+            break;
+          }
+        }
+      }
 
       // Stays "queued" — Dependabot acts on its own schedule, so the button
       // holds until the next snapshot lands (applySnapshot clears it) rather
@@ -4303,9 +4318,14 @@
       confirmButton.id = `${scope}recreate-confirm-${domSafeId(key)}`;
       const noteId = `${scope}recreate-note-${domSafeId(key)}`;
       confirmButton.setAttribute("aria-describedby", noteId);
+      // Runs before confirmGroup's own click handler redraws the confirm away.
+      let onConfirmButton = false;
+      confirmButton.addEventListener("click", () => {
+        onConfirmButton = document.activeElement === confirmButton;
+      });
       confirmGroup("recreate", item, wrap, confirmButton, () => {
         delete recreateState[key];
-        doDependabotAction(item, "recreate", confirmButton);
+        doDependabotAction(item, "recreate", confirmButton, onConfirmButton);
       });
       const note = el(
         "span",
@@ -4458,6 +4478,7 @@
         updateBranchState,
         dependabotActionState,
         renovateRebaseState,
+        cancelRenovateRebaseState,
       ].some((stateMap) => Object.values(stateMap).some(inFlight));
     }
 
@@ -5627,6 +5648,8 @@
 
     function doCancelRenovateRebase(item: PullRequestItem) {
       const key = prKey(item);
+      // A poll or a toast retry during the POST must not send a second one.
+      if (cancelRenovateRebaseState[key]?.phase === "requesting") return;
       const cancelling = "Cancelling the Renovate rebase…";
       const cancelled = "Renovate rebase cancelled.";
       cancelRenovateRebaseState[key] = { phase: "requesting" };
@@ -5680,7 +5703,9 @@
           });
           // The forge already took the cancel. A refresh that fails is not a
           // failed action: the next poll brings the board up to date.
-          return refreshBoard(true);
+          // Redrawn from local state once it settles, so a refresh that failed
+          // doesn't leave "Cancelling…" on the board until then.
+          return refreshBoard(true).then(() => keepFocusAcross(renderPRBoard));
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(

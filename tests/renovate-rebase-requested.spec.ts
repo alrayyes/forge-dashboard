@@ -154,6 +154,32 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     );
   });
 
+  test('a refresh that fails after the cancel does not leave Cancelling… on the board', async ({
+    page,
+  }) => {
+    let cancelled = false;
+    await serve(page, { rebase: CANCEL, extra: { botRequest: BOT_REQUEST } });
+    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+      cancelled
+        ? route.fulfill({ status: 500, body: 'down' })
+        : route.fallback(),
+    );
+    await page.route(
+      '**/api/pull-requests/renovate-rebase/cancel',
+      (route: Route) => {
+        cancelled = true;
+        return route.fulfill({ status: 204 });
+      },
+    );
+    const row = await openRow(page);
+
+    await row.getByRole('button', { name: CANCEL_NAME }).click();
+
+    await expect(row.getByRole('button', { name: 'Cancelling…' })).toHaveCount(
+      0,
+    );
+  });
+
   test('a refused cancel says why and keeps the cancel', async ({ page }) => {
     await page.route(
       '**/api/pull-requests/renovate-rebase/cancel',

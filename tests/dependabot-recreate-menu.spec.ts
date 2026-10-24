@@ -225,6 +225,32 @@ test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
     await expect(footer).not.toContainText('is pending on this pull request');
   });
 
+  test('keyboard: confirming Recreate in the row keeps the focus on the row', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    await recordPosts(page);
+    await page.goto('/bots.html');
+    const row = rowOf(page);
+
+    await toggleOf(row).focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await expect(
+      row.getByRole('button', { name: 'Confirm recreate?' }),
+    ).toBeFocused();
+    // An Enter straight after the confirm appears is ignored on purpose, so
+    // press until the guard lets one through. The menu is closed by then and
+    // the row keeps only its wait chip, so the focus has to land on the row.
+    await expect(async () => {
+      await page.keyboard.press('Enter');
+      await expect(
+        row.getByRole('button', { name: 'Confirm recreate?' }),
+      ).toHaveCount(0, { timeout: 300 });
+    }).toPass();
+    await expect(row.locator('[id^="details-trigger-"]')).toBeFocused();
+  });
+
   test('a queued Rebase leaves neither Dependabot command in the menu', async ({
     page,
   }) => {
