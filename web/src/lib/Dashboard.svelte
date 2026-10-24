@@ -2499,6 +2499,10 @@
     // waiting, so the row says what the pull request is waiting on.
     function rebaseBesideMerge(pr: PullRequestItem): HTMLElement | null {
       if (!pr.behind || primaryAction(pr)?.action !== "merge") return null;
+      // A merged or closed row keeps its badge alone, and a Merge armed for
+      // confirm or in flight leaves no second button to click beside it.
+      if (isSettled(pr)) return null;
+      if ((mergeState[prKey(pr)]?.phase ?? "idle") !== "idle") return null;
       return (
         renovateRebaseActionCell(pr) ??
         (findAction(pr, "dependabot_rebase") ? dependabotSplitCell(pr) : null)

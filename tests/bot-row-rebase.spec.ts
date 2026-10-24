@@ -155,7 +155,6 @@ const mergeable = {
   ci: 'success',
   mergeStatus: 'mergeable',
   author: 'renovate',
-  forge: 'forgejo',
 };
 const requested = {
   action: 'renovate_rebase',
@@ -210,5 +209,81 @@ test('a behind mergeable Renovate pull request with the box unticked shows Renov
   await expect(
     bar.getByRole('button', { name: 'Renovate: Rebase' }),
   ).toBeEnabled();
+  await expectNoAxeViolations(page);
+});
+
+test('a behind mergeable Dependabot pull request shows Dependabot: Rebase beside Merge', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ci: 'success',
+      mergeStatus: 'mergeable',
+      author: 'dependabot[bot]',
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'dependabot_rebase' },
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await expect(bar.getByRole('button', { name: 'Merge' })).toBeVisible();
+  await expect(
+    bar.getByRole('button', { name: 'Dependabot: Rebase' }),
+  ).toBeVisible();
+  await expectNoAxeViolations(page);
+});
+
+test('the rebase beside Merge goes while Merge waits for its confirmation', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'renovate_rebase' },
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await bar.getByRole('button', { name: 'Merge' }).click();
+  await expect(
+    bar.getByRole('button', { name: 'Renovate: Rebase' }),
+  ).toHaveCount(0);
+});
+
+test('a behind mergeable Renovate pull request fits a 360px row with Merge and the rebase reachable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        requested,
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  for (const name of ['Merge', /Renovate: Rebase/]) {
+    const button = bar.getByRole('button', { name });
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeInViewport({ ratio: 1 });
+  }
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
   await expectNoAxeViolations(page);
 });
