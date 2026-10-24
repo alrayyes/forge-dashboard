@@ -13,13 +13,52 @@ type ClosingIndex map[string][]PullRequest
 
 // PullRequestsClosing indexes prs by the issues they close.
 func PullRequestsClosing(prs []PullRequest) ClosingIndex {
+	return indexByIssue(prs, func(pr PullRequest) []IssueRef { return pr.ClosesIssues })
+}
+
+// PullRequestsMentioning indexes prs by the issues they mention without
+// closing: a mention of an issue the same pull request closes is left to the
+// closing list, so the two never repeat each other.
+func PullRequestsMentioning(prs []PullRequest) ClosingIndex {
+	return indexByIssue(prs, PullRequest.MentionedOnly)
+}
+
+// MentionedOnly lists the references pr mentions without closing: the
+// mentions less what ClosesIssues holds, which is the forge's own word on what
+// closes. Cut at maxClosingRefs after the closed ones are off, so a long
+// description doesn't push real mentions out. Never nil.
+func (pr PullRequest) MentionedOnly() []IssueRef {
+	closed := map[string]struct{}{}
+	for _, ref := range pr.ClosesIssues {
+		closed[IssueKey(pr.Forge, ref.Repo, ref.Number)] = struct{}{}
+	}
+	out := []IssueRef{}
+	for _, ref := range pr.MentionsIssues {
+		if _, isClosed := closed[IssueKey(pr.Forge, ref.Repo, ref.Number)]; isClosed {
+			continue
+		}
+		if out = append(out, ref); len(out) == maxClosingRefs {
+			break
+		}
+	}
+
+	return out
+}
+
+// IssuePageURL is the address on this dashboard that opens an issue's pop-up
+// on the Issues page.
+func IssuePageURL(forge Forge, repo string, number int) string {
+	return "/issues.html?issue=" + string(forge) + "/" + repo + "/" + strconv.Itoa(number)
+}
+
+func indexByIssue(prs []PullRequest, refsOf func(PullRequest) []IssueRef) ClosingIndex {
 	index := ClosingIndex{}
 	for _, pr := range prs {
 		// Forgejo reads "Closes #5" and "Closes Owner/Repo#5" as two
 		// references to one issue, so a pull request is added once per issue.
 		seen := map[string]struct{}{}
-		for _, ref := range pr.ClosesIssues {
-			key := closingKey(pr.Forge, ref.Repo, ref.Number)
+		for _, ref := range refsOf(pr) {
+			key := IssueKey(pr.Forge, ref.Repo, ref.Number)
 			if _, dup := seen[key]; dup {
 				continue
 			}
@@ -45,7 +84,7 @@ func PullRequestsClosing(prs []PullRequest) ClosingIndex {
 // forge, and a repo's name is compared without regard to case, since Forgejo
 // writes a reference lowercased.
 func (c ClosingIndex) For(issue Issue) []PullRequest {
-	found := c[closingKey(issue.Forge, issue.Repo, issue.Number)]
+	found := c[IssueKey(issue.Forge, issue.Repo, issue.Number)]
 	if found == nil {
 		return []PullRequest{}
 	}
@@ -53,6 +92,8 @@ func (c ClosingIndex) For(issue Issue) []PullRequest {
 	return found
 }
 
-func closingKey(forge Forge, repo string, number int) string {
+// IssueKey is the key one issue goes by across the closing and mention lists:
+// its forge, its repo without regard to case, and its number.
+func IssueKey(forge Forge, repo string, number int) string {
 	return string(forge) + "\x00" + strings.ToLower(repo) + "\x00" + strconv.Itoa(number)
 }

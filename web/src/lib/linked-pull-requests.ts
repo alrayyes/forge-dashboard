@@ -71,13 +71,17 @@ export function linkedPillName(
   pr: LinkedPullRequest,
   issueRepo: string,
   ci?: PillCi | null,
+  relation: Relation = 'closes',
 ) {
   const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
-  if (!ci) return `Pull request ${head}, closes this issue`;
+  if (!ci) return `Pull request ${head}, ${relation} this issue`;
   const said =
     ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
-  return `Pull request ${head} ${said}, closes this issue`;
+  return `Pull request ${head} ${said}, ${relation} this issue`;
 }
+
+/** What a pull request does to the issue its pill sits on. */
+export type Relation = 'closes' | 'mentions';
 
 /** The pills a row shows, and the ones kept behind the count. */
 export function splitLinked(list: LinkedPullRequest[]) {
@@ -157,6 +161,7 @@ export function linkedPills(
   onOpen?: (pr: LinkedPullRequest, triggerId: string) => void,
   renderCi?: PillCiRenderer,
   onFollow?: (pr: LinkedPullRequest) => void,
+  relation: Relation = 'closes',
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
@@ -164,7 +169,13 @@ export function linkedPills(
   const pill = (pr: LinkedPullRequest) => {
     const link = element(
       onOpen !== undefined ? 'button' : 'a',
-      ['linked-pr', pr.draft ? 'draft' : ''].filter(Boolean).join(' '),
+      [
+        'linked-pr',
+        pr.draft ? 'draft' : '',
+        relation === 'mentions' ? 'mention-pill' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
     );
     if (link instanceof HTMLAnchorElement) {
       link.href = pr.pageUrl;
@@ -212,7 +223,10 @@ export function linkedPills(
       link.append(' ', ci.badge);
       link.classList.add('with-ci');
     }
-    link.setAttribute('aria-label', linkedPillName(pr, issueRepo, ci));
+    link.setAttribute(
+      'aria-label',
+      linkedPillName(pr, issueRepo, ci, relation),
+    );
     return link;
   };
   wrap.append(...shown.map(pill));
@@ -222,7 +236,9 @@ export function linkedPills(
   more.type = 'button';
   more.setAttribute(
     'aria-label',
-    `${rest.length} more pull requests that will close this issue`,
+    relation === 'mentions'
+      ? `${rest.length} more pull requests that mention this issue`
+      : `${rest.length} more pull requests that will close this issue`,
   );
   const reveal = () => {
     const extra = rest.map(pill);
