@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.33.2](https://github.com/alrayyes/forge-dashboard/compare/v2.33.1...v2.33.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **auth:** cap the name of a passkey when adding one, like rename does ([#2823](https://github.com/alrayyes/forge-dashboard/issues/2823)) ([e6510ee](https://github.com/alrayyes/forge-dashboard/commit/e6510ee76a09e9d0f31832a405d92858f1869181))
+
 ## [2.33.1](https://github.com/alrayyes/forge-dashboard/compare/v2.33.0...v2.33.1) (2026-10-24)
 
 
