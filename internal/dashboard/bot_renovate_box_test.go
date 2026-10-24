@@ -195,3 +195,20 @@ func TestAggregator_BoxOverrideLifetime(t *testing.T) {
 		assert.Equal(t, 1, agg.BoxOverrideCount())
 	})
 }
+
+func TestAggregator_PollCIKeepsTheBoxOverrideOfAPullRequestItDidNotRead(t *testing.T) {
+	t.Parallel()
+
+	src := newBatchSource()
+	quiet := dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: 8, CI: dashboard.CISuccess}
+	src.setRepo("o/r", []dashboard.PullRequest{pendingPR("o/r", 7), quiet})
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 8, true)
+	require.Equal(t, 1, agg.BoxOverrideCount())
+
+	agg.PollCI(t.Context())
+
+	require.Len(t, src.lastBatch(), 1, "only the pending pull request is asked about")
+	assert.Equal(t, 1, agg.BoxOverrideCount(), "the poll never read #8's description")
+}
