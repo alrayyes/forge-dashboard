@@ -4,7 +4,7 @@ import {
   type DependabotButtonInput,
   dependabotActionKey,
   dependabotButtonDecision,
-  dependabotPendingReason,
+  dependabotServerLock,
 } from './dependabot-action';
 
 const KEY = 'github:alrayyes/forge-dashboard#42';
@@ -95,31 +95,30 @@ describe('dependabotButtonDecision', () => {
     ).toBe('locked');
   });
 
-  test('a queued Recreate locks Rebase, naming Recreate', () => {
-    const states = {
-      [dependabotActionKey(KEY, 'recreate')]: { phase: 'queued' },
-    };
-    expect(
-      dependabotButtonDecision(input({ action: 'rebase', states })),
-    ).toEqual({
-      kind: 'locked',
-      lock: 'A Dependabot Recreate is pending on this pull request.',
-      printNote: false,
-    });
-  });
+  // Dependabot has no command to withdraw a request, so a pending one leaves
+  // neither button: the wait chip says what the pull request is waiting on.
+  for (const pending of ['rebase', 'recreate'] as const) {
+    for (const phase of ['queued', 'rebasing']) {
+      test(`a ${phase} ${pending} draws neither command`, () => {
+        const states = { [dependabotActionKey(KEY, pending)]: { phase } };
+        for (const action of ['rebase', 'recreate'] as const) {
+          expect(dependabotButtonDecision(input({ action, states }))).toEqual({
+            kind: 'hidden',
+          });
+        }
+      });
+    }
+  }
 
-  test('the dialog prints the reason beside a pending lock', () => {
+  test('a pending command on another pull request leaves this one alone', () => {
     const states = {
-      [dependabotActionKey(KEY, 'rebase')]: { phase: 'rebasing' },
+      [dependabotActionKey('github:alrayyes/other#7', 'rebase')]: {
+        phase: 'queued',
+      },
     };
-    expect(
-      dependabotButtonDecision(
-        input({ action: 'recreate', states, printReason: true }),
-      ),
-    ).toEqual({
-      kind: 'locked',
-      lock: 'A Dependabot Rebase is pending on this pull request.',
-      printNote: true,
+    expect(dependabotButtonDecision(input({ states }))).toEqual({
+      kind: 'button',
+      queued: false,
     });
   });
 
@@ -221,38 +220,22 @@ describe('dependabotButtonDecision', () => {
       ).kind,
     ).toBe('button');
   });
-
-  test('a queued or rebasing request draws a pending button', () => {
-    for (const phase of ['queued', 'rebasing']) {
-      const states = { [dependabotActionKey(KEY, 'rebase')]: { phase } };
-      expect(dependabotButtonDecision(input({ states }))).toEqual({
-        kind: 'button',
-        queued: true,
-      });
-    }
-  });
 });
 
-describe('dependabotPendingReason', () => {
-  test('is undefined with nothing pending', () => {
-    expect(
-      dependabotPendingReason(KEY, 'rebase', {}, undefined),
-    ).toBeUndefined();
+describe('dependabotServerLock', () => {
+  test('is undefined with no server entry or no block', () => {
+    expect(dependabotServerLock(undefined)).toBeUndefined();
+    expect(dependabotServerLock({})).toBeUndefined();
   });
 
   test('gives the message of a server entry blocked for any reason', () => {
     expect(
-      dependabotPendingReason(
-        KEY,
-        'recreate',
-        {},
-        {
-          blocked: {
-            code: 'blocked_by_protection',
-            message: 'Workflow runs are waiting for approval',
-          },
+      dependabotServerLock({
+        blocked: {
+          code: 'blocked_by_protection',
+          message: 'Workflow runs are waiting for approval',
         },
-      ),
+      }),
     ).toBe('Workflow runs are waiting for approval');
   });
 });

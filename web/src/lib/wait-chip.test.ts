@@ -25,6 +25,7 @@ const kinds: WaitKind[] = [
   'reopen',
   'enable-auto-merge',
   'cancel-auto-merge',
+  'cancel-bot-rebase',
 ];
 
 function input(overrides: Partial<WaitInput> = {}): WaitInput {

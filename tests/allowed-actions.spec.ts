@@ -85,7 +85,7 @@ const names = async (row: Locator) => {
 // reason, or a Renovate rebase that is already waiting, or nothing. Everything
 // else is in the pop-up's footer.
 const ROW_ACTION =
-  /^(Merge|Update branch|Close pull request|Enable auto-merge|Cancel auto-merge|Dependabot: |Renovate: )/;
+  /^(Merge|Update branch|Close pull request|Enable auto-merge|Cancel auto-merge|Dependabot: |Renovate: |Cancel Renovate rebase)/;
 const rowActions = async (row: Locator) =>
   (await row.getByRole('button', { name: ROW_ACTION }).allInnerTexts()).map(
     (t) => t.trim(),
@@ -144,7 +144,7 @@ test.describe('the row draws one action (#943)', () => {
     expect(await rowActions(row)).toEqual([]);
   });
 
-  test('a Renovate rebase that is already waiting stays on the row, locked', async ({
+  test('a Renovate rebase that is already requested leaves only the cancel on the row', async ({
     page,
   }) => {
     const row = await open(
@@ -159,21 +159,15 @@ test.describe('the row draws one action (#943)', () => {
             blocked: { code: 'behind', message: 'Behind the base branch' },
           },
           { action: 'close' },
-          {
-            action: 'renovate_rebase',
-            blocked: {
-              code: 'already_requested',
-              message: 'Rebase requested',
-            },
-          },
+          { action: 'cancel_renovate_rebase' },
         ],
         status: { code: 'behind', message: 'Behind the base branch' },
       }),
     );
-    expect(await rowActions(row)).toEqual(['Renovate: Rebase']);
+    expect(await rowActions(row)).toEqual(['Cancel Renovate rebase']);
     await expect(
       row.getByRole('button', { name: 'Renovate: Rebase' }),
-    ).toHaveAttribute('aria-disabled', 'true');
+    ).toHaveCount(0);
   });
 });
 

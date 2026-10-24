@@ -1530,6 +1530,7 @@
               : null,
         ],
         ["renovate_rebase", () => renovateRebaseActionCell(item)],
+        ["cancel_renovate_rebase", () => cancelRenovateRebaseCell(item)],
         ["auto_merge", () => autoMergeActionCell(item)],
         ["cancel_auto_merge", () => cancelAutoMergeCell(item)],
         ["rerun_checks", () => rerunChecksActionCell(item)],
@@ -2476,16 +2477,13 @@
         case "close":
           return closeActionCell(pr);
         case undefined:
-          // A Renovate rebase that is already waiting keeps its locked
-          // button: it says what the pull request is waiting on. Otherwise a
-          // locked Merge reads as the row's only button.
-          if (findAction(pr, "renovate_rebase")?.blocked)
-            return fix === "renovate_rebase"
-              ? null
-              : renovateRebaseActionCell(pr);
-          // A Rebase locked by a pending Recreate, or by runs held for
-          // approval, keeps its place, so the row still says what it is
-          // waiting on.
+          // A Renovate rebase already requested through its box offers the
+          // cancel and no request. Otherwise a locked Merge reads as the
+          // row's only button.
+          if (findAction(pr, "cancel_renovate_rebase"))
+            return cancelRenovateRebaseCell(pr);
+          // A Rebase locked by runs held for approval keeps its place, so the
+          // row still says what it is waiting on.
           if (findAction(pr, "dependabot_rebase")?.blocked)
             return fix === "dependabot_rebase" ? null : dependabotSplitCell(pr);
           if (findAction(pr, "merge")?.blocked) return mergeAction;
@@ -2509,6 +2507,7 @@
         return null;
       return (
         renovateRebaseActionCell(pr) ??
+        cancelRenovateRebaseCell(pr) ??
         (findAction(pr, "dependabot_rebase") ? dependabotSplitCell(pr) : null)
       );
     }
@@ -5530,21 +5529,6 @@
 
       const queued = entry.phase === "queued" || entry.phase === "rebasing";
 
-      // Renovate's rebase box is ticked, here or on the forge, so one is
-      // already waiting: the server blocks a second and says why (#1349).
-      // Shown disabled, the reason first and what happens next under it, as
-      // Merge's is. A request made through this page has its own pending
-      // button below, which says the same in fewer words, so this is for the
-      // box someone ticked elsewhere. It clears on the next snapshot once
-      // Renovate has rebased.
-      if (offered.blocked && !queued)
-        return lockedActionButton(
-          "Renovate: Rebase",
-          { reason: offered.blocked.message, code: offered.blocked.code },
-          undefined,
-          offered.blocked.next ?? "",
-        );
-
       const button = buttonEl(
         "row-action",
         queued ? queuedBotLabel(true) : "Renovate: Rebase",
@@ -5553,6 +5537,100 @@
       button.addEventListener("click", () => {
         if (isPending(button)) return;
         doRenovateRebase(item, button);
+      });
+      return button;
+    }
+
+    // ---- cancel a requested Renovate rebase ----
+    // A rebase asked for through Renovate's box in the description is withdrawn
+    // by clearing the box. The server lists this action instead of the request
+    // while the box is ticked, so a requested rebase never draws a second
+    // request button, only this.
+    const cancelRenovateRebaseState: Record<string, ActionState> = {};
+
+    function doCancelRenovateRebase(item: PullRequestItem) {
+      const key = prKey(item);
+      const cancelling = "Cancelling the Renovate rebase…";
+      const cancelled = "Renovate rebase cancelled.";
+      cancelRenovateRebaseState[key] = { phase: "requesting" };
+      keepFocusAcross(renderPRBoard);
+      const fkey = `cancel-renovate-rebase:${key}`;
+      feedback.start({
+        actionKey: fkey,
+        ref: actionRef(item),
+        label: "Cancel Renovate rebase",
+        kind: "cancel-bot-rebase",
+        phase: "working",
+        bot: botLineInfo("Renovate"),
+        inline: cancelling,
+        message: cancelling,
+        announce: cancelling,
+        retry: () => doCancelRenovateRebase(item),
+      });
+
+      fetch("/api/pull-requests/renovate-rebase/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        }),
+      })
+        .then((res) => {
+          if (res.status === 401) {
+            window.location.href = "/login.html";
+            throw new Error("session expired");
+          }
+          if (res.status === 204) return null;
+          return readActionFailure(res).then((err) => {
+            throw err;
+          });
+        })
+        .then(() => {
+          delete cancelRenovateRebaseState[key];
+          delete renovateRebaseState[key];
+          feedback.update(fkey, {
+            phase: "done",
+            message: cancelled,
+            toast: true,
+            announce: cancelled,
+          });
+          // The forge already took the cancel. A refresh that fails is not a
+          // failed action: the next poll brings the board up to date.
+          return refreshBoard();
+        })
+        .catch((err: ActionRequestError) => {
+          renderActionRefusal(
+            item,
+            err,
+            fkey,
+            "cancel the Renovate rebase",
+            (next) => {
+              cancelRenovateRebaseState[key] = next;
+            },
+          );
+        });
+    }
+
+    function cancelRenovateRebaseCell(
+      item: PullRequestItem,
+    ): HTMLElement | null {
+      if (!findAction(item, "cancel_renovate_rebase")) return null;
+
+      const requesting =
+        cancelRenovateRebaseState[prKey(item)]?.phase === "requesting";
+      const button = buttonEl(
+        "row-action",
+        requesting ? "Cancelling…" : "Cancel Renovate rebase",
+      );
+      button.type = "button";
+      button.disabled = requesting;
+      button.addEventListener("click", () => {
+        doCancelRenovateRebase(item);
       });
       return button;
     }

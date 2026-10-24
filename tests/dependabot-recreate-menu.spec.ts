@@ -46,27 +46,10 @@ function pendingRequest(action: 'rebase' | 'recreate') {
   };
 }
 
-// What the server answers while a request is pending: the other command is
-// blocked with a reason that names the pending one.
-function lockedActions(pending: 'rebase' | 'recreate') {
-  const name = pending === 'rebase' ? 'Rebase' : 'Recreate';
-  const locked =
-    pending === 'rebase' ? 'dependabot_recreate' : 'dependabot_rebase';
-  const free =
-    pending === 'rebase' ? 'dependabot_rebase' : 'dependabot_recreate';
-  return [
-    { action: 'close' },
-    { action: free },
-    {
-      action: locked,
-      blocked: {
-        code: 'already_requested',
-        message: `A Dependabot ${name} is pending on this pull request.`,
-        next: 'It unlocks once Dependabot has finished.',
-      },
-    },
-  ];
-}
+// What the server answers while a request is pending: neither command, since
+// Dependabot has no command to withdraw one. The wait chip says what the row
+// is waiting on.
+const PENDING_ACTIONS = [{ action: 'close' }];
 
 function mockDashboard(page: Page, pr: Mock, forgeExtra: Mock = {}) {
   return page.route('**/api/dashboard*', (route: Route) =>
@@ -217,7 +200,7 @@ test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
     await expect(row.getByRole('menu')).toHaveCount(0);
   });
 
-  test('a queued Recreate reads Recreate requested and locks Rebase, naming it', async ({
+  test('a queued Recreate leaves neither Dependabot command on the row or in the pop-up', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -230,21 +213,22 @@ test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
     await row.getByRole('button', { name: 'Confirm recreate?' }).click();
 
     await expect(
-      (await openFooter(row)).getByRole('button', {
-        name: 'Recreate requested',
-      }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    await closeActionsDialog(
-      page.getByRole('dialog', { name: /^Pull request details/ }),
-    );
-    const rebase = row.getByRole('button', { name: 'Dependabot: Rebase' });
-    await expect(rebase).toHaveAttribute('aria-disabled', 'true');
-    await expect(rebase).toHaveAccessibleDescription(
-      'A Dependabot Recreate is pending on this pull request.',
-    );
+      row.getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
+    ).toHaveCount(0);
+    await expect(
+      row.getByRole('button', { name: 'Recreate requested' }),
+    ).toHaveCount(0);
+    const footer = await openFooter(row);
+    await expect(
+      footer.getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
+    ).toHaveCount(0);
+    await expect(
+      footer.getByRole('button', { name: /(Rebase|Recreate) requested/ }),
+    ).toHaveCount(0);
+    await expect(footer).not.toContainText('is pending on this pull request');
   });
 
-  test('a queued Rebase locks Recreate in the menu, naming it', async ({
+  test('a queued Rebase leaves neither Dependabot command in the menu', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -253,50 +237,36 @@ test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
     const row = rowOf(page);
 
     await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
-    const menu = await openMenu(row);
-    const recreate = menu.getByRole('menuitem', {
-      name: 'Dependabot: Recreate',
-    });
-    await expect(recreate).toHaveAttribute('aria-disabled', 'true');
-    await expect(menu).toContainText(
-      'A Dependabot Rebase is pending on this pull request.',
-    );
+
+    await expect(
+      row.getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
+    ).toHaveCount(0);
+    await expect(toggleOf(row)).toHaveCount(0);
   });
 
   for (const pending of ['recreate', 'rebase'] as const) {
-    test(`a ${pending} the server already has locks the other command in the row, the menu and the pop-up`, async ({
+    test(`a ${pending} the server already has leaves neither command in the row, the menu and the pop-up`, async ({
       page,
     }) => {
       await mockDashboard(
         page,
         makePR({
           botRequest: pendingRequest(pending),
-          allowedActions: lockedActions(pending),
+          allowedActions: PENDING_ACTIONS,
         }),
       );
       await page.goto('/bots.html');
       const row = rowOf(page);
-      const name = pending === 'rebase' ? 'Rebase' : 'Recreate';
-      const reason = `A Dependabot ${name} is pending on this pull request.`;
-      const lockedName =
-        pending === 'rebase' ? 'Dependabot: Recreate' : 'Dependabot: Rebase';
+      const commands = /Dependabot: (Rebase|Recreate)/;
 
-      if (pending === 'recreate') {
-        await expect(
-          row.getByRole('button', { name: lockedName }),
-        ).toHaveAccessibleDescription(reason);
-      } else {
-        const menu = await openMenu(row);
-        await expect(
-          menu.getByRole('menuitem', { name: lockedName }),
-        ).toHaveAttribute('aria-disabled', 'true');
-        await expect(menu).toContainText(reason);
-      }
+      await expect(row.getByRole('button', { name: commands })).toHaveCount(0);
+      await expect(toggleOf(row)).toHaveCount(0);
 
       const footer = await openFooter(row);
-      const locked = footer.getByRole('button', { name: lockedName });
-      await expect(locked).toHaveAttribute('aria-disabled', 'true');
-      await expect(footer).toContainText(reason);
+      await expect(footer.getByRole('button', { name: commands })).toHaveCount(
+        0,
+      );
+      await expect(footer).not.toContainText('is pending on this pull request');
     });
   }
 

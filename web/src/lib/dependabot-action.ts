@@ -31,21 +31,27 @@ export function dependabotActionKey(
   return `${prKey}:${action}`;
 }
 
-// Why a command can't be sent because the other one is pending, or undefined.
-// Local state answers first, so the lock is there the moment a click queues
-// the other command; the server's own entry covers a request made elsewhere
-// or before a reload, and any other block it lists (runs held for approval).
-export function dependabotPendingReason(
+// Whether a command this page sent is still waiting on Dependabot. Dependabot
+// has no command to withdraw one, so while either is waiting neither is drawn:
+// the wait chip says what the pull request is waiting on. A request made
+// elsewhere or before a reload is covered by the server, which then lists
+// neither command at all.
+export function dependabotCommandPending(
   prKey: string,
-  action: DependabotAction,
   states: Record<string, DependabotActionEntry>,
+): boolean {
+  return (['rebase', 'recreate'] as const).some((action) => {
+    const phase = states[dependabotActionKey(prKey, action)]?.phase;
+    return phase === 'queued' || phase === 'rebasing';
+  });
+}
+
+// Why the server holds a listed command back (runs held for approval), or
+// undefined.
+export function dependabotServerLock(
   serverEntry: DependabotServerEntry | undefined,
 ): string | undefined {
-  const other: DependabotAction = action === 'rebase' ? 'recreate' : 'rebase';
-  const phase = states[dependabotActionKey(prKey, other)]?.phase;
-  if (phase === 'queued' || phase === 'rebasing')
-    return `A Dependabot ${other === 'rebase' ? 'Rebase' : 'Recreate'} is pending on this pull request.`;
-  return serverEntry?.blocked ? serverEntry.blocked.message : undefined;
+  return serverEntry?.blocked?.message;
 }
 
 export type DependabotButtonInput = {
@@ -89,13 +95,10 @@ export function dependabotButtonDecision(
       printNote: false,
     };
 
+  if (dependabotCommandPending(i.prKey, i.states)) return { kind: 'hidden' };
+
   if (entry.phase === 'idle') {
-    const pending = dependabotPendingReason(
-      i.prKey,
-      i.action,
-      i.states,
-      i.serverEntry(),
-    );
+    const pending = dependabotServerLock(i.serverEntry());
     if (pending)
       return { kind: 'locked', lock: pending, printNote: i.printReason };
     // A forge that is spent or unreachable is read-only: one banner says so,
@@ -108,8 +111,5 @@ export function dependabotButtonDecision(
       return { kind: 'confirm' };
   }
 
-  return {
-    kind: 'button',
-    queued: entry.phase === 'queued' || entry.phase === 'rebasing',
-  };
+  return { kind: 'button', queued: false };
 }

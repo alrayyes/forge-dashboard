@@ -118,9 +118,14 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
 
   async function request(page: Page) {
     await row(page).getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    // Dependabot has no command to withdraw a request, so neither command is
+    // drawn while one waits: the chip says what the row is waiting on.
+    await expect(
+      row(page).getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
+    ).toHaveCount(0);
     await expect(
       row(page).getByRole('button', { name: 'Rebase requested' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     // The server has answered 204, so nothing later overwrites the live region.
     await expect(page.locator('#feedback-toasts')).toContainText(
       'rebase requested.',
@@ -181,9 +186,14 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
     await expect(page.locator('#feedback-live')).toContainText(
       'Dependabot acknowledged your rebase.',
     );
+    // Dependabot has no command to withdraw a request, so neither command is
+    // drawn while one waits: the chip says what the row is waiting on.
+    await expect(
+      row(page).getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
+    ).toHaveCount(0);
     await expect(
       row(page).getByRole('button', { name: 'Rebase requested' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expectNoViolations(page);
 
     // The same record on the next snapshot changes nothing and says nothing.

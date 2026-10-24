@@ -251,10 +251,9 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await expect(page.locator('#status-banner')).toHaveCount(0);
   });
 
-  // #792: a queued action names itself, and Recreate (which rebuilds the
-  // whole pull request) makes a Rebase on top of it pointless, and a Recreate
-  // over a pending Rebase would throw its work away: each locks the other.
-  test.describe('a queued action names itself and locks the other command', () => {
+  // A queued command leaves neither Dependabot button: Dependabot has no
+  // command to withdraw it, so the wait chip says what the row waits on.
+  test.describe('a queued command leaves neither Dependabot button', () => {
     // The request is held while the open-dialog assertions run, then
     // released; the dialog is closed and reopened to show the queued state
     // survives the request resolving (#834).
@@ -273,8 +272,11 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       return release;
     }
 
+    const commands =
+      /Dependabot: (Rebase|Recreate)|(Rebase|Recreate) requested/;
+
     for (const behind of [false, true]) {
-      test(`Recreate queued locks Rebase, naming it (${behind ? 'promoted inline' : 'in the dialog'}), and reads Recreate requested`, async ({
+      test(`a queued Recreate draws neither command (${behind ? 'promoted inline' : 'in the dialog'})`, async ({
         page,
       }) => {
         await mockDashboard(page, 'github', makePR({ behind }));
@@ -288,39 +290,27 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
           .click();
         await footer.getByRole('button', { name: 'Confirm recreate?' }).click();
 
-        const queued = footer.getByRole('button', {
-          name: 'Recreate requested',
-        });
-        await expect(queued).toHaveAttribute('aria-disabled', 'true');
-        await expect(row.getByText('Queued…')).toHaveCount(0);
-        // Rebase is locked in the dialog, and the reason names Recreate.
-        const lockedRebase = footer.getByRole('button', {
-          name: 'Dependabot: Rebase',
-        });
-        await expect(lockedRebase).toHaveAttribute('aria-disabled', 'true');
-        await expect(footer).toContainText(
-          'A Dependabot Recreate is pending on this pull request.',
+        await expect(
+          footer.getByRole('button', { name: commands }),
+        ).toHaveCount(0);
+        await expect(row.getByRole('button', { name: commands })).toHaveCount(
+          0,
+        );
+        await expect(footer).not.toContainText(
+          'is pending on this pull request',
         );
 
-        // Once the request resolves and the dialog is reopened, the pending
-        // button is still there and Rebase is still locked there and, promoted
-        // inline, on the row too.
+        // Once the request resolves and the dialog is reopened, still neither.
         release();
         const reopened = await reopenFooter(row);
         await expect(
-          reopened.getByRole('button', { name: 'Recreate requested' }),
-        ).toHaveAttribute('aria-disabled', 'true');
-        await expect(
-          reopened.getByRole('button', { name: 'Dependabot: Rebase' }),
-        ).toHaveAttribute('aria-disabled', 'true');
-        if (behind)
-          await expect(
-            row.getByRole('button', { name: 'Dependabot: Rebase' }),
-          ).toHaveAttribute('aria-disabled', 'true');
+          reopened.getByRole('button', { name: commands }),
+        ).toHaveCount(0);
+        await expect(row.locator('.wait-chip-label')).toHaveText('Recreating');
       });
     }
 
-    test('Rebase queued locks Recreate, naming it', async ({ page }) => {
+    test('a queued Rebase draws neither command', async ({ page }) => {
       await mockDashboard(page, 'github', makePR());
       const release = await holdRequest(page);
       await page.goto('/bots.html');
@@ -329,27 +319,21 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       const footer = await openFooter(row);
       await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
 
-      await expect(
-        footer.getByRole('button', { name: 'Rebase requested' }),
-      ).toHaveAttribute('aria-disabled', 'true');
-      await expect(
-        footer.getByRole('button', { name: 'Dependabot: Recreate' }),
-      ).toHaveAttribute('aria-disabled', 'true');
-      await expect(footer).toContainText(
-        'A Dependabot Rebase is pending on this pull request.',
+      await expect(footer.getByRole('button', { name: commands })).toHaveCount(
+        0,
       );
+      await expect(footer).not.toContainText('is pending on this pull request');
 
       release();
       const reopened = await reopenFooter(row);
       await expect(
-        reopened.getByRole('button', { name: 'Rebase requested' }),
-      ).toHaveAttribute('aria-disabled', 'true');
-      await expect(
-        reopened.getByRole('button', { name: 'Dependabot: Recreate' }),
-      ).toHaveAttribute('aria-disabled', 'true');
+        reopened.getByRole('button', { name: commands }),
+      ).toHaveCount(0);
     });
 
-    test('once the bot has acted, Rebase comes back', async ({ page }) => {
+    test('once the bot has acted, both commands come back', async ({
+      page,
+    }) => {
       await page.addInitScript(() => {
         const w = window as unknown as {
           __streams: EventSource[];
@@ -392,7 +376,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       for (const scope of [footer, row]) {
         await expect(
           scope.getByRole('button', { name: 'Dependabot: Rebase' }),
-        ).toHaveAttribute('aria-disabled', 'true');
+        ).toHaveCount(0);
       }
       // The server has the request once it answers (the toast says so). A
       // snapshot without a botRequest then means the bot is done with it.
