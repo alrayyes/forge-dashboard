@@ -814,9 +814,10 @@ half a minute, the button is drawn and the forge decides. A version below 7 is
 left to the forge too, because a Gitea numbers itself that way. Where the forge
 decides, a 404 can mean the route doesn't exist there or that the run is gone
 or the token can't see the repository, so the panel names neither a forge nor
-a version: "The forge couldn't find that run, job or pull request. It may not support
-rerunning checks from here, or the token can't see this repository." A block
-that has gone stale is lifted if the read fails, not kept.
+a version: "The forge couldn't find that run, job or pull request. It may not
+support rerunning checks from here, or the token can't see this repository." On
+a default branch, where no pull request is looked up, the sentence reads "run or
+job". A block that has gone stale is lifted if the read fails, not kept.
 
 Forgejo restarts one job per request, so a refusal can come after earlier jobs
 already went. The panel then says which: for example "Restarted build. Did not

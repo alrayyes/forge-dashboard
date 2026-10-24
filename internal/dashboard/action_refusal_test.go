@@ -168,6 +168,8 @@ func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 	t.Parallel()
 
 	const notFoundMessage = "The forge couldn't find that run, job or pull request. It may not support rerunning checks from here, or the token can't see this repository."
+	// A rerun of a default branch looks up no pull request.
+	const branchNotFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
 	cases := []struct {
 		name   string
 		action dashboard.PullRequestAction
@@ -175,7 +177,7 @@ func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 		want   string
 	}{
 		{"a bare 404 says what it means", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 page not found"), notFoundMessage},
-		{"in any case", dashboard.PullRequestActionRerunBranchChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 Page Not Found"), notFoundMessage},
+		{"a branch rerun names no pull request, and the match ignores case", dashboard.PullRequestActionRerunBranchChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 Page Not Found"), branchNotFoundMessage},
 		{"a sentence the forge wrote is kept", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: The repository is not found"), "The repository is not found"},
 		{"a GitHub 404 doesn't blame a Forgejo version", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "github: POST /repos/o/r/actions/runs/1/rerun-failed-jobs: refused: 404 page not found"), notFoundMessage},
 		{"a close is left alone", dashboard.PullRequestActionClose, refusal(dashboard.ForgeErrorNotFound, "forgejo: PATCH /repos/o/r/pulls/5: refused: 404 page not found"), "refused: 404 page not found"},
@@ -348,6 +350,8 @@ func TestClassifyActionRefusalFor_PartialRerunReadsAsItsOwnSentence(t *testing.T
 		{"a closing parenthesis", "The job is running (try later)", "The job is running (try later). Restarted build."},
 		{"a colon", "The job is running:", "The job is running. Restarted build."},
 		{"a full stop inside a quote", `The job said "no."`, `The job said "no." Restarted build.`},
+		{"a full stop and a space", "The job is running. ", "The job is running. Restarted build."},
+		{"a colon and a space", "The job is running: ", "The job is running. Restarted build."},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
