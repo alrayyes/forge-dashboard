@@ -573,6 +573,156 @@ test.describe('settings page', () => {
         items.first().getByRole('button', { name: 'Remove' }),
       ).toBeDisabled();
     });
+
+    // Renaming: the owner keeps a password manager and a security key and
+    // has to tell them apart.
+    const scan = (page: Page) =>
+      new AxeBuilder({ page })
+        .include('#passkeys')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+    test('renaming from the keyboard saves the name, announces it, returns focus to Rename and survives a reload', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#integrations');
+      const rename = page.getByRole('button', {
+        name: 'Rename Initial passkey',
+      });
+      await rename.focus();
+      await page.keyboard.press('Enter');
+
+      const input = page.getByLabel('New name for Initial passkey');
+      await expect(input).toBeFocused();
+      expect((await scan(page)).violations).toEqual([]);
+      await page.keyboard.type('Proton Pass');
+      await page.keyboard.press('Enter');
+
+      const status = page.locator('#passkey-status');
+      await expect(status).toHaveText('Renamed to "Proton Pass".');
+      await expect(status).toHaveAttribute('aria-live', 'polite');
+      await expect(page.locator('#passkey-list li').first()).toContainText(
+        'Proton Pass',
+      );
+      await expect(
+        page.getByRole('button', { name: 'Rename Proton Pass' }),
+      ).toBeFocused();
+      expect((await scan(page)).violations).toEqual([]);
+
+      await page.reload();
+      await expect(page.locator('#passkey-list li').first()).toContainText(
+        'Proton Pass',
+      );
+    });
+
+    test('Escape and Cancel leave the name alone and return focus to Rename', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#integrations');
+      const rename = page.getByRole('button', {
+        name: 'Rename Initial passkey',
+      });
+
+      await rename.click();
+      await page.keyboard.type(' changed');
+      await page.keyboard.press('Escape');
+      await expect(rename).toBeFocused();
+      await expect(page.locator('#passkey-list li').first()).toContainText(
+        'Initial passkey',
+      );
+
+      await rename.click();
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await expect(rename).toBeFocused();
+      await expect(page.getByLabel(/New name for/)).toHaveCount(0);
+    });
+
+    test('a blank name is refused with a message tied to the field, and nothing changes', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#integrations');
+      await page
+        .getByRole('button', { name: 'Rename Initial passkey' })
+        .click();
+      const input = page.getByLabel('New name for Initial passkey');
+      await input.fill('   ');
+      await page.getByRole('button', { name: 'Save' }).click();
+
+      const error = page
+        .getByRole('alert')
+        .filter({ hasText: 'Give the passkey' });
+      await expect(error).toBeVisible();
+      await expect(input).toHaveAttribute('aria-invalid', 'true');
+      await expect(input).toHaveAttribute(
+        'aria-describedby',
+        (await error.getAttribute('id')) ?? '',
+      );
+      expect((await scan(page)).violations).toEqual([]);
+
+      await page.reload();
+      await expect(page.locator('#passkey-list li').first()).toContainText(
+        'Initial passkey',
+      );
+    });
+
+    test('the field stops at 64 characters, and a refusal from the server shows its message', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#integrations');
+      await page
+        .getByRole('button', { name: 'Rename Initial passkey' })
+        .click();
+      const input = page.getByLabel('New name for Initial passkey');
+      await input.fill('x'.repeat(80));
+      await expect(input).toHaveValue('x'.repeat(64));
+
+      await page.route('**/api/auth/credentials/*', (route) =>
+        route.request().method() === 'PATCH'
+          ? route.fulfill({
+              status: 400,
+              contentType: 'application/json',
+              body: JSON.stringify({ error: 'refused here', field: 'label' }),
+            })
+          : route.continue(),
+      );
+      await page.getByRole('button', { name: 'Save' }).click();
+      await expect(page.getByRole('alert')).toContainText('refused here');
+      await expect(input).toBeVisible();
+    });
+
+    test('a name is shown as text, never as markup', async ({ page }) => {
+      await page.goto('/settings.html#integrations');
+      await page
+        .getByRole('button', { name: 'Rename Initial passkey' })
+        .click();
+      await page.getByLabel('New name for Initial passkey').fill('<b>key</b>');
+      await page.getByRole('button', { name: 'Save' }).click();
+
+      const first = page.locator('#passkey-list li').first();
+      await expect(first).toContainText('<b>key</b>');
+      await expect(first.locator('b')).toHaveCount(0);
+    });
+
+    test('a passkey with no name is listed by when it was added', async ({
+      page,
+    }) => {
+      await page.route('**/api/auth/credentials', async (route) => {
+        if (route.request().method() !== 'GET') return route.continue();
+        const res = await route.fetch();
+        const list = await res.json();
+        await route.fulfill({
+          response: res,
+          json: list.map((c: object) => ({ ...c, label: '' })),
+        });
+      });
+      await page.goto('/settings.html#integrations');
+
+      const first = page.locator('#passkey-list li').first();
+      await expect(first).toContainText(/Passkey added \w+/);
+      await expect(
+        first.getByRole('button', { name: /^Rename Passkey added/ }),
+      ).toBeVisible();
+    });
   });
 
   test.describe('API tokens', () => {
