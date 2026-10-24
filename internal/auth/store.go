@@ -708,9 +708,9 @@ func (s *Store) RemoveCredential(ctx context.Context, credID string) error {
 // the registration and login ceremonies set to their challenge: random, so one
 // visitor's ceremony can't name or replace another's. (BeginAddCredential keys
 // by username; the caller is signed in.) The pending ceremonies of a kind are
-// bounded, expired ones are dropped, and the parameter keeps its old column's
-// name, username, in the table.
-func (s *Store) SaveCeremony(ctx context.Context, username, kind string, session webauthn.SessionData, ttl time.Duration) error {
+// bounded and expired ones are dropped. The table still calls the key column
+// username, from when every ceremony was keyed by one.
+func (s *Store) SaveCeremony(ctx context.Context, key, kind string, session webauthn.SessionData, ttl time.Duration) error {
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("auth: encode ceremony session: %w", err)
@@ -729,7 +729,7 @@ func (s *Store) SaveCeremony(ctx context.Context, username, kind string, session
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO ceremonies (username, kind, session_json, expires_at) VALUES (?, ?, ?, ?)
 		 ON CONFLICT (username, kind) DO UPDATE SET session_json = excluded.session_json, expires_at = excluded.expires_at`,
-		username, kind, string(data), time.Now().UTC().Add(ttl),
+		key, kind, string(data), time.Now().UTC().Add(ttl),
 	)
 	if err != nil {
 		return fmt.Errorf("auth: save ceremony: %w", err)
