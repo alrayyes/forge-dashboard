@@ -272,7 +272,8 @@ func (a *Aggregator) performQueued(ctx context.Context, run queuedRun, q QueuedA
 	owner, name, _ := strings.Cut(q.Repo, "/")
 	var err error
 	var refusedAs PullRequestAction
-	alreadyRequested, ticked := false, false
+	alreadyRequested := false
+	var outcome RenovateRebaseOutcome
 
 	switch q.Action {
 	case ActionUpdateBranch:
@@ -301,44 +302,36 @@ func (a *Aggregator) performQueued(ctx context.Context, run queuedRun, q QueuedA
 
 			return
 		}
-		var outcome RenovateRebaseOutcome
 		outcome, err = RequestRenovateRebase(ctx, a.sourceFor(q.Forge), labeler, owner, name, q.Number, run.label)
 		alreadyRequested = outcome == RenovateRebaseAlreadyRequested
-		ticked = outcome == RenovateRebaseTicked
 	}
 
 	switch {
 	case err != nil:
 		a.refusedQueued(ctx, q, refusedAs, err)
 	case alreadyRequested:
-		// The box is ticked on the forge, whatever the board last read, and a
-		// click that finds it so does the same. The cancel it brings back is
-		// safe: AllowedActions withholds it once Renovate is rebasing, which
-		// is the only state where a ticked box may not be this request's.
-		a.SetRenovateRebaseBox(q.Forge, q.Repo, q.Number, true)
+		// The cancel this brings back is safe: AllowedActions withholds it once
+		// Renovate is rebasing, which is the only state where a ticked box may
+		// not be this request's.
+		NoteRenovateRebase(a, q.Forge, q.Repo, q.Number, outcome)
 		a.finishQueued(ctx, q, QueuedSkipped, ActionAlreadyRequested, "A Renovate rebase is already requested on this pull request.")
 	default:
-		a.recordQueuedRequest(q, ticked)
+		a.recordQueuedRequest(q, outcome)
 		a.finishQueued(ctx, q, QueuedDone, "", "")
 	}
 }
 
 // recordQueuedRequest puts the request on the pull request, as a click would.
-// boxTicked says a Renovate rebase went through its checkbox, which the board
-// shows together with the request so it can offer the cancel.
-func (a *Aggregator) recordQueuedRequest(q QueuedAction, boxTicked bool) {
+// outcome says how a Renovate rebase was asked for, which decides whether the
+// board shows a ticked box with the request.
+func (a *Aggregator) recordQueuedRequest(q QueuedAction, outcome RenovateRebaseOutcome) {
 	switch q.Action {
 	case ActionUpdateBranch:
 		a.RecordUpdateRequest(q.Forge, q.Repo, q.Number)
 	case ActionDependabotRebase:
 		a.RecordBotRequest(q.Forge, q.Repo, q.Number, BotDependabot, BotRebase)
 	case ActionRenovateRebase:
-		if boxTicked {
-			a.RecordRenovateRebase(q.Forge, q.Repo, q.Number)
-
-			return
-		}
-		a.RecordBotRequest(q.Forge, q.Repo, q.Number, BotRenovate, BotRebase)
+		NoteRenovateRebase(a, q.Forge, q.Repo, q.Number, outcome)
 	}
 }
 

@@ -178,21 +178,23 @@ func (a *Aggregator) SetRenovateRebaseBox(forge Forge, repo string, number int, 
 // settleBoxOverrides puts the box state this app set back over any fetch that
 // started before it, and forgets the override once a later fetch has read the
 // description itself. covers says which forge and repo that fetch answered
-// for. The caller holds mu, which every tick and cancel takes too, so no change
-// can land between this and the snapshot swap.
-func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
+// for. read, when set, names the rows that fetch actually read from the forge:
+// the others were carried over from the snapshot, so they say nothing about the
+// description and keep their override. The caller holds mu, which every tick
+// and cancel takes too, so no change can land between this and the snapshot
+// swap.
+func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers func(Forge, string) bool, read map[string]bool) {
 	a.botMu.Lock()
 	defer a.botMu.Unlock()
 
 	if len(a.boxOverrides) == 0 {
 		return
 	}
-	listed := make(map[string]bool, len(prs))
+	listed := listedByKey(prs)
 	for i := range prs {
 		key := settledKey(prs[i].Forge, prs[i].Repo, prs[i].Number)
-		listed[key] = true
 		o, ok := a.boxOverrides[key]
-		if !ok || !covers(prs[i].Forge, prs[i].Repo) {
+		if !ok || !covers(prs[i].Forge, prs[i].Repo) || (read != nil && !read[key]) {
 			continue
 		}
 		if seq <= o.seq {
@@ -206,7 +208,7 @@ func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers fu
 	// retire its override, so a fetch that covers it and doesn't list it does,
 	// unless the override was set after that fetch began.
 	for key, o := range a.boxOverrides {
-		if !listed[key] && seq > o.seq && botGone(key, covers) {
+		if _, ok := listed[key]; !ok && seq > o.seq && botGone(key, covers) {
 			delete(a.boxOverrides, key)
 		}
 	}
@@ -216,7 +218,7 @@ func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers fu
 // snapshot in: it settles the box overrides and re-annotates the requests
 // recorded since applyBotRequests ran. The caller holds mu.
 func (a *Aggregator) annotateUnderLock(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
-	a.settleBoxOverrides(prs, seq, covers)
+	a.settleBoxOverrides(prs, seq, covers, nil)
 	a.annotateBotRequests(prs)
 }
 
@@ -230,10 +232,7 @@ func (a *Aggregator) applyBotRequests(prs []PullRequest, seq uint64, covers func
 	a.advanceUpdateRequests(prs, seq, covers)
 	if len(a.botRequests) > 0 {
 		now := a.now()
-		listed := make(map[string]PullRequest, len(prs))
-		for _, pr := range prs {
-			listed[settledKey(pr.Forge, pr.Repo, pr.Number)] = pr
-		}
+		listed := listedByKey(prs)
 		for key, e := range a.botRequests {
 			pr, present := listed[key]
 			if !present {
@@ -251,6 +250,17 @@ func (a *Aggregator) applyBotRequests(prs []PullRequest, seq uint64, covers func
 	a.botMu.Unlock()
 
 	a.annotateBotRequests(prs)
+}
+
+// listedByKey is prs keyed by settledKey, for the sweeps that ask whether a
+// request or an override still has its pull request on the board.
+func listedByKey(prs []PullRequest) map[string]PullRequest {
+	listed := make(map[string]PullRequest, len(prs))
+	for _, pr := range prs {
+		listed[settledKey(pr.Forge, pr.Repo, pr.Number)] = pr
+	}
+
+	return listed
 }
 
 // botGone reports whether a pull request missing from a fetch is really

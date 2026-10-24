@@ -550,6 +550,9 @@ type repoRows struct {
 	// mark is about. A merge that re-feeds the snapshot's own issues leaves the
 	// mark alone.
 	fetched bool
+	// read, when set, holds the settledKey of each pull request rows read from
+	// the forge; the rest were carried over from the snapshot. Nil means all.
+	read map[string]bool
 }
 
 // mergeReposFrom merges several repos of one forge at once: every
@@ -567,7 +570,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 		if !ok {
 			continue
 		}
-		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues)
+		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues, r.read)
 		if r.fetched {
 			if fetched == nil {
 				fetched = make(map[string]bool, len(repos))
@@ -593,7 +596,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 
 // mergedRepo is current with forge/fullName's own entries replaced by prs and
 // issues. The caller holds mu and writes the result back.
-func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue) Snapshot {
+func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue, read map[string]bool) Snapshot {
 	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
@@ -611,7 +614,7 @@ func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, 
 	}
 	merged.Issues = append(merged.Issues, issues...)
 	covers := func(f Forge, repo string) bool { return f == forge && repo == fullName }
-	a.settleBoxOverrides(merged.PullRequests, seq, covers)
+	a.settleBoxOverrides(merged.PullRequests, seq, covers, read)
 	a.applyBotRequests(merged.PullRequests, seq, covers)
 	AnnotateStacks(merged.PullRequests)
 	sortByRecency(merged.PullRequests, merged.Issues)

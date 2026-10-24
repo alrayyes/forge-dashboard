@@ -140,6 +140,7 @@
     dependabotButtonDecision,
   } from "#lib/dependabot-action.js";
   import { settleCancelled } from "#lib/cancelled-bot-rebase.js";
+  import { holdsTheBoard } from "#lib/row-action-in-flight.js";
   import {
     type ForgeHealthEntry,
     dependabotBlockedReason,
@@ -4490,18 +4491,6 @@
     // that state already swaps the button for a single-click "Retry",
     // not a two-step interaction a moved target can break.
     function anyRowActionInFlight(): boolean {
-      // "rebasing" is a bot already acting on its own: nothing the user
-      // is mid-way through, so snapshots keep landing in place (#707).
-      // A request restored from a snapshot (a reload) isn't a click of
-      // this page's own either.
-      const inFlight = (entry: ActionState) =>
-        !entry.queued?.restored &&
-        entry.phase !== "idle" &&
-        entry.phase !== "locked" &&
-        entry.phase !== "merged" &&
-        entry.phase !== "closed" &&
-        entry.phase !== "rebasing";
-
       return [
         mergeState,
         closeState,
@@ -4509,7 +4498,7 @@
         dependabotActionState,
         renovateRebaseState,
         cancelRenovateRebaseState,
-      ].some((stateMap) => Object.values(stateMap).some(inFlight));
+      ].some((stateMap) => Object.values(stateMap).some(holdsTheBoard));
     }
 
     // Live updates land by themselves. prShown.items is what the board is
@@ -5749,14 +5738,14 @@
             toast: true,
             announce: cancelled,
           });
-          // A refresh that fails is not a failed action: the next poll brings
-          // the board up to date, and the redraw below runs from local state.
-          // A throw while redrawing is a bug to see in the console, not a
-          // failed cancel.
+          // A refresh that fails is not a failed action: refreshBoard swallows
+          // its own errors, and the next poll brings the board up to date.
+          // The entry is not dropped here: a stale or repeated snapshot still
+          // lists the cancel. Only a snapshot without it settles it.
+          await refreshBoard(true);
+          // The redraw runs from local state. A throw here is a bug to see in
+          // the console, not a failed cancel.
           try {
-            // The entry is not dropped here: a stale or repeated snapshot
-            // still lists the cancel. Only a snapshot without it settles it.
-            await refreshBoard(true);
             keepFocusAcross(renderPRBoard);
           } catch (err) {
             console.error("redraw after cancelling the Renovate rebase", err);

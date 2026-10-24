@@ -100,6 +100,29 @@ const (
 	RenovateRebaseAlreadyRequested
 )
 
+// RenovateRebaseBoard is what a board holds about a Renovate rebase request.
+// The Aggregator and the Service both are one.
+type RenovateRebaseBoard interface {
+	RecordBotRequest(forge Forge, repo string, number int, bot BotName, action BotAction)
+	RecordRenovateRebase(forge Forge, repo string, number int)
+	SetRenovateRebaseBox(forge Forge, repo string, number int, ticked bool)
+}
+
+// NoteRenovateRebase puts what a request came to on the board, the same for a
+// click and a queued run. A ticked box and its request land in one snapshot, so
+// the cancel never shows after the request. A box found ticked already is shown
+// ticked, which the board may not know yet. A label leaves the box alone.
+func NoteRenovateRebase(board RenovateRebaseBoard, forge Forge, repo string, number int, outcome RenovateRebaseOutcome) {
+	switch outcome {
+	case RenovateRebaseTicked:
+		board.RecordRenovateRebase(forge, repo, number)
+	case RenovateRebaseAlreadyRequested:
+		board.SetRenovateRebaseBox(forge, repo, number, true)
+	case RenovateRebaseLabeled:
+		board.RecordBotRequest(forge, repo, number, BotRenovate, BotRebase)
+	}
+}
+
 // RequestRenovateRebase asks Renovate to rebase owner/name#number. It checks
 // the rebase-check box in the pull request body, which needs no setup on the
 // repo, and falls back to adding label when src can't edit the body or the
