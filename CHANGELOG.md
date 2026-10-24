@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.4](https://github.com/alrayyes/forge-dashboard/compare/v2.29.3...v2.29.4) (2026-10-24)
+
+
+### Bug Fixes
+
+* hide View run on a queued check with no log yet ([#2730](https://github.com/alrayyes/forge-dashboard/issues/2730)) ([c906771](https://github.com/alrayyes/forge-dashboard/commit/c906771ca398eb0d4fdb1662720e235352ab5b05))
+
 ## [2.29.3](https://github.com/alrayyes/forge-dashboard/compare/v2.29.2...v2.29.3) (2026-10-24)
 
 
