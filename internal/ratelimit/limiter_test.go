@@ -1,6 +1,8 @@
 package ratelimit_test
 
 import (
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -108,4 +110,39 @@ func TestLimiter_SweepKeepsAKeyStillOverItsAllowance(t *testing.T) {
 	ok, _ := l.Allow("scanner")
 
 	assert.False(t, ok, "a limited address does not get a fresh allowance from the sweep")
+}
+
+// Many goroutines hit the same and different keys at once. Under -race this
+// fails if the mutex is dropped; the count shows no request is lost or doubled.
+func TestLimiter_ConcurrentAllow_GrantsExactlyTheBurstPerKey(t *testing.T) {
+	t.Parallel()
+	const (
+		burst   = 5
+		keys    = 8
+		callers = 40
+	)
+	l, _ := newLimiter(burst, time.Hour)
+
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		allowed = make(map[string]int)
+	)
+	for i := range keys * callers {
+		wg.Go(func() {
+			key := strconv.Itoa(i % keys)
+			if ok, _ := l.Allow(key); ok {
+				mu.Lock()
+				allowed[key]++
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+
+	assert.Len(t, allowed, keys)
+	for key, n := range allowed {
+		assert.Equal(t, burst, n, "key %s", key)
+	}
+	assert.Equal(t, keys, l.Tracked())
 }
