@@ -64,14 +64,23 @@ func ParseProxies(spec string) ([]netip.Prefix, error) {
 // what the nearest proxy wrote; everything left of it was supplied by the
 // client and can say anything. An IPv6 client is keyed by its /64, the smallest
 // block a network hands out, so one host cannot spread across its addresses.
-func ClientAddr(r *http.Request, trusted []netip.Prefix) string {
+//
+// ok is false when the peer is a trusted proxy that named no usable client: no
+// header, an unreadable one, or one of only trusted proxies. The key is then
+// the proxy's own, shared by every visitor behind it. A caller that ignores ok
+// therefore counts all of them in one per-address bucket; one that honours it
+// can give them a bucket of their own (Limiter.AllowUnattributed).
+func ClientAddr(r *http.Request, trusted []netip.Prefix) (key string, ok bool) {
 	peer := peerAddr(r)
-	client := peer
-	if contains(trusted, peer) {
-		client = forwardedClient(r.Header.Values("X-Forwarded-For"), trusted, peer)
+	if !contains(trusted, peer) {
+		return keyOf(peer), true
+	}
+	client, found := forwardedClient(r.Header.Values("X-Forwarded-For"), trusted)
+	if !found {
+		return keyOf(peer), false
 	}
 
-	return key(client)
+	return keyOf(client), true
 }
 
 func peerAddr(r *http.Request) netip.Addr {
@@ -87,7 +96,7 @@ func peerAddr(r *http.Request) netip.Addr {
 	return addr.Unmap()
 }
 
-func forwardedClient(headers []string, trusted []netip.Prefix, peer netip.Addr) netip.Addr {
+func forwardedClient(headers []string, trusted []netip.Prefix) (netip.Addr, bool) {
 	var hops []string
 	for _, h := range headers {
 		hops = slices.AppendSeq(hops, strings.SplitSeq(h, ","))
@@ -95,15 +104,15 @@ func forwardedClient(headers []string, trusted []netip.Prefix, peer netip.Addr) 
 	for _, hop := range slices.Backward(hops) {
 		addr, err := netip.ParseAddr(strings.TrimSpace(hop))
 		if err != nil {
-			return peer
+			return netip.Addr{}, false
 		}
 		addr = addr.Unmap()
 		if !contains(trusted, addr) {
-			return addr
+			return addr, true
 		}
 	}
 
-	return peer
+	return netip.Addr{}, false
 }
 
 func contains(prefixes []netip.Prefix, addr netip.Addr) bool {
@@ -116,7 +125,7 @@ func contains(prefixes []netip.Prefix, addr netip.Addr) bool {
 	return false
 }
 
-func key(addr netip.Addr) string {
+func keyOf(addr netip.Addr) string {
 	if addr.Is6() {
 		if prefix, err := addr.Prefix(64); err == nil {
 			return prefix.Addr().String()

@@ -13,7 +13,9 @@ const (
 	// the sign-in and registration endpoints: ten requests at once, then one
 	// every six seconds. A sign-in is two requests. Over any five minutes, the
 	// life of a pending ceremony, one address makes at most 60, well short of
-	// the 100 the ceremony store holds.
+	// the 100 the ceremony store holds. Requests that name no client share one
+	// bucket of twice the burst, at most 70 in the same time. The buckets add
+	// up, so 100 is a limit on each of them, not a total guarantee.
 	authBurst = 10
 	authEvery = 6 * time.Second
 )
