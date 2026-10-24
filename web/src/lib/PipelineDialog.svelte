@@ -614,9 +614,8 @@
             href={check.url}
             target="_blank"
             rel="noopener"
-            aria-label={queued
-              ? `${linkText} (opens in a new tab): ${check.name}`
-              : `${linkText}: ${check.name}`}>{linkText}</a
+            aria-label="{linkText} (opens in a new tab): {check.name}"
+            >{linkText}</a
           >
         {/if}
         {#if check.failedStep}

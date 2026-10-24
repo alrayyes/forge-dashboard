@@ -310,7 +310,9 @@ test.describe('pipeline panel updates live', () => {
       { name: 'test', state: 'running', url: 'https://example.com/r/2' },
     ];
     const state = await open(page, RUNNING, three, 3);
-    const link = dialog(page).getByRole('link', { name: 'View run: test' });
+    const link = dialog(page).getByRole('link', {
+      name: 'View run (opens in a new tab): test',
+    });
     await link.focus();
 
     state.checks = [
@@ -324,7 +326,9 @@ test.describe('pipeline panel updates live', () => {
       'Passed',
     );
     await expect(
-      dialog(page).getByRole('link', { name: 'View run: test' }),
+      dialog(page).getByRole('link', {
+        name: 'View run (opens in a new tab): test',
+      }),
     ).toBeFocused();
   });
 
@@ -332,7 +336,9 @@ test.describe('pipeline panel updates live', () => {
     page,
   }) => {
     const state = await open(page, RUNNING, RUN);
-    await dialog(page).getByRole('link', { name: 'View run: test' }).focus();
+    await dialog(page)
+      .getByRole('link', { name: 'View run (opens in a new tab): test' })
+      .focus();
 
     state.checks = [
       { name: 'build', state: 'failure', url: 'https://example.com/r/1' },

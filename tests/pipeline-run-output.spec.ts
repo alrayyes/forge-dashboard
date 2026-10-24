@@ -314,7 +314,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(page, { status: 200, body: { text: '', truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
-      dialog.getByRole('link', { name: 'View run: lint' }),
+      dialog.getByRole('link', { name: 'View run (opens in a new tab): lint' }),
     ).toBeVisible();
   });
 
