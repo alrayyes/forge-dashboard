@@ -8,6 +8,7 @@ import {
   type CheckSegment,
   pillName,
 } from './check-counts.js';
+import { isPlainClick } from './plain-click.js';
 
 /** Matches components.schemas.LinkedPullRequest in api/openapi.yaml. */
 export type LinkedPullRequest = {
@@ -183,15 +184,7 @@ export function linkedPills(
       // a real link, so a middle or modified click opens it in a new tab.
       if (onFollow)
         link.addEventListener('click', (event) => {
-          if (
-            event.defaultPrevented ||
-            event.button !== 0 ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.shiftKey ||
-            event.altKey
-          )
-            return;
+          if (!isPlainClick(event)) return;
           event.preventDefault();
           onFollow(pr);
         });
