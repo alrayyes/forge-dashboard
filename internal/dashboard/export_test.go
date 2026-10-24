@@ -16,3 +16,6 @@ func (a *Aggregator) BoxOverrideCount() int {
 
 	return len(a.boxOverrides)
 }
+
+// EndSentenceForTest exposes endSentence.
+func EndSentenceForTest(msg string) string { return endSentence(msg) }

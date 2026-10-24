@@ -157,6 +157,15 @@ func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name
 	return nil
 }
 
+// partialNote is the sentence for a refusal that came partway, and whether it
+// leaves a job that may be running.
+type partialNote struct {
+	text string
+	// mayRun is set when a job may have restarted without the forge saying so,
+	// which is when "try again" would read oddly beside the refusal.
+	mayRun bool
+}
+
 // rerunProgress is what a rerun has done so far, for a refusal that comes
 // partway.
 type rerunProgress struct {
@@ -171,9 +180,9 @@ type rerunProgress struct {
 // run's other failed jobs may have gone along with it, so they are not listed
 // as left undone. It is empty when nothing restarted and nothing may have,
 // since the refusal then says it all.
-func (p *rerunProgress) partial(notYet []string, laterRuns int, maybe string, othersMaybe bool) string {
+func (p *rerunProgress) partial(notYet []string, laterRuns int, maybe string, othersMaybe bool) partialNote {
 	if len(p.restarted) == 0 && maybe == "" {
-		return ""
+		return partialNote{}
 	}
 	var out []string
 	if len(p.restarted) > 0 {
@@ -190,21 +199,21 @@ func (p *rerunProgress) partial(notYet []string, laterRuns int, maybe string, ot
 		out = append(out, "Did not restart "+skipped+".")
 	}
 
-	return strings.Join(out, " ")
+	return partialNote{text: strings.Join(out, " "), mayRun: maybe != ""}
 }
 
 // partialUnknown is partial for a refusal that left the run's jobs unread, so
 // which of its other failed jobs went along with a restarted one is not known.
-func (p *rerunProgress) partialUnknown(laterRuns int) string {
+func (p *rerunProgress) partialUnknown(laterRuns int) partialNote {
 	if len(p.restarted) == 0 {
-		return ""
+		return partialNote{}
 	}
 	out := p.restartedSentence() + " The other failed jobs of this run may have restarted with them."
 	if later := listWithRuns(nil, laterRuns); later != "" {
 		out += " Did not restart " + later + "."
 	}
 
-	return out
+	return partialNote{text: out, mayRun: true}
 }
 
 func (p *rerunProgress) restartedSentence() string {
@@ -234,16 +243,16 @@ func listWithRuns(names []string, laterRuns int) string {
 // withPartial returns err with the partial rerun sentence attached. An error
 // that isn't a ClientError (an undecodable job list, say) is wrapped in one, so
 // the sentence is not lost.
-func withPartial(err error, partial string) error {
-	if partial == "" {
+func withPartial(err error, partial partialNote) error {
+	if partial.text == "" {
 		return err
 	}
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	if !ok {
-		return &dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, Err: err, Partial: partial}
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, Err: err, Partial: partial.text, MayHaveRestarted: partial.mayRun}
 	}
 	cp := *clientErr
-	cp.Partial = partial
+	cp.Partial, cp.MayHaveRestarted = partial.text, partial.mayRun
 
 	return &cp
 }
@@ -309,7 +318,7 @@ func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, r
 // One that may have gone leaves the first as one that may have restarted and
 // the run's other failed jobs as unknown, since Forgejo restarts the jobs that
 // need a job along with it and the forge cannot be asked what it did.
-func (p *rerunProgress) refusedPartial(jobs []*gitea.ActionWorkflowJob, ids []int64, laterRuns int, mayHaveQueued bool) string {
+func (p *rerunProgress) refusedPartial(jobs []*gitea.ActionWorkflowJob, ids []int64, laterRuns int, mayHaveQueued bool) partialNote {
 	left := stillFailed(jobs, ids)
 	if !mayHaveQueued {
 		return p.partial(jobNames(jobs, left), laterRuns, "", false)

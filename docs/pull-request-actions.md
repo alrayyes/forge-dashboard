@@ -855,8 +855,11 @@ restarted. This holds for the first job too. Only a request that provably never
 reached the forge (a refused connection or proxy, a name that doesn't resolve,
 a rejected certificate) did nothing and is listed as not restarted. The panel
 leaves out "Try again in a moment" beside such a note, since jobs may already
-be running. A refusal of the first job says nothing of the kind, because
-nothing restarted.
+be running, whether the forge went quiet or answered with a gateway or server
+error. When nothing could have restarted, such as a refused connection, the
+advice stays: "The forge didn't answer. Try again in a moment. Restarted build.
+Did not restart test." A refusal of the first job says nothing of the kind,
+because nothing restarted.
 
 `rerun_checks` still appears in `allowedActions` for a blocked
 Forgejo. The block shows in the forge's health as `rerunChecksBlocked`, and a

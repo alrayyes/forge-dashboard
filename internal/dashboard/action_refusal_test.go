@@ -365,12 +365,53 @@ func TestClassifyActionRefusalFor_PartialRerunReadsAsItsOwnSentence(t *testing.T
 	}
 }
 
-// "Try again in a moment" is dropped when jobs may already be running.
-func TestClassifyActionRefusalFor_NoAnswerWithAPartialRerun_GivesNoRetryAdvice(t *testing.T) {
+// "Try again in a moment" is dropped when jobs may already be running, whichever
+// way the forge failed, and kept when nothing could be.
+func TestClassifyActionRefusalFor_RetryAdviceFollowsWhetherAJobMayBeRunning(t *testing.T) {
 	t.Parallel()
-	err := &dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("forgejo: POST /x: timeout"), Partial: "job-2 may have restarted."}
 
-	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	cases := []struct {
+		name  string
+		err   *dashboard.ClientError
+		stand string
+	}{
+		{
+			"no answer, a job may have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("forgejo: POST /x: timeout"), Partial: "job-2 may have restarted.", MayHaveRestarted: true},
+			"The forge didn't answer. job-2 may have restarted.",
+		},
+		{
+			"a gateway error, a job may have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, UpstreamStatus: 502, Err: errors.New("forgejo: POST /x: Bad Gateway"), Partial: "job-2 may have restarted.", MayHaveRestarted: true},
+			"The forge had a server error. job-2 may have restarted.",
+		},
+		{
+			"no answer, nothing could have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("forgejo: POST /x: refused"), Partial: "Restarted job-1. Did not restart job-2."},
+			"The forge didn't answer. Try again in a moment. Restarted job-1. Did not restart job-2.",
+		},
+		{
+			"a server error, nothing could have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, UpstreamStatus: 500, Err: errors.New("forgejo: POST /x: boom"), Partial: "Restarted job-1. Did not restart job-2."},
+			"The forge had a server error. Try again in a moment. Restarted job-1. Did not restart job-2.",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.Equal(t, "The forge didn't answer. job-2 may have restarted.", got.Message)
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, tc.err, nil)
+
+			assert.Equal(t, tc.stand, got.Message)
+		})
+	}
+}
+
+// Closing a message for another sentence leaves an empty one empty.
+func TestEndSentence_EmptyStaysEmpty(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, dashboard.EndSentenceForTest(""))
+	assert.Empty(t, dashboard.EndSentenceForTest("  \n"))
+	assert.Empty(t, dashboard.EndSentenceForTest(": "))
+	assert.Equal(t, "Done.", dashboard.EndSentenceForTest("Done"))
 }

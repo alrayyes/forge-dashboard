@@ -165,11 +165,11 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	r := classifyActionRefusal(action, actionErr, state)
 	if action == PullRequestActionRerunChecks || action == PullRequestActionRerunBranchChecks {
 		if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Partial != "" {
-			if r.Message == unreachableMessage {
+			if clientErr.MayHaveRestarted {
 				// "Try again" would read oddly beside jobs that may be running.
-				r.Message = noAnswerMessage
+				r.Message = strings.TrimSuffix(r.Message, " "+retryAdvice)
 			}
-			r.Message = endSentence(r.Message) + " " + clientErr.Partial
+			r.Message = strings.TrimSpace(endSentence(r.Message) + " " + clientErr.Partial)
 		}
 	}
 
@@ -186,7 +186,12 @@ func endSentence(msg string) string {
 		return msg
 	}
 
-	return strings.TrimRight(msg, ":;, ") + "."
+	msg = strings.TrimRight(msg, ":;, ")
+	if msg == "" {
+		return ""
+	}
+
+	return msg + "."
 }
 
 func classifyActionRefusal(action PullRequestAction, actionErr error, state *PullRequestState) ActionRefusal {
@@ -292,8 +297,9 @@ const (
 	branchNotFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
 	noReasonMessage       = "The forge refused this action and gave no reason."
 	noAnswerMessage       = "The forge didn't answer."
-	unreachableMessage    = "The forge didn't answer. Try again in a moment."
-	forgeFailedMessage    = "The forge had a server error. Try again in a moment."
+	retryAdvice           = "Try again in a moment."
+	unreachableMessage    = noAnswerMessage + " " + retryAdvice
+	forgeFailedMessage    = "The forge had a server error. " + retryAdvice
 	maxPlainMessageSize   = 200
 )
 
