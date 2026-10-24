@@ -78,6 +78,12 @@ func handleCredentialsAddFinish(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		if passkeyNameTooLong(label) {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("label", passkeyNameTooLongMessage))
+
+			return
+		}
+
 		cred, err := deps.AuthService.FinishAddCredential(r.Context(), u, label, r)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("passkey registration failed"))
@@ -92,6 +98,12 @@ func handleCredentialsAddFinish(deps Deps) http.HandlerFunc {
 // maxPasskeyNameRunes is the longest name a passkey can have. Characters, not
 // bytes, so a name in any script gets the same room.
 const maxPasskeyNameRunes = 64
+
+const passkeyNameTooLongMessage = "the name can be at most 64 characters"
+
+func passkeyNameTooLong(label string) bool {
+	return utf8.RuneCountInString(label) > maxPasskeyNameRunes
+}
 
 func handleCredentialsRename(store *auth.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -112,8 +124,8 @@ func handleCredentialsRename(store *auth.Store) http.HandlerFunc {
 
 			return
 		}
-		if utf8.RuneCountInString(label) > maxPasskeyNameRunes {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("label", "the name can be at most 64 characters"))
+		if passkeyNameTooLong(label) {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("label", passkeyNameTooLongMessage))
 
 			return
 		}

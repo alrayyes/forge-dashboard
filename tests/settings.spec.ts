@@ -551,6 +551,76 @@ test.describe('settings page', () => {
       ).toBeEnabled();
     });
 
+    test('a name of 64 characters is added, counting characters rather than UTF-16 units', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#integrations');
+      const name = '\u{1F511}'.repeat(64);
+
+      await page.fill('#passkey-label', name);
+      await page.click('#passkey-form button[type="submit"]');
+
+      await expect(page.locator('#passkey-status')).toHaveText(
+        `Added "${name}".`,
+      );
+      await expect(page.locator('#passkey-list li')).toHaveCount(2);
+    });
+
+    test('a name of 65 characters is refused next to the field before any passkey prompt', async ({
+      page,
+    }) => {
+      let ceremonyStarted = false;
+      await page.route('**/api/auth/credentials/begin', (route) => {
+        ceremonyStarted = true;
+        return route.continue();
+      });
+      await page.goto('/settings.html#integrations');
+      const input = page.locator('#passkey-label');
+
+      await input.fill('\u{1F511}'.repeat(65));
+      await page.click('#passkey-form button[type="submit"]');
+
+      const error = page
+        .getByRole('alert')
+        .filter({ hasText: 'at most 64 characters' });
+      await expect(error).toBeVisible();
+      await expect(input).toHaveAttribute('aria-invalid', 'true');
+      await expect(input).toHaveAttribute(
+        'aria-describedby',
+        (await error.getAttribute('id')) ?? '',
+      );
+      expect((await scan(page)).violations).toEqual([]);
+      expect(ceremonyStarted).toBe(false);
+      await expect(page.locator('#passkey-list li')).toHaveCount(1);
+
+      await input.fill('\u{1F511}'.repeat(64));
+      await expect(error).toBeHidden();
+      await expect(input).not.toHaveAttribute('aria-invalid', 'true');
+    });
+
+    test('a refusal of the name from the server shows next to the field', async ({
+      page,
+    }) => {
+      await page.route('**/api/auth/credentials/finish*', (route) =>
+        route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'refused here', field: 'label' }),
+        }),
+      );
+      await page.goto('/settings.html#integrations');
+      const input = page.locator('#passkey-label');
+
+      await input.fill('YubiKey');
+      await page.click('#passkey-form button[type="submit"]');
+
+      await expect(
+        page.getByRole('alert').filter({ hasText: 'refused here' }),
+      ).toBeVisible();
+      await expect(input).toHaveAttribute('aria-invalid', 'true');
+      await expect(page.locator('#passkey-status')).toHaveText('');
+    });
+
     test('removing a passkey when more than one exists removes just that one', async ({
       page,
     }) => {

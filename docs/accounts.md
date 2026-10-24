@@ -35,8 +35,9 @@ request arrived over HTTPS) is what actually gates `/` and
   added from Settings, signed in.
 - **Passkeys can be renamed.** Settings lists each passkey by name, with a
   Rename button next to Remove, so a password manager and a security key can
-  be told apart. A name is trimmed and 1 to 64 characters, and is always shown
-  as plain text. A passkey that never had a name is listed by the date it was
+  be told apart. A name is trimmed and 1 to 64 characters, whether it is
+  given when adding a passkey or when renaming one, and is always shown as
+  plain text. A passkey that never had a name is listed by the date it was
   added. The API route is `PATCH /api/auth/credentials/{id}`.
 - **A security key may hold a passkey that sign-in can't use.** Registered
   before sign-in dropped the username, a key such as a YubiKey stored a
