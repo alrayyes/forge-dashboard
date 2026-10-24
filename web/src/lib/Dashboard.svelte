@@ -2402,6 +2402,9 @@
         if (rowAction) {
           const bar = el("div", "row-action-bar");
           bar.appendChild(rowAction);
+          const rebase =
+            rowAction === mergeAction ? rebaseBesideMerge(pr) : null;
+          if (rebase) bar.appendChild(rebase);
           statusCell.appendChild(bar);
         }
         // A refused Close locks a button that lives in the pop-up, so the row
@@ -2488,6 +2491,18 @@
         default:
           return null;
       }
+    }
+
+    // A behind bot pull request the forge still calls mergeable has Merge as
+    // its primary action, so the rebase would be left to the pop-up. It stays
+    // in the row beside Merge, locked with its reason while one is already
+    // waiting, so the row says what the pull request is waiting on.
+    function rebaseBesideMerge(pr: PullRequestItem): HTMLElement | null {
+      if (!pr.behind || primaryAction(pr)?.action !== "merge") return null;
+      return (
+        renovateRebaseActionCell(pr) ??
+        (findAction(pr, "dependabot_rebase") ? dependabotSplitCell(pr) : null)
+      );
     }
 
     // ---- pull request merge action ----

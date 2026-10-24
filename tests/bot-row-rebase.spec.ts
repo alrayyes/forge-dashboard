@@ -146,3 +146,69 @@ test('a behind bot pull request waiting for workflow approval has no rebase and 
   ).toHaveCount(0);
   await expectNoAxeViolations(page);
 });
+
+// A behind bot pull request the forge still calls mergeable, with green checks,
+// has Merge as its primary action. The rebase stays in the row beside it,
+// locked with its reason while the box is ticked, so the row says what the
+// pull request is waiting on.
+const mergeable = {
+  ci: 'success',
+  mergeStatus: 'mergeable',
+  author: 'renovate',
+  forge: 'forgejo',
+};
+const requested = {
+  action: 'renovate_rebase',
+  blocked: {
+    code: 'already_requested',
+    message: 'A Renovate rebase is already requested on this pull request.',
+    next: 'Renovate clears the box once it has rebased, and the rebase is offered again.',
+  },
+};
+
+test('a behind mergeable Renovate pull request with the box ticked shows a locked rebase beside Merge', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        requested,
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await expect(bar.getByRole('button', { name: 'Merge' })).toBeVisible();
+  await expect(
+    bar.getByRole('button', { name: /Renovate: Rebase/ }),
+  ).toBeDisabled();
+  await expect(bar).toContainText(
+    'A Renovate rebase is already requested on this pull request.',
+  );
+  await expectNoAxeViolations(page);
+});
+
+test('a behind mergeable Renovate pull request with the box unticked shows Renovate: Rebase beside Merge', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'renovate_rebase' },
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await expect(bar.getByRole('button', { name: 'Merge' })).toBeVisible();
+  await expect(
+    bar.getByRole('button', { name: 'Renovate: Rebase' }),
+  ).toBeEnabled();
+  await expectNoAxeViolations(page);
+});

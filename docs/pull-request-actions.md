@@ -30,8 +30,9 @@ greyed Merge with its reason. A pull request with neither draws none, so a
 draft, one waiting on CI, one with failing CI and one with nothing to act on
 show their status and nothing to click, except a behind bot pull request, which
 shows its rebase (locked while one is already requested or pending). A behind
-bot pull request that is ready to merge keeps Merge as its one button, and its
-rebase is in the pop-up. A pull request that is behind the base branch is the
+bot pull request that is ready to merge keeps Merge as its main button and
+draws its rebase beside it, locked with the reason while one is already
+requested. A pull request that is behind the base branch is the
 one case where a locked Merge is not the row's button: the row draws no button
 of its own, because the cure (Update branch, or the bot's rebase) sits inside
 the status block above, and the greyed Merge is in the pop-up. A behind bot pull
