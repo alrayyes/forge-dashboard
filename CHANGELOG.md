@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.0](https://github.com/alrayyes/forge-dashboard/compare/v2.33.3...v2.34.0) (2026-10-24)
+
+
+### Features
+
+* **api:** rate limit the sign-in and registration endpoints ([#2829](https://github.com/alrayyes/forge-dashboard/issues/2829)) ([3c0639c](https://github.com/alrayyes/forge-dashboard/commit/3c0639c8fdb56d00559917bcf90405aae63a6bb2))
+
 ## [2.33.3](https://github.com/alrayyes/forge-dashboard/compare/v2.33.2...v2.33.3) (2026-10-24)
 
 
