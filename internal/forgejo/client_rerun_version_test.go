@@ -195,7 +195,8 @@ func TestRerunFailedChecks_OnForgejo17_PostsTheFailedJobRerun(t *testing.T) {
 // error classifier each added the word.
 func TestRerunFailedChecks_RefusalSaysRefusedOnce(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{fakeJobs: fakeJobs{status: http.StatusNotFound}, runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.status = http.StatusNotFound
 
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 

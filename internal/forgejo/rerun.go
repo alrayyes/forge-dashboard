@@ -152,27 +152,38 @@ func (c *Client) rerunFailedJobs(ctx context.Context, owner, name string, ids []
 	}
 	asked := 0
 	for _, runID := range ids {
-		jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
+		n, err := c.rerunFailedJobsOfRun(ctx, owner, name, runID)
+		asked += n
 		if err != nil {
 			return asked, err
 		}
-		failed := failedJobIDs(jobs)
-		for i, jobID := range failed {
-			if i > 0 {
-				if jobs, err = c.listActionRunJobs(ctx, owner, name, runID); err != nil {
-					return asked, err
-				}
-				if !slices.Contains(failedJobIDs(jobs), jobID) {
-					continue
-				}
+	}
+
+	return asked, nil
+}
+
+// rerunFailedJobsOfRun does rerunFailedJobs for one run.
+func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, runID int64) (int, error) {
+	jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
+	if err != nil {
+		return 0, err
+	}
+	asked := 0
+	for i, jobID := range failedJobIDs(jobs) {
+		if i > 0 {
+			if jobs, err = c.listActionRunJobs(ctx, owner, name, runID); err != nil {
+				return asked, err
 			}
-			rerunPath := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/rerun", owner, name, jobID)
-			slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
-			if _, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil); err != nil {
-				return asked, c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
+			if !slices.Contains(failedJobIDs(jobs), jobID) {
+				continue
 			}
-			asked++
 		}
+		rerunPath := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/rerun", owner, name, jobID)
+		slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
+		if _, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil); err != nil {
+			return asked, c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
+		}
+		asked++
 	}
 
 	return asked, nil

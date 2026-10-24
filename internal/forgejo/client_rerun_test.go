@@ -78,11 +78,9 @@ func TestRerunFailedChecks_RerunsOnlyTheFailedJobsOfTheFailedRuns(t *testing.T) 
 // A deploy job that passed beside a failed test job must not go again.
 func TestRerunFailedChecks_LeavesPassingJobsOfAFailedRunAlone(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{
-		runs: []map[string]any{{"id": 42, "status": "failure"}},
-		fakeJobs: fakeJobs{jobs: map[int][]map[string]any{
-			42: {job(1, "success"), job(2, "failure"), job(3, "success"), job(4, "failure")},
-		}},
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{
+		42: {job(1, "success"), job(2, "failure"), job(3, "success"), job(4, "failure")},
 	}
 
 	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
@@ -94,13 +92,9 @@ func TestRerunFailedChecks_LeavesPassingJobsOfAFailedRunAlone(t *testing.T) {
 // restarted that way is already going and must not be asked again.
 func TestRerunFailedChecks_SkipsAFailedJobTheForgeAlreadyRestartedAsADependent(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{
-		runs: []map[string]any{{"id": 42, "status": "failure"}},
-		fakeJobs: fakeJobs{
-			jobs:    map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure"), job(3, "failure")}},
-			cascade: map[int][]int{1: {2}},
-		},
-	}
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure"), job(3, "failure")}}
+	s.cascade = map[int][]int{1: {2}}
 
 	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
 
@@ -119,10 +113,8 @@ func TestRerunFailedChecks_ReadsTheJobsOnceForAFailedRunWithOneFailedJob(t *test
 
 func TestRerunFailedChecks_AFailedRunWhoseJobsAllPassed_IsNothingToRerun(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{
-		runs:     []map[string]any{{"id": 42, "status": "failure"}},
-		fakeJobs: fakeJobs{jobs: map[int][]map[string]any{42: {job(1, "success")}}},
-	}
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "success")}}
 
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 
@@ -173,7 +165,8 @@ func TestRerunFailedChecks_ConflictReadsAsASentence_WithoutAForgePrefix(t *testi
 
 func TestRerunFailedChecks_ARefusal_ComesBackClassified(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}, fakeJobs: fakeJobs{status: http.StatusForbidden}}
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.status = http.StatusForbidden
 
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 
@@ -184,7 +177,8 @@ func TestRerunFailedChecks_ARefusal_ComesBackClassified(t *testing.T) {
 
 func TestRerunFailedChecks_ARefusal_CarriesForgejosOwnWords(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}, fakeJobs: fakeJobs{status: http.StatusForbidden}}
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.status = http.StatusForbidden
 
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 
