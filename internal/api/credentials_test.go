@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCoo
 
 	finishReq, err := http.NewRequest(
 		http.MethodPost,
-		srv.URL+"/api/auth/credentials/finish?label="+label,
+		srv.URL+"/api/auth/credentials/finish?label="+url.QueryEscape(label),
 		strings.NewReader(attestationResponse),
 	)
 	require.NoError(t, err)
@@ -57,6 +58,41 @@ func addCredentialViaRealCeremony(t *testing.T, srv *httptest.Server, sessionCoo
 	authenticator.AddCredential(cred)
 
 	return finishResp
+}
+
+func TestAddCredential_NameLength_CountsCharactersNotBytes(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		label  string
+		status int
+	}{
+		"64 characters":            {strings.Repeat("a", 64), http.StatusCreated},
+		"64 multibyte characters":  {strings.Repeat("é", 64), http.StatusCreated},
+		"64 after trimming":        {"  " + strings.Repeat("a", 64) + "  ", http.StatusCreated},
+		"65 characters":            {strings.Repeat("a", 65), http.StatusBadRequest},
+		"65 multibyte characters":  {strings.Repeat("é", 65), http.StatusBadRequest},
+		"65 after a leading space": {" " + strings.Repeat("a", 65), http.StatusBadRequest},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newTestServer(t)
+			sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+
+			resp := addCredentialViaRealCeremony(t, srv, sessionCookie, tc.label)
+			body := readAll(t, resp)
+			_ = resp.Body.Close()
+
+			require.Equal(t, tc.status, resp.StatusCode, "body: %s", body)
+			if tc.status == http.StatusBadRequest {
+				assert.JSONEq(t, `{"error":"the name can be at most 64 characters","field":"label"}`, body)
+				assert.Len(t, listCredentialsAs(t, srv, sessionCookie), 1)
+			} else {
+				assert.Len(t, listCredentialsAs(t, srv, sessionCookie), 2)
+			}
+		})
+	}
 }
 
 func TestCredentialsGet_RequiresASession(t *testing.T) {
