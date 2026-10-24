@@ -31,6 +31,7 @@ describe('activeRuns', () => {
         runName: 'ci',
         runNumber: 0,
         label: 'ci',
+        bare: false,
         jobs: ['lint', 'test'],
         jobIds: [1, 1],
       },
@@ -39,6 +40,7 @@ describe('activeRuns', () => {
         runName: 'release',
         runNumber: 0,
         label: 'release',
+        bare: false,
         jobs: ['e2e'],
         jobIds: [1],
       },
@@ -75,6 +77,7 @@ describe('a run whose jobs the forge could not list', () => {
         runName: 'ci',
         runNumber: 0,
         label: 'ci',
+        bare: false,
         jobs: [],
         jobIds: [],
       },
@@ -113,7 +116,7 @@ describe('run labels', () => {
     ).toEqual([
       'Cancel run: run #614',
       'Cancel run: run #615',
-      'Cancel run: run #9',
+      'Cancel run: run (id 9)',
     ]);
   });
 
@@ -124,6 +127,30 @@ describe('run labels', () => {
         job({ jobId: 2, runId: 8, runName: 'release', runNumber: 6 }),
       ]),
     ).toEqual(['Cancel run: ci', 'Cancel run: release']);
+  });
+
+  test('a run with no number falls back to its id, apart from a numbered one', () => {
+    expect(
+      labels([
+        job({ jobId: 1, runId: 614, runNumber: 0 }),
+        job({ jobId: 2, runId: 7, runNumber: 614 }),
+      ]),
+    ).toEqual(['Cancel run: run (id 614)', 'Cancel run: run #614']);
+  });
+
+  test('a workflow named like a numbered label stays distinct', () => {
+    expect(
+      labels([
+        job({ jobId: 1, runId: 7, runName: 'run #5' }),
+        job({ jobId: 2, runId: 8, runNumber: 5 }),
+      ]),
+    ).toEqual(['Cancel run: run #5 (id 7)', 'Cancel run: run #5 (id 8)']);
+  });
+
+  test('a lone run named "this run" keeps its name', () => {
+    expect(labels([job({ runId: 7, runName: 'this run' })])).toEqual([
+      'Cancel run: this run',
+    ]);
   });
 
   test('runs of one workflow get their number', () => {
@@ -177,6 +204,7 @@ describe('runStopped', () => {
     runName: 'ci',
     runNumber: 0,
     label: 'ci',
+    bare: false,
     jobs: ['lint', 'test'],
     jobIds: [2, 3],
   };
@@ -227,6 +255,7 @@ describe('runStopped', () => {
       runName: 'ci',
       runNumber: 0,
       label: 'ci',
+      bare: false,
       jobs: [],
       jobIds: [],
     };
@@ -243,6 +272,7 @@ describe('runStopped', () => {
       runName: 'ci',
       runNumber: 0,
       label: 'ci',
+      bare: false,
       jobs: [],
       jobIds: [],
     };

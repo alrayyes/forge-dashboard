@@ -158,10 +158,18 @@
   // What the section draws: the runs still going, and any run the person has
   // acted on whose state still has something to say.
   const runEntries = $derived.by(() => {
-    const rows: { run: ActiveRun; state?: RunState }[] = runs.map((run) => ({
-      run,
-      state: runStates[run.runId],
-    }));
+    // A run the person has acted on keeps the name it had when they did: the
+    // label depends on the other runs, and one finishing mustn't rename the
+    // run a confirm step is asking about.
+    const rows: { run: ActiveRun; state?: RunState }[] = runs.map((run) => {
+      const state = runStates[run.runId];
+      return {
+        run: state
+          ? { ...run, label: state.run.label, bare: state.run.bare }
+          : run,
+        state,
+      };
+    });
     for (const state of Object.values(runStates)) {
       if (!runs.some((r) => r.runId === state.run.runId))
         rows.push({ run: state.run, state });

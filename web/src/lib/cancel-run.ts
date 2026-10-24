@@ -15,6 +15,9 @@ export type ActiveRun = {
   // another active run shares the name or it has none. Unique among the runs
   // activeRuns returns, so no two buttons read alike.
   label: string;
+  // True for a lone run the forge gave no name: its button reads plain
+  // "Cancel run", as a name after the verb would add nothing.
+  bare: boolean;
   // The jobs of the run that are still queued or running, which stop with it.
   // Empty when the forge couldn't list the run's jobs.
   jobs: string[];
@@ -37,6 +40,7 @@ export function activeRuns(checks: Check[]): ActiveRun[] {
       runName: check.runName ?? '',
       runNumber: check.runNumber ?? 0,
       label: '',
+      bare: false,
       jobs: [],
       jobIds: [],
     };
@@ -49,7 +53,17 @@ export function activeRuns(checks: Check[]): ActiveRun[] {
     runs.set(check.runId, run);
   }
   const all = [...runs.values()];
-  for (const run of all) run.label = labelFor(run, all);
+  for (const run of all) {
+    run.bare = all.length === 1 && !run.runName;
+    run.label = labelFor(run, all);
+  }
+  // A workflow named like another run's numbered label, or two runs the forge
+  // numbered alike, would still read the same: the run id is the last resort.
+  const taken = all.map((r) => r.label);
+  for (const run of all) {
+    if (taken.filter((l) => l === run.label).length > 1)
+      run.label = `${run.label} (id ${run.runId})`;
+  }
   return all;
 }
 
@@ -57,8 +71,10 @@ function labelFor(run: ActiveRun, all: ActiveRun[]): string {
   if (all.length === 1) return run.runName || 'this run';
   const repeated = all.filter((r) => r.runName === run.runName).length > 1;
   const base = run.runName || 'run';
-  const ident = run.runNumber || run.runId;
-  return repeated || !run.runName ? `${base} #${ident}` : base;
+  if (!repeated && run.runName) return base;
+  return run.runNumber
+    ? `${base} #${run.runNumber}`
+    : `${base} (id ${run.runId})`;
 }
 
 const going = (c: Check) => c.state === 'running' || c.state === 'queued';
@@ -91,7 +107,7 @@ export function runStopped(run: ActiveRun, list: Check[]): boolean {
 
 // The Cancel button's text: a lone unnamed run needs no name after the verb.
 export function cancelText(run: ActiveRun): string {
-  return run.label === 'this run' ? 'Cancel run' : `Cancel run: ${run.label}`;
+  return run.bare ? 'Cancel run' : `Cancel run: ${run.label}`;
 }
 
 export function runLabel(run: ActiveRun): string {
