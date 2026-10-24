@@ -44,14 +44,19 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
   };
 }
 
-function mockDashboard(page: Page, forge: string, pr?: MockPR) {
+function mockDashboard(
+  page: Page,
+  forge: string,
+  pr?: MockPR,
+  health: Record<string, unknown> = {},
+) {
   return page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge, reachable: true, repoCount: 1 }],
+        forges: [{ forge, reachable: true, repoCount: 1, ...health }],
         pullRequests: pr ? [pr] : [],
         issues: [],
       }),
@@ -630,6 +635,37 @@ test.describe('pull request pipeline checks panel', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test('a Forgejo with no rerun route offers no "Rerun failed checks" in the panel, only the reason', async ({
+    page,
+  }) => {
+    const reason =
+      'This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.';
+    await mockDashboard(
+      page,
+      'forgejo',
+      makePR({ forge: 'forgejo', ci: 'failure' }),
+      {
+        rerunChecksBlocked: reason,
+      },
+    );
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    await page.goto('/pull-requests.html');
+
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(dialog.getByRole('status')).toContainText(reason);
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toHaveCount(0);
   });
 
   test('a queued rerun stays held as "Rerun queued" when the panel is closed and reopened (#1941)', async ({

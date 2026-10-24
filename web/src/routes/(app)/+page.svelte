@@ -6,7 +6,7 @@
   import { ciSignature } from "#lib/pipeline-live.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
   import { createRedrawGuard } from "#lib/redraw-guard.js";
-  import { forgeLockReason } from "#lib/forge-lock.js";
+  import { forgeLockReason, rerunBlockedLock } from "#lib/forge-lock.js";
   import { formatTime } from "#lib/time.svelte.js";
   import {
     branchesAwaitingFlag,
@@ -223,7 +223,9 @@
           rerun.control(
             openRow,
             () => branchSignature(latest(openRow ?? b)),
-            () => forgeLockReason(data?.forges, b.forge),
+            () =>
+              forgeLockReason(data?.forges, b.forge) ??
+              rerunBlockedLock(data?.forges, b.forge),
           ),
           note,
         );

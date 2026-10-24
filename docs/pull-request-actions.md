@@ -778,25 +778,32 @@ records that as an error rather than as a pruned log, so the gap stays visible
 there. The API stats page counts requests only and doesn't show outcomes.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
-of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
-workflow run on the head commit, once per run, and answers when the forge has
-queued them: the panel says "Rerun queued" and the new results show after the
-next refresh. The button stays pending and reads "Rerun queued", in the panel
-and in the pull request's detail view, until the pull request stops reading
-failed, is updated, or ten minutes pass, so the same rerun can't be queued
-twice. A refused rerun isn't held and leaves its failure line in the detail
-view. It needs
-write access to Actions: the `repo` scope on a classic token, Actions (read
-and write) on a fine-grained token, or Actions (Read and write) on a GitHub
-App. A permission added to an App that is already installed
+of that panel, on GitHub and on Forgejo. On GitHub it reruns only the failed
+jobs of each workflow run on the head commit. Forgejo has no route for that, so
+it reruns each failed run whole. Either way it acts once per run and answers
+when the forge has queued them: the panel says "Rerun queued" and the new
+results show after the next refresh. The button stays pending and reads "Rerun
+queued", in the panel and in the pull request's detail view, until the pull
+request stops reading failed, is updated, or ten minutes pass, so the same rerun
+can't be queued twice. A refused rerun isn't held and leaves its failure line in
+the detail view. It needs write access to Actions: the `repo` scope on a classic
+token, Actions (read and write) on a fine-grained token, or Actions (Read and
+write) on a GitHub App. A permission added to an App that is already installed
 does nothing until the owner accepts it on the installation's page. When the
-forge refuses (no permission, a run too old or already running, a Forgejo too
-old to have the rerun route), the panel shows its reason and the button stays
-for another try.
+forge refuses (no permission, a run too old or already running), the panel shows
+its reason and the button stays for another try.
+
 A failed check that isn't an Actions job, such as an external CI, can't be
 rerun and is skipped; a pull request with nothing left to rerun answers "no
 failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
 `rerun_checks` in `allowedActions`).
+
+Forgejo added the rerun route in version 17. Version 16 and earlier have none,
+so on those the dashboard asks the instance's version once, keeps it, and draws
+no button: the row's button is disabled and the panel prints "This Forgejo is
+older than version 17 and has no way to rerun checks. Rerun them on the forge."
+Nothing is sent to the forge. When the version can't be read, the button is
+drawn and the forge decides.
 
 While a pull request has a check running or waiting, even beside one that
 already failed, the same panel offers `Cancel run: <workflow>` for each workflow

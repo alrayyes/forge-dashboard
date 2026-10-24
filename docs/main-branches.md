@@ -337,11 +337,12 @@ on, so a bot's commit that skips CI does not hide the run. A branch with no
 job answers an empty list. `required` is never set, since only a pull request
 has a base branch whose protection could require a job.
 
-`POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns only the
-failed jobs of the workflow runs on that same commit, once per run, and answers
-204 when the forge has queued them. The pipeline panel of a failed row offers it
-as `Rerun failed checks`, with the same permission needs and the same reasons on
-a refusal as the pull request button (see
+`POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns the
+failed workflow runs on that same commit, once per run (only their failed jobs
+on GitHub; a Forgejo has no such route, so it reruns each failed run whole),
+and answers 204 when the forge has queued them. The pipeline panel of a failed
+row offers it as `Rerun failed checks`, with the same permission needs and the
+same reasons on a refusal as the pull request button (see
 [Pull request actions](pull-request-actions.md)). The button reads "Rerun
 queued" until the row's CI changes or ten minutes pass. When the row's forge
 can't be reached, or its REST rate limit is spent, the panel draws no button and
@@ -350,8 +351,10 @@ limit lifts, or on the first refresh that shows the forge healthy again. A queue
 note stays, with the reason after it on the same line. A failure line from an
 outage or a spent rate limit is dropped when the lock comes, since it is stale
 once the forge is back; a refusal (a missing permission, say) is kept, and
-still shows after the button returns. With several hosts of one
-forge kind, the button is held back only when every one of them would refuse it.
+still shows after the button returns. A Forgejo older than
+version 17 has no rerun route either, so its panel draws no button and says
+so. With several hosts of one forge kind, the button is held back only when
+every one of them would refuse it.
 The response carries each forge's health in `forges`, the same entries the
 dashboard serves. A branch with nothing left to rerun answers "no failed job to
 rerun on this branch" with a 409.

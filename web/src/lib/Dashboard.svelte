@@ -141,6 +141,7 @@
   import {
     type ForgeHealthEntry,
     dependabotBlockedReason,
+    rerunBlockedLock,
     forgeLockReason,
     spentLimit,
   } from "#lib/forge-lock.js";
@@ -1431,6 +1432,9 @@
       if (readOnlyBecauseRateLimited(proactiveReason)) return null;
       if (proactiveReason)
         return lockedActionButton("Rerun failed checks", proactiveReason);
+      // A Forgejo with no rerun route: no click, only the reason.
+      const noRoute = rerunBlockedLock(lastForges, item.forge);
+      if (noRoute) return lockedActionButton("Rerun failed checks", noRoute);
       const phase = rerunQueued(item)
         ? "queued"
         : rerunState[prKey(item)]?.phase;
@@ -5823,6 +5827,14 @@
     function pipelineRerunControl(item: PullRequestItem): HTMLElement | null {
       if (!findAction(item, "rerun_checks")) return null;
       const wrap = el("div", "pipeline-rerun");
+      const noRoute = rerunBlockedLock(lastForges, item.forge);
+      if (noRoute) {
+        const why = el("p", "pipeline-rerun-status");
+        why.setAttribute("role", "status");
+        why.textContent = noRoute.reason;
+        wrap.appendChild(why);
+        return wrap;
+      }
       const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
       button.type = "button";
