@@ -136,6 +136,7 @@ type branchRun struct {
 	ID         int64     `json:"id"`
 	Title      string    `json:"title"`
 	WorkflowID string    `json:"workflow_id"`
+	Number     int64     `json:"index_in_repo"`
 	Ref        string    `json:"prettyref"` // the branch, "#N" for a pull request
 	Event      string    `json:"event"`
 	CommitSHA  string    `json:"commit_sha"`
@@ -374,12 +375,12 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 					URL:        j.HTMLURL,
 					JobID:      j.ID,
 					RunAttempt: j.RunAttempt,
-				}, r.ID, runName(r)))
+				}, r.ID, runName(r), r.Number))
 			}
 
 			continue
 		}
-		out = append(out, withRun(dashboard.Check{Name: runName(r), State: checkStateFromWorkflowStatus(r.Status), URL: r.HTMLURL}, r.ID, runName(r)))
+		out = append(out, withRun(dashboard.Check{Name: runName(r), State: checkStateFromWorkflowStatus(r.Status), URL: r.HTMLURL}, r.ID, runName(r), r.Number))
 	}
 
 	return out

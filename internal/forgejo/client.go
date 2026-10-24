@@ -1335,11 +1335,7 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) ([]dashboard.Check, []string, error) {
 	c = c.withContext(ctx)
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
-	runs, runsResp, err := c.sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
-		PageSize: pageLimit,
-		HeadSHA:  sha,
-	})
+	runs, runsResp, err := c.listRunsForSHA(ctx, owner, name, sha)
 	if err != nil {
 		if runsResp != nil && runsResp.StatusCode == http.StatusNotFound {
 			// A real, completed request — recorded on its own rather
@@ -1354,7 +1350,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 
 		return nil, nil, c.forgejoError(ctx, http.MethodGet, runsPath, runsResp, err)
 	}
-	c.recordRequest(ctx, http.MethodGet, runsPath, runsResp.StatusCode, requestlog.OutcomeSuccess)
+	// rawRequest recorded the successful request itself.
 	if len(runs.WorkflowRuns) == 0 {
 		return c.statusChecks(ctx, owner, name, sha)
 	}
@@ -1374,7 +1370,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				URL:        j.HTMLURL,
 				JobID:      j.ID,
 				RunAttempt: j.RunAttempt,
-			}, run.ID, workflowName(run)))
+			}, run.ID, workflowName(run), run.RunNumber))
 			probes = append(probes, workflowContext(run, j.Name))
 			excerptKeys[j.ID] = newExcerptKey(owner, name, j)
 		}

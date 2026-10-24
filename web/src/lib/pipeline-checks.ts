@@ -23,6 +23,8 @@ export type Check = {
   // job (external CI), which has nothing to cancel.
   runId?: number;
   runName?: string;
+  // The forge's number for that run, which tells two runs of a workflow apart.
+  runNumber?: number;
 };
 
 // What tells one run of a job from another, for the forge that reuses the job

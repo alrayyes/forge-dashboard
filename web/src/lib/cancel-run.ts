@@ -9,6 +9,15 @@ export type ActiveRun = {
   runId: number;
   // The workflow's name; empty when the forge didn't give one.
   runName: string;
+  // The forge's number for the run; 0 when it didn't say.
+  runNumber: number;
+  // What the person calls the run: its workflow, with the number added when
+  // another active run shares the name or it has none. Unique among the runs
+  // activeRuns returns, so no two buttons read alike.
+  label: string;
+  // True for a lone run the forge gave no name: its button reads plain
+  // "Cancel run", as a name after the verb would add nothing.
+  bare: boolean;
   // The jobs of the run that are still queued or running, which stop with it.
   // Empty when the forge couldn't list the run's jobs.
   jobs: string[];
@@ -29,6 +38,9 @@ export function activeRuns(checks: Check[]): ActiveRun[] {
     const run = runs.get(check.runId) ?? {
       runId: check.runId,
       runName: check.runName ?? '',
+      runNumber: check.runNumber ?? 0,
+      label: '',
+      bare: false,
       jobs: [],
       jobIds: [],
     };
@@ -40,7 +52,29 @@ export function activeRuns(checks: Check[]): ActiveRun[] {
     }
     runs.set(check.runId, run);
   }
-  return [...runs.values()];
+  const all = [...runs.values()];
+  for (const run of all) {
+    run.bare = all.length === 1 && !run.runName;
+    run.label = labelFor(run, all);
+  }
+  // A workflow named like another run's numbered label, or two runs the forge
+  // numbered alike, would still read the same: the run id is the last resort.
+  const taken = all.map((r) => r.label);
+  for (const run of all) {
+    if (taken.filter((l) => l === run.label).length > 1)
+      run.label = `${run.label} (id ${run.runId})`;
+  }
+  return all;
+}
+
+function labelFor(run: ActiveRun, all: ActiveRun[]): string {
+  if (all.length === 1) return run.runName || 'this run';
+  const repeated = all.filter((r) => r.runName === run.runName).length > 1;
+  const base = run.runName || 'run';
+  if (!repeated && run.runName) return base;
+  return run.runNumber
+    ? `${base} #${run.runNumber}`
+    : `${base} (id ${run.runId})`;
 }
 
 const going = (c: Check) => c.state === 'running' || c.state === 'queued';
@@ -71,8 +105,13 @@ export function runStopped(run: ActiveRun, list: Check[]): boolean {
   return standIn === undefined || !going(standIn);
 }
 
+// The Cancel button's text: a lone unnamed run needs no name after the verb.
+export function cancelText(run: ActiveRun): string {
+  return run.bare ? 'Cancel run' : `Cancel run: ${run.label}`;
+}
+
 export function runLabel(run: ActiveRun): string {
-  return run.runName || 'this run';
+  return run.label;
 }
 
 // Asks the forge to cancel the run. Resolves once it accepted; rejects with the
