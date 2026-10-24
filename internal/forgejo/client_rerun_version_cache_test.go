@@ -117,6 +117,38 @@ func TestRerunChecksBlockedReason_AFailedReadIsRetriedLater(t *testing.T) {
 	assert.Equal(t, noRerunReason, settled(c))
 }
 
+// A version that doesn't parse says nothing about the instance, so it is
+// read again like a failed read, not trusted for good.
+func TestRerunChecksBlockedReason_AVersionInWordsIsReadAgainLater(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "nightly"}
+	c := s.start(t)
+	clock := newClock()
+	forgejo.SetVersionClock(c, clock.now)
+	require.Empty(t, settled(c))
+
+	s.setVersion("16.0.6+gitea-1.22.0")
+	clock.advance(time.Minute)
+
+	assert.Equal(t, noRerunReason, settled(c))
+}
+
+// When the hour is up and the forge can't be asked, the old "older than 17"
+// answer is not served on trust: the rerun is left to the forge.
+func TestRerunChecksBlockedReason_AStaleBlockIsLiftedWhenTheReReadFails(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "16.0.6+gitea-1.22.0"}
+	c := s.start(t)
+	clock := newClock()
+	forgejo.SetVersionClock(c, clock.now)
+	require.Equal(t, noRerunReason, settled(c))
+
+	s.setVersion("")
+	clock.advance(2 * time.Hour)
+
+	assert.Empty(t, settled(c))
+}
+
 func TestRerunChecksBlockedReason_ManyCallersReadTheVersionOnce(t *testing.T) {
 	t.Parallel()
 	s := &versionServer{version: "17.0.0+gitea-1.22.0"}
@@ -146,7 +178,7 @@ func TestRerunFailedChecks_AfterAnUpgrade_PostsWithoutARefresh(t *testing.T) {
 
 	require.NoError(t, c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
 
-	assert.Equal(t, []string{"/api/v1/repos/alrayyes/a/actions/runs/42/rerun"}, s.posts)
+	assert.Equal(t, []string{"142"}, s.rerunsSeen())
 }
 
 // The click runs under the caller's context, not a timer of its own.

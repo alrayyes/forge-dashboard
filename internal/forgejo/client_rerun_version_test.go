@@ -43,11 +43,12 @@ func TestRerunRoute_IsInForgejo17sAPI_AndNotIn16s(t *testing.T) {
 
 	v17, paths17 := swaggerPaths(t, "swagger_actions_v17.0.0.json")
 	assert.Equal(t, "17.0.0", v17)
-	assert.Contains(t, paths17[forgejo.RerunRunPath], "post", "Forgejo 17.0.0 documents POST %s", forgejo.RerunRunPath)
+	assert.Contains(t, paths17[forgejo.RerunJobPath], "post", "Forgejo 17.0.0 documents POST %s", forgejo.RerunJobPath)
+	assert.Contains(t, paths17["/repos/{owner}/{repo}/actions/runs/{run_id}/jobs"], "get", "the jobs of a run are listed to find the failed ones")
 
 	v16, paths16 := swaggerPaths(t, "swagger_actions_v16.0.6.json")
 	assert.True(t, strings.HasPrefix(v16, "16.0.6"), v16)
-	assert.NotContains(t, paths16, forgejo.RerunRunPath)
+	assert.NotContains(t, paths16, forgejo.RerunJobPath)
 	for p := range paths16 {
 		assert.NotContains(t, p, "rerun", "Forgejo 16.0.6 has no rerun route")
 	}
@@ -56,11 +57,12 @@ func TestRerunRoute_IsInForgejo17sAPI_AndNotIn16s(t *testing.T) {
 // versionServer plays a Forgejo of one version for pull request 5, whose one
 // failed run is 42.
 type versionServer struct {
+	fakeJobs
+
 	version string
 	// hang, when set, holds every /version read until it is closed.
 	hang  chan struct{}
 	mu    sync.Mutex
-	posts []string
 	reads int
 }
 
@@ -105,12 +107,8 @@ func (s *versionServer) start(t *testing.T) *forgejo.Client {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42, "status": "failure", "commit_sha": "new", "prettyref": "main", "event": "push"}}})
 	})
-	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/runs/{run}/rerun", func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		s.posts = append(s.posts, r.URL.Path)
-		s.mu.Unlock()
-		w.WriteHeader(http.StatusNoContent)
-	})
+	s.jobs = map[int][]map[string]any{42: {job(142, "failure"), job(242, "success")}}
+	s.register(t, mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -130,6 +128,9 @@ func TestRerunChecksBlockedReason_ByForgejoVersion(t *testing.T) {
 		{"a later major has it", "18.1.0+gitea-1.22.0", false},
 		{"an unreadable version is left to the forge", "", false},
 		{"a version in words is left to the forge", "nightly", false},
+		{"a Gitea may have the route, so it is left to the forge", "1.22.0", false},
+		{"a Forgejo before 7 reads like a Gitea, so it is left to the forge", "1.21.11+gitea-1.21.11", false},
+		{"7.0.0 is the first Forgejo that can be told from a Gitea", "7.0.0+gitea-1.21.0", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -168,7 +169,7 @@ func TestRerunFailedChecks_OnForgejo16_SaysSoAndPostsNothing(t *testing.T) {
 	require.True(t, ok, "want a ClientError, got %v", err)
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 	assert.Equal(t, noRerunReason, dashboard.ForgeMessage(err))
-	assert.Empty(t, s.posts)
+	assert.Empty(t, s.rerunsSeen())
 }
 
 func TestRerunFailedDefaultBranchChecks_OnForgejo16_SaysSoAndPostsNothing(t *testing.T) {
@@ -178,23 +179,23 @@ func TestRerunFailedDefaultBranchChecks_OnForgejo16_SaysSoAndPostsNothing(t *tes
 	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
 
 	assert.Equal(t, noRerunReason, dashboard.ForgeMessage(err))
-	assert.Empty(t, s.posts)
+	assert.Empty(t, s.rerunsSeen())
 }
 
-func TestRerunFailedChecks_OnForgejo17_PostsTheRunRerun(t *testing.T) {
+func TestRerunFailedChecks_OnForgejo17_PostsTheFailedJobRerun(t *testing.T) {
 	t.Parallel()
 	s := &versionServer{version: "17.0.0+gitea-1.22.0"}
 
 	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
 
-	assert.Equal(t, []string{"/api/v1/repos/alrayyes/a/actions/runs/42/rerun"}, s.posts)
+	assert.Equal(t, []string{"142"}, s.rerunsSeen())
 }
 
 // A refusal read "refused: refused: ..." because the raw request and the
 // error classifier each added the word.
 func TestRerunFailedChecks_RefusalSaysRefusedOnce(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{rerunStatus: http.StatusNotFound, runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s := &rerunServer{fakeJobs: fakeJobs{status: http.StatusNotFound}, runs: []map[string]any{{"id": 42, "status": "failure"}}}
 
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 

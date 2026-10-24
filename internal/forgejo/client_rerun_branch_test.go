@@ -19,9 +19,10 @@ var _ dashboard.DefaultBranchRerunner = (*forgejo.Client)(nil)
 // branchRerunServer plays Forgejo for alrayyes/a, whose default branch is
 // main. runs is the Actions runs list, in Forgejo's own field names.
 type branchRerunServer struct {
-	runs   []map[string]any
-	mu     sync.Mutex
-	reruns []string
+	fakeJobs
+
+	runs []map[string]any
+	mu   sync.Mutex
 	// repoLookups counts reads of the repository itself.
 	repoLookups int
 }
@@ -39,12 +40,12 @@ func (s *branchRerunServer) start(t *testing.T) *forgejo.Client {
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"total_count": len(s.runs), "workflow_runs": s.runs})
 	})
-	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/runs/{run}/rerun", func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		s.reruns = append(s.reruns, r.PathValue("run"))
-		s.mu.Unlock()
-		w.WriteHeader(http.StatusNoContent)
-	})
+	s.jobs = map[int][]map[string]any{}
+	for _, run := range s.runs {
+		id, _ := run["id"].(int)
+		s.jobs[id] = []map[string]any{job(id+100, run["status"].(string)), job(id+200, "success")}
+	}
+	s.register(t, mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -67,7 +68,7 @@ func TestRerunFailedDefaultBranchChecks_RerunsOnlyTheFailedRunsOfTheNewestCommit
 
 	require.NoError(t, s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main"))
 
-	assert.Equal(t, []string{"42"}, s.reruns)
+	assert.Equal(t, []string{"142"}, s.rerunsSeen())
 	assert.Zero(t, s.repoLookups, "the default branch is known, so the repository isn't read")
 }
 
@@ -81,7 +82,7 @@ func TestRerunFailedDefaultBranchChecks_NoFailedRun_IsAConflict(t *testing.T) {
 	require.True(t, ok, "want a ClientError, got %v", err)
 	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
 	assert.Equal(t, "no failed job to rerun on this branch", dashboard.ForgeMessage(err))
-	assert.Empty(t, s.reruns)
+	assert.Empty(t, s.rerunsSeen())
 }
 
 func TestRerunFailedDefaultBranchChecks_RunsListMissing_IsAnErrorNotNothingToRerun(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -17,14 +18,20 @@ import (
 // carries no "forgejo: " prefix the page would swap for a generic one.
 var errNothingToRerun = errors.New("no failed job to rerun on this pull request")
 
-// rerunRunPath is the one route Forgejo offers to rerun an Actions run, as an
-// OpenAPI path template. It first shipped in Forgejo 17.0.0; 16 and earlier
-// have no rerun route at all, and Forgejo has no route for rerunning only the
-// failed jobs of a run, so the whole run goes again.
-const rerunRunPath = "/repos/{owner}/{repo}/actions/runs/{run_id}/rerun"
+// rerunJobPath is the route Forgejo offers to rerun one Actions job, as an
+// OpenAPI path template. It first shipped in Forgejo 17.0.0, beside a route
+// that reruns a whole run; 16 and earlier have no rerun route at all. The job
+// route is the one used, so a job that passed doesn't go again. Forgejo
+// restarts the jobs that need the one asked for along with it.
+const rerunJobPath = "/repos/{owner}/{repo}/actions/jobs/{job_id}/rerun"
 
-// firstRerunMajor is the first Forgejo major version with rerunRunPath.
+// firstRerunMajor is the first Forgejo major version with rerunJobPath.
 const firstRerunMajor = 17
+
+// firstForgejoMajor is the first major version only a Forgejo reports. Before
+// it Forgejo numbered itself like the Gitea it forked, so a 1.x could be either
+// and the rerun is left to the forge.
+const firstForgejoMajor = 7
 
 // errNoRerunRoute is why a rerun on a Forgejo older than firstRerunMajor never
 // reaches the forge. Shown to a person, so it reads as a sentence.
@@ -55,14 +62,15 @@ func (c *Client) rerunBlocked(ctx context.Context) error {
 }
 
 // RerunFailedChecks implements dashboard.ChecksRerunner: it finds the Actions
-// runs on the pull request's head commit, and asks Forgejo to rerun each run
-// that failed, once per run. A commit status doesn't say which
-// run it came from, so the runs are looked up by commit instead. A status with
-// no run behind it (an external CI) isn't there to find and is skipped.
+// runs on the pull request's head commit, reads the jobs of each run that
+// failed, and asks Forgejo to rerun each job that failed. A commit status
+// doesn't say which run it came from, so the runs are looked up by commit
+// instead. A status with no run behind it (an external CI) isn't there to find
+// and is skipped.
 //
-// The rerun is a raw request, not the SDK's RerunRepoActionRunFailedJobs: the
-// SDK drops the body of a refusal, and Forgejo's own reason (a token without
-// the Actions scope, an instance without the route) is what a person needs.
+// The rerun is a raw request, not an SDK call: the SDK drops the body of a
+// refusal, and Forgejo's own reason (a token without the Actions scope, an
+// instance without the route) is what a person needs.
 func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
 	c = c.withContext(ctx)
 	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
@@ -84,8 +92,15 @@ func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, numb
 	if len(failed) == 0 {
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerun}
 	}
+	n, err := c.rerunFailedJobs(ctx, owner, name, failed)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerun}
+	}
 
-	return c.rerunRuns(ctx, owner, name, failed)
+	return nil
 }
 
 // errNothingToRerunOnBranch is errNothingToRerun for a default branch.
@@ -115,25 +130,64 @@ func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name
 	if len(failed) == 0 {
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerunOnBranch}
 	}
-
-	return c.rerunRuns(ctx, owner, name, failed)
-}
-
-// rerunRuns asks Forgejo to rerun each run in ids.
-func (c *Client) rerunRuns(ctx context.Context, owner, name string, ids []int64) error {
-	if err := c.rerunBlocked(ctx); err != nil {
+	n, err := c.rerunFailedJobs(ctx, owner, name, failed)
+	if err != nil {
 		return err
 	}
-	for _, runID := range ids {
-		rerunPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/rerun", owner, name, runID)
-		slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
-		_, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil)
-		if err != nil {
-			return c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
-		}
+	if n == 0 {
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerunOnBranch}
 	}
 
 	return nil
+}
+
+// rerunFailedJobs asks Forgejo to rerun each failed job of each run in ids, and
+// says how many it asked for. A run's jobs are read once. Forgejo restarts the
+// jobs that need a rerun job along with it, and refuses to rerun one that is
+// going again, so before each job after the first the run's jobs are read
+// again and a job that is no longer failed is left alone.
+func (c *Client) rerunFailedJobs(ctx context.Context, owner, name string, ids []int64) (int, error) {
+	if err := c.rerunBlocked(ctx); err != nil {
+		return 0, err
+	}
+	asked := 0
+	for _, runID := range ids {
+		jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
+		if err != nil {
+			return asked, err
+		}
+		failed := failedJobIDs(jobs)
+		for i, jobID := range failed {
+			if i > 0 {
+				if jobs, err = c.listActionRunJobs(ctx, owner, name, runID); err != nil {
+					return asked, err
+				}
+				if !slices.Contains(failedJobIDs(jobs), jobID) {
+					continue
+				}
+			}
+			rerunPath := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/rerun", owner, name, jobID)
+			slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
+			if _, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil); err != nil {
+				return asked, c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
+			}
+			asked++
+		}
+	}
+
+	return asked, nil
+}
+
+// failedJobIDs is the id of every job in jobs that failed.
+func failedJobIDs(jobs []*gitea.ActionWorkflowJob) []int64 {
+	var ids []int64
+	for _, j := range jobs {
+		if checkStateFromWorkflowStatus(j.Status) == dashboard.CheckFailure {
+			ids = append(ids, j.ID)
+		}
+	}
+
+	return ids
 }
 
 // failedRunIDs is the id of every Actions run on commit sha that failed. A

@@ -27,13 +27,15 @@ const (
 // No lock is held while the network is asked.
 type versionCache struct {
 	mu       sync.Mutex
-	major    int // 0 when the forge gave no number
+	major    int
 	known    bool
 	readAt   time.Time
 	failedAt time.Time
 	probing  bool
-	now      func() time.Time
-	probes   sync.WaitGroup
+	// now and probes exist for the tests: a clock they move, and a way to wait
+	// for the background read.
+	now    func() time.Time
+	probes sync.WaitGroup
 }
 
 func (v *versionCache) clock() time.Time {
@@ -53,7 +55,10 @@ func (v *versionCache) answerLocked() (major int, known, fresh bool) {
 		fresh = true
 	case !v.known:
 		fresh = false
-	case v.major == 0 || v.major >= firstRerunMajor:
+	case v.major >= firstRerunMajor || v.major < firstForgejoMajor:
+		// An answer that can't change what is done is kept: 17 and later have
+		// the route for good, and a 1.x is a Gitea or an old Forgejo that is
+		// left to the forge whatever its number.
 		fresh = true
 	default:
 		fresh = now.Sub(v.readAt) < blockedVersionTTL
@@ -88,6 +93,11 @@ func (v *versionCache) record(major int, ok bool) {
 	defer v.mu.Unlock()
 	if !ok {
 		v.failedAt = v.clock()
+		// A block that has gone stale is not served on trust while the forge
+		// can't be asked: the rerun is left to the forge until a read lands.
+		if v.major >= firstForgejoMajor && v.major < firstRerunMajor {
+			v.known = false
+		}
 
 		return
 	}
@@ -115,10 +125,11 @@ func (c *Client) readVersion(ctx context.Context) {
 
 		return
 	}
-	// Answered, even when the answer is words.
 	major, _, _ := strings.Cut(strings.TrimPrefix(v.Version, "v"), ".")
 	n, _ := strconv.Atoi(major)
-	c.version.record(n, true)
+	// A version in words, or none, says nothing about the instance: it is
+	// read again later like a failed read.
+	c.version.record(n, n > 0)
 }
 
 // startVersionRead reads the version in the background, so a refresh never
@@ -143,7 +154,7 @@ func (c *Client) serverMajor() (int, bool) {
 		c.startVersionRead()
 	}
 
-	return major, known && major > 0
+	return major, known && major >= firstForgejoMajor
 }
 
 // serverMajorFor is the major version for a click: a stale answer is read
@@ -154,5 +165,5 @@ func (c *Client) serverMajorFor(ctx context.Context) (int, bool) {
 	}
 	major, known, _ := c.version.answer()
 
-	return major, known && major > 0
+	return major, known && major >= firstForgejoMajor
 }
