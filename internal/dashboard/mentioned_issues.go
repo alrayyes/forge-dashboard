@@ -46,8 +46,11 @@ var markdownLinkPattern = regexp.MustCompile(`\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\
 // It is a link only when a definition names the label.
 var referenceLinkPattern = regexp.MustCompile(`\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\[([^\[\]\n]*)\]`)
 
-// linkDefinitionPattern finds a "[label]: target" line.
-var linkDefinitionPattern = regexp.MustCompile(`(?m)^ {0,3}\[([^\[\]\n]+)\]:[^\n]*$`)
+// linkDefinitionPattern finds a "[label]: target" line, when the target looks
+// like an address (a scheme with //, mailto:, a path or www.). Any other line
+// that starts with a bracketed label is prose and keeps its references.
+var linkDefinitionPattern = regexp.MustCompile(
+	`(?mi)^ {0,3}\[([^\[\]\n]+)\]:[ \t]*<?(?:[a-z][a-z0-9+.-]*://|mailto:|/|\./|\.\./|www\.)[^\n]*$`)
 
 // shortcutLinkPattern finds a lone [label], a link when a definition names it.
 var shortcutLinkPattern = regexp.MustCompile(`\[([^\[\]\n]+)\]`)
@@ -188,22 +191,65 @@ func blank(text string, pattern *regexp.Regexp) string {
 	return pattern.ReplaceAllStringFunc(text, func(s string) string { return strings.Repeat(" ", len(s)) })
 }
 
-// clip cuts s to at most n bytes, back to the last whitespace, so a reference
-// or an address is never read half-written ("#12345" must not become "#12").
-// Nothing is kept when there is no whitespace to cut at.
+// clip cuts s to at most n bytes, back to the last whitespace (Unicode spaces
+// too), so a reference or an address is never read half-written ("#12345"
+// must not become "#12"). With no whitespace at all it cuts back to the start
+// of the last run of letters and digits instead, so "#1,#2," survives. An
+// anchor still open at the cut loses its text, which the cut hid the end of.
 func clip(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	for n > 0 && !isASCIISpace(s[n]) {
-		n--
+	cut := cutAtSpace(s, n)
+	if cut < 0 {
+		cut = cutAtWordStart(s, n)
 	}
 
-	return s[:n]
+	return dropOpenAnchor(s[:cut])
 }
 
-func isASCIISpace(b byte) bool {
-	return b == ' ' || b == '\n' || b == '\t' || b == '\r' || b == '\f' || b == '\v'
+// cutAtSpace finds where whitespace starts at or before n, or -1.
+func cutAtSpace(s string, n int) int {
+	for i := n; i > 0; i-- {
+		if !utf8.RuneStart(s[i]) {
+			continue
+		}
+		if r, _ := utf8.DecodeRuneInString(s[i:]); unicode.IsSpace(r) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// cutAtWordStart finds the start of the run of letters and digits that n
+// falls in or ends, or 0.
+func cutAtWordStart(s string, n int) int {
+	for i := n; i > 0; i-- {
+		if !utf8.RuneStart(s[i]) {
+			continue
+		}
+		if r, _ := utf8.DecodeRuneInString(s[i:]); !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return i
+		}
+	}
+
+	return 0
+}
+
+// dropOpenAnchor removes the text after the last opening <a ...> tag when no
+// closing tag follows it. The tag itself stays, so its href still counts.
+func dropOpenAnchor(s string) string {
+	opens := anchorOpenPattern.FindAllStringIndex(s, -1)
+	if len(opens) == 0 {
+		return s
+	}
+	last := opens[len(opens)-1]
+	if anchorClosePattern.MatchString(s[last[1]:]) {
+		return s
+	}
+
+	return s[:last[1]]
 }
 
 // blankAnchors blanks each <a ...>text</a>. An opening tag with no closing one
