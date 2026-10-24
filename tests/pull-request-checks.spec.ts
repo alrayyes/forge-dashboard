@@ -668,6 +668,80 @@ test.describe('pull request pipeline checks panel', () => {
     ).toHaveCount(0);
   });
 
+  test('the panel swaps its button for the reason when the version read lands after it opened', async ({
+    page,
+  }) => {
+    const reason =
+      'This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.';
+    const health: Record<string, unknown> = {};
+    await page.route('**/api/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            { forge: 'forgejo', reachable: true, repoCount: 1, ...health },
+          ],
+          pullRequests: [makePR({ forge: 'forgejo', ci: 'failure' })],
+          issues: [],
+        }),
+      }),
+    );
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    await page.clock.install();
+    await page.goto('/pull-requests.html');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toBeVisible();
+
+    health.rerunChecksBlocked = reason;
+    await expect(async () => {
+      await page.clock.runFor(60_000);
+      await expect(dialog.getByRole('status')).toContainText(reason, {
+        timeout: 500,
+      });
+    }).toPass();
+
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toHaveCount(0);
+  });
+
+  test('the panel offers no rerun while the forge is unreachable, like the row', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      'forgejo',
+      makePR({ forge: 'forgejo', ci: 'failure' }),
+      { reachable: false },
+    );
+    await mockChecks(page, {
+      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+    });
+    await page.goto('/pull-requests.html');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(dialog.getByRole('list')).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Rerun failed checks' }),
+    ).toHaveCount(0);
+  });
+
   test('a queued rerun stays held as "Rerun queued" when the panel is closed and reopened (#1941)', async ({
     page,
   }) => {

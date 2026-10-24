@@ -142,7 +142,6 @@
     type ForgeHealthEntry,
     dependabotBlockedReason,
     rerunBlockedLock,
-    rerunScopeNote,
     forgeLockReason,
     spentLimit,
   } from "#lib/forge-lock.js";
@@ -1448,7 +1447,6 @@
             : "Rerun failed checks",
       );
       button.type = "button";
-      button.title = rerunScopeNote(item.forge) ?? "";
       markPending(button, phase === "requesting" || phase === "queued");
       button.addEventListener("click", () => {
         if (isPending(button)) return;
@@ -5796,6 +5794,16 @@
     let pipelineDialogRowKey: string | null = null;
     // The newest copy of the open dialog's pull request, for the reads it makes.
     let pipelineItem: PullRequestItem | null = null;
+    // What the open dialog's rerun control was drawn for. The dialog calls the
+    // control once per change of its checks, so a forge that changes under it
+    // (a version read landing, an outage) has to ask for a redraw.
+    let pipelineRerunLockDrawn = "";
+    function pipelineRerunLockKey(item: PullRequestItem): string {
+      return JSON.stringify([
+        proactiveActionLockReason(item.forge)?.reason ?? "",
+        rerunBlockedLock(lastForges, item.forge)?.reason ?? "",
+      ]);
+    }
 
     // The one request behind every "Rerun failed checks" button: the pipeline
     // dialog's and the details dialog's footer. The forge queues the jobs.
@@ -5828,6 +5836,18 @@
     // forge queues the jobs; the next refresh carries their result.
     function pipelineRerunControl(item: PullRequestItem): HTMLElement | null {
       if (!findAction(item, "rerun_checks")) return null;
+      pipelineRerunLockDrawn = pipelineRerunLockKey(item);
+      // The same locks as the row's cell: a spent budget or an unreachable
+      // forge draws no button, one banner says why.
+      const proactive = proactiveActionLockReason(item.forge);
+      if (readOnlyBecauseRateLimited(proactive)) return null;
+      if (proactive)
+        return lockedActionButton(
+          "Rerun failed checks",
+          proactive,
+          undefined,
+          "",
+        );
       const wrap = el("div", "pipeline-rerun");
       const noRoute = rerunBlockedLock(lastForges, item.forge);
       if (noRoute) {
@@ -5840,7 +5860,6 @@
       const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
       button.type = "button";
-      button.title = rerunScopeNote(item.forge) ?? "";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       // The failure sentence is the alert; Copy sits beside it, outside, so
@@ -8351,6 +8370,8 @@
       const now = allPRs.find((p) => prKey(p) === pipelineDialogRowKey);
       if (now) pipelineItem = now;
       pipelineDialog?.follow(now ? ciSignature(now) : null);
+      if (now && pipelineRerunLockKey(now) !== pipelineRerunLockDrawn)
+        pipelineDialog?.redrawControls();
     }
 
     function applySnapshot(

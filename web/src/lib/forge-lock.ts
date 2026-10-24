@@ -125,15 +125,6 @@ export function dependabotBlockedReason(
     : undefined;
 }
 
-// What a rerun button on this forge also does, or nothing to add. Forgejo has
-// no route for rerunning only the failed jobs, so its rerun starts the whole
-// run again, and a deploy or publish job that passed goes with it.
-export function rerunScopeNote(forge: string): string | undefined {
-  return forge === 'forgejo'
-    ? 'Forgejo has no way to rerun only the failed jobs, so the whole run goes again, passing jobs included.'
-    : undefined;
-}
-
 // The lock for a rerun on a kind whose every host has no rerun route, or
 // nothing. It is keyed by forge kind, not host: the pull request rows carry
 // the kind only, so with a Forgejo 16 and a Forgejo 17 side by side the

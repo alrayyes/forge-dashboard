@@ -7,7 +7,6 @@ const {
   dependabotBlockedReason,
   forgeLockReason,
   rerunBlockedLock,
-  rerunScopeNote,
   spentLimit,
 } = await import('./forge-lock');
 
@@ -166,17 +165,6 @@ describe('rerunBlockedLock', () => {
     expect(rerunBlockedLock([blocked('a')], 'github')?.code).toBe(
       'rerun_unsupported',
     );
-  });
-});
-
-describe('rerunScopeNote', () => {
-  test('tells a Forgejo user the whole run goes again, passing jobs too', () => {
-    expect(rerunScopeNote('forgejo')).toContain('whole run');
-    expect(rerunScopeNote('forgejo')).toContain('passing jobs');
-  });
-
-  test('says nothing on a forge that reruns only the failed jobs', () => {
-    expect(rerunScopeNote('github')).toBeUndefined();
   });
 });
 

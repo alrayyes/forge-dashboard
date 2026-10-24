@@ -11,7 +11,7 @@ import {
 } from './action-error';
 import { copyButton } from './copy-details';
 import type { FailureDetails } from './feedback';
-import { type ForgeLock, rerunScopeNote } from './forge-lock';
+import type { ForgeLock } from './forge-lock';
 import { msUntilReset } from './rate-limit';
 
 // How long a queued rerun is held, so the same rerun can't be queued twice.
@@ -109,8 +109,6 @@ export function createBranchRerun() {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'row-action';
-    const scope = rerunScopeNote(t.forge);
-    if (scope) button.title = scope;
     const status = document.createElement('p');
     status.className = 'pipeline-rerun-status';
     status.setAttribute('role', 'status');
