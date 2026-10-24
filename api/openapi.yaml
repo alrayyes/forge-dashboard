@@ -4621,6 +4621,13 @@ components:
           description: |
             The name of that workflow run, for a client to say which run a
             cancel stops. Present with `runId`.
+        runNumber:
+          type: integer
+          minimum: 1
+          description: |
+            The forge's own number for that run, the one in the run's page
+            address. It tells two runs of one workflow apart. Present with
+            `runId` when the forge says it.
         required:
           type: boolean
           description: |
