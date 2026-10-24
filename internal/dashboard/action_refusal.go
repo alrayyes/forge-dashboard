@@ -137,7 +137,9 @@ const (
 	PullRequestActionCancelAutoMerge PullRequestAction = "cancel_auto_merge"
 	PullRequestActionDependabot      PullRequestAction = "dependabot"
 	PullRequestActionRenovateRebase  PullRequestAction = "renovate_rebase"
-	PullRequestActionRerunChecks     PullRequestAction = "rerun_checks"
+	// PullRequestActionCancelRenovateRebase clears Renovate's rebase box.
+	PullRequestActionCancelRenovateRebase PullRequestAction = "cancel_renovate_rebase"
+	PullRequestActionRerunChecks          PullRequestAction = "rerun_checks"
 	// PullRequestActionCancelRun is the cancel of one Actions run. It names a
 	// run, not a pull request, but it fails the same ways.
 	PullRequestActionCancelRun PullRequestAction = "cancel_run"
@@ -207,7 +209,7 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 		if r, ok := rerunNotFound(actionErr, forgeText); ok {
 			return r
 		}
-	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionCancelRun:
+	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionCancelRun, PullRequestActionCancelRenovateRebase:
 	}
 
 	return unknownRefusal(actionErr, forgeText)

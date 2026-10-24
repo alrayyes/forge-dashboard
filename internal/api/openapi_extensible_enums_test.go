@@ -17,7 +17,7 @@ import (
 var (
 	knownActions = []string{
 		"merge", "close", "update_branch", "auto_merge", "cancel_auto_merge",
-		"dependabot_rebase", "dependabot_recreate", "renovate_rebase", "rerun_checks", "cancel_run",
+		"dependabot_rebase", "dependabot_recreate", "renovate_rebase", "cancel_renovate_rebase", "rerun_checks", "cancel_run",
 	}
 	knownBlockedCodes = []string{
 		"already_up_to_date", "conflict", "not_mergeable", "checks_pending",

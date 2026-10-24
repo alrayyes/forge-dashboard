@@ -58,6 +58,7 @@ var mcpPending = []string{
 	"updatePullRequestBranch",
 	"postPullRequestDependabotAction",
 	"postPullRequestRenovateRebase",
+	"cancelPullRequestRenovateRebase",
 	"queueAction",
 	"cancelQueuedAction",
 	"refreshDashboard",

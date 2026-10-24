@@ -14,6 +14,7 @@ export type ActionName =
   | 'dependabot_rebase'
   | 'dependabot_recreate'
   | 'renovate_rebase'
+  | 'cancel_renovate_rebase'
   | 'rerun_checks'
   | 'cancel_run';
 

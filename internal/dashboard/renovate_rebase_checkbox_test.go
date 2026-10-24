@@ -75,3 +75,46 @@ func TestRebaseCheckboxOf_ReadsTheStateWithoutTickingIt(t *testing.T) {
 		})
 	}
 }
+
+func TestUntickRebaseCheckbox_TickedBoxIsClearedAndNothingElseChanges(t *testing.T) {
+	t.Parallel()
+
+	tail := "\r\n\r\n---\r\n\r\n- [ ] foo\r\n"
+	body := renovateBodyHead + "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box" + tail
+
+	got, state := dashboard.UntickRebaseCheckbox(body)
+
+	assert.Equal(t, dashboard.RebaseCheckboxTicked, state)
+	assert.Equal(t, renovateBodyHead+"- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box"+tail, got)
+}
+
+func TestUntickRebaseCheckbox_CapitalXCounts(t *testing.T) {
+	t.Parallel()
+
+	got, state := dashboard.UntickRebaseCheckbox("- [X] <!-- rebase-check -->go")
+
+	assert.Equal(t, dashboard.RebaseCheckboxTicked, state)
+	assert.Equal(t, "- [ ] <!-- rebase-check -->go", got)
+}
+
+func TestUntickRebaseCheckbox_UntickedBoxIsLeftAlone(t *testing.T) {
+	t.Parallel()
+
+	body := "- [ ] <!-- rebase-check -->go"
+
+	got, state := dashboard.UntickRebaseCheckbox(body)
+
+	assert.Equal(t, dashboard.RebaseCheckboxUnticked, state)
+	assert.Equal(t, body, got)
+}
+
+func TestUntickRebaseCheckbox_NoCheckbox(t *testing.T) {
+	t.Parallel()
+
+	body := "- [x] <!-- other-check -->not ours"
+
+	got, state := dashboard.UntickRebaseCheckbox(body)
+
+	assert.Equal(t, dashboard.RebaseCheckboxAbsent, state)
+	assert.Equal(t, body, got)
+}

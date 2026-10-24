@@ -119,6 +119,40 @@ func (a *Aggregator) RecordBotRequest(forge Forge, repo string, number int, bot 
 	a.notify(next)
 }
 
+// SetRenovateRebaseBox notes on the snapshot that Renovate's rebase box on
+// forge/repo#number was just ticked or cleared here, so the board offers the
+// matching action before the next fetch reads the description again. Clearing it
+// also drops a Renovate request still waiting on it. A pull request the
+// snapshot doesn't hold is left alone.
+func (a *Aggregator) SetRenovateRebaseBox(forge Forge, repo string, number int, ticked bool) {
+	key := settledKey(forge, repo, number)
+
+	a.mu.Lock()
+	idx := slices.IndexFunc(a.snap.PullRequests, func(pr PullRequest) bool {
+		return settledKey(pr.Forge, pr.Repo, pr.Number) == key
+	})
+	if idx < 0 {
+		a.mu.Unlock()
+
+		return
+	}
+
+	a.botMu.Lock()
+	if e, ok := a.botRequests[key]; ok && !ticked && e.Bot == BotRenovate {
+		delete(a.botRequests, key)
+	}
+	a.botMu.Unlock()
+
+	next := a.snap
+	next.PullRequests = slices.Clone(a.snap.PullRequests)
+	next.PullRequests[idx].RenovateRebaseRequested = ticked
+	a.annotateBotRequests(next.PullRequests)
+	a.snap = next
+	a.mu.Unlock()
+
+	a.notify(next)
+}
+
 // applyBotRequests moves every request that prs covers along and then marks
 // each pull request with its request. seq is the fetch prs came from. covers
 // says which forge and repo that fetch actually answered for: a pull request

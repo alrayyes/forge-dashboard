@@ -525,6 +525,15 @@ func (s *Service) RecordBotRequest(forge Forge, repo string, number int, bot Bot
 	}
 }
 
+// SetRenovateRebaseBox delegates to the Aggregator — see
+// Aggregator.SetRenovateRebaseBox. With none running there is no board to show
+// it on, so it does nothing.
+func (s *Service) SetRenovateRebaseBox(forge Forge, repo string, number int, ticked bool) {
+	if agg := s.aggregator(); agg != nil {
+		agg.SetRenovateRebaseBox(forge, repo, number, ticked)
+	}
+}
+
 // RecordUpdateRequest delegates to the Aggregator — see
 // Aggregator.RecordUpdateRequest. With none running there is no board to show
 // it on, so it does nothing.
