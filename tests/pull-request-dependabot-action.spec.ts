@@ -5,6 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { waitOutConfirmGuard } from './confirm-guard-helper';
 import { test } from './server-fixture';
 
 interface MockLabel {
@@ -333,14 +334,13 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         footer.getByRole('button', { name: 'Confirm recreate?' }),
       ).toBeFocused();
       // An Enter straight after the confirm appears is ignored on purpose, so
-      // press until the guard lets one through.
+      // wait the guard out and press once.
       const requested = footer.getByRole('button', {
         name: 'Recreate requested',
       });
-      await expect(async () => {
-        await page.keyboard.press('Enter');
-        await expect(requested).toBeVisible({ timeout: 300 });
-      }).toPass();
+      await waitOutConfirmGuard(page);
+      await page.keyboard.press('Enter');
+      await expect(requested).toBeVisible();
       await expect(requested).toBeFocused();
       release();
       await expect(requested).toBeFocused();
