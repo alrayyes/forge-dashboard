@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.33.0](https://github.com/alrayyes/forge-dashboard/compare/v2.32.1...v2.33.0) (2026-10-24)
+
+
+### Features
+
+* rename a passkey in Settings ([#2813](https://github.com/alrayyes/forge-dashboard/issues/2813)) ([33c6f64](https://github.com/alrayyes/forge-dashboard/commit/33c6f645336e00ba7a89daeb9533495d1f512631))
+
 ## [2.32.1](https://github.com/alrayyes/forge-dashboard/compare/v2.32.0...v2.32.1) (2026-10-24)
 
 
