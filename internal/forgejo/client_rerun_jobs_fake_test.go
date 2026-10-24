@@ -61,7 +61,13 @@ func (f *fakeJobs) register(t *testing.T, mux *http.ServeMux) {
 		}
 		writeJSON(t, w, map[string]any{"total_count": len(jobs), "jobs": jobs})
 	})
-	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/jobs/{job}/rerun", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/jobs/{job}/rerun", f.rerunHandler(t))
+}
+
+// rerunHandler answers one job rerun: it goes through, is refused, or is
+// hung up on.
+func (f *fakeJobs) rerunHandler(t *testing.T) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("job"))
 		f.mu.Lock()
 		refused := f.status != 0 && len(f.rerun) >= f.okFirst
@@ -70,22 +76,18 @@ func (f *fakeJobs) register(t *testing.T, mux *http.ServeMux) {
 			f.restart(id)
 		}
 		f.mu.Unlock()
-		if refused && f.drop {
-			conn, _, err := w.(http.Hijacker).Hijack()
-			if err == nil {
+		switch {
+		case refused && f.drop:
+			if conn, _, err := w.(http.Hijacker).Hijack(); err == nil {
 				_ = conn.Close()
 			}
-
-			return
-		}
-		if refused {
+		case refused:
 			w.WriteHeader(f.status)
 			writeJSON(t, w, map[string]any{"message": "token does not have at least one of required scope(s)"})
-
-			return
+		default:
+			w.WriteHeader(http.StatusNoContent)
 		}
-		w.WriteHeader(http.StatusNoContent)
-	})
+	}
 }
 
 // restart reads job id and everything the forge restarts with it as waiting.

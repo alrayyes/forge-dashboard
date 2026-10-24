@@ -2,7 +2,6 @@ package forgejo_test
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -242,5 +241,5 @@ func TestRerunFailedChecks_AWaiterThatGivesUpGetsItsContextError(t *testing.T) {
 
 	err := c.RerunFailedChecks(ctx, "alrayyes", "a", 5)
 
-	assert.True(t, errors.Is(err, context.DeadlineExceeded))
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }

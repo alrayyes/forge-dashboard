@@ -3,6 +3,7 @@ package forgejo
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -203,7 +204,7 @@ func (c *Client) serverMajorFor(ctx context.Context) (int, bool, error) {
 			select {
 			case <-wait:
 			case <-ctx.Done():
-				return 0, false, ctx.Err()
+				return 0, false, fmt.Errorf("wait for the forge's version: %w", ctx.Err())
 			}
 		}
 	}
