@@ -1,11 +1,56 @@
 /** An error from the auth API that keeps the HTTP status it came with. */
 export class ApiError extends Error {
   readonly status: number;
+  /** Seconds the server asked the client to wait, from Retry-After. */
+  readonly retryAfter?: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, retryAfter?: number) {
     super(message);
     this.status = status;
+    this.retryAfter = retryAfter;
   }
+}
+
+/**
+ * The error for a response that was not ok, with the server's own message
+ * from `body` (or `fallback`) and the seconds in Retry-After when it sent a
+ * count of them. A date in Retry-After is ignored: the server sends seconds.
+ */
+export function failedRequest(
+  res: Response,
+  fallback: string,
+  body: { error?: string },
+): ApiError {
+  const header = res.headers.get('Retry-After') ?? '';
+  const seconds = /^\d+$/.test(header) ? Number(header) : undefined;
+  return new ApiError(body.error || fallback, res.status, seconds);
+}
+
+function rateLimited(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 429;
+}
+
+function plural(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? '' : 's'}`;
+}
+
+/** What to tell a visitor whose address the server has limited. */
+function waitMessage(err: ApiError): string {
+  const seconds = err.retryAfter;
+  if (seconds === undefined || seconds < 1) {
+    return 'Too many sign-in attempts. Wait a moment, then try again.';
+  }
+  const wait =
+    seconds >= 120
+      ? plural(Math.ceil(seconds / 60), 'minute')
+      : plural(seconds, 'second');
+  return `Too many sign-in attempts. Try again in ${wait}.`;
+}
+
+/** The message for a registration that failed, a limited one included. */
+export function registrationFailure(err: unknown): string {
+  if (rateLimited(err)) return waitMessage(err);
+  return (err instanceof Error && err.message) || 'Registration failed.';
 }
 
 /** What the login page does when sign-in cannot start. */
@@ -58,6 +103,9 @@ export function loginFailure(
         ? 'This device may have no passkey saved for this site. If every passkey is lost, run forge-dashboard reset-passkeys on the server. Otherwise add a new passkey in Settings from a device that is signed in.'
         : 'Sign-in was cancelled or timed out. Try again.',
     };
+  }
+  if (rateLimited(err)) {
+    return { action: 'show', message: waitMessage(err) };
   }
   const message = err instanceof Error ? err.message : '';
   return { action: 'show', message: message || 'Sign-in failed.' };

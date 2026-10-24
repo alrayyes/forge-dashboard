@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/ratelimit"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
@@ -33,6 +35,13 @@ type Deps struct {
 
 	AuthService *auth.Service
 	AuthStore   *auth.Store
+
+	// AuthLimiter is the allowance per client address in front of the sign-in
+	// and registration endpoints. Nil leaves them unlimited.
+	AuthLimiter *ratelimit.Limiter
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is believed
+	// when AuthLimiter picks the address a request counts against.
+	TrustedProxies []netip.Prefix
 
 	SettingsStore *settings.Store
 
@@ -100,10 +109,10 @@ func NewMux(deps Deps) http.Handler {
 	mux.HandleFunc("GET /api/version", handleVersion(deps.Version))
 
 	mux.HandleFunc("GET /api/auth/registration-status", handleRegistrationStatus(deps.AuthService))
-	mux.HandleFunc("POST /api/auth/register/begin", handleRegisterBegin(deps.AuthService))
-	mux.HandleFunc("POST /api/auth/register/finish", handleRegisterFinish(deps))
-	mux.HandleFunc("POST /api/auth/login/begin", handleLoginBegin(deps.AuthService))
-	mux.HandleFunc("POST /api/auth/login/finish", handleLoginFinish(deps))
+	mux.Handle("POST /api/auth/register/begin", limitAuthAttempts(deps, handleRegisterBegin(deps.AuthService)))
+	mux.Handle("POST /api/auth/register/finish", limitAuthAttempts(deps, handleRegisterFinish(deps)))
+	mux.Handle("POST /api/auth/login/begin", limitAuthAttempts(deps, handleLoginBegin(deps.AuthService)))
+	mux.Handle("POST /api/auth/login/finish", limitAuthAttempts(deps, handleLoginFinish(deps)))
 	mux.HandleFunc("POST /api/auth/logout", handleLogout(deps.AuthStore))
 	mux.Handle("GET /api/auth/session", auth.RequireAuth(deps.AuthStore)(handleGetSession()))
 

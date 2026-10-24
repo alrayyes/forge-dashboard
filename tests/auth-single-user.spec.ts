@@ -172,6 +172,30 @@ test.describe('passkey login, one owner', () => {
     await expect(page.locator('#register-submit')).toBeVisible();
   });
 
+  test('a limited address is told to wait, not that sign-in failed', async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    // The limit itself is proved in the API tests; the e2e server runs
+    // without it, so its answer is stood in for.
+    await page.route('**/api/auth/login/begin', (route) =>
+      route.fulfill({
+        status: 429,
+        headers: { 'Retry-After': '6' },
+        json: { error: 'too many sign-in attempts, try again in 6 seconds' },
+      }),
+    );
+
+    await page.goto('/login.html');
+    await page.click('#login-submit');
+
+    await expect(page.locator('#status')).toHaveText(
+      'Too many sign-in attempts. Try again in 6 seconds.',
+    );
+    await expect(page.locator('#status')).toHaveClass(/error/);
+  });
+
   test('the register button is absent once an owner exists', async ({
     page,
     context,

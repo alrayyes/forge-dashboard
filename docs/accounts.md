@@ -61,6 +61,27 @@ request arrived over HTTPS) is what actually gates `/` and
   passkey is cryptographically bound to the origin it was created for,
   not something this service can paper over after the fact.
 
+### Rate limit
+
+The sign-in and registration endpoints take requests from anyone, and each
+`begin` call parks a ceremony on the server for five minutes. So they are
+limited per client address: `POST /api/auth/register/begin`, `.../finish`,
+`login/begin` and `.../finish` share one allowance of 10 requests at once, then
+one more every 6 seconds. Past it the server answers `429` with a `Retry-After`
+header in seconds, and the login page says to wait that long. Signing in takes
+two requests, so the owner never reaches it. Over five minutes one address can
+make at most 60 requests, fewer than the 100 pending ceremonies the server
+holds, so a scanner can't push the owner's sign-in out.
+
+The limit is on the address, not the account: sign-in names no user, and a
+limit per account would let a stranger lock the owner out. The address is the
+connection's own. Behind a reverse proxy that is the proxy, so the service reads
+the client from the proxy's `X-Forwarded-For` instead, from the right end,
+skipping every address listed in `TRUSTED_PROXIES` (see
+[Configuration](configuration.md)). It believes that header only from those
+proxies, and only the entries they wrote. An IPv6 client counts by its /64.
+Account lockout and CAPTCHA are not part of this.
+
 ### API tokens
 
 A script can authenticate the same way a signed-in browser does, without

@@ -10,7 +10,9 @@
   import {
     ApiError,
     checkRegistrationOpen,
+    failedRequest,
     loginFailureTracker,
+    registrationFailure,
   } from "#lib/login-flow.js";
 
   let mode = $state<"login" | "register">("login");
@@ -48,10 +50,7 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok)
-      throw new ApiError(
-        data.error || `request failed (${res.status})`,
-        res.status,
-      );
+      throw failedRequest(res, `request failed (${res.status})`, data);
     return data;
   }
 
@@ -78,7 +77,7 @@
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.error || "sign-in failed");
+        throw failedRequest(res, "sign-in failed", errBody);
       }
 
       status = "Signed in.";
@@ -127,14 +126,14 @@
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.error || "registration failed");
+        throw failedRequest(res, "registration failed", errBody);
       }
 
       status = "Passkey created. Signed in.";
       statusKind = "ok";
       window.location.href = "/";
     } catch (err) {
-      status = (err as Error).message || "Registration failed.";
+      status = registrationFailure(err);
       statusKind = "error";
     } finally {
       registerSubmitting = false;

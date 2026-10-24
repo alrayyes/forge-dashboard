@@ -147,6 +147,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/AuthRateLimited"
 
   /api/auth/register/finish:
     post:
@@ -185,6 +187,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/AuthRateLimited"
 
   /api/auth/login/begin:
     post:
@@ -212,6 +216,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/AuthRateLimited"
 
   /api/auth/login/finish:
     post:
@@ -241,6 +247,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/AuthRateLimited"
 
   /api/auth/logout:
     post:
@@ -3689,6 +3697,29 @@ components:
       in: cookie
       name: forge_dashboard_session
       description: The session cookie of a signed-in browser. Operations that list only this refuse a personal API token with 403.
+
+  responses:
+    AuthRateLimited:
+      description: |
+        This address made too many sign-in or registration requests. The
+        four ceremony endpoints (`/api/auth/register/begin`,
+        `/api/auth/register/finish`, `/api/auth/login/begin` and
+        `/api/auth/login/finish`) share one allowance per client address: a
+        burst of 10 requests, then one more every 6 seconds. A person signing
+        in uses two requests, so they never reach it. Wait `Retry-After`
+        seconds and try again. The client address is the connection's own, or
+        the one a trusted reverse proxy forwarded in `X-Forwarded-For`; see
+        the `TRUSTED_PROXIES` setting in the configuration docs.
+      headers:
+        Retry-After:
+          description: Seconds until this address may make another of these requests.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
 
   parameters:
     HeaderBackgroundRead:
