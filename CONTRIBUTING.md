@@ -140,6 +140,15 @@ database, so nothing needs cleaning up and a dev server on 8080 can keep
 running. Extra arguments go to Playwright
 (`./tests/run-local.sh tests/auth.spec.ts --workers=2`).
 
+CI runs the browser jobs (the e2e shards and Lighthouse) in Playwright's own
+image, `mcr.microsoft.com/playwright:v<version>-noble`, so no job downloads a
+browser or runs apt. The tag must equal the `@playwright/test` version, and the
+digest is the tag's `Docker-Content-Digest`. `scripts/test-playwright-image.sh`
+fails the `changes` job when they differ, so a Playwright bump changes
+`package.json`, `bun.lock` and the two image lines in `ci.yml` together.
+`run-local.sh` doesn't use the image: it runs on your machine with the browsers
+you installed once with `bunx playwright install chromium`.
+
 A run takes about two minutes on 16 cores. Locally it uses the default worker
 count; CI uses one worker and one retry. A red run that passes alone usually
 means a test raced the page, so fix the wait rather than adding a retry. A
