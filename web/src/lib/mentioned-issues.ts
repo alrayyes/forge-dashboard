@@ -5,7 +5,14 @@
 // dashboard does not hold is a plain link to its forge. The sibling of
 // closing-issues.ts, which does the same for what a pull request closes.
 
-import { type ClosingIssue, issueNumber } from './closing-issues.js';
+import {
+  type ClosingIssue,
+  issueNumber,
+  splitClosing,
+} from './closing-issues.js';
+
+/** Pull requests whose folded mentions the reader opened, so a redraw keeps them open. */
+const expanded = new Set<string>();
 
 /** Matches components.schemas.MentionedIssue in api/openapi.yaml. */
 export type MentionedIssue = ClosingIssue & { tracked: boolean };
@@ -22,18 +29,20 @@ export function mentionPillName(issue: MentionedIssue, prRepo: string) {
 }
 
 /**
- * The pills for one pull request, drawn like the closing ones. Null when it
- * mentions nothing, so no empty section is left behind. A ticket the dashboard
- * does not track opens on the forge in a new tab.
+ * The pills for one pull request, drawn like the closing ones: the first two,
+ * then a count that opens the rest in place. Null when it mentions nothing, so
+ * no empty section is left behind. A ticket the dashboard does not track opens
+ * on the forge in a new tab.
  */
 export function mentionPills(
+  prKey: string,
   prRepo: string,
   list: MentionedIssue[] | undefined,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const wrap = document.createElement('span');
   wrap.className = 'linked-prs';
-  for (const issue of list) {
+  const pill = (issue: MentionedIssue) => {
     const link = document.createElement('a');
     link.className = 'linked-pr mention-pill';
     link.href = issue.tracked ? issue.pageUrl : issue.url;
@@ -43,7 +52,28 @@ export function mentionPills(
     }
     link.textContent = mentionPillText(issue, prRepo);
     link.setAttribute('aria-label', mentionPillName(issue, prRepo));
-    wrap.append(link);
-  }
+    return link;
+  };
+  const { shown, rest } = splitClosing(list);
+  wrap.append(...shown.map(pill));
+  if (rest.length === 0) return wrap;
+
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'linked-pr-more';
+  more.textContent = `${rest.length} more`;
+  more.setAttribute(
+    'aria-label',
+    `${rest.length} more issues that this pull request mentions`,
+  );
+  const reveal = () => {
+    const extra = rest.map(pill);
+    more.replaceWith(...extra);
+    expanded.add(prKey);
+    return extra;
+  };
+  more.addEventListener('click', () => reveal()[0]?.focus());
+  wrap.append(more);
+  if (expanded.has(prKey)) reveal();
   return wrap;
 }

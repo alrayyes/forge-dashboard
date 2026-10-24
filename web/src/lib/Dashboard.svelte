@@ -1315,7 +1315,11 @@
         attributes.appendChild(el("span", "attr-chip label", label.name));
       const closing = closingPills(prKey(item), item.repo, item.closesIssues);
       if (closing) attributes.appendChild(closing);
-      const mentions = mentionPills(item.repo, item.mentionsIssues);
+      const mentions = mentionPills(
+        `${prKey(item)}:mentions`,
+        item.repo,
+        item.mentionsIssues,
+      );
       if (mentions) attributes.appendChild(mentions);
       return { state, attributes };
     }

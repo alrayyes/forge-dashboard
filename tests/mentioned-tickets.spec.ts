@@ -159,6 +159,31 @@ test.describe('the pull request dialog', () => {
     await expect(pill).toHaveAttribute('rel', /noopener/);
   });
 
+  test('folds mentions past the second behind a count that opens them', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [
+        pullRequest(
+          1,
+          [20, 21, 22, 23].map((n) => mention(n)),
+        ),
+      ],
+    });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+
+    const pills = prDialog(page).locator('.mention-pill');
+    await expect(pills).toHaveCount(2);
+    const more = prDialog(page).getByRole('button', {
+      name: '2 more issues that this pull request mentions',
+    });
+    await expect(more).toHaveText('2 more');
+    await more.click();
+    await expect(pills).toHaveCount(4);
+    await expect(pills.nth(2)).toBeFocused();
+  });
+
   test('shows nothing when no ticket is mentioned', async ({ page }) => {
     await mockBoard(page, { pullRequests: [pullRequest(1, [])] });
     await page.goto('/pull-requests.html');

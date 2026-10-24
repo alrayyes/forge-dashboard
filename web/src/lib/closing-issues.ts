@@ -34,7 +34,7 @@ export function closingPillName(issue: ClosingIssue, prRepo: string) {
 }
 
 /** The pills a row shows, and the ones kept behind the count. */
-export function splitClosing(list: ClosingIssue[]) {
+export function splitClosing<T extends ClosingIssue>(list: T[]) {
   return { shown: list.slice(0, SHOWN_PILLS), rest: list.slice(SHOWN_PILLS) };
 }
 
