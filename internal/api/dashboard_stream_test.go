@@ -31,7 +31,7 @@ func TestDashboardStream_NoBackgroundRefreshYet_Returns404(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
 	require.NoError(t, err)

@@ -19,7 +19,7 @@ func TestMCP_Initialize_ManyParallelSessionsOnOneTokenAllSucceed(t *testing.T) {
 	const sessions = 16
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createAPIToken(t, srv.URL, sessionCookie)
 
 	errs := make([]error, sessions)

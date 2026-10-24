@@ -14,7 +14,7 @@ func TestMCP_GetVersion_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.ListTools(t.Context(), nil)
@@ -36,7 +36,7 @@ func TestMCP_GetVersion_ReturnsTheSamePayloadAsTheHTTPEndpoint(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_version"})

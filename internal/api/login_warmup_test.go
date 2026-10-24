@@ -25,7 +25,7 @@ func TestLogin_WithTheDashboardAlreadyRunning_DoesNotRebuildIt(t *testing.T) {
 
 		return nil
 	})
-	cookie, cred, authenticator := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, cred, authenticator := registerViaRealCeremony(t, srv)
 
 	put, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"ghp_x"}`))
 	require.NoError(t, err)
@@ -38,14 +38,14 @@ func TestLogin_WithTheDashboardAlreadyRunning_DoesNotRebuildIt(t *testing.T) {
 	require.Equal(t, int32(1), built.Load(), "the settings save builds the sources once")
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
-	begin, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`"}`))
+	begin, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
 	require.NoError(t, err)
 	defer func() { _ = begin.Body.Close() }()
 	options, err := io.ReadAll(begin.Body)
 	require.NoError(t, err)
 	parsed, err := virtualwebauthn.ParseAssertionOptions(string(options))
 	require.NoError(t, err)
-	finish, err := testClient(t).Post(srv.URL+"/api/auth/login/finish?username="+testUser, "application/json",
+	finish, err := testClient(t).Post(srv.URL+"/api/auth/login/finish", "application/json",
 		strings.NewReader(virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *parsed)))
 	require.NoError(t, err)
 	_ = finish.Body.Close()

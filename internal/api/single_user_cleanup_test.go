@@ -16,7 +16,7 @@ import (
 func TestSingleUserCleanup_KeptUsersSessionAndTokenStillWork(t *testing.T) {
 	t.Parallel()
 	srv, _, _, _, db, dbPath := newTestServerWithDatabase(t, noSources, false, 0)
-	ownerCookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, "Admin")
+	ownerCookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createTestAPIToken(t, srv.URL, ownerCookie)
 
 	// A database from before this version has no marker; the owner here

@@ -122,7 +122,7 @@ func linkedServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 
 		return []dashboard.Source{github, forgejo}
 	})
-	cookie, _, _ = registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ = registerViaRealCeremony(t, srv)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

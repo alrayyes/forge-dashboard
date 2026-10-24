@@ -13,7 +13,7 @@ func TestTimezoneGet_NothingSavedYet_ReturnsEmptyMeaningBrowser(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/timezone", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -40,7 +40,7 @@ func TestTimezonePut_ThenGet_RoundTrips(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
@@ -57,7 +57,7 @@ func TestTimezonePut_AcceptsUTCAndEmpty(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	for _, body := range []string{`{"timezone":"UTC"}`, `{"timezone":""}`} {
 		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", body, sessionCookie)
@@ -70,7 +70,7 @@ func TestTimezonePut_NotAnIANAName_Rejected(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	for _, body := range []string{`{"timezone":"Mars/Olympus"}`, `{"timezone":"Local"}`, `{"timezone":"../etc/passwd"}`} {
 		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", body, sessionCookie)
@@ -83,7 +83,7 @@ func TestTimezonePut_DoesNotDisturbOtherSettings(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan"}`, sessionCookie).Body.Close()
 
@@ -102,7 +102,7 @@ func TestSettingsPut_DoesNotAcceptOrDisturbTimezone(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie).Body.Close()
 
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan","timezone":"UTC"}`, sessionCookie).Body.Close()

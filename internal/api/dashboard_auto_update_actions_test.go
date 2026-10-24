@@ -39,7 +39,7 @@ func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCo
 
 		return []dashboard.Source{source}
 	})
-	sessionCookie, _, _ = registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ = registerViaRealCeremony(t, srv)
 
 	send := func(method, path, body string) {
 		req, err := http.NewRequest(method, srv.URL+path, strings.NewReader(body))

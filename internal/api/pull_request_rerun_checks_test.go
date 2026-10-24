@@ -69,7 +69,7 @@ func rerunBoardFor(t *testing.T, forge dashboard.Forge, rerunErr error, prs ...d
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", settingsBody, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

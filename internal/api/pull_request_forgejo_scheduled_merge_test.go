@@ -52,7 +52,7 @@ func scheduledBoard(t *testing.T, src *scheduleCancelSource, prs ...dashboard.Pu
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"fj_secret"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

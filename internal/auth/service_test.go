@@ -2,8 +2,6 @@ package auth_test
 
 import (
 	"database/sql"
-	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -39,10 +37,10 @@ func TestBeginRegistration_AbandonedRegistration_CanBeReclaimed(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
 
-	_, err := svc.BeginRegistration(t.Context(), "ryan", "Ryan")
+	_, err := svc.BeginRegistration(t.Context())
 	require.NoError(t, err)
 
-	_, err = svc.BeginRegistration(t.Context(), "ryan", "Ryan")
+	_, err = svc.BeginRegistration(t.Context())
 
 	assert.NoError(t, err)
 }
@@ -55,10 +53,10 @@ func TestBeginLogin_AbandonedRegistration_ReturnsErrNotFound(t *testing.T) {
 	t.Parallel()
 	svc, _ := newTestService(t)
 
-	_, err := svc.BeginRegistration(t.Context(), "ryan", "Ryan")
+	_, err := svc.BeginRegistration(t.Context())
 	require.NoError(t, err)
 
-	_, err = svc.BeginLogin(t.Context(), "ryan")
+	_, err = svc.BeginLogin(t.Context())
 
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
@@ -67,11 +65,11 @@ func TestBeginRegistration_FirstUser_Succeeds(t *testing.T) {
 	t.Parallel()
 	svc, store := newTestService(t)
 
-	_, err := svc.BeginRegistration(t.Context(), "ryan", "Ryan")
+	_, err := svc.BeginRegistration(t.Context())
 	require.NoError(t, err)
 
-	_, err = store.GetUserByUsername(t.Context(), "ryan")
-	assert.NoError(t, err)
+	_, err = store.GetUserByUsername(t.Context(), "owner")
+	assert.NoError(t, err, "the server names the owner")
 }
 
 // An instance has one owner. Once any user holds a passkey, registration is
@@ -84,11 +82,9 @@ func TestBeginRegistration_AfterAUserHoldsAPasskey_IsClosed(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	for _, username := range []string{"alex", "ryan"} {
-		_, err = svc.BeginRegistration(t.Context(), username, "Anyone")
+	_, err = svc.BeginRegistration(t.Context())
 
-		require.ErrorIs(t, err, auth.ErrRegistrationClosed, username)
-	}
+	require.ErrorIs(t, err, auth.ErrRegistrationClosed)
 
 	_, getErr := store.GetUserByUsername(t.Context(), "alex")
 	assert.ErrorIs(t, getErr, auth.ErrNotFound, "a refused registration must not create an account")
@@ -105,9 +101,9 @@ func TestBeginRegistration_PasskeyLessUser_KeepsTheRowAndItsID(t *testing.T) {
 	owner, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
-	for _, username := range []string{"ryan", "ryan-new"} {
-		_, err = svc.BeginRegistration(t.Context(), username, "Ryan")
-		require.NoError(t, err, username)
+	for range 2 {
+		_, err = svc.BeginRegistration(t.Context())
+		require.NoError(t, err)
 	}
 
 	got, err := store.GetUserByUsername(t.Context(), "ryan")
@@ -137,7 +133,7 @@ func TestBeginRegistration_ClearsExpiredAbandonedRowsOfOtherUsernames(t *testing
 	_, err = db.ExecContext(t.Context(), `UPDATE users SET created_at = ? WHERE username = 'stale'`, time.Now().UTC().Add(-time.Hour))
 	require.NoError(t, err)
 
-	_, err = svc.BeginRegistration(t.Context(), "third", "Third")
+	_, err = svc.BeginRegistration(t.Context())
 	require.NoError(t, err)
 
 	_, err = store.GetUserByUsername(t.Context(), "owner")
@@ -146,51 +142,6 @@ func TestBeginRegistration_ClearsExpiredAbandonedRowsOfOtherUsernames(t *testing
 	require.ErrorIs(t, err, auth.ErrNotFound)
 	_, err = store.GetUserByUsername(t.Context(), "recent")
 	require.NoError(t, err)
-}
-
-// newServiceWithASurvivingSecondUser is a database the single-user cleanup left
-// two users in: the owner, and a newer row also holding a passkey (a registration
-// that finished after the cleanup ran).
-func newServiceWithASurvivingSecondUser(t *testing.T) (*auth.Service, *auth.Store) {
-	t.Helper()
-	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-
-	store := auth.NewStore(db)
-	require.NoError(t, store.Init(t.Context()))
-	_, err = store.CreateUser(t.Context(), "ryan", "Ryan")
-	require.NoError(t, err)
-	time.Sleep(2 * time.Millisecond)
-	_, err = store.CreateUser(t.Context(), "sam", "Sam")
-	require.NoError(t, err)
-	_, err = db.ExecContext(t.Context(), `UPDATE users SET credentials_json = '[{"id":"AQID"}]'`)
-	require.NoError(t, err)
-
-	wa, err := webauthn.New(&webauthn.Config{RPID: "localhost", RPDisplayName: "Forge Board Test", RPOrigins: []string{"http://localhost"}})
-	require.NoError(t, err)
-
-	return auth.NewService(wa, store), store
-}
-
-func TestBeginLogin_ASurvivingNonOwnerUser_ReturnsErrNotFound(t *testing.T) {
-	t.Parallel()
-	svc, _ := newServiceWithASurvivingSecondUser(t)
-
-	_, err := svc.BeginLogin(t.Context(), "sam")
-
-	assert.ErrorIs(t, err, auth.ErrNotFound)
-}
-
-func TestFinishLogin_ASurvivingNonOwnerUser_NeverMintsAnOwnerSession(t *testing.T) {
-	t.Parallel()
-	svc, store := newServiceWithASurvivingSecondUser(t)
-	require.NoError(t, store.SaveCeremony(t.Context(), "sam", "login", webauthn.SessionData{}, time.Minute))
-
-	u, err := svc.FinishLogin(t.Context(), "sam", httptest.NewRequest(http.MethodPost, "/", nil))
-
-	assert.Nil(t, u)
-	assert.ErrorIs(t, err, auth.ErrNotFound, "the check runs before the assertion is read")
 }
 
 func TestClaimUnregisteredUser_PicksTheRowOwnerOrderPicks(t *testing.T) {

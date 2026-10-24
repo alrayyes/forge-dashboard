@@ -52,7 +52,7 @@ func issueSettingsServer(t *testing.T) (*httptest.Server, *http.Cookie) {
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+token+`"}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool {
@@ -233,7 +233,7 @@ func TestDashboard_IssuesOfAnIgnoredRepo_AreNotCountedAsHiddenBySettings(t *test
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+token+`","hideDependencyDashboard":true,"ignoredTitles":["^Weekly"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool {

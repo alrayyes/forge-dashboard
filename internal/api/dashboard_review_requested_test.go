@@ -33,7 +33,7 @@ func TestDashboard_PullRequestsSayWhetherTheirReviewIsRequestedFromMe(t *testing
 		return []dashboard.Source{source}
 	}
 	srv := newTestServerWithSources(t, buildSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`","githubUsername":"ryan"}`, cookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)

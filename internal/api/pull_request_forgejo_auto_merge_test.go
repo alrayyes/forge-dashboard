@@ -33,7 +33,7 @@ func forgejoAutoMergeBoard(t *testing.T, prs ...dashboard.PullRequest) (*httptes
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"fj_secret"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -217,7 +217,7 @@ func TestForgejoAutoMerge_Cancel_Unauthenticated_Returns401(t *testing.T) {
 func TestForgejoAutoMerge_Arm_WithNoForgejoCredentials_Returns400(t *testing.T) {
 	t.Parallel()
 	srv := newTestServerWithSources(t, func(settingspkg.Credentials) []dashboard.Source { return nil })
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	saved := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"ghp_x"}`, cookie)
 	_ = saved.Body.Close()
 

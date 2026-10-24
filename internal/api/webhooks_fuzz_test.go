@@ -84,7 +84,7 @@ func FuzzValidSignature(f *testing.F) {
 // valid JSON no bigger than the cap, refused (400) otherwise, and never a 5xx.
 func FuzzFilterStatePut(f *testing.F) {
 	srv := newTestServer(f)
-	cookie, _, _ := registerViaRealCeremony(f, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(f, srv)
 
 	for _, seed := range []string{`{}`, `{"quick":"ready"}`, `[1,2,3]`, `"x"`, `null`, ``, `{`, `{"a":}`, "\xff\xfe"} {
 		f.Add([]byte(seed))

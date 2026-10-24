@@ -48,7 +48,7 @@ func firstRefreshServer(t *testing.T, src dashboard.Source) (url string, cookie 
 
 		return []dashboard.Source{src}
 	}, false, 50*time.Millisecond)
-	cookie, _, _ = registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ = registerViaRealCeremony(t, srv)
 	apiToken = createAPIToken(t, srv.URL, cookie)
 	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()
@@ -167,7 +167,7 @@ func TestDashboard_FirstRefreshDone_TrueForAViewerWithNoSavedSettings(t *testing
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	apiToken := createAPIToken(t, srv.URL, cookie)
 
 	assert.Equal(t, true, firstRefreshDoneOverHTTP(t, srv.URL, cookie))
@@ -192,7 +192,7 @@ func TestDashboard_FirstRefreshDone_StaysTrueAcrossASettingsSaveRebuild(t *testi
 
 		return nil
 	}, false, 50*time.Millisecond)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	save := func(token string) {
 		put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
 		_ = put.Body.Close()
@@ -228,7 +228,7 @@ func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEn
 
 		return []dashboard.Source{src}
 	}, false, 50*time.Millisecond)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	apiToken := createAPIToken(t, srv.URL, cookie)
 	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()

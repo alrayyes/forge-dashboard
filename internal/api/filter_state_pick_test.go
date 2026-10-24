@@ -51,7 +51,7 @@ func runPickCases(t *testing.T, key string) {
 			t.Parallel()
 
 			srv := newTestServer(t)
-			sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+			sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 			body := `{"shared":{"` + key + `":"` + tc.pick + `"}}`
 
 			resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", body, sessionCookie)

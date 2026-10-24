@@ -37,7 +37,7 @@ func draftsServer(t *testing.T) (srvURL string, sessionCookie *http.Cookie) {
 	}
 
 	srv := newTestServerWithSources(t, buildSources)
-	sessionCookie, _, _ = registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ = registerViaRealCeremony(t, srv)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)

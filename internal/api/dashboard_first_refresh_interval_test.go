@@ -65,7 +65,7 @@ func TestDashboard_ReadInterval_NormalForAViewerWithNoSavedSettings(t *testing.T
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	assert.InDelta(t, 30, readIntervalOverHTTP(t, srv.URL, cookie), 0)
 }
@@ -84,7 +84,7 @@ func TestDashboard_ReadInterval_HeldReadEndsOnCompletionNotTimeout(t *testing.T)
 
 		return []dashboard.Source{src}
 	}, false, wait)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()
 	require.Equal(t, http.StatusOK, put.StatusCode)

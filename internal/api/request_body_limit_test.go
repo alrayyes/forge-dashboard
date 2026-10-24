@@ -15,18 +15,12 @@ func TestRequestBody_OverTheCapIsRefusedWith413(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	huge := `{"githubToken":"` + strings.Repeat("a", 2<<20) + `"}`
 
 	for name, call := range map[string]func() *http.Response{
 		"settings (session)": func() *http.Response {
 			return doJSON(t, http.MethodPut, srv.URL+"/api/settings", huge, cookie)
-		},
-		"login begin (public)": func() *http.Response {
-			resp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(huge))
-			require.NoError(t, err)
-
-			return resp
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -44,7 +38,7 @@ func TestRequestBody_AnOrdinaryBodyStillGoesThrough(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+strings.Repeat("a", 4096)+`"}`, cookie)
 	defer func() { _ = resp.Body.Close() }()

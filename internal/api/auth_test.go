@@ -32,6 +32,7 @@ const (
 	testOrigin    = "http://localhost"
 	testAdmin     = "admin"
 	testUser      = "ryan"
+	testOwner     = "owner"
 	testOtherUser = "alex"
 	testDisplay   = "Ryan"
 	testVersion   = "0.99.0-test"
@@ -175,15 +176,14 @@ func testEncryptionKey(tb testing.TB) string {
 // HTTP handlers using a virtual WebAuthn authenticator (real crypto, real
 // attestation — not a mock of forge-dashboard's own code) and returns the
 // session cookie the server issued.
-func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, displayName string) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
+func registerViaRealCeremony(tb testing.TB, srv *httptest.Server) (*http.Cookie, virtualwebauthn.Credential, virtualwebauthn.Authenticator) {
 	tb.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
 	authenticator := virtualwebauthn.NewAuthenticator()
 	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
 
-	beginBody := strings.NewReader(`{"username":"` + username + `","displayName":"` + displayName + `"}`)
-	beginResp, err := testClient(tb).Post(srv.URL+"/api/auth/register/begin", "application/json", beginBody)
+	beginResp, err := testClient(tb).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
 	require.NoError(tb, err)
 	defer func() { _ = beginResp.Body.Close() }()
 	require.Equal(tb, http.StatusOK, beginResp.StatusCode)
@@ -198,7 +198,7 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server, username, disp
 	attestationResponse := virtualwebauthn.CreateAttestationResponse(rp, authenticator, cred, *attestationOptions)
 
 	finishResp, err := testClient(tb).Post(
-		srv.URL+"/api/auth/register/finish?username="+username,
+		srv.URL+"/api/auth/register/finish",
 		"application/json",
 		strings.NewReader(attestationResponse),
 	)
@@ -243,7 +243,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	sessionCookie, cred, authenticator := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, cred, authenticator := registerViaRealCeremony(t, srv)
 	require.NotEmpty(t, sessionCookie.Value)
 
 	t.Run("the session from registration reaches the protected dashboard", func(t *testing.T) {
@@ -267,7 +267,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 	t.Run("logging in again with the same passkey issues a new working session", func(t *testing.T) {
 		rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
 
-		beginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`"}`))
+		beginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
 		require.NoError(t, err)
 		defer func() { _ = beginResp.Body.Close() }()
 		require.Equal(t, http.StatusOK, beginResp.StatusCode)
@@ -284,7 +284,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 		assertionResponse := virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *assertionOptions)
 
 		finishResp, err := testClient(t).Post(
-			srv.URL+"/api/auth/login/finish?username="+testUser,
+			srv.URL+"/api/auth/login/finish",
 			"application/json",
 			strings.NewReader(assertionResponse),
 		)
@@ -313,7 +313,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 func TestLogout_ClearsTheSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/logout", nil)
 	require.NoError(t, err)
@@ -333,18 +333,13 @@ func TestLogout_ClearsTheSession(t *testing.T) {
 }
 
 // An instance has one owner: once a user holds a passkey, register/begin
-// answers 403 whatever username it carries, with or without an old invite
-// token, and creates no account.
-func TestRegisterBegin_AfterAUserRegistered_IsClosedForAnyUsername(t *testing.T) {
+// answers 403, whatever body an older client still sends.
+func TestRegisterBegin_AfterAUserRegistered_IsClosed(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
-	registerViaRealCeremony(t, srv, testUser, testDisplay)
+	registerViaRealCeremony(t, srv)
 
-	for _, body := range []string{
-		`{"username":"` + testUser + `","displayName":"Someone Else"}`,
-		`{"username":"newcomer","displayName":"Newcomer"}`,
-		`{"username":"newcomer","displayName":"Newcomer","inviteToken":"left-over-token"}`,
-	} {
+	for _, body := range []string{``, `{}`, `{"username":"newcomer","displayName":"Newcomer"}`} {
 		resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(body))
 		require.NoError(t, err)
 		raw := readAll(t, resp)
@@ -353,11 +348,83 @@ func TestRegisterBegin_AfterAUserRegistered_IsClosedForAnyUsername(t *testing.T)
 		assert.Equal(t, http.StatusForbidden, resp.StatusCode, body)
 		assert.Contains(t, raw, "registration is closed")
 	}
+}
 
-	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"newcomer"}`))
+// Passkeys registered before the username went away sit under a username the
+// visitor picked then. Signing in asks for none, and the passkey still works.
+func TestLoginBegin_OwnerRegisteredUnderAChosenUsername_StillSignsIn(t *testing.T) {
+	t.Parallel()
+	srv, _, _, _, db, _ := newTestServerWithDatabase(t, noSources, false, 0)
+	_, cred, authenticator := registerViaRealCeremony(t, srv)
+	_, err := db.ExecContext(t.Context(), `UPDATE users SET username = 'ryan', display_name = 'Ryan'`)
 	require.NoError(t, err)
-	defer func() { _ = loginResp.Body.Close() }()
-	assert.Equal(t, http.StatusNotFound, loginResp.StatusCode, "a refused registration must not create an account")
+
+	cookie := loginWithPasskey(t, srv, cred, authenticator)
+
+	assert.NotEmpty(t, cookie.Value)
+}
+
+// The registration asks the visitor for no name: the server picks one.
+func TestRegisterFinish_NamesTheOwnerItself(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
+	require.NoError(t, err)
+	req.AddCookie(cookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	var body struct {
+		Username    string `json:"username"`
+		DisplayName string `json:"displayName"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, testOwner, body.Username)
+}
+
+func TestLoginBegin_NobodyRegisteredYet_ReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	resp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+// loginWithPasskey runs a login ceremony with no username and returns the
+// session cookie the server issued.
+func loginWithPasskey(tb testing.TB, srv *httptest.Server, cred virtualwebauthn.Credential, authenticator virtualwebauthn.Authenticator) *http.Cookie {
+	tb.Helper()
+
+	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
+	beginResp, err := testClient(tb).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+	require.NoError(tb, err)
+	defer func() { _ = beginResp.Body.Close() }()
+	require.Equal(tb, http.StatusOK, beginResp.StatusCode)
+
+	options, err := virtualwebauthn.ParseAssertionOptions(readAll(tb, beginResp))
+	require.NoError(tb, err)
+	require.NotNil(tb, authenticator.FindAllowedCredential(*options))
+
+	finishResp, err := testClient(tb).Post(srv.URL+"/api/auth/login/finish", "application/json",
+		strings.NewReader(virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *options)))
+	require.NoError(tb, err)
+	defer func() { _ = finishResp.Body.Close() }()
+	require.Equal(tb, http.StatusOK, finishResp.StatusCode, "login/finish body: %s", readAll(tb, finishResp))
+
+	for _, c := range finishResp.Cookies() {
+		if c.Name == authpkg.CookieName {
+			return c
+		}
+	}
+	tb.Fatal("no session cookie set by login/finish")
+
+	return nil
 }
 
 // Real bug, reported live: a reload between register/begin and
@@ -368,12 +435,12 @@ func TestRegisterBegin_AbandonedRegistration_CanBeRetried(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	resp1, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
+	resp1, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
 	require.NoError(t, err)
 	_ = resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode)
 
-	resp2, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
+	resp2, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp2.Body.Close() }()
 	assert.Equal(t, http.StatusOK, resp2.StatusCode)
@@ -383,12 +450,12 @@ func TestLoginBegin_AbandonedRegistration_ReturnsNotFoundNotServerError(t *testi
 	t.Parallel()
 	srv := newTestServer(t)
 
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`","displayName":"`+testDisplay+`"}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`"}`))
+	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
 	require.NoError(t, err)
 	defer func() { _ = loginResp.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, loginResp.StatusCode)
@@ -413,7 +480,7 @@ func TestRegistrationStatus_NoUsersYet_IsOpen(t *testing.T) {
 func TestRegistrationStatus_AfterOneUserRegisters_IsClosed(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
-	registerViaRealCeremony(t, srv, testUser, testDisplay)
+	registerViaRealCeremony(t, srv)
 
 	resp, err := testClient(t).Get(srv.URL + "/api/auth/registration-status")
 	require.NoError(t, err)
@@ -427,15 +494,14 @@ func TestRegistrationStatus_AfterOneUserRegisters_IsClosed(t *testing.T) {
 	assert.False(t, body.Open)
 }
 
-// beginAndAttest starts a registration ceremony for username and returns the
-// attestation response a virtual authenticator would send to finish it, so a
-// test can decide when, and how many at once, to finish.
-func beginAndAttest(tb testing.TB, srv *httptest.Server, username string) string {
+// beginAndAttest starts a registration ceremony and returns the attestation
+// response a virtual authenticator would send to finish it, so a test can
+// decide when, and how many at once, to finish.
+func beginAndAttest(tb testing.TB, srv *httptest.Server) string {
 	tb.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
-	body := strings.NewReader(`{"username":"` + username + `","displayName":"` + username + `"}`)
-	resp, err := testClient(tb).Post(srv.URL+"/api/auth/register/begin", "application/json", body)
+	resp, err := testClient(tb).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
 	require.NoError(tb, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(tb, http.StatusOK, resp.StatusCode)
@@ -447,25 +513,21 @@ func beginAndAttest(tb testing.TB, srv *httptest.Server, username string) string
 }
 
 // Only the first passkey registration on an empty instance wins. Two visitors
-// who both began before either finished get one session and one refusal, and
-// the loser leaves no account behind.
+// who both began before either finished leave one owner with one passkey: the
+// second to finish gets no session, and no account is left behind.
 func TestRegisterFinish_TwoCeremoniesFinishingTogether_ExactlyOneWins(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	names := []string{"alice", "bob"}
-	attestations := map[string]string{}
-	for _, name := range names {
-		attestations[name] = beginAndAttest(t, srv, name)
-	}
+	attestations := []string{beginAndAttest(t, srv), beginAndAttest(t, srv)}
 
-	statuses := make([]int, len(names))
+	statuses := make([]int, len(attestations))
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for i, name := range names {
+	for i, attestation := range attestations {
 		wg.Go(func() {
 			<-start
-			resp, err := testClient(t).Post(srv.URL+"/api/auth/register/finish?username="+name, "application/json", strings.NewReader(attestations[name]))
+			resp, err := testClient(t).Post(srv.URL+"/api/auth/register/finish", "application/json", strings.NewReader(attestation))
 			if err != nil {
 				return
 			}
@@ -476,36 +538,28 @@ func TestRegisterFinish_TwoCeremoniesFinishingTogether_ExactlyOneWins(t *testing
 	close(start)
 	wg.Wait()
 
-	assert.ElementsMatch(t, []int{http.StatusOK, http.StatusForbidden}, statuses)
-
-	registered := 0
-	for _, name := range names {
-		resp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+name+`"}`))
-		require.NoError(t, err)
-		_ = resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			registered++
+	wins := 0
+	for _, status := range statuses {
+		if status == http.StatusOK {
+			wins++
 		}
 	}
-	assert.Equal(t, 1, registered, "the refused ceremony must leave no user row")
+	assert.Equal(t, 1, wins, "statuses: %v", statuses)
 }
 
-func TestRegisterFinish_AnotherUserAlreadyHoldsAPasskey_Answers403RegistrationClosed(t *testing.T) {
+func TestRegisterFinish_AnotherCeremonyAlreadyFinished_IsRefused(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	// Both began while the instance was still empty; one finishes first.
-	first := beginAndAttest(t, srv, "alice")
-	second := beginAndAttest(t, srv, "bob")
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/finish?username=alice", "application/json", strings.NewReader(first))
+	first := beginAndAttest(t, srv)
+	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/finish", "application/json", strings.NewReader(first))
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	resp, err = testClient(t).Post(srv.URL+"/api/auth/register/finish?username=bob", "application/json", strings.NewReader(second))
+	resp, err = testClient(t).Post(srv.URL+"/api/auth/register/finish", "application/json", strings.NewReader(first))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
-	assert.Contains(t, readAll(t, resp), "registration is closed")
+	assert.GreaterOrEqual(t, resp.StatusCode, http.StatusBadRequest)
 }

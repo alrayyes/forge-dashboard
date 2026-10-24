@@ -55,7 +55,7 @@ func TestActivity_ASignedInRequestCountsAsUse(t *testing.T) {
 	t.Parallel()
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	act := idleActivity(t, service)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
@@ -101,7 +101,7 @@ func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 	t.Parallel()
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	service.EnsureIfAbsent(t.Context(), nil)
 	act := idleActivity(t, service)
 
@@ -151,7 +151,7 @@ func TestPresence_VisibleHoldsTheDashboardActiveAndAnswersTheTimings(t *testing.
 	t.Parallel()
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	act := idleActivity(t, service)
 
 	status, raw := postPresence(t, srv.URL, cookie, `{"viewerId":"tab-aaaaaaaa","visible":true}`)
@@ -176,7 +176,7 @@ func TestPresence_HiddenIsNotUseAndLetsTheTabGo(t *testing.T) {
 	t.Parallel()
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	clock := newAPIClock()
 	act := dashboard.NewActivity(15*time.Minute, clock.now)
 	service.SetActivity(act)
@@ -195,7 +195,7 @@ func TestPresence_RejectsABodyItCannotUse(t *testing.T) {
 	t.Parallel()
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	act := idleActivity(t, service)
 
 	for _, body := range []string{``, `{`, `{"visible":true}`, `{"viewerId":"x","visible":true}`, `{"viewerId":"tab-aaaaaaaa"}`} {
@@ -209,7 +209,7 @@ func TestActivity_ABackgroundReadIsNotUse(t *testing.T) {
 	t.Parallel()
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	act := idleActivity(t, service)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
@@ -228,7 +228,7 @@ func TestPresence_APersonalAPITokenIsRefusedAndHoldsNothingActive(t *testing.T) 
 	t.Parallel()
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createTestAPIToken(t, srv.URL, cookie)
 	act := idleActivity(t, service)
 

@@ -32,7 +32,7 @@ func TestDashboard_RateLimitsCarryTheirSeverity(t *testing.T) {
 		return []dashboard.Source{source}
 	}
 	srv := newTestServerWithSources(t, buildSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(cookie)

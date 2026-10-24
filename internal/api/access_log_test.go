@@ -71,7 +71,7 @@ func TestAccessLog_RejectedRequest_StillLogsAtWarn(t *testing.T) {
 func TestAccessLog_AuthenticatedRequest_IncludesUsername(t *testing.T) {
 	logs := withCapturedLogs(t, slog.LevelInfo)
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestAccessLog_AuthenticatedRequest_IncludesUsername(t *testing.T) {
 	logged := logs.String()
 	assert.Contains(t, logged, "level=INFO")
 	assert.Contains(t, logged, "status=200")
-	assert.Contains(t, logged, "username="+testUser)
+	assert.Contains(t, logged, "username="+testOwner)
 }
 
 func TestAccessLog_NeverLogsAuthorizationHeaderOrQueryString(t *testing.T) {

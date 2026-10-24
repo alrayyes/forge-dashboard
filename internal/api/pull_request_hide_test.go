@@ -71,7 +71,7 @@ func newHideServer(t *testing.T) (srvURL string, cookie *http.Cookie, src *hideS
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ = registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ = registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)

@@ -96,7 +96,7 @@ func TestMCP_GetDashboard_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createAPIToken(t, srv.URL, sessionCookie)
 
 	session := connectMCP(t, srv.URL, token)
@@ -125,7 +125,7 @@ func TestMCP_GetDashboard_ReturnsTheSameAggregatedDataAsTheHTTPEndpoint(t *testi
 	}
 
 	srv := newTestServerWithSources(t, buildSources)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createAPIToken(t, srv.URL, sessionCookie)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
@@ -190,7 +190,7 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.ListTools(t.Context(), nil)
@@ -308,7 +308,7 @@ func TestMCP_GetPullRequestDetails_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.ListTools(t.Context(), nil)
@@ -398,7 +398,7 @@ func TestMCP_GetMainBranchChecks_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.ListTools(t.Context(), nil)
@@ -508,7 +508,7 @@ func TestMCP_GetPullRequestChecks_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.ListTools(t.Context(), nil)
@@ -611,7 +611,7 @@ func TestMCP_GetRepositoryAdvisories_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.ListTools(t.Context(), nil)

@@ -74,7 +74,7 @@ func TestCredentialsGet_AfterRegistration_ListsTheInitialPasskey(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestAddCredential_SecondPasskey_BothAuthenticateAfterwards(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, firstCred, firstAuthenticator := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, firstCred, firstAuthenticator := registerViaRealCeremony(t, srv)
 
 	finishResp := addCredentialViaRealCeremony(t, srv, sessionCookie, "YubiKey")
 	finishBody := readAll(t, finishResp)
@@ -118,7 +118,7 @@ func TestAddCredential_SecondPasskey_BothAuthenticateAfterwards(t *testing.T) {
 
 	// The original passkey (from registration) still logs in.
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
-	beginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", strings.NewReader(`{"username":"`+testUser+`"}`))
+	beginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
 	require.NoError(t, err)
 	defer func() { _ = beginResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, beginResp.StatusCode)
@@ -127,7 +127,7 @@ func TestAddCredential_SecondPasskey_BothAuthenticateAfterwards(t *testing.T) {
 	assertionOptions, err := virtualwebauthn.ParseAssertionOptions(string(optionsJSON))
 	require.NoError(t, err)
 	assertionResponse := virtualwebauthn.CreateAssertionResponse(rp, firstAuthenticator, firstCred, *assertionOptions)
-	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/finish?username="+testUser, "application/json", strings.NewReader(assertionResponse))
+	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/finish", "application/json", strings.NewReader(assertionResponse))
 	require.NoError(t, err)
 	defer func() { _ = loginResp.Body.Close() }()
 	assert.Equal(t, http.StatusOK, loginResp.StatusCode, "login/finish body: %s", readAll(t, loginResp))
@@ -137,7 +137,7 @@ func TestAddCredential_BlankLabel_Returns400(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/credentials/begin", nil)
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestCredentialsDelete_WithAnotherRemaining_RemovesIt(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	finishResp := addCredentialViaRealCeremony(t, srv, sessionCookie, "YubiKey")
 	require.Equal(t, http.StatusCreated, finishResp.StatusCode)
 	var created api.CredentialInfo
@@ -206,7 +206,7 @@ func TestCredentialsDelete_LastOne_Returns400(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	listReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
 	require.NoError(t, err)
@@ -243,7 +243,7 @@ func TestCredentialsDelete_UnknownID_StillReturns204(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/auth/credentials/not-a-real-id", nil)
 	require.NoError(t, err)

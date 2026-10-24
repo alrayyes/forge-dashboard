@@ -15,7 +15,7 @@ func TestMCP_ListQueuedActions_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, sessionCookie))
 
 	result, err := session.ListTools(t.Context(), nil)

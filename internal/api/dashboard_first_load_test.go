@@ -51,7 +51,7 @@ func TestDashboard_ReadBeforeTheFirstRefreshFinishes_WaitsForItInsteadOfAnswerin
 			prs:   []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: 1}},
 		}}
 	})
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)

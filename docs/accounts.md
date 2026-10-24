@@ -12,7 +12,10 @@ crawling on purpose: a crawler that can't fetch a page never reads its
 `noindex`. The real barrier is the passkey login below.
 
 The first visit registers a passkey and becomes the instance's only user —
-no password anywhere, and no separate account system. `POST
+no password anywhere, and no separate account system. Neither registering nor
+signing in asks for a username: the server names the account, and the sign-in
+button starts the passkey prompt straight away. A passkey registered back when
+a username was asked for keeps working. `POST
 /api/auth/register/begin` and `.../finish` run the WebAuthn registration
 ceremony, `.../login/begin`/`.../finish` run the login ceremony, and a
 signed session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` whenever the

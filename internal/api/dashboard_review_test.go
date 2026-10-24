@@ -36,7 +36,7 @@ func TestDashboard_PullRequest_SerializesReviewState(t *testing.T) {
 	}
 
 	srv := newTestServerWithSources(t, buildSources)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)

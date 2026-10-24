@@ -39,7 +39,7 @@ func TestTokensGet_NoneYet_ReturnsEmptyArrayNotNull(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestTokensPost_ThenGet_ListsItWithoutTheRawValue(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("laptop")))
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestTokensPost_BlankLabel_Returns400(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("   ")))
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestTokensPost_ReturnsExpiresAt(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	wantExpiresAt := time.Now().Add(60 * 24 * time.Hour)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
@@ -146,7 +146,7 @@ func TestTokensGet_ListsExpiresAtPerToken(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("laptop")))
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestTokensPost_ExpiresAtInThePast_Returns400(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	pastExpiry := time.Now().Add(-time.Hour).Format(time.RFC3339)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
@@ -193,7 +193,7 @@ func TestTokensPost_ExpiresAtMissing_Returns400(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(`{"label":"laptop"}`))
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestTokensPost_ExpiresAtBeyond366Days_Returns400(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	tooFar := time.Now().Add(367 * 24 * time.Hour).Format(time.RFC3339)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
@@ -232,7 +232,7 @@ func TestTokensPost_ExpiresAtExactly366Days_IsAllowed(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	// A hair under the exact boundary, not on it — the request takes a
 	// few milliseconds to reach the handler, which computes its own
 	// "now" independently; an expiresAt set from precisely
@@ -258,7 +258,7 @@ func TestTokenExpired_RejectedLikeAnInvalidToken(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	// The handler itself refuses a past expiresAt at creation time, so
 	// this drives the real expiry check the only way that's actually
 	// reachable through the API: a token that expires very soon, used
@@ -299,7 +299,7 @@ func TestTokenCreated_AuthenticatesAsBearerAgainstARealEndpoint(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("ci script")))
 	require.NoError(t, err)
@@ -330,7 +330,7 @@ func TestTokensDelete_StopsItAuthenticating(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("laptop")))
 	require.NoError(t, err)
@@ -367,7 +367,7 @@ func TestTokensDelete_UnknownID_StillReturns204(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/tokens/not-a-real-id", nil)
 	require.NoError(t, err)
