@@ -778,13 +778,14 @@ records that as an error rather than as a pruned log, so the gap stays visible
 there. The API stats page counts requests only and doesn't show outcomes.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
-of that panel, on GitHub and on Forgejo. On GitHub, it reruns only the failed
-jobs of each workflow run on the head commit. Forgejo has no route for that, so
-it reruns each failed run whole, and that includes jobs that passed: a deploy or
-publish job in the same run goes again. The button's hover text says so on
-Forgejo. Either way it acts once per run and answers when the forge has queued
-them: the panel says "Rerun queued" and the new results show after the next
-refresh. The button stays pending and reads "Rerun queued", in the panel and in
+of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
+workflow run on the head commit, and a job that passed isn't started again. On
+Forgejo 17 and later that takes one extra read per failed run to list its jobs,
+then one request per failed job. Forgejo restarts the jobs that need a rerun
+job along with it, so a job that passed but waits on a failed one goes again
+too. It answers when the forge has queued them: the panel says "Rerun queued"
+and the new results show after the next refresh. The button stays pending and
+reads "Rerun queued", in the panel and in
 the pull request's detail view, until the pull request stops reading failed, is
 updated, or ten minutes pass, so the same rerun can't be queued twice. A
 refused rerun isn't held and leaves its failure line in the detail view. It
@@ -799,16 +800,20 @@ rerun and is skipped; a pull request with nothing left to rerun answers "no
 failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
 `rerun_checks` in `allowedActions`).
 
-Forgejo added the rerun route in version 17. Version 16 and earlier have none,
+Forgejo added the rerun routes in version 17. Versions 7 to 16 have none,
 so on those the dashboard reads the instance's version in the background on its
 first refresh and draws no button: the button in the details dialog is disabled
 and the panel prints "This Forgejo is older than version 17 and has no way to
-rerun checks. Rerun them on the forge." No rerun request is sent to the forge, though
-the pull request and its runs are still looked up first. An answer that blocks
-is read again after an hour, and a click reads it again at once when it has gone
-stale, so an upgraded instance works without a restart. When the version can't
-be read, it is tried again after half a minute, the button is drawn and the
-forge decides. `rerun_checks` still appears in `allowedActions` for a blocked
+rerun checks. Rerun them on the forge." No rerun request is sent to the forge,
+though the pull request and its runs are still looked up first. An answer that
+blocks is read again after an hour, and a click reads it again at once when it
+has gone stale, so an upgraded instance works without a restart. When the
+version can't be read, or isn't a number, it is tried again after half a
+minute, the button is drawn and the forge decides. A version below 7 is left to
+the forge too, because a Gitea numbers itself that way and may have the route.
+A block that has gone stale is lifted if the read fails, not kept.
+
+`rerun_checks` still appears in `allowedActions` for a blocked
 Forgejo. The block shows in the forge's health as `rerunChecksBlocked`, and a
 click answers 409 with the same sentence. The block is per forge kind: with a
 Forgejo 16 and a Forgejo 17 configured side by side, the button stays until

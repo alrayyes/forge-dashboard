@@ -338,9 +338,8 @@ job answers an empty list. `required` is never set, since only a pull request
 has a base branch whose protection could require a job.
 
 `POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns the
-failed workflow runs on that same commit, once per run (only their failed jobs
-on GitHub; a Forgejo has no such route, so it reruns each failed run whole,
-passing jobs included),
+failed workflow runs on that same commit, only their failed jobs (on Forgejo,
+the jobs that need a failed job restart with it),
 and answers 204 when the forge has queued them. The pipeline panel of a failed
 row offers it as `Rerun failed checks`, with the same permission needs and the
 same reasons on a refusal as the pull request button (see
