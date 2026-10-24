@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.31.0](https://github.com/alrayyes/forge-dashboard/compare/v2.30.3...v2.31.0) (2026-10-24)
+
+
+### Features
+
+* **web:** reference pills in a pull request or issue dialog open the other dialog ([#2771](https://github.com/alrayyes/forge-dashboard/issues/2771)) ([e01eb5f](https://github.com/alrayyes/forge-dashboard/commit/e01eb5ff5bb85ad25530b496fdf17fc280607634))
+
 ## [2.30.3](https://github.com/alrayyes/forge-dashboard/compare/v2.30.2...v2.30.3) (2026-10-24)
 
 
