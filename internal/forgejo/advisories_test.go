@@ -443,8 +443,15 @@ func TestReadMainBranch_ConcurrentReadsOfOneRepoShareOneRead(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 5 {
 		wg.Go(func() {
-			if _, err := client.ReadMainBranch(t.Context(), repoA); err != nil {
+			row, err := client.ReadMainBranch(t.Context(), repoA)
+			if err != nil {
 				t.Error(err)
+
+				return
+			}
+			// A reader that joined the read in flight sees "unknown" until it ends.
+			if row.Advisories.State != dashboard.AdvisoriesUnknown {
+				assert.Equal(t, 1, row.Advisories.Count)
 			}
 		})
 	}
