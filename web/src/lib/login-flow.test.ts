@@ -3,8 +3,10 @@ import { describe, expect, test } from 'bun:test';
 import {
   ApiError,
   checkRegistrationOpen,
+  failedRequest,
   loginFailure,
   loginFailureTracker,
+  registrationFailure,
 } from './login-flow';
 
 describe('loginFailure', () => {
@@ -145,5 +147,103 @@ describe('checkRegistrationOpen', () => {
       throw new Error('offline');
     }) as unknown as typeof fetch;
     expect(await checkRegistrationOpen(down)).toBe(false);
+  });
+});
+
+describe('failedRequest', () => {
+  const reply = (status: number, headers: Record<string, string>) =>
+    new Response('{}', { status, headers });
+
+  test('keeps the status and the server message', () => {
+    const err = failedRequest(reply(400, {}), 'login failed', {
+      error: 'login failed',
+    });
+    expect(err.status).toBe(400);
+    expect(err.message).toBe('login failed');
+  });
+
+  test('reads Retry-After as whole seconds', () => {
+    const err = failedRequest(reply(429, { 'Retry-After': '6' }), 'x', {});
+    expect(err.retryAfter).toBe(6);
+  });
+
+  test('ignores a Retry-After that is not a count of seconds', () => {
+    const err = failedRequest(
+      reply(429, { 'Retry-After': 'Wed, 21 Oct 2026 07:28:00 GMT' }),
+      'x',
+      {},
+    );
+    expect(err.retryAfter).toBeUndefined();
+  });
+
+  test('falls back to the status when the body names no error', () => {
+    const err = failedRequest(reply(502, {}), 'sign-in failed', {});
+    expect(err.message).toBe('sign-in failed');
+  });
+});
+
+describe('a rate-limited sign-in', () => {
+  test('says to wait, and for how long', () => {
+    const got = loginFailure(
+      new ApiError('too many sign-in attempts', 429, 7),
+      false,
+    );
+    expect(got).toEqual({
+      action: 'show',
+      message: 'Too many sign-in attempts. Try again in 7 seconds.',
+    });
+  });
+
+  test('says "1 second" in the singular', () => {
+    expect(loginFailure(new ApiError('x', 429, 1), false).message).toBe(
+      'Too many sign-in attempts. Try again in 1 second.',
+    );
+  });
+
+  test('turns a long wait into minutes', () => {
+    expect(loginFailure(new ApiError('x', 429, 150), false).message).toBe(
+      'Too many sign-in attempts. Try again in 3 minutes.',
+    );
+  });
+
+  test('without a Retry-After still asks the visitor to wait', () => {
+    expect(loginFailure(new ApiError('x', 429), false).message).toBe(
+      'Too many sign-in attempts. Wait a moment, then try again.',
+    );
+  });
+
+  test('is not taken for a missing passkey, whatever registration says', () => {
+    const got = loginFailure(new ApiError('x', 429, 5), true);
+    expect(got.action).toBe('show');
+  });
+
+  test('does not count towards the missing-passkey hint', () => {
+    const next = loginFailureTracker();
+    const notAllowed = Object.assign(new Error('x'), {
+      name: 'NotAllowedError',
+    });
+    next(notAllowed, false);
+    next(new ApiError('x', 429, 5), false);
+    expect(next(notAllowed, false).message).toBe(
+      'Sign-in was cancelled or timed out. Try again.',
+    );
+  });
+});
+
+describe('registrationFailure', () => {
+  test('says to wait on a 429', () => {
+    expect(registrationFailure(new ApiError('x', 429, 12))).toBe(
+      'Too many sign-in attempts. Try again in 12 seconds.',
+    );
+  });
+
+  test('shows any other failure as it came', () => {
+    expect(registrationFailure(new Error('registration failed'))).toBe(
+      'registration failed',
+    );
+  });
+
+  test('has a message when there is none', () => {
+    expect(registrationFailure(new Error(''))).toBe('Registration failed.');
   });
 });
