@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.3](https://github.com/alrayyes/forge-dashboard/compare/v2.29.2...v2.29.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* name each Cancel run button for its run ([#2721](https://github.com/alrayyes/forge-dashboard/issues/2721)) ([f3c88af](https://github.com/alrayyes/forge-dashboard/commit/f3c88af99451fc907ce2fc6bc4e0c354055933d1))
+
 ## [2.29.2](https://github.com/alrayyes/forge-dashboard/compare/v2.29.1...v2.29.2) (2026-10-24)
 
 
