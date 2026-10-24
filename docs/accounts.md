@@ -92,12 +92,12 @@ sign-in out. The trade is that a flood can delay it. The server logs a warning
 once, naming the peer.
 
 Running `docker run -p 8080:8080` with the default settings is this case: the
-container sees Docker's gateway address, which is in the default trusted
+container sees the Docker gateway address, which is in the default trusted
 ranges, and no `X-Forwarded-For`. Every visitor shares the one bucket. To get
 a limit per address, put a proxy that forwards the client address in front. If
 the service is reached with no proxy and the real client address does reach it,
 set `TRUSTED_PROXIES=none` so each visitor counts by its own address. Behind
-Docker's port publishing the real address is often lost, and then there is one
+published Docker ports the real address is often lost, and then there is one
 shared bucket either way.
 
 Account lockout and CAPTCHA are not part of this.
