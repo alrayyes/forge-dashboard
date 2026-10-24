@@ -770,8 +770,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
 	// The box overrides are settled here too, under the lock every tick and
 	// cancel takes, so none can land between the settling and the swap.
-	a.settleBoxOverrides(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
-	a.annotateBotRequests(snap.PullRequests)
+	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
 	a.snap = snap
 	a.lastGood = goodAt
 	a.mu.Unlock()

@@ -212,6 +212,14 @@ func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers fu
 	}
 }
 
+// annotateUnderLock is what a full refresh does just before it swaps its
+// snapshot in: it settles the box overrides and re-annotates the requests
+// recorded since applyBotRequests ran. The caller holds mu.
+func (a *Aggregator) annotateUnderLock(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
+	a.settleBoxOverrides(prs, seq, covers)
+	a.annotateBotRequests(prs)
+}
+
 // applyBotRequests moves every request that prs covers along and then marks
 // each pull request with its request. seq is the fetch prs came from. covers
 // says which forge and repo that fetch actually answered for: a pull request
