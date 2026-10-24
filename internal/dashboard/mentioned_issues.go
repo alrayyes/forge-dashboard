@@ -42,14 +42,15 @@ var mentionRefPattern = regexp.MustCompile(
 var markdownLinkPattern = regexp.MustCompile(`\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\([^)\n]*\)`)
 
 // referenceLinkPattern finds [text][label] and [text][], whose target sits in
-// a definition further down.
-// It is a link only when a definition names the label.
+// a definition further down. It is a link only when a definition names the
+// label.
 var referenceLinkPattern = regexp.MustCompile(`\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\[([^\[\]\n]*)\]`)
 
 // linkDefinitionPattern finds a "[label]: target" definition as Markdown reads
 // one: a single target, in angle brackets or not, on the same line or the
-// next, and an optional title, also on the next line. A line with more words after the label
-// ("[Context]: relates to #12") is prose and keeps its references.
+// next, and an optional title, also on the next line. A line with more words
+// after the label ("[Context]: relates to #12") is prose and keeps its
+// references.
 var linkDefinitionPattern = regexp.MustCompile(
 	`(?m)^ {0,3}\[([^\[\]\n]+)\]:[ \t]*(?:\r?\n[ \t]*)?(?:<[^>\n]*>|[^\s<]\S*)` +
 		`(?:(?:[ \t]+|[ \t]*\r?\n[ \t]*)(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*\r?$`)
@@ -217,9 +218,9 @@ func blank(text string, pattern *regexp.Regexp) string {
 // too), so a reference or an address is never read half-written ("#12345"
 // must not become "#12"). With no whitespace at all it cuts back to the last
 // comma or semicolon outside any brackets instead, so "#1,#2," survives and a
-// link is never cut in half, and to nothing when there is none. An anchor still open within maxAnchorText
-// bytes of the cut loses its text, which the cut hid the end of: anything
-// after its tag, references included.
+// link is never cut in half, and to nothing when there is none. An anchor still
+// open within maxAnchorText bytes of the cut loses its text, which the cut hid
+// the end of: anything after its tag, references included.
 func clip(s string, n int) string {
 	if len(s) <= n {
 		return s
