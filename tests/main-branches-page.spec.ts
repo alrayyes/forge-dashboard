@@ -396,10 +396,14 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(checks.nth(2)).toContainText('Skipped');
     // A skipped job, and one with no page, have no link.
     await expect(
-      panel.getByRole('link', { name: /view run: lint/i }),
+      panel.getByRole('link', {
+        name: /view run \(opens in a new tab\): lint/i,
+      }),
     ).toHaveCount(1);
     await expect(
-      panel.getByRole('link', { name: /view run: e2e-playwright/i }),
+      panel.getByRole('link', {
+        name: /view run \(opens in a new tab\): e2e-playwright/i,
+      }),
     ).toHaveCount(0);
   });
 

@@ -148,7 +148,9 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(items.nth(1)).toContainText('test');
     await expect(items.nth(1)).toContainText('Running');
 
-    const buildLink = dialog.getByRole('link', { name: 'View run: build' });
+    const buildLink = dialog.getByRole('link', {
+      name: 'View run (opens in a new tab): build',
+    });
     await expect(buildLink).toHaveAttribute(
       'href',
       'https://github.com/alrayyes/forge-dashboard/runs/1',
@@ -192,10 +194,14 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(items.nth(1)).toContainText('Skipped');
 
     await expect(
-      dialog.getByRole('link', { name: 'View run: build' }),
+      dialog.getByRole('link', {
+        name: 'View run (opens in a new tab): build',
+      }),
     ).toBeVisible();
     await expect(
-      dialog.getByRole('link', { name: 'View run: deploy' }),
+      dialog.getByRole('link', {
+        name: 'View run (opens in a new tab): deploy',
+      }),
     ).toHaveCount(0);
   });
 
@@ -228,10 +234,14 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(items.nth(1)).toContainText('legacy-ci');
 
     await expect(
-      dialog.getByRole('link', { name: 'View run: build' }),
+      dialog.getByRole('link', {
+        name: 'View run (opens in a new tab): build',
+      }),
     ).toBeVisible();
     await expect(
-      dialog.getByRole('link', { name: 'View run: legacy-ci' }),
+      dialog.getByRole('link', {
+        name: 'View run (opens in a new tab): legacy-ci',
+      }),
     ).toHaveCount(0);
   });
 
@@ -1221,7 +1231,9 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(
       dialog.getByRole('button', { name: 'Close pipeline checks' }),
     ).toBeFocused();
-    const firstLink = dialog.getByRole('link', { name: 'View run: build' });
+    const firstLink = dialog.getByRole('link', {
+      name: 'View run (opens in a new tab): build',
+    });
     await expect(firstLink).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(firstLink).toBeFocused();
