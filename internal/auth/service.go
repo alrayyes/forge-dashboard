@@ -38,6 +38,12 @@ const (
 	newOwnerDisplayName = "Owner"
 )
 
+// residentKey makes every new passkey discoverable, stored on the device with
+// the site and user, because login names no credential and so can only offer
+// passkeys the device can find by itself. A security key otherwise keeps a
+// non-resident credential, which sign-in without a username can't use.
+var residentKey = webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired)
+
 // Service drives WebAuthn registration and login ceremonies against the
 // configured relying party, persisting every step through Store.
 type Service struct {
@@ -73,7 +79,7 @@ func (s *Service) BeginRegistration(ctx context.Context) (*protocol.CredentialCr
 		return nil, err
 	}
 
-	creation, session, err := s.webauthn.BeginRegistration(u)
+	creation, session, err := s.webauthn.BeginRegistration(u, residentKey)
 	if err != nil {
 		return nil, fmt.Errorf("auth: begin registration: %w", err)
 	}
@@ -135,7 +141,7 @@ func (s *Service) FinishRegistration(ctx context.Context, r *http.Request) (*Use
 // someone re-register the same authenticator as a second, redundant
 // entry.
 func (s *Service) BeginAddCredential(ctx context.Context, u *User) (*protocol.CredentialCreation, error) {
-	creation, session, err := s.webauthn.BeginRegistration(u)
+	creation, session, err := s.webauthn.BeginRegistration(u, residentKey)
 	if err != nil {
 		return nil, fmt.Errorf("auth: begin add credential: %w", err)
 	}
@@ -172,9 +178,10 @@ func (s *Service) FinishAddCredential(ctx context.Context, u *User, label string
 	return &Credential{ID: credentialIDKey(cred.ID), Label: label, CreatedAt: createdAt}, nil
 }
 
-// BeginLogin starts a login ceremony for the owner. The options list the
-// owner's passkeys, so the browser offers them with no username typed, and a
-// passkey registered before usernames went away works the same.
+// BeginLogin starts a login ceremony for the owner. The options name no
+// credential and no user: the browser offers whichever passkey for this site the
+// device holds, so nothing is typed and nothing is revealed to a visitor. That
+// only finds resident keys, which is why registration requires one.
 func (s *Service) BeginLogin(ctx context.Context) (*protocol.CredentialAssertion, error) {
 	u, err := s.store.Owner(ctx)
 	if err != nil {
@@ -187,7 +194,7 @@ func (s *Service) BeginLogin(ctx context.Context) (*protocol.CredentialAssertion
 		return nil, ErrNotFound
 	}
 
-	assertion, session, err := s.webauthn.BeginLogin(u)
+	assertion, session, err := s.webauthn.BeginDiscoverableLogin()
 	if err != nil {
 		return nil, fmt.Errorf("auth: begin login: %w", err)
 	}
@@ -218,7 +225,11 @@ func (s *Service) FinishLogin(ctx context.Context, r *http.Request) (*User, erro
 		return nil, err
 	}
 
-	cred, err := s.webauthn.ValidateLogin(u, session, parsed)
+	// There is one account, so whoever the passkey names, the owner is the
+	// answer. The library still checks the passkey's user handle against the
+	// owner's ID and finds the credential among the owner's.
+	owner := func(_, _ []byte) (webauthn.User, error) { return u, nil }
+	cred, err := s.webauthn.ValidateDiscoverableLogin(owner, session, parsed)
 	if err != nil {
 		return nil, fmt.Errorf("auth: finish login: %w", err)
 	}

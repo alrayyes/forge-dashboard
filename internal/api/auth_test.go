@@ -207,14 +207,10 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server) (*http.Cookie,
 	defer func() { _ = finishResp.Body.Close() }()
 	require.Equal(tb, http.StatusOK, finishResp.StatusCode, "register/finish body: %s", readAll(tb, finishResp))
 
-	// No UserHandle set on the authenticator: this account's real WebAuthn
-	// user ID is a random 32 bytes assigned at registration, not something
-	// this test fixture can predict, so the virtual authenticator leaves
-	// the assertion's userHandle empty rather than sending one that
-	// wouldn'tb match — a non-discoverable login (this server never calls
-	// BeginDiscoverableLogin) doesn'tb need it, since the server already
-	// knows which user it's validating against from the ceremony it
-	// started.
+	// A discoverable login has no allowCredentials list to narrow by, so the
+	// authenticator answers with the user handle it stored at registration:
+	// the user ID the server put in the creation options.
+	authenticator.Options.UserHandle = []byte(attestationOptions.UserID)
 	authenticator.AddCredential(cred)
 
 	for _, c := range finishResp.Cookies() {
@@ -278,9 +274,6 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 
 		assertionOptions, err := virtualwebauthn.ParseAssertionOptions(string(optionsJSON))
 		require.NoError(t, err)
-
-		found := authenticator.FindAllowedCredential(*assertionOptions)
-		require.NotNil(t, found)
 
 		assertionResponse := virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *assertionOptions)
 
@@ -410,7 +403,7 @@ func loginWithPasskey(tb testing.TB, srv *httptest.Server, cred virtualwebauthn.
 
 	options, err := virtualwebauthn.ParseAssertionOptions(readAll(tb, beginResp))
 	require.NoError(tb, err)
-	require.NotNil(tb, authenticator.FindAllowedCredential(*options))
+	require.Empty(tb, options.AllowCredentials)
 
 	finishResp, err := testClient(tb).Post(srv.URL+"/api/auth/login/finish", "application/json",
 		strings.NewReader(virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *options)))
@@ -663,4 +656,84 @@ func TestLoginFinish_StoresTheAuthenticatorsSignCount(t *testing.T) {
 	owner, err := store.Owner(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, uint32(7), owner.Credentials[0].Authenticator.SignCount)
+}
+
+// postForOptions posts to a begin endpoint and decodes the options into a generic
+// map, so a test can read exactly what a visitor's browser would be handed.
+func postForOptions(tb testing.TB, url string, cookie *http.Cookie) map[string]any {
+	tb.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	require.NoError(tb, err)
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	resp, err := testClient(tb).Do(req)
+	require.NoError(tb, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(tb, http.StatusOK, resp.StatusCode)
+
+	var body map[string]any
+	require.NoError(tb, json.Unmarshal([]byte(readAll(tb, resp)), &body))
+
+	publicKey, ok := body["publicKey"].(map[string]any)
+	require.True(tb, ok, "options carry a publicKey member")
+
+	return publicKey
+}
+
+// Login finds the passkey on the device instead of being told which one, so a
+// passkey must be stored on the device: a security key keeps only a resident
+// key where the server asks for one.
+func TestRegisterBegin_AsksForAResidentKey(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	selection, ok := postForOptions(t, srv.URL+"/api/auth/register/begin", nil)["authenticatorSelection"].(map[string]any)
+	require.True(t, ok)
+
+	assert.Equal(t, "required", selection["residentKey"])
+	assert.Equal(t, true, selection["requireResidentKey"])
+}
+
+// A passkey added from Settings is the way a security key that signed in by
+// name before gets a resident key, so it asks for one as well.
+func TestAddCredentialBegin_AsksForAResidentKey(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+
+	selection, ok := postForOptions(t, srv.URL+"/api/auth/credentials/begin", sessionCookie)["authenticatorSelection"].(map[string]any)
+	require.True(t, ok)
+
+	assert.Equal(t, "required", selection["residentKey"])
+	assert.Equal(t, true, selection["requireResidentKey"])
+}
+
+// Anyone can call login/begin, so it hands out neither a credential ID nor a
+// user: the device offers its own passkeys.
+func TestLoginBegin_NamesNoCredentialsAndNoUser(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	_, _, _ = registerViaRealCeremony(t, srv)
+
+	options := postForOptions(t, srv.URL+"/api/auth/login/begin", nil)
+
+	assert.Empty(t, options["allowCredentials"])
+	assert.NotContains(t, options, "user")
+}
+
+// With no credential named, the passkey's user handle is what ties it to the
+// account: one made for another user ID is refused even though it is a
+// well-formed assertion from a credential the server holds.
+func TestLoginFinish_PasskeyForAnotherUserHandle_IsRefused(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	_, cred, authenticator := registerViaRealCeremony(t, srv)
+	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
+	authenticator.Options.UserHandle = []byte("someone else")
+
+	status := finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *beginLogin(t, srv)))
+
+	assert.Equal(t, http.StatusBadRequest, status)
 }

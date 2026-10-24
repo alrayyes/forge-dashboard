@@ -808,3 +808,21 @@ func TestStore_Init_DoesNotAttemptToDropAColumnThatIsGone(t *testing.T) {
 		assert.NotContains(t, q, "DROP COLUMN", "a second start has nothing to drop")
 	}
 }
+
+// A pending row made after someone already registered, which no flow does today
+// but a restored backup or a hand-edited database could leave, still can't take
+// a second passkey: the first-wins check is the statement's own condition, not
+// only the cleanup of other pending rows.
+func TestStore_AddFirstCredential_PendingRowCreatedAfterAnotherRegistered_ReturnsErrRegistrationClosed(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	first, err := store.CreateUser(t.Context(), "first", "First")
+	require.NoError(t, err)
+	require.NoError(t, store.AddFirstCredential(t.Context(), first.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	late, err := store.CreateUser(t.Context(), "late", "Late")
+	require.NoError(t, err)
+
+	err = store.AddFirstCredential(t.Context(), late.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+
+	assert.ErrorIs(t, err, auth.ErrRegistrationClosed)
+}
