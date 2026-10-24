@@ -61,6 +61,8 @@ jobs:
         run: scripts/test-release-workflow.sh
       - name: check the hadolint pins agree
         run: scripts/test-hadolint-pin.sh
+      - name: check the Playwright image matches the library
+        run: scripts/test-playwright-image.sh
       - name: check the audit gate and scan shape
         run: scripts/test-audit-workflows.sh
       - name: check the spec has no ticket references
@@ -329,6 +331,17 @@ jobs:
     # to 5.5), so about 1.5x is 8; 10 leaves a little room. Re-size it from the
     # slowest green run, never to hide a suite growing back toward the limit.
     timeout-minutes: 10
+    # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
+    # browsers and system packages, Bun, node, git, gh and ImageMagick are
+    # already in it, so no step downloads Chromium, installs bun or runs apt.
+    # The tag is the @playwright/test version exactly;
+    # scripts/test-playwright-image.sh fails the `changes` job when it differs.
+    # The image's Bun must be the one package.json names; a step below
+    # checks that. Bump them together.
+    container:
+      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:8475bb332de43de88e3a442ed5c168586a378790b6a5c109753e7de93bc1dd3d
+      # Chromium shares memory through IPC; Playwright's Docker guide asks for this.
+      options: --ipc=host
     strategy:
       fail-fast: false
       matrix:
@@ -338,11 +351,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: package.json
+      - name: the image's bun is the one package.json names
+        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")"
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
       - run: bun run build:web
       # -tags e2e adds POST /__e2e/reset, which the specs call between tests;
       # each worker starts its own server from this binary (E2E_BINARY below).
@@ -377,16 +388,25 @@ jobs:
     runs-on: ubuntu-24.04
     # Took 5.3 minutes on its first run; about 1.5x is 8, so 10.
     timeout-minutes: 10
+    # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
+    # browsers and system packages, Bun, node, git, gh and ImageMagick are
+    # already in it, so no step downloads Chromium, installs bun or runs apt.
+    # The tag is the @playwright/test version exactly;
+    # scripts/test-playwright-image.sh fails the `changes` job when it differs.
+    # The image's Bun must be the one package.json names; a step below
+    # checks that. Bump them together.
+    container:
+      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:8475bb332de43de88e3a442ed5c168586a378790b6a5c109753e7de93bc1dd3d
+      # Chromium shares memory through IPC; Playwright's Docker guide asks for this.
+      options: --ipc=host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: package.json
+      - name: the image's bun is the one package.json names
+        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")"
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
       - run: bun run build:web
       - run: go build -o forge-dashboard ./cmd/forge-dashboard
       - name: audit the pages with Lighthouse against a real binary
@@ -407,7 +427,7 @@ jobs:
           bun run scripts/save-admin-session.ts
           # puppeteerScript makes lhci resolve Chrome through puppeteer-core,
           # which has no browser of its own and hides the installed ones, so
-          # point it at the Chromium Playwright installed above.
+          # point it at the Chromium that ships in the job's Playwright image.
           CHROME_PATH="$(node -p "require('@playwright/test').chromium.executablePath()")" \
             bunx lhci autorun
           kill "$(cat server.pid)"
