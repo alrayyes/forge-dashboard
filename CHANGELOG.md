@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.6](https://github.com/alrayyes/forge-dashboard/compare/v2.29.5...v2.29.6) (2026-10-24)
+
+
+### Bug Fixes
+
+* **checks:** offer Rerun failed checks only where Forgejo has a rerun route ([#2727](https://github.com/alrayyes/forge-dashboard/issues/2727)) ([7b381be](https://github.com/alrayyes/forge-dashboard/commit/7b381beab09b76af285248eacea05501f107123e))
+
 ## [2.29.5](https://github.com/alrayyes/forge-dashboard/compare/v2.29.4...v2.29.5) (2026-10-24)
 
 
