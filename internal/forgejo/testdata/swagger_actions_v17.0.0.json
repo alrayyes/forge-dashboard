@@ -1,0 +1,72 @@
+{
+  "info": {
+    "version": "17.0.0"
+  },
+  "source": "https://codeberg.org/forgejo/forgejo/src/tag/v17.0.0/templates/swagger/v1_json.tmpl",
+  "paths": {
+    "/repos/{owner}/{repo}/actions/jobs/{job_id}": {
+      "get": {
+        "operationId": "repoGetActionJob",
+        "summary": "Get a single workflow run job, including its step list"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/jobs/{job_id}/logs": {
+      "get": {
+        "operationId": "repoGetActionJobLogs",
+        "summary": "Download the plaintext logs of an action job"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/jobs/{job_id}/rerun": {
+      "post": {
+        "operationId": "repoRerunActionJob",
+        "summary": "Rerun a completed workflow job and its dependent jobs"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs": {
+      "get": {
+        "operationId": "ListActionRuns",
+        "summary": "List a repository's action runs"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}": {
+      "get": {
+        "operationId": "ActionRun",
+        "summary": "Get an action run"
+      },
+      "delete": {
+        "operationId": "DeleteActionRun",
+        "summary": "Delete a completed workflow run."
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/artifacts": {
+      "get": {
+        "operationId": "ListActionRunArtifacts",
+        "summary": "List artifacts of a workflow run"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/cancel": {
+      "post": {
+        "operationId": "CancelActionRun",
+        "summary": "Cancel a pending or running workflow run."
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/jobs": {
+      "get": {
+        "operationId": "ListActionRunJobs",
+        "summary": "List jobs of a workflow run"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/logs": {
+      "get": {
+        "operationId": "repoGetActionRunLogs",
+        "summary": "Download a ZIP of plaintext logs for every job in an action run"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/rerun": {
+      "post": {
+        "operationId": "RerunActionRun",
+        "summary": "Rerun a finished (succeeded, failed, cancelled or skipped) workflow run."
+      }
+    }
+  }
+}

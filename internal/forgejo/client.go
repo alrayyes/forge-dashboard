@@ -89,6 +89,10 @@ type clientState struct {
 	schedule    map[string]cachedSchedule
 	scheduleSeq uint64
 
+	// version is the instance's major version, read from /version (see
+	// versionCache).
+	version versionCache
+
 	// finishedJobs keeps the job list of each finished run (see finishedJobs).
 	finishedJobs *finishedJobs
 
@@ -458,7 +462,12 @@ func classifyForgejoError(method, path string, resp *gitea.Response, err error) 
 			rateLimit = rateLimitFromRetryAfter(resp.Header.Get("Retry-After"), time.Now())
 		}
 	}
-	wrapped := fmt.Errorf("forgejo: %s %s: %w: %s", method, path, errForgeRefused, msg)
+	// A raw request's error already says "refused: why".
+	reason := fmt.Errorf("%w: %s", errForgeRefused, msg)
+	if errors.Is(err, errForgeRefused) {
+		reason = err
+	}
+	wrapped := fmt.Errorf("forgejo: %s %s: %w", method, path, reason)
 
 	return &dashboard.ClientError{Kind: kind, Err: wrapped, RateLimit: rateLimit, UpstreamStatus: upstreamStatus}, statusCode
 }

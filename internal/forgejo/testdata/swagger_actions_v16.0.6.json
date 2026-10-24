@@ -1,0 +1,54 @@
+{
+  "info": {
+    "version": "16.0.6+gitea-1.22.0"
+  },
+  "source": "https://git.higherlearning.eu/swagger.v1.json",
+  "paths": {
+    "/repos/{owner}/{repo}/actions/jobs/{job_id}/logs": {
+      "get": {
+        "operationId": "repoGetActionJobLogs",
+        "summary": "Download the plaintext logs of an action job"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs": {
+      "get": {
+        "operationId": "ListActionRuns",
+        "summary": "List a repository's action runs"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}": {
+      "get": {
+        "operationId": "ActionRun",
+        "summary": "Get an action run"
+      },
+      "delete": {
+        "operationId": "DeleteActionRun",
+        "summary": "Delete a completed workflow run."
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/artifacts": {
+      "get": {
+        "operationId": "ListActionRunArtifacts",
+        "summary": "List artifacts of a workflow run"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/cancel": {
+      "post": {
+        "operationId": "CancelActionRun",
+        "summary": "Cancel a pending or running workflow run."
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/jobs": {
+      "get": {
+        "operationId": "ListActionRunJobs",
+        "summary": "List jobs of a workflow run"
+      }
+    },
+    "/repos/{owner}/{repo}/actions/runs/{run_id}/logs": {
+      "get": {
+        "operationId": "repoGetActionRunLogs",
+        "summary": "Download a ZIP of plaintext logs for every job in an action run"
+      }
+    }
+  }
+}

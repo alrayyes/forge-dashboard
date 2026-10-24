@@ -132,6 +132,8 @@
   let runStates = $state<Record<number, RunState>>({});
   // Bumped when a repository is locked, so the lock redraws.
   let lockTick = $state(0);
+  // Bumped to draw the board's control again.
+  let controlsTick = $state(0);
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
   let lockTimer: ReturnType<typeof setTimeout> | undefined;
   // Whether any re-read since the cancel was accepted came back.
@@ -397,6 +399,12 @@
     live?.resume();
   }
 
+  // Draws the board's control again: what it reads outside the checks (the
+  // forge's locks) changed.
+  export function redrawControls() {
+    controlsTick += 1;
+  }
+
   // Resolves true when the read came back, whether or not anything changed.
   async function load(
     row: PipelineTarget,
@@ -526,6 +534,7 @@
   // control the keyboard was on keeps focus.
   function controls(host: HTMLElement) {
     void checks;
+    void controlsTick;
     // Untracked: the control reads the page's snapshot (its lock, its row) and
     // redraws itself when that changes, so a poll must not rebuild it.
     // The target itself stays tracked, so pointing the dialog at another row

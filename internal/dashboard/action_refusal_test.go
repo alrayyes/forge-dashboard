@@ -148,6 +148,7 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 		{"JSON is not shown", refusal(dashboard.ForgeErrorUnknown, `forgejo: PATCH x: {"message":"nope","url":"y"}`), noReason},
 		{"an empty answer says no reason", refusal(dashboard.ForgeErrorUnknown, "forgejo: PATCH x: "), noReason},
 		{"an unreachable forge says it didn't answer", refusal(dashboard.ForgeErrorUnreachable, "github: PUT x: dial tcp: refused"), "The forge didn't answer. Try again in a moment."},
+		{"a merge's 404 is not rewritten as a missing route", refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/pulls/5/merge: refused: 404 page not found"), "refused: 404 page not found"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -156,6 +157,34 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 			got := dashboard.ClassifyActionRefusal(tc.err, nil)
 
 			assert.Equal(t, dashboard.ActionUnknown, got.Code)
+			assert.Equal(t, tc.want, got.Message)
+		})
+	}
+}
+
+// A rerun's 404 is the web server's "page not found", not a sentence the forge
+// wrote, so it says what a 404 on a rerun means. Only a rerun is rewritten.
+func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
+	t.Parallel()
+
+	const notFoundMessage = "The forge answered 404: it has no such route, or the token can't see this repository."
+	cases := []struct {
+		name   string
+		action dashboard.PullRequestAction
+		err    error
+		want   string
+	}{
+		{"a bare 404 says what it means", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 page not found"), notFoundMessage},
+		{"in any case", dashboard.PullRequestActionRerunBranchChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 Page Not Found"), notFoundMessage},
+		{"a sentence the forge wrote is kept", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: The repository is not found"), "The repository is not found"},
+		{"a close is left alone", dashboard.PullRequestActionClose, refusal(dashboard.ForgeErrorNotFound, "forgejo: PATCH /repos/o/r/pulls/5: refused: 404 page not found"), "refused: 404 page not found"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.ClassifyActionRefusalFor(tc.action, tc.err, nil)
+
 			assert.Equal(t, tc.want, got.Message)
 		})
 	}

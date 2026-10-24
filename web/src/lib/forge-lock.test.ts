@@ -3,9 +3,12 @@ import { describe, expect, mock, test } from 'bun:test';
 
 // rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
 mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
-const { dependabotBlockedReason, forgeLockReason, spentLimit } = await import(
-  './forge-lock'
-);
+const {
+  dependabotBlockedReason,
+  forgeLockReason,
+  rerunBlockedLock,
+  spentLimit,
+} = await import('./forge-lock');
 
 const NOW = Date.parse('2026-10-22T12:00:00Z');
 const spent = (resetsAt: string) => ({
@@ -144,6 +147,24 @@ describe('dependabotBlockedReason', () => {
   test('ignores hosts of other kinds', () => {
     const other = { ...host(), forge: 'forgejo' };
     expect(dependabotBlockedReason([blocked('a'), other], 'github')).toBe('a');
+  });
+});
+
+describe('rerunBlockedLock', () => {
+  const blocked = (why: string) => host({ rerunChecksBlocked: why });
+
+  test('needs a host, and every host of the kind without a rerun route', () => {
+    expect(rerunBlockedLock([], 'github')).toBeNull();
+    expect(rerunBlockedLock(undefined, 'github')).toBeNull();
+    expect(rerunBlockedLock([host()], 'github')).toBeNull();
+    expect(rerunBlockedLock([blocked('a'), host()], 'github')).toBeNull();
+    expect(rerunBlockedLock([blocked('a')], 'github')?.reason).toBe('a');
+  });
+
+  test('is its own kind of lock, not a rate limit or an outage', () => {
+    expect(rerunBlockedLock([blocked('a')], 'github')?.code).toBe(
+      'rerun_unsupported',
+    );
   });
 });
 

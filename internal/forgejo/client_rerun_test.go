@@ -15,15 +15,29 @@ import (
 
 var _ dashboard.ChecksRerunner = (*forgejo.Client)(nil)
 
-// rerunServer plays Forgejo for pull request 5. runs maps each Actions run on
-// the head commit to its status. rerunStatus is what the rerun route answers
-// (0 for 201). reruns records each run asked to rerun, in order.
+// rerunServer plays Forgejo for pull request 5. runs is the Actions runs on the
+// head commit, and the embedded fakeJobs holds their jobs and takes the job
+// reruns. A failed run with no jobs listed gets one failed job, id 100 plus
+// the run's, so a test that only cares about runs stays short.
 type rerunServer struct {
-	runs        []map[string]any
-	rerunStatus int
-	mu          sync.Mutex
-	reruns      []string
-	headSHA     string
+	fakeJobs
+
+	runs    []map[string]any
+	mu      sync.Mutex
+	headSHA string
+}
+
+// withDefaultJobs gives every failed run a failed job and a passing one.
+func (s *rerunServer) withDefaultJobs() {
+	if s.jobs == nil {
+		s.jobs = map[int][]map[string]any{}
+	}
+	for _, run := range s.runs {
+		id, _ := run["id"].(int)
+		if _, ok := s.jobs[id]; !ok {
+			s.jobs[id] = []map[string]any{job(id+100, run["status"].(string)), job(id+200, "success")}
+		}
+	}
 }
 
 func (s *rerunServer) start(t *testing.T) *forgejo.Client {
@@ -39,32 +53,15 @@ func (s *rerunServer) start(t *testing.T) *forgejo.Client {
 		s.mu.Unlock()
 		writeJSON(t, w, map[string]any{"total_count": len(s.runs), "workflow_runs": s.runs})
 	})
-	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/runs/{run}/rerun-failed-jobs", func(w http.ResponseWriter, r *http.Request) {
-		s.mu.Lock()
-		s.reruns = append(s.reruns, r.PathValue("run"))
-		s.mu.Unlock()
-		if s.rerunStatus != 0 {
-			w.WriteHeader(s.rerunStatus)
-			writeJSON(t, w, map[string]any{"message": "token does not have at least one of required scope(s)"})
-
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-	})
+	s.withDefaultJobs()
+	s.register(t, mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
 	return forgejo.NewClient(srv.URL, "test-token", "")
 }
 
-func (s *rerunServer) rerunsSeen() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return append([]string(nil), s.reruns...)
-}
-
-func TestRerunFailedChecks_RerunsOnlyTheFailedRuns(t *testing.T) {
+func TestRerunFailedChecks_RerunsOnlyTheFailedJobsOfTheFailedRuns(t *testing.T) {
 	t.Parallel()
 	s := &rerunServer{runs: []map[string]any{
 		{"id": 41, "status": "success"},
@@ -75,7 +72,54 @@ func TestRerunFailedChecks_RerunsOnlyTheFailedRuns(t *testing.T) {
 
 	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
 
-	assert.ElementsMatch(t, []string{"42", "44"}, s.rerunsSeen())
+	assert.ElementsMatch(t, []string{"142", "144"}, s.rerunsSeen(), "the failed job of each failed run, not the passing one")
+}
+
+// A deploy job that passed beside a failed test job must not go again.
+func TestRerunFailedChecks_LeavesPassingJobsOfAFailedRunAlone(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{
+		42: {job(1, "success"), job(2, "failure"), job(3, "success"), job(4, "failure")},
+	}
+
+	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
+
+	assert.Equal(t, []string{"2", "4"}, s.rerunsSeen())
+}
+
+// Forgejo restarts a job's dependents with it, so a failed job that was
+// restarted that way is already going and must not be asked again.
+func TestRerunFailedChecks_SkipsAFailedJobTheForgeAlreadyRestartedAsADependent(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure"), job(3, "failure")}}
+	s.cascade = map[int][]int{1: {2}}
+
+	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
+
+	assert.Equal(t, []string{"1", "3"}, s.rerunsSeen())
+}
+
+// The jobs are read again only when a second job is to be rerun.
+func TestRerunFailedChecks_ReadsTheJobsOnceForAFailedRunWithOneFailedJob(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+
+	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
+
+	assert.Equal(t, 1, s.listingsSeen())
+}
+
+func TestRerunFailedChecks_AFailedRunWhoseJobsAllPassed_IsNothingToRerun(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "success")}}
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, "no failed job to rerun on this pull request", dashboard.ForgeMessage(err))
+	assert.Empty(t, s.rerunsSeen())
 }
 
 func TestRerunFailedChecks_LooksRunsUpByTheHeadCommit(t *testing.T) {
@@ -121,7 +165,8 @@ func TestRerunFailedChecks_ConflictReadsAsASentence_WithoutAForgePrefix(t *testi
 
 func TestRerunFailedChecks_ARefusal_ComesBackClassified(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}, rerunStatus: http.StatusForbidden}
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.status = http.StatusForbidden
 
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 
@@ -132,7 +177,8 @@ func TestRerunFailedChecks_ARefusal_ComesBackClassified(t *testing.T) {
 
 func TestRerunFailedChecks_ARefusal_CarriesForgejosOwnWords(t *testing.T) {
 	t.Parallel()
-	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}, rerunStatus: http.StatusForbidden}
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.status = http.StatusForbidden
 
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 

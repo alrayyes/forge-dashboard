@@ -255,6 +255,23 @@ func DependabotCommandsBlockedReason(src Source) string {
 	return ""
 }
 
+// RerunChecksBlocker is implemented by a Source whose forge instance has no way
+// to rerun checks (an old Forgejo with no rerun route). An empty reason means
+// it can, or that nobody knows. Optional, like DependabotCommandBlocker.
+type RerunChecksBlocker interface {
+	RerunChecksBlockedReason() string
+}
+
+// RerunChecksBlockedReason returns src's reason checks can't be rerun on it, or
+// "" when they can (or src doesn't say).
+func RerunChecksBlockedReason(src any) string {
+	if b, ok := src.(RerunChecksBlocker); ok {
+		return b.RerunChecksBlockedReason()
+	}
+
+	return ""
+}
+
 // PullRequestCommenter is implemented by a ForgeClient (or, for
 // github.Client, a Source directly) that can post a comment on one of its
 // own pull requests — checked via a type assertion, the same
