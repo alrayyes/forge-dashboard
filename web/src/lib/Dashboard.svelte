@@ -140,7 +140,7 @@
     dependabotButtonDecision,
   } from "#lib/dependabot-action.js";
   import { settleCancelled } from "#lib/cancelled-bot-rebase.js";
-  import { holdsTheBoard } from "#lib/row-action-in-flight.js";
+  import { anyRowHoldsTheBoard } from "#lib/row-action-in-flight.js";
   import {
     type ForgeHealthEntry,
     dependabotBlockedReason,
@@ -4491,14 +4491,14 @@
     // that state already swaps the button for a single-click "Retry",
     // not a two-step interaction a moved target can break.
     function anyRowActionInFlight(): boolean {
-      return [
+      return anyRowHoldsTheBoard([
         mergeState,
         closeState,
         updateBranchState,
         dependabotActionState,
         renovateRebaseState,
         cancelRenovateRebaseState,
-      ].some((stateMap) => Object.values(stateMap).some(holdsTheBoard));
+      ]);
     }
 
     // Live updates land by themselves. prShown.items is what the board is

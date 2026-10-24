@@ -17,6 +17,9 @@ type botSource struct {
 	mu        sync.Mutex
 	prs       []dashboard.PullRequest
 	reachable bool
+	failed    []dashboard.FailedRepo
+	spent     *dashboard.RateLimit
+	unchanged []string
 	gate      chan struct{}
 	started   chan struct{}
 }
@@ -46,8 +49,10 @@ func (s *botSource) Fetch(context.Context) dashboard.Result {
 	}
 
 	return dashboard.Result{
-		Health:       dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		Health:       dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RateLimitREST: s.spent},
 		PullRequests: append([]dashboard.PullRequest(nil), s.prs...),
+		FailedRepos:  s.failed,
+		Unchanged:    s.unchanged,
 	}
 }
 

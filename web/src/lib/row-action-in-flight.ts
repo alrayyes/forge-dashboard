@@ -22,3 +22,13 @@ const NOT_IN_FLIGHT = new Set([
 export function holdsTheBoard(entry: RowActionEntry): boolean {
   return !entry.queued?.restored && !NOT_IN_FLIGHT.has(entry.phase);
 }
+
+// Whether any row in any of the action state maps holds the board. The board
+// asks this before it applies a snapshot.
+export function anyRowHoldsTheBoard(
+  stateMaps: Record<string, RowActionEntry>[],
+): boolean {
+  return stateMaps.some((stateMap) =>
+    Object.values(stateMap).some(holdsTheBoard),
+  );
+}

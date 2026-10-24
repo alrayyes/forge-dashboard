@@ -175,15 +175,32 @@ func (a *Aggregator) SetRenovateRebaseBox(forge Forge, repo string, number int, 
 	})
 }
 
+// readRows names which pull requests a fetch read from the forge, by
+// settledKey. The zero value places no limit: every row counts as read, which
+// is right for a merge whose rows all came from the forge. onlyRead limits it,
+// and an empty set then means no row was read, so a refresh that asked nothing
+// settles nothing.
+type readRows struct {
+	keys    map[string]bool
+	limited bool
+}
+
+// onlyRead is the rows named in keys, and no others.
+func onlyRead(keys map[string]bool) readRows {
+	return readRows{keys: keys, limited: true}
+}
+
+func (r readRows) has(key string) bool { return !r.limited || r.keys[key] }
+
 // settleBoxOverrides puts the box state this app set back over any fetch that
 // started before it, and forgets the override once a later fetch has read the
 // description itself. covers says which forge and repo that fetch answered
-// for. read, when set, names the rows that fetch actually read from the forge:
+// for. read names the rows that fetch actually read from the forge:
 // the others were carried over from the snapshot, so they say nothing about the
 // description and keep their override. The caller holds mu, which every tick
 // and cancel takes too, so no change can land between this and the snapshot
 // swap.
-func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers func(Forge, string) bool, read map[string]bool) {
+func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers func(Forge, string) bool, read readRows) {
 	a.botMu.Lock()
 	defer a.botMu.Unlock()
 
@@ -194,7 +211,7 @@ func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers fu
 	for i := range prs {
 		key := settledKey(prs[i].Forge, prs[i].Repo, prs[i].Number)
 		o, ok := a.boxOverrides[key]
-		if !ok || !covers(prs[i].Forge, prs[i].Repo) || (read != nil && !read[key]) {
+		if !ok || !covers(prs[i].Forge, prs[i].Repo) || !read.has(key) {
 			continue
 		}
 		if seq <= o.seq {
@@ -216,9 +233,11 @@ func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers fu
 
 // annotateUnderLock is what a full refresh does just before it swaps its
 // snapshot in: it settles the box overrides and re-annotates the requests
-// recorded since applyBotRequests ran. The caller holds mu.
-func (a *Aggregator) annotateUnderLock(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
-	a.settleBoxOverrides(prs, seq, covers, nil)
+// recorded since applyBotRequests ran. read names the rows the refresh fetched;
+// rows carried over for a failed or skipped repo keep their override. The caller
+// holds mu.
+func (a *Aggregator) annotateUnderLock(prs []PullRequest, seq uint64, covers func(Forge, string) bool, read readRows) {
+	a.settleBoxOverrides(prs, seq, covers, read)
 	a.annotateBotRequests(prs)
 }
 
