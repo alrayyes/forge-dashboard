@@ -437,19 +437,21 @@ func TestReadMainBranch_ConcurrentReadsOfOneRepoShareOneRead(t *testing.T) {
 	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
 	client := forge.start(t, scanner)
 
+	// Settling inside each goroutine would call Wait while another goroutine's
+	// first read is still starting its background read (a WaitGroup Add racing
+	// a Wait), so the readers only start reads and the test settles once after.
 	var wg sync.WaitGroup
 	for range 5 {
 		wg.Go(func() {
-			row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
-			if err != nil {
+			if _, err := client.ReadMainBranch(t.Context(), repoA); err != nil {
 				t.Error(err)
-
-				return
 			}
-			assert.Equal(t, 1, row.Advisories.Count)
 		})
 	}
 	wg.Wait()
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
+	require.NoError(t, err)
+	assert.Equal(t, 1, row.Advisories.Count)
 	assert.Equal(t, 1, scanner.calls())
 	assert.EqualValues(t, 2, forge.requests.Load())
 }
