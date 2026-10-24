@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# The e2e shards and the Lighthouse job run in Playwright's own image, so no
-# job downloads a browser or runs apt (a hang in `playwright install` used to
-# fail pipelines). The image's browsers only work with the library version they
-# shipped with, and a container image can't read package.json, so the tag is
-# written out in ci.yml. This fails when a job's image drifts from the
-# @playwright/test version in package.json and bun.lock, or lacks a tag and a
-# digest, so a bump of the library can't land with browsers that disagree.
-# WORKFLOW, PACKAGE_JSON and LOCKFILE override the files checked.
+# The e2e shards, the Lighthouse job and the release screenshots job run in
+# our own CI image (github.com/alrayyes/ci-playwright), tagged with the
+# Playwright version it carries, so no job downloads a browser or runs apt (a
+# hang in `playwright install` used to fail pipelines). The image's browsers
+# only work with the library version they shipped with, and a container image
+# can't read package.json, so the tag is written out in the workflows. This
+# fails when a job's image drifts from the @playwright/test version in
+# package.json and bun.lock, lacks a tag and a digest, or differs from another
+# job's image, so a bump of the library can't land with browsers that disagree.
+# WORKFLOWS (space separated), PACKAGE_JSON and LOCKFILE override the files
+# checked.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-workflow=${WORKFLOW:-.github/workflows/ci.yml}
+workflows=${WORKFLOWS:-.github/workflows/ci.yml .github/workflows/release.yml}
 package_json=${PACKAGE_JSON:-package.json}
 lockfile=${LOCKFILE:-bun.lock}
 
@@ -32,12 +35,12 @@ fi
 images=()
 while IFS= read -r line; do
   images+=("$line")
-done < <(grep -E '^\s+image: mcr\.microsoft\.com/playwright:' "$workflow" | sed -E 's/^\s+image: //')
-[ "${#images[@]}" -ge 2 ] || fail "$workflow has ${#images[@]} jobs on the Playwright image, expected the e2e shards and lighthouse"
+done < <(grep -hE '^\s+image: ghcr\.io/alrayyes/ci-playwright:' $workflows | sed -E 's/^\s+image: //')
+[ "${#images[@]}" -ge 3 ] || fail "found ${#images[@]} jobs on the CI image, expected the e2e shards, lighthouse and the release screenshots"
 
 for image in "${images[@]}"; do
-  if ! [[ $image =~ ^mcr\.microsoft\.com/playwright:v([0-9]+\.[0-9]+\.[0-9]+)-noble@sha256:[0-9a-f]{64}$ ]]; then
-    fail "image '$image' is not pinned by an exact version and a digest (vX.Y.Z-noble@sha256:...)"
+  if ! [[ $image =~ ^ghcr\.io/alrayyes/ci-playwright:([0-9]+\.[0-9]+\.[0-9]+)@sha256:[0-9a-f]{64}$ ]]; then
+    fail "image '$image' is not pinned by an exact version and a digest (ghcr.io/alrayyes/ci-playwright:X.Y.Z@sha256:...)"
     continue
   fi
   if [ "${BASH_REMATCH[1]}" != "$lib" ]; then
@@ -49,8 +52,10 @@ if [ "${#images[@]}" -gt 0 ] && [ "$(printf '%s\n' "${images[@]}" | sort -u | wc
   fail "the jobs use different Playwright images: ${images[*]}"
 fi
 
-if grep -Eq 'playwright install' "$workflow"; then
-  fail "$workflow still runs 'playwright install'; the image already has the browsers"
-fi
+for workflow in $workflows; do
+  if grep -Eq 'playwright install' "$workflow"; then
+    fail "$workflow still runs 'playwright install'; the image already has the browsers"
+  fi
+done
 
 exit "$failed"

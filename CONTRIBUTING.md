@@ -140,12 +140,17 @@ database, so nothing needs cleaning up and a dev server on 8080 can keep
 running. Extra arguments go to Playwright
 (`./tests/run-local.sh tests/auth.spec.ts --workers=2`).
 
-CI runs the browser jobs (the e2e shards and Lighthouse) in Playwright's own
-image, `mcr.microsoft.com/playwright:v<version>-noble`, so no job downloads a
-browser or runs apt. The tag must equal the `@playwright/test` version, and the
-digest is the tag's `Docker-Content-Digest`. `scripts/test-playwright-image.sh`
-fails the `changes` job when they differ, so a Playwright bump changes
-`package.json`, `bun.lock` and the two image lines in `ci.yml` together.
+CI runs the browser jobs (the e2e shards, Lighthouse and the release
+screenshots) in our own image, `ghcr.io/alrayyes/ci-playwright:<version>`,
+built from Playwright's official image with bun added. It already holds the
+browsers, bun, node, git, the GitHub CLI and ImageMagick, so no job downloads a
+browser, installs bun or runs apt. The tag is the `@playwright/test` version,
+and the bun inside is the one `packageManager` names.
+`scripts/test-playwright-image.sh` fails the `changes` job when an image's
+version differs from `package.json` or `bun.lock`, or when two jobs use
+different images, so a Playwright bump changes `package.json`, `bun.lock` and
+the image lines in `ci.yml` and `release.yml` together. The image repo's README
+says how a new tag is published.
 `run-local.sh` doesn't use the image: it runs on your machine with the browsers
 you installed once with `bunx playwright install chromium`.
 

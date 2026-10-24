@@ -331,13 +331,14 @@ jobs:
     # to 5.5), so about 1.5x is 8; 10 leaves a little room. Re-size it from the
     # slowest green run, never to hide a suite growing back toward the limit.
     timeout-minutes: 10
-    # Playwright's own image: the browsers and their system packages are already
-    # in it, so no step downloads Chromium or runs apt. The tag must be the
-    # @playwright/test version exactly; scripts/test-playwright-image.sh fails
-    # the `changes` job when they differ, so bump both together (the digest is
-    # the tag's `Docker-Content-Digest` from mcr.microsoft.com).
+    # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
+    # browsers and system packages, Bun, node, git, gh and ImageMagick are
+    # already in it, so no step downloads Chromium, installs bun or runs apt.
+    # The tag is the @playwright/test version exactly, and its Bun is the one
+    # package.json names; scripts/test-playwright-image.sh fails the `changes`
+    # job when either differs, so bump them together.
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
+      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:e44eec3f49f8fad2dbfb926fd8cbd0cadf1b9ebca94a960a45daac90a3bd9258
       # Chromium shares memory through IPC; Playwright's Docker guide asks for this.
       options: --ipc=host
     strategy:
@@ -349,14 +350,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      # setup-bun unzips its download and the image has no unzip (installing
-      # one would bring apt back), so take bun from npm at the exact version
-      # package.json's packageManager names. Node ships in the image.
-      - name: install bun
-        run: npm install --global "bun@$(node -p "require('./package.json').packageManager.split('@')[1]")"
-      # The container runs as root over a workspace the runner owns; later git
-      # calls (go's VCS stamping) otherwise fail with dubious ownership.
-      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: the image's bun is the one package.json names
+        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1]")"
       - run: bun install --frozen-lockfile
       - run: bun run build:web
       # -tags e2e adds POST /__e2e/reset, which the specs call between tests;
@@ -392,13 +387,14 @@ jobs:
     runs-on: ubuntu-24.04
     # Took 5.3 minutes on its first run; about 1.5x is 8, so 10.
     timeout-minutes: 10
-    # Playwright's own image: the browsers and their system packages are already
-    # in it, so no step downloads Chromium or runs apt. The tag must be the
-    # @playwright/test version exactly; scripts/test-playwright-image.sh fails
-    # the `changes` job when they differ, so bump both together (the digest is
-    # the tag's `Docker-Content-Digest` from mcr.microsoft.com).
+    # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
+    # browsers and system packages, Bun, node, git, gh and ImageMagick are
+    # already in it, so no step downloads Chromium, installs bun or runs apt.
+    # The tag is the @playwright/test version exactly, and its Bun is the one
+    # package.json names; scripts/test-playwright-image.sh fails the `changes`
+    # job when either differs, so bump them together.
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
+      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:e44eec3f49f8fad2dbfb926fd8cbd0cadf1b9ebca94a960a45daac90a3bd9258
       # Chromium shares memory through IPC; Playwright's Docker guide asks for this.
       options: --ipc=host
     steps:
@@ -406,14 +402,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      # setup-bun unzips its download and the image has no unzip (installing
-      # one would bring apt back), so take bun from npm at the exact version
-      # package.json's packageManager names. Node ships in the image.
-      - name: install bun
-        run: npm install --global "bun@$(node -p "require('./package.json').packageManager.split('@')[1]")"
-      # The container runs as root over a workspace the runner owns; later git
-      # calls (go's VCS stamping) otherwise fail with dubious ownership.
-      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: the image's bun is the one package.json names
+        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1]")"
       - run: bun install --frozen-lockfile
       - run: bun run build:web
       - run: go build -o forge-dashboard ./cmd/forge-dashboard

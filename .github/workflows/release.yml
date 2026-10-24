@@ -216,6 +216,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     continue-on-error: true
+    # The same CI image as ci.yml's browser jobs (browsers, Bun, node, git, gh
+    # and ImageMagick are in it); scripts/test-playwright-image.sh keeps the
+    # tag in step with @playwright/test.
+    container:
+      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:e44eec3f49f8fad2dbfb926fd8cbd0cadf1b9ebca94a960a45daac90a3bd9258
+      options: --ipc=host
     permissions:
       contents: write
       pull-requests: write
@@ -227,11 +233,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version-file: package.json
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
       # //go:embed all:static (internal/api/server.go) reads this directory
       # at compile time — without it, static/ is empty and every
       # SvelteKit-migrated page 404s, including the login page the
@@ -272,8 +274,6 @@ jobs:
       - name: compare against the committed screenshots, ignoring rendering noise
         id: compare
         run: |
-          sudo apt-get update -y >/dev/null
-          sudo apt-get install -y imagemagick >/dev/null
           changed=false
           for f in docs/screenshots/*.png; do
             if ! git cat-file -e "HEAD:$f" 2>/dev/null; then
