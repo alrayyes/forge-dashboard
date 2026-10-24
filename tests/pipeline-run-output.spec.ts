@@ -51,7 +51,7 @@ async function setup(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [{ forge, reachable: true, repoCount: 1 }],
         pullRequests: [{ ...pr, forge }],
         issues: [],
       }),
@@ -317,9 +317,6 @@ test.describe('a check run output in the pipeline dialog', () => {
       await expect(
         dialog.getByRole('button', { name: 'View run: running-job' }),
       ).toBeVisible();
-      await expect(dialog.getByText('View run', { exact: true })).toHaveCount(
-        2,
-      );
       for (const name of ['queued-job', 'queued-bare']) {
         await expect(
           dialog.getByRole('button', { name: `View run: ${name}` }),

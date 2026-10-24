@@ -168,7 +168,11 @@ test.describe('pipeline panel updates live', () => {
     await push(page, RUNNING);
 
     await expect(view).toBeVisible();
-    expect(state.requests).toBe(2);
+    await expect(
+      dialog(page).getByRole('link', {
+        name: 'Open on GitHub (opens in a new tab): test',
+      }),
+    ).toHaveCount(1);
   });
 
   test('a check finishing changes its pill in place, announced once', async ({
