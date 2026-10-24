@@ -67,6 +67,8 @@ func (f *fakeJobs) register(t *testing.T, mux *http.ServeMux) {
 // rerunHandler answers one job rerun: it goes through, is refused, or is
 // hung up on.
 func (f *fakeJobs) rerunHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("job"))
 		f.mu.Lock()
