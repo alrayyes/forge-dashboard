@@ -536,6 +536,8 @@ has read the forge arrives, instead of drawing it again from the old one. Once
 Renovate is rebasing, the cancel is gone on purpose, even if the box is ticked
 again meanwhile: from the description alone that looks the same as a box
 Renovate is still consuming, and clearing it would withdraw the wrong request.
+A box found already ticked, by a click or by a queued request that was skipped,
+is shown as ticked and offers the cancel only while Renovate isn't rebasing.
 
 Two requests have no way back, so they list neither action and the wait chip is
 all the row shows: a Renovate rebase asked for with the `rebase` label (there is
