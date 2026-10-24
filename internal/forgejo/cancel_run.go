@@ -61,7 +61,10 @@ func workflowName(run *gitea.ActionWorkflowRun) string {
 // workflow_id, title and index_in_repo, while the SDK's ActionWorkflowRun reads
 // path, display_title and run_number, which Forgejo doesn't send. So the list
 // is decoded by hand and those fields filled from Forgejo's own; a server that
-// does send the SDK's names keeps them.
+// does send the SDK's names keeps them. Only this call is hand-decoded: it is
+// the one that shows a run's name and number, while the other runs-list reads
+// (a re-run, the running split) use only ids and states, which the SDK reads
+// fine. It logs the request and rawRequest records it, so the caller does neither.
 func (c *Client) listRunsForSHA(ctx context.Context, owner, name, sha string) (*gitea.ActionWorkflowRunsResponse, *gitea.Response, error) {
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
