@@ -2729,6 +2729,7 @@
         autoMergeState,
         dependabotActionState,
         renovateRebaseState,
+        cancelRenovateRebaseState,
       ]) {
         for (const key of Object.keys(stateMap)) {
           const entry = stateMap[key];
@@ -4118,13 +4119,32 @@
         bot: action === "rebase" ? botLineInfo("Dependabot") : undefined,
         retry: () => doDependabotAction(item, action, buttonEl("row-action")),
       });
-      // The two commands lock each other from the moment one is queued, not
-      // once the response lands: the other one is redrawn locked, naming this
-      // one. Focus goes back to the button that was clicked.
+      // The other command is left out from the moment one is queued, not once
+      // the response lands. Focus goes back to the button that was clicked.
       const focusId = button.id;
       const hadFocus = document.activeElement === button;
       renderPRBoard();
       if (hadFocus && focusId) document.getElementById(focusId)?.focus();
+
+      // Stays "queued" — Dependabot acts on its own schedule, so the button
+      // holds until the next snapshot lands (applySnapshot clears it) rather
+      // than inviting a second comment. No immediate /api/dashboard/refresh,
+      // unlike doMerge/doUpdateBranch: posting the comment doesn't change
+      // anything about this pull request itself.
+      const requested = (alreadyAsked = false) => {
+        confirmRequest(dependabotActionState, key);
+        feedback.update(fkey, {
+          toast: true,
+          ...(alreadyAsked && {
+            message: `Dependabot ${action} requested.`,
+          }),
+          announce: requestedAnnouncement(
+            action === "rebase" ? "bot-rebase" : "bot-recreate",
+            "Dependabot",
+          ),
+        });
+        keepFocusAcross(renderPRBoard);
+      };
 
       fetch("/api/pull-requests/dependabot-action", {
         method: "POST",
@@ -4149,25 +4169,14 @@
             throw err;
           });
         })
-        .then(() => {
-          // Stays "queued" — Dependabot acts on its own schedule, so the
-          // button holds until the next snapshot lands (applySnapshot
-          // clears it) rather than inviting a second comment.
-          // No immediate /api/dashboard/refresh, unlike doMerge/
-          // doUpdateBranch: posting the comment doesn't change anything
-          // about this pull request itself — Dependabot's own rebase/
-          // recreate run is what would, on its own schedule.
-          confirmRequest(dependabotActionState, key);
-          feedback.update(fkey, {
-            toast: true,
-            announce: requestedAnnouncement(
-              action === "rebase" ? "bot-rebase" : "bot-recreate",
-              "Dependabot",
-            ),
-          });
-          renderPRBoard();
-        })
+        .then(() => requested())
         .catch((err: ActionRequestError) => {
+          // Another tab, or an earlier click, got there first. That is the
+          // state the user asked for.
+          if (err.code === "already_requested") {
+            requested(true);
+            return;
+          }
           renderActionRefusal(
             item,
             err,
@@ -5203,6 +5212,8 @@
           : undefined;
       const label = active?.textContent;
       const className = active?.className;
+      const slot =
+        active instanceof HTMLElement ? active.dataset.focusSlot : "";
       draw();
       restoreScrollAnchor(anchor);
       if (activeId) {
@@ -5216,9 +5227,16 @@
       const row = Array.from(
         document.querySelectorAll<HTMLElement>("#pr-rows .row"),
       ).find((r) => r.dataset.prKey === key);
-      Array.from(row?.querySelectorAll("button") ?? [])
-        .find((b) => b.className === className && b.textContent === label)
-        ?.focus({ preventScroll: true });
+      const buttons = Array.from(row?.querySelectorAll("button") ?? []);
+      // The same button, found by what it says. A request that is replaced by
+      // its cancel says something else, so a button also names the slot it
+      // fills, and the one now in that slot takes the focus.
+      (
+        buttons.find(
+          (b) => b.className === className && b.textContent === label,
+        ) ??
+        (slot ? buttons.find((b) => b.dataset.focusSlot === slot) : undefined)
+      )?.focus({ preventScroll: true });
     }
 
     // Every row is rebuilt on a render, so the browser's own scroll
@@ -5464,7 +5482,7 @@
           ...(alreadyTicked && { message: "Rebase requested." }),
           announce: requestedAnnouncement("bot-rebase", "Renovate"),
         });
-        renderPRBoard();
+        keepFocusAcross(renderPRBoard);
       };
 
       fetch("/api/pull-requests/renovate-rebase", {
@@ -5509,9 +5527,22 @@
         });
     }
 
-    function renovateRebaseActionCell(
-      item: PullRequestItem,
+    // A button that stands in for another when the request turns into its
+    // cancel names the place it holds, so focus can follow the swap.
+    function inFocusSlot(
+      button: HTMLElement | null,
+      slot: string,
     ): HTMLElement | null {
+      if (button) button.dataset.focusSlot = slot;
+
+      return button;
+    }
+
+    function renovateRebaseActionCell(item: PullRequestItem) {
+      return inFocusSlot(renovateRebaseButton(item), "renovate-rebase");
+    }
+
+    function renovateRebaseButton(item: PullRequestItem): HTMLElement | null {
       const offered = findAction(item, "renovate_rebase");
       if (!offered) return null;
 
@@ -5617,13 +5648,32 @@
         });
     }
 
-    function cancelRenovateRebaseCell(
+    function cancelRenovateRebaseCell(item: PullRequestItem) {
+      return inFocusSlot(cancelRenovateRebaseButton(item), "renovate-rebase");
+    }
+
+    function cancelRenovateRebaseButton(
       item: PullRequestItem,
     ): HTMLElement | null {
       if (!findAction(item, "cancel_renovate_rebase")) return null;
 
-      const requesting =
-        cancelRenovateRebaseState[prKey(item)]?.phase === "requesting";
+      const entry = cancelRenovateRebaseState[prKey(item)] || { phase: "idle" };
+
+      // A refused cancel stays a lock with its reason, not a button that
+      // fails the same way again.
+      if (entry.phase === "locked")
+        return lockedActionButton("Cancel Renovate rebase", lockOf(entry));
+
+      // Clearing the box is a write to the forge, so a spent REST budget makes
+      // the row read-only here as it does for the request.
+      if (entry.phase === "idle") {
+        const proactiveReason = proactiveActionLockReason(item.forge);
+        if (readOnlyBecauseRateLimited(proactiveReason)) return null;
+        if (proactiveReason)
+          return lockedActionButton("Cancel Renovate rebase", proactiveReason);
+      }
+
+      const requesting = entry.phase === "requesting";
       const button = buttonEl(
         "row-action",
         requesting ? "Cancelling…" : "Cancel Renovate rebase",

@@ -261,6 +261,116 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
       });
   });
 
+  // A refused cancel (a token that can't edit the description) is a lock with
+  // its reason, not an enabled button that fails again the same way.
+  test('a permission-refused cancel draws a locked cancel with the reason', async ({
+    page,
+  }) => {
+    await page.route(
+      '**/api/pull-requests/renovate-rebase/cancel',
+      (route: Route) =>
+        route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'The token cannot edit this description.',
+            code: 'permission',
+            message: 'The token cannot edit this description.',
+          }),
+        }),
+    );
+    await serve(page, { rebase: CANCEL });
+    const row = await openRow(page);
+
+    await row.getByRole('button', { name: CANCEL_NAME }).click();
+
+    const locked = row.getByRole('button', { name: CANCEL_NAME });
+    await expect(locked).toHaveAttribute('aria-disabled', 'true');
+    await expect(locked).toHaveAccessibleDescription(/Missing permission/);
+  });
+
+  test('a rate-limited forge draws no cancel either', async ({ page }) => {
+    const resetsAt = new Date(Date.now() + 12 * 60_000).toISOString();
+    await serve(
+      page,
+      { rebase: CANCEL, extra: { botRequest: BOT_REQUEST } },
+      { rateLimitREST: rateLimit(5000, 0, resetsAt) },
+    );
+    const row = await openRow(page);
+    await expect(
+      row.getByRole('button', { name: /Open pipeline/ }),
+    ).toBeVisible();
+
+    await expect(row.getByRole('button', { name: CANCEL_NAME })).toHaveCount(0);
+  });
+
+  // The request turns into the cancel when the next snapshot lands. A keyboard
+  // user who pressed Enter on the request keeps their place in the row.
+  test('keyboard: focus moves to the cancel when the request turns into it', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as {
+        __streams: EventSource[];
+        EventSource: typeof EventSource;
+      };
+      w.__streams = [];
+      const Real = w.EventSource;
+      w.EventSource = class extends Real {
+        constructor(url: string | URL, init?: EventSourceInit) {
+          super(url, init);
+          w.__streams.push(this);
+        }
+      };
+    });
+    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
+      route.fulfill({ status: 204 }),
+    );
+    // Merge is the primary action of a behind, mergeable pull request, so the
+    // rebase sits beside it on the row.
+    const withMerge = (action: Record<string, unknown>) => [
+      { action: 'merge', primary: true },
+      { action: 'close' },
+      action,
+    ];
+    const state: State = {
+      rebase: REQUEST,
+      extra: { behind: true, allowedActions: withMerge(REQUEST) },
+    };
+    await serve(page, state);
+    await page.route('**/api/dashboard/stream*', (r: Route) => r.continue());
+    const row = await openRow(page);
+
+    await row.getByRole('button', { name: REQUEST_NAME }).focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      row.getByRole('button', { name: /Rebase requested/ }),
+    ).toBeVisible();
+
+    const pr = makePR(CANCEL, {
+      behind: true,
+      botRequest: BOT_REQUEST,
+      allowedActions: withMerge(CANCEL),
+    });
+    await page.evaluate(
+      (data) => {
+        const w = window as unknown as { __streams: EventSource[] };
+        for (const stream of w.__streams)
+          stream.onmessage?.(new MessageEvent('message', { data }));
+      },
+      JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+        pullRequests: [pr],
+        issues: [],
+      }),
+    );
+
+    const cancel = row.getByRole('button', { name: CANCEL_NAME });
+    await expect(cancel).toBeVisible();
+    await expect(cancel).toBeFocused();
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     test(`has no axe violations with the cancel (${scheme})`, async ({
       page,

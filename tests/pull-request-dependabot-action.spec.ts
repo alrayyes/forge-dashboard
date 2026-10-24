@@ -345,6 +345,38 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       ).toHaveCount(0);
     });
 
+    test('a command another tab already sent reads as requested, not as a failure', async ({
+      page,
+    }) => {
+      await mockDashboard(page, 'github', makePR());
+      await page.route('**/api/pull-requests/dependabot-action', (route) =>
+        route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'A Dependabot rebase is already requested.',
+            code: 'already_requested',
+            message: 'A Dependabot rebase is already requested.',
+          }),
+        }),
+      );
+      await page.goto('/bots.html');
+      const row = page.locator('#pr-rows .row').first();
+      const footer = await openFooter(row);
+
+      await footer.getByRole('button', { name: 'Dependabot: Rebase' }).click();
+
+      await expect(page.locator('#feedback-toasts')).toContainText(
+        /rebase requested/i,
+      );
+      await expect(
+        footer.getByRole('button', { name: 'Rebase requested' }),
+      ).toHaveAttribute('aria-disabled', 'true');
+      await expect(page.locator('#feedback-toasts')).not.toContainText(
+        'already requested',
+      );
+    });
+
     test('once the bot has acted, both commands come back', async ({
       page,
     }) => {
