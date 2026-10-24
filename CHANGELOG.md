@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.31.3](https://github.com/alrayyes/forge-dashboard/compare/v2.31.2...v2.31.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* **web:** bot rebase and recreate state edge cases left after the requested change ([#2784](https://github.com/alrayyes/forge-dashboard/issues/2784)) ([3b92ddb](https://github.com/alrayyes/forge-dashboard/commit/3b92ddbd8fea2c2b67ff32ee4158fb57cd36d3d2))
+* **web:** cancelled bot rebase leftovers: board hold, CI-poll override and shared mappings ([#2795](https://github.com/alrayyes/forge-dashboard/issues/2795)) ([3953166](https://github.com/alrayyes/forge-dashboard/commit/39531661ccb349e68cc991cc1d89ab046bb87275))
+
 ## [2.31.2](https://github.com/alrayyes/forge-dashboard/compare/v2.31.1...v2.31.2) (2026-10-24)
 
 
