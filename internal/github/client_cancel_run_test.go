@@ -214,7 +214,10 @@ func TestListChecks_AWaitingCheckNamesNoRun(t *testing.T) {
 	})
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
 		runs := []map[string]any{}
-		if r.URL.Query().Get("status") == "" {
+		// The waiting run comes back for every status the cancel lookup asks
+		// for, so only the activeRunStatuses filter keeps it from naming a run.
+		// The held-run query (action_required) is a different question.
+		if r.URL.Query().Get("status") != "action_required" {
 			runs = append(runs, map[string]any{"id": 950, "name": "Deploy", "status": "waiting"})
 		}
 		writeJSON(t, w, map[string]any{"workflow_runs": runs})
