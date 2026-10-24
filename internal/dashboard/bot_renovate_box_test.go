@@ -196,6 +196,54 @@ func TestAggregator_BoxOverrideLifetime(t *testing.T) {
 	})
 }
 
+func TestAggregator_FullRefreshKeepsTheBoxOverrideOfRowsItCarriedOver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a repo whose pull request list failed", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		require.Equal(t, 1, agg.BoxOverrideCount())
+
+		src.mu.Lock()
+		src.prs = nil
+		src.failed = []dashboard.FailedRepo{{FullName: "o/r", PullRequests: true}}
+		src.mu.Unlock()
+		agg.Refresh(t.Context())
+
+		require.Len(t, agg.Get().PullRequests, 1, "the failed repo's rows were carried over")
+		assert.Equal(t, 1, agg.BoxOverrideCount(), "no fetch read #7's description")
+	})
+
+	t.Run("a repo the source skipped as unchanged", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+
+		src.mu.Lock()
+		src.prs = nil
+		src.unchanged = []string{"o/r"}
+		src.mu.Unlock()
+		agg.Refresh(t.Context())
+
+		require.Len(t, agg.Get().PullRequests, 1, "the skipped repo's rows were carried over")
+		assert.Equal(t, 1, agg.BoxOverrideCount(), "no fetch read #7's description")
+	})
+
+	t.Run("a repo it did fetch still retires the override", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+
+		agg.Refresh(t.Context())
+
+		assert.Zero(t, agg.BoxOverrideCount())
+	})
+}
+
 func TestAggregator_PollCIKeepsTheBoxOverrideOfAPullRequestItDidNotRead(t *testing.T) {
 	t.Parallel()
 
