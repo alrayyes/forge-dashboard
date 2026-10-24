@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.0](https://github.com/alrayyes/forge-dashboard/compare/v2.29.7...v2.30.0) (2026-10-24)
+
+
+### Features
+
+* show mentioned tickets and mentioning pull requests in the dialogs ([#2749](https://github.com/alrayyes/forge-dashboard/issues/2749)) ([5be7e52](https://github.com/alrayyes/forge-dashboard/commit/5be7e52278bdf8820847f6c7ebf5bbabfb8f120e))
+
 ## [2.29.7](https://github.com/alrayyes/forge-dashboard/compare/v2.29.6...v2.29.7) (2026-10-24)
 
 
