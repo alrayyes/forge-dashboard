@@ -738,8 +738,14 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	snap := newEmptySnapshot()
 	snap.GeneratedAt = time.Now().UTC()
+	read := make(map[string]bool)
 	for i, r := range results {
 		forge := a.sources[i].Forge()
+		// What a source returned is what the forge was asked for; the keep and
+		// carry-over steps below add rows from the snapshot, which it never read.
+		for _, pr := range r.PullRequests {
+			read[settledKey(pr.Forge, pr.Repo, pr.Number)] = true
+		}
 		if r.Health.Reachable {
 			goodAt[forge] = snap.GeneratedAt
 			r = keepUnchangedRepos(keepFailedRepos(r, earlier, forge), earlier, forge)
@@ -773,7 +779,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
 	// The box overrides are settled here too, under the lock every tick and
 	// cancel takes, so none can land between the settling and the swap.
-	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
+	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] }, read)
 	a.snap = snap
 	a.lastGood = goodAt
 	a.mu.Unlock()
