@@ -127,6 +127,30 @@ test.describe('passkey login, one owner', () => {
     );
   });
 
+  test('a failed first registration check does not strand the visitor after a 404', async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    // The check made when the page loads fails; the one made when sign-in
+    // answers 404 gets through.
+    let asked = 0;
+    await page.route('**/api/auth/registration-status', (route) =>
+      asked++ === 0 ? route.abort() : route.fulfill({ json: { open: true } }),
+    );
+    await page.route('**/api/auth/login/begin', (route) =>
+      route.fulfill({
+        status: 404,
+        json: { error: 'no passkey is registered yet' },
+      }),
+    );
+
+    await page.goto('/login.html');
+    await page.click('#login-submit');
+
+    await expect(page.locator('#register-submit')).toBeVisible();
+  });
+
   test('the register button is absent once an owner exists', async ({
     page,
     context,

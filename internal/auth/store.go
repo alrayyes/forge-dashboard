@@ -18,6 +18,8 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/singleuser"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"modernc.org/sqlite"
+	sqlitelib "modernc.org/sqlite/lib"
 )
 
 // errCredentialNotFound is what removing a passkey the user doesn't have answers.
@@ -33,9 +35,9 @@ var ErrNotFound = errors.New("auth: not found")
 // first passkey to land is theirs.
 var ErrRegistrationClosed = errors.New("auth: registration is closed")
 
-// errUsernameTaken is what creating the owner's row answers when another
-// request created it first.
-var errUsernameTaken = errors.New("auth: username taken")
+// ErrUsernameTaken is what CreateUser answers when the username already
+// belongs to a row, as when another request created the owner's first.
+var ErrUsernameTaken = errors.New("auth: username taken")
 
 // maxPendingCeremonies bounds the unfinished ceremonies kept per kind. Anyone
 // can begin one, so the table can't be allowed to grow with the traffic.
@@ -201,11 +203,25 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*
 		`INSERT INTO users (id, username, display_name, credentials_json, created_at) VALUES (?, ?, ?, ?, ?)`,
 		encodeID(id), username, displayName, string(credsJSON), u.CreatedAt,
 	)
+	if isUniqueViolation(err) {
+		return nil, ErrUsernameTaken
+	}
 	if err != nil {
 		return nil, fmt.Errorf("auth: insert user: %w", err)
 	}
 
 	return u, nil
+}
+
+// isUniqueViolation reports whether err is the driver's unique or primary key
+// constraint error, by its code rather than its wording.
+func isUniqueViolation(err error) bool {
+	var se *sqlite.Error
+	if !errors.As(err, &se) {
+		return false
+	}
+
+	return se.Code() == sqlitelib.SQLITE_CONSTRAINT_UNIQUE || se.Code() == sqlitelib.SQLITE_CONSTRAINT_PRIMARYKEY
 }
 
 // ClaimUnregisteredUser returns the account a registration under username
@@ -226,7 +242,7 @@ func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName
 	defer s.registrationMu.Unlock()
 
 	u, err := s.claimOrCreate(ctx, username, displayName, olderThan)
-	if errors.Is(err, errUsernameTaken) {
+	if errors.Is(err, ErrUsernameTaken) {
 		// No passkey-less row exists, yet the name is held: a registered owner
 		// has it, so the registration is closed.
 		return nil, ErrRegistrationClosed
@@ -258,12 +274,7 @@ func (s *Store) claimOrCreate(ctx context.Context, username, displayName string,
 			return nil, fmt.Errorf("auth: commit claim: %w", err)
 		}
 
-		u, err := s.CreateUser(ctx, username, displayName)
-		if err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			return nil, errUsernameTaken
-		}
-
-		return u, err
+		return s.CreateUser(ctx, username, displayName)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("auth: find the unregistered user: %w", err)
@@ -697,9 +708,9 @@ func (s *Store) RemoveCredential(ctx context.Context, credID string) error {
 // the registration and login ceremonies set to their challenge: random, so one
 // visitor's ceremony can't name or replace another's. (BeginAddCredential keys
 // by username; the caller is signed in.) The pending ceremonies of a kind are
-// bounded, expired ones are dropped, and the parameter keeps its old column's
-// name, username, in the table.
-func (s *Store) SaveCeremony(ctx context.Context, username, kind string, session webauthn.SessionData, ttl time.Duration) error {
+// bounded and expired ones are dropped. The table still calls the key column
+// username, from when every ceremony was keyed by one.
+func (s *Store) SaveCeremony(ctx context.Context, key, kind string, session webauthn.SessionData, ttl time.Duration) error {
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("auth: encode ceremony session: %w", err)
@@ -718,7 +729,7 @@ func (s *Store) SaveCeremony(ctx context.Context, username, kind string, session
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO ceremonies (username, kind, session_json, expires_at) VALUES (?, ?, ?, ?)
 		 ON CONFLICT (username, kind) DO UPDATE SET session_json = excluded.session_json, expires_at = excluded.expires_at`,
-		username, kind, string(data), time.Now().UTC().Add(ttl),
+		key, kind, string(data), time.Now().UTC().Add(ttl),
 	)
 	if err != nil {
 		return fmt.Errorf("auth: save ceremony: %w", err)

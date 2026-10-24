@@ -12,14 +12,38 @@ export class ApiError extends Error {
 export type LoginFailure = { action: 'register' | 'show'; message: string };
 
 /**
+ * Whether self-registration is open, as the server says it right now. A failed
+ * request counts as closed: the answer could not be confirmed, so nothing is
+ * offered on it.
+ */
+export async function checkRegistrationOpen(
+  fetchFn: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const res = await fetchFn('/api/auth/registration-status', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { open?: boolean };
+    return data.open === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A 404 from login/begin means no passkey is registered, which is the state an
  * operator leaves behind with reset-passkeys. Registration is open then, so the
  * page switches to it; leaving the visitor on a sign-in that cannot work is a
- * dead end. Any other failure is shown as it came.
+ * dead end. A cancelled or timed-out prompt gets a short retry line; the
+ * browser gives the same error when no passkey is saved, so only a repeat
+ * (`repeated`) gets the longer one, which names the reset command. Any other
+ * failure is shown as it came.
  */
 export function loginFailure(
   err: unknown,
   registrationOpen: boolean,
+  repeated = false,
 ): LoginFailure {
   if (err instanceof ApiError && err.status === 404 && registrationOpen) {
     return {
@@ -30,9 +54,9 @@ export function loginFailure(
   if (err instanceof Error && err.name === 'NotAllowedError') {
     return {
       action: 'show',
-      message:
-        'Sign-in was cancelled, or this device has no passkey saved for this site. ' +
-        'A passkey kept only on a security key can no longer sign in: sign in on a device that has a saved one and add a new passkey in Settings.',
+      message: repeated
+        ? 'This device may have no passkey saved for this site. A security key that holds none can no longer sign in: run forge-dashboard reset-passkeys on the server, or add a new passkey in Settings from a device that is signed in.'
+        : 'Sign-in was cancelled or timed out. Try again.',
     };
   }
   const message = err instanceof Error ? err.message : '';

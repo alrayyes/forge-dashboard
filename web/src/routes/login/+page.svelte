@@ -7,7 +7,11 @@
     prepareRequestOptions,
   } from "#lib/webauthn.js";
   import Footer from "#lib/Footer.svelte";
-  import { ApiError, loginFailure } from "#lib/login-flow.js";
+  import {
+    ApiError,
+    checkRegistrationOpen,
+    loginFailure,
+  } from "#lib/login-flow.js";
 
   let mode = $state<"login" | "register">("login");
 
@@ -21,21 +25,13 @@
   // shared header/nav chrome applies — but the shared Footer component
   // (version string included) is still rendered on this page too, same
   // as before footer.js's own injection was retired.
-  onMount(() => {
-    fetch("/api/auth/registration-status", {
-      headers: { Accept: "application/json" },
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { open: boolean } | null) => {
-        if (data) registrationOpen = data.open;
-      })
-      .catch(() => {
-        // Fails closed: registrationOpen stays false, so the button that
-        // would let a visitor attempt self-registration just doesn't
-        // show rather than offering something that can't be confirmed
-        // to actually be open.
-      });
+  onMount(async () => {
+    registrationOpen = await checkRegistrationOpen();
   });
+
+  // A cancelled prompt and a missing passkey look alike to the browser, so the
+  // second one in a row is taken as the missing passkey.
+  let notAllowedBefore = false;
 
   let loginSubmitting = $state(false);
   let registerSubmitting = $state(false);
@@ -91,7 +87,18 @@
       statusKind = "ok";
       window.location.href = "/";
     } catch (err) {
-      const failure = loginFailure(err, registrationOpen);
+      // The first check may still be in flight or have failed, so ask again
+      // before deciding there is nowhere to go.
+      if (err instanceof ApiError && err.status === 404) {
+        registrationOpen = await checkRegistrationOpen();
+      }
+      const notAllowed = err instanceof Error && err.name === "NotAllowedError";
+      const failure = loginFailure(
+        err,
+        registrationOpen,
+        notAllowed && notAllowedBefore,
+      );
+      notAllowedBefore = notAllowed;
       if (failure.action === "register") {
         mode = "register";
         status = failure.message;

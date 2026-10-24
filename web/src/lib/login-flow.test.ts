@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { ApiError, loginFailure } from './login-flow';
+import { ApiError, checkRegistrationOpen, loginFailure } from './login-flow';
 
 describe('loginFailure', () => {
   test('a 404 while registration is open sends the visitor to register', () => {
@@ -44,12 +44,55 @@ describe('loginFailure', () => {
     });
   });
 
-  test('a browser that found no passkey says where a missing one comes from', () => {
+  const notAllowed = () => {
     const err = new Error('The operation either timed out or was not allowed.');
     err.name = 'NotAllowedError';
-    const got = loginFailure(err, false);
+    return err;
+  };
+
+  test('a first cancel or timeout is a short retry message', () => {
+    expect(loginFailure(notAllowed(), false)).toEqual({
+      action: 'show',
+      message: 'Sign-in was cancelled or timed out. Try again.',
+    });
+  });
+
+  test('a repeat names the missing passkey and the reset command', () => {
+    const got = loginFailure(notAllowed(), false, true);
     expect(got.action).toBe('show');
-    expect(got.message).toContain('no passkey saved for this site');
+    expect(got.message).toContain('may have no passkey saved');
+    expect(got.message).toContain('forge-dashboard reset-passkeys');
     expect(got.message).toContain('Settings');
+  });
+
+  test('a repeat keeps the long message short enough to read at a glance', () => {
+    expect(loginFailure(notAllowed(), false, true).message.length).toBeLessThan(
+      260,
+    );
+  });
+});
+
+describe('checkRegistrationOpen', () => {
+  const answer = (body: unknown, ok = true) =>
+    (async () =>
+      ({ ok, json: async () => body }) as Response) as unknown as typeof fetch;
+
+  test('is true when the server says registration is open', async () => {
+    expect(await checkRegistrationOpen(answer({ open: true }))).toBe(true);
+  });
+
+  test('is false when the server says it is closed', async () => {
+    expect(await checkRegistrationOpen(answer({ open: false }))).toBe(false);
+  });
+
+  test('is false on a failed response', async () => {
+    expect(await checkRegistrationOpen(answer({}, false))).toBe(false);
+  });
+
+  test('is false when the request throws', async () => {
+    const down = (async () => {
+      throw new Error('offline');
+    }) as unknown as typeof fetch;
+    expect(await checkRegistrationOpen(down)).toBe(false);
   });
 });
