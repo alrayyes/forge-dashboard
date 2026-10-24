@@ -64,6 +64,7 @@
   import {
     activeRuns,
     cancelLocksRepo,
+    cancelText,
     cancelRun,
     runStopped,
     runLabel,
@@ -157,10 +158,18 @@
   // What the section draws: the runs still going, and any run the person has
   // acted on whose state still has something to say.
   const runEntries = $derived.by(() => {
-    const rows: { run: ActiveRun; state?: RunState }[] = runs.map((run) => ({
-      run,
-      state: runStates[run.runId],
-    }));
+    // A run the person has acted on keeps the name it had when they did: the
+    // label depends on the other runs, and one finishing mustn't rename the
+    // run a confirm step is asking about.
+    const rows: { run: ActiveRun; state?: RunState }[] = runs.map((run) => {
+      const state = runStates[run.runId];
+      return {
+        run: state
+          ? { ...run, label: state.run.label, bare: state.run.bare }
+          : run,
+        state,
+      };
+    });
     for (const state of Object.values(runStates)) {
       if (!runs.some((r) => r.runId === state.run.runId))
         rows.push({ run: state.run, state });
@@ -663,7 +672,7 @@
         type="button"
         class="row-action"
         data-cancel-run={run.runId}
-        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+        onclick={() => startCancel(run)}>{cancelText(run)}</button
       >
     {:else if state?.phase === "cancelled"}
       <p class="pipeline-rerun-status" role="status">
@@ -675,14 +684,14 @@
       </p>
     {:else if cancelLock}
       <p class="pipeline-rerun-status">
-        Cancel run: {runLabel(run)} isn't available. {cancelLock}
+        {cancelText(run)} isn't available. {cancelLock}
       </p>
     {:else}
       <button
         type="button"
         class="row-action"
         data-cancel-run={run.runId}
-        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+        onclick={() => startCancel(run)}>{cancelText(run)}</button
       >
     {/if}
   </div>

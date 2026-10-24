@@ -113,6 +113,10 @@ type Check struct {
 	// finished run, a legacy commit status or a held workflow.
 	RunID   int64  `json:"runId,omitempty"`
 	RunName string `json:"runName,omitempty"`
+	// RunNumber is the forge's own number for that run (the one in its page
+	// address), which tells two runs of one workflow apart. 0 and omitted when
+	// the forge didn't say.
+	RunNumber int64 `json:"runNumber,omitempty"`
 	// Required reports whether the base branch's protection makes this
 	// check block the merge. A pointer so "unknown" (nil, omitted from
 	// the JSON) stays distinct from "advisory" (false): a token that
