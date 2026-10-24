@@ -2347,6 +2347,7 @@
       }
       if (!isPR) {
         row.dataset.issueKey = prKey(item);
+        row.classList.add("issue-row");
         const pills = linkedPills(
           prKey(item),
           item.repo,

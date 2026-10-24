@@ -81,8 +81,17 @@ async function titleGeometry(page: Page, board: string) {
   return row.evaluate((r) => {
     const cell = r.querySelector('.title-cell') as HTMLElement;
     const after = r.querySelector('.author') as HTMLElement;
+    const go = r.querySelector('.go') as HTMLElement;
+    const status = r.querySelector('.status-cell') as HTMLElement | null;
     const box = cell.getBoundingClientRect();
+    const tracks = getComputedStyle(r).gridTemplateColumns.split(' ');
     return {
+      isIssueRow: r.classList.contains('issue-row'),
+      goRight: go.getBoundingClientRect().right,
+      viewport: document.documentElement.clientWidth,
+      // The status track is the one right before the arrow's.
+      statusTrack: Number.parseFloat(tracks[tracks.length - 2]),
+      statusWidth: status ? status.getBoundingClientRect().width : 0,
       width: box.width,
       gapToAuthor: after.getBoundingClientRect().left - box.right,
       scrollsSideways:
@@ -100,6 +109,7 @@ test.describe('title width (2801)', () => {
     await open(page, '/issues.html');
     const g = await titleGeometry(page, 'issue-rows');
     // 268px before, with a 280px empty track after the Updated column.
+    expect(g.isIssueRow).toBe(true);
     expect(g.width).toBeGreaterThan(540);
     expect(g.gapToAuthor).toBeLessThanOrEqual(13);
     expect(g.scrollsSideways).toBe(false);
@@ -109,7 +119,11 @@ test.describe('title width (2801)', () => {
     await page.setViewportSize({ width: 1970, height: 900 });
     await open(page, '/pull-requests.html');
     const g = await titleGeometry(page, 'pr-rows');
-    expect(g.width).toBeLessThan(300);
+    expect(g.isIssueRow).toBe(false);
+    // The status cell fills a real track after the Updated column, so the
+    // title shares the row with it instead of taking its width.
+    expect(g.statusTrack).toBeGreaterThan(0);
+    expect(g.statusWidth).toBeCloseTo(g.statusTrack, 0);
     expect(g.scrollsSideways).toBe(false);
   });
 
@@ -135,6 +149,7 @@ test.describe('title width (2801)', () => {
     await open(page, '/issues.html');
     const g = await titleGeometry(page, 'issue-rows');
     expect(g.width).toBeGreaterThan(400);
+    expect(g.goRight).toBeLessThanOrEqual(g.viewport);
     expect(g.scrollsSideways).toBe(false);
   });
 });
