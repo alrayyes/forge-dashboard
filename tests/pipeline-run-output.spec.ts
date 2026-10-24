@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { checkLinkName } from './check-link-name-helper';
 import { test } from './server-fixture';
 
 const pr = {
@@ -310,7 +311,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     ).toHaveCount(0);
     await expect(
       dialog.getByRole('link', {
-        name: 'Open on GitHub (opens in a new tab): queued-job',
+        name: checkLinkName('Open on GitHub', 'queued-job'),
       }),
     ).toBeVisible();
   });
@@ -327,7 +328,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
       dialog.getByRole('link', {
-        name: 'Open on Forgejo (opens in a new tab): queued-job',
+        name: checkLinkName('Open on Forgejo', 'queued-job'),
       }),
     ).toBeVisible();
   });
@@ -336,7 +337,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(page, { status: 200, body: { text: '', truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
-      dialog.getByRole('link', { name: 'View run (opens in a new tab): lint' }),
+      dialog.getByRole('link', { name: checkLinkName('View run', 'lint') }),
     ).toBeVisible();
   });
 
