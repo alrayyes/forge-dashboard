@@ -11,11 +11,13 @@ import (
 // fakeJobs plays the job routes of a Forgejo 17 for alrayyes/a: the jobs of
 // each run, and the job rerun. jobs maps a run id to its jobs. cascade maps a
 // job to the jobs the forge restarts with it, which then read as waiting. status
-// is what the job rerun answers (0 for 204).
+// is what the job rerun answers (0 for 204), once okFirst reruns have gone
+// through.
 type fakeJobs struct {
 	jobs    map[int][]map[string]any
 	cascade map[int][]int
 	status  int
+	okFirst int
 
 	mu       sync.Mutex
 	rerun    []string
@@ -39,10 +41,13 @@ func (f *fakeJobs) register(t *testing.T, mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/jobs/{job}/rerun", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("job"))
 		f.mu.Lock()
+		refused := f.status != 0 && len(f.rerun) >= f.okFirst
 		f.rerun = append(f.rerun, r.PathValue("job"))
-		f.restart(id)
+		if !refused {
+			f.restart(id)
+		}
 		f.mu.Unlock()
-		if f.status != 0 {
+		if refused {
 			w.WriteHeader(f.status)
 			writeJSON(t, w, map[string]any{"message": "token does not have at least one of required scope(s)"})
 

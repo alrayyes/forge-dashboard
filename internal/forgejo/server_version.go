@@ -109,9 +109,11 @@ func (v *versionCache) record(major int, ok bool) {
 func (c *Client) readVersion(ctx context.Context) {
 	probeCtx, cancel := context.WithTimeout(ctx, versionProbeTimeout)
 	defer cancel()
-	body, _, err := c.rawRequest(probeCtx, http.MethodGet, "/version", nil)
+	body, resp, err := c.rawRequest(probeCtx, http.MethodGet, "/version", nil)
 	if err != nil {
 		if ctx.Err() == nil {
+			// Classified like any forge call, so a 429 counts as rate limiting.
+			_ = c.forgejoError(ctx, http.MethodGet, "/version", resp, err)
 			c.version.record(0, false)
 		}
 
