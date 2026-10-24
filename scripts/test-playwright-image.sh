@@ -101,6 +101,13 @@ for entry in ci.yml:e2e-shard ci.yml:lighthouse release.yml:screenshots; do
   grep -Eq '^\s+image: ghcr\.io/alrayyes/ci-playwright:' <<<"$container" || fail "$path job '$job' does not run in the CI image"
   grep -Eq '^\s+options: .*--ipc=host( |$)' <<<"$container" || fail "$path job '$job' lacks 'options: --ipc=host' in its container"
   grep -Eq '^\s+options: .*--init( |$)' <<<"$container" || fail "$path job '$job' lacks '--init' in its container options"
+  # A job-level continue-on-error would hide a failed Bun check as well as a
+  # step-level one. Only the screenshots job opts in, deliberately: it runs
+  # after the release has shipped, so its failure must not turn the run red.
+  if [ "$job" != screenshots ] && grep -Eq '^    continue-on-error:' <<<"$block" &&
+    ! grep -Eq '^    continue-on-error: *["'\'']?false["'\'']? *(#.*)?$' <<<"$block"; then
+    fail "$path job '$job' has a job-level 'continue-on-error' that is not false, so a failed Bun check would not fail the build"
+  fi
   # A real step, not a comment or an echo that mentions the script, that always
   # runs and comes before any step that uses bun or the browsers.
   case $(bun_step_state "$block") in
@@ -223,6 +230,16 @@ if [ -z "${PLAYWRIGHT_IMAGE_NESTED:-}" ]; then
   doctored "a commented-out Bun check" sed "s|^$check_step\$|        # run: bash scripts/check-image-bun.sh|" ci.yml "has no 'run: bash scripts/check-image-bun.sh' step"
   doctored "a multi-line run with bun install before the check" perl 's/^(      - name: the image.s bun)/      - run: |\n          bun install --frozen-lockfile\n$1/m' ci.yml "runs the Bun check after"
   doctored "setup-bun before the check" perl 's/^(      - name: the image.s bun)/      - uses: oven-sh\/setup-bun\@0000000000000000000000000000000000000000 # v2\n$1/m' release.yml "runs the Bun check after"
+  # A job-level continue-on-error hides a failed Bun check as surely as a step-level one.
+  job_coe() { # job value: insert a job-level continue-on-error before the job's container
+    printf 's/(^  %s:\\n(?:(?!^  [A-Za-z]).*\\n)*?)(    container:)/$1    continue-on-error: %s\\n$2/m' "$1" "$2"
+  }
+  doctored "a job-level continue-on-error on e2e-shard" perl "$(job_coe e2e-shard true)" ci.yml "job-level 'continue-on-error'"
+  doctored "a job-level continue-on-error on lighthouse" perl "$(job_coe lighthouse true)" ci.yml "job-level 'continue-on-error'"
+  doctored "a job-level continue-on-error: yes on lighthouse" perl "$(job_coe lighthouse yes)" ci.yml "job-level 'continue-on-error'"
+  # The screenshots job keeps its deliberate job-level continue-on-error; the real release.yml has it.
+  grep -Eq '^    continue-on-error: true' .github/workflows/release.yml || fail "release.yml's screenshots job lost its job-level continue-on-error, so the guard's allowance for it is untested"
+  doctored_ok "a job-level continue-on-error: false on e2e-shard" "/^  e2e-shard:/,/^    container:/ s|^    container:|    continue-on-error: false\n&|" ci.yml
   # continue-on-error: false is a no-op, so it must not trip the guard.
   doctored_ok "continue-on-error: false on the Bun check" "s|^$check_step\$|        continue-on-error: false\n&|" ci.yml
   if out=$(PLAYWRIGHT_IMAGE_NESTED=1 WORKFLOWS=".github/workflows/ci.yml" "$self" 2>&1); then
