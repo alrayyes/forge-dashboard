@@ -60,7 +60,7 @@
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
-  import { canCopyLog } from "#lib/run-log.js";
+  import { canCopyLog, checkControl } from "#lib/run-log.js";
   import {
     activeRuns,
     cancelLocksRepo,
@@ -563,6 +563,8 @@
          with no page. -->
     {#each items as check (keyOf.get(check))}
       {@const copyable = copyableLog(check)}
+      {@const forge = target ? forgeLabel(target) : "the forge"}
+      {@const control = checkControl(check, target?.checksUrl)}
       <li class="pipeline-check">
         <span class="pipeline-check-status {check.state}">
           {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}
@@ -590,32 +592,21 @@
         {#if isBlocking(check)}
           <span class="pipeline-check-flag">Blocking</span>
         {/if}
-        {#if check.state === "queued" && check.url}
-          <!-- A queued job has no log yet, so there is nothing to view: only
-               the forge's own page. -->
-          {@const forge = target ? forgeLabel(target) : "the forge"}
-          <a
-            class="pipeline-check-link"
-            href={check.url}
-            target="_blank"
-            rel="noopener"
-            aria-label="Open on {forge} (opens in a new tab): {check.name}"
-            >Open on {forge}</a
-          >
-        {:else if check.state !== "skipped" && check.state !== "awaiting_approval" && check.jobId && check.url && target?.checksUrl}
-          <!-- A skipped job never ran, and a job with no page has nowhere to go:
-               no link, never an empty href, which would resolve to this page. A
-               held workflow's own page is where the forge's approve button is. -->
+        {#if control === "output" && target && check.jobId}
           <CheckRunOutput
             name={check.name}
             jobId={check.jobId}
             checksUrl={target.checksUrl}
             runUrl={check.url}
-            forgeName={forgeLabel(target)}
+            forgeName={forge}
           />
-        {:else if check.state !== "skipped" && check.url}
-          {@const linkText =
-            check.state === "awaiting_approval"
+        {:else if control === "open-on-forge" || control === "link"}
+          <!-- Never an empty href, which would resolve to this page. A queued
+               job has no log yet, so it links to the forge's own page. -->
+          {@const queued = control === "open-on-forge"}
+          {@const linkText = queued
+            ? `Open on ${forge}`
+            : check.state === "awaiting_approval"
               ? "Approve on GitHub"
               : "View run"}
           <a
@@ -623,7 +614,9 @@
             href={check.url}
             target="_blank"
             rel="noopener"
-            aria-label="{linkText}: {check.name}">{linkText}</a
+            aria-label={queued
+              ? `${linkText} (opens in a new tab): ${check.name}`
+              : `${linkText}: ${check.name}`}>{linkText}</a
           >
         {/if}
         {#if check.failedStep}
@@ -634,7 +627,7 @@
           jobId={check.jobId}
           checksUrl={target?.checksUrl ?? ""}
           excerpt={check.excerpt ?? excerpts[excerptKey(check)] ?? ""}
-          forgeName={target ? forgeLabel(target) : "the forge"}
+          forgeName={forge}
           {copyable}
           runKey={checkRunKey(check)}
         />

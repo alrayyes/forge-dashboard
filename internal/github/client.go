@@ -4125,14 +4125,14 @@ func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, 
 // (awaitingApproval), so the panel and the pill tell one story (#1933).
 func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 	if r.GetStatus() != "completed" {
-		// Not started: the rollup counts these as waiting, and there is no
-		// log to read yet.
-		switch r.GetStatus() {
-		case "queued", "waiting", "pending", "requested":
-			return dashboard.CheckQueued
+		// Only in_progress has a log to read. Every other status (queued,
+		// waiting, pending, requested, or one GitHub adds later) has not
+		// started, and the rollup counts it as waiting.
+		if r.GetStatus() == "in_progress" {
+			return dashboard.CheckRunning
 		}
 
-		return dashboard.CheckRunning
+		return dashboard.CheckQueued
 	}
 	switch r.GetConclusion() {
 	case "success", "neutral":
