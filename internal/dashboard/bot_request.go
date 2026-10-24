@@ -183,8 +183,10 @@ func (a *Aggregator) applyBoxOverrides(prs []PullRequest, seq uint64, covers fun
 	if len(a.boxOverrides) == 0 {
 		return
 	}
+	listed := make(map[string]bool, len(prs))
 	for i := range prs {
 		key := settledKey(prs[i].Forge, prs[i].Repo, prs[i].Number)
+		listed[key] = true
 		o, ok := a.boxOverrides[key]
 		if !ok || !covers(prs[i].Forge, prs[i].Repo) {
 			continue
@@ -195,6 +197,30 @@ func (a *Aggregator) applyBoxOverrides(prs []PullRequest, seq uint64, covers fun
 			continue
 		}
 		delete(a.boxOverrides, key)
+	}
+	// A pull request that merged or closed first never gets a later fetch to
+	// retire its override, so a fetch that covers it and doesn't list it does.
+	for key := range a.boxOverrides {
+		if !listed[key] && botGone(key, covers) {
+			delete(a.boxOverrides, key)
+		}
+	}
+}
+
+// reapplyBoxOverrides puts the box state this app set back over prs, a
+// snapshot from the fetch numbered seq, when that fetch started before the
+// change. A tick or cancel can land between applyBotRequests and the moment the
+// snapshot is swapped in; the caller holds mu, which every change takes too, so
+// this leaves no gap.
+func (a *Aggregator) reapplyBoxOverrides(prs []PullRequest, seq uint64) {
+	a.botMu.Lock()
+	defer a.botMu.Unlock()
+
+	for i := range prs {
+		o, ok := a.boxOverrides[settledKey(prs[i].Forge, prs[i].Repo, prs[i].Number)]
+		if ok && seq <= o.seq {
+			prs[i].RenovateRebaseRequested = o.ticked
+		}
 	}
 }
 

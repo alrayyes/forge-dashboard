@@ -7,3 +7,18 @@ import "context"
 func BackgroundForTest(ctx context.Context) context.Context {
 	return context.WithValue(ctx, backgroundKey{}, true)
 }
+
+// BoxOverrideCount is how many Renovate rebase box overrides the aggregator
+// still holds.
+func (a *Aggregator) BoxOverrideCount() int {
+	a.botMu.Lock()
+	defer a.botMu.Unlock()
+
+	return len(a.boxOverrides)
+}
+
+// ReapplyBoxOverrides runs the step a full refresh takes under the snapshot
+// lock, on prs from the fetch numbered seq.
+func (a *Aggregator) ReapplyBoxOverrides(prs []PullRequest, seq uint64) {
+	a.reapplyBoxOverrides(prs, seq)
+}

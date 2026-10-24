@@ -121,3 +121,60 @@ func TestAggregator_RecordRenovateRebase(t *testing.T) {
 		}
 	})
 }
+
+func TestAggregator_ReapplyBoxOverrides(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a snapshot from a fetch that started before the tick keeps the tick", func(t *testing.T) {
+		t.Parallel()
+		agg, _ := botAggregator(t, newBotSource(boxPR(false)))
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		prs := []dashboard.PullRequest{boxPR(false)}
+
+		agg.ReapplyBoxOverrides(prs, 1)
+
+		assert.True(t, prs[0].RenovateRebaseRequested)
+	})
+
+	t.Run("a snapshot from a fetch that started after the tick is left as read", func(t *testing.T) {
+		t.Parallel()
+		agg, _ := botAggregator(t, newBotSource(boxPR(false)))
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		prs := []dashboard.PullRequest{boxPR(false)}
+
+		agg.ReapplyBoxOverrides(prs, 2)
+
+		assert.False(t, prs[0].RenovateRebaseRequested)
+	})
+}
+
+func TestAggregator_BoxOverrideLifetime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a pull request that leaves the board takes its override with it", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		require.Equal(t, 1, agg.BoxOverrideCount())
+
+		src.set()
+		agg.Refresh(t.Context())
+
+		assert.Zero(t, agg.BoxOverrideCount())
+	})
+
+	t.Run("a forge that failed to answer keeps the override", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+
+		src.mu.Lock()
+		src.reachable = false
+		src.mu.Unlock()
+		agg.Refresh(t.Context())
+
+		assert.Equal(t, 1, agg.BoxOverrideCount())
+	})
+}
