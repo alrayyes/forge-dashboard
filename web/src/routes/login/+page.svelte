@@ -37,6 +37,10 @@
       });
   });
 
+  // A cancelled prompt and a missing passkey look alike to the browser, so the
+  // second one in a row is taken as the missing passkey.
+  let notAllowedBefore = false;
+
   let loginSubmitting = $state(false);
   let registerSubmitting = $state(false);
 
@@ -91,7 +95,13 @@
       statusKind = "ok";
       window.location.href = "/";
     } catch (err) {
-      const failure = loginFailure(err, registrationOpen);
+      const notAllowed = err instanceof Error && err.name === "NotAllowedError";
+      const failure = loginFailure(
+        err,
+        registrationOpen,
+        notAllowed && notAllowedBefore,
+      );
+      notAllowedBefore = notAllowed;
       if (failure.action === "register") {
         mode = "register";
         status = failure.message;

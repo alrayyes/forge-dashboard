@@ -44,12 +44,30 @@ describe('loginFailure', () => {
     });
   });
 
-  test('a browser that found no passkey says where a missing one comes from', () => {
+  const notAllowed = () => {
     const err = new Error('The operation either timed out or was not allowed.');
     err.name = 'NotAllowedError';
-    const got = loginFailure(err, false);
+    return err;
+  };
+
+  test('a first cancel or timeout is a short retry message', () => {
+    expect(loginFailure(notAllowed(), false)).toEqual({
+      action: 'show',
+      message: 'Sign-in was cancelled or timed out. Try again.',
+    });
+  });
+
+  test('a repeat names the missing passkey and the reset command', () => {
+    const got = loginFailure(notAllowed(), false, true);
     expect(got.action).toBe('show');
-    expect(got.message).toContain('no passkey saved for this site');
+    expect(got.message).toContain('may have no passkey saved');
+    expect(got.message).toContain('forge-dashboard reset-passkeys');
     expect(got.message).toContain('Settings');
+  });
+
+  test('a repeat keeps the long message short enough to read at a glance', () => {
+    expect(loginFailure(notAllowed(), false, true).message.length).toBeLessThan(
+      260,
+    );
   });
 });
