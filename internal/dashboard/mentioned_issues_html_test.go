@@ -77,3 +77,45 @@ func TestMentionedIssueRefs_ReadsOnlyTheFirst64KiBOfTheBody(t *testing.T) {
 	assert.Equal(t, []int{1}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", "Refs #1\n"+filler+"\nRefs #2")))
 	assert.Equal(t, []int{3}, issueNumbers(mentioned(dashboard.ForgeForgejo, "Refs #3", filler+"\nRefs #4")), "the title is not part of the cap")
 }
+
+func TestMentionedIssueRefs_TheCapNeverCutsAReferenceInHalf(t *testing.T) {
+	t.Parallel()
+
+	const limit = 64 << 10
+	cases := map[string]string{
+		"a bare number":     strings.Repeat("x", limit-4) + " #12345 more",
+		"a multi-byte tail": strings.Repeat("é", limit/2-2) + " #12345 more",
+		"an address":        strings.Repeat("x", limit-len(mentionBase)-22) + " " + mentionBase + "/other/repo/issues/12345 more",
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Empty(t, mentioned(dashboard.ForgeForgejo, "", body))
+		})
+	}
+}
+
+func TestMentionedIssueRefs_AnAnchorMayRunOverLinesAndBeWrittenInCapitals(t *testing.T) {
+	t.Parallel()
+
+	body := "<a href=\"https://x.test/1\">\n#41\n</a> and <A HREF=\"https://x.test/2\">#42</A>\nRefs #43"
+
+	assert.Equal(t, []int{43}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", body)))
+}
+
+func TestMentionedIssueRefs_AnUnclosedAnchorDoesNotSwallowWhatFollows(t *testing.T) {
+	t.Parallel()
+
+	body := "<a href=\"https://x.test/x\">text\nRefs #11\nRefs #12\n<a href=\"https://x.test/y\">z</a>"
+
+	assert.Equal(t, []int{11, 12}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", body)))
+}
+
+func TestMentionedIssueRefs_ABracketPairWithNoDefinitionIsPlainText(t *testing.T) {
+	t.Parallel()
+
+	body := "see [#5][foo] and [#6][] and [#7] here\n\n[#8]: https://x.test/8\n[#9][#8]"
+
+	assert.Equal(t, []int{5, 6, 7}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", body)))
+}

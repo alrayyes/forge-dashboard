@@ -132,8 +132,9 @@ skipped too, whether it is written in Markdown (also the reference style) or as
 an HTML anchor, since a dependency update's release notes are full of links such
 as `<a href="https://redirect.github.com/org/lib/issues/1234">#1234</a>` that
 name another project's tickets. A link counts only by its address, and only when
-that is a page on the forge. Only the first 64 KiB of the description is read,
-and the first 100 references in it, so a pasted changelog doesn't slow the
+that is a page on the forge. Only the first 64 KiB of the description is read
+(cut at a space, so a number is never read half-written), and the first 100
+references in it, so a pasted changelog doesn't slow the
 refresh down. Whether a closing keyword closes depends on the branch the
 pull request aims at: on one that doesn't target the default branch (a stacked
 pull request) `Closes #12` closes nothing, so it is listed as a mention. A

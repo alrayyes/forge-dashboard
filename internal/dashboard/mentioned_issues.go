@@ -43,7 +43,8 @@ var markdownLinkPattern = regexp.MustCompile(`\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\
 
 // referenceLinkPattern finds [text][label] and [text][], whose target sits in
 // a definition further down.
-var referenceLinkPattern = regexp.MustCompile(`\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\[[^\[\]\n]*\]`)
+// It is a link only when a definition names the label.
+var referenceLinkPattern = regexp.MustCompile(`\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\[([^\[\]\n]*)\]`)
 
 // linkDefinitionPattern finds a "[label]: target" line.
 var linkDefinitionPattern = regexp.MustCompile(`(?m)^ {0,3}\[([^\[\]\n]+)\]:[^\n]*$`)
@@ -51,10 +52,13 @@ var linkDefinitionPattern = regexp.MustCompile(`(?m)^ {0,3}\[([^\[\]\n]+)\]:[^\n
 // shortcutLinkPattern finds a lone [label], a link when a definition names it.
 var shortcutLinkPattern = regexp.MustCompile(`\[([^\[\]\n]+)\]`)
 
-// anchorPattern finds an HTML anchor with its text, the form Dependabot writes
-// its release notes in. Its href is read as a page link first; the text counts
-// for nothing, like a Markdown link's.
-var anchorPattern = regexp.MustCompile(`(?is)<a\s[^>]*>.*?</a>`)
+// anchorOpenPattern and anchorClosePattern find the tags of an HTML anchor, the
+// form Dependabot writes its release notes in. Its href is read as a page link
+// first; the text between them counts for nothing, like a Markdown link's.
+var (
+	anchorOpenPattern  = regexp.MustCompile(`(?i)<a\s[^>]*>`)
+	anchorClosePattern = regexp.MustCompile(`(?i)</a\s*>`)
+)
 
 // mentionGHPattern finds GitHub's GH-N shorthand for a number in the same repo.
 var mentionGHPattern = regexp.MustCompile(`(?i)(?:^|[\s(\[{,;:>"'*_~|])GH-([0-9]+)`)
@@ -153,10 +157,9 @@ func mentionCandidates(forge Forge, text, base string) []candidate {
 		}
 		text = blank(text, page)
 	}
-	text = blank(text, anchorPattern)
+	text = blankAnchors(text)
 	text = blank(text, markdownLinkPattern)
-	text = blank(text, referenceLinkPattern)
-	text = blankDefinedShortcuts(text)
+	text = blankDefinedLinks(text)
 	for _, m := range mentionRefPattern.FindAllStringSubmatchIndex(text, -1) {
 		if !refEnds(text, m[5]) {
 			continue
@@ -185,32 +188,88 @@ func blank(text string, pattern *regexp.Regexp) string {
 	return pattern.ReplaceAllStringFunc(text, func(s string) string { return strings.Repeat(" ", len(s)) })
 }
 
-// clip cuts s to at most n bytes without splitting a character.
+// clip cuts s to at most n bytes, back to the last whitespace, so a reference
+// or an address is never read half-written ("#12345" must not become "#12").
+// Nothing is kept when there is no whitespace to cut at.
 func clip(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	for n > 0 && !utf8.RuneStart(s[n]) {
+	for n > 0 && !isASCIISpace(s[n]) {
 		n--
 	}
 
 	return s[:n]
 }
 
-// blankDefinedShortcuts blanks each "[label]: target" line and each lone
-// [label] that one of them defines, since Markdown reads both as a link.
-func blankDefinedShortcuts(text string) string {
+func isASCIISpace(b byte) bool {
+	return b == ' ' || b == '\n' || b == '\t' || b == '\r' || b == '\f' || b == '\v'
+}
+
+// blankAnchors blanks each <a ...>text</a>. An opening tag with no closing one
+// before the next opening tag is left alone, so it can't swallow what follows.
+func blankAnchors(text string) string {
+	opens := anchorOpenPattern.FindAllStringIndex(text, -1)
+	if len(opens) == 0 {
+		return text
+	}
+	closes := anchorClosePattern.FindAllStringIndex(text, -1)
+	out := []byte(text)
+	next := 0
+	for i, open := range opens {
+		for next < len(closes) && closes[next][0] < open[1] {
+			next++
+		}
+		if next == len(closes) {
+			break
+		}
+		if i+1 < len(opens) && opens[i+1][0] < closes[next][0] {
+			continue
+		}
+		for j := open[0]; j < closes[next][1]; j++ {
+			if out[j] != '\n' {
+				out[j] = ' '
+			}
+		}
+		next++
+	}
+
+	return string(out)
+}
+
+// label is a link label as Markdown compares it: without case, with runs of
+// whitespace as one space.
+func label(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+// blankDefinedLinks blanks the links that a "[label]: target" line defines:
+// [text][label], [label][] and a lone [label], and the definition lines. A
+// bracket pair no definition names is plain text, as it is on the forge.
+func blankDefinedLinks(text string) string {
 	defined := map[string]struct{}{}
 	for _, m := range linkDefinitionPattern.FindAllStringSubmatch(text, -1) {
-		defined[strings.ToLower(m[1])] = struct{}{}
+		defined[label(m[1])] = struct{}{}
 	}
 	if len(defined) == 0 {
 		return text
 	}
 	text = blank(text, linkDefinitionPattern)
+	text = referenceLinkPattern.ReplaceAllStringFunc(text, func(s string) string {
+		m := referenceLinkPattern.FindStringSubmatch(s)
+		name := m[2]
+		if name == "" {
+			name = m[1]
+		}
+		if _, ok := defined[label(name)]; ok {
+			return strings.Repeat(" ", len(s))
+		}
+
+		return s
+	})
 
 	return shortcutLinkPattern.ReplaceAllStringFunc(text, func(s string) string {
-		if _, ok := defined[strings.ToLower(s[1:len(s)-1])]; ok {
+		if _, ok := defined[label(s[1:len(s)-1])]; ok {
 			return strings.Repeat(" ", len(s))
 		}
 
