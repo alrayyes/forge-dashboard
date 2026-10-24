@@ -7,6 +7,7 @@
     prepareRequestOptions,
   } from "#lib/webauthn.js";
   import Footer from "#lib/Footer.svelte";
+  import { ApiError, loginFailure } from "#lib/login-flow.js";
 
   let mode = $state<"login" | "register">("login");
 
@@ -53,7 +54,10 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok)
-      throw new Error(data.error || `request failed (${res.status})`);
+      throw new ApiError(
+        data.error || `request failed (${res.status})`,
+        res.status,
+      );
     return data;
   }
 
@@ -87,8 +91,15 @@
       statusKind = "ok";
       window.location.href = "/";
     } catch (err) {
-      status = (err as Error).message || "Sign-in failed.";
-      statusKind = "error";
+      const failure = loginFailure(err, registrationOpen);
+      if (failure.action === "register") {
+        mode = "register";
+        status = failure.message;
+        statusKind = "";
+      } else {
+        status = failure.message;
+        statusKind = "error";
+      }
     } finally {
       loginSubmitting = false;
     }
