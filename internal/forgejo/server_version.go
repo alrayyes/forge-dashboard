@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
 const (
@@ -35,10 +37,11 @@ type versionCache struct {
 	// flight is open while a read is under way, so a second caller waits for
 	// that read instead of sending its own. Nil when none is.
 	flight chan struct{}
-	// now and probes exist for the tests: a clock they move, and a way to wait
-	// for the background read.
+	// now, probes and parked exist for the tests: a clock they move, a way to
+	// wait for the background read, and a signal that a click is waiting on one.
 	now    func() time.Time
 	probes sync.WaitGroup
+	parked func()
 }
 
 func (v *versionCache) clock() time.Time {
@@ -190,25 +193,53 @@ func (c *Client) serverMajor() (int, bool) {
 
 // serverMajorFor is the major version for a click: a stale answer is read
 // again under the caller's context before it decides anything. A click whose
-// context ends while it waits for another's read gets that error, since it has
-// nothing to decide on.
+// context ends while it waits for another's read, or during its own, gets that
+// error as an unreachable forge, since it has nothing to decide on.
 func (c *Client) serverMajorFor(ctx context.Context) (int, bool, error) {
-	if _, _, fresh := c.version.answer(); !fresh {
+	for {
+		if _, _, fresh := c.version.answer(); fresh {
+			break
+		}
 		wait, lead := c.version.join()
-		switch {
-		case lead:
-			// Deferred, so a read that panics still closes the flight.
-			defer c.version.land()
-			c.readVersion(ctx)
-		case wait != nil:
-			select {
-			case <-wait:
-			case <-ctx.Done():
-				return 0, false, fmt.Errorf("wait for the forge's version: %w", ctx.Err())
+		if lead {
+			c.readAsLeader(ctx)
+			if err := ctx.Err(); err != nil {
+				return 0, false, versionWaitError(err)
 			}
+
+			break
+		}
+		if wait == nil {
+			break
+		}
+		if c.version.parked != nil {
+			c.version.parked()
+		}
+		select {
+		case <-wait:
+			// The read that landed may have been cancelled and said nothing, so
+			// the answer is looked at again instead of trusted.
+		case <-ctx.Done():
+			return 0, false, versionWaitError(ctx.Err())
 		}
 	}
 	major, known, _ := c.version.answer()
 
 	return major, known && major >= firstForgejoMajor, nil
+}
+
+// readAsLeader reads the version under ctx for a click that took the flight.
+// Deferred, so a read that panics still closes it.
+func (c *Client) readAsLeader(ctx context.Context) {
+	defer c.version.land()
+	c.readVersion(ctx)
+}
+
+// versionWaitError is the refusal for a click that gave up on the version: the
+// forge was not heard from, which is how a person is told.
+func versionWaitError(err error) error {
+	return &dashboard.ClientError{
+		Kind: dashboard.ForgeErrorUnreachable,
+		Err:  fmt.Errorf("wait for the forge's version: %w", err),
+	}
 }

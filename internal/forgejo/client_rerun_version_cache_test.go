@@ -2,11 +2,15 @@ package forgejo_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,64 +186,122 @@ func TestRerunFailedChecks_AfterAnUpgrade_PostsWithoutARefresh(t *testing.T) {
 	assert.Equal(t, []string{"142"}, s.rerunsSeen())
 }
 
-// The click runs under the caller's context, not a timer of its own.
+// The click runs under the caller's context, not a timer of its own: when
+// that ends during the click's own read, the click is told so.
 func TestRerunFailedChecks_StopsWaitingForTheVersionWhenTheCallerGivesUp(t *testing.T) {
 	t.Parallel()
 	s := &versionServer{version: "17.0.0+gitea-1.22.0", hang: make(chan struct{})}
 	c := s.start(t)
-	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer close(s.hang)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- c.RerunFailedChecks(ctx, "alrayyes", "a", 5) }()
+	require.Eventually(t, func() bool { return s.readCount() == 1 }, 5*time.Second, time.Millisecond)
 
-	start := time.Now()
-	_ = c.RerunFailedChecks(ctx, "alrayyes", "a", 5)
+	cancel()
 
-	assert.Less(t, time.Since(start), 2*time.Second)
-	close(s.hang)
+	assert.ErrorIs(t, <-done, context.Canceled)
 }
 
 // A read that panics (net/http recovers a handler's panic, but nothing recovers
 // the caller's) must still close the flight, or later clicks wait on a read
-// that is never coming.
+// that is never coming. The panic comes from the transport, which runs in the
+// click's own goroutine.
 func TestRerunFailedChecks_AVersionReadThatPanicsDoesNotWedgeLaterClicks(t *testing.T) {
 	t.Parallel()
 	s := &versionServer{version: "17.0.0+gitea-1.22.0"}
 	c := s.start(t)
-	var calls atomic.Int32
-	base := newClock().now()
-	// The second look at the clock is the one that records the read's answer.
-	forgejo.SetVersionClock(c, func() time.Time {
-		if calls.Add(1) == 2 {
-			panic("clock failed")
-		}
+	var panicked atomic.Bool
+	forgejo.WrapTransport(c, func(next http.RoundTripper) http.RoundTripper {
+		return roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if strings.HasSuffix(r.URL.Path, "/version") && panicked.CompareAndSwap(false, true) {
+				panic("transport failed")
+			}
 
-		return base
+			return next.RoundTrip(r)
+		})
 	})
 	func() {
 		defer func() { _ = recover() }()
 		_ = c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 	}()
-	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-	defer cancel()
+	require.True(t, panicked.Load(), "the read never reached the transport")
 
-	start := time.Now()
-	_ = c.RerunFailedChecks(ctx, "alrayyes", "a", 5)
-
-	assert.Less(t, time.Since(start), time.Second)
+	assert.False(t, forgejo.VersionReadOpen(c), "the flight is still open")
+	assert.NoError(t, c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
 }
 
-// A click that gives up while another read is under way is told so; it does
-// not go on as if the version were unknown.
-func TestRerunFailedChecks_AWaiterThatGivesUpGetsItsContextError(t *testing.T) {
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// A click that gives up while another read is under way is told so, as a forge
+// that did not answer; it does not go on as if the version were unknown.
+func TestRerunFailedChecks_AWaiterThatGivesUpGetsAnUnreachableForgeError(t *testing.T) {
 	t.Parallel()
 	s := &versionServer{version: "16.0.6+gitea-1.22.0", hang: make(chan struct{})}
 	c := s.start(t)
 	defer close(s.hang)
-	go func() { _ = c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5) }()
-	require.Eventually(t, func() bool { return s.readCount() == 1 }, 2*time.Second, 5*time.Millisecond)
-	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	parked := make(chan struct{}, 1)
+	forgejo.SetVersionParkHook(c, func() { parked <- struct{}{} })
+	leaderCtx, stopLeader := context.WithCancel(t.Context())
+	defer stopLeader()
+	go func() { _ = c.RerunFailedChecks(leaderCtx, "alrayyes", "a", 5) }()
+	require.Eventually(t, func() bool { return s.readCount() == 1 }, 5*time.Second, time.Millisecond)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- c.RerunFailedChecks(ctx, "alrayyes", "a", 5) }()
+	<-parked
 
-	err := c.RerunFailedChecks(ctx, "alrayyes", "a", 5)
+	cancel()
 
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	err := <-done
+	assert.ErrorIs(t, err, context.Canceled)
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "want a ClientError, got %v", err)
+	assert.Equal(t, dashboard.ForgeErrorUnreachable, clientErr.Kind)
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Equal(t, "The forge didn't answer. Try again in a moment.", got.Message)
+}
+
+// A waiter woken by a read its own click cancelled finds nothing new, so it
+// reads the version itself instead of deciding on the stale cache.
+func TestRerunFailedChecks_AWaiterWokenByACancelledRead_ReadsTheVersionItself(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "16.0.6+gitea-1.22.0", hang: make(chan struct{})}
+	c := s.start(t)
+	parked := make(chan struct{}, 1)
+	forgejo.SetVersionParkHook(c, func() { parked <- struct{}{} })
+	leaderCtx, cancelLeader := context.WithCancel(t.Context())
+	defer cancelLeader()
+	leaderDone := make(chan error, 1)
+	go func() { leaderDone <- c.RerunFailedChecks(leaderCtx, "alrayyes", "a", 5) }()
+	require.Eventually(t, func() bool { return s.readCount() == 1 }, 5*time.Second, time.Millisecond)
+	waiterDone := make(chan error, 1)
+	go func() { waiterDone <- c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5) }()
+	<-parked
+
+	cancelLeader()
+	require.ErrorIs(t, <-leaderDone, context.Canceled)
+	close(s.hang)
+
+	assert.Equal(t, noRerunReason, dashboard.ForgeMessage(<-waiterDone))
+	assert.Equal(t, 2, s.readCount())
+}
+
+// A read can land between a click seeing the answer stale and joining: the
+// click then finds it fresh under the lock and neither reads nor waits.
+func TestVersionJoin_AReadThatLandedSinceTheStaleCheck_NeitherLeadsNorWaits(t *testing.T) {
+	t.Parallel()
+	c := (&versionServer{version: "17.0.0+gitea-1.22.0"}).start(t)
+	require.False(t, forgejo.VersionAnswerFresh(c), "nothing has been read yet")
+
+	forgejo.RecordVersion(c, 17, true)
+	wait, lead := forgejo.JoinVersionRead(c)
+
+	assert.False(t, lead)
+	assert.Nil(t, wait)
+	assert.False(t, forgejo.VersionReadOpen(c))
 }

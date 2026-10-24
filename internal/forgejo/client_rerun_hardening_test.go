@@ -13,7 +13,6 @@ import (
 	"sync"
 	"syscall"
 	"testing"
-	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -162,15 +161,14 @@ func TestRerunFailedChecks_AClickDuringTheBackgroundVersionRead_SharesItsRequest
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	c := forgejo.NewClient(srv.URL, "test-token", "")
+	parked := make(chan struct{}, 1)
+	forgejo.SetVersionParkHook(c, func() { parked <- struct{}{} })
 	_ = c.RerunChecksBlockedReason()
 	<-started
 
 	done := make(chan error, 1)
 	go func() { done <- c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5) }()
-	select {
-	case <-started:
-	case <-time.After(200 * time.Millisecond):
-	}
+	<-parked
 	close(release)
 
 	err := <-done

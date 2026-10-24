@@ -2,6 +2,7 @@ package forgejo
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
@@ -66,4 +67,34 @@ const RerunJobPath = rerunJobPath
 // RequestMayHaveQueued is requestMayHaveQueued.
 func RequestMayHaveQueued(resp *gitea.Response, err error) bool {
 	return requestMayHaveQueued(resp, err)
+}
+
+// SetVersionParkHook calls fn each time a click starts waiting for the version
+// read another click is making.
+func SetVersionParkHook(c *Client, fn func()) { c.version.parked = fn }
+
+// VersionAnswerFresh is whether the cached version can still be trusted.
+func VersionAnswerFresh(c *Client) bool {
+	_, _, fresh := c.version.answer()
+
+	return fresh
+}
+
+// RecordVersion lands a version read's answer, as a read finishing would.
+func RecordVersion(c *Client, major int, ok bool) { c.version.record(major, ok) }
+
+// JoinVersionRead is the step a click takes after finding the answer stale.
+func JoinVersionRead(c *Client) (wait <-chan struct{}, lead bool) { return c.version.join() }
+
+// VersionReadOpen is whether a version read holds the flight.
+func VersionReadOpen(c *Client) bool {
+	c.version.mu.Lock()
+	defer c.version.mu.Unlock()
+
+	return c.version.flight != nil
+}
+
+// WrapTransport puts wrap around the transport every request goes through.
+func WrapTransport(c *Client, wrap func(next http.RoundTripper) http.RoundTripper) {
+	c.httpClient.Transport = wrap(c.httpClient.Transport)
 }
