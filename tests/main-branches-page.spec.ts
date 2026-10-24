@@ -399,11 +399,13 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(
       panel.getByRole('link', {
         name: checkLinkName('View run', 'lint'),
+        exact: true,
       }),
     ).toHaveCount(1);
     await expect(
       panel.getByRole('link', {
         name: checkLinkName('View run', 'e2e-playwright'),
+        exact: true,
       }),
     ).toHaveCount(0);
   });
