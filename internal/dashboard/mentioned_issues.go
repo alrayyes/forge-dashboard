@@ -32,7 +32,7 @@ const maxMentionBody = 64 << 10
 // mark or emphasis and table markup (** _ ~ |). The number has to end there
 // too, which refEnds checks ("abc#1", "&#3" and "#4ff" are not references).
 var mentionRefPattern = regexp.MustCompile(
-	`(?:^|[\s(\[{,;:>"'*_~|])(?:([0-9A-Za-z._-]+/[0-9A-Za-z._-]+))?#([0-9]+)`)
+	`(?:^|[\s\x0B\p{Z}\x{85}(\[{,;:>"'*_~|])(?:([0-9A-Za-z._-]+/[0-9A-Za-z._-]+))?#([0-9]+)`)
 
 // markdownLinkPattern finds [text](target) on one line, with one level of
 // brackets inside the text. The text of a link is not a reference
@@ -46,8 +46,13 @@ var markdownLinkPattern = regexp.MustCompile(`\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\
 // It is a link only when a definition names the label.
 var referenceLinkPattern = regexp.MustCompile(`\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\[([^\[\]\n]*)\]`)
 
-// linkDefinitionPattern finds a "[label]: target" line.
-var linkDefinitionPattern = regexp.MustCompile(`(?m)^ {0,3}\[([^\[\]\n]+)\]:[^\n]*$`)
+// linkDefinitionPattern finds a "[label]: target" definition as Markdown reads
+// one: a single target, in angle brackets or not, on the same line or the
+// next, and an optional title. A line with more words after the label
+// ("[Context]: relates to #12") is prose and keeps its references.
+var linkDefinitionPattern = regexp.MustCompile(
+	`(?m)^ {0,3}\[([^\[\]\n]+)\]:[ \t]*(?:\r?\n[ \t]*)?(?:<[^>\n]*>|[^\s<]\S*)` +
+		`(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*\r?$`)
 
 // shortcutLinkPattern finds a lone [label], a link when a definition names it.
 var shortcutLinkPattern = regexp.MustCompile(`\[([^\[\]\n]+)\]`)
@@ -61,7 +66,7 @@ var (
 )
 
 // mentionGHPattern finds GitHub's GH-N shorthand for a number in the same repo.
-var mentionGHPattern = regexp.MustCompile(`(?i)(?:^|[\s(\[{,;:>"'*_~|])GH-([0-9]+)`)
+var mentionGHPattern = regexp.MustCompile(`(?i)(?:^|[\s\x0B\p{Z}\x{85}(\[{,;:>"'*_~|])GH-([0-9]+)`)
 
 // MentionedIssueRefs lists the issues and pull requests a pull request's
 // title and body mention without closing them, in order of first appearance
@@ -150,6 +155,10 @@ func refEnds(text string, end int) bool {
 func mentionCandidates(forge Forge, text, base string) []candidate {
 	var all []candidate
 
+	// Definitions are found before the page links are blanked, since a
+	// target that is a page on the forge would otherwise be only spaces.
+	// Every blanking keeps the length of the text, so the places hold.
+	definitions := linkDefinitionPattern.FindAllStringSubmatchIndex(text, -1)
 	if base != "" {
 		page := pagePattern(base)
 		for _, m := range page.FindAllStringSubmatchIndex(text, -1) {
@@ -159,7 +168,7 @@ func mentionCandidates(forge Forge, text, base string) []candidate {
 	}
 	text = blankAnchors(text)
 	text = blank(text, markdownLinkPattern)
-	text = blankDefinedLinks(text)
+	text = blankDefinedLinks(text, definitions)
 	for _, m := range mentionRefPattern.FindAllStringSubmatchIndex(text, -1) {
 		if !refEnds(text, m[5]) {
 			continue
@@ -188,22 +197,79 @@ func blank(text string, pattern *regexp.Regexp) string {
 	return pattern.ReplaceAllStringFunc(text, func(s string) string { return strings.Repeat(" ", len(s)) })
 }
 
-// clip cuts s to at most n bytes, back to the last whitespace, so a reference
-// or an address is never read half-written ("#12345" must not become "#12").
-// Nothing is kept when there is no whitespace to cut at.
+// clip cuts s to at most n bytes, back to the last whitespace (Unicode spaces
+// too), so a reference or an address is never read half-written ("#12345"
+// must not become "#12"). With no whitespace at all it cuts back to the last
+// comma or semicolon outside any brackets instead, so "#1,#2," survives and a
+// link is never cut in half, and to nothing when there is none. An anchor still open within maxAnchorText bytes of the cut loses its
+// text, which the cut hid the end of.
 func clip(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	for n > 0 && !isASCIISpace(s[n]) {
-		n--
+	cut := cutBack(s, n, unicode.IsSpace)
+	if cut < 0 {
+		cut = lastOpenSeparator(s, n)
 	}
 
-	return s[:n]
+	return dropOpenAnchor(s[:cut])
 }
 
-func isASCIISpace(b byte) bool {
-	return b == ' ' || b == '\n' || b == '\t' || b == '\r' || b == '\f' || b == '\v'
+// maxAnchorText is how far past an opening tag the text of an anchor is
+// assumed to run. An open anchor further back than this at the cut is a
+// forgotten tag, not one the cut interrupted.
+const maxAnchorText = 1 << 10
+
+// lastOpenSeparator finds the last comma or semicolon before n that is not
+// inside a (...), [...] or <...> run, so a link or address is never cut at a
+// comma in its own address. It returns 0 when there is none.
+func lastOpenSeparator(s string, n int) int {
+	cut, depth := 0, 0
+	for i, r := range s[:n] {
+		switch r {
+		case '(', '[', '<':
+			depth++
+		case ')', ']', '>':
+			depth = max(depth-1, 0)
+		case ',', ';':
+			if depth == 0 {
+				cut = i
+			}
+		}
+	}
+
+	return cut
+}
+
+// cutBack finds the last place at or before n where a rune matching cut
+// starts, or -1.
+func cutBack(s string, n int, cut func(rune) bool) int {
+	for i := n; i > 0; i-- {
+		if !utf8.RuneStart(s[i]) {
+			continue
+		}
+		if r, _ := utf8.DecodeRuneInString(s[i:]); cut(r) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// dropOpenAnchor removes the text after the last opening <a ...> tag when no
+// closing tag follows it and the tag is within maxAnchorText of the end. The
+// tag itself stays, so its href still counts.
+func dropOpenAnchor(s string) string {
+	opens := anchorOpenPattern.FindAllStringIndex(s, -1)
+	if len(opens) == 0 {
+		return s
+	}
+	last := opens[len(opens)-1]
+	if len(s)-last[1] > maxAnchorText || anchorClosePattern.MatchString(s[last[1]:]) {
+		return s
+	}
+
+	return s[:last[1]]
 }
 
 // blankAnchors blanks each <a ...>text</a>. An opening tag with no closing one
@@ -246,15 +312,22 @@ func label(s string) string {
 // blankDefinedLinks blanks the links that a "[label]: target" line defines:
 // [text][label], [label][] and a lone [label], and the definition lines. A
 // bracket pair no definition names is plain text, as it is on the forge.
-func blankDefinedLinks(text string) string {
-	defined := map[string]struct{}{}
-	for _, m := range linkDefinitionPattern.FindAllStringSubmatch(text, -1) {
-		defined[label(m[1])] = struct{}{}
-	}
-	if len(defined) == 0 {
+// definitions holds the submatch indexes of linkDefinitionPattern in text.
+func blankDefinedLinks(text string, definitions [][]int) string {
+	if len(definitions) == 0 {
 		return text
 	}
-	text = blank(text, linkDefinitionPattern)
+	defined := map[string]struct{}{}
+	out := []byte(text)
+	for _, m := range definitions {
+		defined[label(text[m[2]:m[3]])] = struct{}{}
+		for i := m[0]; i < m[1]; i++ {
+			if out[i] != '\n' {
+				out[i] = ' '
+			}
+		}
+	}
+	text = string(out)
 	text = referenceLinkPattern.ReplaceAllStringFunc(text, func(s string) string {
 		m := referenceLinkPattern.FindStringSubmatch(s)
 		name := m[2]

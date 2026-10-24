@@ -153,10 +153,12 @@ different images, or when a job loses its container options (`--ipc=host` and
 (`scripts/check-image-bun.sh`), so a Playwright bump changes `package.json`,
 `bun.lock` and the image lines in `ci.yml` and `release.yml` together. The
 check must be a plain step with no `if` or `continue-on-error: true`, placed
-before any step that mentions bun or Playwright (including `setup-bun`), and
-the guard reads `image:` and `options:` only from the job's own `container:`
-block. It doesn't check that a digest belongs to its tag; that takes a
-registry call.
+before any step that mentions bun or Playwright (including `setup-bun`). The
+e2e and Lighthouse jobs must not set `continue-on-error` on the job either,
+since that would hide a failed check; only the release screenshots job does,
+on purpose. The guard reads `image:` and `options:` only from the job's own
+`container:` block. It doesn't check that a digest belongs to its tag; that
+takes a registry call.
 The image repo's README says how a new tag is published.
 `run-local.sh` doesn't use the image: it runs on your machine with the browsers
 you installed once with `bunx playwright install chromium`.
