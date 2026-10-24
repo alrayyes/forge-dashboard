@@ -64,14 +64,22 @@ container_block() { # job block: the job's own `container:` lines, not a service
   awk '/^    container:/ {on=1; next} on && /^    [A-Za-z]/ {exit} on' <<<"$1"
 }
 # Where the Bun check sits among the job's steps: "missing", "guarded" when the
-# step has an `if` or `continue-on-error`, "late" when a step that runs bun or
-# playwright comes first, else "ok".
+# step has an `if` or a `continue-on-error` that isn't false, "late" when an
+# earlier step mentions bun or playwright anywhere in its lines (a single-line
+# or multi-line `run:`, or `uses: oven-sh/setup-bun`), else "ok". Only lines
+# after `steps:` count, comments and `name:` lines never do, and the check must
+# be a real `run:` key, not a commented-out one.
 bun_step_state() { # job block
   awk '
+    /^    steps:/ {in_steps = 1; next}
+    !in_steps {next}
     /^      - / {n++}
-    /run: bash scripts\/check-image-bun\.sh$/ {check = n; next}
-    /^      - (if|continue-on-error):|^        (if|continue-on-error):/ {guarded[n] = 1}
-    /run: .*(bun |bunx |playwright)/ && !first {first = n}
+    /^(      - |        )run: bash scripts\/check-image-bun\.sh$/ {check = n; next}
+    /^ *#/ {next}
+    /^(      - |        )if:/ {guarded[n] = 1}
+    /^(      - |        )continue-on-error:/ && !/continue-on-error: *["\047]?false["\047]? *(#.*)?$/ {guarded[n] = 1}
+    /^(      - |        )name:/ {next}
+    /(^|[^-A-Za-z0-9_.\/])(bun|bunx|playwright)( |$)|setup-bun/ && !first {first = n}
     END {
       if (!check) print "missing"
       else if (guarded[check]) print "guarded"
@@ -103,6 +111,8 @@ for entry in ci.yml:e2e-shard ci.yml:lighthouse release.yml:screenshots; do
   esac
 done
 
+# The nested runs below only need the checks above, so they skip the rest.
+if [ -z "${PLAYWRIGHT_IMAGE_NESTED:-}" ]; then
 # scripts/check-image-bun.sh is the one place the Bun check is written. Prove
 # it on its own, including the `+sha512.<hex>` suffix a packageManager field
 # can carry, since a regression there only shows when a job runs.
@@ -139,10 +149,23 @@ expect_refusal "a package.json with no packageManager" "does not name bun@" bun_
 expect_refusal "a missing package.json" "no such file" bun_run "$tmp/absent.json" 1.3.14
 printf 'not json\n' >"$tmp/package.json"
 expect_refusal "a package.json that is not JSON" "is not valid JSON" bun_run "$tmp/package.json" 1.3.14
+printf 'null\n' >"$tmp/package.json"
+expect_refusal "a package.json that is JSON null" "does not name bun@" bun_run "$tmp/package.json" 1.3.14
+printf '{"packageManager": "bun@1.4.0-canary.1"}\n' >"$tmp/package.json"
+bun_run "$tmp/package.json" 1.4.0-canary.1 || fail "check-image-bun.sh rejects a pre-release packageManager: $bun_out"
+node_missing() { # a PATH with no node: the script must say so, not call the file invalid JSON
+  local rc=0
+  printf '{"packageManager": "bun@1.3.14"}\n' >"$tmp/package.json"
+  bun_out=$(PATH=/nonexistent PACKAGE_JSON="$tmp/package.json" BUN_VERSION=1.3.14 "$BASH" scripts/check-image-bun.sh 2>&1) || rc=$?
+  return "$rc"
+}
+expect_refusal "a missing node" "could not run node" node_missing
 # A quote in the path must not reach a JS string literal.
 mkdir "$tmp/it's"
 printf '{"packageManager": "bun@1.3.14"}\n' >"$tmp/it's/package.json"
 bun_run "$tmp/it's/package.json" 1.3.14 || fail "check-image-bun.sh breaks on a quote in the package.json path: $bun_out"
+
+fi
 
 # Not checked here: that each digest is the image built for its tag. That
 # needs a registry call (`docker manifest inspect`), so a digest taken from
@@ -158,6 +181,7 @@ done
 # why. The nested run skips this block, so it doesn't recurse.
 if [ -z "${PLAYWRIGHT_IMAGE_NESTED:-}" ]; then
   cases=0
+  case $tmp in *" "*) fail "TMPDIR ($tmp) has a space, which the space-separated WORKFLOWS handoff can't carry" ;; esac
   doctored() { # name sed-or-perl-command file-to-doctor expected-message-fragment...
     local name=$1 tool=$2 prog=$3 file=$4 want=$5 dir="$tmp/doctored-$((++cases))" rc=0 out
     mkdir "$dir"
@@ -177,14 +201,30 @@ if [ -z "${PLAYWRIGHT_IMAGE_NESTED:-}" ]; then
       fail "the guard fails a workflow with $name without saying '$want' (got: ${out:-nothing})"
     fi
   }
+  doctored_ok() { # name sed-command file: a harmless edit the guard must still accept
+    local name=$1 prog=$2 file=$3 dir="$tmp/doctored-$((++cases))" out
+    mkdir "$dir"
+    cp .github/workflows/ci.yml .github/workflows/release.yml "$dir/"
+    sed -i -E "$prog" "$dir/$file"
+    if cmp -s ".github/workflows/$file" "$dir/$file"; then
+      fail "doctoring '$name' changed nothing, so the case proves nothing"
+      return
+    fi
+    out=$(PLAYWRIGHT_IMAGE_NESTED=1 WORKFLOWS="$dir/ci.yml $dir/release.yml" "$self" 2>&1) || fail "the guard rejects a workflow with $name: $out"
+  }
   check_step='        run: bash scripts/check-image-bun.sh'
   doctored "an if on the Bun check" sed "s|^$check_step\$|        if: false\n&|" ci.yml "has an 'if' or 'continue-on-error'"
   doctored "continue-on-error on the Bun check" sed "s|^$check_step\$|        continue-on-error: true\n&|" release.yml "has an 'if' or 'continue-on-error'"
-  doctored "the Bun check after bun install" perl 's/(      - name: the image.s bun[^\n]*\n        run: bash scripts\/check-image-bun\.sh\n)(      - run: bun install --frozen-lockfile\n)/$2$1/' release.yml "runs the Bun check after"
+  doctored "the Bun check after bun install" perl 's/(^      - name:[^\n]*\n        run: bash scripts\/check-image-bun\.sh\n)(      - run: bun install[^\n]*\n)/$2$1/m' release.yml "runs the Bun check after"
   doctored "no --init in the container options" sed 's|^(      options: --ipc=host) --init$|\1|' ci.yml "lacks '--init'"
   # A services: entry elsewhere in the job must not stand in for the container's own lines.
   doctored "options only on a service" perl 's/^      options: --ipc=host --init\n//m; s/^    permissions:\n/    services:\n      s:\n        options: --ipc=host --init\n$&/mg' release.yml "lacks 'options: --ipc=host'"
   doctored "the CI image only on a service" perl 's/^(    container:\n)      image: (ghcr[^\n]*)\n/$1      image: ubuntu:24.04\n    services:\n      s:\n        image: $2\n/m' release.yml "does not run in the CI image"
+  doctored "a commented-out Bun check" sed "s|^$check_step\$|        # run: bash scripts/check-image-bun.sh|" ci.yml "has no 'run: bash scripts/check-image-bun.sh' step"
+  doctored "a multi-line run with bun install before the check" perl 's/^(      - name: the image.s bun)/      - run: |\n          bun install --frozen-lockfile\n$1/m' ci.yml "runs the Bun check after"
+  doctored "setup-bun before the check" perl 's/^(      - name: the image.s bun)/      - uses: oven-sh\/setup-bun\@0000000000000000000000000000000000000000 # v2\n$1/m' release.yml "runs the Bun check after"
+  # continue-on-error: false is a no-op, so it must not trip the guard.
+  doctored_ok "continue-on-error: false on the Bun check" "s|^$check_step\$|        continue-on-error: false\n&|" ci.yml
   if out=$(PLAYWRIGHT_IMAGE_NESTED=1 WORKFLOWS=".github/workflows/ci.yml" "$self" 2>&1); then
     fail "the guard passes when WORKFLOWS leaves out release.yml"
   elif ! grep -Fq "no workflow named release.yml" <<<"$out"; then

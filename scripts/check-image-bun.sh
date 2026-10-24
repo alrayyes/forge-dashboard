@@ -18,6 +18,8 @@ die() {
 
 [ -f "$package_json" ] || die "$package_json: no such file"
 # The path goes in through the environment, never into the JS source.
+command -v node >/dev/null || die "could not run node, which reads $package_json"
+node_rc=0
 package_manager=$(PACKAGE_JSON_PATH="$package_json" node -e '
   let parsed;
   try {
@@ -25,9 +27,16 @@ package_manager=$(PACKAGE_JSON_PATH="$package_json" node -e '
   } catch {
     process.exit(2);
   }
-  process.stdout.write(typeof parsed.packageManager === "string" ? parsed.packageManager : "");
-') || die "$package_json is not valid JSON"
-if ! [[ $package_manager =~ ^bun@([0-9]+\.[0-9]+\.[0-9]+)(\+.*)?$ ]]; then
+  const named = parsed?.packageManager;
+  process.stdout.write(typeof named === "string" ? named : "");
+') || node_rc=$?
+case $node_rc in
+  0) ;;
+  2) die "$package_json is not valid JSON" ;;
+  *) die "could not run node, which reads $package_json (exit $node_rc)" ;;
+esac
+# Any version after bun@, pre-releases included; the part after `+` is a hash.
+if ! [[ $package_manager =~ ^bun@([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)(\+.*)?$ ]]; then
   die "$package_json packageManager '${package_manager:-<unset>}' does not name bun@X.Y.Z"
 fi
 wanted=${BASH_REMATCH[1]}
