@@ -177,16 +177,20 @@ func TestAuthRateLimit_ForwardedHeaderFromAnUntrustedPeer_CannotShakeTheLimit(t 
 	assert.Equal(t, http.StatusTooManyRequests, resp.status)
 }
 
-// A trusted proxy that forwards no client address would put every visitor in
-// one bucket, and a stranger sending one request every few seconds could keep
-// the owner at 429. The request is let through uncounted instead.
-func TestAuthRateLimit_TrustedProxyForwardingNoClient_IsNeverLimited(t *testing.T) {
+// A trusted proxy that forwards no client address puts every visitor in one
+// bucket. It is counted and refused like any other, only larger than a single
+// address's, so a flood stays bounded but one visitor's pace is not the limit.
+func TestAuthRateLimit_TrustedProxyForwardingNoClient_IsLimitedThroughTheSharedBucket(t *testing.T) {
 	t.Parallel()
-	srv, _ := limitedServer(t, 2, time.Hour)
-
-	for range 10 {
+	srv, _ := limitedServer(t, 2, 6*time.Second)
+	for range 4 {
 		assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "").status)
 	}
+
+	resp := postFrom(t, srv, "/api/auth/login/begin", "")
+
+	assert.Equal(t, http.StatusTooManyRequests, resp.status)
+	assert.Equal(t, "6", resp.retryAfter)
 }
 
 func TestAuthRateLimit_TrustedProxyForwardingNoClient_LeavesTheForwardedClientsAlone(t *testing.T) {

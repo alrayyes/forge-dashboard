@@ -6,9 +6,13 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/ratelimit"
 )
+
+// warnNoForwardedClient keeps the misconfiguration to one log line, not one per request.
+var warnNoForwardedClient sync.Once
 
 // limitAuthAttempts counts a request to a sign-in or registration endpoint
 // against the client's address, and answers 429 with Retry-After once the
@@ -17,32 +21,31 @@ import (
 // that can call them freely can push the owner's pending sign-in out.
 //
 // The limit is per address, never per account: the sign-in names no user, and a
-// limit on a name would let a stranger lock the owner out. A nil limiter lets
-// every request through, and so does a trusted proxy that forwards no client
-// address: counting it would put every visitor in one bucket, where a stranger
-// could keep the owner at 429. Better an unlimited endpoint, said once in the
-// log, than a sign-in the owner cannot reach.
-// warnNoForwardedClient keeps the misconfiguration to one log line, not one per request.
-var warnNoForwardedClient sync.Once
-
+// limit on a name would let a stranger lock the owner out. A trusted proxy that
+// forwards no client address leaves nothing to tell visitors apart, so those
+// requests share one bucket, larger than an address's. A flood from there can
+// delay a sign-in but cannot fill the ceremony store, which is the trade. A nil
+// limiter lets every request through.
 func limitAuthAttempts(deps Deps, next http.Handler) http.Handler {
 	if deps.AuthLimiter == nil {
 		return next
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		client, known := ratelimit.ClientAddr(r, deps.TrustedProxies)
-		if !known {
+		var (
+			allowed bool
+			wait    time.Duration
+		)
+		if client, known := ratelimit.ClientAddr(r, deps.TrustedProxies); known {
+			allowed, wait = deps.AuthLimiter.Allow(client)
+		} else {
 			warnNoForwardedClient.Do(func() {
-				slog.Warn("a trusted proxy forwarded no client address; sign-in requests are not rate limited" +
-					" until it sends X-Forwarded-For (see TRUSTED_PROXIES)")
+				slog.Warn("a trusted proxy forwarded no client address, so its requests share one sign-in limit;"+
+					" forward X-Forwarded-For, or set TRUSTED_PROXIES=none if nothing sits in front (see TRUSTED_PROXIES)",
+					"peer", client)
 			})
-			next.ServeHTTP(w, r)
-
-			return
+			allowed, wait = deps.AuthLimiter.AllowUnattributed()
 		}
-
-		allowed, wait := deps.AuthLimiter.Allow(client)
 		if allowed {
 			next.ServeHTTP(w, r)
 

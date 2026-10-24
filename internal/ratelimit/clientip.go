@@ -66,9 +66,10 @@ func ParseProxies(spec string) ([]netip.Prefix, error) {
 // block a network hands out, so one host cannot spread across its addresses.
 //
 // ok is false when the peer is a trusted proxy that named no usable client: no
-// header, an unreadable one, or one of only trusted proxies. Every visitor
-// would then count as the proxy, so a stranger could use up the allowance the
-// owner shares. The caller decides what to do; the key is the proxy's own.
+// header, an unreadable one, or one of only trusted proxies. The key is then
+// the proxy's own, shared by every visitor behind it. A caller that ignores ok
+// therefore counts all of them in one per-address bucket; one that honours it
+// can give them a bucket of their own (Limiter.AllowUnattributed).
 func ClientAddr(r *http.Request, trusted []netip.Prefix) (key string, ok bool) {
 	peer := peerAddr(r)
 	if !contains(trusted, peer) {

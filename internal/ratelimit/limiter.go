@@ -15,12 +15,17 @@ const sweepEvery = time.Minute
 
 // Limiter is a token bucket per key: each key may make burst requests at once
 // and then one more every `every`. It is safe for concurrent use.
+//
+// Requests that name no client share one more bucket (AllowUnattributed), twice
+// the burst and the same refill, so a flood from nowhere in particular stays
+// bounded without one visitor's pace being the limit.
 type Limiter struct {
 	mu        sync.Mutex
 	burst     int
 	every     time.Duration
 	now       func() time.Time
 	buckets   map[string]*rate.Limiter
+	shared    *rate.Limiter
 	lastSweep time.Time
 }
 
@@ -31,6 +36,7 @@ func New(burst int, every time.Duration, now func() time.Time) *Limiter {
 		every:     every,
 		now:       now,
 		buckets:   make(map[string]*rate.Limiter),
+		shared:    rate.NewLimiter(rate.Every(every), 2*burst),
 		lastSweep: now(),
 	}
 }
@@ -51,6 +57,22 @@ func (l *Limiter) Allow(key string) (allowed bool, wait time.Duration) {
 		l.buckets[key] = bucket
 	}
 
+	return l.take(bucket, now)
+}
+
+// AllowUnattributed takes one request from the bucket shared by every request
+// that names no client, and answers like Allow.
+func (l *Limiter) AllowUnattributed() (allowed bool, wait time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := l.now()
+	l.sweep(now)
+
+	return l.take(l.shared, now)
+}
+
+func (l *Limiter) take(bucket *rate.Limiter, now time.Time) (bool, time.Duration) {
 	reservation := bucket.ReserveN(now, 1)
 	if !reservation.OK() {
 		return false, l.every

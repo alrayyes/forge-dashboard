@@ -146,3 +146,33 @@ func TestLimiter_ConcurrentAllow_GrantsExactlyTheBurstPerKey(t *testing.T) {
 	}
 	assert.Equal(t, keys, l.Tracked())
 }
+
+func TestLimiter_AllowUnattributed_SharesOneBucketTwiceTheBurst(t *testing.T) {
+	t.Parallel()
+	l, c := newLimiter(3, 6*time.Second)
+	for range 6 {
+		ok, _ := l.AllowUnattributed()
+		assert.True(t, ok)
+	}
+
+	ok, wait := l.AllowUnattributed()
+
+	assert.False(t, ok)
+	assert.Equal(t, 6*time.Second, wait)
+	c.advance(6 * time.Second)
+	ok, _ = l.AllowUnattributed()
+	assert.True(t, ok, "one more every `every`, like any other key")
+}
+
+func TestLimiter_AllowUnattributed_LeavesEveryAddressAlone(t *testing.T) {
+	t.Parallel()
+	l, _ := newLimiter(3, time.Hour)
+	for range 7 {
+		l.AllowUnattributed()
+	}
+
+	ok, _ := l.Allow("198.51.100.1")
+
+	assert.True(t, ok)
+	assert.Equal(t, 1, l.Tracked(), "the shared bucket is not a tracked address")
+}

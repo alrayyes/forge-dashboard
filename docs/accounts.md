@@ -81,15 +81,25 @@ skipping every address listed in `TRUSTED_PROXIES` (see
 [Configuration](configuration.md)). It believes that header only from those
 proxies, and only the entries they wrote. An IPv6 client counts by its /64.
 
-The proxy must forward the client's address in `X-Forwarded-For`. Most
-do by default; some need a setting that adds the header. When a
-trusted proxy sends none (or only addresses of trusted proxies), every visitor
-would count as the proxy, and a stranger sending one request every few seconds
-could keep the owner at `429`. So such a request is let through uncounted, and
-the server logs a warning once. The sign-in is then unlimited until the proxy
-forwards the address, which is better than a sign-in the owner can't reach. If
-the service is reached directly, with no proxy, set `TRUSTED_PROXIES=none` so
-each visitor counts by its own address.
+The proxy must forward the client's address in `X-Forwarded-For`. Most do by
+default; some need a setting that adds the header. When a trusted proxy sends
+none (or only addresses of trusted proxies), nothing tells the visitors apart.
+Those requests then share one bucket, twice the size of a single address's
+(20 at once, then one every 6 seconds), and are refused with `429` and
+`Retry-After` like any other. Over five minutes that is at most 70 requests,
+fewer than the 100 pending ceremonies, so a flood can't push the owner's
+sign-in out. The trade is that a flood can delay it. The server logs a warning
+once, naming the peer.
+
+Running `docker run -p 8080:8080` with the default settings is this case: the
+container sees Docker's gateway address, which is in the default trusted
+ranges, and no `X-Forwarded-For`. Every visitor shares the one bucket. To get
+a limit per address, put a proxy that forwards the client address in front. If
+the service is reached with no proxy and the real client address does reach it,
+set `TRUSTED_PROXIES=none` so each visitor counts by its own address. Behind
+Docker's port publishing the real address is often lost, and then there is one
+shared bucket either way.
+
 Account lockout and CAPTCHA are not part of this.
 
 ### API tokens
