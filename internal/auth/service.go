@@ -10,13 +10,13 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-// initialCredentialLabel is what the very first passkey on a brand-new
+// InitialCredentialLabel is what the very first passkey on a brand-new
 // account is labeled — #355's required-nickname prompt only applies to
 // BeginAddCredential's own flow (a user who already has one deciding to
 // add another); account creation's own signup form isn't part of this
 // feature's scope, so its one credential gets a sensible default rather
 // than an empty label with nothing to show in Settings' own list.
-const initialCredentialLabel = "Initial passkey"
+const InitialCredentialLabel = "Initial passkey"
 
 // ceremonyTTL bounds how long a registration or login ceremony can sit
 // unfinished — long enough for a passkey prompt, short enough that a
@@ -124,7 +124,7 @@ func (s *Service) FinishRegistration(ctx context.Context, r *http.Request) (*Use
 	if err := s.store.AddFirstCredential(ctx, u.ID, *cred); err != nil {
 		return nil, err
 	}
-	if err := s.store.SetCredentialLabel(ctx, cred.ID, initialCredentialLabel); err != nil {
+	if err := s.store.SetCredentialLabel(ctx, cred.ID, InitialCredentialLabel); err != nil {
 		return nil, err
 	}
 	u.Credentials = append(u.Credentials, *cred)

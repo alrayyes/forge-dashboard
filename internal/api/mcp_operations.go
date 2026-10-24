@@ -32,6 +32,7 @@ var mcpPending = []string{
 	"getSession",
 	"listCredentials",
 	"deleteCredential",
+	"renameCredential",
 	"putSettings",
 	"getTheme",
 	"setTheme",

@@ -139,6 +139,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/auth/credentials", auth.RequireAuth(deps.AuthStore)(handleCredentialsGet(deps.AuthStore)))
 	mux.Handle("POST /api/auth/credentials/begin", auth.RequireAuth(deps.AuthStore)(handleCredentialsAddBegin(deps.AuthService)))
 	mux.Handle("POST /api/auth/credentials/finish", auth.RequireAuth(deps.AuthStore)(handleCredentialsAddFinish(deps)))
+	mux.Handle("PATCH /api/auth/credentials/{id}", auth.RequireAuth(deps.AuthStore)(handleCredentialsRename(deps.AuthStore)))
 	mux.Handle("DELETE /api/auth/credentials/{id}", auth.RequireAuth(deps.AuthStore)(handleCredentialsDelete(deps.AuthStore)))
 	mux.Handle("GET /api/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensGet(deps.AuthStore)))
 	mux.Handle("POST /api/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensPost(deps.AuthStore)))

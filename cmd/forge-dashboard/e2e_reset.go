@@ -201,6 +201,10 @@ func keepOwner(ctx context.Context, tx sqlExecer, owner *auth.User, firstPasskey
 	if _, err := tx.ExecContext(ctx, `DELETE FROM credential_metadata WHERE credential_id != ?`, keptKey); err != nil {
 		return fmt.Errorf("trim passkey labels: %w", err)
 	}
+	// Back to the name registration gave it, which a test may have changed.
+	if _, err := tx.ExecContext(ctx, `UPDATE credential_metadata SET label = ? WHERE credential_id = ?`, auth.InitialCredentialLabel, keptKey); err != nil {
+		return fmt.Errorf("restore passkey label: %w", err)
+	}
 
 	return nil
 }

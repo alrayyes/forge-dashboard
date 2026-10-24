@@ -615,7 +615,63 @@ func TestStore_ListCredentials_NoMetadataRow_FallsBackRatherThanVanishing(t *tes
 
 	require.NoError(t, err)
 	require.Len(t, creds, 1)
-	assert.NotEmpty(t, creds[0].Label)
+	assert.Empty(t, creds[0].Label, "never named: the client shows its own fallback")
+}
+
+func TestStore_RenameCredential_ReplacesTheLabelAndKeepsWhenItWasAdded(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), []byte("cred-1"), "MacBook"))
+	before, err := store.ListCredentials(t.Context())
+	require.NoError(t, err)
+
+	got, err := store.RenameCredential(t.Context(), credentialIDKeyForTest([]byte("cred-1")), "Proton Pass")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Proton Pass", got.Label)
+	assert.True(t, before[0].CreatedAt.Equal(got.CreatedAt), "renaming must not change when it was added")
+	listed, err := store.ListCredentials(t.Context())
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, "Proton Pass", listed[0].Label)
+	assert.True(t, before[0].CreatedAt.Equal(listed[0].CreatedAt))
+}
+
+func TestStore_RenameCredential_AnUnnamedPasskey_GetsItsFirstName(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+
+	got, err := store.RenameCredential(t.Context(), credentialIDKeyForTest([]byte("cred-1")), "YubiKey")
+
+	require.NoError(t, err)
+	assert.Equal(t, "YubiKey", got.Label)
+	assert.False(t, got.CreatedAt.IsZero())
+}
+
+func TestStore_RenameCredential_NotThisAccountsPasskey_ReturnsErrCredentialNotFound(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	require.NoError(t, store.AddCredential(t.Context(), webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.SetCredentialLabel(t.Context(), []byte("cred-1"), "MacBook"))
+
+	_, err = store.RenameCredential(t.Context(), credentialIDKeyForTest([]byte("someone-elses")), "Mine now")
+
+	require.ErrorIs(t, err, auth.ErrCredentialNotFound)
+	listed, err := store.ListCredentials(t.Context())
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, "MacBook", listed[0].Label)
 }
 
 func TestStore_RemoveCredential_WithAnotherRemaining_RemovesIt(t *testing.T) {

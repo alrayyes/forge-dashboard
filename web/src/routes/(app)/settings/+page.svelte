@@ -632,6 +632,103 @@
     }
   }
 
+  // Renaming happens in place in the list: one row at a time is in edit mode.
+  const PASSKEY_NAME_MAX = 64;
+  let renamingId = $state("");
+  let renameDraft = $state("");
+  let renameError = $state("");
+  let renameBusy = $state(false);
+
+  // What a row calls a passkey: its name, or when it was added if it never
+  // had one.
+  function passkeyName(key: Passkey): string {
+    return key.label.trim() || `Passkey added ${formatDate(key.createdAt)}`;
+  }
+
+  // Focus goes back to the row's Rename button, which is a new element once
+  // the editor closes.
+  async function focusRenameButton(id: string) {
+    await tick();
+    document
+      .querySelector<HTMLElement>(
+        `[data-rename-passkey-id="${CSS.escape(id)}"]`,
+      )
+      ?.focus();
+  }
+
+  function startRename(key: Passkey) {
+    renamingId = key.id;
+    renameDraft = key.label.trim();
+    renameError = "";
+    passkeyStatus = "";
+    passkeyStatusKind = "";
+    void tick().then(() =>
+      document
+        .querySelector<HTMLInputElement>(
+          `[data-rename-input-id="${CSS.escape(key.id)}"]`,
+        )
+        ?.select(),
+    );
+  }
+
+  function cancelRename() {
+    const id = renamingId;
+    renamingId = "";
+    renameError = "";
+    void focusRenameButton(id);
+  }
+
+  async function submitRename(e: SubmitEvent) {
+    e.preventDefault();
+    const id = renamingId;
+    const name = renameDraft.trim();
+    if (!name) {
+      renameError = "Give the passkey a name.";
+      return;
+    }
+    if ([...name].length > PASSKEY_NAME_MAX) {
+      renameError = `The name can be at most ${PASSKEY_NAME_MAX} characters.`;
+      return;
+    }
+    renameBusy = true;
+    renameError = "";
+    try {
+      const res = await fetch(
+        `/api/auth/credentials/${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ label: name }),
+        },
+      );
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          res.status === 404
+            ? "That passkey no longer exists."
+            : body.error || "Could not rename the passkey.",
+        );
+      }
+      const saved: Passkey = await res.json();
+      passkeys = passkeys.map((k) => (k.id === saved.id ? saved : k));
+      renamingId = "";
+      passkeyStatus = `Renamed to "${saved.label}".`;
+      passkeyStatusKind = "ok";
+      void focusRenameButton(id);
+    } catch (err) {
+      renameError = (err as Error).message || "Could not rename the passkey.";
+    } finally {
+      renameBusy = false;
+    }
+  }
+
   async function removePasskey(id: string) {
     passkeyStatus = "Removing…";
     passkeyStatusKind = "";
@@ -1368,7 +1465,9 @@
     .entry-list li:last-child {
       border-bottom: none;
     }
-    .entry-list .btn-remove {
+    .entry-list .btn-remove,
+    .entry-list .btn-small,
+    .rename-form .btn-small {
       font-family: inherit;
       font-size: 12px;
       padding: 4px 10px;
@@ -1378,8 +1477,39 @@
       color: var(--ink);
       cursor: pointer;
     }
-    .entry-list .btn-remove:hover {
+    .entry-list .btn-remove:hover,
+    .entry-list .btn-small:hover {
       filter: brightness(1.05);
+    }
+    .entry-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .rename-form {
+      flex: 1;
+    }
+    .rename-form label {
+      display: block;
+      font-size: 12.5px;
+      color: var(--ink-2);
+      margin-bottom: 4px;
+    }
+    .rename-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .rename-row input {
+      flex: 1;
+      min-width: 140px;
+      font-family: inherit;
+      font-size: 13.5px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-sunken);
+      color: var(--ink);
     }
     .empty-state {
       font-size: 12.5px;
@@ -2127,24 +2257,78 @@
           <ul class="entry-list" id="passkey-list">
             {#each passkeys as key (key.id)}
               <li>
-                <span>
-                  {escapeHTML(key.label)}<br />
-                  <span class="api-token-meta"
-                    >Created <time datetime={key.createdAt}
-                      >{formatDate(key.createdAt)}</time
-                    ></span
-                  >
-                </span>
-                <button
-                  class="btn-remove"
-                  type="button"
-                  data-passkey-id={key.id}
-                  disabled={passkeys.length <= 1}
-                  title={passkeys.length <= 1
-                    ? "Can't remove your only passkey"
-                    : ""}
-                  onclick={() => removePasskey(key.id)}>Remove</button
-                >
+                {#if renamingId === key.id}
+                  <form class="rename-form" onsubmit={submitRename}>
+                    <label for="rename-{key.id}"
+                      >New name for {passkeyName(key)}</label
+                    >
+                    <div class="rename-row">
+                      <input
+                        id="rename-{key.id}"
+                        type="text"
+                        autocomplete="off"
+                        maxlength={PASSKEY_NAME_MAX}
+                        data-rename-input-id={key.id}
+                        aria-invalid={renameError ? "true" : undefined}
+                        aria-describedby={renameError
+                          ? `rename-error-${key.id}`
+                          : undefined}
+                        bind:value={renameDraft}
+                        onkeydown={(e) => {
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            cancelRename();
+                          }
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        class="btn-small"
+                        disabled={renameBusy}>Save</button
+                      >
+                      <button
+                        type="button"
+                        class="btn-small"
+                        onclick={cancelRename}>Cancel</button
+                      >
+                    </div>
+                    <p
+                      class="status error"
+                      id="rename-error-{key.id}"
+                      role="alert"
+                    >
+                      {renameError}
+                    </p>
+                  </form>
+                {:else}
+                  <span>
+                    {passkeyName(key)}<br />
+                    <span class="api-token-meta"
+                      >Created <time datetime={key.createdAt}
+                        >{formatDate(key.createdAt)}</time
+                      ></span
+                    >
+                  </span>
+                  <span class="entry-actions">
+                    <button
+                      class="btn-small"
+                      type="button"
+                      data-rename-passkey-id={key.id}
+                      aria-label="Rename {passkeyName(key)}"
+                      onclick={() => startRename(key)}>Rename</button
+                    >
+                    <button
+                      class="btn-remove"
+                      type="button"
+                      data-passkey-id={key.id}
+                      disabled={passkeys.length <= 1}
+                      title={passkeys.length <= 1
+                        ? "Can't remove your only passkey"
+                        : ""}
+                      onclick={() => removePasskey(key.id)}>Remove</button
+                    >
+                  </span>
+                {/if}
               </li>
             {/each}
           </ul>

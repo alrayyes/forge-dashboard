@@ -25,6 +25,10 @@ import (
 // errCredentialNotFound is what removing a passkey the user doesn't have answers.
 var errCredentialNotFound = errors.New("no such credential")
 
+// ErrCredentialNotFound is what renaming a passkey the account doesn't hold
+// answers.
+var ErrCredentialNotFound = errors.New("auth: no such passkey on this account")
+
 // ErrNotFound is returned by a lookup that found nothing — a sentinel
 // rather than a typed error, since every caller only ever needs to know
 // which kind, not reach anything out of it.
@@ -612,9 +616,9 @@ func (s *Store) setCredentialLabelAt(ctx context.Context, credID []byte, label s
 // by the account's real webauthn.Credential list (the source of truth
 // for what can actually authenticate), not credential_metadata alone,
 // so a credential somehow missing its label row still appears rather
-// than silently vanishing from the list. defaultLabel fills that gap:
-// a credential from before this feature existed reads back with no
-// metadata row at all.
+// than silently vanishing from the list. A credential from before this
+// feature existed has no metadata row at all and reads back with an empty
+// label and the account's creation time; the client shows its own fallback.
 func (s *Store) ListCredentials(ctx context.Context) ([]*Credential, error) {
 	u, err := s.Owner(ctx)
 	if err != nil {
@@ -651,13 +655,49 @@ func (s *Store) ListCredentials(ctx context.Context) ([]*Credential, error) {
 		key := credentialIDKey(cred.ID)
 		m, ok := byCredID[key]
 		if !ok {
-			m = meta{label: "Unnamed passkey", createdAt: u.CreatedAt}
+			m = meta{createdAt: u.CreatedAt}
 		}
 		out = append(out, &Credential{ID: key, Label: m.label, CreatedAt: m.createdAt})
 	}
 	slices.SortFunc(out, func(a, b *Credential) int { return a.CreatedAt.Compare(b.CreatedAt) })
 
 	return out, nil
+}
+
+// RenameCredential gives the owner's passkey credID a new label and returns
+// it, keeping the time it was added. A credID the account doesn't hold is
+// ErrCredentialNotFound. The label is stored as given: trimming and length
+// are the caller's rule.
+func (s *Store) RenameCredential(ctx context.Context, credID, label string) (*Credential, error) {
+	u, err := s.Owner(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var raw []byte
+	for _, cred := range u.Credentials {
+		if credentialIDKey(cred.ID) == credID {
+			raw = cred.ID
+
+			break
+		}
+	}
+	if raw == nil {
+		return nil, ErrCredentialNotFound
+	}
+
+	createdAt := u.CreatedAt
+	err = s.db.QueryRowContext(ctx,
+		`SELECT created_at FROM credential_metadata WHERE credential_id = ?`, credID,
+	).Scan(&createdAt)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("auth: read credential added time: %w", err)
+	}
+	if err := s.setCredentialLabelAt(ctx, raw, label, createdAt); err != nil {
+		return nil, err
+	}
+
+	return &Credential{ID: credID, Label: label, CreatedAt: createdAt}, nil
 }
 
 // ErrLastCredential is returned by RemoveCredential when credID is
