@@ -6,6 +6,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { checkLinkName } from './check-link-name-helper';
 import { test } from './server-fixture';
 
 interface MockPR {
@@ -149,7 +150,7 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(items.nth(1)).toContainText('Running');
 
     const buildLink = dialog.getByRole('link', {
-      name: 'View run (opens in a new tab): build',
+      name: checkLinkName('View run', 'build'),
     });
     await expect(buildLink).toHaveAttribute(
       'href',
@@ -195,12 +196,12 @@ test.describe('pull request pipeline checks panel', () => {
 
     await expect(
       dialog.getByRole('link', {
-        name: 'View run (opens in a new tab): build',
+        name: checkLinkName('View run', 'build'),
       }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('link', {
-        name: 'View run (opens in a new tab): deploy',
+        name: checkLinkName('View run', 'deploy'),
       }),
     ).toHaveCount(0);
   });
@@ -235,12 +236,12 @@ test.describe('pull request pipeline checks panel', () => {
 
     await expect(
       dialog.getByRole('link', {
-        name: 'View run (opens in a new tab): build',
+        name: checkLinkName('View run', 'build'),
       }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('link', {
-        name: 'View run (opens in a new tab): legacy-ci',
+        name: checkLinkName('View run', 'legacy-ci'),
       }),
     ).toHaveCount(0);
   });
@@ -1232,7 +1233,7 @@ test.describe('pull request pipeline checks panel', () => {
       dialog.getByRole('button', { name: 'Close pipeline checks' }),
     ).toBeFocused();
     const firstLink = dialog.getByRole('link', {
-      name: 'View run (opens in a new tab): build',
+      name: checkLinkName('View run', 'build'),
     });
     await expect(firstLink).toBeVisible();
     await page.keyboard.press('Tab');
