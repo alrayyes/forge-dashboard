@@ -48,11 +48,11 @@ var referenceLinkPattern = regexp.MustCompile(`\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)
 
 // linkDefinitionPattern finds a "[label]: target" definition as Markdown reads
 // one: a single target, in angle brackets or not, on the same line or the
-// next, and an optional title. A line with more words after the label
+// next, and an optional title, also on the next line. A line with more words after the label
 // ("[Context]: relates to #12") is prose and keeps its references.
 var linkDefinitionPattern = regexp.MustCompile(
 	`(?m)^ {0,3}\[([^\[\]\n]+)\]:[ \t]*(?:\r?\n[ \t]*)?(?:<[^>\n]*>|[^\s<]\S*)` +
-		`(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*\r?$`)
+		`(?:(?:[ \t]+|[ \t]*\r?\n[ \t]*)(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*\r?$`)
 
 // shortcutLinkPattern finds a lone [label], a link when a definition names it.
 var shortcutLinkPattern = regexp.MustCompile(`\[([^\[\]\n]+)\]`)
@@ -86,9 +86,12 @@ func MentionedIssueRefs(forge Forge, title, body, repo string, number int, baseU
 	seen := map[string]struct{}{}
 	base := strings.TrimRight(baseURL, "/")
 
-	text := uncountedText.ReplaceAllString(title+"\n"+clip(body, maxMentionBody), " ")
+	// The title is plain text, not Markdown, so "[Fix]: #12" there is no link
+	// definition; mentionCandidates reads definitions only past titleLen.
+	titleText := uncountedText.ReplaceAllString(title, " ")
+	text := titleText + "\n" + uncountedText.ReplaceAllString(clip(body, maxMentionBody), " ")
 
-	for _, f := range mentionCandidates(forge, text, base) {
+	for _, f := range mentionCandidates(forge, text, base, len(titleText)+1) {
 		n, err := strconv.Atoi(f.number)
 		if err != nil || n <= 0 {
 			continue
@@ -151,14 +154,20 @@ func refEnds(text string, end int) bool {
 
 // mentionCandidates finds every reference in text in the order it appears. A
 // page link on the forge is read first, link targets included, so its number
-// isn't found twice; then link text and other links are blanked.
-func mentionCandidates(forge Forge, text, base string) []candidate {
+// isn't found twice; then link text and other links are blanked. Link
+// definitions count only from bodyAt on, where the description starts.
+func mentionCandidates(forge Forge, text, base string, bodyAt int) []candidate {
 	var all []candidate
 
 	// Definitions are found before the page links are blanked, since a
 	// target that is a page on the forge would otherwise be only spaces.
 	// Every blanking keeps the length of the text, so the places hold.
-	definitions := linkDefinitionPattern.FindAllStringSubmatchIndex(text, -1)
+	var definitions [][]int
+	for _, m := range linkDefinitionPattern.FindAllStringSubmatchIndex(text, -1) {
+		if m[0] >= bodyAt {
+			definitions = append(definitions, m)
+		}
+	}
 	if base != "" {
 		page := pagePattern(base)
 		for _, m := range page.FindAllStringSubmatchIndex(text, -1) {
@@ -201,8 +210,9 @@ func blank(text string, pattern *regexp.Regexp) string {
 // too), so a reference or an address is never read half-written ("#12345"
 // must not become "#12"). With no whitespace at all it cuts back to the last
 // comma or semicolon outside any brackets instead, so "#1,#2," survives and a
-// link is never cut in half, and to nothing when there is none. An anchor still open within maxAnchorText bytes of the cut loses its
-// text, which the cut hid the end of.
+// link is never cut in half, and to nothing when there is none. An anchor still open within maxAnchorText
+// bytes of the cut loses its text, which the cut hid the end of: anything
+// after its tag, references included.
 func clip(s string, n int) string {
 	if len(s) <= n {
 		return s
@@ -220,14 +230,27 @@ func clip(s string, n int) string {
 // forgotten tag, not one the cut interrupted.
 const maxAnchorText = 1 << 10
 
+// maxBracketRun is how long a (...), [...] or <...> run may be before its
+// opener is taken for a stray one. No address or tag in a description is
+// longer.
+const maxBracketRun = 1 << 10
+
 // lastOpenSeparator finds the last comma or semicolon before n that is not
 // inside a (...), [...] or <...> run, so a link or address is never cut at a
-// comma in its own address. It returns 0 when there is none.
+// comma in its own address. A run still open after maxBracketRun bytes is a
+// stray opener, not an address, and stops hiding what follows. It returns 0
+// when there is none.
 func lastOpenSeparator(s string, n int) int {
-	cut, depth := 0, 0
+	cut, depth, opened := 0, 0, 0
 	for i, r := range s[:n] {
+		if depth > 0 && i-opened > maxBracketRun {
+			depth = 0
+		}
 		switch r {
 		case '(', '[', '<':
+			if depth == 0 {
+				opened = i
+			}
 			depth++
 		case ')', ']', '>':
 			depth = max(depth-1, 0)
@@ -258,18 +281,25 @@ func cutBack(s string, n int, cut func(rune) bool) int {
 
 // dropOpenAnchor removes the text after the last opening <a ...> tag when no
 // closing tag follows it and the tag is within maxAnchorText of the end. The
-// tag itself stays, so its href still counts.
+// tag itself stays, so its href still counts. It reads only the tail.
 func dropOpenAnchor(s string) string {
-	opens := anchorOpenPattern.FindAllStringIndex(s, -1)
+	// Only the tail can hold a tag that close to the end, with room for the
+	// tag itself (maxBracketRun, as for any tag).
+	from := max(len(s)-maxAnchorText-maxBracketRun, 0)
+	for from < len(s) && !utf8.RuneStart(s[from]) {
+		from++
+	}
+	tail := s[from:]
+	opens := anchorOpenPattern.FindAllStringIndex(tail, -1)
 	if len(opens) == 0 {
 		return s
 	}
 	last := opens[len(opens)-1]
-	if len(s)-last[1] > maxAnchorText || anchorClosePattern.MatchString(s[last[1]:]) {
+	if len(tail)-last[1] > maxAnchorText || anchorClosePattern.MatchString(tail[last[1]:]) {
 		return s
 	}
 
-	return s[:last[1]]
+	return s[:from+last[1]]
 }
 
 // blankAnchors blanks each <a ...>text</a>. An opening tag with no closing one

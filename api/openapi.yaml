@@ -5617,7 +5617,8 @@ components:
             count for nothing, and a link counts only by its target, when that
             is a page on the forge. Only the first 64 KiB of the description is
             read, cut at a space (a Unicode space too; with none, at the last
-            comma or semicolon outside brackets), and the first 100 references in it. A reference
+            comma or semicolon outside brackets; an anchor still open within 1 KiB of the cut
+            loses the text after its tag), and the first 100 references in it. A reference
             in a quotation still counts, and the pull request's own number
             does not. What the pull request actually
             closes is left out, even when the text also mentions it, and the
