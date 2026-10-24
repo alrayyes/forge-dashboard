@@ -22,7 +22,7 @@ func TestMentionedIssueRefs_TheCapCutsAtAUnicodeSpace(t *testing.T) {
 	t.Parallel()
 
 	const limit = 64 << 10
-	body := "Refs #1　" + strings.Repeat("あ", limit/3) + "　#2"
+	body := "Refs #1\u3000" + strings.Repeat("\u3042", limit/3) + "\u3000#2"
 
 	assert.Equal(t, []int{1}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", body)))
 }
@@ -63,6 +63,10 @@ func TestMentionedIssueRefs_ADefinitionMayHaveAnyKindOfTarget(t *testing.T) {
 		"next line":  "see [#7][1]\n\n[1]:\n  docs/a.md",
 		"angle":      "see [#7][1]\n\n[1]: <docs/a b.md>",
 		"with title": "see [#7][1]\n\n[1]: docs/a.md \"Title #8\"",
+
+		"crlf":            "see [#7][1]\r\n\r\n[1]: docs/a.md\r\n",
+		"crlf with title": "see [#7][1]\r\n\r\n[1]: docs/a.md \"Title #8\"\r\n",
+		"crlf next line":  "see [#7][1]\r\n\r\n[1]:\r\n  docs/a.md\r\n",
 	}
 	for name, body := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -103,8 +107,42 @@ func TestMentionedIssueRefs_TheSpaceFreeCutNeverLeavesALinkInHalf(t *testing.T) 
 	assert.Equal(t, []int{9}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", body)))
 }
 
+func TestMentionedIssueRefs_TheSpaceFreeCutNeverSplitsALinkWhoseAddressHasAComma(t *testing.T) {
+	t.Parallel()
+
+	const limit = 64 << 10
+	link := "[#1234](https://redirect.github.com/o/l/issues/1234?a=1,2&b=3)"
+	body := "#9," + strings.Repeat("x", limit-60) + link
+
+	assert.Equal(t, []int{9}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", body)))
+}
+
+func TestMentionedIssueRefs_TheSpaceFreeCutSkipsSeparatorsInsideBrackets(t *testing.T) {
+	t.Parallel()
+
+	const limit = 64 << 10
+	cases := map[string]struct {
+		body string
+		want []int
+	}{
+		"an open tag":       {"#9," + strings.Repeat("x", limit-30) + "<;#55;" + strings.Repeat("x", 40) + ">", []int{9}},
+		"a closed tag":      {"#9,<t>,#8," + strings.Repeat("x", limit) + ",#3", []int{9, 8}},
+		"a stray closer":    {"#9),#8," + strings.Repeat("x", limit) + ",#3", []int{9, 8}},
+		"a closed bracket":  {"#9,[a],#8," + strings.Repeat("x", limit) + ",#3", []int{9, 8}},
+		"a closed paren":    {"#9,(a),#8," + strings.Repeat("x", limit) + ",#3", []int{9, 8}},
+		"a semicolon alone": {"#9;#8;" + strings.Repeat("x", limit) + ";#3", []int{9, 8}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, c.want, issueNumbers(mentioned(dashboard.ForgeForgejo, "", c.body)))
+		})
+	}
+}
+
 func TestMentionedIssueRefs_ANonBreakingSpaceSeparatesAReference(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, []int{5}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", "Refs #5")))
+	assert.Equal(t, []int{5}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", "Refs\u00a0#5")))
 }

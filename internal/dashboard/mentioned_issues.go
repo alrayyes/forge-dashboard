@@ -51,8 +51,8 @@ var referenceLinkPattern = regexp.MustCompile(`\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)
 // next, and an optional title. A line with more words after the label
 // ("[Context]: relates to #12") is prose and keeps its references.
 var linkDefinitionPattern = regexp.MustCompile(
-	`(?m)^ {0,3}\[([^\[\]\n]+)\]:[ \t]*(?:\n[ \t]*)?(?:<[^>\n]*>|[^\s<]\S*)` +
-		`(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*$`)
+	`(?m)^ {0,3}\[([^\[\]\n]+)\]:[ \t]*(?:\r?\n[ \t]*)?(?:<[^>\n]*>|[^\s<]\S*)` +
+		`(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?[ \t]*\r?$`)
 
 // shortcutLinkPattern finds a lone [label], a link when a definition names it.
 var shortcutLinkPattern = regexp.MustCompile(`\[([^\[\]\n]+)\]`)
@@ -200,8 +200,8 @@ func blank(text string, pattern *regexp.Regexp) string {
 // clip cuts s to at most n bytes, back to the last whitespace (Unicode spaces
 // too), so a reference or an address is never read half-written ("#12345"
 // must not become "#12"). With no whitespace at all it cuts back to the last
-// comma or semicolon instead, so "#1,#2," survives, and to nothing when there
-// is none. An anchor still open within maxAnchorText bytes of the cut loses its
+// comma or semicolon outside any brackets instead, so "#1,#2," survives and a
+// link is never cut in half, and to nothing when there is none. An anchor still open within maxAnchorText bytes of the cut loses its
 // text, which the cut hid the end of.
 func clip(s string, n int) string {
 	if len(s) <= n {
@@ -209,7 +209,7 @@ func clip(s string, n int) string {
 	}
 	cut := cutBack(s, n, unicode.IsSpace)
 	if cut < 0 {
-		cut = max(cutBack(s, n, isListSeparator), 0)
+		cut = lastOpenSeparator(s, n)
 	}
 
 	return dropOpenAnchor(s[:cut])
@@ -220,7 +220,26 @@ func clip(s string, n int) string {
 // forgotten tag, not one the cut interrupted.
 const maxAnchorText = 1 << 10
 
-func isListSeparator(r rune) bool { return r == ',' || r == ';' }
+// lastOpenSeparator finds the last comma or semicolon before n that is not
+// inside a (...), [...] or <...> run, so a link or address is never cut at a
+// comma in its own address. It returns 0 when there is none.
+func lastOpenSeparator(s string, n int) int {
+	cut, depth := 0, 0
+	for i, r := range s[:n] {
+		switch r {
+		case '(', '[', '<':
+			depth++
+		case ')', ']', '>':
+			depth = max(depth-1, 0)
+		case ',', ';':
+			if depth == 0 {
+				cut = i
+			}
+		}
+	}
+
+	return cut
+}
 
 // cutBack finds the last place at or before n where a rune matching cut
 // starts, or -1.
