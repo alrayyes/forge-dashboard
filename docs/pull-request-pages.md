@@ -133,7 +133,7 @@ an HTML anchor, since a dependency update's release notes are full of links such
 as `<a href="https://redirect.github.com/org/lib/issues/1234">#1234</a>` that
 name another project's tickets. A link counts only by its address, and only when
 that is a page on the forge. Only the first 64 KiB of the description is read
-(cut at a space, Unicode spaces included, or at the start of the last word when
+(cut at a space, Unicode spaces included, or at the last comma or semicolon when
 there is none, so a number is never read half-written), and the first 100
 references in it, so a pasted changelog doesn't slow the
 refresh down. Whether a closing keyword closes depends on the branch the
