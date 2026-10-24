@@ -5527,8 +5527,10 @@ components:
             HTML comments and the text of a link, Markdown or HTML anchor,
             count for nothing, and a link counts only by its target, when that
             is a page on the forge. Only the first 64 KiB of the description is
-            read, cut at a space, and the first 100 references in it. A reference in a quotation still counts, and the pull
-            request's own number does not. What the pull request actually
+            read, cut at a space (a Unicode space too; with none, at the last
+            comma or semicolon outside brackets), and the first 100 references in it. A reference
+            in a quotation still counts, and the pull request's own number
+            does not. What the pull request actually
             closes is left out, even when the text also mentions it, and the
             cap applies after that. Which references close depends on the
             branch the pull request aims at, so a closing keyword on a pull
