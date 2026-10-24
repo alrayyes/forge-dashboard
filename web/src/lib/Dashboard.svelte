@@ -2479,12 +2479,10 @@
             return fix === "renovate_rebase"
               ? null
               : renovateRebaseActionCell(pr);
-          // A Rebase locked by a pending Recreate keeps its place, so the row
-          // still says what it is waiting on.
-          if (
-            findAction(pr, "dependabot_rebase")?.blocked?.code ===
-            "already_requested"
-          )
+          // A Rebase locked by a pending Recreate, or by runs held for
+          // approval, keeps its place, so the row still says what it is
+          // waiting on.
+          if (findAction(pr, "dependabot_rebase")?.blocked)
             return fix === "dependabot_rebase" ? null : dependabotSplitCell(pr);
           if (findAction(pr, "merge")?.blocked) return mergeAction;
           return null;
