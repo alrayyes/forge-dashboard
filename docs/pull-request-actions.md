@@ -530,7 +530,12 @@ The cancel clears the checkbox in the pull request description
 (`POST /api/pull-requests/renovate-rebase/cancel`). The server reads the box
 from the description in the same list call (no extra request), so it holds
 whether the box was ticked here or on the forge. Renovate clears the box once it
-has rebased, and the next snapshot offers the rebase again.
+has rebased, and the next snapshot offers the rebase again. If the refresh
+after a cancel fails, the row stays without the cancel until a snapshot that
+has read the forge arrives, instead of drawing it again from the old one. Once
+Renovate is rebasing, the cancel is gone on purpose, even if the box is ticked
+again meanwhile: from the description alone that looks the same as a box
+Renovate is still consuming, and clearing it would withdraw the wrong request.
 
 Two requests have no way back, so they list neither action and the wait chip is
 all the row shows: a Renovate rebase asked for with the `rebase` label (there is
