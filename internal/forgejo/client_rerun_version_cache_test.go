@@ -2,7 +2,9 @@ package forgejo_test
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -194,4 +196,51 @@ func TestRerunFailedChecks_StopsWaitingForTheVersionWhenTheCallerGivesUp(t *test
 
 	assert.Less(t, time.Since(start), 2*time.Second)
 	close(s.hang)
+}
+
+// A read that panics (net/http recovers a handler's panic, but nothing recovers
+// the caller's) must still close the flight, or later clicks wait on a read
+// that is never coming.
+func TestRerunFailedChecks_AVersionReadThatPanicsDoesNotWedgeLaterClicks(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "17.0.0+gitea-1.22.0"}
+	c := s.start(t)
+	var calls atomic.Int32
+	base := newClock().now()
+	// The second look at the clock is the one that records the read's answer.
+	forgejo.SetVersionClock(c, func() time.Time {
+		if calls.Add(1) == 2 {
+			panic("clock failed")
+		}
+
+		return base
+	})
+	func() {
+		defer func() { _ = recover() }()
+		_ = c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+	}()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	_ = c.RerunFailedChecks(ctx, "alrayyes", "a", 5)
+
+	assert.Less(t, time.Since(start), time.Second)
+}
+
+// A click that gives up while another read is under way is told so; it does
+// not go on as if the version were unknown.
+func TestRerunFailedChecks_AWaiterThatGivesUpGetsItsContextError(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "16.0.6+gitea-1.22.0", hang: make(chan struct{})}
+	c := s.start(t)
+	defer close(s.hang)
+	go func() { _ = c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5) }()
+	require.Eventually(t, func() bool { return s.readCount() == 1 }, 2*time.Second, 5*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+
+	err := c.RerunFailedChecks(ctx, "alrayyes", "a", 5)
+
+	assert.True(t, errors.Is(err, context.DeadlineExceeded))
 }

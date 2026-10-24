@@ -83,17 +83,22 @@ func (v *versionCache) peek() (major int, known, startRead bool) {
 	return major, known, true
 }
 
-// join is the read under way to wait for, or nil after taking the right to
-// start one: the caller then reads and calls land.
-func (v *versionCache) join() <-chan struct{} {
+// join is the read under way to wait for. With none, and an answer that has
+// gone stale, it takes the right to start one and returns lead: the caller then
+// reads and calls land. The freshness check shares the lock with taking the
+// flight, so a read that landed a moment ago is not sent again.
+func (v *versionCache) join() (wait <-chan struct{}, lead bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.flight != nil {
-		return v.flight
+		return v.flight, false
+	}
+	if _, _, fresh := v.answerLocked(); fresh {
+		return nil, false
 	}
 	v.flight = make(chan struct{})
 
-	return nil
+	return nil, true
 }
 
 // land ends the read under way and lets its waiters go.
@@ -183,20 +188,26 @@ func (c *Client) serverMajor() (int, bool) {
 }
 
 // serverMajorFor is the major version for a click: a stale answer is read
-// again under the caller's context before it decides anything.
-func (c *Client) serverMajorFor(ctx context.Context) (int, bool) {
+// again under the caller's context before it decides anything. A click whose
+// context ends while it waits for another's read gets that error, since it has
+// nothing to decide on.
+func (c *Client) serverMajorFor(ctx context.Context) (int, bool, error) {
 	if _, _, fresh := c.version.answer(); !fresh {
-		if wait := c.version.join(); wait != nil {
+		wait, lead := c.version.join()
+		switch {
+		case lead:
+			// Deferred, so a read that panics still closes the flight.
+			defer c.version.land()
+			c.readVersion(ctx)
+		case wait != nil:
 			select {
 			case <-wait:
 			case <-ctx.Done():
+				return 0, false, ctx.Err()
 			}
-		} else {
-			c.readVersion(ctx)
-			c.version.land()
 		}
 	}
 	major, known, _ := c.version.answer()
 
-	return major, known && major >= firstForgejoMajor
+	return major, known && major >= firstForgejoMajor, nil
 }

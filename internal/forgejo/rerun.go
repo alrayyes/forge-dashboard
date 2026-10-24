@@ -57,7 +57,11 @@ func (c *Client) RerunChecksBlockedReason() string {
 // rerunBlocked is the refusal for an instance with no rerun route, or nil.
 // A stale answer is read again under the click's own context first.
 func (c *Client) rerunBlocked(ctx context.Context) error {
-	if major, ok := c.serverMajorFor(ctx); !ok || major >= firstRerunMajor {
+	major, ok, err := c.serverMajorFor(ctx)
+	if err != nil {
+		return err
+	}
+	if !ok || major >= firstRerunMajor {
 		return nil
 	}
 
