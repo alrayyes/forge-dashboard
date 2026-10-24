@@ -561,17 +561,18 @@ server restart forgets it and a browser reload doesn't. The page shows the
 request as queued the moment you click, until the next snapshot says otherwise.
 
 A queued Dependabot request names itself: `Rebase requested` or `Recreate
-requested` on the button. The two commands lock each other while either is
-pending, in both directions: `Dependabot: Recreate` is unavailable while a
-rebase is pending, because recreating over it would throw its work away, and
-`Dependabot: Rebase` is unavailable while a Recreate is pending, since
-recreating rebuilds the whole pull request. The locked entry stays where it
-was, on the row, in the menu and in the pop-up, and its reason names the
-pending command ("A Dependabot Recreate is pending on this pull request.").
-The server holds the lock too: it blocks the other action with the
-`already_requested` code in `allowedActions`, and refuses the request with a
-409 if one arrives anyway. Both commands unlock once the bot has acted or the
-request has expired.
+requested` on the button. While either command is pending the server lists
+neither `dependabot_rebase` nor `dependabot_recreate`, so the page draws no
+button for the other one. Recreating over a pending rebase would throw its work
+away, and rebasing during a pending Recreate is pointless since recreating
+rebuilds the whole pull request. Dependabot has no command to withdraw a
+request, so Recreate stays held back for the whole wait, on purpose, not only
+for a few seconds after the click. The command you just sent keeps its disabled
+`requested` button until the server lists the request, so the row never goes
+blank. If another tab already sent the same command, the server answers 409
+with the `already_requested` code and the page shows the command as requested,
+not as a failure. Both commands come back once the bot has acted or the request
+has expired.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). A pull request counts as
