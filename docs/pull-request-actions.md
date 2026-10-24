@@ -778,7 +778,7 @@ records that as an error rather than as a pruned log, so the gap stays visible
 there. The API stats page counts requests only and doesn't show outcomes.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
-of that panel, on GitHub and on Forgejo. On GitHub it reruns only the failed
+of that panel, on GitHub and on Forgejo. On GitHub, it reruns only the failed
 jobs of each workflow run on the head commit. Forgejo has no route for that, so
 it reruns each failed run whole. Either way it acts once per run and answers
 when the forge has queued them: the panel says "Rerun queued" and the new
