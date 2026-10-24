@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { checkLinkName } from './check-link-name-helper';
 import { test } from './server-fixture';
 
 // The pipeline panel reads its checks again only when a snapshot says its pull
@@ -160,7 +161,7 @@ test.describe('pipeline panel updates live', () => {
     await expect(view).toHaveCount(0);
     await expect(
       dialog(page).getByRole('link', {
-        name: 'Open on GitHub (opens in a new tab): test',
+        name: checkLinkName('Open on GitHub', 'test'),
       }),
     ).toBeVisible();
 
@@ -170,7 +171,7 @@ test.describe('pipeline panel updates live', () => {
     await expect(view).toBeVisible();
     await expect(
       dialog(page).getByRole('link', {
-        name: 'Open on GitHub (opens in a new tab): test',
+        name: checkLinkName('Open on GitHub', 'test'),
       }),
     ).toHaveCount(1);
   });
@@ -311,7 +312,7 @@ test.describe('pipeline panel updates live', () => {
     ];
     const state = await open(page, RUNNING, three, 3);
     const link = dialog(page).getByRole('link', {
-      name: 'View run (opens in a new tab): test',
+      name: checkLinkName('View run', 'test'),
     });
     await link.focus();
 
@@ -327,7 +328,7 @@ test.describe('pipeline panel updates live', () => {
     );
     await expect(
       dialog(page).getByRole('link', {
-        name: 'View run (opens in a new tab): test',
+        name: checkLinkName('View run', 'test'),
       }),
     ).toBeFocused();
   });
@@ -337,7 +338,7 @@ test.describe('pipeline panel updates live', () => {
   }) => {
     const state = await open(page, RUNNING, RUN);
     await dialog(page)
-      .getByRole('link', { name: 'View run (opens in a new tab): test' })
+      .getByRole('link', { name: checkLinkName('View run', 'test') })
       .focus();
 
     state.checks = [
