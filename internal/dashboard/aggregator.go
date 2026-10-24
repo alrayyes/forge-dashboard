@@ -65,6 +65,9 @@ type Aggregator struct {
 	// show what it did. Lock order: mu before botMu, never the other way.
 	botMu       sync.Mutex
 	botRequests map[string]*botEntry
+	// boxOverrides holds the Renovate rebase box states this app set itself,
+	// under botMu too and keyed the same way.
+	boxOverrides map[string]boxOverride
 	// updateRequests holds the Update branch requests the forge accepted
 	// (#982), under botMu too and keyed the same way.
 	updateRequests map[string]*updateEntry
@@ -175,6 +178,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		settled:          make(map[string]time.Time),
 		settleWindow:     defaultSettleWindow,
 		botRequests:      make(map[string]*botEntry),
+		boxOverrides:     make(map[string]boxOverride),
 		updateRequests:   make(map[string]*updateEntry),
 		now:              time.Now,
 		after:            realAfterFunc,

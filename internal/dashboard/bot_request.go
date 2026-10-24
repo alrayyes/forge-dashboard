@@ -81,11 +81,19 @@ type botEntry struct {
 	seq uint64
 }
 
-// RecordBotRequest notes that a bot was asked to rebase forge/repo#number. The
-// pull request carries the request from now on, subscribers are told, and
-// later snapshots move it along. A pull request not on the board is ignored,
-// and a second request replaces the first.
-func (a *Aggregator) RecordBotRequest(forge Forge, repo string, number int, bot BotName, action BotAction) {
+// boxOverride is a rebase box state this app set itself, and the newest fetch
+// that had started when it did. A fetch that began earlier may have read the
+// description before the change, so it can't undo it.
+type boxOverride struct {
+	ticked bool
+	seq    uint64
+}
+
+// amendPullRequest applies amend to a copy of forge/repo#number on the snapshot,
+// re-annotates the bot requests and tells subscribers, in one update. A pull
+// request not on the board is ignored. amend runs under the snapshot lock and
+// may take botMu.
+func (a *Aggregator) amendPullRequest(forge Forge, repo string, number int, amend func(pr *PullRequest, key string)) {
 	key := settledKey(forge, repo, number)
 
 	a.mu.Lock()
@@ -97,21 +105,10 @@ func (a *Aggregator) RecordBotRequest(forge Forge, repo string, number int, bot 
 
 		return
 	}
-	pr := a.snap.PullRequests[idx]
-	now := a.now()
-
-	a.botMu.Lock()
-	a.botRequests[key] = &botEntry{
-		Bot: bot, Action: action, Phase: BotQueued,
-		RequestedAt: now, ExpiresAt: now.Add(botQueuedWait),
-		wasBehind: pr.Behind,
-		head:      pr.HeadSHA,
-		seq:       a.fetchSeq.Load(),
-	}
-	a.botMu.Unlock()
 
 	next := a.snap
 	next.PullRequests = slices.Clone(a.snap.PullRequests)
+	amend(&next.PullRequests[idx], key)
 	a.annotateBotRequests(next.PullRequests)
 	a.snap = next
 	a.mu.Unlock()
@@ -119,38 +116,86 @@ func (a *Aggregator) RecordBotRequest(forge Forge, repo string, number int, bot 
 	a.notify(next)
 }
 
-// SetRenovateRebaseBox notes on the snapshot that Renovate's rebase box on
-// forge/repo#number was just ticked or cleared here, so the board offers the
-// matching action before the next fetch reads the description again. Clearing it
-// also drops a Renovate request still waiting on it. A pull request the
-// snapshot doesn't hold is left alone.
-func (a *Aggregator) SetRenovateRebaseBox(forge Forge, repo string, number int, ticked bool) {
-	key := settledKey(forge, repo, number)
-
-	a.mu.Lock()
-	idx := slices.IndexFunc(a.snap.PullRequests, func(pr PullRequest) bool {
-		return settledKey(pr.Forge, pr.Repo, pr.Number) == key
-	})
-	if idx < 0 {
-		a.mu.Unlock()
-
-		return
-	}
+// recordBotLocked registers a queued request for pr. The caller holds mu.
+func (a *Aggregator) recordBotLocked(pr *PullRequest, key string, bot BotName, action BotAction) {
+	now := a.now()
 
 	a.botMu.Lock()
+	defer a.botMu.Unlock()
+	a.botRequests[key] = &botEntry{
+		Bot: bot, Action: action, Phase: BotQueued,
+		RequestedAt: now, ExpiresAt: now.Add(botQueuedWait),
+		wasBehind: pr.Behind,
+		head:      pr.HeadSHA,
+		seq:       a.fetchSeq.Load(),
+	}
+}
+
+// setBoxLocked notes the box state on pr. The caller holds mu.
+func (a *Aggregator) setBoxLocked(pr *PullRequest, key string, ticked bool) {
+	pr.RenovateRebaseRequested = ticked
+
+	a.botMu.Lock()
+	defer a.botMu.Unlock()
+	a.boxOverrides[key] = boxOverride{ticked: ticked, seq: a.fetchSeq.Load()}
 	if e, ok := a.botRequests[key]; ok && !ticked && e.Bot == BotRenovate {
 		delete(a.botRequests, key)
 	}
-	a.botMu.Unlock()
+}
 
-	next := a.snap
-	next.PullRequests = slices.Clone(a.snap.PullRequests)
-	next.PullRequests[idx].RenovateRebaseRequested = ticked
-	a.annotateBotRequests(next.PullRequests)
-	a.snap = next
-	a.mu.Unlock()
+// RecordBotRequest notes that a bot was asked to rebase forge/repo#number. The
+// pull request carries the request from now on, subscribers are told, and
+// later snapshots move it along. A pull request not on the board is ignored,
+// and a second request replaces the first.
+func (a *Aggregator) RecordBotRequest(forge Forge, repo string, number int, bot BotName, action BotAction) {
+	a.amendPullRequest(forge, repo, number, func(pr *PullRequest, key string) {
+		a.recordBotLocked(pr, key, bot, action)
+	})
+}
 
-	a.notify(next)
+// RecordRenovateRebase notes that Renovate was asked to rebase through its
+// ticked box: the request and the box land in one snapshot, so the board never
+// shows a pending request without the matching cancel.
+func (a *Aggregator) RecordRenovateRebase(forge Forge, repo string, number int) {
+	a.amendPullRequest(forge, repo, number, func(pr *PullRequest, key string) {
+		a.recordBotLocked(pr, key, BotRenovate, BotRebase)
+		a.setBoxLocked(pr, key, true)
+	})
+}
+
+// SetRenovateRebaseBox notes on the snapshot that Renovate's rebase box on
+// forge/repo#number was just ticked or cleared here, so the board offers the
+// matching action before the next fetch reads the description again. Clearing it
+// also drops a Renovate request still waiting on it. A fetch that started
+// before this call can't undo it. A pull request the snapshot doesn't hold is
+// left alone.
+func (a *Aggregator) SetRenovateRebaseBox(forge Forge, repo string, number int, ticked bool) {
+	a.amendPullRequest(forge, repo, number, func(pr *PullRequest, key string) {
+		a.setBoxLocked(pr, key, ticked)
+	})
+}
+
+// applyBoxOverrides puts the box state this app set back over any fetch that
+// started before it, and forgets the override once a later fetch has read the
+// description itself. covers is what applyBotRequests takes. The caller holds
+// botMu.
+func (a *Aggregator) applyBoxOverrides(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
+	if len(a.boxOverrides) == 0 {
+		return
+	}
+	for i := range prs {
+		key := settledKey(prs[i].Forge, prs[i].Repo, prs[i].Number)
+		o, ok := a.boxOverrides[key]
+		if !ok || !covers(prs[i].Forge, prs[i].Repo) {
+			continue
+		}
+		if seq <= o.seq {
+			prs[i].RenovateRebaseRequested = o.ticked
+
+			continue
+		}
+		delete(a.boxOverrides, key)
+	}
 }
 
 // applyBotRequests moves every request that prs covers along and then marks
@@ -160,6 +205,7 @@ func (a *Aggregator) SetRenovateRebaseBox(forge Forge, repo string, number int, 
 // nothing about its request.
 func (a *Aggregator) applyBotRequests(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
 	a.botMu.Lock()
+	a.applyBoxOverrides(prs, seq, covers)
 	a.advanceUpdateRequests(prs, seq, covers)
 	if len(a.botRequests) > 0 {
 		now := a.now()

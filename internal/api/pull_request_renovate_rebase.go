@@ -40,15 +40,20 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 			return
 		}
 		if outcome == dashboard.RenovateRebaseAlreadyRequested {
+			// The box is ticked on the forge, which the board may not know yet.
+			deps.Service.SetRenovateRebaseBox(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, true)
 			const message = "A Renovate rebase is already requested on this pull request."
 			writeJSON(w, http.StatusConflict, actionErrorBody{Error: message, Code: string(dashboard.ActionAlreadyRequested), Message: message})
 
 			return
 		}
 
-		deps.Service.RecordBotRequest(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotRenovate, dashboard.BotRebase)
+		// A ticked box and its request go on the board in one snapshot, so the
+		// cancel appears with the pending request and never after it.
 		if outcome == dashboard.RenovateRebaseTicked {
-			deps.Service.SetRenovateRebaseBox(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, true)
+			deps.Service.RecordRenovateRebase(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
+		} else {
+			deps.Service.RecordBotRequest(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotRenovate, dashboard.BotRebase)
 		}
 
 		w.WriteHeader(http.StatusNoContent)
