@@ -220,7 +220,7 @@ jobs:
     # and ImageMagick are in it); scripts/test-playwright-image.sh keeps the
     # tag in step with @playwright/test.
     container:
-      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:e44eec3f49f8fad2dbfb926fd8cbd0cadf1b9ebca94a960a45daac90a3bd9258
+      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:8475bb332de43de88e3a442ed5c168586a378790b6a5c109753e7de93bc1dd3d
       options: --ipc=host
     permissions:
       contents: write
