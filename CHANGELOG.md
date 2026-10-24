@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.31.2](https://github.com/alrayyes/forge-dashboard/compare/v2.31.1...v2.31.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **dashboard:** keep rerun retry advice only where no job may be running ([#2787](https://github.com/alrayyes/forge-dashboard/issues/2787)) ([a89f9cb](https://github.com/alrayyes/forge-dashboard/commit/a89f9cb6ecaaf0dc09a1424869f73b1f27f979e8))
+
 ## [2.31.1](https://github.com/alrayyes/forge-dashboard/compare/v2.31.0...v2.31.1) (2026-10-24)
 
 
