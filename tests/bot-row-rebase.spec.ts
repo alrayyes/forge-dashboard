@@ -287,3 +287,40 @@ test('a behind mergeable Renovate pull request fits a 360px row with Merge and t
   ).toBe(true);
   await expectNoAxeViolations(page);
 });
+
+test('the rebase beside Merge stays after Merge is refused for being behind', async ({
+  page,
+}) => {
+  await page.route('**/api/pull-requests/merge', (route: Route) =>
+    route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'github: PUT .../merge: Base branch was modified',
+        code: 'not_mergeable',
+        message: 'Behind the base branch',
+      }),
+    }),
+  );
+  const row = await open(
+    page,
+    pr({
+      ci: 'success',
+      mergeStatus: 'mergeable',
+      author: 'dependabot[bot]',
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'dependabot_rebase' },
+      ],
+    }),
+  );
+  await row.getByRole('button', { name: 'Merge' }).click();
+  await row.getByRole('button', { name: 'Confirm merge?' }).click();
+  await expect(row).toContainText('Behind the base branch');
+  await expect(
+    row
+      .locator('.row-action-bar')
+      .getByRole('button', { name: 'Dependabot: Rebase' }),
+  ).toBeVisible();
+});
