@@ -160,3 +160,181 @@ test('a behind bot pull request waiting for workflow approval has its rebase and
   await expect(row.locator('.row-action-bar')).toContainText(reason);
   await expectNoAxeViolations(page);
 });
+
+// A behind bot pull request the forge still calls mergeable, with green checks,
+// has Merge as its primary action. The rebase stays in the row beside it,
+// locked with its reason while the box is ticked, so the row says what the
+// pull request is waiting on.
+const mergeable = {
+  ci: 'success',
+  mergeStatus: 'mergeable',
+  author: 'renovate',
+};
+const requested = {
+  action: 'renovate_rebase',
+  blocked: {
+    code: 'already_requested',
+    message: 'A Renovate rebase is already requested on this pull request.',
+    next: 'Renovate clears the box once it has rebased, and the rebase is offered again.',
+  },
+};
+
+test('a behind mergeable Renovate pull request with the box ticked shows a locked rebase beside Merge', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        requested,
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await expect(bar.getByRole('button', { name: 'Merge' })).toBeVisible();
+  await expect(
+    bar.getByRole('button', { name: /Renovate: Rebase/ }),
+  ).toBeDisabled();
+  await expect(bar).toContainText(
+    'A Renovate rebase is already requested on this pull request.',
+  );
+  await expectNoAxeViolations(page);
+});
+
+test('a behind mergeable Renovate pull request with the box unticked shows Renovate: Rebase beside Merge', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'renovate_rebase' },
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await expect(bar.getByRole('button', { name: 'Merge' })).toBeVisible();
+  await expect(
+    bar.getByRole('button', { name: 'Renovate: Rebase' }),
+  ).toBeEnabled();
+  await expectNoAxeViolations(page);
+});
+
+test('a behind mergeable Dependabot pull request shows Dependabot: Rebase beside Merge', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ci: 'success',
+      mergeStatus: 'mergeable',
+      author: 'dependabot[bot]',
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'dependabot_rebase' },
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await expect(bar.getByRole('button', { name: 'Merge' })).toBeVisible();
+  await expect(
+    bar.getByRole('button', { name: 'Dependabot: Rebase' }),
+  ).toBeVisible();
+  await expectNoAxeViolations(page);
+});
+
+test('the rebase beside Merge goes while Merge waits for its confirmation', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'renovate_rebase' },
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  await bar.getByRole('button', { name: 'Merge' }).click();
+  await expect(
+    bar.getByRole('button', { name: 'Renovate: Rebase' }),
+  ).toHaveCount(0);
+});
+
+test('a behind mergeable Renovate pull request fits a 360px row with Merge and the rebase reachable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  const row = await open(
+    page,
+    pr({
+      ...mergeable,
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        requested,
+      ],
+    }),
+  );
+  const bar = row.locator('.row-action-bar');
+  for (const name of ['Merge', /Renovate: Rebase/]) {
+    const button = bar.getByRole('button', { name });
+    await button.scrollIntoViewIfNeeded();
+    await expect(button).toBeInViewport({ ratio: 1 });
+  }
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await expectNoAxeViolations(page);
+});
+
+test('the rebase beside Merge stays after Merge is refused for being behind', async ({
+  page,
+}) => {
+  await page.route('**/api/pull-requests/merge', (route: Route) =>
+    route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'github: PUT .../merge: Base branch was modified',
+        code: 'not_mergeable',
+        message: 'Behind the base branch',
+      }),
+    }),
+  );
+  const row = await open(
+    page,
+    pr({
+      ci: 'success',
+      mergeStatus: 'mergeable',
+      author: 'dependabot[bot]',
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'close' },
+        { action: 'dependabot_rebase' },
+      ],
+    }),
+  );
+  await row.getByRole('button', { name: 'Merge' }).click();
+  await row.getByRole('button', { name: 'Confirm merge?' }).click();
+  await expect(row).toContainText('Behind the base branch');
+  await expect(
+    row
+      .locator('.row-action-bar')
+      .getByRole('button', { name: 'Dependabot: Rebase' }),
+  ).toBeVisible();
+});
