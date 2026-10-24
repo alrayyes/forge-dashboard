@@ -145,7 +145,9 @@ test.describe('main branches pipeline panel updates live', () => {
       { name: 'test', state: 'running', url: 'https://example.com/r/2' },
     ];
     const state = await open(page, RUNNING, three, 3);
-    await panel(page).getByRole('link', { name: 'View run: test' }).focus();
+    await panel(page)
+      .getByRole('link', { name: 'View run (opens in a new tab): test' })
+      .focus();
 
     state.row = PASSED;
     state.checks = DONE;
@@ -153,7 +155,9 @@ test.describe('main branches pipeline panel updates live', () => {
 
     await expect(panel(page).getByRole('listitem')).toHaveCount(2);
     await expect(
-      panel(page).getByRole('link', { name: 'View run: test' }),
+      panel(page).getByRole('link', {
+        name: 'View run (opens in a new tab): test',
+      }),
     ).toBeFocused();
   });
 
@@ -161,7 +165,9 @@ test.describe('main branches pipeline panel updates live', () => {
     page,
   }) => {
     const state = await open(page, RUNNING, RUN);
-    await panel(page).getByRole('link', { name: 'View run: test' }).focus();
+    await panel(page)
+      .getByRole('link', { name: 'View run (opens in a new tab): test' })
+      .focus();
 
     state.row = PASSED;
     state.checks = [
@@ -333,7 +339,9 @@ test.describe('main branches pipeline panel draws what a check carries', () => {
     );
 
     await expect(
-      panel(page).getByRole('link', { name: 'Approve on GitHub: deploy' }),
+      panel(page).getByRole('link', {
+        name: 'Approve on GitHub (opens in a new tab): deploy',
+      }),
     ).toBeVisible();
   });
 
