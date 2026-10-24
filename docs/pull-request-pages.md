@@ -129,26 +129,25 @@ mention is what GitHub and Forgejo both turn into a link: `#12`,
 on GitHub `GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not
 mentions, while emphasis and table markup around one (`**#12**`, `_#12_`,
 `|#12|`) is fine. Code and HTML comments are skipped, as they are for closing
-references, and a quoted line still counts. The text of a link is
-skipped too, whether it is written in Markdown (also the reference style) or as
-an HTML anchor, since a dependency update's release notes are full of links such
-as `<a href="https://redirect.github.com/org/lib/issues/1234">#1234</a>` that
-name another project's tickets. A link counts only by its address, and only when
-that is a page on the forge. Only the first 64 KiB of the description is read
-(cut at a space, Unicode spaces included, or at the last comma or semicolon
-outside brackets when there is none, so a number is never read half-written; a
-bracket left open for over 1 KiB there is taken for a stray one, and a link
-anchor still open within 1 KiB of the cut loses the text after its tag),
-and the first 100 references in it, so a pasted changelog doesn't slow the
-refresh down. Whether a closing keyword closes depends on the branch the
-pull request aims at: on one that doesn't target the default branch (a stacked
-pull request) `Closes #12` closes nothing, so it is listed as a mention. A
-keyword in the title doesn't close either, so it is a mention as well. A
-closing keyword takes an ordinary space before its number, as Forgejo reads it;
-a no-break or other Unicode space there closes nothing and the number is listed
-as a mention. A ticket
-the pull request does close is never repeated, and neither is the pull request
-itself. The list holds at most 20, counted after the closed ones are taken off.
+references, and a quoted line still counts. The text of a link is skipped too,
+whether it is written in Markdown (also the reference style) or as an HTML
+anchor, since a dependency update's release notes are full of links such as
+`<a href="https://redirect.github.com/org/lib/issues/1234">#1234</a>` that name
+another project's tickets. A link counts only by its address, and only when that
+is a page on the forge. Only the first 64 KiB of the description is read (cut at
+a space, Unicode spaces included, or at the last comma or semicolon outside
+brackets when there is none, so a number is never read half-written; a bracket
+left open for over 1 KiB there is taken for a stray one, and a link anchor still
+open within 1 KiB of the cut loses the text after its tag), and the first 100
+references in it, so a pasted changelog doesn't slow the refresh down. Whether a
+closing keyword closes depends on the branch the pull request aims at: on one
+that doesn't target the default branch (a stacked pull request) `Closes #12`
+closes nothing, so it is listed as a mention. A keyword in the title doesn't
+close either, so it is a mention as well. A closing keyword takes an ordinary
+space before its number, as Forgejo reads it; a no-break or other Unicode space
+there closes nothing and the number is listed as a mention. A ticket the pull
+request does close is never repeated, and neither is the pull request itself.
+The list holds at most 20, counted after the closed ones are taken off.
 Comments, reviews and commit messages are not read. Without a GitHub token the
 server reads the same text from GitHub's public listing, so the lists are the
 same.
@@ -159,14 +158,13 @@ issue, another repo, a pull request), a client links to `url` on the forge.
 
 The pull request's pop-up shows each one among the attributes, after the issues
 it closes, as a "Mentions" link drawn like the "Closes" ones. A tracked ticket
-opens on the [Issues page](issues.md#opening-an-issue-from-its-address) in a
-new tab on a middle or modified click, and its pop-up in place of this one on a
-plain click. One the
-dashboard doesn't hold opens on its forge in a new tab, and screen readers hear
-"opens on the forge" instead of "opens the issue". The first two show, and the
-rest sit behind a "more" button that opens them in place, as with the closing
-ones. With nothing mentioned, the pop-up shows no label and no empty space. The
-rows don't show mentions.
+opens on the [Issues page](issues.md#opening-an-issue-from-its-address) in a new
+tab on a middle or modified click, and its pop-up in place of this one on a
+plain click. One the dashboard doesn't hold opens on its forge in a new tab, and
+screen readers hear "opens on the forge" instead of "opens the issue". The first
+two show, and the rest sit behind a "more" button that opens them in place, as
+with the closing ones. With nothing mentioned, the pop-up shows no label and no
+empty space. The rows don't show mentions.
 
 ## Author on a row
 
