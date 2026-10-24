@@ -104,8 +104,11 @@ func TestRerunFailedDefaultBranchChecks_RunsListMissing_IsAnErrorNotNothingToRer
 func TestRerunFailedDefaultBranchChecks_EmptyBranch_IsAConflictWithoutAnyRequest(t *testing.T) {
 	t.Parallel()
 	var requests atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requests.Add(1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The version is read first, on every click; nothing else is.
+		if r.URL.Path != "/api/v1/version" {
+			requests.Add(1)
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(srv.Close)
