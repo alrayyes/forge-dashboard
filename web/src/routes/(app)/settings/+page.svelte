@@ -546,6 +546,7 @@
   // ---- passkeys ----
   let passkeys = $state<Passkey[]>([]);
   let passkeyLabel = $state("");
+  let passkeyLabelError = $state("");
   let passkeyBusy = $state(false);
   let passkeyStatus = $state("");
   let passkeyStatusKind = $state<"" | "error" | "ok">("");
@@ -575,6 +576,14 @@
     e.preventDefault();
     const label = passkeyLabel.trim();
     if (!label) return;
+    // Same rule as renaming. Counted in characters, so the field has no
+    // maxlength (that counts UTF-16 units) and the refusal comes here, before
+    // the browser asks for a passkey that would then be thrown away.
+    if ([...label].length > PASSKEY_NAME_MAX) {
+      passkeyLabelError = `The name can be at most ${PASSKEY_NAME_MAX} characters.`;
+      return;
+    }
+    passkeyLabelError = "";
     if (!window.PublicKeyCredential) {
       passkeyStatus = "This browser does not support passkeys.";
       passkeyStatusKind = "error";
@@ -617,6 +626,12 @@
       );
       if (!finishRes.ok) {
         const body = await finishRes.json().catch(() => ({}));
+        if (finishRes.status === 400 && body.field === "label" && body.error) {
+          passkeyLabelError = body.error;
+          passkeyStatus = "";
+          passkeyStatusKind = "";
+          return;
+        }
         throw new Error(body.error || "passkey registration failed");
       }
 
@@ -1446,6 +1461,7 @@
     .pattern-error[hidden] {
       display: none;
     }
+    .entry-form input[aria-invalid="true"],
     .field input[aria-invalid="true"] {
       border-color: var(--critical);
     }
@@ -2246,7 +2262,12 @@
               autocomplete="off"
               placeholder="name, e.g. MacBook"
               required
+              aria-invalid={passkeyLabelError ? "true" : undefined}
+              aria-describedby={passkeyLabelError
+                ? "passkey-label-error"
+                : undefined}
               bind:value={passkeyLabel}
+              oninput={() => (passkeyLabelError = "")}
             />
             <button type="submit" class="btn btn-primary" disabled={passkeyBusy}
               >{passkeyBusy
@@ -2254,6 +2275,11 @@
                 : "Add passkey"}</button
             >
           </form>
+          {#if passkeyLabelError}
+            <p class="status error" id="passkey-label-error" role="alert">
+              {passkeyLabelError}
+            </p>
+          {/if}
           <ul class="entry-list" id="passkey-list">
             {#each passkeys as key (key.id)}
               <li>
