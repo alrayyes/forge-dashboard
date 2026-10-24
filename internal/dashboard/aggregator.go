@@ -668,9 +668,11 @@ func sortByRecency(prs []PullRequest, issues []Issue) {
 }
 
 // fetchSources asks every source for its data at once and answers in the
-// order of a.sources.
-func (a *Aggregator) fetchSources(ctx context.Context) []Result {
+// order of a.sources, and says which of them it asked: the others were
+// answered from the snapshot.
+func (a *Aggregator) fetchSources(ctx context.Context) ([]Result, []bool) {
 	results := make([]Result, len(a.sources))
+	asked := make([]bool, len(a.sources))
 
 	a.mu.RLock()
 	earlier := a.snap
@@ -697,7 +699,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 			}
 		}
 		wg.Add(1)
-		fetched = true
+		fetched, asked[i] = true, true
 		go func(i int, src Source) {
 			defer wg.Done()
 			results[i] = src.Fetch(ctx)
@@ -707,7 +709,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
-	return results
+	return results, asked
 }
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is
@@ -729,7 +731,7 @@ func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bo
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
 	seq := a.fetchSeq.Add(1)
-	results := a.fetchSources(a.refreshContext(ctx))
+	results, asked := a.fetchSources(a.refreshContext(ctx))
 
 	a.mu.RLock()
 	earlier := a.snap
@@ -738,7 +740,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	snap := newEmptySnapshot()
 	snap.GeneratedAt = time.Now().UTC()
-	read := rowsRead(results)
+	read := rowsRead(results, asked)
 	for i, r := range results {
 		forge := a.sources[i].Forge()
 		if r.Health.Reachable {
@@ -795,12 +797,16 @@ func reachableForges(forges []ForgeHealth) map[Forge]bool {
 	return reachable
 }
 
-// rowsRead is the settledKey of each pull request the sources returned. That
-// is what the forge was asked for: the keep and carry-over steps of a refresh
-// add rows from the snapshot, which no fetch read.
-func rowsRead(results []Result) map[string]bool {
+// rowsRead is the settledKey of each pull request the sources asked returned.
+// That is what the forge was asked for: a source held back on its budget, and
+// the keep and carry-over steps of a refresh, add rows from the snapshot, which
+// no fetch read.
+func rowsRead(results []Result, asked []bool) map[string]bool {
 	read := make(map[string]bool)
-	for _, r := range results {
+	for i, r := range results {
+		if !asked[i] {
+			continue
+		}
 		for _, pr := range r.PullRequests {
 			read[settledKey(pr.Forge, pr.Repo, pr.Number)] = true
 		}
