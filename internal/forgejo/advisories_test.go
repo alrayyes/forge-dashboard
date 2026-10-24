@@ -433,16 +433,16 @@ func TestReadMainBranch_ARootListing404IsAFailureNotAnEmptyRepo(t *testing.T) {
 
 func TestReadMainBranch_ConcurrentReadsOfOneRepoShareOneRead(t *testing.T) {
 	t.Parallel()
-	scanner := &slowScanner{}
-	scanner.summary = osv.Summary{Count: 1}
+	scanner := newStepScanner(1)
 	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
 	client := forge.start(t, scanner)
 
-	// The 150ms scan is still running when every reader returns, so each one
-	// joined the read in flight and has nothing to show yet.
+	// The scan is held until every reader has returned, so each one joined the
+	// read in flight and has nothing to show yet.
 	readConcurrently(t, client, func(adv *dashboard.Advisories) {
 		assert.Equal(t, *dashboard.UnknownAdvisories(), *adv)
 	})
+	scanner.release(0)
 	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	assert.Equal(t, 1, row.Advisories.Count)
@@ -452,31 +452,39 @@ func TestReadMainBranch_ConcurrentReadsOfOneRepoShareOneRead(t *testing.T) {
 
 func TestReadMainBranch_ConcurrentReadsOfAStaleEntryAllSeeTheOldCount(t *testing.T) {
 	t.Parallel()
-	scanner := &slowScanner{}
-	scanner.summary = osv.Summary{Count: 1}
+	scanner := newStepScanner(1, 2)
 	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
 	client := forge.start(t, scanner)
 	clk := withClock(client)
+	scanner.release(0)
 	_, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
 	require.NoError(t, err)
 	require.Equal(t, 1, scanner.calls())
+	before := forge.requests.Load()
 
 	// The entry expires, so one reader starts the re-read and the rest join it.
-	// While it runs every reader, joiner or not, is answered with the old count.
+	// The re-read is held until every reader has returned, and it will answer
+	// with a different count, so a reader that sees the old one was served
+	// while the re-read was in flight.
 	clk.advance(2 * advisorycache.TTL)
 	readConcurrently(t, client, func(adv *dashboard.Advisories) {
 		assert.Equal(t, 1, adv.Count)
 		assert.Equal(t, dashboard.AdvisoriesKnown, adv.State)
 	})
-
+	scanner.release(1)
 	forgejo.WaitForAdvisories(client)
+
 	assert.Equal(t, 2, scanner.calls(), "the readers shared one re-read")
+	assert.EqualValues(t, 2, forge.requests.Load()-before, "and one listing and file read")
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	assert.Equal(t, 2, row.Advisories.Count, "the re-read's answer replaced the old one")
 }
 
 // readConcurrently has five readers ask for one repo at once and checks each
-// one's advisories with check. The readers only start reads: settling inside
-// them would call Wait while another goroutine's first read is still starting
-// its background read, so the callers settle once after.
+// one's advisories with check. The readers only start reads, so check must not
+// settle: that would call Wait while another goroutine's first read is still
+// starting its background read. The callers settle once after.
 func readConcurrently(t *testing.T, client *forgejo.Client, check func(*dashboard.Advisories)) {
 	t.Helper()
 	var wg sync.WaitGroup
@@ -497,13 +505,45 @@ func readConcurrently(t *testing.T, client *forgejo.Client, check func(*dashboar
 	wg.Wait()
 }
 
-// slowScanner answers after a pause, so parallel readers overlap.
-type slowScanner struct{ fakeScanner }
+// stepScanner holds each scan until the test releases it, so readers overlap
+// without relying on timing. Scan number i answers with counts[i].
+type stepScanner struct {
+	fakeScanner
+	gates  []chan struct{}
+	counts []int
+	next   int
+}
 
-func (s *slowScanner) Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary, error) {
-	time.Sleep(150 * time.Millisecond)
+func newStepScanner(counts ...int) *stepScanner {
+	g := &stepScanner{counts: counts}
+	for range counts {
+		g.gates = append(g.gates, make(chan struct{}))
+	}
 
-	return s.fakeScanner.Scan(ctx, pkgs)
+	return g
+}
+
+// release lets scan number i answer.
+func (g *stepScanner) release(i int) { close(g.gates[i]) }
+
+func (g *stepScanner) Scan(ctx context.Context, pkgs []osv.Package) (osv.Summary, error) {
+	g.mu.Lock()
+	i := g.next
+	g.next++
+	g.mu.Unlock()
+	if i >= len(g.gates) {
+		return osv.Summary{}, fmt.Errorf("scan %d: %w", i, assert.AnError)
+	}
+	select {
+	case <-g.gates[i]:
+	case <-ctx.Done():
+		return osv.Summary{}, fmt.Errorf("scan: %w", ctx.Err())
+	}
+	g.mu.Lock()
+	g.summary = osv.Summary{Count: g.counts[i]}
+	g.mu.Unlock()
+
+	return g.fakeScanner.Scan(ctx, pkgs)
 }
 
 func TestReadAdvisories_AFileBiggerThanItsListingSaidIsUnknown(t *testing.T) {
