@@ -89,11 +89,9 @@ type clientState struct {
 	schedule    map[string]cachedSchedule
 	scheduleSeq uint64
 
-	// versionMajor is the instance's major version, read once from /version
-	// (versionKnown), or 0 when it said none.
-	versionMu    sync.Mutex
-	versionKnown bool
-	versionMajor int
+	// version is the instance's major version, read from /version (see
+	// versionCache).
+	version versionCache
 
 	// finishedJobs keeps the job list of each finished run (see finishedJobs).
 	finishedJobs *finishedJobs

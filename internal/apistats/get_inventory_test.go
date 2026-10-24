@@ -264,7 +264,7 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 		"internal/forgejo/client.go:rawRequestMax:Do":                    true,
 		"internal/forgejo/job_log.go:jobLog:NewRequestWithContext":       true, // job log stream, never conditional: one per failed job when the panel loads its checks (up to five on Forgejo), or on demand
 		"internal/forgejo/job_log.go:jobLog:Do":                          true, // job log stream, never conditional: one per failed job when the panel loads its checks (up to five on Forgejo), or on demand
-		"internal/forgejo/rerun.go:serverMajor:rawRequest":               true, // the instance's /version, read once per client and kept, to know whether it has a rerun route
+		"internal/forgejo/server_version.go:readVersion:rawRequest":      true, // the instance's /version, read in the background and kept for a while, to know whether it has a rerun route
 	}
 
 	assert.Empty(t, httpCallsOutsideTheCount(t, "github", allowedGitHub))

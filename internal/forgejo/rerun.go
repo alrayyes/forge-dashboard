@@ -2,14 +2,10 @@ package forgejo
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
-	"strings"
-	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -30,17 +26,16 @@ const rerunRunPath = "/repos/{owner}/{repo}/actions/runs/{run_id}/rerun"
 // firstRerunMajor is the first Forgejo major version with rerunRunPath.
 const firstRerunMajor = 17
 
-// versionProbeTimeout bounds the one read of the instance's version.
-const versionProbeTimeout = 5 * time.Second
-
 // errNoRerunRoute is why a rerun on a Forgejo older than firstRerunMajor never
 // reaches the forge. Shown to a person, so it reads as a sentence.
 var errNoRerunRoute = errors.New("This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.") //nolint:staticcheck,revive // shown to a person
 
 // RerunChecksBlockedReason implements dashboard.RerunChecksBlocker: why this
 // instance can't rerun checks, or "" when it can or its version isn't known.
-// The version is read once; a failed read is tried again next time and leaves
-// the rerun to the forge.
+// It never waits on the network. The version is read in the background the
+// first time it is asked for, read again after an hour while it blocks, and
+// retried after a failed read; until a read lands the rerun is left to the
+// forge.
 func (c *Client) RerunChecksBlockedReason() string {
 	if major, ok := c.serverMajor(); ok && major < firstRerunMajor {
 		return errNoRerunRoute.Error()
@@ -49,36 +44,10 @@ func (c *Client) RerunChecksBlockedReason() string {
 	return ""
 }
 
-// serverMajor is the instance's major version, read once from /version.
-func (c *Client) serverMajor() (int, bool) {
-	c.versionMu.Lock()
-	defer c.versionMu.Unlock()
-	if c.versionKnown {
-		return c.versionMajor, c.versionMajor > 0
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), versionProbeTimeout)
-	defer cancel()
-	body, _, err := c.rawRequest(ctx, http.MethodGet, "/version", nil)
-	if err != nil {
-		return 0, false
-	}
-	var v struct {
-		Version string `json:"version"`
-	}
-	if json.Unmarshal(body, &v) != nil {
-		return 0, false
-	}
-	// Answered, even when the answer is words: not asked again.
-	c.versionKnown = true
-	major, _, _ := strings.Cut(strings.TrimPrefix(v.Version, "v"), ".")
-	c.versionMajor, _ = strconv.Atoi(major)
-
-	return c.versionMajor, c.versionMajor > 0
-}
-
 // rerunBlocked is the refusal for an instance with no rerun route, or nil.
-func (c *Client) rerunBlocked() error {
-	if c.RerunChecksBlockedReason() == "" {
+// A stale answer is read again under the click's own context first.
+func (c *Client) rerunBlocked(ctx context.Context) error {
+	if major, ok := c.serverMajorFor(ctx); !ok || major >= firstRerunMajor {
 		return nil
 	}
 
@@ -152,7 +121,7 @@ func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name
 
 // rerunRuns asks Forgejo to rerun each run in ids.
 func (c *Client) rerunRuns(ctx context.Context, owner, name string, ids []int64) error {
-	if err := c.rerunBlocked(); err != nil {
+	if err := c.rerunBlocked(ctx); err != nil {
 		return err
 	}
 	for _, runID := range ids {

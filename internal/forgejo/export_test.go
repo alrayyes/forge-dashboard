@@ -7,6 +7,13 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
+// SetVersionClock replaces the clock the cached server version expires by.
+func SetVersionClock(c *Client, now func() time.Time) { c.version.now = now }
+
+// WaitForVersionProbe waits for the version read a refresh started in the
+// background.
+func WaitForVersionProbe(c *Client) { c.version.probes.Wait() }
+
 // ReadAdvisories reads a repo's advisories once, past the cache, deadline and
 // back-off that ReadMainBranch applies.
 func ReadAdvisories(ctx context.Context, c *Client, owner, name string) (dashboard.Advisories, error) {

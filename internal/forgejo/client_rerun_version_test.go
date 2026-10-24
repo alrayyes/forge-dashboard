@@ -57,9 +57,24 @@ func TestRerunRoute_IsInForgejo17sAPI_AndNotIn16s(t *testing.T) {
 // failed run is 42.
 type versionServer struct {
 	version string
-	mu      sync.Mutex
-	posts   []string
-	reads   int
+	// hang, when set, holds every /version read until it is closed.
+	hang  chan struct{}
+	mu    sync.Mutex
+	posts []string
+	reads int
+}
+
+func (s *versionServer) setVersion(v string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.version = v
+}
+
+func (s *versionServer) readCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.reads
 }
 
 func (s *versionServer) start(t *testing.T) *forgejo.Client {
@@ -68,13 +83,21 @@ func (s *versionServer) start(t *testing.T) *forgejo.Client {
 	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.reads++
+		version := s.version
 		s.mu.Unlock()
-		if s.version == "" {
+		if s.hang != nil {
+			select {
+			case <-s.hang:
+			case <-r.Context().Done():
+				return
+			}
+		}
+		if version == "" {
 			http.NotFound(w, r)
 
 			return
 		}
-		writeJSON(t, w, map[string]any{"version": s.version})
+		writeJSON(t, w, map[string]any{"version": version})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
@@ -113,7 +136,7 @@ func TestRerunChecksBlockedReason_ByForgejoVersion(t *testing.T) {
 			t.Parallel()
 			s := &versionServer{version: tt.version}
 
-			reason := s.start(t).RerunChecksBlockedReason()
+			reason := settled(s.start(t))
 
 			if tt.blocked {
 				assert.Equal(t, noRerunReason, reason)
@@ -129,10 +152,10 @@ func TestRerunChecksBlockedReason_ReadsTheVersionOnce(t *testing.T) {
 	s := &versionServer{version: "16.0.6+gitea-1.22.0"}
 	c := s.start(t)
 
-	_ = c.RerunChecksBlockedReason()
-	_ = c.RerunChecksBlockedReason()
+	_ = settled(c)
+	_ = settled(c)
 
-	assert.Equal(t, 1, s.reads)
+	assert.Equal(t, 1, s.readCount())
 }
 
 func TestRerunFailedChecks_OnForgejo16_SaysSoAndPostsNothing(t *testing.T) {
