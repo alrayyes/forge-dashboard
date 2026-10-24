@@ -53,7 +53,7 @@ func botBoardAs(t *testing.T, author string, fail error) (*httptest.Server, *htt
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+token+`"}`))
 	require.NoError(t, err)

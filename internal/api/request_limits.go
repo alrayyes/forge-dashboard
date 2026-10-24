@@ -11,7 +11,6 @@ import (
 // sends the spec's own numbers, so a change to one side fails there.
 const (
 	maxUsernameLen     = 64
-	maxDisplayNameLen  = 100
 	maxForgeTokenLen   = 512
 	maxForgeURLLen     = 2048
 	maxLabelLen        = 100

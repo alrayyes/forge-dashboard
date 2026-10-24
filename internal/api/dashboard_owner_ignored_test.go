@@ -27,7 +27,7 @@ func TestDashboard_WithOwnerQuery_IsIgnored(t *testing.T) {
 	}
 
 	srv := newTestServerWithSources(t, buildSources)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+secretToken+`"}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 
@@ -49,7 +49,7 @@ func TestMCP_GetDashboard_OwnerArgument_IsRefused(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{

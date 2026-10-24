@@ -59,7 +59,7 @@ func statsServer(t *testing.T) (*httptest.Server, *http.Cookie, *apistats.Counte
 
 		return []dashboard.Source{src}
 	}, false, 0, func(d *api.Deps) { d.APIStats = counters })
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+statsToken+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -159,7 +159,7 @@ func statsServerWithoutCounts(t *testing.T) (*httptest.Server, *http.Cookie, *ap
 	counters := apistats.New()
 	srv, _, _, _ := newTestServerWithSettingsStore(t, func(settingspkg.Credentials) []dashboard.Source { return nil },
 		false, 0, func(d *api.Deps) { d.APIStats = counters })
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	return srv, cookie, counters
 }

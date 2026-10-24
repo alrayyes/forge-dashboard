@@ -119,7 +119,7 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 	testSrv := httptest.NewServer(mux)
 	t.Cleanup(testSrv.Close)
 
-	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv, testUser, testDisplay)
+	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv)
 
 	body := `{"githubToken":"placeholder-token","forgejoUrl":"https://git.example","forgejoToken":"placeholder-token"}`
 	putReq, err := http.NewRequest(http.MethodPut, testSrv.URL+"/api/settings", strings.NewReader(body))

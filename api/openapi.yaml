@@ -126,15 +126,11 @@ paths:
       description: |
         An instance has one user. The first registration on a fresh
         instance (see GET /api/auth/registration-status) creates that
-        user. Once any account holds a passkey, this answers 403 whatever
-        username it carries.
+        user and the server names it, so the request carries no body. The
+        options require a resident key, so the passkey can be found at
+        sign-in without being named. Once any account holds a passkey, this
+        answers 403.
       tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterBeginRequest"
       responses:
         "200":
           description: |
@@ -158,12 +154,6 @@ paths:
       x-mcp-excluded: "The second half of the WebAuthn registration ceremony."
       summary: Complete a passkey registration ceremony
       tags: [auth]
-      parameters:
-        - name: username
-          in: query
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         description: |
@@ -201,13 +191,12 @@ paths:
       operationId: beginLogin
       x-mcp-excluded: "A WebAuthn ceremony that needs a browser authenticator."
       summary: Start a passkey login ceremony
+      description: |
+        An instance has one user, so there is nothing to name and the request
+        carries no body. The options name no passkey and no user, so the
+        browser offers whichever discoverable passkey it holds for the site
+        and nothing about the account is revealed to a visitor.
       tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginBeginRequest"
       responses:
         "200":
           description: |
@@ -218,7 +207,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/WebAuthnCeremonyOptions"
         "404":
-          description: No account is registered under that username.
+          description: Nobody has registered a passkey on this instance yet.
           content:
             application/json:
               schema:
@@ -230,12 +219,6 @@ paths:
       x-mcp-excluded: "The second half of the WebAuthn login ceremony."
       summary: Complete a passkey login ceremony
       tags: [auth]
-      parameters:
-        - name: username
-          in: query
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         description: |
@@ -323,7 +306,8 @@ paths:
         The authenticated counterpart to POST /api/auth/register/begin —
         that one only ever works for a brand-new, credential-less
         account; this is how an already-registered user adds a second
-        (or third...) passkey, e.g. a laptop and a security key.
+        (or third...) passkey, e.g. a laptop and a security key. Like the
+        first registration it requires a resident key.
       tags: [auth]
       security: [{ bearerAuth: [] }]
       responses:
@@ -3877,24 +3861,6 @@ components:
             How long a visible tab may go without input before it reports
             `visible: false`. 0 means the server's idle mode is off and the
             page never needs to.
-    RegisterBeginRequest:
-      type: object
-      required: [username, displayName]
-      properties:
-        username:
-          type: string
-          maxLength: 64
-          description: |
-            Surrounding whitespace is trimmed by the server, and what is
-            left must not be empty. Clients may check the same pattern for
-            quick feedback; the server decides.
-          pattern: "\\S"
-          examples: [ryan]
-        displayName:
-          type: string
-          maxLength: 100
-          examples: [Ryan]
-
     RegistrationStatus:
       type: object
       required: [open]
@@ -3902,20 +3868,6 @@ components:
         open:
           type: boolean
           description: True only when the instance has zero registered users.
-
-    LoginBeginRequest:
-      type: object
-      required: [username]
-      properties:
-        username:
-          type: string
-          maxLength: 64
-          description: |
-            Surrounding whitespace is trimmed by the server, and what is
-            left must not be empty. Clients may check the same pattern for
-            quick feedback; the server decides.
-          pattern: "\\S"
-          examples: [ryan]
 
     WebAuthnCeremonyOptions:
       type: object

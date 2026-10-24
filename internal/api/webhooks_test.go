@@ -225,7 +225,7 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 	testSrv := httptest.NewServer(mux)
 	t.Cleanup(testSrv.Close)
 
-	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv, testUser, testDisplay)
+	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv)
 
 	putReq, err := http.NewRequest(http.MethodPut, testSrv.URL+"/api/settings", strings.NewReader(`{"githubToken":"placeholder-token"}`))
 	require.NoError(t, err)

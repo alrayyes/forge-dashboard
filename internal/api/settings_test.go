@@ -51,7 +51,7 @@ func TestSettingsGet_NothingSavedYet_ReturnsAllUnset(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -68,7 +68,7 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
 		`{"githubToken":"ghp_secret","githubUsername":"ryan","forgejoUrl":"https://git.example.com","forgejoToken":"fj_secret","forgejoUsername":"ryan"}`,
@@ -96,7 +96,7 @@ func TestThemeGet_NothingSavedYet_ReturnsEmptyMeaningSystem(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -113,7 +113,7 @@ func TestThemeGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *t
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -137,7 +137,7 @@ func TestSettingsPut_DoesNotAcceptOrDisturbTheme(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
 
@@ -154,7 +154,7 @@ func TestThemePut_ThenGet_RoundTrips(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
@@ -176,7 +176,7 @@ func TestThemePut_EmptyString_MeansSystemAndIsAccepted(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
 
@@ -193,7 +193,7 @@ func TestThemePut_InvalidValue_Rejected(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"purple"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -205,7 +205,7 @@ func TestThemePut_DoesNotDisturbOtherSettings(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings",
 		`{"githubUsername":"ryan","renovateRebaseLabel":"retry"}`,
@@ -229,7 +229,7 @@ func TestSettingsPut_ThenGet_RoundTripsRenovateRebaseLabel(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
 		`{"renovateRebaseLabel":"retry"}`,
@@ -249,7 +249,7 @@ func TestSettingsPut_ThenGet_RoundTripsRenovateAuthors(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
 		`{"renovateAuthors":["mend-bot"," other "]}`,
@@ -269,7 +269,7 @@ func TestSettingsPut_RejectsAMalformedRenovateAuthorList(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	for name, body := range map[string]string{
 		"a comma inside a login": `{"renovateAuthors":["a,b"]}`,
@@ -285,7 +285,7 @@ func TestSettingsGet_RenovateAuthorsDefaultToAnEmptyList(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
@@ -300,7 +300,7 @@ func TestSettingsGet_FirstVisit_GeneratesWebhookCredentials(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -317,7 +317,7 @@ func TestSettingsGet_SecondVisit_ReturnsTheSameWebhookCredentials(t *testing.T) 
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	first := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
 	var firstGot api.SettingsResponse
@@ -337,7 +337,7 @@ func TestSettingsPut_DoesNotDisturbAlreadyGeneratedWebhookCredentials(t *testing
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
 	var before api.SettingsResponse
@@ -406,7 +406,7 @@ func TestSettingsGet_ReportsGitHubAppConfigured_WhenServerHasNoneConfigured(t *t
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -420,7 +420,7 @@ func TestSettingsGet_ReportsGitHubAppConfigured_WhenServerHasOneConfigured(t *te
 	t.Parallel()
 
 	srv := newTestServerWithGitHubAppConfigured(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -434,7 +434,7 @@ func TestSettingsPut_GitHubAppInstallationIdWithoutServerAppConfigured_Rejected(
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -446,7 +446,7 @@ func TestSettingsPut_GitHubAppInstallationIdWithServerAppConfigured_Accepted(t *
 	t.Parallel()
 
 	srv := newTestServerWithGitHubAppConfigured(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -458,7 +458,7 @@ func TestSettingsPut_GitHubAppInstallationIdWithServerAppConfigured_RoundTrips(t
 	t.Parallel()
 
 	srv := newTestServerWithGitHubAppConfigured(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
 	_ = putResp.Body.Close()
@@ -476,7 +476,7 @@ func TestSettingsPut_NegativeGitHubAppInstallationId_Rejected(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServerWithGitHubAppConfigured(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":-1}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -488,7 +488,7 @@ func TestSettingsPut_ForgejoTokenWithoutURL_Rejected(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoToken":"fj_secret"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -500,7 +500,7 @@ func TestSettingsPut_ForgejoUsernameWithoutURL_Rejected(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUsername":"ryan"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -512,7 +512,7 @@ func TestSettingsPut_ForgejoURLAlongsideTokenOrUsername_Accepted(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
 		`{"forgejoUrl":"https://git.example.com","forgejoUsername":"ryan"}`, sessionCookie)
@@ -525,7 +525,7 @@ func TestSettingsPut_ClearingForgejoURLWhileATokenIsAlreadySaved_Rejected(t *tes
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	first := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
 		`{"forgejoUrl":"https://git.example.com","forgejoToken":"fj_secret"}`, sessionCookie)
@@ -546,7 +546,7 @@ func TestSettingsPut_BlankTokenField_KeepsThePreviouslySavedToken(t *testing.T) 
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	first := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"ghp_original","githubUsername":"ryan"}`, sessionCookie)
 	_ = first.Body.Close()
@@ -586,7 +586,7 @@ func TestSettingsPut_Rejections_NameTheField(t *testing.T) {
 			t.Parallel()
 
 			srv := newTestServer(t)
-			sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+			sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 			resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", tc.body, sessionCookie)
 			defer func() { _ = resp.Body.Close() }()
@@ -606,7 +606,7 @@ func TestSettingsPut_WrongTypeMessageIsPlainWords(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":"abc"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
@@ -644,7 +644,7 @@ func TestSettingsPut_ThenGet_RoundTripsTheIssueHidingSettings(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["^Weekly report","(?i)stale"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
@@ -658,7 +658,7 @@ func TestSettingsPut_OmittedIssueHidingSettingsClearThem(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"hideDependencyDashboard":true,"ignoredTitles":["x"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 
@@ -675,7 +675,7 @@ func TestSettingsPut_IgnoredTitles_AreTrimmedAndBlanksAndRepeatsDropped(t *testi
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":["  ^Weekly  ","","   ","^weekly","Other"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
@@ -687,7 +687,7 @@ func TestSettingsPut_IgnoredTitles_RejectsABadListNamingTheEntry(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	twentyOne := `"1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21"`
 
 	for name, c := range map[string]struct{ body, message string }{
@@ -722,7 +722,7 @@ func TestSettingsPut_IgnoredTitles_ExactlyTheLimitsAreAccepted(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	var entries []string
 	for i := range 20 {
 		entries = append(entries, `"`+strings.Repeat("a", 190)+strconv.Itoa(i+10)+`"`)
@@ -737,7 +737,7 @@ func TestSettingsPut_AnInvalidPatternSavesNothing(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"githubUsername":"ryan","hideDependencyDashboard":true,"ignoredTitles":["keep"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 

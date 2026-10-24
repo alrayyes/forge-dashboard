@@ -12,7 +12,13 @@ crawling on purpose: a crawler that can't fetch a page never reads its
 `noindex`. The real barrier is the passkey login below.
 
 The first visit registers a passkey and becomes the instance's only user —
-no password anywhere, and no separate account system. `POST
+no password anywhere, and no separate account system. Neither registering nor
+signing in asks for a username: the server names the account, and the sign-in
+button starts the passkey prompt straight away. The sign-in names no passkey,
+so the browser offers whichever one it has saved for the site, and every new
+passkey is registered as a discoverable one (a resident key) for that reason.
+A passkey from a password manager or a phone is already discoverable, and one
+registered back when a username was asked for keeps working. `POST
 /api/auth/register/begin` and `.../finish` run the WebAuthn registration
 ceremony, `.../login/begin`/`.../finish` run the login ceremony, and a
 signed session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` whenever the
@@ -27,6 +33,13 @@ request arrived over HTTPS) is what actually gates `/` and
   `registration is closed` if so. The login page only shows the registration
   button on an instance with no users. More passkeys for the same account are
   added from Settings, signed in.
+- **A security key may hold a passkey that sign-in can't use.** Registered
+  before sign-in dropped the username, a key such as a YubiKey stored a
+  credential that isn't discoverable, which the browser can't offer without
+  being told its ID. Sign in on a device with a saved passkey, then add the
+  key again from Settings: it is now registered as a discoverable passkey.
+  If the old key was the only passkey, no device offers one, and the way back
+  in is `forge-dashboard reset-passkeys` below.
 - **Losing every passkey is fixed from the host, not the browser.** There's
   no email or SMS channel here to build a self-service recovery flow on, so
   the operator runs `forge-dashboard reset-passkeys`, which clears the

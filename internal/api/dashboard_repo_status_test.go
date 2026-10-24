@@ -143,7 +143,7 @@ func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {
 	}
 
 	srv := newTestServerWithSources(t, buildSources)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)

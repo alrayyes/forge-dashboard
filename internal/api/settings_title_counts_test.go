@@ -45,7 +45,7 @@ func countsServer(t *testing.T, byToken map[string][]dashboard.Issue) *httptest.
 func signInWithBoard(t *testing.T, srv *httptest.Server, want int) *http.Cookie {
 	t.Helper()
 
-	cookie, _, _ := registerViaRealCeremony(t, srv, "ryan", "ryan")
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`"}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool {
@@ -147,7 +147,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullUntilTheFirstRefreshFinishes(t *t
 
 		return []dashboard.Source{src}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, put := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly","stale"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 
@@ -162,7 +162,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullUntilTheFirstRefreshFinishes(t *t
 func TestSettingsGet_IgnoredTitleCounts_AreNullWithNoSnapshotAndEmptyWithNoPatterns(t *testing.T) {
 	t.Parallel()
 	srv, service, _ := newTestServerWithSourcesAndService(t, func(settingspkg.Credentials) []dashboard.Source { return nil })
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	status, _ := putSettings(t, srv.URL, `{"ignoredTitles":["weekly"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
@@ -202,7 +202,7 @@ func TestSettingsGet_IgnoredTitleCounts_AreNullWhenTheOnlyForgeIsUnreachable(t *
 
 		return []dashboard.Source{&fakeConfiguredSource{health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, Error: "down"}}}
 	})
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 	require.Eventually(t, func() bool {

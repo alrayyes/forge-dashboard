@@ -28,7 +28,7 @@ func TestDashboardRefresh_NoBackgroundRefreshYet_Returns404(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/dashboard/refresh", nil)
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	}
 
 	srv, service, _ := newTestServerWithSourcesAndService(t, buildSources)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) 
 	// Long enough that a loaded CPU can't push the second call past it.
 	const cooldown = time.Minute
 	service.SetForceRefreshCooldown(cooldown)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)

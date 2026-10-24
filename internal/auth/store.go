@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/singleuser"
@@ -32,12 +33,24 @@ var ErrNotFound = errors.New("auth: not found")
 // first passkey to land is theirs.
 var ErrRegistrationClosed = errors.New("auth: registration is closed")
 
+// errUsernameTaken is what creating the owner's row answers when another
+// request created it first.
+var errUsernameTaken = errors.New("auth: username taken")
+
+// maxPendingCeremonies bounds the unfinished ceremonies kept per kind. Anyone
+// can begin one, so the table can't be allowed to grow with the traffic.
+const maxPendingCeremonies = 100
+
 // Store persists users, their passkey credentials, in-flight WebAuthn
 // ceremonies, and sessions. It owns no driver of its own — cmd wires up
 // whichever database/sql driver is registered (modernc.org/sqlite) and
 // hands Store a plain *sql.DB.
 type Store struct {
 	db *sql.DB
+
+	// registrationMu serialises claiming the owner's row and writing the first
+	// passkey, the two read-then-write steps of a registration.
+	registrationMu sync.Mutex
 }
 
 // NewStore wraps db. Init must be called once before any other method.
@@ -207,11 +220,34 @@ func (s *Store) CreateUser(ctx context.Context, username, displayName string) (*
 // it and it goes; a newer one may still be mid-ceremony and stays. Without a
 // passkey-less row a new one is created.
 func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName string, olderThan time.Time) (*User, error) {
+	// Registrations that begin together take turns, so the second finds the
+	// row the first created and shares it instead of racing it for the name.
+	s.registrationMu.Lock()
+	defer s.registrationMu.Unlock()
+
+	u, err := s.claimOrCreate(ctx, username, displayName, olderThan)
+	if errors.Is(err, errUsernameTaken) {
+		// No passkey-less row exists, yet the name is held: a registered owner
+		// has it, so the registration is closed.
+		return nil, ErrRegistrationClosed
+	}
+
+	return u, err
+}
+
+func (s *Store) claimOrCreate(ctx context.Context, username, displayName string, olderThan time.Time) (*User, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("auth: begin claim: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	// Take the write lock before reading. A transaction that reads first holds a
+	// snapshot, and a ceremony saved since makes its upgrade to a write fail
+	// at once with SQLITE_BUSY, which the busy timeout doesn't retry.
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET id = id WHERE 0`); err != nil {
+		return nil, fmt.Errorf("auth: lock for claim: %w", err)
+	}
 
 	var id string
 	err = tx.QueryRowContext(ctx,
@@ -222,15 +258,17 @@ func (s *Store) ClaimUnregisteredUser(ctx context.Context, username, displayName
 			return nil, fmt.Errorf("auth: commit claim: %w", err)
 		}
 
-		return s.CreateUser(ctx, username, displayName)
+		u, err := s.CreateUser(ctx, username, displayName)
+		if err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil, errUsernameTaken
+		}
+
+		return u, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("auth: find the unregistered user: %w", err)
 	}
 	const abandoned = `FROM users WHERE credentials_json = '[]' AND id != ? AND created_at < ?`
-	if _, err := tx.ExecContext(ctx, `DELETE FROM ceremonies WHERE username IN (SELECT username `+abandoned+`)`, id, olderThan.UTC()); err != nil {
-		return nil, fmt.Errorf("auth: drop abandoned registrations' ceremonies: %w", err)
-	}
 	if _, err := tx.ExecContext(ctx, `DELETE `+abandoned, id, olderThan.UTC()); err != nil {
 		return nil, fmt.Errorf("auth: drop abandoned registrations: %w", err)
 	}
@@ -424,11 +462,14 @@ func (s *Store) AddCredential(ctx context.Context, cred webauthn.Credential) err
 // while no other user holds a passkey, decided by the same statement that
 // writes it, so two ceremonies finishing together cannot both succeed. The
 // loser gets ErrRegistrationClosed and its pending user row is removed.
-func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, username string, cred webauthn.Credential) error {
+func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, cred webauthn.Credential) error {
 	credsJSON, err := json.Marshal([]webauthn.Credential{cred})
 	if err != nil {
 		return fmt.Errorf("auth: encode credentials: %w", err)
 	}
+
+	s.registrationMu.Lock()
+	defer s.registrationMu.Unlock()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -443,17 +484,14 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, username 
 	// below matches nothing and the registration is refused.
 	const abandoned = `FROM users WHERE id != ? AND credentials_json = '[]'
 		  AND EXISTS (SELECT 1 FROM users WHERE id = ? AND credentials_json = '[]')`
-	if _, err := tx.ExecContext(ctx, `DELETE FROM ceremonies WHERE username IN (SELECT username `+abandoned+`)`, id, id); err != nil {
-		return fmt.Errorf("auth: clear abandoned registrations' ceremonies: %w", err)
-	}
 	if _, err := tx.ExecContext(ctx, `DELETE `+abandoned, id, id); err != nil {
 		return fmt.Errorf("auth: clear abandoned registrations: %w", err)
 	}
 	res, err := tx.ExecContext(ctx, `
-		UPDATE users SET credentials_json = ?, username = ?
+		UPDATE users SET credentials_json = ?
 		WHERE id = ? AND credentials_json = '[]'
 		  AND NOT EXISTS (SELECT 1 FROM users WHERE id != ? AND credentials_json != '[]')`,
-		string(credsJSON), username, id, id,
+		string(credsJSON), id, id,
 	)
 	if err != nil {
 		return fmt.Errorf("auth: save first credential: %w", err)
@@ -473,7 +511,11 @@ func (s *Store) AddFirstCredential(ctx context.Context, userID []byte, username 
 		return ErrRegistrationClosed
 	}
 
-	if err := singleuser.WriteMarker(ctx, tx, username, 0); err != nil {
+	var kept string
+	if err := tx.QueryRowContext(ctx, `SELECT username FROM users WHERE id = ?`, id).Scan(&kept); err != nil {
+		return fmt.Errorf("auth: read the first registered user: %w", err)
+	}
+	if err := singleuser.WriteMarker(ctx, tx, kept, 0); err != nil {
 		return fmt.Errorf("auth: record the first registration: %w", err)
 	}
 
@@ -651,13 +693,27 @@ func (s *Store) RemoveCredential(ctx context.Context, credID string) error {
 	return nil
 }
 
-// SaveCeremony records the in-flight WebAuthn session data for username's
-// registration or login attempt, replacing any earlier one of the same
-// kind — a user can only ever be partway through one ceremony at a time.
+// SaveCeremony records the in-flight WebAuthn session data under key, which
+// the registration and login ceremonies set to their challenge: random, so one
+// visitor's ceremony can't name or replace another's. (BeginAddCredential keys
+// by username; the caller is signed in.) The pending ceremonies of a kind are
+// bounded, expired ones are dropped, and the parameter keeps its old column's
+// name, username, in the table.
 func (s *Store) SaveCeremony(ctx context.Context, username, kind string, session webauthn.SessionData, ttl time.Duration) error {
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("auth: encode ceremony session: %w", err)
+	}
+	// Expired ones can never finish, and past the bound the oldest goes first.
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM ceremonies WHERE expires_at < ?`, time.Now().UTC()); err != nil {
+		return fmt.Errorf("auth: prune expired ceremonies: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx,
+		`DELETE FROM ceremonies WHERE kind = ? AND rowid IN (
+			SELECT rowid FROM ceremonies WHERE kind = ? ORDER BY expires_at DESC LIMIT -1 OFFSET ?)`,
+		kind, kind, maxPendingCeremonies-1,
+	); err != nil {
+		return fmt.Errorf("auth: bound pending ceremonies: %w", err)
 	}
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO ceremonies (username, kind, session_json, expires_at) VALUES (?, ?, ?, ?)

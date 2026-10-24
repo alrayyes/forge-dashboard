@@ -47,7 +47,7 @@ func TestRequestSchemas_EveryFieldCarriesABound(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range []string{
-		"RegisterBeginRequest", "LoginBeginRequest", "SettingsRequest", "ThemeRequest",
+		"SettingsRequest", "ThemeRequest",
 		"TimezoneRequest", "APITokenCreateRequest", "WebhookEnsureRequest",
 		"RepoIgnoreRequest", "PullRequestActionRequest",
 		"PullRequestDependabotActionRequest",
@@ -84,7 +84,7 @@ func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	over := func(schema, property string) string {
 		return strings.Repeat("a", maxLength(t, schema, property)+1)
@@ -95,23 +95,20 @@ func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 		method, path, body, field string
 		signedIn                  bool
 	}{
-		"register username":     {http.MethodPost, "/api/auth/register/begin", `{"username":"` + over("RegisterBeginRequest", "username") + `","displayName":"x"}`, "username", false},
-		"register display name": {http.MethodPost, "/api/auth/register/begin", `{"username":"x","displayName":"` + over("RegisterBeginRequest", "displayName") + `"}`, "displayName", false},
-		"login username":        {http.MethodPost, "/api/auth/login/begin", `{"username":"` + over("LoginBeginRequest", "username") + `"}`, "username", false},
-		"github token":          {http.MethodPut, "/api/settings", `{"githubToken":"` + over("SettingsRequest", "githubToken") + `"}`, "githubToken", true},
-		"github username":       {http.MethodPut, "/api/settings", `{"githubUsername":"` + over("SettingsRequest", "githubUsername") + `"}`, "githubUsername", true},
-		"forgejo url":           {http.MethodPut, "/api/settings", `{"forgejoUrl":"` + over("SettingsRequest", "forgejoUrl") + `"}`, "forgejoUrl", true},
-		"forgejo token":         {http.MethodPut, "/api/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"` + over("SettingsRequest", "forgejoToken") + `"}`, "forgejoToken", true},
-		"forgejo username":      {http.MethodPut, "/api/settings", `{"forgejoUrl":"https://f.example","forgejoUsername":"` + over("SettingsRequest", "forgejoUsername") + `"}`, "forgejoUsername", true},
-		"rebase label":          {http.MethodPut, "/api/settings", `{"renovateRebaseLabel":"` + over("SettingsRequest", "renovateRebaseLabel") + `"}`, "renovateRebaseLabel", true},
-		"timezone":              {http.MethodPut, "/api/settings/timezone", `{"timezone":"` + over("TimezoneRequest", "timezone") + `"}`, "timezone", true},
-		"api token label":       {http.MethodPost, "/api/tokens", `{"label":"` + over("APITokenCreateRequest", "label") + `","expiresAt":"2999-01-01T00:00:00Z"}`, "label", true},
-		"webhook repo":          {http.MethodPost, "/api/webhooks/ensure", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
-		"ignore repo":           {http.MethodPost, "/api/repos/ignore", `{"forge":"github","fullName":"` + repo() + `/x","prs":true,"issues":false}`, "fullName", true},
-		"unignore repo":         {http.MethodPost, "/api/repos/unignore", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
-		"auto update repo":      {http.MethodPost, "/api/repos/auto-update-branch/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
-		"merge repo":            {http.MethodPost, "/api/pull-requests/merge", `{"forge":"github","fullName":"` + repo() + `/x","number":1}`, "fullName", true},
-		"dependabot repo":       {http.MethodPost, "/api/pull-requests/dependabot-action", `{"forge":"github","fullName":"` + repo() + `/x","number":1,"action":"rebase"}`, "fullName", true},
+		"github token":     {http.MethodPut, "/api/settings", `{"githubToken":"` + over("SettingsRequest", "githubToken") + `"}`, "githubToken", true},
+		"github username":  {http.MethodPut, "/api/settings", `{"githubUsername":"` + over("SettingsRequest", "githubUsername") + `"}`, "githubUsername", true},
+		"forgejo url":      {http.MethodPut, "/api/settings", `{"forgejoUrl":"` + over("SettingsRequest", "forgejoUrl") + `"}`, "forgejoUrl", true},
+		"forgejo token":    {http.MethodPut, "/api/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"` + over("SettingsRequest", "forgejoToken") + `"}`, "forgejoToken", true},
+		"forgejo username": {http.MethodPut, "/api/settings", `{"forgejoUrl":"https://f.example","forgejoUsername":"` + over("SettingsRequest", "forgejoUsername") + `"}`, "forgejoUsername", true},
+		"rebase label":     {http.MethodPut, "/api/settings", `{"renovateRebaseLabel":"` + over("SettingsRequest", "renovateRebaseLabel") + `"}`, "renovateRebaseLabel", true},
+		"timezone":         {http.MethodPut, "/api/settings/timezone", `{"timezone":"` + over("TimezoneRequest", "timezone") + `"}`, "timezone", true},
+		"api token label":  {http.MethodPost, "/api/tokens", `{"label":"` + over("APITokenCreateRequest", "label") + `","expiresAt":"2999-01-01T00:00:00Z"}`, "label", true},
+		"webhook repo":     {http.MethodPost, "/api/webhooks/ensure", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"ignore repo":      {http.MethodPost, "/api/repos/ignore", `{"forge":"github","fullName":"` + repo() + `/x","prs":true,"issues":false}`, "fullName", true},
+		"unignore repo":    {http.MethodPost, "/api/repos/unignore", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"auto update repo": {http.MethodPost, "/api/repos/auto-update-branch/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"merge repo":       {http.MethodPost, "/api/pull-requests/merge", `{"forge":"github","fullName":"` + repo() + `/x","number":1}`, "fullName", true},
+		"dependabot repo":  {http.MethodPost, "/api/pull-requests/dependabot-action", `{"forge":"github","fullName":"` + repo() + `/x","number":1,"action":"rebase"}`, "fullName", true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -136,7 +133,7 @@ func TestRequestFields_ANumberOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testAdmin, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	installation := requestSchema(t, "SettingsRequest").Properties["githubAppInstallationId"].Value
 	require.NotNil(t, installation.Max)
@@ -150,19 +147,6 @@ func TestRequestFields_ANumberOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 	overNumber := doJSON(t, http.MethodPost, srv.URL+"/api/pull-requests/merge", `{"forge":"github","fullName":"o/r","number":`+formatBound(*number.Max+1)+`}`, cookie)
 	defer func() { _ = overNumber.Body.Close() }()
 	overField(t, overNumber, "number")
-}
-
-func TestRequestFields_AStringAtItsBoundIsStillAccepted(t *testing.T) {
-	t.Parallel()
-
-	srv := newTestServer(t)
-
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json",
-		strings.NewReader(`{"username":"`+strings.Repeat("a", maxLength(t, "RegisterBeginRequest", "username"))+`","displayName":"x"}`))
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 // formatBound writes a spec bound as a JSON integer.

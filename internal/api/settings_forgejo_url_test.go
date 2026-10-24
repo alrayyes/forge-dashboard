@@ -12,7 +12,7 @@ func TestSettingsPut_ForgejoURL_RefusesCredentialsAndOddURLsNamingTheField(t *te
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	//nolint:gosec // the passwords here are the fixtures under test
 	for name, url := range map[string]string{
@@ -46,7 +46,7 @@ func TestSettingsPut_ForgejoURL_RefusedURLStoresNothing(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"forgejoUrl":"https://git.example.com"}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 
@@ -60,7 +60,7 @@ func TestSettingsPut_ForgejoURL_AcceptsPlainAndPathPrefixedURLs(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	for _, url := range []string{
 		"", "https://git.example.com", "https://git.example.com/", "https://git.example.com/base/path",

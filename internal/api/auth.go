@@ -1,10 +1,8 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 )
@@ -19,28 +17,9 @@ func sessionUserOf(u *auth.User) SessionUser {
 	return SessionUser{Username: u.Username, DisplayName: u.DisplayName}
 }
 
-type registerBeginRequest struct {
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-}
-
 func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req registerBeginRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		req.Username = strings.TrimSpace(req.Username)
-		if err == nil && overBound(w,
-			bound{"username", req.Username, maxUsernameLen},
-			bound{"displayName", req.DisplayName, maxDisplayNameLen}) {
-			return
-		}
-		if err != nil || req.Username == "" || req.DisplayName == "" {
-			writeJSON(w, http.StatusBadRequest, errorBody("username and displayName are required"))
-
-			return
-		}
-
-		creation, err := svc.BeginRegistration(r.Context(), req.Username, req.DisplayName)
+		creation, err := svc.BeginRegistration(r.Context())
 		if err != nil {
 			if errors.Is(err, auth.ErrRegistrationClosed) {
 				writeJSON(w, http.StatusForbidden, errorBody("registration is closed"))
@@ -80,14 +59,7 @@ func handleRegistrationStatus(svc *auth.Service) http.HandlerFunc {
 
 func handleRegisterFinish(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		username := strings.TrimSpace(r.URL.Query().Get("username"))
-		if username == "" {
-			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
-
-			return
-		}
-
-		u, err := deps.AuthService.FinishRegistration(r.Context(), username, r)
+		u, err := deps.AuthService.FinishRegistration(r.Context(), r)
 		if err != nil {
 			if errors.Is(err, auth.ErrRegistrationClosed) {
 				writeJSON(w, http.StatusForbidden, errorBody("registration is closed"))
@@ -103,28 +75,12 @@ func handleRegisterFinish(deps Deps) http.HandlerFunc {
 	}
 }
 
-type loginBeginRequest struct {
-	Username string `json:"username"`
-}
-
 func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req loginBeginRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		req.Username = strings.TrimSpace(req.Username)
-		if err == nil && overBound(w, bound{"username", req.Username, maxUsernameLen}) {
-			return
-		}
-		if err != nil || req.Username == "" {
-			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
-
-			return
-		}
-
-		assertion, err := svc.BeginLogin(r.Context(), req.Username)
+		assertion, err := svc.BeginLogin(r.Context())
 		if err != nil {
 			if errors.Is(err, auth.ErrNotFound) {
-				writeJSON(w, http.StatusNotFound, errorBody("no account registered under that username"))
+				writeJSON(w, http.StatusNotFound, errorBody("no passkey is registered yet"))
 
 				return
 			}
@@ -138,14 +94,7 @@ func handleLoginBegin(svc *auth.Service) http.HandlerFunc {
 
 func handleLoginFinish(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		username := strings.TrimSpace(r.URL.Query().Get("username"))
-		if username == "" {
-			writeJSON(w, http.StatusBadRequest, errorBody("username is required"))
-
-			return
-		}
-
-		u, err := deps.AuthService.FinishLogin(r.Context(), username, r)
+		u, err := deps.AuthService.FinishLogin(r.Context(), r)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("login failed"))
 

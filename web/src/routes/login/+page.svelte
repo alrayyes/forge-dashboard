@@ -7,6 +7,7 @@
     prepareRequestOptions,
   } from "#lib/webauthn.js";
   import Footer from "#lib/Footer.svelte";
+  import { ApiError, loginFailure } from "#lib/login-flow.js";
 
   let mode = $state<"login" | "register">("login");
 
@@ -36,11 +37,7 @@
       });
   });
 
-  let loginUsername = $state("");
   let loginSubmitting = $state(false);
-
-  let registerUsername = $state("");
-  let registerDisplayName = $state("");
   let registerSubmitting = $state(false);
 
   let status = $state("");
@@ -57,36 +54,34 @@
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok)
-      throw new Error(data.error || `request failed (${res.status})`);
+      throw new ApiError(
+        data.error || `request failed (${res.status})`,
+        res.status,
+      );
     return data;
   }
 
   async function submitLogin(e: SubmitEvent) {
     e.preventDefault();
-    const username = loginUsername.trim();
-    if (!username) return;
 
     loginSubmitting = true;
     status = "Waiting for your passkey…";
     statusKind = "";
 
     try {
-      const options = await postJSON("/api/auth/login/begin", { username });
+      const options = await postJSON("/api/auth/login/begin", {});
       const publicKey = prepareRequestOptions(options);
       const assertion = (await navigator.credentials.get({
         publicKey,
       })) as PublicKeyCredential;
       const credentialJSON = assertionCredentialToJSON(assertion);
 
-      const res = await fetch(
-        `/api/auth/login/finish?username=${encodeURIComponent(username)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify(credentialJSON),
-        },
-      );
+      const res = await fetch("/api/auth/login/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(credentialJSON),
+      });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || "sign-in failed");
@@ -96,8 +91,15 @@
       statusKind = "ok";
       window.location.href = "/";
     } catch (err) {
-      status = (err as Error).message || "Sign-in failed.";
-      statusKind = "error";
+      const failure = loginFailure(err, registrationOpen);
+      if (failure.action === "register") {
+        mode = "register";
+        status = failure.message;
+        statusKind = "";
+      } else {
+        status = failure.message;
+        statusKind = "error";
+      }
     } finally {
       loginSubmitting = false;
     }
@@ -105,34 +107,25 @@
 
   async function submitRegister(e: SubmitEvent) {
     e.preventDefault();
-    const username = registerUsername.trim();
-    const displayName = registerDisplayName.trim();
-    if (!username || !displayName) return;
 
     registerSubmitting = true;
     status = "Follow your browser or device prompt to create a passkey…";
     statusKind = "";
 
     try {
-      const options = await postJSON("/api/auth/register/begin", {
-        username,
-        displayName,
-      });
+      const options = await postJSON("/api/auth/register/begin", {});
       const publicKey = prepareCreationOptions(options);
       const credential = (await navigator.credentials.create({
         publicKey,
       })) as PublicKeyCredential;
       const credentialJSON = creationCredentialToJSON(credential);
 
-      const res = await fetch(
-        `/api/auth/register/finish?username=${encodeURIComponent(username)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify(credentialJSON),
-        },
-      );
+      const res = await fetch("/api/auth/register/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(credentialJSON),
+      });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || "registration failed");
@@ -211,29 +204,6 @@
       font-size: 13px;
       color: var(--ink-3);
     }
-    .field {
-      margin-bottom: 14px;
-    }
-    .field label {
-      display: block;
-      font-size: 12px;
-      color: var(--ink-2);
-      margin-bottom: 5px;
-    }
-    .field input {
-      width: 100%;
-      font-family: inherit;
-      font-size: 14px;
-      padding: 9px 11px;
-      border-radius: 8px;
-      border: 1px solid var(--border-strong);
-      background: var(--surface-sunken);
-      color: var(--ink);
-    }
-    .field input:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 1px;
-    }
     .auth-actions {
       display: flex;
       flex-direction: column;
@@ -301,17 +271,6 @@
 
     {#if mode === "login"}
       <form id="login-form" onsubmit={submitLogin}>
-        <div class="field">
-          <label for="login-username">Username</label>
-          <input
-            id="login-username"
-            name="username"
-            autocomplete="username webauthn"
-            required
-            disabled={!passkeysSupported}
-            bind:value={loginUsername}
-          />
-        </div>
         <div class="auth-actions">
           <button
             type="submit"
@@ -333,26 +292,6 @@
       </form>
     {:else}
       <form id="register-form" onsubmit={submitRegister}>
-        <div class="field">
-          <label for="register-username">Username</label>
-          <input
-            id="register-username"
-            name="username"
-            autocomplete="username"
-            required
-            bind:value={registerUsername}
-          />
-        </div>
-        <div class="field">
-          <label for="register-display-name">Display name</label>
-          <input
-            id="register-display-name"
-            name="displayName"
-            autocomplete="name"
-            required
-            bind:value={registerDisplayName}
-          />
-        </div>
         <div class="auth-actions">
           <button
             type="submit"

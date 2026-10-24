@@ -206,39 +206,21 @@ func TestStore_ClaimUnregisteredUser_ADeadEndRowIsReusedAndOthersAreDropped(t *t
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
-func TestStore_ClaimUnregisteredUser_SweepsTheCeremoniesOfEveryUserItDrops(t *testing.T) {
+// Anyone can begin a ceremony, so the pending ones stay bounded: past the cap
+// the oldest goes first.
+func TestStore_SaveCeremony_PastTheCap_DropsTheOldest(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 	session := webauthn.SessionData{Challenge: "c"}
 
-	_, err := store.CreateUser(t.Context(), "owner", "Owner")
-	require.NoError(t, err)
-	_, err = store.CreateUser(t.Context(), "stale", "Stale")
-	require.NoError(t, err)
-	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "registration", session, time.Minute))
+	for i := range 101 {
+		require.NoError(t, store.SaveCeremony(t.Context(), fmt.Sprintf("c%03d", i), "login", session, time.Minute+time.Duration(i)*time.Second))
+	}
 
-	_, err = store.ClaimUnregisteredUser(t.Context(), "owner", "Owner", time.Now().Add(time.Hour))
-	require.NoError(t, err)
-
-	_, err = store.LoadCeremony(t.Context(), "stale", "registration")
-	assert.ErrorIs(t, err, auth.ErrNotFound, "a dropped user's ceremony must not outlive it")
-}
-
-func TestStore_AddFirstCredential_SweepsTheCeremoniesOfTheUsersItClears(t *testing.T) {
-	t.Parallel()
-	store := newTestStore(t)
-	session := webauthn.SessionData{Challenge: "c"}
-
-	winner, err := store.CreateUser(t.Context(), "winner", "Winner")
-	require.NoError(t, err)
-	_, err = store.CreateUser(t.Context(), "stale", "Stale")
-	require.NoError(t, err)
-	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "registration", session, time.Minute))
-
-	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
-
-	_, err = store.LoadCeremony(t.Context(), "stale", "registration")
-	assert.ErrorIs(t, err, auth.ErrNotFound, "a cleared user's ceremony must not outlive it")
+	_, oldest := store.LoadCeremony(t.Context(), "c000", "login")
+	_, newest := store.LoadCeremony(t.Context(), "c100", "login")
+	require.ErrorIs(t, oldest, auth.ErrNotFound)
+	assert.NoError(t, newest)
 }
 
 func TestStore_ClaimUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
@@ -263,7 +245,7 @@ func TestStore_AddFirstCredential_NobodyRegisteredYet_AttachesThePasskey(t *test
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
 
-	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, "ryan", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
 	got, err := store.Owner(t.Context())
 	require.NoError(t, err)
@@ -277,9 +259,9 @@ func TestStore_AddFirstCredential_AnotherUserHoldsAPasskey_ReturnsErrRegistratio
 	require.NoError(t, err)
 	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
-	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	err = store.AddFirstCredential(t.Context(), loser.ID, "loser", webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+	err = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
 
 	assert.ErrorIs(t, err, auth.ErrRegistrationClosed)
 }
@@ -291,27 +273,25 @@ func TestStore_AddFirstCredential_Refused_RemovesThePendingUser(t *testing.T) {
 	require.NoError(t, err)
 	loser, err := store.CreateUser(t.Context(), "loser", "Loser")
 	require.NoError(t, err)
-	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, "winner", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), winner.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	_ = store.AddFirstCredential(t.Context(), loser.ID, "loser", webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+	_ = store.AddFirstCredential(t.Context(), loser.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
 
 	_, err = store.GetUserByUsername(t.Context(), "loser")
 	assert.ErrorIs(t, err, auth.ErrNotFound)
 }
 
-func TestStore_AddFirstCredential_TakesTheUsernameOfTheFinishingCeremony(t *testing.T) {
+func TestStore_AddFirstCredential_KeepsTheRowsUsername(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 	u, err := store.CreateUser(t.Context(), "ryan", "Ryan")
 	require.NoError(t, err)
-	_, err = store.CreateUser(t.Context(), "stray", "Stray")
-	require.NoError(t, err)
 
-	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, "stray", webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	require.NoError(t, store.AddFirstCredential(t.Context(), u.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
 
-	got, err := store.GetUserByUsername(t.Context(), "stray")
+	got, err := store.GetUserByUsername(t.Context(), "ryan")
 	require.NoError(t, err)
-	assert.Equal(t, u.ID, got.ID, "the winner's row takes its username, even one an abandoned attempt held")
+	assert.Equal(t, u.ID, got.ID, "a registration after a passkey reset must not rename the kept row")
 }
 
 func TestStore_HasAnyRegisteredUser_NoUsersYet_ReportsFalse(t *testing.T) {
@@ -827,4 +807,22 @@ func TestStore_Init_DoesNotAttemptToDropAColumnThatIsGone(t *testing.T) {
 	for _, q := range seen {
 		assert.NotContains(t, q, "DROP COLUMN", "a second start has nothing to drop")
 	}
+}
+
+// A pending row made after someone already registered, which no flow does today
+// but a restored backup or a hand-edited database could leave, still can't take
+// a second passkey: the first-wins check is the statement's own condition, not
+// only the cleanup of other pending rows.
+func TestStore_AddFirstCredential_PendingRowCreatedAfterAnotherRegistered_ReturnsErrRegistrationClosed(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	first, err := store.CreateUser(t.Context(), "first", "First")
+	require.NoError(t, err)
+	require.NoError(t, store.AddFirstCredential(t.Context(), first.ID, webauthn.Credential{ID: []byte("cred-1"), PublicKey: []byte("pk")}))
+	late, err := store.CreateUser(t.Context(), "late", "Late")
+	require.NoError(t, err)
+
+	err = store.AddFirstCredential(t.Context(), late.ID, webauthn.Credential{ID: []byte("cred-2"), PublicKey: []byte("pk")})
+
+	assert.ErrorIs(t, err, auth.ErrRegistrationClosed)
 }

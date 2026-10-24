@@ -42,7 +42,7 @@ func TestMCP_GetSettings_ListsTheTool(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, cookie))
 
 	list, err := session.ListTools(t.Context(), nil)
@@ -67,7 +67,7 @@ func TestMCP_GetSettings_NeverReturnsAnySecret(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 	creds := getSettings(t, srv.URL, cookie) // creates the webhook credentials
@@ -100,7 +100,7 @@ func TestMCP_GetSettings_HasTheHTTPFieldsMinusTheWebhookSecrets(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 
@@ -119,7 +119,7 @@ func TestMCP_GetSettings_ReadsWithoutCreatingWebhookCredentials(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	assert.Equal(t, false, settingsContent(t, callSettingsTool(t, srv.URL, cookie))["webhookConfigured"])
 	assert.Equal(t, false, settingsContent(t, callSettingsTool(t, srv.URL, cookie))["webhookConfigured"],
@@ -133,7 +133,7 @@ func TestMCP_GetSettings_EmptySettingsAreListsNotNull(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	content := settingsContent(t, callSettingsTool(t, srv.URL, cookie))
 	assert.Equal(t, []any{}, content["ignoredTitles"])
@@ -146,7 +146,7 @@ func TestMCP_GetSettings_ValidatesAgainstItsOutputSchema(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 	session := connectMCP(t, srv.URL, createAPIToken(t, srv.URL, cookie))
@@ -201,7 +201,7 @@ func TestMCP_GetSettings_IgnoredTitleCountsAreNullWhileUnknown(t *testing.T) {
 		return []dashboard.Source{&gatedSource{release: release, issues: []dashboard.Issue{countIssue(1, "a/x", "Weekly")}}}
 	})
 	t.Cleanup(func() { close(release) })
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, `{"githubToken":"`+countsToken+`","ignoredTitles":["weekly"]}`, cookie)
 	require.Equal(t, http.StatusOK, status)
 

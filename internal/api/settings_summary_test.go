@@ -32,7 +32,7 @@ func TestSettingsSummary_ReadCreatesNoWebhookCredentials(t *testing.T) {
 	t.Parallel()
 
 	srv, _, _, store := newTestServerWithSettingsStore(t, noSources, false, 0)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 
 	for range 2 {
 		status, _, body := getSettingsSummary(t, srv.URL, cookie)
@@ -56,7 +56,7 @@ func TestSettingsSummary_NeverCarriesAnySecret(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 	creds := getSettings(t, srv.URL, cookie)
@@ -79,7 +79,7 @@ func TestSettingsSummary_EqualsTheMCPGetSettingsOutput(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 
@@ -108,7 +108,7 @@ func TestContract_SettingsSummary(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 

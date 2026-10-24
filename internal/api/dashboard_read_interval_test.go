@@ -12,7 +12,7 @@ func TestDashboard_AdvisesHowOftenToRead(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	body := fetchDashboardWith(t, srv.URL, sessionCookie, "")
 

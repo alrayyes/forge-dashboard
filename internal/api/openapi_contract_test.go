@@ -202,7 +202,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 	// and the Retry-After header never appears. Nothing here depends on the
 	// real window.
 	service.SetForceRefreshCooldown(time.Hour)
-	cookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
+	cookie, _, _ := registerViaRealCeremony(t, srv)
 	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
