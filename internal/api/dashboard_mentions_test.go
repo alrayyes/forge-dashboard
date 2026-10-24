@@ -61,6 +61,10 @@ func mentionsServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 			pr(dashboard.ForgeForgejo, "Ryan/Hush", 7, func(p *dashboard.PullRequest) {
 				p.MentionsIssues = []dashboard.IssueRef{ref("ryan/hush", 3)}
 			}),
+			// A plain #3 in a mixed-case repo keeps the repo's own spelling.
+			pr(dashboard.ForgeForgejo, "Ryan/Hush", 8, func(p *dashboard.PullRequest) {
+				p.MentionsIssues = []dashboard.IssueRef{ref("Ryan/Hush", 3)}
+			}),
 		},
 		issues: []dashboard.Issue{issue(dashboard.ForgeForgejo, "Ryan/Hush", 3)},
 		repos:  []dashboard.Repo{{Forge: dashboard.ForgeForgejo, FullName: "Ryan/Hush", URL: "https://git.example.com/Ryan/Hush"}},
@@ -79,7 +83,7 @@ func mentionsServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
 
-		return len(prs) == 4
+		return len(prs) == 5
 	}, pollBudget, 10*time.Millisecond)
 
 	return srv.URL, cookie
@@ -148,6 +152,13 @@ func TestDashboard_PullRequestsListTheTicketsTheyMention(t *testing.T) {
 
 		assert.Equal(t, true, got["tracked"])
 	})
+	t.Run("a mention spelled in the repo's own case is tracked too", func(t *testing.T) {
+		t.Parallel()
+
+		got := listOf(t, body, "pullRequests", "forgejo:Ryan/Hush#8", "mentionsIssues")[0].(map[string]any)
+
+		assert.Equal(t, true, got["tracked"])
+	})
 	t.Run("a pull request that mentions nothing lists none, never null", func(t *testing.T) {
 		t.Parallel()
 
@@ -179,7 +190,7 @@ func TestDashboard_IssuesListThePullRequestsThatMentionThem(t *testing.T) {
 	t.Run("forgejo matches a lowercased repo against the mixed-case one", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, []int{7}, numbers(listOf(t, body, "issues", "forgejo:Ryan/Hush#3", "mentionedByPullRequests")))
+		assert.Equal(t, []int{7, 8}, numbers(listOf(t, body, "issues", "forgejo:Ryan/Hush#3", "mentionedByPullRequests")))
 	})
 	t.Run("an issue nothing mentions lists none, never null", func(t *testing.T) {
 		t.Parallel()

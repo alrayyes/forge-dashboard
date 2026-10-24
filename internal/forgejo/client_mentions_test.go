@@ -27,7 +27,10 @@ func TestListOpenPullRequests_ReadsTheMentionsInTheDescription(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, prs, 2)
+	// The closing "Closes #12" is read as a mention too; the dashboard takes
+	// it off through ClosesIssues, which depends on the branch aimed at.
 	assert.Equal(t, []dashboard.IssueRef{
+		{Repo: "alrayyes/a", Number: 12, URL: srv.URL + "/alrayyes/a/issues/12"},
 		{Repo: "alrayyes/a", Number: 13, URL: srv.URL + "/alrayyes/a/issues/13"},
 		{Repo: "alrayyes/other", Number: 3, URL: srv.URL + "/alrayyes/other/issues/3"},
 	}, prs[0].MentionsIssues)

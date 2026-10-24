@@ -227,7 +227,7 @@ func closingIssues(pr dashboard.PullRequest) []closingIssue {
 	for _, ref := range pr.ClosesIssues {
 		out = append(out, closingIssue{
 			IssueRef: ref,
-			PageURL:  "/issues.html?issue=" + string(pr.Forge) + "/" + ref.Repo + "/" + strconv.Itoa(ref.Number),
+			PageURL:  dashboard.IssuePageURL(pr.Forge, ref.Repo, ref.Number),
 		})
 	}
 
@@ -246,18 +246,12 @@ type mentionedIssue struct {
 // (GitHub's own closing list is the authority there). Nothing is tracked yet:
 // resolveMentions sets that once the issues are known. Never nil.
 func mentionedIssues(pr dashboard.PullRequest) []mentionedIssue {
-	closes := map[string]struct{}{}
-	for _, ref := range pr.ClosesIssues {
-		closes[strings.ToLower(ref.Repo)+"#"+strconv.Itoa(ref.Number)] = struct{}{}
-	}
-	out := make([]mentionedIssue, 0, len(pr.MentionsIssues))
-	for _, ref := range pr.MentionsIssues {
-		if _, closed := closes[strings.ToLower(ref.Repo)+"#"+strconv.Itoa(ref.Number)]; closed {
-			continue
-		}
+	refs := pr.MentionedOnly()
+	out := make([]mentionedIssue, 0, len(refs))
+	for _, ref := range refs {
 		out = append(out, mentionedIssue{
 			IssueRef: ref,
-			PageURL:  "/issues.html?issue=" + string(pr.Forge) + "/" + ref.Repo + "/" + strconv.Itoa(ref.Number),
+			PageURL:  dashboard.IssuePageURL(pr.Forge, ref.Repo, ref.Number),
 		})
 	}
 

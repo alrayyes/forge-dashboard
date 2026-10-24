@@ -3071,7 +3071,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
 		ClosesIssues:            closingIssuesFromGraphQL(p),
-		MentionsIssues:          mentionsFromGraphQL(p, fullName),
+		MentionsIssues:          mentionsIn(p.Title, p.Body, p.URL, p.Number, fullName),
 		ReviewComments:          comments,
 		ConversationComments:    conversationCount(p),
 		UnresolvedThreads:       &unresolved,
@@ -3094,16 +3094,16 @@ func closingIssuesFromGraphQL(p graphqlPullRequest) []dashboard.IssueRef {
 	return refs
 }
 
-// mentionsFromGraphQL lists the issues and pull requests p's title and
+// mentionsIn lists the issues and pull requests a pull request's title and
 // description mention without closing them. GitHub has no field for it, so
 // the text is read the way GitHub links references. Never nil.
-func mentionsFromGraphQL(p graphqlPullRequest, fullName string) []dashboard.IssueRef {
-	base := dashboard.WebBase(p.URL, fullName)
+func mentionsIn(title, body, pageURL string, number int, fullName string) []dashboard.IssueRef {
+	base := dashboard.WebBase(pageURL, fullName)
 	if base == "" {
 		base = "https://github.com"
 	}
 
-	return dashboard.MentionedIssueRefs(dashboard.ForgeGitHub, p.Title, p.Body, fullName, p.Number, base)
+	return dashboard.MentionedIssueRefs(dashboard.ForgeGitHub, title, body, fullName, number, base)
 }
 
 // requestedReviewerLoginsFromGraphQL lists the logins of the users asked to
@@ -3668,6 +3668,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				Number:                  p.GetNumber(),
 				Title:                   p.GetTitle(),
 				URL:                     p.GetHTMLURL(),
+				MentionsIssues:          mentionsIn(p.GetTitle(), p.GetBody(), p.GetHTMLURL(), p.GetNumber(), repo),
 				Author:                  p.GetUser().GetLogin(),
 				AuthorAvatarURL:         p.GetUser().GetAvatarURL(),
 				Draft:                   p.GetDraft(),

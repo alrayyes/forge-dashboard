@@ -41,8 +41,54 @@ func TestFetchRepo_CarriesTheMentionedIssueReferences(t *testing.T) {
 	require.Len(t, prs, 1)
 	assert.Equal(t, []dashboard.IssueRef{
 		{Repo: "alrayyes/a", Number: 5, URL: "https://github.com/alrayyes/a/issues/5"},
+		{Repo: "alrayyes/a", Number: 12, URL: "https://github.com/alrayyes/a/issues/12"},
 		{Repo: "alrayyes/a", Number: 13, URL: "https://github.com/alrayyes/a/issues/13"},
 		{Repo: "alrayyes/b", Number: 4, URL: "https://github.com/alrayyes/b/issues/4"},
 		{Repo: "alrayyes/c", Number: 6, URL: "https://github.com/alrayyes/c/issues/6"},
 	}, prs[0].MentionsIssues)
+}
+
+// Without a token the client reads the public REST endpoints, which carry the
+// same title and description, so the mentions are there too.
+func TestFetch_RESTFallback_CarriesTheMentionedIssueReferences(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/users/alrayyes/repos", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"full_name": "alrayyes/a", "name": "a", "owner": map[string]string{"login": "alrayyes"}},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
+		if page := r.URL.Query().Get("page"); page != "" && page != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{{
+			"number": 7, "title": "Follow up on GH-5", "body": "See #13 and alrayyes/b#4.",
+			"html_url": "https://github.com/alrayyes/a/pull/7",
+			"head":     map[string]any{"sha": "abc", "ref": "f"},
+			"base":     map[string]any{"ref": "main"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/issues", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	result := github.NewClient("", "alrayyes", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, []dashboard.IssueRef{
+		{Repo: "alrayyes/a", Number: 5, URL: "https://github.com/alrayyes/a/issues/5"},
+		{Repo: "alrayyes/a", Number: 13, URL: "https://github.com/alrayyes/a/issues/13"},
+		{Repo: "alrayyes/b", Number: 4, URL: "https://github.com/alrayyes/b/issues/4"},
+	}, result.PullRequests[0].MentionsIssues)
 }
