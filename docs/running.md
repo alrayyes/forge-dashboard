@@ -103,7 +103,8 @@ registration with a command of the same binary, run with the same `DB_PATH`
 as the server. It needs only the database, so `ENCRYPTION_KEY` is not required
 for this command. This is also the way back in when the only passkey is one
 kept on a security key from before sign-in went discoverable: no device offers
-it, so the sign-in prompt finds nothing. The distroless image has no shell, so
+it, so the sign-in prompt finds nothing. The login page names this command after
+a second failed prompt in a row. The distroless image has no shell, so
 call the binary directly, without a terminal:
 
 ```sh
