@@ -2,9 +2,12 @@ package forgejo
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -160,25 +163,34 @@ type rerunProgress struct {
 	restarted []string
 }
 
-// partial is the sentence for a refusal after some jobs went: which restarted
-// and which did not. notYet is the failed jobs of the run being worked on that
-// were not restarted, and laterRuns the failed runs not yet looked at. maybe
-// names the job whose request got no answer, which the forge may have queued.
-// Empty
-// when nothing restarted, since the refusal then says it all.
-func (p *rerunProgress) partial(notYet []string, laterRuns int, maybe string) string {
-	if len(p.restarted) == 0 {
+// partial is the sentence for a refusal after some jobs went, or after one whose
+// request got no answer: which restarted, which may have, and which did not.
+// notYet is the failed jobs of the run being worked on that were not restarted,
+// and laterRuns the failed runs not yet looked at. maybe names the job whose
+// request got no answer, which the forge may have queued; with othersMaybe the
+// run's other failed jobs may have gone along with it, so they are not listed
+// as left undone. It is empty when nothing restarted and nothing may have,
+// since the refusal then says it all.
+func (p *rerunProgress) partial(notYet []string, laterRuns int, maybe string, othersMaybe bool) string {
+	if len(p.restarted) == 0 && maybe == "" {
 		return ""
 	}
-	out := p.restartedSentence()
+	var out []string
+	if len(p.restarted) > 0 {
+		out = append(out, p.restartedSentence())
+	}
 	if maybe != "" {
-		out += " " + maybe + " may have restarted too."
+		sentence := maybe + " may have restarted"
+		if othersMaybe {
+			sentence += ", and so may the other failed jobs of this run"
+		}
+		out = append(out, sentence+".")
 	}
 	if skipped := listWithRuns(notYet, laterRuns); skipped != "" {
-		out += " Did not restart " + skipped + "."
+		out = append(out, "Did not restart "+skipped+".")
 	}
 
-	return out
+	return strings.Join(out, " ")
 }
 
 // partialUnknown is partial for a refusal that left the run's jobs unread, so
@@ -261,7 +273,7 @@ func (c *Client) rerunFailedJobs(ctx context.Context, owner, name string, ids []
 func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, runID int64, progress *rerunProgress, laterRuns int) error {
 	jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
 	if err != nil {
-		return withPartial(err, progress.partial(nil, laterRuns+1, ""))
+		return withPartial(err, progress.partial(nil, laterRuns+1, "", false))
 	}
 	failed := failedJobIDs(jobs)
 	for i, jobID := range failed {
@@ -280,19 +292,61 @@ func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, r
 		if _, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil); err != nil {
 			err = c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
 
-			left, maybe := stillFailed(jobs, failed[i:]), ""
-			if resp == nil {
-				// No answer at all (a timeout after the request went out): the
-				// forge may have queued this job, so it is not "not restarted".
-				left, maybe = left[1:], strings.Join(jobNames(jobs, []int64{jobID}), "")
-			}
-
-			return withPartial(err, progress.partial(jobNames(jobs, left), laterRuns, maybe))
+			return withPartial(err, progress.refusedPartial(jobs, failed[i:], laterRuns, requestMayHaveQueued(resp, err)))
 		}
 		progress.restarted = append(progress.restarted, jobNames(jobs, []int64{jobID})...)
 	}
 
 	return nil
+}
+
+// refusedPartial is partial for a request that failed on the first of ids, the
+// failed jobs of the run from there on. A request that certainly did not go
+// leaves the job, and those after it that are still failed, as not restarted.
+// One that may have gone leaves the first as one that may have restarted and
+// the run's other failed jobs as unknown, since Forgejo restarts the jobs that
+// need a job along with it and the forge cannot be asked what it did.
+func (p *rerunProgress) refusedPartial(jobs []*gitea.ActionWorkflowJob, ids []int64, laterRuns int, mayHaveQueued bool) string {
+	left := stillFailed(jobs, ids)
+	if !mayHaveQueued {
+		return p.partial(jobNames(jobs, left), laterRuns, "", false)
+	}
+	first := ids[0]
+	others := slices.DeleteFunc(left, func(id int64) bool { return id == first })
+
+	return p.partial(nil, laterRuns, strings.Join(jobNames(jobs, []int64{first}), ""), len(others) > 0)
+}
+
+// requestMayHaveQueued reports whether a failed job rerun request may still have
+// been acted on by the forge. An answer with a failing status was a refusal. An
+// answer that succeeded but could not be read was most likely acted on. With no
+// answer at all it depends on how far the request got: one that never reached
+// the forge (the name did not resolve, the connection was refused, the
+// handshake failed) did nothing, while a timeout, a reset or a cancelled wait
+// came after it was sent and says nothing about what the forge did.
+func requestMayHaveQueued(resp *gitea.Response, err error) bool {
+	if resp != nil && resp.Response != nil {
+		return resp.StatusCode < http.StatusMultipleChoices
+	}
+	var (
+		dnsErr    *net.DNSError
+		opErr     *net.OpError
+		certErr   *tls.CertificateVerificationError
+		unknownCA x509.UnknownAuthorityError
+		hostErr   x509.HostnameError
+		invalid   x509.CertificateInvalidError
+		alert     tls.AlertError
+		header    tls.RecordHeaderError
+	)
+	switch {
+	case errors.As(err, &dnsErr), errors.As(err, &certErr), errors.As(err, &unknownCA),
+		errors.As(err, &hostErr), errors.As(err, &invalid), errors.As(err, &alert), errors.As(err, &header):
+		return false
+	case errors.As(err, &opErr) && opErr.Op == "dial":
+		return false
+	}
+
+	return true
 }
 
 // stillFailed is the ids that jobs still reads as failed: a job Forgejo

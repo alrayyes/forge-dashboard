@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	gitea "code.gitea.io/sdk/gitea"
+
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -60,3 +62,8 @@ var CountChecks = countChecks
 // RerunJobPath is the route the client reruns one Actions job through, as an
 // OpenAPI path template.
 const RerunJobPath = rerunJobPath
+
+// RequestMayHaveQueued is requestMayHaveQueued.
+func RequestMayHaveQueued(resp *gitea.Response, err error) bool {
+	return requestMayHaveQueued(resp, err)
+}

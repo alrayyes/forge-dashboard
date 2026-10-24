@@ -1438,8 +1438,10 @@ paths:
         old or already running) arrives with its own plain-words `message`.
         Jobs are rerun one request at a time, so a refusal can come after
         earlier jobs restarted; the `message` then ends with which jobs
-        restarted and which did not; a job whose request got no answer is
-        named as one that may have restarted. When the version could not be read the
+        restarted and which did not. A job whose request got no answer is
+        named as one that may have restarted, as are the other failed jobs of
+        its run, whichever job it was; a request that never reached the forge
+        counts as not restarted. When the version could not be read the
         forge decides, and a 404 from it reads "The forge couldn't find that
         run, job or pull request. It may not support rerunning checks from here, or the
         token can't see this repository." That sentence names no forge or

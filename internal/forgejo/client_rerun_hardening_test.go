@@ -1,12 +1,21 @@
 package forgejo_test
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
+	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/stretchr/testify/assert"
@@ -257,5 +266,66 @@ func TestRerunFailedChecks_APostWithNoAnswer_SaysTheJobMayHaveRestarted(t *testi
 	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 
 	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
-	assert.Contains(t, got.Message, "Restarted job-1. job-2 may have restarted too. Did not restart job-3.")
+	assert.Contains(t, got.Message, "Restarted job-1. job-2 may have restarted, and so may the other failed jobs of this run.")
+	assert.NotContains(t, got.Message, "Did not restart")
+}
+
+// The first job's request is the one that got no answer: nothing is known to
+// have restarted, yet the job may have, and the panel says so.
+func TestRerunFailedChecks_APostWithNoAnswerOnTheFirstJob_SaysItMayHaveRestarted(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}, {"id": 44, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure")}, 44: {job(4, "failure")}}
+	s.status = http.StatusForbidden
+	s.drop = true
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Contains(t, got.Message, "job-1 may have restarted, and so may the other failed jobs of this run. Did not restart the failed jobs of 1 other run.")
+	assert.NotContains(t, got.Message, "Restarted")
+}
+
+// A lone failed job that got no answer has no other jobs to be unsure about.
+func TestRerunFailedChecks_APostWithNoAnswerOnTheOnlyJob_NamesOnlyThatJob(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "failure")}}
+	s.status = http.StatusForbidden
+	s.drop = true
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Contains(t, got.Message, "job-1 may have restarted.")
+	assert.NotContains(t, got.Message, "other failed jobs")
+}
+
+// Only a request that was sent and went unanswered may have been acted on.
+func TestRequestMayHaveQueued(t *testing.T) {
+	t.Parallel()
+	answered := func(code int) *gitea.Response { return &gitea.Response{Response: &http.Response{StatusCode: code}} }
+	tests := []struct {
+		name string
+		resp *gitea.Response
+		err  error
+		want bool
+	}{
+		{"a timeout after the request went out", nil, &net.OpError{Op: "read", Err: os.ErrDeadlineExceeded}, true},
+		{"a reset connection", nil, &net.OpError{Op: "read", Err: syscall.ECONNRESET}, true},
+		{"the answer hung up", nil, io.EOF, true},
+		{"a cancelled wait", nil, context.Canceled, true},
+		{"a body that could not be read after a success", answered(http.StatusNoContent), io.ErrUnexpectedEOF, true},
+		{"a refusal", answered(http.StatusForbidden), errors.New("refused"), false},
+		{"a refused connection", nil, &net.OpError{Op: "dial", Err: syscall.ECONNREFUSED}, false},
+		{"a name that did not resolve", nil, &net.DNSError{Err: "no such host", Name: "forge"}, false},
+		{"an untrusted certificate", nil, &tls.CertificateVerificationError{Err: x509.UnknownAuthorityError{}}, false},
+		{"a handshake alert", nil, tls.AlertError(40), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, forgejo.RequestMayHaveQueued(tt.resp, tt.err))
+		})
+	}
 }
