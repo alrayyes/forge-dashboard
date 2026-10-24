@@ -767,8 +767,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	snap = a.keepNewerScopedRepos(snap, previous, seq)
 	// See mergeRepo: a request recorded since applyBotRequests ran (#976),
 	// and likewise a box ticked or cleared since.
-	a.annotateBotRequests(snap.PullRequests)
-	a.reapplyBoxOverrides(snap.PullRequests, seq)
+	a.reannotateUnderLock(snap.PullRequests, seq)
 	a.snap = snap
 	a.lastGood = goodAt
 	a.mu.Unlock()

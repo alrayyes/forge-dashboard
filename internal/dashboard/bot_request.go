@@ -207,6 +207,13 @@ func (a *Aggregator) applyBoxOverrides(prs []PullRequest, seq uint64, covers fun
 	}
 }
 
+// reannotateUnderLock is what a full refresh does just before it swaps its
+// snapshot in: the requests and box states recorded since applyBotRequests ran.
+func (a *Aggregator) reannotateUnderLock(prs []PullRequest, seq uint64) {
+	a.annotateBotRequests(prs)
+	a.reapplyBoxOverrides(prs, seq)
+}
+
 // reapplyBoxOverrides puts the box state this app set back over prs, a
 // snapshot from the fetch numbered seq, when that fetch started before the
 // change. A tick or cancel can land between applyBotRequests and the moment the
