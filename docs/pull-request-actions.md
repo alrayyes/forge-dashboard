@@ -803,10 +803,9 @@ run that still has a queued or running job, on GitHub and on Forgejo. With
 more than one such run, each button names its run: the workflow, plus the
 forge's run number (`Cancel run: ci #614`) when two runs share a workflow or a
 run has no name. A lone run whose forge gave no name reads plain `Cancel run`.
-Neither
-forge can stop one job of a running workflow, so the unit is the run: the
-confirm step names the whole run and the unfinished jobs that stop with it (a
-Forgejo run whose jobs can't be read says it stops everything still going in
+Neither forge can stop one job of a running workflow, so the unit is the run:
+the confirm step names the whole run and the unfinished jobs that stop with it
+(a Forgejo run whose jobs can't be read says it stops everything still going in
 it), and nothing is sent until you press `Yes, cancel run`. `Keep running` sends
 nothing. When the forge accepts, the panel says "Cancelling" and reads the
 checks again every few seconds until the run has stopped, then says it was
