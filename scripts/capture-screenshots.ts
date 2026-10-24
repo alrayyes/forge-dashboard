@@ -550,8 +550,6 @@ async function main() {
   await addVirtualAuthenticator(page);
   await page.goto(`${BASE_URL}/login.html`);
   await page.click('#show-register');
-  await page.fill('#register-username', 'demo-user');
-  await page.fill('#register-display-name', 'Demo User');
   await page.click('#register-submit');
   await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
 
@@ -654,7 +652,7 @@ async function main() {
     });
     const loginPage = await signedOut.newPage();
     await loginPage.goto(`${BASE_URL}/login.html`);
-    await loginPage.locator('#login-username').waitFor();
+    await loginPage.locator('#login-submit').waitFor();
     await loginPage.waitForLoadState('networkidle');
     await loginPage.screenshot({
       path: path.join(OUT_DIR, `login-${theme}.png`),

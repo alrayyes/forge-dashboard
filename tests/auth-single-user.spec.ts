@@ -1,5 +1,6 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
-import { addOwnerPasskey, OWNER_USERNAME, test } from './server-fixture';
+import { addOwnerPasskey, test } from './server-fixture';
 import { addVirtualAuthenticator } from './webauthn-helper';
 
 // The sign-in tests on a server with one owner. The page starts signed in as
@@ -65,14 +66,25 @@ test.describe('passkey login, one owner', () => {
     await page.goto('/');
     await expect(page).toHaveURL(/\/login\.html$/);
 
-    await page.fill('#login-username', OWNER_USERNAME);
     await page.click('#login-submit');
 
     await expect(page).toHaveURL(/\/$/, { timeout: 10000 });
     await expect(page.locator('#whoami')).toHaveText('Owner');
   });
 
-  test('a wrong username at login fails without a session being issued', async ({
+  test('the login page asks for no username, only a sign-in action', async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+
+    await page.goto('/login.html');
+
+    await expect(page.locator('#login-submit')).toBeVisible();
+    await expect(page.locator('#login-form input')).toHaveCount(0);
+  });
+
+  test('an authenticator without the owner passkey signs nobody in', async ({
     page,
     context,
   }) => {
@@ -80,11 +92,10 @@ test.describe('passkey login, one owner', () => {
     await addVirtualAuthenticator(page);
 
     await page.goto('/login.html');
-    await page.fill('#login-username', 'this-username-was-never-registered');
     await page.click('#login-submit');
 
-    await expect(page.locator('#status')).toContainText(/no account/i, {
-      timeout: 5000,
+    await expect(page.locator('#status')).toHaveClass(/error/, {
+      timeout: 10000,
     });
     await expect(page).toHaveURL(/\/login\.html$/);
   });
@@ -110,14 +121,17 @@ test.describe('the first visit', () => {
     await addVirtualAuthenticator(page);
     await page.goto(`${freshServer.baseURL}/login.html`);
     await page.click('#show-register');
-    await page.fill('#register-username', 'first-owner');
-    await page.fill('#register-display-name', 'First Owner');
+    await expect(page.locator('#register-form input')).toHaveCount(0);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
     await page.click('#register-submit');
 
     await expect(page).toHaveURL(`${freshServer.baseURL}/`, {
       timeout: 10000,
     });
-    await expect(page.locator('#whoami')).toHaveText('First Owner');
+    await expect(page.locator('#whoami')).toHaveText('Owner');
 
     await page.click('#logout-button');
     await expect(page).toHaveURL(/\/login\.html$/);

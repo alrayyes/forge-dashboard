@@ -25,8 +25,6 @@ import type { CDPSession, Page } from '@playwright/test';
 import { test as base } from './fixtures';
 import { addVirtualAuthenticator } from './webauthn-helper';
 
-export const OWNER_USERNAME = 'owner';
-
 // A credential as CDP's WebAuthn.getCredentials returns it, handed back to
 // WebAuthn.addCredential untouched; the protocol type isn't exported to tests.
 type Credential = object;
@@ -194,8 +192,6 @@ export const test = base.extend<
             await addVirtualAuthenticator(page);
           await page.goto(`${started.baseURL}/login.html`);
           await page.click('#show-register');
-          await page.fill('#register-username', OWNER_USERNAME);
-          await page.fill('#register-display-name', 'Owner');
           await page.click('#register-submit');
           await page.waitForURL(`${started.baseURL}/`, { timeout: 15_000 });
           // Saved so a spec that logs in with the passkey again can re-add it

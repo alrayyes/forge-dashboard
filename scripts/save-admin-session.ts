@@ -17,8 +17,6 @@ try {
   await addVirtualAuthenticator(page);
   await page.goto(`${baseURL}/login.html`);
   await page.click('#show-register');
-  await page.fill('#register-username', 'admin');
-  await page.fill('#register-display-name', 'Admin');
   await page.click('#register-submit');
   await page.waitForURL(`${baseURL}/`, { timeout: 10000 });
   await context.storageState({ path: statePath });
