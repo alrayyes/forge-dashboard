@@ -5941,6 +5941,7 @@
           const rowKey = pipelineDialogRowKey;
           pipelineDialogRowKey = null;
           pipelineItem = null;
+          pipelineRerunLock.reset();
           renderPRBoard();
           if (rowKey) {
             document
