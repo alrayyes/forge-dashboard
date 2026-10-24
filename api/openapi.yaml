@@ -126,8 +126,10 @@ paths:
       description: |
         An instance has one user. The first registration on a fresh
         instance (see GET /api/auth/registration-status) creates that
-        user and the server names it, so the request carries no body. Once
-        any account holds a passkey, this answers 403.
+        user and the server names it, so the request carries no body. The
+        options require a resident key, so the passkey can be found at
+        sign-in without being named. Once any account holds a passkey, this
+        answers 403.
       tags: [auth]
       responses:
         "200":
@@ -191,8 +193,9 @@ paths:
       summary: Start a passkey login ceremony
       description: |
         An instance has one user, so there is nothing to name and the request
-        carries no body. The options list that user's passkeys, so the browser
-        offers them without a username being typed.
+        carries no body. The options name no passkey and no user, so the
+        browser offers whichever discoverable passkey it holds for the site
+        and nothing about the account is revealed to a visitor.
       tags: [auth]
       responses:
         "200":
@@ -303,7 +306,8 @@ paths:
         The authenticated counterpart to POST /api/auth/register/begin —
         that one only ever works for a brand-new, credential-less
         account; this is how an already-registered user adds a second
-        (or third...) passkey, e.g. a laptop and a security key.
+        (or third...) passkey, e.g. a laptop and a security key. Like the
+        first registration it requires a resident key.
       tags: [auth]
       security: [{ bearerAuth: [] }]
       responses:

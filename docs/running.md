@@ -101,8 +101,10 @@ as soon as a new instance is up.
 An instance has no email or SMS recovery. Whoever controls the host can reopen
 registration with a command of the same binary, run with the same `DB_PATH`
 as the server. It needs only the database, so `ENCRYPTION_KEY` is not required
-for this command. The distroless image has no shell, so call the binary
-directly, without a terminal:
+for this command. This is also the way back in when the only passkey is one
+kept on a security key from before sign-in went discoverable: no device offers
+it, so the sign-in prompt finds nothing. The distroless image has no shell, so
+call the binary directly, without a terminal:
 
 ```sh
 docker exec <container> /forge-dashboard reset-passkeys --yes
