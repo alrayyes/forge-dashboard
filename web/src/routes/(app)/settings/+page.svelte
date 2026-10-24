@@ -701,6 +701,8 @@
       renameError = "Give the passkey a name.";
       return;
     }
+    // Counted in characters, so the field has no maxlength (that counts
+    // UTF-16 units and would cut 64 emoji short).
     if ([...name].length > PASSKEY_NAME_MAX) {
       renameError = `The name can be at most ${PASSKEY_NAME_MAX} characters.`;
       return;
@@ -2293,13 +2295,13 @@
                         id="rename-{key.id}"
                         type="text"
                         autocomplete="off"
-                        maxlength={PASSKEY_NAME_MAX}
                         data-rename-input-id={key.id}
                         aria-invalid={renameError ? "true" : undefined}
                         aria-describedby={renameError
                           ? `rename-error-${key.id}`
                           : undefined}
                         bind:value={renameDraft}
+                        oninput={() => (renameError = "")}
                         onkeydown={(e) => {
                           if (e.key === "Escape") {
                             e.preventDefault();
