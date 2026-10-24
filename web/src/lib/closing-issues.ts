@@ -17,14 +17,15 @@ export const SHOWN_PILLS = 2;
 
 const sameRepo = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-const numberOf = (issue: ClosingIssue, prRepo: string) =>
+/** The number as a pill writes it: bare in the pull request's repo, else with the repo. */
+export const issueNumber = (issue: ClosingIssue, prRepo: string) =>
   sameRepo(issue.repo, prRepo)
     ? `#${issue.number}`
     : `${issue.repo}#${issue.number}`;
 
 /** What the pill shows: the number, with the whole repo when it is not the pull request's. */
 export function closingPillText(issue: ClosingIssue, prRepo: string) {
-  return `Closes ${numberOf(issue, prRepo)}`;
+  return `Closes ${issueNumber(issue, prRepo)}`;
 }
 
 /** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
@@ -33,7 +34,7 @@ export function closingPillName(issue: ClosingIssue, prRepo: string) {
 }
 
 /** The pills a row shows, and the ones kept behind the count. */
-export function splitClosing(list: ClosingIssue[]) {
+export function splitClosing<T extends ClosingIssue>(list: T[]) {
   return { shown: list.slice(0, SHOWN_PILLS), rest: list.slice(SHOWN_PILLS) };
 }
 

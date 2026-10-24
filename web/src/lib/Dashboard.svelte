@@ -99,6 +99,7 @@
     missingIssueNote,
     parseIssueAddress,
   } from "#lib/closing-issues.js";
+  import { type MentionedIssue, mentionPills } from "#lib/mentioned-issues.js";
   import {
     type LinkedPullRequest,
     linkedPills,
@@ -201,6 +202,8 @@
     // The issues it will close when it merges, with the address that opens
     // each on the Issues page, read from the server.
     closesIssues?: ClosingIssue[];
+    // The tickets it mentions without closing, read by the server.
+    mentionsIssues?: MentionedIssue[];
     // The forge's own avatar URL for the author; empty when it has none.
     authorAvatarUrl?: string;
     // The author's profile page on the forge, built by the server; empty when
@@ -303,6 +306,8 @@
     authorUrl?: string;
     // The open pull requests that will close it, joined by the server.
     linkedPullRequests?: LinkedPullRequest[];
+    // The open pull requests that mention it without closing it.
+    mentionedByPullRequests?: LinkedPullRequest[];
   };
   // What the issue dialog needs of an issue: a listed row, or just the
   // reference a pull request's pill carries when the board does not list it.
@@ -1311,6 +1316,12 @@
         attributes.appendChild(el("span", "attr-chip label", label.name));
       const closing = closingPills(prKey(item), item.repo, item.closesIssues);
       if (closing) attributes.appendChild(closing);
+      const mentions = mentionPills(
+        `${prKey(item)}:mentions`,
+        item.repo,
+        item.mentionsIssues,
+      );
+      if (mentions) attributes.appendChild(mentions);
       return { state, attributes };
     }
 
@@ -1876,7 +1887,11 @@
     // closed), lists it again (reopened), or lists it changed has the dialog
     // read the forge again, quietly, so its status and thread follow.
     function attributesSignature(item: IssueDialogItem): string {
-      return JSON.stringify([item.labels, item.linkedPullRequests]);
+      return JSON.stringify([
+        item.labels,
+        item.linkedPullRequests,
+        item.mentionedByPullRequests,
+      ]);
     }
 
     function followIssueDialog(issues: IssueItem[]) {
@@ -2202,6 +2217,26 @@
       if (pills) {
         attributes.setAttribute("aria-label", "Attributes when opened");
         attributes.appendChild(pills);
+      }
+      // The pull requests that only mention it, under a label that says so;
+      // nothing at all when none does.
+      const mentioned = linkedPills(
+        `${prKey(item)}:mentions`,
+        item.repo,
+        item.mentionedByPullRequests,
+        undefined,
+        linkedCi,
+        (linked) => followLinkedFromDialog(item, linked),
+        "mentions",
+      );
+      if (mentioned) {
+        attributes.setAttribute("aria-label", "Attributes when opened");
+        const group = el("span", "mentioned-by");
+        group.append(
+          el("span", "mentioned-by-label", "Mentioned in"),
+          mentioned,
+        );
+        attributes.appendChild(group);
       }
       return { state, attributes };
     }

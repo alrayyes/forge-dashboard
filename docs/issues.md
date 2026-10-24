@@ -177,6 +177,23 @@ without the actions, since it has no row to act from. A pull request that isn't
 open any more, or whose repo the dashboard doesn't track, opens nothing, and
 the page says so in a note over the list.
 
+## Pull requests that mention an issue
+
+A pull request can mention an issue without closing it, with `Refs #12` or a
+link in its description. In `GET /api/dashboard` each issue lists those open
+pull requests as `mentionedByPullRequests`, always present, ordered by repo and
+number and with the same entries as `linkedPullRequests`. A pull request that
+closes the issue is only in `linkedPullRequests`; one whose `Closes` doesn't
+close, because it aims at a branch other than the default, is listed here. The
+server works this out from the pull requests it already holds, so it costs the
+forge no request. The
+issue's pop-up lists them after "Mentioned in", drawn like the closing pull
+requests, and a plain click swaps the pop-up for that pull request's. The label
+and the pills are absent when no pull request mentions the issue. The rows don't
+show them. How a
+mention is read is in [Tickets a pull request
+mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
+
 ## Opening an issue from its address
 
 An issue's pop-up can open from the address. The Issues page opens it when the

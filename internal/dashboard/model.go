@@ -251,6 +251,10 @@ type PullRequest struct {
 	// merges: GitHub's own closing references, or on Forgejo the closing
 	// keywords in the description. Always a list, empty when there are none.
 	ClosesIssues []IssueRef `json:"closesIssues"`
+	// MentionsIssues lists the issues and pull requests the title or
+	// description mentions without closing them (see MentionedIssueRefs).
+	// Always a list, empty when there are none.
+	MentionsIssues []IssueRef `json:"mentionsIssues"`
 	// UnresolvedThreads is how many review threads are still open, or nil when
 	// the forge reports no resolved state (Forgejo), so a client shows the
 	// count without an "open" state rather than a false zero.
