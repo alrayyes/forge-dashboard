@@ -781,7 +781,7 @@ A pull request whose CI is failing also offers `Rerun failed checks` at the top
 of that panel, on GitHub and on Forgejo. On GitHub, it reruns only the failed
 jobs of each workflow run on the head commit. Forgejo has no route for that, so
 it reruns each failed run whole, and that includes jobs that passed: a deploy or
-publish job in the same run goes again. The button's tooltip says so on
+publish job in the same run goes again. The button's hover text says so on
 Forgejo. Either way it acts once per run and answers when the forge has queued
 them: the panel says "Rerun queued" and the new results show after the next
 refresh. The button stays pending and reads "Rerun queued", in the panel and in
