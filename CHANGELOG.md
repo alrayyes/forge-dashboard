@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.3](https://github.com/alrayyes/forge-dashboard/compare/v2.30.2...v2.30.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* **forgejo:** rerun hardening leftovers ([#2766](https://github.com/alrayyes/forge-dashboard/issues/2766)) ([9d6449c](https://github.com/alrayyes/forge-dashboard/commit/9d6449cfcda9222fc21b2525782a7b61effb0838))
+
 ## [2.30.2](https://github.com/alrayyes/forge-dashboard/compare/v2.30.1...v2.30.2) (2026-10-24)
 
 
