@@ -127,7 +127,7 @@ mention is what GitHub and Forgejo both turn into a link: `#12`,
 on GitHub `GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not
 mentions, while emphasis and table markup around one (`**#12**`, `_#12_`,
 `|#12|`) is fine. Code and HTML comments are skipped, as they are for closing
-references, and a quoted line still counts. The text of a markdown link is
+references, and a quoted line still counts. The text of a Markdown link is
 skipped too, since a dependency update's release notes are full of links such as
 `[#1234](https://redirect.github.com/org/lib/issues/1234)` that name another
 project's tickets. A link counts only by its address, and only when that is a
