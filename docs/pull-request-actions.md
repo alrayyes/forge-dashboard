@@ -782,19 +782,18 @@ of that panel, on GitHub and on Forgejo. On GitHub, it reruns only the failed
 jobs of each workflow run on the head commit. Forgejo has no route for that, so
 it reruns each failed run whole, and that includes jobs that passed: a deploy or
 publish job in the same run goes again. The button's tooltip says so on
-Forgejo. Either way it acts once per run and answers
-when the forge has queued them: the panel says "Rerun queued" and the new
-results show after the next refresh. The button stays pending and reads "Rerun
-queued", in the panel and in the pull request's detail view, until the pull
-request stops reading failed, is updated, or ten minutes pass, so the same rerun
-can't be queued twice. A refused rerun isn't held and leaves its failure line in
-the detail view. It needs write access to Actions: the `repo` scope on a classic
+Forgejo. Either way it acts once per run and answers when the forge has queued
+them: the panel says "Rerun queued" and the new results show after the next
+refresh. The button stays pending and reads "Rerun queued", in the panel and in
+the pull request's detail view, until the pull request stops reading failed, is
+updated, or ten minutes pass, so the same rerun can't be queued twice. A
+refused rerun isn't held and leaves its failure line in the detail view. It
+needs write access to Actions: the `repo` scope on a classic
 token, Actions (read and write) on a fine-grained token, or Actions (Read and
 write) on a GitHub App. A permission added to an App that is already installed
 does nothing until the owner accepts it on the installation's page. When the
 forge refuses (no permission, a run too old or already running), the panel shows
 its reason and the button stays for another try.
-
 A failed check that isn't an Actions job, such as an external CI, can't be
 rerun and is skipped; a pull request with nothing left to rerun answers "no
 failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
@@ -803,8 +802,8 @@ failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
 Forgejo added the rerun route in version 17. Version 16 and earlier have none,
 so on those the dashboard reads the instance's version in the background on its
 first refresh and draws no button: the button in the details dialog is disabled
-and the panel prints "This Forgejo is older than version 17 and has no way to rerun
-checks. Rerun them on the forge." No rerun request is sent to the forge, though
+and the panel prints "This Forgejo is older than version 17 and has no way to
+rerun checks. Rerun them on the forge." No rerun request is sent to the forge, though
 the pull request and its runs are still looked up first. An answer that blocks
 is read again after an hour, and a click reads it again at once when it has gone
 stale, so an upgraded instance works without a restart. When the version can't
