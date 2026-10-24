@@ -6,7 +6,7 @@ import { test } from './server-fixture';
 // or auto-merge are waiting on, the same way for Renovate and Dependabot.
 // The Go table in primary_action_test.go pins the rule; these cases pin the
 // wiring: the button's place in the row, its accessible name and a held-run
-// pull request with no rebase. The locked already-requested button is covered
+// pull request with no rebase. The requested Renovate rebase, now only its cancel, is covered
 // in renovate-rebase-requested.spec.ts.
 
 function pr(overrides: Record<string, unknown> = {}) {
@@ -163,23 +163,16 @@ test('a behind bot pull request waiting for workflow approval has its rebase and
 
 // A behind bot pull request the forge still calls mergeable, with green checks,
 // has Merge as its primary action. The rebase stays in the row beside it,
-// locked with its reason while the box is ticked, so the row says what the
-// pull request is waiting on.
+// replaced by its cancel while the box is ticked, so the row offers the way
+// out and no second request.
 const mergeable = {
   ci: 'success',
   mergeStatus: 'mergeable',
   author: 'renovate',
 };
-const requested = {
-  action: 'renovate_rebase',
-  blocked: {
-    code: 'already_requested',
-    message: 'A Renovate rebase is already requested on this pull request.',
-    next: 'Renovate clears the box once it has rebased, and the rebase is offered again.',
-  },
-};
+const requested = { action: 'cancel_renovate_rebase' };
 
-test('a behind mergeable Renovate pull request with the box ticked shows a locked rebase beside Merge', async ({
+test('a behind mergeable Renovate pull request with the box ticked shows the cancel beside Merge', async ({
   page,
 }) => {
   const row = await open(
@@ -196,11 +189,11 @@ test('a behind mergeable Renovate pull request with the box ticked shows a locke
   const bar = row.locator('.row-action-bar');
   await expect(bar.getByRole('button', { name: 'Merge' })).toBeVisible();
   await expect(
+    bar.getByRole('button', { name: 'Cancel Renovate rebase' }),
+  ).toBeEnabled();
+  await expect(
     bar.getByRole('button', { name: /Renovate: Rebase/ }),
-  ).toBeDisabled();
-  await expect(bar).toContainText(
-    'A Renovate rebase is already requested on this pull request.',
-  );
+  ).toHaveCount(0);
   await expectNoAxeViolations(page);
 });
 
@@ -287,7 +280,7 @@ test('a behind mergeable Renovate pull request fits a 360px row with Merge and t
     }),
   );
   const bar = row.locator('.row-action-bar');
-  for (const name of ['Merge', /Renovate: Rebase/]) {
+  for (const name of ['Merge', 'Cancel Renovate rebase']) {
     const button = bar.getByRole('button', { name });
     await button.scrollIntoViewIfNeeded();
     await expect(button).toBeInViewport({ ratio: 1 });

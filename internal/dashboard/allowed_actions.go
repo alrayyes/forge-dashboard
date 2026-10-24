@@ -16,8 +16,11 @@ const (
 	ActionDependabotRebase   ActionName = "dependabot_rebase"
 	ActionDependabotRecreate ActionName = "dependabot_recreate"
 	ActionRenovateRebase     ActionName = "renovate_rebase"
-	ActionRerunChecks        ActionName = "rerun_checks"
-	ActionCancelRun          ActionName = "cancel_run"
+	// ActionCancelRenovateRebase withdraws a rebase asked for through Renovate's
+	// rebase box, by clearing the box.
+	ActionCancelRenovateRebase ActionName = "cancel_renovate_rebase"
+	ActionRerunChecks          ActionName = "rerun_checks"
+	ActionCancelRun            ActionName = "cancel_run"
 )
 
 // ActionAvailability says one action applies to a pull request and, when it
@@ -67,10 +70,14 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 		out = append(out, ActionAvailability{Action: ActionCancelAutoMerge})
 	}
 	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {
-		out = append(out, dependabotRebaseAvailability(pr), dependabotRecreateAvailability(pr))
+		// A command Dependabot has yet to act on can't be withdrawn, so while one
+		// is pending neither is offered; the wait chip says what is going on.
+		if !botRequestPending(pr, BotDependabot) {
+			out = append(out, ActionAvailability{Action: ActionDependabotRebase}, ActionAvailability{Action: ActionDependabotRecreate})
+		}
 	}
 	if isRenovatePR(pr, renovateAuthors) {
-		out = append(out, renovateRebaseAvailability(pr))
+		out = append(out, renovateRebaseActions(pr)...)
 	}
 	// Failed checks can be rerun on either forge. The list only knows the CI
 	// is failing, not whether an Actions run is behind it, so a Forgejo pull
@@ -217,48 +224,39 @@ func botRebases() []ActionName {
 	return []ActionName{ActionRenovateRebase, ActionDependabotRebase}
 }
 
-// dependabotRebaseAvailability: a Recreate that is pending rebuilds the whole
-// pull request, so a Rebase beside it has no point until it is done.
-func dependabotRebaseAvailability(pr PullRequest) ActionAvailability {
-	return dependabotLock(ActionDependabotRebase, pr, BotRecreate, "Recreate")
-}
-
-// dependabotRecreateAvailability: a Recreate over a pending Rebase would throw
-// its work away, so it waits until the Rebase is done.
-func dependabotRecreateAvailability(pr PullRequest) ActionAvailability {
-	return dependabotLock(ActionDependabotRecreate, pr, BotRebase, "Rebase")
-}
-
-// dependabotLock blocks action while the other Dependabot command is pending,
-// and names it. An expired request has settled and locks nothing.
-func dependabotLock(action ActionName, pr PullRequest, other BotAction, otherName string) ActionAvailability {
+// botRequestPending: bot has been asked for something it hasn't finished. An
+// expired request has settled and counts for nothing.
+func botRequestPending(pr PullRequest, bot BotName) bool {
 	req := pr.BotRequest
-	if req == nil || req.Bot != BotDependabot || req.Action != other || (req.Phase != BotQueued && req.Phase != BotRebasing) {
-		return ActionAvailability{Action: action}
-	}
 
-	return ActionAvailability{Action: action, Blocked: &Blocked{
-		Code:    ActionAlreadyRequested,
-		Message: "A Dependabot " + otherName + " is pending on this pull request.",
-		Next:    "It unlocks once Dependabot has finished.",
-	}}
+	return req != nil && req.Bot == bot && (req.Phase == BotQueued || req.Phase == BotRebasing)
 }
 
-// renovateRebaseAvailability: while Renovate's rebase box is ticked, a rebase is
-// already waiting for it, so asking again is blocked with the reason (#1349).
-// Renovate clears the box once it has rebased, and the next snapshot offers the
-// action again. The box can be ticked here or on the forge; the snapshot reads
-// it from the description either way.
-func renovateRebaseAvailability(pr PullRequest) ActionAvailability {
-	if !pr.RenovateRebaseRequested {
-		return ActionAvailability{Action: ActionRenovateRebase}
-	}
+func renovateRebasing(pr PullRequest) bool {
+	req := pr.BotRequest
 
-	return ActionAvailability{Action: ActionRenovateRebase, Blocked: &Blocked{
-		Code:    ActionAlreadyRequested,
-		Message: "A Renovate rebase is already requested on this pull request.",
-		Next:    "Renovate clears the box once it has rebased, and the rebase is offered again.",
-	}}
+	return req != nil && req.Bot == BotRenovate && req.Phase == BotRebasing
+}
+
+// renovateRebaseActions: a rebase already asked for is not asked for again. When
+// it was asked for through the rebase box, clearing the box withdraws it, so
+// that is offered instead. A request made another way (the label fallback) has
+// no way back, so a pending one leaves neither action and the wait chip says
+// what is going on. Renovate clears the box once it has rebased, and the next
+// snapshot offers the rebase again.
+func renovateRebaseActions(pr PullRequest) []ActionAvailability {
+	switch {
+	case renovateRebasing(pr):
+		// Renovate has consumed the box, so clearing it withdraws nothing and
+		// would drop the in-progress record.
+		return nil
+	case pr.RenovateRebaseRequested:
+		return []ActionAvailability{{Action: ActionCancelRenovateRebase}}
+	case botRequestPending(pr, BotRenovate):
+		return nil
+	default:
+		return []ActionAvailability{{Action: ActionRenovateRebase}}
+	}
 }
 
 // mergeAvailability is Merge's rules in the order they apply. Merge is blocked

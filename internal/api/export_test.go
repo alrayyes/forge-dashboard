@@ -9,6 +9,8 @@ var (
 	NewStaticHandler = newStaticHandler
 	RecoverPanics    = recoverPanics
 
+	BotActionNotOffered = botActionNotOffered
+
 	InjectFooterVersion = injectFooterVersion
 	StaticFiles         = staticFiles
 )

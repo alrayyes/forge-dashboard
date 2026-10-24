@@ -1968,6 +1968,87 @@ paths:
             `not_mergeable` and never asks the forge. Nothing was changed.
             Also `already_requested` when the body's rebase checkbox is
             already ticked: the rebase is queued, and nothing was changed.
+            A client that follows `allowedActions` never meets it, since a
+            rebase that is already requested is not offered; it can be
+            withdrawn with `POST /api/pull-requests/renovate-rebase/cancel`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "429":
+          description: The forge rate-limited the request. `code` is `rate_limited`; `resetsAt` carries when the budget comes back, when the forge said.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+
+  /api/pull-requests/renovate-rebase/cancel:
+    post:
+      operationId: cancelPullRequestRenovateRebase
+      summary: Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
+      description: |
+        Unticks the `rebase-check` checkbox in the named pull request's
+        body (`- [x] <!-- rebase-check -->...` becomes `- [ ] ...`, and
+        nothing else in the body changes), which takes back the rebase
+        that ticking it asked for. Renovate looks at the box on its next
+        run, so a rebase it has already started is not stopped. The
+        pull request offers it as a `cancel_renovate_rebase` entry in
+        `allowedActions`, which it does while the box is ticked. A request
+        made with the rebase label has no checkbox, so it has no cancel.
+
+        Cancelling is idempotent: a box that is already unticked is left
+        alone and the answer is still 204. The pending `botRequest` of that
+        rebase, if this app recorded one, is dropped from the next snapshot.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequestActionRequest"
+      responses:
+        "204":
+          description: The box is unticked.
+        "400":
+          description: |
+            The request body wasn't valid JSON, `fullName` wasn't
+            "owner/repo", no credentials are saved for that forge, or that
+            forge's client can't edit a pull request description.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized; the saved token can't edit this pull request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionError"
+        "409":
+          description: |
+            The pull request is on the signed-in user's board and its
+            `allowedActions` has no `cancel_renovate_rebase` entry, so this
+            server refuses with `not_mergeable` and never asks the forge.
+            Nothing was changed.
           content:
             application/json:
               schema:
@@ -5950,6 +6031,7 @@ components:
             - dependabot_rebase
             - dependabot_recreate
             - renovate_rebase
+            - cancel_renovate_rebase
             - rerun_checks
             - cancel_run
         primary:
@@ -5988,11 +6070,15 @@ components:
             is blocked rather than hidden while waiting or fixing something can
             unlock it. An empty pull request, which nothing can unlock, has no
             `merge` entry at all: see `status`.
-            `renovate_rebase` is blocked with `already_requested` while
+            A request that is already waiting is never listed blocked. While
             Renovate's rebase checkbox in the pull request description is
-            ticked, whether it was ticked from this app or on the forge: one
-            rebase is already waiting for Renovate, and it is offered again
-            once Renovate has rebased and cleared the box.
+            ticked, whether from this app or on the forge, `renovate_rebase`
+            is absent and `cancel_renovate_rebase` is listed instead. A
+            Renovate rebase asked for through this app with no checkbox
+            behind it, and a Dependabot rebase or recreate that is pending,
+            list neither request nor cancel: Dependabot has no command to
+            withdraw one. The request is offered again once the bot has
+            acted or the request has expired.
           properties:
             code:
               type: string
@@ -6055,8 +6141,8 @@ components:
             on a Dependabot or Renovate pull request. A client draws that
             action's button inside the status line and nowhere else on the
             row. Absent when no action clears it (a conflict, a check still
-            running, a draft) and when the action is locked, such as a
-            Renovate rebase already waiting. When set it is the entry marked
+            running, a draft) and when the rebase is already requested, so
+            it is not offered. When set it is the entry marked
             `primary`. The reverse doesn't hold: a behind bot pull request
             that waits on checks has a primary rebase and no `action` here.
 
