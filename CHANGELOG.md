@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.33.3](https://github.com/alrayyes/forge-dashboard/compare/v2.33.2...v2.33.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* **web:** count a passkey's new name in characters, not UTF-16 units ([#2827](https://github.com/alrayyes/forge-dashboard/issues/2827)) ([f54cad7](https://github.com/alrayyes/forge-dashboard/commit/f54cad74f7486da04b63ff586dc48e93a93d66bb)), closes [#2818](https://github.com/alrayyes/forge-dashboard/issues/2818)
+
 ## [2.33.2](https://github.com/alrayyes/forge-dashboard/compare/v2.33.1...v2.33.2) (2026-10-24)
 
 
