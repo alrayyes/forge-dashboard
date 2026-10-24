@@ -550,9 +550,9 @@ type repoRows struct {
 	// mark is about. A merge that re-feeds the snapshot's own issues leaves the
 	// mark alone.
 	fetched bool
-	// read, when set, holds the settledKey of each pull request rows read from
-	// the forge; the rest were carried over from the snapshot. Nil means all.
-	read map[string]bool
+	// read says which pull requests rows read from the forge; the rest were
+	// carried over from the snapshot. The zero value means all.
+	read readRows
 }
 
 // mergeReposFrom merges several repos of one forge at once: every
@@ -596,7 +596,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 
 // mergedRepo is current with forge/fullName's own entries replaced by prs and
 // issues. The caller holds mu and writes the result back.
-func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue, read map[string]bool) Snapshot {
+func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue, read readRows) Snapshot {
 	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
@@ -801,7 +801,7 @@ func reachableForges(forges []ForgeHealth) map[Forge]bool {
 // That is what the forge was asked for: a source held back on its budget, and
 // the keep and carry-over steps of a refresh, add rows from the snapshot, which
 // no fetch read.
-func rowsRead(results []Result, asked []bool) map[string]bool {
+func rowsRead(results []Result, asked []bool) readRows {
 	read := make(map[string]bool)
 	for i, r := range results {
 		if !asked[i] {
@@ -812,7 +812,7 @@ func rowsRead(results []Result, asked []bool) map[string]bool {
 		}
 	}
 
-	return read
+	return onlyRead(read)
 }
 
 // publish tells the subscribers about snap and saves it for the next start.

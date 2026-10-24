@@ -310,7 +310,7 @@ func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq ui
 
 	merges := make([]repoRows, 0, len(repos))
 	for repo := range repos {
-		merges = append(merges, repoRows{fullName: repo, read: read, rows: func(current Snapshot) ([]PullRequest, []Issue, bool) {
+		merges = append(merges, repoRows{fullName: repo, read: onlyRead(read), rows: func(current Snapshot) ([]PullRequest, []Issue, bool) {
 			if a.scopedSeq[repoKey{forge, repo}] > seq {
 				return nil, nil, false
 			}
