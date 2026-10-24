@@ -303,6 +303,8 @@ func runHealthcheck() error {
 // silently dropped the signal-context cancellation and, on any startup
 // error past dashboard.NewService, its own Stop too. Returning lets every
 // defer here run before main decides whether to exit non-zero.
+//
+//nolint:funlen // start-up reads top to bottom; each step is one call, which splitting would only scatter
 func run() error {
 	addr := envOr("ADDR", ":8080")
 	refreshInterval, ciPollInterval := resolveIntervals()

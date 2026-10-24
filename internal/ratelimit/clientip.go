@@ -1,10 +1,12 @@
 package ratelimit
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strings"
 )
 
@@ -23,6 +25,9 @@ var defaultProxies = []netip.Prefix{
 	netip.MustParsePrefix("fe80::/10"),
 }
 
+// ErrBadProxy is a TRUSTED_PROXIES entry that is neither an address nor a CIDR prefix.
+var ErrBadProxy = errors.New("neither an address nor a CIDR prefix")
+
 // ParseProxies reads a comma-separated list of CIDR prefixes and bare
 // addresses naming the reverse proxies to trust. Empty means the private
 // ranges; "none" means no proxy is trusted.
@@ -36,7 +41,7 @@ func ParseProxies(spec string) ([]netip.Prefix, error) {
 	}
 
 	var out []netip.Prefix
-	for _, item := range strings.Split(spec, ",") {
+	for item := range strings.SplitSeq(spec, ",") {
 		item = strings.TrimSpace(item)
 		if prefix, err := netip.ParsePrefix(item); err == nil {
 			out = append(out, prefix)
@@ -45,7 +50,7 @@ func ParseProxies(spec string) ([]netip.Prefix, error) {
 		}
 		addr, err := netip.ParseAddr(item)
 		if err != nil {
-			return nil, fmt.Errorf("%q is neither an address nor a CIDR prefix", item)
+			return nil, fmt.Errorf("%q is %w", item, ErrBadProxy)
 		}
 		out = append(out, netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen()))
 	}
@@ -85,10 +90,10 @@ func peerAddr(r *http.Request) netip.Addr {
 func forwardedClient(headers []string, trusted []netip.Prefix, peer netip.Addr) netip.Addr {
 	var hops []string
 	for _, h := range headers {
-		hops = append(hops, strings.Split(h, ",")...)
+		hops = slices.AppendSeq(hops, strings.SplitSeq(h, ","))
 	}
-	for i := len(hops) - 1; i >= 0; i-- {
-		addr, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+	for _, hop := range slices.Backward(hops) {
+		addr, err := netip.ParseAddr(strings.TrimSpace(hop))
 		if err != nil {
 			return peer
 		}

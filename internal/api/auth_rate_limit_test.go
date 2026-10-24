@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
@@ -67,9 +68,16 @@ func limitedServerTrusting(tb testing.TB, burst int, every time.Duration, truste
 	return srv, clock
 }
 
+// reply is what a request got, read in full so nothing is left open.
+type reply struct {
+	status     int
+	retryAfter string
+	body       []byte
+}
+
 // postFrom posts an empty body to path as the client at addr, the way a reverse
 // proxy in front of the server would forward it.
-func postFrom(tb testing.TB, srv *httptest.Server, path, addr string) *http.Response {
+func postFrom(tb testing.TB, srv *httptest.Server, path, addr string) reply {
 	tb.Helper()
 	req, err := http.NewRequestWithContext(tb.Context(), http.MethodPost, srv.URL+path, strings.NewReader("{}"))
 	require.NoError(tb, err)
@@ -79,9 +87,11 @@ func postFrom(tb testing.TB, srv *httptest.Server, path, addr string) *http.Resp
 	}
 	resp, err := testClient(tb).Do(req)
 	require.NoError(tb, err)
-	tb.Cleanup(func() { _ = resp.Body.Close() })
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(tb, err)
 
-	return resp
+	return reply{status: resp.StatusCode, retryAfter: resp.Header.Get("Retry-After"), body: body}
 }
 
 func TestAuthRateLimit_PastTheBurst_Answers429WithRetryAfter(t *testing.T) {
@@ -91,15 +101,15 @@ func TestAuthRateLimit_PastTheBurst_Answers429WithRetryAfter(t *testing.T) {
 			t.Parallel()
 			srv, _ := limitedServer(t, 3, 6*time.Second)
 			for range 3 {
-				assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, path, "198.51.100.1").StatusCode)
+				assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, path, "198.51.100.1").status)
 			}
 
 			resp := postFrom(t, srv, path, "198.51.100.1")
 
-			assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
-			assert.Equal(t, "6", resp.Header.Get("Retry-After"))
+			assert.Equal(t, http.StatusTooManyRequests, resp.status)
+			assert.Equal(t, "6", resp.retryAfter)
 			var body map[string]string
-			require.NoError(t, json.Unmarshal([]byte(readAll(t, resp)), &body))
+			require.NoError(t, json.Unmarshal(resp.body, &body))
 			assert.Contains(t, body["error"], "too many")
 			assert.Contains(t, body["error"], "6 seconds")
 		})
@@ -114,7 +124,7 @@ func TestAuthRateLimit_TheFourEndpointsShareOneAllowance(t *testing.T) {
 	}
 
 	for _, path := range ceremonyPaths {
-		assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, path, "198.51.100.1").StatusCode, path)
+		assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, path, "198.51.100.1").status, path)
 	}
 }
 
@@ -126,8 +136,8 @@ func TestAuthRateLimit_RetryAfterRoundsUpToWholeSeconds(t *testing.T) {
 
 	resp := postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1")
 
-	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
-	assert.Equal(t, "4", resp.Header.Get("Retry-After"))
+	assert.Equal(t, http.StatusTooManyRequests, resp.status)
+	assert.Equal(t, "4", resp.retryAfter)
 }
 
 func TestAuthRateLimit_AfterTheWindow_TheAddressIsLetBackIn(t *testing.T) {
@@ -136,11 +146,11 @@ func TestAuthRateLimit_AfterTheWindow_TheAddressIsLetBackIn(t *testing.T) {
 	for range 2 {
 		postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1")
 	}
-	require.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").StatusCode)
+	require.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
 
 	clock.advance(6 * time.Second)
 
-	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").StatusCode)
+	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
 }
 
 func TestAuthRateLimit_OneAddressBeingLimited_LeavesAnotherAlone(t *testing.T) {
@@ -150,8 +160,8 @@ func TestAuthRateLimit_OneAddressBeingLimited_LeavesAnotherAlone(t *testing.T) {
 		postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1")
 	}
 
-	assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").StatusCode)
-	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "203.0.113.7").StatusCode)
+	assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
+	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "203.0.113.7").status)
 }
 
 func TestAuthRateLimit_ForwardedHeaderFromAnUntrustedPeer_CannotShakeTheLimit(t *testing.T) {
@@ -164,7 +174,7 @@ func TestAuthRateLimit_ForwardedHeaderFromAnUntrustedPeer_CannotShakeTheLimit(t 
 
 	resp := postFrom(t, srv, "/api/auth/login/begin", "198.51.100.99")
 
-	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+	assert.Equal(t, http.StatusTooManyRequests, resp.status)
 }
 
 func TestAuthRateLimit_OtherEndpoints_AreNotCounted(t *testing.T) {
