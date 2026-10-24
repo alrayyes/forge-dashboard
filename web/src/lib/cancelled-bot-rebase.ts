@@ -1,6 +1,6 @@
 // A Renovate rebase the forge has just cancelled stays "cancelled" on this
-// page until a snapshot stops listing the cancel, so a refresh that failed
-// can't redraw an idle Cancel button from the snapshot it replaced. A box
+// page until a snapshot stops listing the cancel, so a refresh that failed or
+// repeated the old snapshot can't redraw an idle Cancel button from it. A box
 // ticked again later is listed by a newer snapshot, which starts clean.
 
 export type CancelEntry = { phase: string };

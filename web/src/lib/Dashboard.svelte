@@ -4798,17 +4798,15 @@
 
     // The board asks the server again, so the row leaves or returns at once
     // instead of waiting for the pointer to leave the list.
-    // Resolves true when a fresh snapshot was drawn.
-    function refreshBoard(keepFocus = false): Promise<boolean> {
+    function refreshBoard(keepFocus = false): Promise<void> {
       const seq = ++requestSeq;
       return refreshSnapshot()
         .then((data) => {
-          if (!data) return false;
+          if (!data) return;
           if (keepFocus) keepFocusAcross(() => applySnapshot(data, true, seq));
           else applySnapshot(data, true, seq);
-          return true;
         })
-        .catch(() => false);
+        .catch(() => {});
     }
 
     // One message at a time, as a status for assistive tech. An Undo button
@@ -5756,7 +5754,9 @@
           // A throw while redrawing is a bug to see in the console, not a
           // failed cancel.
           try {
-            if (await refreshBoard(true)) delete cancelRenovateRebaseState[key];
+            // The entry is not dropped here: a stale or repeated snapshot
+            // still lists the cancel. Only a snapshot without it settles it.
+            await refreshBoard(true);
             keepFocusAcross(renderPRBoard);
           } catch (err) {
             console.error("redraw after cancelling the Renovate rebase", err);
@@ -8730,12 +8730,18 @@
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
       const botChanged = syncServerRequests(prs, startedSeq);
-      const listingCancel = new Set(
-        prs.filter((p) => findAction(p, "cancel_renovate_rebase")).map(prKey),
-      );
-      settleCancelled(cancelRenovateRebaseState, (key) =>
-        listingCancel.has(key),
-      );
+      if (
+        Object.values(cancelRenovateRebaseState).some(
+          (e) => e.phase === "cancelled",
+        )
+      ) {
+        const listingCancel = new Set(
+          prs.filter((p) => findAction(p, "cancel_renovate_rebase")).map(prKey),
+        );
+        settleCancelled(cancelRenovateRebaseState, (key) =>
+          listingCancel.has(key),
+        );
+      }
       const issues = data.issues || [];
       allPRs = prs;
       followOpenPipeline();

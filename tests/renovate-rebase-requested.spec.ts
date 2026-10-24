@@ -49,6 +49,9 @@ function makePR(
 }
 
 type State = {
+  // Pins the snapshot's time, so a refresh can answer with the very snapshot
+  // the page already holds, as a cooldown answer does.
+  at?: string;
   rebase: Record<string, unknown> | null;
   extra?: Record<string, unknown>;
 };
@@ -63,7 +66,7 @@ async function serve(
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
+        generatedAt: state.at ?? new Date().toISOString(),
         forges: [{ forge: 'forgejo', reachable: true, repoCount: 1, ...forge }],
         pullRequests: [makePR(state.rebase, state.extra)],
         issues: [],
@@ -205,6 +208,29 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
       0,
     );
     await settle(page);
+    await expect(row.getByRole('button', { name: CANCEL_NAME })).toHaveCount(0);
+  });
+
+  test('a refresh that repeats the old snapshot after the cancel does not draw the cancel again', async ({
+    page,
+  }) => {
+    await serve(page, {
+      at: new Date().toISOString(),
+      rebase: CANCEL,
+      extra: { botRequest: BOT_REQUEST },
+    });
+    await page.route(
+      '**/api/pull-requests/renovate-rebase/cancel',
+      (route: Route) => route.fulfill({ status: 204 }),
+    );
+    const row = await openRow(page);
+
+    await row.getByRole('button', { name: CANCEL_NAME }).click();
+    await expect(row.getByRole('button', { name: 'Cancelling…' })).toHaveCount(
+      0,
+    );
+    await settle(page);
+
     await expect(row.getByRole('button', { name: CANCEL_NAME })).toHaveCount(0);
   });
 
