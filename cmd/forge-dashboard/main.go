@@ -343,18 +343,25 @@ func run() error {
 	requestLogWriter := requestlog.NewWriter(authStore, requestLogQueueSize)
 	defer flushRequestLog(requestLogWriter)
 
+	authLimiter, trustedProxies, err := resolveAuthLimit(os.Getenv("TRUSTED_PROXIES"), authLimitEnabled)
+	if err != nil {
+		return err
+	}
+
 	var drain api.Drain
 	deps := api.Deps{
-		Drain:         &drain,
-		Version:       version,
-		AuthService:   authService,
-		AuthStore:     authStore,
-		SettingsStore: settingsStore,
-		Service:       service,
-		Database:      schemaPinger{db: db},
-		Dashboard:     service,
-		APIStats:      apistats.New(),
-		AppContext:    ctx,
+		Drain:          &drain,
+		Version:        version,
+		AuthService:    authService,
+		AuthStore:      authStore,
+		AuthLimiter:    authLimiter,
+		TrustedProxies: trustedProxies,
+		SettingsStore:  settingsStore,
+		Service:        service,
+		Database:       schemaPinger{db: db},
+		Dashboard:      service,
+		APIStats:       apistats.New(),
+		AppContext:     ctx,
 		// The env var buildAuth already requires for WebAuthn's RPOrigins; see
 		// Deps.PublicOrigin.
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),

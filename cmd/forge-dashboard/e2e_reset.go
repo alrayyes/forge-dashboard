@@ -30,6 +30,10 @@ const e2eResetPath = "/__e2e/reset"
 // emptied, so a table added later is reset without anyone remembering to list it.
 var keptTables = map[string]bool{"users": true, "credential_metadata": true, "schema_version": true}
 
+// authLimitEnabled is off in an e2e build: every test signs in again from the
+// one address Playwright connects from, which the limit would turn into 429s.
+const authLimitEnabled = false
+
 // withE2EHooks mounts the reset route ahead of next. It needs the raw database
 // handle that /readyz's pinger wraps; without it there is nothing to reset.
 func withE2EHooks(next http.Handler, deps api.Deps) http.Handler {
