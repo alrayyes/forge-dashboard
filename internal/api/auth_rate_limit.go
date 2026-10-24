@@ -23,9 +23,11 @@ var warnNoForwardedClient sync.Once
 // The limit is per address, never per account: the sign-in names no user, and a
 // limit on a name would let a stranger lock the owner out. A trusted proxy that
 // forwards no client address leaves nothing to tell visitors apart, so those
-// requests share one bucket, larger than an address's. A flood from there can
-// delay a sign-in but cannot fill the ceremony store, which is the trade. A nil
-// limiter lets every request through.
+// requests share one bucket, larger than an address's. That bucket alone, at
+// most 70 requests in a ceremony's five minutes, cannot fill the store of 100,
+// but it can be used up and 429 the owner for a while. Addresses that do
+// forward add their own allowance on top, so the total is not capped at 100.
+// A nil limiter lets every request through.
 func limitAuthAttempts(deps Deps, next http.Handler) http.Handler {
 	if deps.AuthLimiter == nil {
 		return next

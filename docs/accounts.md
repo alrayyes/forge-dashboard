@@ -87,9 +87,11 @@ none (or only addresses of trusted proxies), nothing tells the visitors apart.
 Those requests then share one bucket, twice the size of a single address's
 (20 at once, then one every 6 seconds), and are refused with `429` and
 `Retry-After` like any other. Over five minutes that is at most 70 requests,
-fewer than the 100 pending ceremonies, so a flood can't push the owner's
-sign-in out. The trade is that a flood can delay it. The server logs a warning
-once, naming the peer.
+fewer than the 100 pending ceremonies, so this bucket alone can't fill the
+store. It can be used up, though, and then the owner gets `429` for a while.
+One address that does forward adds up to 60 more in the same five minutes, so
+the shared bucket and such addresses together can exceed 100, as two addresses
+always could. The server logs a warning once, naming the peer.
 
 Running `docker run -p 8080:8080` with the default settings is this case: the
 container sees the Docker gateway address, which is in the default trusted
