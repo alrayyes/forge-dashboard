@@ -148,6 +148,10 @@ func botActionNotOffered(action dashboard.ActionName, pr dashboard.PullRequest) 
 
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Renovate pull request."}
 	default:
+		if pending && pr.BotRequest.Bot == dashboard.BotRenovate && pr.BotRequest.Phase == dashboard.BotRebasing {
+			return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Renovate is already rebasing; there is nothing left to cancel."}
+		}
+
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "No Renovate rebase is requested through the rebase box on this pull request."}
 	}
 }
