@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.5](https://github.com/alrayyes/forge-dashboard/compare/v2.29.4...v2.29.5) (2026-10-24)
+
+
+### Bug Fixes
+
+* treat unknown check statuses as not started ([#2734](https://github.com/alrayyes/forge-dashboard/issues/2734)) ([0913c87](https://github.com/alrayyes/forge-dashboard/commit/0913c872be8bc9ba895e3c0c32a2b5e447657be2))
+
 ## [2.29.4](https://github.com/alrayyes/forge-dashboard/compare/v2.29.3...v2.29.4) (2026-10-24)
 
 
