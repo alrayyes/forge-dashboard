@@ -42,6 +42,9 @@ func WaitForAdvisories(c *Client) { c.advisoryReads.Wait() }
 // one is answered from what it remembered. It is not safe to call concurrently
 // on one client: its Wait would race another caller's first read starting its
 // background read. Start concurrent reads with ReadMainBranch, then settle once.
+// A mutex here would only serialise Settled callers. The hazard is a Settled
+// call racing a direct ReadMainBranch, which would not take it, so the
+// hazard is documented instead.
 func ReadMainBranchSettled(ctx context.Context, c *Client, repo dashboard.RepoRef) (dashboard.MainBranch, error) {
 	if _, err := c.ReadMainBranch(ctx, repo); err != nil {
 		return dashboard.MainBranch{}, err
