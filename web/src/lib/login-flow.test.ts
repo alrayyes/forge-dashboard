@@ -1,6 +1,11 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { ApiError, checkRegistrationOpen, loginFailure } from './login-flow';
+import {
+  ApiError,
+  checkRegistrationOpen,
+  loginFailure,
+  loginFailureTracker,
+} from './login-flow';
 
 describe('loginFailure', () => {
   test('a 404 while registration is open sends the visitor to register', () => {
@@ -65,9 +70,55 @@ describe('loginFailure', () => {
     expect(got.message).toContain('Settings');
   });
 
-  test('a repeat keeps the long message short enough to read at a glance', () => {
-    expect(loginFailure(notAllowed(), false, true).message.length).toBeLessThan(
-      260,
+  test('a repeat puts the reset command in a sentence of its own', () => {
+    const sentences = loginFailure(notAllowed(), false, true).message.split(
+      /(?<=\.)\s+/,
+    );
+    const withCommand = sentences.filter((s) =>
+      s.includes('forge-dashboard reset-passkeys'),
+    );
+    expect(withCommand).toHaveLength(1);
+    expect(withCommand[0]).not.toContain(':');
+  });
+});
+
+describe('loginFailureTracker', () => {
+  const notAllowed = () => {
+    const err = new Error('timed out');
+    err.name = 'NotAllowedError';
+    return err;
+  };
+
+  test('the first cancelled prompt gets the short retry line', () => {
+    const next = loginFailureTracker();
+    expect(next(notAllowed(), false).message).toBe(
+      'Sign-in was cancelled or timed out. Try again.',
+    );
+  });
+
+  test('the second cancelled prompt in a row names the reset command', () => {
+    const next = loginFailureTracker();
+    next(notAllowed(), false);
+    expect(next(notAllowed(), false).message).toContain(
+      'forge-dashboard reset-passkeys',
+    );
+  });
+
+  test('a different failure in between starts the count again', () => {
+    const next = loginFailureTracker();
+    next(notAllowed(), false);
+    next(new ApiError('could not start login', 500), false);
+    expect(next(notAllowed(), false).message).toBe(
+      'Sign-in was cancelled or timed out. Try again.',
+    );
+  });
+
+  test('the long message keeps showing while prompts keep failing', () => {
+    const next = loginFailureTracker();
+    next(notAllowed(), false);
+    next(notAllowed(), false);
+    expect(next(notAllowed(), false).message).toContain(
+      'forge-dashboard reset-passkeys',
     );
   });
 });
