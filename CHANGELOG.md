@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.1](https://github.com/alrayyes/forge-dashboard/compare/v2.30.0...v2.30.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **dashboard:** close the mention parser's remaining edge cases ([#2764](https://github.com/alrayyes/forge-dashboard/issues/2764)) ([f6aa4b7](https://github.com/alrayyes/forge-dashboard/commit/f6aa4b7c1cdb8bc20607c829d31d94cd7f855335))
+
 ## [2.30.0](https://github.com/alrayyes/forge-dashboard/compare/v2.29.7...v2.30.0) (2026-10-24)
 
 
