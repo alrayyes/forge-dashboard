@@ -203,10 +203,30 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 		if r, ok := classifyReopenRefusal(actionErr); ok {
 			return r
 		}
-	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionRerunChecks, PullRequestActionRerunBranchChecks, PullRequestActionCancelRun:
+	case PullRequestActionRerunChecks, PullRequestActionRerunBranchChecks:
+		if r, ok := rerunNotFound(actionErr, forgeText); ok {
+			return r
+		}
+	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionCancelRun:
 	}
 
 	return unknownRefusal(actionErr, forgeText)
+}
+
+// rerunNotFound says what a rerun's 404 means. "404 page not found" is the web
+// server's, not a sentence the forge wrote for a person. A rerun is the one
+// action that meets it: an older Forgejo has no such route. A sentence the
+// forge did write is kept.
+func rerunNotFound(actionErr error, forgeText string) (ActionRefusal, bool) {
+	clientErr, ok := errors.AsType[*ClientError](actionErr)
+	if !ok || clientErr.Kind != ForgeErrorNotFound {
+		return ActionRefusal{}, false
+	}
+	if isPlainSentence(forgeText) && !strings.Contains(strings.ToLower(forgeText), "page not found") {
+		return ActionRefusal{}, false
+	}
+
+	return ActionRefusal{Code: ActionUnknown, Message: notFoundMessage}, true
 }
 
 // classifyReopenRefusal says a refused Reopen is one the forge won't do. Only
@@ -245,11 +265,6 @@ func unknownRefusal(actionErr error, forgeText string) ActionRefusal {
 	if clientErr, ok := errors.AsType[*ClientError](actionErr); ok {
 		if clientErr.Kind == ForgeErrorUnreachable {
 			return ActionRefusal{Code: ActionUnknown, Message: unreachableMessage}
-		}
-		// "404 page not found" is the web server's, not a sentence the forge
-		// wrote for a person.
-		if clientErr.Kind == ForgeErrorNotFound && (!isPlainSentence(forgeText) || strings.Contains(strings.ToLower(forgeText), "page not found")) {
-			return ActionRefusal{Code: ActionUnknown, Message: notFoundMessage}
 		}
 		if isPlainSentence(forgeText) {
 			return ActionRefusal{Code: ActionUnknown, Message: forgeText}
