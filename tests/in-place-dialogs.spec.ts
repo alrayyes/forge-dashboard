@@ -345,6 +345,8 @@ test.describe('pills inside the pull request dialog', () => {
 
     await page.keyboard.press('Escape');
     await expect(issueDialog(page)).toBeHidden();
+    // Focus goes back to the pull request's title in the list.
+    await expect(openPullDialog(page, 1)).toBeFocused();
   });
 
   test('a mentions pill for a ticket the dashboard holds opens its dialog', async ({
@@ -435,6 +437,11 @@ test.describe('pills inside the pull request dialog', () => {
     await expect(pullDialog(page)).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe('/issues.html');
     expect(new URL(page.url()).search).toBe('');
+
+    // This page has no row for the pull request, so focus goes to the filter.
+    await page.keyboard.press('Escape');
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(page.locator('#title-filter')).toBeFocused();
   });
 });
 
@@ -458,9 +465,44 @@ test.describe('references inside the issue dialog', () => {
     );
     await expect(issueDialog(page)).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
-    // The board's own dialog, with its actions, not the read-only one.
-    await expect(pullDialog(page).getByRole('button').last()).toBeVisible();
+    // The board's own dialog, with its footer actions, not the read-only
+    // one, which has none.
+    await expect(
+      pullDialog(page).locator('.details-actions button').first(),
+    ).toBeVisible();
+
+    // The issue's row is not on this page, so focus goes to the filter box.
+    await page.keyboard.press('Escape');
+    await expect(pullDialog(page)).toBeHidden();
+    await expect(page.locator('#title-filter')).toBeFocused();
   });
+
+  for (const [path, label] of [
+    ['/pull-requests.html', 'Pull requests'],
+    ['/issues.html', 'Issues'],
+  ] as const) {
+    for (const width of [1280, 390]) {
+      for (const scheme of ['light', 'dark'] as const) {
+        test(`has no axe violations with the pull request dialog reached from the issue dialog, ${label} page, ${scheme} at ${width}px`, async ({
+          page,
+        }) => {
+          await page.setViewportSize({ width, height: 800 });
+          await page.emulateMedia({ colorScheme: scheme });
+          await mockBoard(page, {
+            shown: [pullRequest(1, [closing(12)]), pullRequest(13)],
+            issues: [issue(12, [linked(13)])],
+          });
+          await page.goto(path);
+          if (path === '/issues.html')
+            await page.locator('#issue-rows .row button.title').first().click();
+          else await closingPill(page, 1).click();
+          await issueDialog(page).locator('.linked-pr').click();
+          await expect(pullDialog(page)).toBeVisible();
+          await axeClean(page, `${label} ${scheme} at ${width}px`);
+        });
+      }
+    }
+  }
 
   test('a reference the dashboard does not hold is said plainly on the Pull requests page', async ({
     page,
