@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.1](https://github.com/alrayyes/forge-dashboard/compare/v2.34.0...v2.34.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **api:** pin the release limiter, skip unattributed proxy requests, test Allow concurrently ([#2835](https://github.com/alrayyes/forge-dashboard/issues/2835)) ([112e15e](https://github.com/alrayyes/forge-dashboard/commit/112e15e0f346a5419fcccd664148ed36834bf5a5))
+
 ## [2.34.0](https://github.com/alrayyes/forge-dashboard/compare/v2.33.3...v2.34.0) (2026-10-24)
 
 
