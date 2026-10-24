@@ -16,9 +16,3 @@ func (a *Aggregator) BoxOverrideCount() int {
 
 	return len(a.boxOverrides)
 }
-
-// ReapplyBoxOverrides runs the step a full refresh takes under the snapshot
-// lock, on prs from the fetch numbered seq.
-func (a *Aggregator) ReapplyBoxOverrides(prs []PullRequest, seq uint64) {
-	a.reapplyBoxOverrides(prs, seq)
-}

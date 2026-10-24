@@ -610,7 +610,9 @@ func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, 
 		merged.Issues = append(merged.Issues, i)
 	}
 	merged.Issues = append(merged.Issues, issues...)
-	a.applyBotRequests(merged.PullRequests, seq, func(f Forge, repo string) bool { return f == forge && repo == fullName })
+	covers := func(f Forge, repo string) bool { return f == forge && repo == fullName }
+	a.settleBoxOverrides(merged.PullRequests, seq, covers)
+	a.applyBotRequests(merged.PullRequests, seq, covers)
 	AnnotateStacks(merged.PullRequests)
 	sortByRecency(merged.PullRequests, merged.Issues)
 
@@ -765,9 +767,11 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.mu.Lock()
 	previous := a.snap
 	snap = a.keepNewerScopedRepos(snap, previous, seq)
-	// See mergeRepo: a request recorded since applyBotRequests ran (#976),
-	// and likewise a box ticked or cleared since.
-	a.reannotateUnderLock(snap.PullRequests, seq)
+	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
+	// The box overrides are settled here too, under the lock every tick and
+	// cancel takes, so none can land between the settling and the swap.
+	a.settleBoxOverrides(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
+	a.annotateBotRequests(snap.PullRequests)
 	a.snap = snap
 	a.lastGood = goodAt
 	a.mu.Unlock()

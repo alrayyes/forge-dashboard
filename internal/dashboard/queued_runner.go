@@ -311,7 +311,10 @@ func (a *Aggregator) performQueued(ctx context.Context, run queuedRun, q QueuedA
 	case err != nil:
 		a.refusedQueued(ctx, q, refusedAs, err)
 	case alreadyRequested:
-		// The box is ticked on the forge, whatever the board last read.
+		// The box is ticked on the forge, whatever the board last read, and a
+		// click that finds it so does the same. The cancel it brings back is
+		// safe: AllowedActions withholds it once Renovate is rebasing, which
+		// is the only state where a ticked box may not be this request's.
 		a.SetRenovateRebaseBox(q.Forge, q.Repo, q.Number, true)
 		a.finishQueued(ctx, q, QueuedSkipped, ActionAlreadyRequested, "A Renovate rebase is already requested on this pull request.")
 	default:
