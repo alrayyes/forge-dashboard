@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.33.1](https://github.com/alrayyes/forge-dashboard/compare/v2.33.0...v2.33.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **web:** pin the repeat sign-in message and set the reset command apart ([#2821](https://github.com/alrayyes/forge-dashboard/issues/2821)) ([7427c8f](https://github.com/alrayyes/forge-dashboard/commit/7427c8fc360e52fe775331abfb44ac5661573c98))
+
 ## [2.33.0](https://github.com/alrayyes/forge-dashboard/compare/v2.32.1...v2.33.0) (2026-10-24)
 
 
