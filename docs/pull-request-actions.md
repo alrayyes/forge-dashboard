@@ -76,7 +76,9 @@ inside the row's status block and leaves out the row's own copy, so the
 warning and its cure are one control. The pop-up's footer still lists every
 action. A conflict, a check still running and a draft have no `action`, and
 neither does a Renovate pull request whose rebase is already waiting, which
-shows the cancel in the row.
+shows the cancel in the row. Once Renovate has taken the request and is
+rebasing, the cancel goes too: clearing the box then withdraws nothing, so the
+row keeps only the waiting chip.
 
 The details pop-up (see Pull request pages) draws the same actions in its
 footer, built by the same code as the row's buttons so the two cannot disagree.
