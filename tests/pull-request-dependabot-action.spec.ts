@@ -316,6 +316,36 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       });
     }
 
+    test('keyboard: Recreate, its confirm and the requested button hold the focus', async ({
+      page,
+    }) => {
+      await mockDashboard(page, 'github', makePR());
+      const release = await holdRequest(page);
+      await page.goto('/bots.html');
+
+      const row = page.locator('#pr-rows .row').first();
+      const footer = await openFooter(row);
+      await footer
+        .getByRole('button', { name: 'Dependabot: Recreate' })
+        .focus();
+      await page.keyboard.press('Enter');
+      await expect(
+        footer.getByRole('button', { name: 'Confirm recreate?' }),
+      ).toBeFocused();
+      // An Enter straight after the confirm appears is ignored on purpose, so
+      // press until the guard lets one through.
+      const requested = footer.getByRole('button', {
+        name: 'Recreate requested',
+      });
+      await expect(async () => {
+        await page.keyboard.press('Enter');
+        await expect(requested).toBeVisible({ timeout: 300 });
+      }).toPass();
+      await expect(requested).toBeFocused();
+      release();
+      await expect(requested).toBeFocused();
+    });
+
     test('a queued Rebase reads Rebase requested and Recreate is not drawn', async ({
       page,
     }) => {
@@ -374,6 +404,40 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       ).toHaveAttribute('aria-disabled', 'true');
       await expect(page.locator('#feedback-toasts')).not.toContainText(
         'already requested',
+      );
+    });
+
+    test('the other command being pending is a refusal, not a false "recreate requested"', async ({
+      page,
+    }) => {
+      const message =
+        "A Dependabot rebase is already pending on this pull request, so this command can't go out until it finishes.";
+      await mockDashboard(page, 'github', makePR());
+      await page.route('**/api/pull-requests/dependabot-action', (route) =>
+        route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: message,
+            code: 'not_mergeable',
+            message,
+          }),
+        }),
+      );
+      await page.goto('/bots.html');
+      const row = page.locator('#pr-rows .row').first();
+      const footer = await openFooter(row);
+
+      await footer
+        .getByRole('button', { name: 'Dependabot: Recreate' })
+        .click();
+      await footer.getByRole('button', { name: 'Confirm recreate?' }).click();
+
+      await expect(page.locator('body')).toContainText(
+        'rebase is already pending',
+      );
+      await expect(page.locator('#feedback-toasts')).not.toContainText(
+        /recreate requested/i,
       );
     });
 

@@ -4121,8 +4121,16 @@
       });
       // The other command is left out from the moment one is queued, not once
       // the response lands. Focus goes back to the button that was clicked.
-      const focusId = button.id;
-      const hadFocus = document.activeElement === button;
+      // Recreate's confirm is gone once the request is queued, so focus goes
+      // to the Recreate button that takes its place.
+      const focusId =
+        action === "recreate"
+          ? button.id.replace("recreate-confirm-", "dependabot-recreate-")
+          : button.id;
+      // Confirming already redrew the confirm away and moved the focus off it,
+      // so the confirm of a Recreate always hands focus on.
+      const hadFocus =
+        action === "recreate" || document.activeElement === button;
       renderPRBoard();
       if (hadFocus && focusId) document.getElementById(focusId)?.focus();
 
