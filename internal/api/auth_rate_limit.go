@@ -1,9 +1,11 @@
 package api
 
 import (
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/alrayyes/forge-dashboard/internal/ratelimit"
 )
@@ -16,14 +18,31 @@ import (
 //
 // The limit is per address, never per account: the sign-in names no user, and a
 // limit on a name would let a stranger lock the owner out. A nil limiter lets
-// every request through.
+// every request through, and so does a trusted proxy that forwards no client
+// address: counting it would put every visitor in one bucket, where a stranger
+// could keep the owner at 429. Better an unlimited endpoint, said once in the
+// log, than a sign-in the owner cannot reach.
+// warnNoForwardedClient keeps the misconfiguration to one log line, not one per request.
+var warnNoForwardedClient sync.Once
+
 func limitAuthAttempts(deps Deps, next http.Handler) http.Handler {
 	if deps.AuthLimiter == nil {
 		return next
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowed, wait := deps.AuthLimiter.Allow(ratelimit.ClientAddr(r, deps.TrustedProxies))
+		client, known := ratelimit.ClientAddr(r, deps.TrustedProxies)
+		if !known {
+			warnNoForwardedClient.Do(func() {
+				slog.Warn("a trusted proxy forwarded no client address; sign-in requests are not rate limited" +
+					" until it sends X-Forwarded-For (see TRUSTED_PROXIES)")
+			})
+			next.ServeHTTP(w, r)
+
+			return
+		}
+
+		allowed, wait := deps.AuthLimiter.Allow(client)
 		if allowed {
 			next.ServeHTTP(w, r)
 

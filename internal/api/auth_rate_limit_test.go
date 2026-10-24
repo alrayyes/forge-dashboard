@@ -177,6 +177,38 @@ func TestAuthRateLimit_ForwardedHeaderFromAnUntrustedPeer_CannotShakeTheLimit(t 
 	assert.Equal(t, http.StatusTooManyRequests, resp.status)
 }
 
+// A trusted proxy that forwards no client address would put every visitor in
+// one bucket, and a stranger sending one request every few seconds could keep
+// the owner at 429. The request is let through uncounted instead.
+func TestAuthRateLimit_TrustedProxyForwardingNoClient_IsNeverLimited(t *testing.T) {
+	t.Parallel()
+	srv, _ := limitedServer(t, 2, time.Hour)
+
+	for range 10 {
+		assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "").status)
+	}
+}
+
+func TestAuthRateLimit_TrustedProxyForwardingNoClient_LeavesTheForwardedClientsAlone(t *testing.T) {
+	t.Parallel()
+	srv, _ := limitedServer(t, 2, time.Hour)
+	for range 5 {
+		postFrom(t, srv, "/api/auth/login/begin", "")
+	}
+
+	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
+}
+
+func TestAuthRateLimit_PeerOutsideTheTrustedProxies_StillCountsByItsOwnAddress(t *testing.T) {
+	t.Parallel()
+	srv, _ := limitedServerTrusting(t, 2, time.Hour, nil)
+	for range 2 {
+		postFrom(t, srv, "/api/auth/login/begin", "")
+	}
+
+	assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "").status)
+}
+
 func TestAuthRateLimit_OtherEndpoints_AreNotCounted(t *testing.T) {
 	t.Parallel()
 	srv, _ := limitedServer(t, 1, time.Minute)

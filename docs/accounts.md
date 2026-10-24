@@ -80,6 +80,17 @@ the client from the proxy's `X-Forwarded-For` instead, from the right end,
 skipping every address listed in `TRUSTED_PROXIES` (see
 [Configuration](configuration.md)). It believes that header only from those
 proxies, and only the entries they wrote. An IPv6 client counts by its /64.
+
+The proxy must forward the client's address in `X-Forwarded-For`. Caddy and
+Traefik do by default; nginx needs `proxy_set_header X-Forwarded-For
+$proxy_add_x_forwarded_for`. When a
+trusted proxy sends none (or only addresses of trusted proxies), every visitor
+would count as the proxy, and a stranger sending one request every few seconds
+could keep the owner at `429`. So such a request is let through uncounted, and
+the server logs a warning once. The sign-in is then unlimited until the proxy
+forwards the address, which is better than a sign-in the owner can't reach. If
+the service is reached directly, with no proxy, set `TRUSTED_PROXIES=none` so
+each visitor counts by its own address.
 Account lockout and CAPTCHA are not part of this.
 
 ### API tokens
