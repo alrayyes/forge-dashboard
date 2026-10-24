@@ -54,7 +54,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 		return []dashboard.Source{&fakeConfiguredSource{health: wantHealth}}
 	}
 
-	srv := newTestServerWithSources(t, buildSources)
+	srv, service, _ := newTestServerWithSourcesAndService(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv, testUser, testDisplay)
 
 	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
@@ -65,6 +65,11 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
+
+	// Saving the token starts the first refresh in the background. A force
+	// refresh that lands while it is still running answers with the current
+	// (empty) snapshot and does not fetch, so wait for it to finish first.
+	require.Eventually(t, service.FirstRefreshDone, 10*time.Second, 5*time.Millisecond)
 
 	refreshReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/dashboard/refresh", nil)
 	require.NoError(t, err)
