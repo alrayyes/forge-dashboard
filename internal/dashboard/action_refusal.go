@@ -163,6 +163,10 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	r := classifyActionRefusal(action, actionErr, state)
 	if action == PullRequestActionRerunChecks || action == PullRequestActionRerunBranchChecks {
 		if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Partial != "" {
+			if r.Message == unreachableMessage {
+				// "Try again" would read oddly beside jobs that may be running.
+				r.Message = noAnswerMessage
+			}
 			r.Message = endSentence(r.Message) + " " + clientErr.Partial
 		}
 	}
@@ -285,6 +289,7 @@ const (
 	// A default branch's rerun looks up no pull request, so it names none.
 	branchNotFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
 	noReasonMessage       = "The forge refused this action and gave no reason."
+	noAnswerMessage       = "The forge didn't answer."
 	unreachableMessage    = "The forge didn't answer. Try again in a moment."
 	forgeFailedMessage    = "The forge had a server error. Try again in a moment."
 	maxPlainMessageSize   = 200

@@ -290,9 +290,12 @@ func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, r
 		rerunPath := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/rerun", owner, name, jobID)
 		slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
 		if _, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil); err != nil {
+			// Read from the error as the transport gave it: forgejoError keeps
+			// only its text, which hides a refused dial or a failed lookup.
+			mayHaveQueued := requestMayHaveQueued(resp, err)
 			err = c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
 
-			return withPartial(err, progress.refusedPartial(jobs, failed[i:], laterRuns, requestMayHaveQueued(resp, err)))
+			return withPartial(err, progress.refusedPartial(jobs, failed[i:], laterRuns, mayHaveQueued))
 		}
 		progress.restarted = append(progress.restarted, jobNames(jobs, []int64{jobID})...)
 	}
@@ -318,14 +321,22 @@ func (p *rerunProgress) refusedPartial(jobs []*gitea.ActionWorkflowJob, ids []in
 }
 
 // requestMayHaveQueued reports whether a failed job rerun request may still have
-// been acted on by the forge. An answer with a failing status was a refusal. An
-// answer that succeeded but could not be read was most likely acted on. With no
-// answer at all it depends on how far the request got: one that never reached
-// the forge (the name did not resolve, the connection was refused, the
-// handshake failed) did nothing, while a timeout, a reset or a cancelled wait
-// came after it was sent and says nothing about what the forge did.
+// been acted on by the forge. err is the error as the transport returned it,
+// not one forgejoError has rebuilt. An answer with a failing status was a
+// refusal, except a gateway's 502, 503 or 504, which a proxy can send after
+// the forge queued the job. An answer that succeeded but could not be read was
+// most likely acted on. With no answer at all it depends on how far the request
+// got: one that provably never reached the forge (the name did not resolve, the
+// connection or proxy was refused, the certificate was rejected) did nothing.
+// Anything else (a timeout, a reset, a handshake that timed out, a cancelled
+// wait) says nothing about what the forge did and counts as possibly queued.
 func requestMayHaveQueued(resp *gitea.Response, err error) bool {
 	if resp != nil && resp.Response != nil {
+		switch resp.StatusCode {
+		case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+			return true
+		}
+
 		return resp.StatusCode < http.StatusMultipleChoices
 	}
 	var (
@@ -342,7 +353,7 @@ func requestMayHaveQueued(resp *gitea.Response, err error) bool {
 	case errors.As(err, &dnsErr), errors.As(err, &certErr), errors.As(err, &unknownCA),
 		errors.As(err, &hostErr), errors.As(err, &invalid), errors.As(err, &alert), errors.As(err, &header):
 		return false
-	case errors.As(err, &opErr) && opErr.Op == "dial":
+	case errors.As(err, &opErr) && (opErr.Op == "dial" || opErr.Op == "proxyconnect"):
 		return false
 	}
 

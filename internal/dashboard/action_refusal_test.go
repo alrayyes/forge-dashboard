@@ -364,3 +364,13 @@ func TestClassifyActionRefusalFor_PartialRerunReadsAsItsOwnSentence(t *testing.T
 		})
 	}
 }
+
+// "Try again in a moment" is dropped when jobs may already be running.
+func TestClassifyActionRefusalFor_NoAnswerWithAPartialRerun_GivesNoRetryAdvice(t *testing.T) {
+	t.Parallel()
+	err := &dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("forgejo: POST /x: timeout"), Partial: "job-2 may have restarted."}
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+
+	assert.Equal(t, "The forge didn't answer. job-2 may have restarted.", got.Message)
+}

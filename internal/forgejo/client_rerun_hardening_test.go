@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -315,6 +316,8 @@ func TestRequestMayHaveQueued(t *testing.T) {
 		{"a cancelled wait", nil, context.Canceled, true},
 		{"a body that could not be read after a success", answered(http.StatusNoContent), io.ErrUnexpectedEOF, true},
 		{"a refusal", answered(http.StatusForbidden), errors.New("refused"), false},
+		{"a gateway timeout", answered(http.StatusGatewayTimeout), errors.New("refused"), true},
+		{"a handshake that timed out", nil, errors.New("net/http: TLS handshake timeout"), true},
 		{"a refused connection", nil, &net.OpError{Op: "dial", Err: syscall.ECONNREFUSED}, false},
 		{"a name that did not resolve", nil, &net.DNSError{Err: "no such host", Name: "forge"}, false},
 		{"an untrusted certificate", nil, &tls.CertificateVerificationError{Err: x509.UnknownAuthorityError{}}, false},
@@ -324,6 +327,86 @@ func TestRequestMayHaveQueued(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.want, forgejo.RequestMayHaveQueued(tt.resp, tt.err))
+		})
+	}
+}
+
+// failJobRerun makes the transport fail the rerun POST of job 2 with err, as a
+// dial or lookup would, and passes every other request on.
+func failJobRerun(c *forgejo.Client, err error) {
+	forgejo.WrapTransport(c, func(next http.RoundTripper) http.RoundTripper {
+		return roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/jobs/2/rerun") {
+				return nil, err
+			}
+
+			return next.RoundTrip(r)
+		})
+	})
+}
+
+// The classification reads the error the transport returned. The error the
+// caller gets has lost it, so this goes through the whole rerun.
+func TestRerunFailedChecks_ARequestThatNeverReachedTheForge_IsListedAsNotRestarted(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{"a refused connection", &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED}},
+		{"a name that does not resolve", &net.DNSError{Err: "no such host", Name: "forge.example"}},
+		{"a rejected certificate", &tls.CertificateVerificationError{Err: x509.UnknownAuthorityError{}}},
+		{"a proxy that refused", &net.OpError{Op: "proxyconnect", Net: "tcp", Err: syscall.ECONNREFUSED}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+			s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure"), job(3, "failure")}}
+			c := s.start(t)
+			failJobRerun(c, tt.err)
+
+			err := c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+			assert.Contains(t, got.Message, "Restarted job-1. Did not restart job-2, job-3.")
+			assert.NotContains(t, got.Message, "may have restarted")
+			assert.Equal(t, "The forge didn't answer. Restarted job-1. Did not restart job-2, job-3.", got.Message)
+		})
+	}
+}
+
+// A request that went out and was never answered is unknown, however it ended.
+func TestRerunFailedChecks_ARequestThatWentOutUnanswered_MayHaveRestarted(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure"), job(3, "failure")}}
+	c := s.start(t)
+	failJobRerun(c, &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET})
+
+	err := c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Equal(t, "The forge didn't answer. Restarted job-1. job-2 may have restarted, and so may the other failed jobs of this run.", got.Message)
+}
+
+// A proxy can answer 504 after the forge queued the job, so a gateway error is
+// as uncertain as a timeout.
+func TestRerunFailedChecks_AGatewayErrorOnALaterJob_MayHaveRestarted(t *testing.T) {
+	t.Parallel()
+	for _, status := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			t.Parallel()
+			s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+			s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure")}}
+			s.status = status
+			s.okFirst = 1
+
+			err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+			assert.Contains(t, got.Message, "Restarted job-1. job-2 may have restarted.")
+			assert.NotContains(t, got.Message, "Did not restart")
 		})
 	}
 }

@@ -203,8 +203,9 @@ func (c *Client) serverMajorFor(ctx context.Context) (int, bool, error) {
 		wait, lead := c.version.join()
 		if lead {
 			c.readAsLeader(ctx)
-			if err := ctx.Err(); err != nil {
-				return 0, false, versionWaitError(err)
+			// A read that landed an answer before the context ended is still good.
+			if _, _, fresh := c.version.answer(); !fresh && ctx.Err() != nil {
+				return 0, false, versionWaitError(ctx.Err())
 			}
 
 			break
@@ -212,20 +213,28 @@ func (c *Client) serverMajorFor(ctx context.Context) (int, bool, error) {
 		if wait == nil {
 			break
 		}
-		if c.version.parked != nil {
-			c.version.parked()
-		}
-		select {
-		case <-wait:
-			// The read that landed may have been cancelled and said nothing, so
-			// the answer is looked at again instead of trusted.
-		case <-ctx.Done():
-			return 0, false, versionWaitError(ctx.Err())
+		if err := c.version.await(ctx, wait); err != nil {
+			return 0, false, err
 		}
 	}
 	major, known, _ := c.version.answer()
 
 	return major, known && major >= firstForgejoMajor, nil
+}
+
+// await waits for the read under way to land, or for ctx to end. A read that
+// landed may have been cancelled and said nothing, so the caller looks at the
+// answer again instead of trusting it.
+func (v *versionCache) await(ctx context.Context, wait <-chan struct{}) error {
+	if v.parked != nil {
+		v.parked()
+	}
+	select {
+	case <-wait:
+		return nil
+	case <-ctx.Done():
+		return versionWaitError(ctx.Err())
+	}
 }
 
 // readAsLeader reads the version under ctx for a click that took the flight.
