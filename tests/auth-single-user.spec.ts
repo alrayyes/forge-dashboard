@@ -100,6 +100,27 @@ test.describe('passkey login, one owner', () => {
     await expect(page).toHaveURL(/\/login\.html$/);
   });
 
+  test('a second failed prompt in a row names the reset command', async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await addVirtualAuthenticator(page);
+
+    await page.goto('/login.html');
+    await page.click('#login-submit');
+    await expect(page.locator('#status')).toHaveText(
+      'Sign-in was cancelled or timed out. Try again.',
+      { timeout: 10000 },
+    );
+
+    await page.click('#login-submit');
+    await expect(page.locator('#status')).toContainText(
+      'forge-dashboard reset-passkeys',
+      { timeout: 10000 },
+    );
+  });
+
   test('after reset-passkeys, signing in switches to creating the first passkey', async ({
     page,
     context,
