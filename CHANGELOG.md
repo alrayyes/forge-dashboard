@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.31.4](https://github.com/alrayyes/forge-dashboard/compare/v2.31.3...v2.31.4) (2026-10-24)
+
+
+### Bug Fixes
+
+* **dashboard:** settle box overrides only for rows a full refresh fetched ([#2798](https://github.com/alrayyes/forge-dashboard/issues/2798)) ([1cb8ce4](https://github.com/alrayyes/forge-dashboard/commit/1cb8ce4fede9ed37f6521440d4e05f01582a1705))
+
 ## [2.31.3](https://github.com/alrayyes/forge-dashboard/compare/v2.31.2...v2.31.3) (2026-10-24)
 
 
