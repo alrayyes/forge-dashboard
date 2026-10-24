@@ -3,10 +3,9 @@ package github
 import (
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	ghsdk "github.com/google/go-github/v75/github"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
 // A run that has not started has no log to read, so every status the rollup
@@ -16,7 +15,7 @@ func TestCheckStateFromRunNotStartedIsQueued(t *testing.T) {
 	for _, status := range []string{"queued", "waiting", "pending", "requested"} {
 		t.Run(status, func(t *testing.T) {
 			t.Parallel()
-			got := checkStateFromRun(&ghsdk.CheckRun{Status: ghsdk.Ptr(status)})
+			got := checkStateFromRun(&ghsdk.CheckRun{Status: new(status)})
 			assert.Equal(t, dashboard.CheckQueued, got)
 		})
 	}
@@ -24,6 +23,6 @@ func TestCheckStateFromRunNotStartedIsQueued(t *testing.T) {
 
 func TestCheckStateFromRunInProgressIsRunning(t *testing.T) {
 	t.Parallel()
-	got := checkStateFromRun(&ghsdk.CheckRun{Status: ghsdk.Ptr("in_progress")})
+	got := checkStateFromRun(&ghsdk.CheckRun{Status: new("in_progress")})
 	assert.Equal(t, dashboard.CheckRunning, got)
 }
