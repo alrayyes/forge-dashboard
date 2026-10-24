@@ -12,6 +12,26 @@ export class ApiError extends Error {
 export type LoginFailure = { action: 'register' | 'show'; message: string };
 
 /**
+ * Whether self-registration is open, as the server says it right now. A failed
+ * request counts as closed: the answer could not be confirmed, so nothing is
+ * offered on it.
+ */
+export async function checkRegistrationOpen(
+  fetchFn: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const res = await fetchFn('/api/auth/registration-status', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { open?: boolean };
+    return data.open === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A 404 from login/begin means no passkey is registered, which is the state an
  * operator leaves behind with reset-passkeys. Registration is open then, so the
  * page switches to it; leaving the visitor on a sign-in that cannot work is a

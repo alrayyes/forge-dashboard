@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { ApiError, loginFailure } from './login-flow';
+import { ApiError, checkRegistrationOpen, loginFailure } from './login-flow';
 
 describe('loginFailure', () => {
   test('a 404 while registration is open sends the visitor to register', () => {
@@ -69,5 +69,29 @@ describe('loginFailure', () => {
     expect(loginFailure(notAllowed(), false, true).message.length).toBeLessThan(
       260,
     );
+  });
+});
+
+describe('checkRegistrationOpen', () => {
+  const answer = (body: unknown, ok = true) =>
+    (async () => ({ ok, json: async () => body }) as Response) as typeof fetch;
+
+  test('is true when the server says registration is open', async () => {
+    expect(await checkRegistrationOpen(answer({ open: true }))).toBe(true);
+  });
+
+  test('is false when the server says it is closed', async () => {
+    expect(await checkRegistrationOpen(answer({ open: false }))).toBe(false);
+  });
+
+  test('is false on a failed response', async () => {
+    expect(await checkRegistrationOpen(answer({}, false))).toBe(false);
+  });
+
+  test('is false when the request throws', async () => {
+    const down = (async () => {
+      throw new Error('offline');
+    }) as typeof fetch;
+    expect(await checkRegistrationOpen(down)).toBe(false);
   });
 });
