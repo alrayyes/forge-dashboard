@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.2](https://github.com/alrayyes/forge-dashboard/compare/v2.29.1...v2.29.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **web:** keep the bot rebase in the row beside Merge on a behind pull request ([#2715](https://github.com/alrayyes/forge-dashboard/issues/2715)) ([a20d70b](https://github.com/alrayyes/forge-dashboard/commit/a20d70bee3558a616ea49de384a4cbe99ed7ae6a))
+
 ## [2.29.1](https://github.com/alrayyes/forge-dashboard/compare/v2.29.0...v2.29.1) (2026-10-24)
 
 
