@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.32.1](https://github.com/alrayyes/forge-dashboard/compare/v2.32.0...v2.32.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **auth:** login page messages, dead end after 404 and typed registration-closed error ([#2812](https://github.com/alrayyes/forge-dashboard/issues/2812)) ([e355de1](https://github.com/alrayyes/forge-dashboard/commit/e355de1c95014ce76d05d39125a82b4d751cca8d))
+
 ## [2.32.0](https://github.com/alrayyes/forge-dashboard/compare/v2.31.5...v2.32.0) (2026-10-24)
 
 
