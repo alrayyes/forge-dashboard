@@ -41,6 +41,7 @@ async function setup(
     },
     { name: 'lint', state: 'success', url: `${runUrl}0` },
   ],
+  forge = 'github',
 ): Promise<string[]> {
   const asked: string[] = [];
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -51,7 +52,7 @@ async function setup(
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: [pr],
+        pullRequests: [{ ...pr, forge }],
         issues: [],
       }),
     }),
@@ -285,6 +286,55 @@ test.describe('a check run output in the pipeline dialog', () => {
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toBeDisabled();
   });
+
+  for (const [forge, label] of [
+    ['github', 'GitHub'],
+    ['forgejo', 'Forgejo'],
+  ] as const) {
+    test(`${label}: a queued check has no View run, only the link to the forge, and a finished one keeps it`, async ({
+      page,
+    }) => {
+      await setup(
+        page,
+        { status: 200, body: { text: '', truncated: false } },
+        [
+          { name: 'queued-job', state: 'queued', url: runUrl, jobId: 7 },
+          { name: 'queued-bare', state: 'queued', url: `${runUrl}1` },
+          {
+            name: 'running-job',
+            state: 'running',
+            url: `${runUrl}2`,
+            jobId: 8,
+          },
+          { name: 'done-job', state: 'success', url: `${runUrl}3`, jobId: 9 },
+        ],
+        forge,
+      );
+      const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+      await expect(
+        dialog.getByRole('button', { name: 'View run: done-job' }),
+      ).toBeVisible();
+      await expect(
+        dialog.getByRole('button', { name: 'View run: running-job' }),
+      ).toBeVisible();
+      await expect(dialog.getByText('View run', { exact: true })).toHaveCount(
+        2,
+      );
+      for (const name of ['queued-job', 'queued-bare']) {
+        await expect(
+          dialog.getByRole('button', { name: `View run: ${name}` }),
+        ).toHaveCount(0);
+        await expect(
+          dialog.getByRole('link', { name: `View run: ${name}` }),
+        ).toHaveCount(0);
+        await expect(
+          dialog.getByRole('link', {
+            name: `Open on ${label} (opens in a new tab): ${name}`,
+          }),
+        ).toBeVisible();
+      }
+    });
+  }
 
   test('a check with no job id keeps the plain link', async ({ page }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } });

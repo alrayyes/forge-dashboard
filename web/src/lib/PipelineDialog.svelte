@@ -593,7 +593,20 @@
         <!-- A skipped job never ran, and a job with no page has nowhere to go:
              no link, never an empty href, which would resolve to this page. A
              held workflow's own page is where the forge's approve button is. -->
-        {#if check.state !== "skipped" && check.state !== "awaiting_approval" && check.jobId && check.url && target?.checksUrl}
+        <!-- A queued job has no log yet, so there is nothing to view: only the
+             forge's own page, which the forge draws for it. -->
+        {#if check.state === "queued" && check.url}
+          <a
+            class="pipeline-check-link"
+            href={check.url}
+            target="_blank"
+            rel="noopener"
+            aria-label="Open on {target
+              ? forgeLabel(target)
+              : 'the forge'} (opens in a new tab): {check.name}"
+            >Open on {target ? forgeLabel(target) : "the forge"}</a
+          >
+        {:else if check.state !== "skipped" && check.state !== "awaiting_approval" && check.jobId && check.url && target?.checksUrl}
           <CheckRunOutput
             name={check.name}
             jobId={check.jobId}

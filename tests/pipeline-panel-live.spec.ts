@@ -137,6 +137,40 @@ async function push(page: Page, item: ReturnType<typeof pr>) {
 const dialog = (page: Page) => page.locator('#pipeline-dialog');
 
 test.describe('pipeline panel updates live', () => {
+  test('a check going from queued to running shows View run at once, with no reload', async ({
+    page,
+  }) => {
+    const QUEUED = pr('pending', {
+      passed: 1,
+      running: 0,
+      waiting: 1,
+      failed: 0,
+    });
+    const before = [
+      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      {
+        name: 'test',
+        state: 'queued',
+        url: 'https://example.com/r/2',
+        jobId: 2,
+      },
+    ];
+    const state = await open(page, QUEUED, before);
+    const view = dialog(page).getByRole('button', { name: 'View run: test' });
+    await expect(view).toHaveCount(0);
+    await expect(
+      dialog(page).getByRole('link', {
+        name: 'Open on GitHub (opens in a new tab): test',
+      }),
+    ).toBeVisible();
+
+    state.checks = [before[0], { ...before[1], state: 'running' }];
+    await push(page, RUNNING);
+
+    await expect(view).toBeVisible();
+    expect(state.requests).toBe(2);
+  });
+
   test('a check finishing changes its pill in place, announced once', async ({
     page,
   }) => {
