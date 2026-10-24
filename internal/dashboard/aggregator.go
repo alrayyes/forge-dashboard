@@ -738,14 +738,9 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	snap := newEmptySnapshot()
 	snap.GeneratedAt = time.Now().UTC()
-	read := make(map[string]bool)
+	read := rowsRead(results)
 	for i, r := range results {
 		forge := a.sources[i].Forge()
-		// What a source returned is what the forge was asked for; the keep and
-		// carry-over steps below add rows from the snapshot, which it never read.
-		for _, pr := range r.PullRequests {
-			read[settledKey(pr.Forge, pr.Repo, pr.Number)] = true
-		}
 		if r.Health.Reachable {
 			goodAt[forge] = snap.GeneratedAt
 			r = keepUnchangedRepos(keepFailedRepos(r, earlier, forge), earlier, forge)
@@ -791,6 +786,20 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.runAutoUpdateBranch(ctx, snap)
 	a.runAutoMerge(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// rowsRead is the settledKey of each pull request the sources returned. That
+// is what the forge was asked for: the keep and carry-over steps of a refresh
+// add rows from the snapshot, which no fetch read.
+func rowsRead(results []Result) map[string]bool {
+	read := make(map[string]bool)
+	for _, r := range results {
+		for _, pr := range r.PullRequests {
+			read[settledKey(pr.Forge, pr.Repo, pr.Number)] = true
+		}
+	}
+
+	return read
 }
 
 // publish tells the subscribers about snap and saves it for the next start.
