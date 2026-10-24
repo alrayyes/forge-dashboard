@@ -131,3 +131,13 @@ func issueNumbers(refs []dashboard.IssueRef) []int {
 
 	return out
 }
+
+func TestClosingIssueRefs_OnlyAnASCIISpaceSeparatesKeywordAndNumber(t *testing.T) {
+	t.Parallel()
+
+	// Forgejo's pattern ends in a literal space, and \s is ASCII only. GitHub's
+	// behaviour is unverified, so the conservative reading stands.
+	for _, space := range []string{" ", "　", "\t", "\n"} {
+		assert.Empty(t, dashboard.ClosingIssueRefs("Closes"+space+"#5", "alrayyes/app", closingBase))
+	}
+}

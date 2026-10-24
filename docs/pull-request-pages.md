@@ -136,12 +136,17 @@ as `<a href="https://redirect.github.com/org/lib/issues/1234">#1234</a>` that
 name another project's tickets. A link counts only by its address, and only when
 that is a page on the forge. Only the first 64 KiB of the description is read
 (cut at a space, Unicode spaces included, or at the last comma or semicolon
-outside brackets when there is none, so a number is never read half-written),
+outside brackets when there is none, so a number is never read half-written; a
+bracket left open for over 1 KiB there is taken for a stray one, and a link
+anchor still open within 1 KiB of the cut loses the text after its tag),
 and the first 100 references in it, so a pasted changelog doesn't slow the
 refresh down. Whether a closing keyword closes depends on the branch the
 pull request aims at: on one that doesn't target the default branch (a stacked
 pull request) `Closes #12` closes nothing, so it is listed as a mention. A
-keyword in the title doesn't close either, so it is a mention as well. A ticket
+keyword in the title doesn't close either, so it is a mention as well. A
+closing keyword takes an ordinary space before its number, as Forgejo reads it;
+a no-break or other Unicode space there closes nothing and the number is listed
+as a mention. A ticket
 the pull request does close is never repeated, and neither is the pull request
 itself. The list holds at most 20, counted after the closed ones are taken off.
 Comments, reviews and commit messages are not read. Without a GitHub token the

@@ -146,3 +146,54 @@ func TestMentionedIssueRefs_ANonBreakingSpaceSeparatesAReference(t *testing.T) {
 
 	assert.Equal(t, []int{5}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", "Refs\u00a0#5")))
 }
+
+func TestMentionedIssueRefs_AStrayOpenerInASpaceFreeBodyDoesNotHideLaterSeparators(t *testing.T) {
+	t.Parallel()
+
+	const limit = 64 << 10
+	cases := map[string]string{
+		"paren":   "#9,(" + strings.Repeat("x", 3000) + ",#8," + strings.Repeat("x", limit) + ",#3",
+		"angle":   "#9,<" + strings.Repeat("x", 3000) + ",#8," + strings.Repeat("x", limit) + ",#3",
+		"bracket": "#9,[" + strings.Repeat("x", 3000) + ",#8," + strings.Repeat("x", limit) + ",#3",
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, []int{9, 8}, issueNumbers(mentioned(dashboard.ForgeForgejo, "", body)))
+		})
+	}
+}
+
+func TestMentionedIssueRefs_ADefinitionTitleMayStartOnTheNextLine(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"lf":    "see [#7][1]\n\n[1]: docs/a.md\n  \"Title #8\"\n",
+		"crlf":  "see [#7][1]\r\n\r\n[1]: docs/a.md\r\n  \"Title #8\"\r\n",
+		"paren": "see [#7][1]\n\n[1]: docs/a.md\n(Title #8)",
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Empty(t, mentioned(dashboard.ForgeForgejo, "", body))
+		})
+	}
+}
+
+func TestMentionedIssueRefs_ATitleThatLooksLikeADefinitionKeepsItsReference(t *testing.T) {
+	t.Parallel()
+
+	got := mentioned(dashboard.ForgeForgejo, "[Fix]: #12", "body")
+
+	assert.Equal(t, []int{12}, issueNumbers(got))
+}
+
+func TestMentionedIssueRefs_ABodyLineMayStillBeADefinitionAfterSuchATitle(t *testing.T) {
+	t.Parallel()
+
+	got := mentioned(dashboard.ForgeForgejo, "[Fix]: #12", "see [#7][1]\n\n[1]: "+mentionBase+"/org/lib/issues/7")
+
+	assert.Equal(t, []int{12, 7}, issueNumbers(got))
+}
