@@ -55,6 +55,17 @@ func TestStore_CreateUser_RoundTripsByUsername(t *testing.T) {
 	assert.Empty(t, got.Credentials)
 }
 
+func TestStore_CreateUser_UsernameTaken_ReturnsErrUsernameTaken(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	_, err := store.CreateUser(t.Context(), "ryan", "Ryan")
+	require.NoError(t, err)
+	_, err = store.CreateUser(t.Context(), "ryan", "Ryan again")
+
+	assert.ErrorIs(t, err, auth.ErrUsernameTaken)
+}
+
 func TestStore_GetUserByUsername_UnknownUser_ReturnsErrNotFound(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
