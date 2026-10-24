@@ -180,6 +180,78 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     );
   });
 
+  test('a refresh that fails after the cancel does not draw the cancel again from the old snapshot', async ({
+    page,
+  }) => {
+    let cancelled = false;
+    await serve(page, { rebase: CANCEL, extra: { botRequest: BOT_REQUEST } });
+    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+      cancelled
+        ? route.fulfill({ status: 500, body: 'down' })
+        : route.fallback(),
+    );
+    await page.route(
+      '**/api/pull-requests/renovate-rebase/cancel',
+      (route: Route) => {
+        cancelled = true;
+        return route.fulfill({ status: 204 });
+      },
+    );
+    const row = await openRow(page);
+
+    await row.getByRole('button', { name: CANCEL_NAME }).click();
+
+    await expect(row.getByRole('button', { name: 'Cancelling…' })).toHaveCount(
+      0,
+    );
+    await settle(page);
+    await expect(row.getByRole('button', { name: CANCEL_NAME })).toHaveCount(0);
+  });
+
+  test('a rebase requested again after a cancel whose refresh failed offers the cancel again', async ({
+    page,
+  }) => {
+    const state: State = {
+      rebase: CANCEL,
+      extra: { botRequest: BOT_REQUEST },
+    };
+    let down = false;
+    await serve(page, state);
+    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+      down ? route.fulfill({ status: 500, body: 'down' }) : route.fallback(),
+    );
+    await page.route(
+      '**/api/pull-requests/renovate-rebase/cancel',
+      (route: Route) => {
+        down = true;
+        return route.fulfill({ status: 204 });
+      },
+    );
+    const row = await openRow(page);
+    await row.getByRole('button', { name: CANCEL_NAME }).click();
+    await expect(row.getByRole('button', { name: 'Cancelling…' })).toHaveCount(
+      0,
+    );
+    await settle(page);
+    await expect(row.getByRole('button', { name: CANCEL_NAME })).toHaveCount(0);
+
+    // The forge took the cancel, then someone ticked the box again.
+    down = false;
+    state.rebase = REQUEST;
+    state.extra = {};
+    await page.locator('#force-refresh-button').click();
+    const dialog = await openActionsDialog(row);
+    await expect(
+      dialog.getByRole('button', { name: REQUEST_NAME }),
+    ).toBeVisible();
+    await closeActionsDialog(dialog);
+    state.rebase = CANCEL;
+    state.extra = { botRequest: BOT_REQUEST };
+    await page.locator('#force-refresh-button').click();
+
+    await expect(row.getByRole('button', { name: CANCEL_NAME })).toBeVisible();
+  });
+
   test('a refused cancel says why and keeps the cancel', async ({ page }) => {
     await page.route(
       '**/api/pull-requests/renovate-rebase/cancel',
