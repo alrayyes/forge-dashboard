@@ -6,7 +6,6 @@ import (
 	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
-
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 

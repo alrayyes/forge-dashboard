@@ -258,7 +258,7 @@ func TestRerunFailedChecks_AWaiterThatGivesUpGetsAnUnreachableForgeError(t *test
 	cancel()
 
 	err := <-done
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)
 	assert.Equal(t, dashboard.ForgeErrorUnreachable, clientErr.Kind)
