@@ -45,6 +45,8 @@ request arrived over HTTPS) is what actually gates `/` and
   key again from Settings: it is now registered as a discoverable passkey.
   If the old key was the only passkey, no device offers one, and the way back
   in is `forge-dashboard reset-passkeys` below.
+  The login page points to this after a second failed prompt in a row, since
+  the browser reports a cancelled prompt and a missing passkey the same way.
 - **Losing every passkey is fixed from the host, not the browser.** There's
   no email or SMS channel here to build a self-service recovery flow on, so
   the operator runs `forge-dashboard reset-passkeys`, which clears the

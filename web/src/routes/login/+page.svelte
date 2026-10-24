@@ -10,7 +10,7 @@
   import {
     ApiError,
     checkRegistrationOpen,
-    loginFailure,
+    loginFailureTracker,
   } from "#lib/login-flow.js";
 
   let mode = $state<"login" | "register">("login");
@@ -29,9 +29,7 @@
     registrationOpen = await checkRegistrationOpen();
   });
 
-  // A cancelled prompt and a missing passkey look alike to the browser, so the
-  // second one in a row is taken as the missing passkey.
-  let notAllowedBefore = false;
+  const nextLoginFailure = loginFailureTracker();
 
   let loginSubmitting = $state(false);
   let registerSubmitting = $state(false);
@@ -92,13 +90,7 @@
       if (err instanceof ApiError && err.status === 404) {
         registrationOpen = await checkRegistrationOpen();
       }
-      const notAllowed = err instanceof Error && err.name === "NotAllowedError";
-      const failure = loginFailure(
-        err,
-        registrationOpen,
-        notAllowed && notAllowedBefore,
-      );
-      notAllowedBefore = notAllowed;
+      const failure = nextLoginFailure(err, registrationOpen);
       if (failure.action === "register") {
         mode = "register";
         status = failure.message;

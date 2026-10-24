@@ -55,10 +55,33 @@ export function loginFailure(
     return {
       action: 'show',
       message: repeated
-        ? 'This device may have no passkey saved for this site. A security key that holds none can no longer sign in: run forge-dashboard reset-passkeys on the server, or add a new passkey in Settings from a device that is signed in.'
+        ? 'This device may have no passkey saved for this site. If every passkey is lost, run forge-dashboard reset-passkeys on the server. Otherwise add a new passkey in Settings from a device that is signed in.'
         : 'Sign-in was cancelled or timed out. Try again.',
     };
   }
   const message = err instanceof Error ? err.message : '';
   return { action: 'show', message: message || 'Sign-in failed.' };
+}
+
+/**
+ * Keeps count of failed prompts for one login page. The browser reports a
+ * cancelled prompt and a missing passkey the same way, so the second
+ * NotAllowedError in a row is taken as the missing passkey. Any other
+ * outcome starts the count again.
+ */
+export function loginFailureTracker(): (
+  err: unknown,
+  registrationOpen: boolean,
+) => LoginFailure {
+  let notAllowedBefore = false;
+  return (err, registrationOpen) => {
+    const notAllowed = err instanceof Error && err.name === 'NotAllowedError';
+    const failure = loginFailure(
+      err,
+      registrationOpen,
+      notAllowed && notAllowedBefore,
+    );
+    notAllowedBefore = notAllowed;
+    return failure;
+  };
 }
