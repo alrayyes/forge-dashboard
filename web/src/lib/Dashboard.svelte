@@ -5738,14 +5738,14 @@
             toast: true,
             announce: cancelled,
           });
-          // A refresh that fails is not a failed action: the next poll brings
-          // the board up to date, and the redraw below runs from local state.
-          // A throw while redrawing is a bug to see in the console, not a
-          // failed cancel.
+          // A refresh that fails is not a failed action: refreshBoard swallows
+          // its own errors, and the next poll brings the board up to date.
+          // The entry is not dropped here: a stale or repeated snapshot still
+          // lists the cancel. Only a snapshot without it settles it.
+          await refreshBoard(true);
+          // The redraw runs from local state. A throw here is a bug to see in
+          // the console, not a failed cancel.
           try {
-            // The entry is not dropped here: a stale or repeated snapshot
-            // still lists the cancel. Only a snapshot without it settles it.
-            await refreshBoard(true);
             keepFocusAcross(renderPRBoard);
           } catch (err) {
             console.error("redraw after cancelling the Renovate rebase", err);
