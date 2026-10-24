@@ -58,5 +58,8 @@ describe('checkLinkLabel', () => {
     expect(checkLinkLabel('Open on GitHub', 'lint')).toBe(
       'Open on GitHub (opens in a new tab): lint',
     );
+    expect(checkLinkLabel('Open on Forgejo', 'queued-job')).toBe(
+      'Open on Forgejo (opens in a new tab): queued-job',
+    );
   });
 });

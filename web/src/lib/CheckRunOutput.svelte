@@ -5,7 +5,12 @@
   // parsed as markup.
   import { onDestroy, tick } from "svelte";
   import { CopyFlow } from "#lib/copy-flow.svelte.js";
-  import { loadRunLog, logUrl, notePlaces } from "#lib/run-log.js";
+  import {
+    checkLinkLabel,
+    loadRunLog,
+    logUrl,
+    notePlaces,
+  } from "#lib/run-log.js";
 
   let {
     name,
@@ -88,7 +93,7 @@
   href={runUrl}
   target="_blank"
   rel="noopener"
-  aria-label="Open on {forgeName} (opens in a new tab): {name}"
+  aria-label={checkLinkLabel(`Open on ${forgeName}`, name)}
   >Open on {forgeName}</a
 >
 <div id={panelId} class="run-output" hidden={!shown}>
