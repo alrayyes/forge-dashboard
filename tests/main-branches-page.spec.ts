@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { checkLinkName } from './check-link-name-helper';
 import { createFirstRefreshGate, twoFrames } from './first-refresh-gate-helper';
 import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
@@ -397,12 +398,12 @@ test.describe('Main branches page (#1224, #1279)', () => {
     // A skipped job, and one with no page, have no link.
     await expect(
       panel.getByRole('link', {
-        name: /view run \(opens in a new tab\): lint/i,
+        name: checkLinkName('View run', 'lint'),
       }),
     ).toHaveCount(1);
     await expect(
       panel.getByRole('link', {
-        name: /view run \(opens in a new tab\): e2e-playwright/i,
+        name: checkLinkName('View run', 'e2e-playwright'),
       }),
     ).toHaveCount(0);
   });

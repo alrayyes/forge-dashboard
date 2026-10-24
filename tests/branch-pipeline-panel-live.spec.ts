@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { checkLinkName } from './check-link-name-helper';
 import { test } from './server-fixture';
 
 // The Main branches pipeline panel reads its checks again only when the row's
@@ -146,7 +147,7 @@ test.describe('main branches pipeline panel updates live', () => {
     ];
     const state = await open(page, RUNNING, three, 3);
     await panel(page)
-      .getByRole('link', { name: 'View run (opens in a new tab): test' })
+      .getByRole('link', { name: checkLinkName('View run', 'test') })
       .focus();
 
     state.row = PASSED;
@@ -156,7 +157,7 @@ test.describe('main branches pipeline panel updates live', () => {
     await expect(panel(page).getByRole('listitem')).toHaveCount(2);
     await expect(
       panel(page).getByRole('link', {
-        name: 'View run (opens in a new tab): test',
+        name: checkLinkName('View run', 'test'),
       }),
     ).toBeFocused();
   });
@@ -166,7 +167,7 @@ test.describe('main branches pipeline panel updates live', () => {
   }) => {
     const state = await open(page, RUNNING, RUN);
     await panel(page)
-      .getByRole('link', { name: 'View run (opens in a new tab): test' })
+      .getByRole('link', { name: checkLinkName('View run', 'test') })
       .focus();
 
     state.row = PASSED;
@@ -340,7 +341,7 @@ test.describe('main branches pipeline panel draws what a check carries', () => {
 
     await expect(
       panel(page).getByRole('link', {
-        name: 'Approve on GitHub (opens in a new tab): deploy',
+        name: checkLinkName('Approve on GitHub', 'deploy'),
       }),
     ).toBeVisible();
   });
