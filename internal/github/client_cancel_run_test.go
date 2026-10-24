@@ -196,3 +196,39 @@ func TestCancelRun(t *testing.T) {
 		assert.Equal(t, dashboard.ForgeErrorUnauthorized, clientErr.Kind)
 	})
 }
+
+// A check held by an environment or timer reads queued, but its workflow run is
+// "waiting" and cannot be cancelled, so the check names no run and the dialog
+// offers no Cancel run for it.
+func TestListChecks_AWaitingCheckNamesNoRun(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"id": 80, "name": "deploy", "status": "waiting", "html_url": "https://github.com/alrayyes/a/runs/80"},
+		}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
+		runs := []map[string]any{}
+		if r.URL.Query().Get("status") == "" {
+			runs = append(runs, map[string]any{"id": 950, "name": "Deploy", "status": "waiting"})
+		}
+		writeJSON(t, w, map[string]any{"workflow_runs": runs})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs/950/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"jobs": []map[string]any{{"id": 80}}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, dashboard.CheckQueued, checks[0].State)
+	assert.Zero(t, checks[0].RunID)
+}
