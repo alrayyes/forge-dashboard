@@ -40,6 +40,15 @@ func TestDashboardRefresh_NoBackgroundRefreshYet_Returns404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
 
+// waitForFirstRefresh blocks until the refresh that saving a token started in
+// the background has finished. A forced refresh that lands while it is still
+// running answers with the current snapshot and the cooldown, and does not
+// fetch, so a test about what a forced refresh does must wait first.
+func waitForFirstRefresh(t *testing.T, service *dashboard.Service) {
+	t.Helper()
+	require.Eventually(t, service.FirstRefreshDone, pollBudget, 5*time.Millisecond, "the first refresh should finish")
+}
+
 func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -66,10 +75,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	// Saving the token starts the first refresh in the background. A force
-	// refresh that lands while it is still running answers with the current
-	// (empty) snapshot and does not fetch, so wait for it to finish first.
-	require.Eventually(t, service.FirstRefreshDone, 10*time.Second, 5*time.Millisecond)
+	waitForFirstRefresh(t, service)
 
 	refreshReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/dashboard/refresh", nil)
 	require.NoError(t, err)
@@ -105,6 +111,7 @@ func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
+	waitForFirstRefresh(t, service)
 
 	refresh := func() (status int, retryAfter string) {
 		resp := doJSON(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", "", sessionCookie)
