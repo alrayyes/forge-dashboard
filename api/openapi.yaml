@@ -1419,8 +1419,12 @@ paths:
         Forgejo commit status doesn't say which workflow run it came from, so
         Forgejo's runs are found by the head commit instead. A failed check
         that isn't an Actions job (a third-party check, a legacy status, an
-        external CI) can't be rerun here and is skipped. A Forgejo instance
-        too old to have the rerun route refuses with its own words.
+        external CI) can't be rerun here and is skipped. Forgejo has no
+        route to rerun only the failed jobs of a run, so on Forgejo each
+        failed run goes again whole. Forgejo gained the rerun route in
+        version 17; an older instance answers 409 with a plain sentence,
+        sends nothing to the forge, and says so up front in
+        `ForgeHealth.rerunChecksBlocked`.
 
         Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
         means the pull request has no failed check to rerun. Anything the
@@ -3330,7 +3334,9 @@ paths:
         A Main branches row offers it when its `status` is `failed`. A failed
         check that isn't an Actions job (a third-party check, a legacy status,
         an external CI) can't be rerun here and is skipped. Refusals are an
-        `ActionError`; a 409 means the branch has no failed job to rerun.
+        `ActionError`; a 409 means the branch has no failed job to rerun, or
+        that the forge is a Forgejo older than version 17, which has no rerun
+        route (`ForgeHealth.rerunChecksBlocked` says so beforehand).
       tags: [dashboard]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -5061,6 +5067,15 @@ components:
             text, auto-update-branch skips Dependabot pull requests, and the
             dependabot-action endpoint answers 409 with it. Omitted when
             commands work.
+        rerunChecksBlocked:
+          type: string
+          description: >-
+            Why this forge can't rerun checks. Set only for a Forgejo whose
+            version is older than 17, which has no API route for it; the
+            version is read once from the instance. Rerun failed checks is
+            not offered for the forge, and the page shows this text where the
+            button would be. Omitted when rerunning works or the version
+            could not be read.
 
     ForgeApiStats:
       type: object

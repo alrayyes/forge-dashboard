@@ -580,6 +580,12 @@ func (s *GenericSource) RerunFailedDefaultBranchChecks(ctx context.Context, owne
 	return rerunner.RerunFailedDefaultBranchChecks(ctx, owner, name, defaultBranch) //nolint:wrapcheck // see above
 }
 
+// RerunChecksBlockedReason implements RerunChecksBlocker at the Source level:
+// the client's reason, or "" for a client that doesn't say.
+func (s *GenericSource) RerunChecksBlockedReason() string {
+	return RerunChecksBlockedReason(s.client)
+}
+
 // CancelRun implements RunCanceler at the Source level, the same shape as
 // RerunFailedChecks.
 func (s *GenericSource) CancelRun(ctx context.Context, owner, name string, runID int64) error {

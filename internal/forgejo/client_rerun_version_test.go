@@ -1,0 +1,181 @@
+package forgejo_test
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+var _ dashboard.RerunChecksBlocker = (*forgejo.Client)(nil)
+
+const noRerunReason = "This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge."
+
+// swaggerPaths reads the Actions paths of a Forgejo API description kept in
+// testdata: operation methods by path template.
+func swaggerPaths(t *testing.T, file string) (version string, paths map[string]map[string]any) {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/" + file) //nolint:gosec // a fixed test fixture name
+	require.NoError(t, err)
+	var doc struct {
+		Info  struct{ Version string }
+		Paths map[string]map[string]any
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+
+	return doc.Info.Version, doc.Paths
+}
+
+// The rerun route is pinned against the API description each Forgejo ships,
+// not against a fake: Forgejo 17.0.0 has it, and 16.0.6 (the version the
+// dashboard's own instance runs) has no rerun route of any kind.
+func TestRerunRoute_IsInForgejo17sAPI_AndNotIn16s(t *testing.T) {
+	t.Parallel()
+
+	v17, paths17 := swaggerPaths(t, "swagger_actions_v17.0.0.json")
+	assert.Equal(t, "17.0.0", v17)
+	assert.Contains(t, paths17[forgejo.RerunRunPath], "post", "Forgejo 17.0.0 documents POST %s", forgejo.RerunRunPath)
+
+	v16, paths16 := swaggerPaths(t, "swagger_actions_v16.0.6.json")
+	assert.True(t, strings.HasPrefix(v16, "16.0.6"), v16)
+	assert.NotContains(t, paths16, forgejo.RerunRunPath)
+	for p := range paths16 {
+		assert.NotContains(t, p, "rerun", "Forgejo 16.0.6 has no rerun route")
+	}
+}
+
+// versionServer plays a Forgejo of one version for pull request 5, whose one
+// failed run is 42.
+type versionServer struct {
+	version string
+	mu      sync.Mutex
+	posts   []string
+	reads   int
+}
+
+func (s *versionServer) start(t *testing.T) *forgejo.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		s.reads++
+		s.mu.Unlock()
+		if s.version == "" {
+			http.NotFound(w, r)
+
+			return
+		}
+		writeJSON(t, w, map[string]any{"version": s.version})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42, "status": "failure", "commit_sha": "new", "prettyref": "main", "event": "push"}}})
+	})
+	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/runs/{run}/rerun", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		s.posts = append(s.posts, r.URL.Path)
+		s.mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func TestRerunChecksBlockedReason_ByForgejoVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, version string
+		blocked       bool
+	}{
+		{"16.0.6 has no rerun route", "16.0.6+gitea-1.22.0", true},
+		{"15 has none either", "15.0.10+gitea-1.22.0", true},
+		{"17.0.0 has it", "17.0.0+gitea-1.22.0", false},
+		{"a 17 development build has it", "17.0.0-dev-1234-abcdef+gitea-1.22.0", false},
+		{"a later major has it", "18.1.0+gitea-1.22.0", false},
+		{"an unreadable version is left to the forge", "", false},
+		{"a version in words is left to the forge", "nightly", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := &versionServer{version: tt.version}
+
+			reason := s.start(t).RerunChecksBlockedReason()
+
+			if tt.blocked {
+				assert.Equal(t, noRerunReason, reason)
+			} else {
+				assert.Empty(t, reason)
+			}
+		})
+	}
+}
+
+func TestRerunChecksBlockedReason_ReadsTheVersionOnce(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "16.0.6+gitea-1.22.0"}
+	c := s.start(t)
+
+	_ = c.RerunChecksBlockedReason()
+	_ = c.RerunChecksBlockedReason()
+
+	assert.Equal(t, 1, s.reads)
+}
+
+func TestRerunFailedChecks_OnForgejo16_SaysSoAndPostsNothing(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "16.0.6+gitea-1.22.0"}
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "want a ClientError, got %v", err)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+	assert.Equal(t, noRerunReason, dashboard.ForgeMessage(err))
+	assert.Empty(t, s.posts)
+}
+
+func TestRerunFailedDefaultBranchChecks_OnForgejo16_SaysSoAndPostsNothing(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "16.0.6+gitea-1.22.0"}
+
+	err := s.start(t).RerunFailedDefaultBranchChecks(t.Context(), "alrayyes", "a", "main")
+
+	assert.Equal(t, noRerunReason, dashboard.ForgeMessage(err))
+	assert.Empty(t, s.posts)
+}
+
+func TestRerunFailedChecks_OnForgejo17_PostsTheRunRerun(t *testing.T) {
+	t.Parallel()
+	s := &versionServer{version: "17.0.0+gitea-1.22.0"}
+
+	require.NoError(t, s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5))
+
+	assert.Equal(t, []string{"/api/v1/repos/alrayyes/a/actions/runs/42/rerun"}, s.posts)
+}
+
+// A refusal read "refused: refused: ..." because the raw request and the
+// error classifier each added the word.
+func TestRerunFailedChecks_RefusalSaysRefusedOnce(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{rerunStatus: http.StatusNotFound, runs: []map[string]any{{"id": 42, "status": "failure"}}}
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "refused: refused")
+	assert.Equal(t, 1, strings.Count(err.Error(), "refused"))
+}

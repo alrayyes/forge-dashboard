@@ -39,7 +39,7 @@ func (s *rerunServer) start(t *testing.T) *forgejo.Client {
 		s.mu.Unlock()
 		writeJSON(t, w, map[string]any{"total_count": len(s.runs), "workflow_runs": s.runs})
 	})
-	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/runs/{run}/rerun-failed-jobs", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/runs/{run}/rerun", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.reruns = append(s.reruns, r.PathValue("run"))
 		s.mu.Unlock()
@@ -49,7 +49,7 @@ func (s *rerunServer) start(t *testing.T) *forgejo.Client {
 
 			return
 		}
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusNoContent)
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

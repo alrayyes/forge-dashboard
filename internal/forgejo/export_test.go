@@ -47,3 +47,7 @@ func ListJoined(c *Client) int { return int(c.listJoined.Load()) }
 
 // CountChecks exposes the production tally of a check list to the black-box tests.
 var CountChecks = countChecks
+
+// RerunRunPath is the route the client reruns one Actions run through, as an
+// OpenAPI path template.
+const RerunRunPath = rerunRunPath

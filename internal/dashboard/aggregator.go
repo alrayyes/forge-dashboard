@@ -741,7 +741,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 			r = carryOver(r, earlier, forge)
 			r.Health.StaleSince = &at
 		}
-		r.Health.DependabotCommandsBlocked = DependabotCommandsBlockedReason(a.sources[i])
+		noteBlockedActions(&r.Health, a.sources[i])
 		snap.Forges = append(snap.Forges, r.Health)
 		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
 		snap.Issues = append(snap.Issues, r.Issues...)
@@ -1153,4 +1153,12 @@ func clearStartingWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) []F
 	out[i].StaleSince = nil
 
 	return out
+}
+
+// noteBlockedActions records on a forge's health what its source says it
+// can't do, so the page can lock those controls instead of letting a click
+// fail.
+func noteBlockedActions(h *ForgeHealth, src Source) {
+	h.DependabotCommandsBlocked = DependabotCommandsBlockedReason(src)
+	h.RerunChecksBlocked = RerunChecksBlockedReason(src)
 }

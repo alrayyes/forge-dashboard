@@ -2,10 +2,14 @@ package forgejo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -17,9 +21,73 @@ import (
 // carries no "forgejo: " prefix the page would swap for a generic one.
 var errNothingToRerun = errors.New("no failed job to rerun on this pull request")
 
+// rerunRunPath is the one route Forgejo offers to rerun an Actions run, as an
+// OpenAPI path template. It first shipped in Forgejo 17.0.0; 16 and earlier
+// have no rerun route at all, and Forgejo has no route for rerunning only the
+// failed jobs of a run, so the whole run goes again.
+const rerunRunPath = "/repos/{owner}/{repo}/actions/runs/{run_id}/rerun"
+
+// firstRerunMajor is the first Forgejo major version with rerunRunPath.
+const firstRerunMajor = 17
+
+// versionProbeTimeout bounds the one read of the instance's version.
+const versionProbeTimeout = 5 * time.Second
+
+// errNoRerunRoute is why a rerun on a Forgejo older than firstRerunMajor never
+// reaches the forge. Shown to a person, so it reads as a sentence.
+var errNoRerunRoute = errors.New("This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.") //nolint:staticcheck,revive // shown to a person
+
+// RerunChecksBlockedReason implements dashboard.RerunChecksBlocker: why this
+// instance can't rerun checks, or "" when it can or its version isn't known.
+// The version is read once; a failed read is tried again next time and leaves
+// the rerun to the forge.
+func (c *Client) RerunChecksBlockedReason() string {
+	if major, ok := c.serverMajor(); ok && major < firstRerunMajor {
+		return errNoRerunRoute.Error()
+	}
+
+	return ""
+}
+
+// serverMajor is the instance's major version, read once from /version.
+func (c *Client) serverMajor() (int, bool) {
+	c.versionMu.Lock()
+	defer c.versionMu.Unlock()
+	if c.versionKnown {
+		return c.versionMajor, c.versionMajor > 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), versionProbeTimeout)
+	defer cancel()
+	body, _, err := c.rawRequest(ctx, http.MethodGet, "/version", nil)
+	if err != nil {
+		return 0, false
+	}
+	var v struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(body, &v) != nil {
+		return 0, false
+	}
+	// Answered, even when the answer is words: not asked again.
+	c.versionKnown = true
+	major, _, _ := strings.Cut(strings.TrimPrefix(v.Version, "v"), ".")
+	c.versionMajor, _ = strconv.Atoi(major)
+
+	return c.versionMajor, c.versionMajor > 0
+}
+
+// rerunBlocked is the refusal for an instance with no rerun route, or nil.
+func (c *Client) rerunBlocked() error {
+	if c.RerunChecksBlockedReason() == "" {
+		return nil
+	}
+
+	return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNoRerunRoute}
+}
+
 // RerunFailedChecks implements dashboard.ChecksRerunner: it finds the Actions
-// runs on the pull request's head commit, and asks Forgejo to rerun the failed
-// jobs of each run that failed, once per run. A commit status doesn't say which
+// runs on the pull request's head commit, and asks Forgejo to rerun each run
+// that failed, once per run. A commit status doesn't say which
 // run it came from, so the runs are looked up by commit instead. A status with
 // no run behind it (an external CI) isn't there to find and is skipped.
 //
@@ -28,7 +96,6 @@ var errNothingToRerun = errors.New("no failed job to rerun on this pull request"
 // the Actions scope, an instance without the route) is what a person needs.
 func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
 	c = c.withContext(ctx)
-
 	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
 	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
@@ -62,7 +129,6 @@ var errNothingToRerunOnBranch = errors.New("no failed job to rerun on this branc
 // read to learn it.
 func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, defaultBranch string) error {
 	c = c.withContext(ctx)
-
 	var failed []int64
 	if defaultBranch != "" {
 		runs, err := c.branchRunsList(ctx, dashboard.RepoRef{
@@ -84,10 +150,13 @@ func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name
 	return c.rerunRuns(ctx, owner, name, failed)
 }
 
-// rerunRuns asks Forgejo to rerun the failed jobs of each run in ids.
+// rerunRuns asks Forgejo to rerun each run in ids.
 func (c *Client) rerunRuns(ctx context.Context, owner, name string, ids []int64) error {
+	if err := c.rerunBlocked(); err != nil {
+		return err
+	}
 	for _, runID := range ids {
-		rerunPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/rerun-failed-jobs", owner, name, runID)
+		rerunPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/rerun", owner, name, runID)
 		slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
 		_, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil)
 		if err != nil {
