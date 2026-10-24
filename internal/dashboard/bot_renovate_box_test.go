@@ -232,6 +232,39 @@ func TestAggregator_FullRefreshKeepsTheBoxOverrideOfRowsItCarriedOver(t *testing
 		assert.Equal(t, 1, agg.BoxOverrideCount(), "no fetch read #7's description")
 	})
 
+	t.Run("a forge whose budget is spent is not asked", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, clock := botAggregator(t, src)
+		src.mu.Lock()
+		src.spent = &dashboard.RateLimit{Limit: 5000, ResetsAt: clock.now().Add(time.Hour)}
+		src.mu.Unlock()
+		agg.Refresh(t.Context())
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		require.Equal(t, 1, agg.BoxOverrideCount())
+
+		src.set()
+		agg.Refresh(t.Context())
+
+		require.Len(t, agg.Get().PullRequests, 1, "the spent forge's rows were carried over")
+		assert.Equal(t, 1, agg.BoxOverrideCount(), "no fetch read #7's description")
+	})
+
+	t.Run("a forge that is unreachable", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+
+		src.mu.Lock()
+		src.reachable = false
+		src.mu.Unlock()
+		agg.Refresh(t.Context())
+
+		require.Len(t, agg.Get().PullRequests, 1, "the unreachable forge's rows were carried over")
+		assert.Equal(t, 1, agg.BoxOverrideCount())
+	})
+
 	t.Run("a repo it did fetch still retires the override", func(t *testing.T) {
 		t.Parallel()
 		src := newBotSource(boxPR(false))
