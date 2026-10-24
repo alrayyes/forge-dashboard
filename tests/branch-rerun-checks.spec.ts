@@ -309,9 +309,10 @@ test.describe('main branches rerun failed checks', () => {
       'This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.';
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
+      row: { forge: 'forgejo' },
       forges: [
         {
-          forge: 'github',
+          forge: 'forgejo',
           reachable: true,
           repoCount: 1,
           rerunChecksBlocked: reason,

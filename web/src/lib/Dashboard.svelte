@@ -142,6 +142,7 @@
     type ForgeHealthEntry,
     dependabotBlockedReason,
     rerunBlockedLock,
+    rerunScopeNote,
     forgeLockReason,
     spentLimit,
   } from "#lib/forge-lock.js";
@@ -1447,6 +1448,7 @@
             : "Rerun failed checks",
       );
       button.type = "button";
+      button.title = rerunScopeNote(item.forge) ?? "";
       markPending(button, phase === "requesting" || phase === "queued");
       button.addEventListener("click", () => {
         if (isPending(button)) return;
@@ -5838,6 +5840,7 @@
       const key = prKey(item);
       const button = buttonEl("row-action", "Rerun failed checks");
       button.type = "button";
+      button.title = rerunScopeNote(item.forge) ?? "";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
       // The failure sentence is the alert; Copy sits beside it, outside, so
