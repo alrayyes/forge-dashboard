@@ -134,6 +134,13 @@ Each entry says whether the dashboard `tracked` it as an open issue it shows.
 Where it does, `pageUrl` opens that issue's pop-up; where it doesn't (a closed
 issue, another repo, a pull request), a client links to `url` on the forge.
 
+The pull request's pop-up shows each one among the attributes, after the issues
+it closes, as a "Mentions" link drawn like the "Closes" ones. A tracked ticket
+opens on the [Issues page](issues.md#opening-an-issue-from-its-address). One the
+dashboard doesn't hold opens on its forge in a new tab, and screen readers hear
+"opens on the forge" instead of "opens the issue". With nothing mentioned, the
+pop-up shows no label and no empty space. The rows don't show mentions.
+
 ## Author on a row
 
 A row shows the author's avatar to the left of their name. It is the forge's

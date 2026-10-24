@@ -1483,6 +1483,18 @@ button.title:focus-visible {
   gap: 4px;
   max-width: 100%;
 }
+/* The issue dialog's pull requests that only mention the issue: a visible
+   label, then the same pills, kept together on one line when they fit. */
+.mentioned-by {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+}
+.mentioned-by-label {
+  color: var(--ink-2);
+  font-size: 0.85em;
+}
 .linked-pr-ref {
   display: inline-flex;
   min-width: 0;

@@ -88,6 +88,12 @@ describe('linkedPillName', () => {
     expect(name).toContain(linkedPillText(pr(), 'alrayyes/app'));
   });
 
+  test('says it mentions the issue when that is what the pull request does', () => {
+    expect(linkedPillName(pr(), 'alrayyes/app', null, 'mentions')).toBe(
+      'Pull request #12, mentions this issue',
+    );
+  });
+
   test('carries the whole repo when it is another one, and still the visible text', () => {
     const other = pr({ repo: 'alrayyes/other', draft: true });
     const name = linkedPillName(other, 'alrayyes/app');
