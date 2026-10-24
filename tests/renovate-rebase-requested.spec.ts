@@ -371,6 +371,47 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     await expect(cancel).toBeFocused();
   });
 
+  // The cancel redraws as a pending button while it posts, then the request
+  // button returns. A keyboard user stays on the control through both swaps.
+  test('keyboard: focus stays through the cancel and lands on the returning request', async ({
+    page,
+  }) => {
+    const withMerge = (action: Record<string, unknown>) => [
+      { action: 'merge', primary: true },
+      { action: 'close' },
+      action,
+    ];
+    const state: State = {
+      rebase: CANCEL,
+      extra: {
+        behind: true,
+        botRequest: BOT_REQUEST,
+        allowedActions: withMerge(CANCEL),
+      },
+    };
+    await page.route(
+      '**/api/pull-requests/renovate-rebase/cancel',
+      async (route: Route) => {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        state.rebase = REQUEST;
+        state.extra = { behind: true, allowedActions: withMerge(REQUEST) };
+        return route.fulfill({ status: 204 });
+      },
+    );
+    await serve(page, state);
+    const row = await openRow(page);
+
+    const cancel = row.getByRole('button', { name: CANCEL_NAME });
+    await cancel.focus();
+    await page.keyboard.press('Enter');
+
+    // While posting, the pending cancel still holds the focus.
+    await expect(
+      row.getByRole('button', { name: 'Cancelling…' }),
+    ).toBeFocused();
+    await expect(row.getByRole('button', { name: REQUEST_NAME })).toBeFocused();
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     test(`has no axe violations with the cancel (${scheme})`, async ({
       page,

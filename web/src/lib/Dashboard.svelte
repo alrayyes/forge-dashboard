@@ -4704,11 +4704,13 @@
 
     // The board asks the server again, so the row leaves or returns at once
     // instead of waiting for the pointer to leave the list.
-    function refreshBoard(): Promise<void> {
+    function refreshBoard(keepFocus = false): Promise<void> {
       const seq = ++requestSeq;
       return refreshSnapshot()
         .then((data) => {
-          if (data) applySnapshot(data, true, seq);
+          if (!data) return;
+          if (keepFocus) keepFocusAcross(() => applySnapshot(data, true, seq));
+          else applySnapshot(data, true, seq);
         })
         .catch(() => {});
     }
@@ -5585,6 +5587,9 @@
       const cancelling = "Cancelling the Renovate rebase…";
       const cancelled = "Renovate rebase cancelled.";
       cancelRenovateRebaseState[key] = { phase: "requesting" };
+      // The request is withdrawn now, so the snapshot that follows reads as a
+      // cancel and not as a rebase that finished.
+      delete renovateRebaseState[key];
       keepFocusAcross(renderPRBoard);
       const fkey = `cancel-renovate-rebase:${key}`;
       feedback.start({
@@ -5624,7 +5629,6 @@
         })
         .then(() => {
           delete cancelRenovateRebaseState[key];
-          delete renovateRebaseState[key];
           feedback.update(fkey, {
             phase: "done",
             message: cancelled,
@@ -5633,7 +5637,7 @@
           });
           // The forge already took the cancel. A refresh that fails is not a
           // failed action: the next poll brings the board up to date.
-          return refreshBoard();
+          return refreshBoard(true);
         })
         .catch((err: ActionRequestError) => {
           renderActionRefusal(
@@ -5679,8 +5683,11 @@
         requesting ? "Cancelling…" : "Cancel Renovate rebase",
       );
       button.type = "button";
-      button.disabled = requesting;
+      // aria-disabled keeps the button focusable, so a keyboard user holds
+      // their place while the cancel posts.
+      markPending(button, requesting);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doCancelRenovateRebase(item);
       });
       return button;
@@ -8050,6 +8057,7 @@
         autoMergeState,
         dependabotActionState,
         renovateRebaseState,
+        cancelRenovateRebaseState,
       ]) {
         for (const key of Object.keys(state)) {
           const entry = state[key];
