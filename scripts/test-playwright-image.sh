@@ -9,10 +9,12 @@
 # package.json and bun.lock, lacks a tag and a digest, or differs from another
 # job's image, so a bump of the library can't land with browsers that disagree.
 # WORKFLOWS (space separated), PACKAGE_JSON and LOCKFILE override the files
-# checked.
+# checked. WORKFLOWS must list both ci.yml and release.yml (by file name), since
+# the browser jobs are looked up in them; the guard fails if either is missing.
 set -euo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+self=$(realpath "${BASH_SOURCE[0]}")
+cd "$(dirname "$self")/.."
 
 workflows=${WORKFLOWS:-.github/workflows/ci.yml .github/workflows/release.yml}
 package_json=${PACKAGE_JSON:-package.json}
@@ -58,6 +60,25 @@ fi
 job_block() { # file job
   awk -v job="  $2:" '$0 == job {on=1; next} on && /^  [A-Za-z0-9_-]+:/ {exit} on' "$1"
 }
+container_block() { # job block: the job's own `container:` lines, not a services: entry
+  awk '/^    container:/ {on=1; next} on && /^    [A-Za-z]/ {exit} on' <<<"$1"
+}
+# Where the Bun check sits among the job's steps: "missing", "guarded" when the
+# step has an `if` or `continue-on-error`, "late" when a step that runs bun or
+# playwright comes first, else "ok".
+bun_step_state() { # job block
+  awk '
+    /^      - / {n++}
+    /run: bash scripts\/check-image-bun\.sh$/ {check = n; next}
+    /^      - (if|continue-on-error):|^        (if|continue-on-error):/ {guarded[n] = 1}
+    /run: .*(bun |bunx |playwright)/ && !first {first = n}
+    END {
+      if (!check) print "missing"
+      else if (guarded[check]) print "guarded"
+      else if (first && first < check) print "late"
+      else print "ok"
+    }' <<<"$1"
+}
 for entry in ci.yml:e2e-shard ci.yml:lighthouse release.yml:screenshots; do
   file=${entry%%:*}
   job=${entry#*:}
@@ -68,11 +89,18 @@ for entry in ci.yml:e2e-shard ci.yml:lighthouse release.yml:screenshots; do
   fi
   block=$(job_block "$path" "$job")
   [ -n "$block" ] || { fail "$path has no job '$job'"; continue; }
-  printf '%s\n' "$block" | grep -Eq '^\s+image: ghcr\.io/alrayyes/ci-playwright:' || fail "$path job '$job' does not run in the CI image"
-  printf '%s\n' "$block" | grep -Eq '^\s+options: .*--ipc=host( |$)' || fail "$path job '$job' lacks 'options: --ipc=host'"
-  printf '%s\n' "$block" | grep -Eq '^\s+options: .*--init( |$)' || fail "$path job '$job' lacks '--init' in its container options"
-  # A real step, not a comment or an echo that mentions the script.
-  printf '%s\n' "$block" | grep -Eq '^\s+(- )?run: bash scripts/check-image-bun\.sh$' || fail "$path job '$job' has no 'run: bash scripts/check-image-bun.sh' step to check the image's bun against package.json"
+  container=$(container_block "$block")
+  grep -Eq '^\s+image: ghcr\.io/alrayyes/ci-playwright:' <<<"$container" || fail "$path job '$job' does not run in the CI image"
+  grep -Eq '^\s+options: .*--ipc=host( |$)' <<<"$container" || fail "$path job '$job' lacks 'options: --ipc=host' in its container"
+  grep -Eq '^\s+options: .*--init( |$)' <<<"$container" || fail "$path job '$job' lacks '--init' in its container options"
+  # A real step, not a comment or an echo that mentions the script, that always
+  # runs and comes before any step that uses bun or the browsers.
+  case $(bun_step_state "$block") in
+    ok) ;;
+    guarded) fail "$path job '$job' has an 'if' or 'continue-on-error' on its Bun check step, so it can be skipped or ignored" ;;
+    late) fail "$path job '$job' runs the Bun check after a step that already uses bun or playwright" ;;
+    *) fail "$path job '$job' has no 'run: bash scripts/check-image-bun.sh' step to check the image's bun against package.json" ;;
+  esac
 done
 
 # scripts/check-image-bun.sh is the one place the Bun check is written. Prove
@@ -125,5 +153,43 @@ for workflow in $workflows; do
     fail "$workflow still runs 'playwright install'; the image already has the browsers"
   fi
 done
+
+# The guard on doctored copies of the real workflows: each must fail, and say
+# why. The nested run skips this block, so it doesn't recurse.
+if [ -z "${PLAYWRIGHT_IMAGE_NESTED:-}" ]; then
+  cases=0
+  doctored() { # name sed-or-perl-command file-to-doctor expected-message-fragment...
+    local name=$1 tool=$2 prog=$3 file=$4 want=$5 dir="$tmp/doctored-$((++cases))" rc=0 out
+    mkdir "$dir"
+    cp .github/workflows/ci.yml .github/workflows/release.yml "$dir/"
+    case $tool in
+      sed) sed -i -E "$prog" "$dir/$file" ;;
+      perl) perl -0pi -e "$prog" "$dir/$file" ;;
+    esac
+    if cmp -s ".github/workflows/$file" "$dir/$file"; then
+      fail "doctoring '$name' changed nothing, so the case proves nothing"
+      return
+    fi
+    out=$(PLAYWRIGHT_IMAGE_NESTED=1 WORKFLOWS="$dir/ci.yml $dir/release.yml" "$self" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      fail "the guard passes a workflow with $name"
+    elif ! grep -Fq -- "$want" <<<"$out"; then
+      fail "the guard fails a workflow with $name without saying '$want' (got: ${out:-nothing})"
+    fi
+  }
+  check_step='        run: bash scripts/check-image-bun.sh'
+  doctored "an if on the Bun check" sed "s|^$check_step\$|        if: false\n&|" ci.yml "has an 'if' or 'continue-on-error'"
+  doctored "continue-on-error on the Bun check" sed "s|^$check_step\$|        continue-on-error: true\n&|" release.yml "has an 'if' or 'continue-on-error'"
+  doctored "the Bun check after bun install" perl 's/(      - name: the image.s bun[^\n]*\n        run: bash scripts\/check-image-bun\.sh\n)(      - run: bun install --frozen-lockfile\n)/$2$1/' release.yml "runs the Bun check after"
+  doctored "no --init in the container options" sed 's|^(      options: --ipc=host) --init$|\1|' ci.yml "lacks '--init'"
+  # A services: entry elsewhere in the job must not stand in for the container's own lines.
+  doctored "options only on a service" perl 's/^      options: --ipc=host --init\n//m; s/^    permissions:\n/    services:\n      s:\n        options: --ipc=host --init\n$&/mg' release.yml "lacks 'options: --ipc=host'"
+  doctored "the CI image only on a service" perl 's/^(    container:\n)      image: (ghcr[^\n]*)\n/$1      image: ubuntu:24.04\n    services:\n      s:\n        image: $2\n/m' release.yml "does not run in the CI image"
+  if out=$(PLAYWRIGHT_IMAGE_NESTED=1 WORKFLOWS=".github/workflows/ci.yml" "$self" 2>&1); then
+    fail "the guard passes when WORKFLOWS leaves out release.yml"
+  elif ! grep -Fq "no workflow named release.yml" <<<"$out"; then
+    fail "the guard fails without release.yml without naming it (got: ${out:-nothing})"
+  fi
+fi
 
 exit "$failed"
