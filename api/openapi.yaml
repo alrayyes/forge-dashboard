@@ -375,6 +375,57 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /api/auth/credentials/{id}:
+    patch:
+      operationId: renameCredential
+      summary: Rename one of the signed-in user's own passkeys
+      description: |
+        Changes the name a passkey is listed under, so several can be told
+        apart (a password manager and a security key, say). The name is
+        trimmed first, then must be 1 to 64 characters. It is a plain label:
+        clients show it as text, never as markup. Only the name changes;
+        which passkeys can sign in does not.
+      tags: [auth]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameCredentialRequest"
+      responses:
+        "200":
+          description: The passkey, under its new name.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Credential"
+        "400":
+          description: |
+            The request body wasn't valid JSON, or `label` was blank or over
+            64 characters once trimmed (the error names `label` as its `field`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No passkey with this id belongs to the signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
     delete:
       operationId: deleteCredential
       summary: Remove one of the signed-in user's own passkeys
@@ -4271,10 +4322,20 @@ components:
           description: This passkey's own credential ID (base64url), distinct from the account's user ID.
         label:
           type: string
-          description: The name given at registration time, so a list of several is tellable apart.
+          description: The passkey's name, given at registration and changeable with `PATCH /api/auth/credentials/{id}`. Empty when it was never named; clients then fall back to `createdAt`.
         createdAt:
           type: string
           format: date-time
+
+    RenameCredentialRequest:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: The new name. Trimmed first; blank is refused.
 
     APIToken:
       type: object

@@ -254,3 +254,134 @@ func TestCredentialsDelete_UnknownID_StillReturns204(t *testing.T) {
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 }
+
+// renameCredential PATCHes a passkey's label with a raw JSON body.
+func renameCredential(t *testing.T, srv *httptest.Server, sessionCookie *http.Cookie, id, body string) *http.Response {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPatch, srv.URL+"/api/auth/credentials/"+id, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	if sessionCookie != nil {
+		req.AddCookie(sessionCookie)
+	}
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	return resp
+}
+
+func listCredentialsAs(t *testing.T, srv *httptest.Server, sessionCookie *http.Cookie) []api.CredentialInfo {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/credentials", nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	var creds []api.CredentialInfo
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&creds))
+
+	return creds
+}
+
+func TestCredentialsRename_RequiresASession(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	resp := renameCredential(t, srv, nil, "anything", `{"label":"x"}`)
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+
+func TestCredentialsRename_SavesTheTrimmedNameAndListsIt(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	before := listCredentialsAs(t, srv, sessionCookie)
+	require.Len(t, before, 1)
+
+	resp := renameCredential(t, srv, sessionCookie, before[0].ID, `{"label":"  Proton Pass  "}`)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var got api.CredentialInfo
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+	assert.Equal(t, "Proton Pass", got.Label)
+	assert.Equal(t, before[0].ID, got.ID)
+	after := listCredentialsAs(t, srv, sessionCookie)
+	require.Len(t, after, 1)
+	assert.Equal(t, "Proton Pass", after[0].Label)
+	assert.True(t, before[0].CreatedAt.Equal(after[0].CreatedAt))
+}
+
+func TestCredentialsRename_StoresMarkupAsPlainText(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	before := listCredentialsAs(t, srv, sessionCookie)
+
+	resp := renameCredential(t, srv, sessionCookie, before[0].ID, `{"label":"<b>key</b>"}`)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "<b>key</b>", listCredentialsAs(t, srv, sessionCookie)[0].Label)
+}
+
+func TestCredentialsRename_RefusedNames_Return400NamingTheField(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"blank":            `{"label":"   "}`,
+		"empty":            `{"label":""}`,
+		"missing":          `{}`,
+		"over the limit":   `{"label":"` + strings.Repeat("a", 65) + `"}`,
+		"over in runes":    `{"label":"` + strings.Repeat("é", 65) + `"}`,
+		"not json":         `nope`,
+		"label not string": `{"label":5}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newTestServer(t)
+			sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+			before := listCredentialsAs(t, srv, sessionCookie)
+
+			resp := renameCredential(t, srv, sessionCookie, before[0].ID, body)
+
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			if name != "not json" && name != "label not string" {
+				var e map[string]string
+				require.NoError(t, json.NewDecoder(resp.Body).Decode(&e))
+				assert.Equal(t, "label", e["field"])
+				assert.NotEmpty(t, e["error"])
+			}
+			assert.Equal(t, before[0].Label, listCredentialsAs(t, srv, sessionCookie)[0].Label)
+		})
+	}
+}
+
+func TestCredentialsRename_ExactlyAtTheLimit_IsAccepted(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	before := listCredentialsAs(t, srv, sessionCookie)
+
+	resp := renameCredential(t, srv, sessionCookie, before[0].ID, `{"label":"`+strings.Repeat("é", 64)+`"}`)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestCredentialsRename_UnknownID_Returns404(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+
+	resp := renameCredential(t, srv, sessionCookie, "not-a-real-id", `{"label":"Mine"}`)
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}

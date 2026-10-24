@@ -1,10 +1,12 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 )
@@ -84,6 +86,51 @@ func handleCredentialsAddFinish(deps Deps) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusCreated, credentialInfoOf(cred))
+	}
+}
+
+// maxPasskeyNameRunes is the longest name a passkey can have. Characters, not
+// bytes, so a name in any script gets the same room.
+const maxPasskeyNameRunes = 64
+
+func handleCredentialsRename(store *auth.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Label *string `json:"label"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("request body must be JSON with a string label"))
+
+			return
+		}
+		label := ""
+		if body.Label != nil {
+			label = strings.TrimSpace(*body.Label)
+		}
+		if label == "" {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("label", "give the passkey a name"))
+
+			return
+		}
+		if utf8.RuneCountInString(label) > maxPasskeyNameRunes {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("label", "the name can be at most 64 characters"))
+
+			return
+		}
+
+		cred, err := store.RenameCredential(r.Context(), r.PathValue("id"), label)
+		if err != nil {
+			if errors.Is(err, auth.ErrCredentialNotFound) {
+				writeJSON(w, http.StatusNotFound, errorBody("no such passkey"))
+
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, errorBody("could not rename passkey"))
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, credentialInfoOf(cred))
 	}
 }
 
