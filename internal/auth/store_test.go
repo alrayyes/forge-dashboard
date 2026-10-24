@@ -219,7 +219,7 @@ func TestStore_SaveCeremony_PastTheCap_DropsTheOldest(t *testing.T) {
 
 	_, oldest := store.LoadCeremony(t.Context(), "c000", "login")
 	_, newest := store.LoadCeremony(t.Context(), "c100", "login")
-	assert.ErrorIs(t, oldest, auth.ErrNotFound)
+	require.ErrorIs(t, oldest, auth.ErrNotFound)
 	assert.NoError(t, newest)
 }
 

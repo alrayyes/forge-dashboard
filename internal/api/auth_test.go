@@ -605,14 +605,15 @@ func beginLogin(tb testing.TB, srv *httptest.Server) *virtualwebauthn.AssertionO
 	return options
 }
 
-func finishLogin(tb testing.TB, srv *httptest.Server, body string) *http.Response {
+// finishLogin posts a login response and returns the status it got.
+func finishLogin(tb testing.TB, srv *httptest.Server, body string) int {
 	tb.Helper()
 
 	resp, err := testClient(tb).Post(srv.URL+"/api/auth/login/finish", "application/json", strings.NewReader(body))
 	require.NoError(tb, err)
-	tb.Cleanup(func() { _ = resp.Body.Close() })
+	defer func() { _ = resp.Body.Close() }()
 
-	return resp
+	return resp.StatusCode
 }
 
 // Anyone can call login/begin, so one visitor's begin must not undo another's:
@@ -626,8 +627,8 @@ func TestLoginFinish_TwoBeginsInterleaved_BothFinish(t *testing.T) {
 	first := beginLogin(t, srv)
 	second := beginLogin(t, srv)
 
-	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *first)).StatusCode)
-	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *second)).StatusCode)
+	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *first)))
+	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *second)))
 }
 
 // A stranger who begins a login, or finishes one with junk, leaves the owner's
@@ -641,10 +642,10 @@ func TestLoginFinish_StrangerBeginsAndFinishes_OwnersCeremonySurvives(t *testing
 	owners := beginLogin(t, srv)
 	stranger := beginLogin(t, srv)
 	junk := virtualwebauthn.CreateAssertionResponse(rp, authenticator, virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2), *stranger)
-	assert.Equal(t, http.StatusBadRequest, finishLogin(t, srv, junk).StatusCode)
-	assert.Equal(t, http.StatusBadRequest, finishLogin(t, srv, `{"not":"a credential"}`).StatusCode)
+	assert.Equal(t, http.StatusBadRequest, finishLogin(t, srv, junk))
+	assert.Equal(t, http.StatusBadRequest, finishLogin(t, srv, `{"not":"a credential"}`))
 
-	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *owners)).StatusCode)
+	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *owners)))
 }
 
 // The counter an authenticator reports is stored at login, so a cloned
@@ -656,8 +657,8 @@ func TestLoginFinish_StoresTheAuthenticatorsSignCount(t *testing.T) {
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
 	cred.Counter = 7
 
-	resp := finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *beginLogin(t, srv)))
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	status := finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *beginLogin(t, srv)))
+	require.Equal(t, http.StatusOK, status)
 
 	owner, err := store.Owner(t.Context())
 	require.NoError(t, err)
