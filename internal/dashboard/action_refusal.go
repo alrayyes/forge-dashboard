@@ -230,6 +230,7 @@ func classifyReopenRefusal(actionErr error) (ActionRefusal, bool) {
 
 const (
 	notReopenableMessage = "The forge won't reopen this pull request. Usually its branch was deleted or rewritten after it was closed: restore the branch on the forge, then try again."
+	notFoundMessage      = "The forge answered 404: it has no such route, or the token can't see this repository."
 	noReasonMessage      = "The forge refused this action and gave no reason."
 	unreachableMessage   = "The forge didn't answer. Try again in a moment."
 	forgeFailedMessage   = "The forge had a server error. Try again in a moment."
@@ -244,6 +245,11 @@ func unknownRefusal(actionErr error, forgeText string) ActionRefusal {
 	if clientErr, ok := errors.AsType[*ClientError](actionErr); ok {
 		if clientErr.Kind == ForgeErrorUnreachable {
 			return ActionRefusal{Code: ActionUnknown, Message: unreachableMessage}
+		}
+		// "404 page not found" is the web server's, not a sentence the forge
+		// wrote for a person.
+		if clientErr.Kind == ForgeErrorNotFound && (!isPlainSentence(forgeText) || strings.Contains(forgeText, "page not found")) {
+			return ActionRefusal{Code: ActionUnknown, Message: notFoundMessage}
 		}
 		if isPlainSentence(forgeText) {
 			return ActionRefusal{Code: ActionUnknown, Message: forgeText}

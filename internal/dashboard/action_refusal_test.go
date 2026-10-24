@@ -137,6 +137,7 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 	t.Parallel()
 
 	const noReason = "The forge refused this action and gave no reason."
+	const notFoundMessage = "The forge answered 404: it has no such route, or the token can't see this repository."
 	cases := []struct {
 		name string
 		err  error
@@ -148,6 +149,7 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 		{"JSON is not shown", refusal(dashboard.ForgeErrorUnknown, `forgejo: PATCH x: {"message":"nope","url":"y"}`), noReason},
 		{"an empty answer says no reason", refusal(dashboard.ForgeErrorUnknown, "forgejo: PATCH x: "), noReason},
 		{"an unreachable forge says it didn't answer", refusal(dashboard.ForgeErrorUnreachable, "github: PUT x: dial tcp: refused"), "The forge didn't answer. Try again in a moment."},
+		{"a 404 says the forge has no such thing, once", refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/runs/1/rerun: refused: 404 page not found"), notFoundMessage},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
