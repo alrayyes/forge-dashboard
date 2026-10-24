@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.2](https://github.com/alrayyes/forge-dashboard/compare/v2.30.1...v2.30.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* show only the cancel once a bot rebase is requested ([#2751](https://github.com/alrayyes/forge-dashboard/issues/2751)) ([2da4731](https://github.com/alrayyes/forge-dashboard/commit/2da47310ec26aac01cd14e1a79156719a65d5636))
+
 ## [2.30.1](https://github.com/alrayyes/forge-dashboard/compare/v2.30.0...v2.30.1) (2026-10-24)
 
 
