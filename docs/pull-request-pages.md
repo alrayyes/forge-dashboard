@@ -116,6 +116,24 @@ The server works out which issues those are, and builds the address that opens
 each. In `GET /api/dashboard` each pull request has `closesIssues`, always
 present, and each entry carries the `pageUrl` that opens it.
 
+## Tickets a pull request mentions
+
+Besides the issues it closes, a pull request can mention others: `Refs #12` in
+its description, or a link to a ticket in its title. The server reads the title
+and description on both forges and lists what it finds, without a closing
+reference, in `GET /api/dashboard` as `mentionsIssues`, always present. A
+mention is what GitHub and Forgejo both turn into a link: `#12`,
+`owner/repo#12`, the address of an issue or pull request page on the forge, and
+on GitHub `GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not
+mentions. Code and HTML comments are skipped, as they are for closing
+references, and a quoted line still counts. A ticket the pull request closes is
+never repeated, and neither is the pull request itself. Comments, reviews and
+commit messages are not read.
+
+Each entry says whether the dashboard `tracked` it as an open issue it shows.
+Where it does, `pageUrl` opens that issue's pop-up; where it doesn't (a closed
+issue, another repo, a pull request), a client links to `url` on the forge.
+
 ## Author on a row
 
 A row shows the author's avatar to the left of their name. It is the forge's

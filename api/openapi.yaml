@@ -4722,6 +4722,39 @@ components:
             forge link, since the dashboard knows nothing else about the issue.
           examples: ["/issues.html?issue=github/alrayyes/hush-hush/12"]
 
+    MentionedIssue:
+      type: object
+      required: [repo, number, url, pageUrl, tracked]
+      description: |
+        One issue or pull request a pull request mentions without closing it.
+        The number is an issue's or a pull request's, which the forge's address
+        tells apart.
+      properties:
+        repo:
+          type: string
+          description: The repository as `owner/name`, which is not always the pull request's own.
+        number:
+          type: integer
+          minimum: 1
+        url:
+          type: string
+          format: uri
+          description: Its page on the forge, which a client links to when `tracked` is false.
+        pageUrl:
+          type: string
+          description: |
+            The address on this dashboard that opens the Issues page with this
+            issue's pop-up open, built the same way as the closing issue's. A
+            relative address.
+          examples: ["/issues.html?issue=github/alrayyes/hush-hush/12"]
+        tracked:
+          type: boolean
+          description: |
+            True when the dashboard holds it as an open issue it shows, so
+            `pageUrl` opens its pop-up. False for a pull request, a closed
+            issue, an issue the user's settings hide and anything in a repo
+            the dashboard does not track; a client then links to `url`.
+
     LinkedPullRequest:
       type: object
       required:
@@ -5248,6 +5281,7 @@ components:
           reviewComments,
           conversationComments,
           closesIssues,
+          mentionsIssues,
           unresolvedThreads,
           awaitingWorkflowApproval,
           reviewRequestedFromMe,
@@ -5469,6 +5503,26 @@ components:
             Forgejo's source and has not been tried on a live instance. Only a
             pull request aimed at its repo's default branch closes anything,
             so one aimed elsewhere always lists none.
+        mentionsIssues:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/MentionedIssue"
+          description: |
+            The issues and pull requests the title or description mentions
+            without closing them, in order of first appearance and without
+            repeats. Always present, and empty when there are none. A mention
+            is what GitHub and Forgejo both link: `#NUMBER`, `owner/repo#NUMBER`,
+            or the address of an issue or pull request page on the forge, and
+            on GitHub also `GH-NUMBER`. It has to stand alone: `abc#1`, `&#1`
+            and `#1abc` are not mentions. Code, HTML comments and a closing
+            reference (a keyword the pull request closes with) count for
+            nothing, a reference in a quotation still counts, and neither does
+            the pull request's own number. Whatever the pull request closes is
+            left out even when the text also mentions it, so the same ticket is
+            never in both lists. Comments, reviews and commit messages are not
+            read. The server reads the text on both forges, so a client needs
+            no rule of its own.
         unresolvedThreads:
           oneOf:
             - type: "null"
@@ -6043,6 +6097,7 @@ components:
           labels,
           housekeeping,
           linkedPullRequests,
+          mentionedByPullRequests,
           createdAt,
           updatedAt,
         ]
@@ -6073,6 +6128,17 @@ components:
             user could see, including a draft and one they hid, but not one in
             a repository whose pull requests they ignore. A pull request that
             merged or closed is gone from the list on the next refresh.
+        mentionedByPullRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/LinkedPullRequest"
+          description: |
+            The open pull requests that mention the issue without closing it,
+            the other side of a pull request's `mentionsIssues`, ordered by
+            repository and number and with the same entry as
+            `linkedPullRequests`. A pull request that closes the issue is only
+            in `linkedPullRequests`. Always present, and empty when there are
+            none. The same pull requests are counted as in `linkedPullRequests`.
         housekeeping:
           type: boolean
           description: |

@@ -13,12 +13,36 @@ type ClosingIndex map[string][]PullRequest
 
 // PullRequestsClosing indexes prs by the issues they close.
 func PullRequestsClosing(prs []PullRequest) ClosingIndex {
+	return indexByIssue(prs, func(pr PullRequest) []IssueRef { return pr.ClosesIssues })
+}
+
+// PullRequestsMentioning indexes prs by the issues they mention without
+// closing: a mention of an issue the same pull request closes is left to the
+// closing list, so the two never repeat each other.
+func PullRequestsMentioning(prs []PullRequest) ClosingIndex {
+	return indexByIssue(prs, func(pr PullRequest) []IssueRef {
+		closed := map[string]struct{}{}
+		for _, ref := range pr.ClosesIssues {
+			closed[closingKey(pr.Forge, ref.Repo, ref.Number)] = struct{}{}
+		}
+		var out []IssueRef
+		for _, ref := range pr.MentionsIssues {
+			if _, isClosed := closed[closingKey(pr.Forge, ref.Repo, ref.Number)]; !isClosed {
+				out = append(out, ref)
+			}
+		}
+
+		return out
+	})
+}
+
+func indexByIssue(prs []PullRequest, refsOf func(PullRequest) []IssueRef) ClosingIndex {
 	index := ClosingIndex{}
 	for _, pr := range prs {
 		// Forgejo reads "Closes #5" and "Closes Owner/Repo#5" as two
 		// references to one issue, so a pull request is added once per issue.
 		seen := map[string]struct{}{}
-		for _, ref := range pr.ClosesIssues {
+		for _, ref := range refsOf(pr) {
 			key := closingKey(pr.Forge, ref.Repo, ref.Number)
 			if _, dup := seen[key]; dup {
 				continue

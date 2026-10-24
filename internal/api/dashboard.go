@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -153,6 +154,9 @@ type issueView struct {
 	// LinkedPullRequests are the open pull requests that will close this
 	// issue, joined here from the snapshot's own pull requests.
 	LinkedPullRequests []linkedPullRequest `json:"linkedPullRequests"`
+	// MentionedByPullRequests are the open pull requests that mention this
+	// issue without closing it.
+	MentionedByPullRequests []linkedPullRequest `json:"mentionedByPullRequests"`
 }
 
 // linkedPullRequest is one pull request that will close an issue, with the
@@ -186,7 +190,12 @@ func pullRequestPage(kind dashboard.PullRequestKind) string {
 // linkedPullRequests lists the pull requests that close issue, each with the
 // address that opens it. Never nil.
 func (b boardSettings) linkedPullRequests(index dashboard.ClosingIndex, issue dashboard.Issue) []linkedPullRequest {
-	prs := index.For(issue)
+	return b.pullRequestPills(index.For(issue))
+}
+
+// pullRequestPills turns prs into the entries an issue lists, each with the
+// address that opens it. Never nil.
+func (b boardSettings) pullRequestPills(prs []dashboard.PullRequest) []linkedPullRequest {
 	out := make([]linkedPullRequest, 0, len(prs))
 	for _, pr := range prs {
 		out = append(out, linkedPullRequest{
@@ -225,6 +234,51 @@ func closingIssues(pr dashboard.PullRequest) []closingIssue {
 	return out
 }
 
+// mentionedIssue is one issue or pull request a pull request mentions without
+// closing it. Tracked says whether the dashboard holds it as an open issue, so
+// PageURL opens its dialog; otherwise a client links to URL on the forge.
+type mentionedIssue struct {
+	closingIssue
+	Tracked bool `json:"tracked"`
+}
+
+// mentionedIssues lists what pr mentions, leaving out whatever it closes
+// (GitHub's own closing list is the authority there). Nothing is tracked yet:
+// resolveMentions sets that once the issues are known. Never nil.
+func mentionedIssues(pr dashboard.PullRequest) []mentionedIssue {
+	closes := map[string]struct{}{}
+	for _, ref := range pr.ClosesIssues {
+		closes[strings.ToLower(ref.Repo)+"#"+strconv.Itoa(ref.Number)] = struct{}{}
+	}
+	out := make([]mentionedIssue, 0, len(pr.MentionsIssues))
+	for _, ref := range pr.MentionsIssues {
+		if _, closed := closes[strings.ToLower(ref.Repo)+"#"+strconv.Itoa(ref.Number)]; closed {
+			continue
+		}
+		out = append(out, mentionedIssue{
+			IssueRef: ref,
+			PageURL:  "/issues.html?issue=" + string(pr.Forge) + "/" + ref.Repo + "/" + strconv.Itoa(ref.Number),
+		})
+	}
+
+	return out
+}
+
+// resolveMentions marks each mention that is one of issues, the open issues
+// the dashboard shows, as tracked. A repo name is compared without regard to
+// case, since Forgejo writes a reference lowercased.
+func resolveMentions(prs []pullRequestView, issues []issueView) {
+	held := map[string]struct{}{}
+	for _, issue := range issues {
+		held[string(issue.Forge)+"\x00"+strings.ToLower(issue.Repo)+"#"+strconv.Itoa(issue.Number)] = struct{}{}
+	}
+	for i := range prs {
+		for j, m := range prs[i].MentionsIssues {
+			_, prs[i].MentionsIssues[j].Tracked = held[string(prs[i].Forge)+"\x00"+strings.ToLower(m.Repo)+"#"+strconv.Itoa(m.Number)]
+		}
+	}
+}
+
 // pullRequestView is a pull request as the API serves it: the snapshot's own
 // fields plus the actions it allows, worked out here so every client gets
 // the same answer (#805). The snapshot type stays free of it.
@@ -237,6 +291,9 @@ type pullRequestView struct {
 	// ClosesIssues shadows the snapshot's list to add the address on this
 	// dashboard that opens each issue.
 	ClosesIssues []closingIssue `json:"closesIssues"`
+	// MentionsIssues shadows the snapshot's list the same way, without what
+	// the pull request closes, and says which of them the dashboard holds.
+	MentionsIssues []mentionedIssue `json:"mentionsIssues"`
 	// AuthorURL is the author's profile page on the forge, built here so no
 	// client needs a rule per forge. Empty for a deleted account.
 	AuthorURL string `json:"authorUrl"`
@@ -380,6 +437,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
+	resolveMentions(pullRequests, issues)
 
 	done := firstRefreshDone(deps.Service)
 	// A snapshot with forges in it was either refreshed or restored from the
@@ -573,6 +631,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			Kind:           dashboard.KindOf(pr, b.renovateAuthors),
 			AllowedActions: actions,
 			ClosesIssues:   closingIssues(pr),
+			MentionsIssues: mentionedIssues(pr),
 			Status:         dashboard.PullRequestStatus(pr, actions),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),
@@ -767,6 +826,7 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, prs []dashboard.Pull
 		}
 	}
 	index := dashboard.PullRequestsClosing(visible)
+	mentions := dashboard.PullRequestsMentioning(visible)
 	for _, issue := range issues {
 		if b.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
 			continue
@@ -782,7 +842,8 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, prs []dashboard.Pull
 			Housekeeping: housekeeping,
 			AuthorURL:    dashboard.ProfileURL(issue.Forge, dashboard.WebBase(issue.URL, issue.Repo), issue.Author),
 
-			LinkedPullRequests: b.linkedPullRequests(index, issue),
+			LinkedPullRequests:      b.linkedPullRequests(index, issue),
+			MentionedByPullRequests: b.pullRequestPills(mentions.For(issue)),
 		})
 		if !housekeeping {
 			open++

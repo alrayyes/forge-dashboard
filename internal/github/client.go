@@ -3071,6 +3071,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
 		ClosesIssues:            closingIssuesFromGraphQL(p),
+		MentionsIssues:          mentionsFromGraphQL(p, fullName),
 		ReviewComments:          comments,
 		ConversationComments:    conversationCount(p),
 		UnresolvedThreads:       &unresolved,
@@ -3091,6 +3092,18 @@ func closingIssuesFromGraphQL(p graphqlPullRequest) []dashboard.IssueRef {
 	}
 
 	return refs
+}
+
+// mentionsFromGraphQL lists the issues and pull requests p's title and
+// description mention without closing them. GitHub has no field for it, so
+// the text is read the way GitHub links references. Never nil.
+func mentionsFromGraphQL(p graphqlPullRequest, fullName string) []dashboard.IssueRef {
+	base := dashboard.WebBase(p.URL, fullName)
+	if base == "" {
+		base = "https://github.com"
+	}
+
+	return dashboard.MentionedIssueRefs(dashboard.ForgeGitHub, p.Title, p.Body, fullName, p.Number, base)
 }
 
 // requestedReviewerLoginsFromGraphQL lists the logins of the users asked to
