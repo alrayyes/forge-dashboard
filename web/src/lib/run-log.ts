@@ -181,6 +181,13 @@ export function canCopyLog(
 // job with an id, a page and a checks address can open the output panel.
 export type CheckControl = 'none' | 'open-on-forge' | 'output' | 'link';
 
+// The accessible name of a check link that opens the forge in a new tab. It
+// starts with the visible text so the name still holds the words on screen
+// (WCAG 2.5.3).
+export function checkLinkLabel(text: string, check: string): string {
+  return `${text} (opens in a new tab): ${check}`;
+}
+
 export function checkControl(
   check: { state: string; url?: string; jobId?: number },
   checksUrl: string | undefined,

@@ -2,8 +2,10 @@ package forgejo
 
 import (
 	"context"
+	"net/http"
 	"time"
 
+	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -42,6 +44,9 @@ func WaitForAdvisories(c *Client) { c.advisoryReads.Wait() }
 // one is answered from what it remembered. It is not safe to call concurrently
 // on one client: its Wait would race another caller's first read starting its
 // background read. Start concurrent reads with ReadMainBranch, then settle once.
+// A mutex here would only serialise Settled callers. The hazard is a Settled
+// call racing a direct ReadMainBranch, which would not take it, so the
+// hazard is documented instead.
 func ReadMainBranchSettled(ctx context.Context, c *Client, repo dashboard.RepoRef) (dashboard.MainBranch, error) {
 	if _, err := c.ReadMainBranch(ctx, repo); err != nil {
 		return dashboard.MainBranch{}, err
@@ -60,3 +65,38 @@ var CountChecks = countChecks
 // RerunJobPath is the route the client reruns one Actions job through, as an
 // OpenAPI path template.
 const RerunJobPath = rerunJobPath
+
+// RequestMayHaveQueued is requestMayHaveQueued.
+func RequestMayHaveQueued(resp *gitea.Response, err error) bool {
+	return requestMayHaveQueued(resp, err)
+}
+
+// SetVersionParkHook calls fn each time a click starts waiting for the version
+// read another click is making.
+func SetVersionParkHook(c *Client, fn func()) { c.version.parked = fn }
+
+// VersionAnswerFresh is whether the cached version can still be trusted.
+func VersionAnswerFresh(c *Client) bool {
+	_, _, fresh := c.version.answer()
+
+	return fresh
+}
+
+// RecordVersion lands a version read's answer, as a read finishing would.
+func RecordVersion(c *Client, major int, ok bool) { c.version.record(major, ok) }
+
+// JoinVersionRead is the step a click takes after finding the answer stale.
+func JoinVersionRead(c *Client) (wait <-chan struct{}, lead bool) { return c.version.join() }
+
+// VersionReadOpen is whether a version read holds the flight.
+func VersionReadOpen(c *Client) bool {
+	c.version.mu.Lock()
+	defer c.version.mu.Unlock()
+
+	return c.version.flight != nil
+}
+
+// WrapTransport puts wrap around the transport every request goes through.
+func WrapTransport(c *Client, wrap func(next http.RoundTripper) http.RoundTripper) {
+	c.httpClient.Transport = wrap(c.httpClient.Transport)
+}

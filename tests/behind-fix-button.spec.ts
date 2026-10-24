@@ -155,7 +155,7 @@ test('on a phone the pop-up keeps the fix button as a 44px target in its footer'
   ).toHaveCount(0);
 });
 
-test('a Renovate rebase that is already waiting has no button in the warning and keeps its locked one in the row', async ({
+test('a Renovate rebase that is already requested has no button in the warning and keeps only the cancel in the row', async ({
   page,
 }) => {
   const behind = {
@@ -170,16 +170,9 @@ test('a Renovate rebase that is already waiting has no button in the warning and
       allowedActions: [
         { action: 'merge', blocked: behind },
         { action: 'close' },
-        {
-          action: 'renovate_rebase',
-          blocked: {
-            code: 'already_requested',
-            message: 'Rebase requested',
-            next: 'Renovate has the request and will rebase it.',
-          },
-        },
+        { action: 'cancel_renovate_rebase' },
       ],
-      // No `action`: the one that would clear it is locked.
+      // No `action`: the rebase is already requested.
       status: behind,
       kind: 'dependency',
     }),
@@ -190,5 +183,8 @@ test('a Renovate rebase that is already waiting has no button in the warning and
   await expect(status.getByRole('button')).toHaveCount(0);
   await expect(
     row.getByRole('button', { name: 'Renovate: Rebase' }),
-  ).toHaveAttribute('aria-disabled', 'true');
+  ).toHaveCount(0);
+  await expect(
+    row.getByRole('button', { name: 'Cancel Renovate rebase' }),
+  ).toBeVisible();
 });

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -99,4 +100,50 @@ func TestPullRequestRenovateRebase_NoCheckbox_FallsBackToTheLabel(t *testing.T) 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Zero(t, source.writeCalls)
 	assert.Equal(t, "rebase", source.lastLabel)
+}
+
+func postRenovateRebaseCancel(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName string, number int) *http.Response {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": fullName, "number": number})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/renovate-rebase/cancel", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
+func TestPullRequestRenovateRebaseCancel_UnticksTheCheckboxOnEachForge(t *testing.T) {
+	t.Parallel()
+
+	for _, forge := range []dashboard.Forge{dashboard.ForgeGitHub, dashboard.ForgeForgejo} {
+		t.Run(string(forge), func(t *testing.T) {
+			t.Parallel()
+
+			source := newBodyEditorSource(forge, tickedBody)
+			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, forge, source)
+
+			resp := postRenovateRebaseCancel(t, srvURL, sessionCookie, string(forge), "alrayyes/tempus-fugit", 3)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+			assert.Equal(t, untickedBody, source.written)
+		})
+	}
+}
+
+func TestPullRequestRenovateRebaseCancel_AnUntickedBoxIsLeftAlone(t *testing.T) {
+	t.Parallel()
+
+	source := newBodyEditorSource(dashboard.ForgeGitHub, untickedBody)
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postRenovateRebaseCancel(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 3)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Zero(t, source.writeCalls)
 }

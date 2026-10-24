@@ -55,6 +55,39 @@ func TickRebaseCheckbox(body string) (string, RebaseCheckbox) {
 	return body[:loc[2]] + "x" + body[loc[2]+1:], RebaseCheckboxUnticked
 }
 
+// UntickRebaseCheckbox clears Renovate's rebase-check box in body: the reverse
+// of TickRebaseCheckbox. It returns the new body, changed in that one
+// character only, and what the body held before. A body with the box already
+// clear or missing comes back as is.
+func UntickRebaseCheckbox(body string) (string, RebaseCheckbox) {
+	loc := rebaseCheckRe.FindStringSubmatchIndex(body)
+	if loc == nil {
+		return body, RebaseCheckboxAbsent
+	}
+	if body[loc[2]] == ' ' {
+		return body, RebaseCheckboxUnticked
+	}
+
+	return body[:loc[2]] + " " + body[loc[2]+1:], RebaseCheckboxTicked
+}
+
+// CancelRenovateRebase withdraws a rebase asked for through Renovate's
+// rebase-check box by clearing it, so Renovate no longer acts on it. A box that
+// is already clear or missing is left alone: the request is gone either way.
+// Forge errors come back unwrapped, as for RequestRenovateRebase.
+func CancelRenovateRebase(ctx context.Context, editor PullRequestBodyEditor, owner, name string, number int) error {
+	body, err := editor.PullRequestBody(ctx, owner, name, number)
+	if err != nil {
+		return err //nolint:wrapcheck // see the doc comment
+	}
+	cleared, state := UntickRebaseCheckbox(body)
+	if state != RebaseCheckboxTicked {
+		return nil
+	}
+
+	return editor.SetPullRequestBody(ctx, owner, name, number, cleared) //nolint:wrapcheck // see the doc comment
+}
+
 // RenovateRebaseOutcome is how a Renovate rebase request was made.
 type RenovateRebaseOutcome int
 
@@ -66,6 +99,29 @@ const (
 	// RenovateRebaseAlreadyRequested means the box was already checked.
 	RenovateRebaseAlreadyRequested
 )
+
+// RenovateRebaseBoard is what a board holds about a Renovate rebase request.
+// The Aggregator and the Service both are one.
+type RenovateRebaseBoard interface {
+	RecordBotRequest(forge Forge, repo string, number int, bot BotName, action BotAction)
+	RecordRenovateRebase(forge Forge, repo string, number int)
+	SetRenovateRebaseBox(forge Forge, repo string, number int, ticked bool)
+}
+
+// NoteRenovateRebase puts what a request came to on the board, the same for a
+// click and a queued run. A ticked box and its request land in one snapshot, so
+// the cancel never shows after the request. A box found ticked already is shown
+// ticked, which the board may not know yet. A label leaves the box alone.
+func NoteRenovateRebase(board RenovateRebaseBoard, forge Forge, repo string, number int, outcome RenovateRebaseOutcome) {
+	switch outcome {
+	case RenovateRebaseTicked:
+		board.RecordRenovateRebase(forge, repo, number)
+	case RenovateRebaseAlreadyRequested:
+		board.SetRenovateRebaseBox(forge, repo, number, true)
+	case RenovateRebaseLabeled:
+		board.RecordBotRequest(forge, repo, number, BotRenovate, BotRebase)
+	}
+}
 
 // RequestRenovateRebase asks Renovate to rebase owner/name#number. It checks
 // the rebase-check box in the pull request body, which needs no setup on the

@@ -296,18 +296,21 @@ func (a *Aggregator) mergePendingResult(ctx context.Context, forge Forge, seq ui
 	repos := make(map[string]struct{})
 	replaced := make(map[string]PullRequest)
 	closed := make(map[string]struct{})
+	// Only these were read from the forge. The repo's other rows are the
+	// snapshot's own, so they say nothing about a rebase box (settleBoxOverrides).
+	read := make(map[string]bool)
 	for _, pr := range res.Pulls {
-		repos[pr.Repo] = struct{}{}
-		replaced[pullRequestKey(forge, pr.Repo, pr.Number)] = pr
+		key := pullRequestKey(forge, pr.Repo, pr.Number)
+		repos[pr.Repo], replaced[key], read[key] = struct{}{}, pr, true
 	}
 	for _, ref := range res.Closed {
-		repos[ref.FullName] = struct{}{}
-		closed[pullRequestKey(forge, ref.FullName, ref.Number)] = struct{}{}
+		key := pullRequestKey(forge, ref.FullName, ref.Number)
+		repos[ref.FullName], closed[key], read[key] = struct{}{}, struct{}{}, true
 	}
 
 	merges := make([]repoRows, 0, len(repos))
 	for repo := range repos {
-		merges = append(merges, repoRows{fullName: repo, rows: func(current Snapshot) ([]PullRequest, []Issue, bool) {
+		merges = append(merges, repoRows{fullName: repo, read: onlyRead(read), rows: func(current Snapshot) ([]PullRequest, []Issue, bool) {
 			if a.scopedSeq[repoKey{forge, repo}] > seq {
 				return nil, nil, false
 			}

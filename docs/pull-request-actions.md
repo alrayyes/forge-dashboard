@@ -19,9 +19,10 @@ request never qualifies, and neither does one whose checks are held for workflow
 approval, which a rebase can't release. Unlike Update branch, which is held back
 while checks run because it would restart them, the rebase is offered then: it
 does restart the checks, but only when someone clicks it, and a stuck bot pull
-request is the case it is for. A rebase that is already requested, or locked by
-a pending Recreate, is blocked and so not primary; the row keeps its locked
-button. Every other state has no primary action: a blocked, waiting,
+request is the case it is for. A rebase that is already requested is not
+listed at all, so it is not primary: Renovate's lists the cancel instead, and
+Dependabot's lists nothing, since it has no command to withdraw a request. Every
+other state has no primary action: a blocked, waiting,
 conflicting, draft or stacked pull request leaves its reason to `status`. A
 blocked action is never primary, and at most one entry is.
 
@@ -29,10 +30,10 @@ The row draws one button: the primary action, or, while Merge is locked, the
 greyed Merge with its reason. A pull request with neither draws none, so a
 draft, one waiting on CI, one with failing CI and one with nothing to act on
 show their status and nothing to click, except a behind bot pull request, which
-shows its rebase (locked while one is already requested or pending). A behind
+shows its rebase (or, once a Renovate rebase is requested, its cancel). A behind
 bot pull request that is ready to merge keeps Merge as its main button and
-draws its rebase beside it, locked with the reason while one is already
-requested. A pull request that is behind the base branch is the one case where
+draws its rebase beside it, or the cancel while a Renovate rebase is requested.
+A pull request that is behind the base branch is the one case where
 a locked Merge is not the row's button: the row draws no button of its own,
 because the cure (Update branch, or the bot's rebase) sits inside the status
 block above, and the greyed Merge is in the pop-up. A behind bot pull
@@ -75,7 +76,9 @@ inside the row's status block and leaves out the row's own copy, so the
 warning and its cure are one control. The pop-up's footer still lists every
 action. A conflict, a check still running and a draft have no `action`, and
 neither does a Renovate pull request whose rebase is already waiting, which
-keeps its locked rebase button in the row.
+shows the cancel in the row. Once Renovate has taken the request and is
+rebasing, the cancel goes too: clearing the box then withdraws nothing, so the
+row keeps only the waiting chip.
 
 The details pop-up (see Pull request pages) draws the same actions in its
 footer, built by the same code as the row's buttons so the two cannot disagree.
@@ -502,8 +505,8 @@ with a `Settled` chip ("Branch updated"), the `expired` phase ends it with a
 timed-out line, an error toast and Retry, and a record the page never clicked (a
 reload mid-wait) starts the row with the chip.
 
-A bot `rebase` waits on the bot, not on the dashboard. The button becomes
-`Rebase requested` and is `aria-disabled` (focus stays on the button), and the
+A bot `rebase` waits on the bot, not on the dashboard. The request button
+goes (a Renovate request leaves its cancel, a Dependabot one nothing), and the
 chip reads `Rebase requested` with the bot's name and an age that ticks along,
 kept out of what a screen reader announces. Its hint says the bot acts on its
 own schedule and that it can take a few minutes. Dependabot is asked with the
@@ -519,12 +522,29 @@ chip reads `Settled`, then goes, and a toast says it finished. When the server
 marks it `expired` (ten minutes with no sign of the bot), the row says it timed
 out, with an error toast and a Retry.
 
-While Renovate's rebase checkbox is ticked, a rebase is already waiting for
-Renovate, so `Renovate: Rebase` is shown disabled, with "A Renovate rebase is
-already requested on this pull request." beside it. The server reads the box
-from the pull request description in the same list call (no extra request), so
-it holds whether the box was ticked here or on the forge. Renovate clears the
-box once it has rebased, and the next snapshot offers the action again.
+Once a rebase is requested, the pull request offers no second request. While
+Renovate's rebase checkbox is ticked, a rebase is already waiting for Renovate,
+so the server lists `cancel_renovate_rebase` instead of `renovate_rebase`, and
+the row and the pop-up draw `Cancel Renovate rebase` and no `Renovate: Rebase`.
+The cancel clears the checkbox in the pull request description
+(`POST /api/pull-requests/renovate-rebase/cancel`). The server reads the box
+from the description in the same list call (no extra request), so it holds
+whether the box was ticked here or on the forge. Renovate clears the box once it
+has rebased, and the next snapshot offers the rebase again. If the refresh
+after a cancel fails, the row stays without the cancel until a snapshot that
+has read the forge arrives, instead of drawing it again from the old one. Once
+Renovate is rebasing, the cancel is gone on purpose, even if the box is ticked
+again meanwhile: from the description alone that looks the same as a box
+Renovate is still consuming, and clearing it would withdraw the wrong request.
+A box found already ticked, by a click or by a queued request that was skipped,
+is shown as ticked and offers the cancel only while Renovate isn't rebasing.
+
+Two requests have no way back, so they list neither action and the wait chip is
+all the row shows: a Renovate rebase asked for with the `rebase` label (there is
+no box to clear), and any pending Dependabot command. A Dependabot `rebase` and
+`recreate` are both left out of the list while either waits, which also stops
+one from being sent over the other. A request that timed out is no longer
+pending, so the commands come back.
 
 Dependabot tells you it got a command by reacting to the comment with a
 thumbs-up, and it can then take several minutes to push. The server looks for
@@ -550,17 +570,18 @@ server restart forgets it and a browser reload doesn't. The page shows the
 request as queued the moment you click, until the next snapshot says otherwise.
 
 A queued Dependabot request names itself: `Rebase requested` or `Recreate
-requested` on the button. The two commands lock each other while either is
-pending, in both directions: `Dependabot: Recreate` is unavailable while a
-rebase is pending, because recreating over it would throw its work away, and
-`Dependabot: Rebase` is unavailable while a Recreate is pending, since
-recreating rebuilds the whole pull request. The locked entry stays where it
-was, on the row, in the menu and in the pop-up, and its reason names the
-pending command ("A Dependabot Recreate is pending on this pull request.").
-The server holds the lock too: it blocks the other action with the
-`already_requested` code in `allowedActions`, and refuses the request with a
-409 if one arrives anyway. Both commands unlock once the bot has acted or the
-request has expired.
+requested` on the button. While either command is pending the server lists
+neither `dependabot_rebase` nor `dependabot_recreate`, so the page draws no
+button for the other one. Recreating over a pending rebase would throw its work
+away, and rebasing during a pending Recreate is pointless since recreating
+rebuilds the whole pull request. Dependabot has no command to withdraw a
+request, so Recreate stays held back for the whole wait, on purpose, not only
+for a few seconds after the click. The command you just sent keeps its disabled
+`requested` button until the server lists the request, so the row never goes
+blank. If another tab already sent the same command, the server answers 409
+with the `already_requested` code and the page shows the command as requested,
+not as a failure. Both commands come back once the bot has acted or the request
+has expired.
 
 A Dependabot or Renovate pull request gets no Update branch button: each
 has its own `Rebase` action instead (below). A pull request counts as
@@ -814,17 +835,31 @@ half a minute, the button is drawn and the forge decides. A version below 7 is
 left to the forge too, because a Gitea numbers itself that way. Where the forge
 decides, a 404 can mean the route doesn't exist there or that the run is gone
 or the token can't see the repository, so the panel names neither a forge nor
-a version: "The forge couldn't find that run or job. It may not support
-rerunning checks from here, or the token can't see this repository." A block
-that has gone stale is lifted if the read fails, not kept.
+a version: "The forge couldn't find that run, job or pull request. It may not
+support rerunning checks from here, or the token can't see this repository." On
+a default branch, where no pull request is looked up, the sentence reads "run or
+job". A block that has gone stale is lifted if the read fails, not kept.
 
 Forgejo restarts one job per request, so a refusal can come after earlier jobs
 already went. The panel then says which: for example "Restarted build. Did not
 restart test, lint and the failed jobs of 1 other run." Rerunning again starts
 only what is still failed. When the jobs can't be read again after a restart,
 the panel can't say which others went, so it says they may have restarted with
-the one that did. A refusal of the first job says nothing of the kind, because
-nothing restarted.
+the one that did. When a request gets no answer at all, the forge may have
+queued that job and the others that need it. That covers a timeout, a reset, a
+handshake that timed out, a cancelled wait, a gateway error (502, 503 or 504)
+and a success whose body couldn't be read: anything else with no clear answer
+counts as possibly restarted. The panel then says that job may have restarted,
+and so may the other failed jobs of its run, instead of listing them as not
+restarted. This holds for the first job too. Only a request that provably never
+reached the forge (a refused connection or proxy, a name that doesn't resolve,
+a rejected certificate) did nothing and is listed as not restarted. The panel
+leaves out "Try again in a moment" beside such a note, since jobs may already
+be running, whether the forge went quiet or answered with a gateway or server
+error. When nothing could have restarted, such as a refused connection, the
+advice stays: "The forge didn't answer. Try again in a moment. Restarted build.
+Did not restart test." A refusal of the first job says nothing of the kind,
+because nothing restarted.
 
 `rerun_checks` still appears in `allowedActions` for a blocked
 Forgejo. The block shows in the forge's health as `rerunChecksBlocked`, and a

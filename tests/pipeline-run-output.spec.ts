@@ -290,14 +290,18 @@ test.describe('a check run output in the pipeline dialog', () => {
 
   // Which control each state gets is proved by checkControl's unit test; this
   // is the one journey that shows the dialog draws it.
-  test('a queued check has no View run, only the link to the forge, and a finished one keeps it', async ({
+  test('a queued check has no View run, only the link to the forge, and a running or finished one has it', async ({
     page,
   }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } }, [
       { name: 'queued-job', state: 'queued', url: runUrl, jobId: 7 },
+      { name: 'running-job', state: 'running', url: `${runUrl}2`, jobId: 8 },
       { name: 'done-job', state: 'success', url: `${runUrl}3`, jobId: 9 },
     ]);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(
+      dialog.getByRole('button', { name: 'View run: running-job' }),
+    ).toBeVisible();
     await expect(
       dialog.getByRole('button', { name: 'View run: done-job' }),
     ).toBeVisible();

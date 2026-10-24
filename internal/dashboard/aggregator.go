@@ -65,6 +65,9 @@ type Aggregator struct {
 	// show what it did. Lock order: mu before botMu, never the other way.
 	botMu       sync.Mutex
 	botRequests map[string]*botEntry
+	// boxOverrides holds the Renovate rebase box states this app set itself,
+	// under botMu too and keyed the same way.
+	boxOverrides map[string]boxOverride
 	// updateRequests holds the Update branch requests the forge accepted
 	// (#982), under botMu too and keyed the same way.
 	updateRequests map[string]*updateEntry
@@ -175,6 +178,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		settled:          make(map[string]time.Time),
 		settleWindow:     defaultSettleWindow,
 		botRequests:      make(map[string]*botEntry),
+		boxOverrides:     make(map[string]boxOverride),
 		updateRequests:   make(map[string]*updateEntry),
 		now:              time.Now,
 		after:            realAfterFunc,
@@ -546,6 +550,9 @@ type repoRows struct {
 	// mark is about. A merge that re-feeds the snapshot's own issues leaves the
 	// mark alone.
 	fetched bool
+	// read says which pull requests rows read from the forge; the rest were
+	// carried over from the snapshot. The zero value means all.
+	read readRows
 }
 
 // mergeReposFrom merges several repos of one forge at once: every
@@ -563,7 +570,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 		if !ok {
 			continue
 		}
-		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues)
+		merged = a.mergedRepo(merged, forge, r.fullName, seq, r.branch, prs, issues, r.read)
 		if r.fetched {
 			if fetched == nil {
 				fetched = make(map[string]bool, len(repos))
@@ -589,7 +596,7 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 
 // mergedRepo is current with forge/fullName's own entries replaced by prs and
 // issues. The caller holds mu and writes the result back.
-func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue) Snapshot {
+func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, seq uint64, branch *MainBranch, prs []PullRequest, issues []Issue, read readRows) Snapshot {
 	merged := Snapshot{Forges: current.Forges, Repos: current.Repos, MainBranches: withMainBranch(current.MainBranches, forge, fullName, branch), GeneratedAt: time.Now().UTC()}
 	for _, pr := range current.PullRequests {
 		if pr.Forge == forge && pr.Repo == fullName {
@@ -606,7 +613,9 @@ func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, 
 		merged.Issues = append(merged.Issues, i)
 	}
 	merged.Issues = append(merged.Issues, issues...)
-	a.applyBotRequests(merged.PullRequests, seq, func(f Forge, repo string) bool { return f == forge && repo == fullName })
+	covers := func(f Forge, repo string) bool { return f == forge && repo == fullName }
+	a.settleBoxOverrides(merged.PullRequests, seq, covers, read)
+	a.applyBotRequests(merged.PullRequests, seq, covers)
 	AnnotateStacks(merged.PullRequests)
 	sortByRecency(merged.PullRequests, merged.Issues)
 
@@ -659,9 +668,11 @@ func sortByRecency(prs []PullRequest, issues []Issue) {
 }
 
 // fetchSources asks every source for its data at once and answers in the
-// order of a.sources.
-func (a *Aggregator) fetchSources(ctx context.Context) []Result {
+// order of a.sources, and says which of them it asked: the others were
+// answered from the snapshot.
+func (a *Aggregator) fetchSources(ctx context.Context) ([]Result, []bool) {
 	results := make([]Result, len(a.sources))
+	asked := make([]bool, len(a.sources))
 
 	a.mu.RLock()
 	earlier := a.snap
@@ -688,7 +699,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 			}
 		}
 		wg.Add(1)
-		fetched = true
+		fetched, asked[i] = true, true
 		go func(i int, src Source) {
 			defer wg.Done()
 			results[i] = src.Fetch(ctx)
@@ -698,7 +709,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []Result {
 	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
-	return results
+	return results, asked
 }
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is
@@ -720,7 +731,7 @@ func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bo
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
 	seq := a.fetchSeq.Add(1)
-	results := a.fetchSources(a.refreshContext(ctx))
+	results, asked := a.fetchSources(a.refreshContext(ctx))
 
 	a.mu.RLock()
 	earlier := a.snap
@@ -729,6 +740,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	snap := newEmptySnapshot()
 	snap.GeneratedAt = time.Now().UTC()
+	read := rowsRead(results, asked)
 	for i, r := range results {
 		forge := a.sources[i].Forge()
 		if r.Health.Reachable {
@@ -749,10 +761,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.MainBranches = append(snap.MainBranches, r.MainBranches...)
 	}
 	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
-	reachable := make(map[Forge]bool, len(snap.Forges))
-	for _, h := range snap.Forges {
-		reachable[h.Forge] = h.Reachable
-	}
+	reachable := reachableForges(snap.Forges)
 	a.checkDependabotAcks(ctx)
 	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
 	AnnotateStacks(snap.PullRequests)
@@ -762,7 +771,9 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	previous := a.snap
 	snap = a.keepNewerScopedRepos(snap, previous, seq)
 	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
-	a.annotateBotRequests(snap.PullRequests)
+	// The box overrides are settled here too, under the lock every tick and
+	// cancel takes, so none can land between the settling and the swap.
+	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] }, read)
 	a.snap = snap
 	a.lastGood = goodAt
 	a.mu.Unlock()
@@ -774,6 +785,34 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.runAutoUpdateBranch(ctx, snap)
 	a.runAutoMerge(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// reachableForges says which forges answered, by forge.
+func reachableForges(forges []ForgeHealth) map[Forge]bool {
+	reachable := make(map[Forge]bool, len(forges))
+	for _, h := range forges {
+		reachable[h.Forge] = h.Reachable
+	}
+
+	return reachable
+}
+
+// rowsRead is the settledKey of each pull request the sources asked returned.
+// That is what the forge was asked for: a source held back on its budget, and
+// the keep and carry-over steps of a refresh, add rows from the snapshot, which
+// no fetch read.
+func rowsRead(results []Result, asked []bool) readRows {
+	read := make(map[string]bool)
+	for i, r := range results {
+		if !asked[i] {
+			continue
+		}
+		for _, pr := range r.PullRequests {
+			read[settledKey(pr.Forge, pr.Repo, pr.Number)] = true
+		}
+	}
+
+	return onlyRead(read)
 }
 
 // publish tells the subscribers about snap and saves it for the next start.

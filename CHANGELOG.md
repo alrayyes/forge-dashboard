@@ -1,5 +1,62 @@
 # Changelog
 
+## [2.31.4](https://github.com/alrayyes/forge-dashboard/compare/v2.31.3...v2.31.4) (2026-10-24)
+
+
+### Bug Fixes
+
+* **dashboard:** settle box overrides only for rows a full refresh fetched ([#2798](https://github.com/alrayyes/forge-dashboard/issues/2798)) ([1cb8ce4](https://github.com/alrayyes/forge-dashboard/commit/1cb8ce4fede9ed37f6521440d4e05f01582a1705))
+
+## [2.31.3](https://github.com/alrayyes/forge-dashboard/compare/v2.31.2...v2.31.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* **web:** bot rebase and recreate state edge cases left after the requested change ([#2784](https://github.com/alrayyes/forge-dashboard/issues/2784)) ([3b92ddb](https://github.com/alrayyes/forge-dashboard/commit/3b92ddbd8fea2c2b67ff32ee4158fb57cd36d3d2))
+* **web:** cancelled bot rebase leftovers: board hold, CI-poll override and shared mappings ([#2795](https://github.com/alrayyes/forge-dashboard/issues/2795)) ([3953166](https://github.com/alrayyes/forge-dashboard/commit/39531661ccb349e68cc991cc1d89ab046bb87275))
+
+## [2.31.2](https://github.com/alrayyes/forge-dashboard/compare/v2.31.1...v2.31.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* **dashboard:** keep rerun retry advice only where no job may be running ([#2787](https://github.com/alrayyes/forge-dashboard/issues/2787)) ([a89f9cb](https://github.com/alrayyes/forge-dashboard/commit/a89f9cb6ecaaf0dc09a1424869f73b1f27f979e8))
+
+## [2.31.1](https://github.com/alrayyes/forge-dashboard/compare/v2.31.0...v2.31.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **dashboard:** the mention parser's leftover edge cases ([#2783](https://github.com/alrayyes/forge-dashboard/issues/2783)) ([60cdb03](https://github.com/alrayyes/forge-dashboard/commit/60cdb030115f0a6742d585aae9c2fb0afdab8905))
+
+## [2.31.0](https://github.com/alrayyes/forge-dashboard/compare/v2.30.3...v2.31.0) (2026-10-24)
+
+
+### Features
+
+* **web:** reference pills in a pull request or issue dialog open the other dialog ([#2771](https://github.com/alrayyes/forge-dashboard/issues/2771)) ([e01eb5f](https://github.com/alrayyes/forge-dashboard/commit/e01eb5ff5bb85ad25530b496fdf17fc280607634))
+
+## [2.30.3](https://github.com/alrayyes/forge-dashboard/compare/v2.30.2...v2.30.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* **forgejo:** rerun hardening leftovers ([#2766](https://github.com/alrayyes/forge-dashboard/issues/2766)) ([9d6449c](https://github.com/alrayyes/forge-dashboard/commit/9d6449cfcda9222fc21b2525782a7b61effb0838))
+
+## [2.30.2](https://github.com/alrayyes/forge-dashboard/compare/v2.30.1...v2.30.2) (2026-10-24)
+
+
+### Bug Fixes
+
+* show only the cancel once a bot rebase is requested ([#2751](https://github.com/alrayyes/forge-dashboard/issues/2751)) ([2da4731](https://github.com/alrayyes/forge-dashboard/commit/2da47310ec26aac01cd14e1a79156719a65d5636))
+
+## [2.30.1](https://github.com/alrayyes/forge-dashboard/compare/v2.30.0...v2.30.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **dashboard:** close the mention parser's remaining edge cases ([#2764](https://github.com/alrayyes/forge-dashboard/issues/2764)) ([f6aa4b7](https://github.com/alrayyes/forge-dashboard/commit/f6aa4b7c1cdb8bc20607c829d31d94cd7f855335))
+
 ## [2.30.0](https://github.com/alrayyes/forge-dashboard/compare/v2.29.7...v2.30.0) (2026-10-24)
 
 

@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -154,6 +155,39 @@ func TestDashboard_BotRequest_DependabotCommandsRefuseEachOther(t *testing.T) {
 
 			got, _ := botRequestOnBoard(t, srv, cookie).(map[string]any)
 			assert.Equal(t, tc.first, got["action"], "the refused command must not replace the pending one")
+		})
+	}
+}
+
+// Only the pending command itself is "already requested". The other one is a
+// different command that cannot go out meanwhile, so a stale tab that posts it
+// must not be told its own request went through.
+func TestDashboard_BotRequest_DependabotRefusalNamesWhetherItIsTheSameCommand(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ first, second, code string }{
+		{"rebase", "rebase", "already_requested"},
+		{"recreate", "recreate", "already_requested"},
+		{"rebase", "recreate", "not_mergeable"},
+		{"recreate", "rebase", "not_mergeable"},
+	} {
+		t.Run(tc.first+" then "+tc.second, func(t *testing.T) {
+			t.Parallel()
+
+			srv, cookie := botBoardAs(t, "dependabot[bot]", nil)
+
+			resp := postDependabotAction(t, srv.URL, cookie, "github", "alrayyes/a", 5, tc.first)
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+			resp = postDependabotAction(t, srv.URL, cookie, "github", "alrayyes/a", 5, tc.second)
+			defer func() { _ = resp.Body.Close() }()
+			var body struct {
+				Code string `json:"code"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+			assert.Equal(t, tc.code, body.Code)
 		})
 	}
 }

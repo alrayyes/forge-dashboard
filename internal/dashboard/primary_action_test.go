@@ -273,11 +273,6 @@ func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 		Message: "Workflow runs are waiting for approval",
 		Next:    dashboard.HeadPushBlockedNext,
 	}
-	ownBlock := &dashboard.Blocked{
-		Code:    dashboard.ActionAlreadyRequested,
-		Message: "A Dependabot Rebase is pending on this pull request.",
-		Next:    "It unlocks once Dependabot has finished.",
-	}
 	tests := []struct {
 		name string
 		pr   dashboard.PullRequest
@@ -292,12 +287,6 @@ func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 		{"Dependabot", held("dependabot[bot]", nil), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionDependabotRebase:   approval,
 			dashboard.ActionDependabotRecreate: approval,
-		}},
-		{"Dependabot Recreate blocked for its own reason keeps it", held("dependabot[bot]", func(p *dashboard.PullRequest) {
-			p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: dashboard.BotRebase, Phase: dashboard.BotQueued}
-		}), map[dashboard.ActionName]*dashboard.Blocked{
-			dashboard.ActionDependabotRebase:   approval,
-			dashboard.ActionDependabotRecreate: ownBlock,
 		}},
 		{"stacked person keeps Update branch", held("someone", func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 9} }), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionUpdateBranch: nil,

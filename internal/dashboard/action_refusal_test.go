@@ -167,7 +167,9 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 	t.Parallel()
 
-	const notFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
+	const notFoundMessage = "The forge couldn't find that run, job or pull request. It may not support rerunning checks from here, or the token can't see this repository."
+	// A rerun of a default branch looks up no pull request.
+	const branchNotFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
 	cases := []struct {
 		name   string
 		action dashboard.PullRequestAction
@@ -175,7 +177,7 @@ func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 		want   string
 	}{
 		{"a bare 404 says what it means", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 page not found"), notFoundMessage},
-		{"in any case", dashboard.PullRequestActionRerunBranchChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 Page Not Found"), notFoundMessage},
+		{"a branch rerun names no pull request, and the match ignores case", dashboard.PullRequestActionRerunBranchChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 Page Not Found"), branchNotFoundMessage},
 		{"a sentence the forge wrote is kept", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: The repository is not found"), "The repository is not found"},
 		{"a GitHub 404 doesn't blame a Forgejo version", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "github: POST /repos/o/r/actions/runs/1/rerun-failed-jobs: refused: 404 page not found"), notFoundMessage},
 		{"a close is left alone", dashboard.PullRequestActionClose, refusal(dashboard.ForgeErrorNotFound, "forgejo: PATCH /repos/o/r/pulls/5: refused: 404 page not found"), "refused: 404 page not found"},
@@ -336,4 +338,80 @@ func TestClassifyActionRefusal_NoUpstreamStatus_IsNotAForgeServerError(t *testin
 	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionMerge, err, nil)
 
 	assert.NotEqual(t, dashboard.ActionForgeError, got.Code)
+}
+
+// The partial sentence is its own sentence, whatever the refusal ended in.
+func TestClassifyActionRefusalFor_PartialRerunReadsAsItsOwnSentence(t *testing.T) {
+	t.Parallel()
+
+	const partial = "Restarted build."
+	cases := []struct{ name, forge, want string }{
+		{"a quote", `No such job "build"`, `No such job "build". Restarted build.`},
+		{"a closing parenthesis", "The job is running (try later)", "The job is running (try later). Restarted build."},
+		{"a colon", "The job is running:", "The job is running. Restarted build."},
+		{"a full stop inside a quote", `The job said "no."`, `The job said "no." Restarted build.`},
+		{"a full stop and a space", "The job is running. ", "The job is running. Restarted build."},
+		{"a colon and a space", "The job is running: ", "The job is running. Restarted build."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errors.New("forgejo: POST /x: " + tc.forge), Partial: partial}
+
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+
+			assert.Equal(t, tc.want, got.Message)
+		})
+	}
+}
+
+// "Try again in a moment" is dropped when jobs may already be running, whichever
+// way the forge failed, and kept when nothing could be.
+func TestClassifyActionRefusalFor_RetryAdviceFollowsWhetherAJobMayBeRunning(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		err   *dashboard.ClientError
+		stand string
+	}{
+		{
+			"no answer, a job may have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("forgejo: POST /x: timeout"), Partial: "job-2 may have restarted.", MayHaveRestarted: true},
+			"The forge didn't answer. job-2 may have restarted.",
+		},
+		{
+			"a gateway error, a job may have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, UpstreamStatus: 502, Err: errors.New("forgejo: POST /x: Bad Gateway"), Partial: "job-2 may have restarted.", MayHaveRestarted: true},
+			"The forge had a server error. job-2 may have restarted.",
+		},
+		{
+			"no answer, nothing could have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: errors.New("forgejo: POST /x: refused"), Partial: "Restarted job-1. Did not restart job-2."},
+			"The forge didn't answer. Try again in a moment. Restarted job-1. Did not restart job-2.",
+		},
+		{
+			"a server error, nothing could have restarted",
+			&dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, UpstreamStatus: 500, Err: errors.New("forgejo: POST /x: boom"), Partial: "Restarted job-1. Did not restart job-2."},
+			"The forge had a server error. Try again in a moment. Restarted job-1. Did not restart job-2.",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, tc.err, nil)
+
+			assert.Equal(t, tc.stand, got.Message)
+		})
+	}
+}
+
+// Closing a message for another sentence leaves an empty one empty.
+func TestEndSentence_EmptyStaysEmpty(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, dashboard.EndSentenceForTest(""))
+	assert.Empty(t, dashboard.EndSentenceForTest("  \n"))
+	assert.Empty(t, dashboard.EndSentenceForTest(": "))
+	assert.Equal(t, "Done.", dashboard.EndSentenceForTest("Done"))
 }

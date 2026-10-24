@@ -39,6 +39,7 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 
 			return
 		}
+		dashboard.NoteRenovateRebase(deps.Service, dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, outcome)
 		if outcome == dashboard.RenovateRebaseAlreadyRequested {
 			const message = "A Renovate rebase is already requested on this pull request."
 			writeJSON(w, http.StatusConflict, actionErrorBody{Error: message, Code: string(dashboard.ActionAlreadyRequested), Message: message})
@@ -46,7 +47,39 @@ func handlePullRequestRenovateRebase(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		deps.Service.RecordBotRequest(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, dashboard.BotRenovate, dashboard.BotRebase)
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// handlePullRequestRenovateRebaseCancel withdraws a Renovate rebase asked for
+// through the description's rebase box, by clearing the box. Only offered while
+// the box is ticked; a request made with the label has no way back.
+func handlePullRequestRenovateRebaseCancel(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		t, ok := readActionTarget(w, r)
+		if !ok {
+			return
+		}
+		if refuseIfNotAllowed(r.Context(), w, deps, dashboard.ActionCancelRenovateRebase, t.req.Forge, t.req.FullName, t.req.Number) {
+			return
+		}
+		src, _, ok := forgeSource(w, r, deps, t.req.Forge)
+		if !ok {
+			return
+		}
+		editor, ok := capabilityOf[dashboard.PullRequestBodyEditor](w, src, t.req.Forge, "doesn't support editing pull request descriptions")
+		if !ok {
+			return
+		}
+
+		if err := dashboard.CancelRenovateRebase(r.Context(), editor, t.owner, t.name, t.req.Number); err != nil {
+			slog.Warn("renovate rebase cancel failed", "forge", t.req.Forge, "repo", t.req.FullName, "number", t.req.Number, "error", err)
+			writeActionRefusal(r.Context(), w, src, dashboard.PullRequestActionCancelRenovateRebase, t.owner, t.name, t.req.Number, err)
+
+			return
+		}
+
+		deps.Service.SetRenovateRebaseBox(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number, false)
 
 		w.WriteHeader(http.StatusNoContent)
 	}

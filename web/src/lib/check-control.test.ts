@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { checkControl } from './run-log';
+import { checkControl, checkLinkLabel } from './run-log';
 
 const checksUrl = '/api/checks?forge=github&fullName=a/b&number=1';
 const url = 'https://example.test/run/1';
@@ -43,6 +43,23 @@ describe('checkControl', () => {
     expect(checkControl({ state: 'queued', url: '' }, checksUrl)).toBe('none');
     expect(checkControl({ state: 'running', jobId: 7 }, checksUrl)).toBe(
       'none',
+    );
+  });
+});
+
+// The words a screen reader hears for a check link that opens the forge in a
+// new tab. They are typed out here on purpose, so editing the template and its
+// callers together can't stay green.
+describe('checkLinkLabel', () => {
+  test('starts with the visible text, then the new-tab warning, then the check', () => {
+    expect(checkLinkLabel('View run', 'build')).toBe(
+      'View run (opens in a new tab): build',
+    );
+    expect(checkLinkLabel('Open on GitHub', 'lint')).toBe(
+      'Open on GitHub (opens in a new tab): lint',
+    );
+    expect(checkLinkLabel('Open on Forgejo', 'queued-job')).toBe(
+      'Open on Forgejo (opens in a new tab): queued-job',
     );
   });
 });
