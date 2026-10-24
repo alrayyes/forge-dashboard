@@ -17,6 +17,7 @@ const singleUserSpecs = [
   '**/timezone.spec.ts',
   '**/webhooks.spec.ts',
   '**/auth-single-user.spec.ts',
+  '**/board-title-width.spec.ts',
   '**/hide-pull-request.spec.ts',
   '**/pull-request-action-refusals.spec.ts',
   '**/pull-request-dependabot-action.spec.ts',

@@ -878,6 +878,31 @@ section.board {
   }
 }
 
+/* An issue row has no status cell, so the 280px track that holds a pull
+   request's status stayed empty after the Updated column while the title was
+   squeezed beside it. Drop that track on an issue row and let the title column
+   take the width. minmax(0, 1fr) rather than 1fr lets the title shrink below
+   its content, which is what makes the ellipsis fire only when the row is out
+   of room.
+   https://css-tricks.com/preventing-a-grid-blowout/
+   The phone layout (max-width: 760px) is its own stacked grid and is left alone. */
+@media (min-width: 761px) {
+  .row[data-issue-key] {
+    grid-template-columns: 280px minmax(0, 1fr) 96px 82px 82px 22px;
+  }
+  .row[data-issue-key] .empty-cell {
+    display: none;
+  }
+}
+@media (min-width: 761px) and (max-width: 1103px) {
+  .row[data-issue-key] {
+    grid-template-columns: 240px minmax(0, 1fr) 22px;
+  }
+  .row[data-issue-key] .go {
+    grid-column: 3;
+  }
+}
+
 .row:last-child {
   border-bottom: none;
 }
