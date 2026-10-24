@@ -339,7 +339,8 @@ has a base branch whose protection could require a job.
 
 `POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns the
 failed workflow runs on that same commit, once per run (only their failed jobs
-on GitHub; a Forgejo has no such route, so it reruns each failed run whole),
+on GitHub; a Forgejo has no such route, so it reruns each failed run whole,
+passing jobs included),
 and answers 204 when the forge has queued them. The pipeline panel of a failed
 row offers it as `Rerun failed checks`, with the same permission needs and the
 same reasons on a refusal as the pull request button (see
@@ -354,7 +355,8 @@ once the forge is back; a refusal (a missing permission, say) is kept, and
 still shows after the button returns. A Forgejo older than
 version 17 has no rerun route either, so its panel draws no button and says
 so. With several hosts of one forge kind, the button is held back only when
-every one of them would refuse it.
+every one of them would refuse it, because a row names its forge kind and not
+its host.
 The response carries each forge's health in `forges`, the same entries the
 dashboard serves. A branch with nothing left to rerun answers "no failed job to
 rerun on this branch" with a 409.

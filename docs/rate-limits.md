@@ -324,9 +324,13 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/forgejo/rerun.go`                | 2     | One pull request, Actions runs                                                                                                                                      | No, Forgejo sends no ETag         |
 | `internal/forgejo/scheduled_merge.go`      | 1     | Issue timeline                                                                                                                                                      | No, Forgejo sends no ETag         |
 
-One Forgejo read sits outside the table: the instance's version, asked once
-per client the first time a rerun button is drawn and kept for the life of the
-process, to know whether it has a rerun route (version 17 and later). A rerun
+One Forgejo read sits outside the table: the instance's version, read in the
+background on the first refresh for every Forgejo, to know whether it has a
+rerun route (version 17 and later). It is kept while the instance has the route,
+read again after an hour while it doesn't, and retried after half a minute if a
+read failed. The read never holds up a refresh and gives up after three
+seconds. A rerun click reads it again under its own request when the answer has
+gone stale. A rerun
 then costs one request to find the pull request, one to list the Actions runs,
 and one `POST` per failed run, which reruns that run whole. An instance older
 than 17 gets no `POST`.

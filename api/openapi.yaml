@@ -1421,10 +1421,15 @@ paths:
         that isn't an Actions job (a third-party check, a legacy status, an
         external CI) can't be rerun here and is skipped. Forgejo has no
         route to rerun only the failed jobs of a run, so on Forgejo each
-        failed run goes again whole. Forgejo gained the rerun route in
-        version 17; an older instance answers 409 with a plain sentence,
-        sends nothing to the forge, and says so up front in
-        `ForgeHealth.rerunChecksBlocked`.
+        failed run goes again whole, jobs that passed included. Forgejo
+        gained the rerun route in version 17; an older instance answers 409
+        with a plain sentence and sends no rerun request to the forge (the
+        pull request and its runs are still looked up first), and says so up
+        front in `ForgeHealth.rerunChecksBlocked`. `rerun_checks` still
+        appears in `allowedActions` for such a Forgejo: a caller learns of
+        the block from that health entry or from the 409. The block is per
+        forge kind, so with an old and a new Forgejo side by side the 409
+        answers a click on the old one.
 
         Refusals are an `ActionError` (see Merge). `not_mergeable` with a 409
         means the pull request has no failed check to rerun. Anything the
@@ -5078,8 +5083,9 @@ components:
           type: string
           description: >-
             Why this forge can't rerun checks. Set only for a Forgejo whose
-            version is older than 17, which has no API route for it; the
-            version is read once from the instance. Rerun failed checks is
+            version is older than 17, which has no API route for it. The
+            version is read in the background, read again after an hour while
+            it blocks, and retried after a failed read. Rerun failed checks is
             not offered for the forge, and the page shows this text where the
             button would be. Omitted when rerunning works or the version
             could not be read.
