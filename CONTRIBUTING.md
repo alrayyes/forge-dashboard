@@ -147,10 +147,13 @@ browsers, bun, node, git, the GitHub CLI and ImageMagick, so no job downloads a
 browser, installs bun or runs apt. The tag is the `@playwright/test` version,
 and the bun inside is the one `packageManager` names.
 `scripts/test-playwright-image.sh` fails the `changes` job when an image's
-version differs from `package.json` or `bun.lock`, or when two jobs use
-different images, so a Playwright bump changes `package.json`, `bun.lock` and
-the image lines in `ci.yml` and `release.yml` together. The image repo's README
-says how a new tag is published.
+version differs from `package.json` or `bun.lock`, when two jobs use
+different images, or when a job loses its container options (`--ipc=host` and
+`--init`, which Playwright's Docker guide recommends) or its bun check
+(`scripts/check-image-bun.sh`), so a Playwright bump changes `package.json`,
+`bun.lock` and the image lines in `ci.yml` and `release.yml` together. It
+doesn't check that a digest belongs to its tag; that takes a registry call.
+The image repo's README says how a new tag is published.
 `run-local.sh` doesn't use the image: it runs on your machine with the browsers
 you installed once with `bunx playwright install chromium`.
 

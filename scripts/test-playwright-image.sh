@@ -61,14 +61,37 @@ job_block() { # file job
 for entry in ci.yml:e2e-shard ci.yml:lighthouse release.yml:screenshots; do
   file=${entry%%:*}
   job=${entry#*:}
-  path=$(printf '%s\n' $workflows | grep -E "/$file\$" | head -n1 || true)
-  [ -n "$path" ] || continue
+  path=$(printf '%s\n' $workflows | grep -E "(^|/)$file\$" | head -n1 || true)
+  if [ -z "$path" ]; then
+    fail "no workflow named $file in WORKFLOWS ($workflows), so job '$job' can't be checked"
+    continue
+  fi
   block=$(job_block "$path" "$job")
   [ -n "$block" ] || { fail "$path has no job '$job'"; continue; }
   printf '%s\n' "$block" | grep -Eq '^\s+image: ghcr\.io/alrayyes/ci-playwright:' || fail "$path job '$job' does not run in the CI image"
-  printf '%s\n' "$block" | grep -Eq '^\s+options: --ipc=host' || fail "$path job '$job' lacks 'options: --ipc=host'"
-  printf '%s\n' "$block" | grep -Fq 'bun --version' || fail "$path job '$job' does not check the image's bun against package.json"
+  printf '%s\n' "$block" | grep -Eq '^\s+options: .*--ipc=host( |$)' || fail "$path job '$job' lacks 'options: --ipc=host'"
+  printf '%s\n' "$block" | grep -Eq '^\s+options: .*--init( |$)' || fail "$path job '$job' lacks '--init' in its container options"
+  # A real step, not a comment or an echo that mentions the script.
+  printf '%s\n' "$block" | grep -Eq '^\s+(- )?run: bash scripts/check-image-bun\.sh$' || fail "$path job '$job' has no 'run: bash scripts/check-image-bun.sh' step to check the image's bun against package.json"
 done
+
+# scripts/check-image-bun.sh is the one place the Bun check is written. Prove
+# it on its own, including the `+sha512.<hex>` suffix a packageManager field
+# can carry, since a regression there only shows when a job runs.
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+bun_check() { # packageManager installed-bun
+  printf '{"packageManager": "%s"}\n' "$1" >"$tmp/package.json"
+  PACKAGE_JSON="$tmp/package.json" BUN_VERSION="$2" scripts/check-image-bun.sh >/dev/null 2>&1
+}
+bun_check 'bun@1.3.14' 1.3.14 || fail "check-image-bun.sh rejects a matching Bun"
+bun_check 'bun@1.3.14+sha512.deadbeef' 1.3.14 || fail "check-image-bun.sh does not drop the +sha512 suffix from packageManager"
+if bun_check 'bun@1.3.14' 1.3.13; then fail "check-image-bun.sh accepts a Bun that differs from packageManager"; fi
+if bun_check 'bun@1.3.14+sha512.deadbeef' 1.3.13; then fail "check-image-bun.sh accepts a differing Bun when packageManager has a suffix"; fi
+
+# Not checked here: that each digest is the image built for its tag. That
+# needs a registry call (`docker manifest inspect`), so a digest taken from
+# another tag still passes the shape check above.
 
 for workflow in $workflows; do
   if grep -Eq 'playwright install' "$workflow"; then
