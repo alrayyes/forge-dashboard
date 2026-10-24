@@ -11,11 +11,18 @@ import (
 // fakeJobs plays the job routes of a Forgejo 17 for alrayyes/a: the jobs of
 // each run, and the job rerun. jobs maps a run id to its jobs. cascade maps a
 // job to the jobs the forge restarts with it, which then read as waiting. status
-// is what the job rerun answers (0 for 204).
+// is what the job rerun answers (0 for 204), once okFirst reruns have gone
+// through.
 type fakeJobs struct {
 	jobs    map[int][]map[string]any
 	cascade map[int][]int
 	status  int
+	okFirst int
+	// listFail maps a run id to the status its job list answers; listBody to
+	// a raw 200 body. listFailAfter makes every job listing past the nth fail.
+	listFail      map[int]int
+	listBody      map[int]string
+	listFailAfter int
 
 	mu       sync.Mutex
 	rerun    []string
@@ -32,17 +39,35 @@ func (f *fakeJobs) register(t *testing.T, mux *http.ServeMux) {
 		run, _ := strconv.Atoi(r.PathValue("run"))
 		f.mu.Lock()
 		f.listings++
+		status := f.listFail[run]
+		if status == 0 && f.listFailAfter > 0 && f.listings > f.listFailAfter {
+			status = http.StatusInternalServerError
+		}
+		body, garbled := f.listBody[run]
 		jobs := append([]map[string]any(nil), f.jobs[run]...)
 		f.mu.Unlock()
+		if status != 0 {
+			w.WriteHeader(status)
+
+			return
+		}
+		if garbled {
+			_, _ = w.Write([]byte(body))
+
+			return
+		}
 		writeJSON(t, w, map[string]any{"total_count": len(jobs), "jobs": jobs})
 	})
 	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/jobs/{job}/rerun", func(w http.ResponseWriter, r *http.Request) {
 		id, _ := strconv.Atoi(r.PathValue("job"))
 		f.mu.Lock()
+		refused := f.status != 0 && len(f.rerun) >= f.okFirst
 		f.rerun = append(f.rerun, r.PathValue("job"))
-		f.restart(id)
+		if !refused {
+			f.restart(id)
+		}
 		f.mu.Unlock()
-		if f.status != 0 {
+		if refused {
 			w.WriteHeader(f.status)
 			writeJSON(t, w, map[string]any{"message": "token does not have at least one of required scope(s)"})
 
