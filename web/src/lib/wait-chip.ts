@@ -23,7 +23,8 @@ export type WaitKind =
   | 'close'
   | 'reopen'
   | 'enable-auto-merge'
-  | 'cancel-auto-merge';
+  | 'cancel-auto-merge'
+  | 'cancel-bot-rebase';
 
 export type WaitPhase = 'working' | 'queued' | 'rebasing';
 
@@ -82,6 +83,7 @@ const SUBJECT: Record<WaitKind, (bot: string) => string> = {
   reopen: () => 'The reopen',
   'enable-auto-merge': () => 'Arming auto-merge',
   'cancel-auto-merge': () => 'Disarming auto-merge',
+  'cancel-bot-rebase': (bot) => `Cancelling the ${bot} rebase`,
 };
 
 function stalled(input: WaitInput): Chip {
@@ -184,6 +186,15 @@ export function waitChip(input: WaitInput): Chip {
         detail: 'Auto-merge',
         tooltip:
           'Forge Dashboard is turning auto-merge off for this pull request.',
+        showAgo: false,
+        countdown: false,
+      };
+    case 'cancel-bot-rebase':
+      return {
+        ...base,
+        label: 'Cancelling',
+        detail: `${input.bot ?? 'Bot'} rebase`,
+        tooltip: 'Forge Dashboard is withdrawing the rebase request.',
         showAgo: false,
         countdown: false,
       };
@@ -296,6 +307,8 @@ export function requestedAnnouncement(kind: WaitKind, bot?: string): string {
       return 'Enabling auto-merge…';
     case 'cancel-auto-merge':
       return 'Cancelling auto-merge…';
+    case 'cancel-bot-rebase':
+      return `Cancelling the ${bot ?? 'bot'} rebase…`;
   }
 }
 

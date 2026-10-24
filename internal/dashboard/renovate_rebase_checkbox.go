@@ -55,6 +55,39 @@ func TickRebaseCheckbox(body string) (string, RebaseCheckbox) {
 	return body[:loc[2]] + "x" + body[loc[2]+1:], RebaseCheckboxUnticked
 }
 
+// UntickRebaseCheckbox clears Renovate's rebase-check box in body: the reverse
+// of TickRebaseCheckbox. It returns the new body, changed in that one
+// character only, and what the body held before. A body with the box already
+// clear or missing comes back as is.
+func UntickRebaseCheckbox(body string) (string, RebaseCheckbox) {
+	loc := rebaseCheckRe.FindStringSubmatchIndex(body)
+	if loc == nil {
+		return body, RebaseCheckboxAbsent
+	}
+	if body[loc[2]] == ' ' {
+		return body, RebaseCheckboxUnticked
+	}
+
+	return body[:loc[2]] + " " + body[loc[2]+1:], RebaseCheckboxTicked
+}
+
+// CancelRenovateRebase withdraws a rebase asked for through Renovate's
+// rebase-check box by clearing it, so Renovate no longer acts on it. A box that
+// is already clear or missing is left alone: the request is gone either way.
+// Forge errors come back unwrapped, as for RequestRenovateRebase.
+func CancelRenovateRebase(ctx context.Context, editor PullRequestBodyEditor, owner, name string, number int) error {
+	body, err := editor.PullRequestBody(ctx, owner, name, number)
+	if err != nil {
+		return err //nolint:wrapcheck // see the doc comment
+	}
+	cleared, state := UntickRebaseCheckbox(body)
+	if state != RebaseCheckboxTicked {
+		return nil
+	}
+
+	return editor.SetPullRequestBody(ctx, owner, name, number, cleared) //nolint:wrapcheck // see the doc comment
+}
+
 // RenovateRebaseOutcome is how a Renovate rebase request was made.
 type RenovateRebaseOutcome int
 

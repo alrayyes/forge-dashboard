@@ -6,7 +6,6 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // summary flattens a pull request's allowed actions to "action" for an
@@ -291,9 +290,18 @@ func TestAllowedActions_RenovateAuthorsComeFromSettings(t *testing.T) {
 	assert.Equal(t, []string{"auto_merge", "close", "merge", "update_branch"}, summaryWith(behind, []string{"someone-else"}))
 }
 
-// While Renovate's rebase box is ticked a rebase is already waiting for it, so
-// a second request is blocked with the reason, not offered (#1349).
-func TestAllowedActions_RenovateRebaseIsBlockedWhileItsBoxIsTicked(t *testing.T) {
+func actionNames(pr dashboard.PullRequest) []dashboard.ActionName {
+	names := []dashboard.ActionName{}
+	for _, a := range dashboard.AllowedActions(pr, nil) {
+		names = append(names, a.Action)
+	}
+
+	return names
+}
+
+// While Renovate's rebase box is ticked a rebase is already requested, so the
+// request is not offered at all, only the cancel that unticks the box.
+func TestAllowedActions_RenovateBoxTickedOffersOnlyTheCancel(t *testing.T) {
 	t.Parallel()
 
 	pr := ghPR(func(p *dashboard.PullRequest) {
@@ -301,17 +309,51 @@ func TestAllowedActions_RenovateRebaseIsBlockedWhileItsBoxIsTicked(t *testing.T)
 		p.RenovateRebaseRequested = true
 	})
 
-	var rebase *dashboard.ActionAvailability
+	names := actionNames(pr)
+	assert.Contains(t, names, dashboard.ActionCancelRenovateRebase)
+	assert.NotContains(t, names, dashboard.ActionRenovateRebase)
 	for _, a := range dashboard.AllowedActions(pr, nil) {
-		if a.Action == dashboard.ActionRenovateRebase {
-			rebase = &a
+		if a.Action == dashboard.ActionCancelRenovateRebase {
+			assert.Nil(t, a.Blocked)
 		}
 	}
+}
 
-	require.NotNil(t, rebase, "still listed, so the row can say why")
-	require.NotNil(t, rebase.Blocked)
-	assert.Equal(t, dashboard.ActionAlreadyRequested, rebase.Blocked.Code)
-	assert.Contains(t, rebase.Blocked.Message, "already requested")
+// Once Renovate has taken the box and is rebasing, clearing it withdraws
+// nothing and drops the in-progress record, so the cancel is not offered.
+func TestAllowedActions_RenovateRebasingOffersNoCancel(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) {
+		p.Author = "renovate[bot]"
+		p.RenovateRebaseRequested = true
+		p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotRenovate, Action: dashboard.BotRebase, Phase: dashboard.BotRebasing}
+	})
+
+	names := actionNames(pr)
+	assert.NotContains(t, names, dashboard.ActionCancelRenovateRebase)
+	assert.NotContains(t, names, dashboard.ActionRenovateRebase)
+}
+
+func TestAllowedActions_RenovateRequestWithoutABoxOffersNeitherButton(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) {
+		p.Author = "renovate[bot]"
+		p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotRenovate, Action: dashboard.BotRebase, Phase: dashboard.BotQueued}
+	})
+
+	names := actionNames(pr)
+	assert.NotContains(t, names, dashboard.ActionRenovateRebase)
+	assert.NotContains(t, names, dashboard.ActionCancelRenovateRebase, "a label request has no cancel")
+}
+
+func TestAllowedActions_RenovateCancelIsNotOfferedWithoutARequest(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) { p.Author = "renovate[bot]" })
+
+	assert.NotContains(t, actionNames(pr), dashboard.ActionCancelRenovateRebase)
 }
 
 func TestAllowedActions_RenovateRebaseIsOfferedWhenItsBoxIsNotTicked(t *testing.T) {
@@ -336,26 +378,25 @@ func TestAllowedActions_ARebaseRequestOnAPersonsPullRequestOffersNothing(t *test
 
 	for _, a := range dashboard.AllowedActions(pr, nil) {
 		assert.NotEqual(t, dashboard.ActionRenovateRebase, a.Action)
+		assert.NotEqual(t, dashboard.ActionCancelRenovateRebase, a.Action)
 	}
 }
 
-func lockedDependabotActions(pr dashboard.PullRequest) []dashboard.ActionAvailability {
-	var locked []dashboard.ActionAvailability
-	for _, a := range dashboard.AllowedActions(pr, nil) {
-		isRebaseOrRecreate := a.Action == dashboard.ActionDependabotRebase || a.Action == dashboard.ActionDependabotRecreate
-		if a.Blocked != nil && isRebaseOrRecreate {
-			locked = append(locked, a)
+func dependabotCommands(pr dashboard.PullRequest) []dashboard.ActionName {
+	var found []dashboard.ActionName
+	for _, name := range actionNames(pr) {
+		if name == dashboard.ActionDependabotRebase || name == dashboard.ActionDependabotRecreate {
+			found = append(found, name)
 		}
 	}
 
-	return locked
+	return found
 }
 
-// A Dependabot Rebase and a Recreate lock each other while either is pending:
-// Recreate rebuilds the pull request, so a Rebase beside it has no point, and a
-// Recreate over a pending Rebase would throw its work away. The reason names
-// the one that is pending. A request that has expired locks nothing.
-func TestAllowedActions_DependabotRebaseAndRecreateLockEachOther(t *testing.T) {
+// A Dependabot command has no cancel, so while a Rebase or a Recreate is
+// pending neither button is offered and the waiting chip says what is going on.
+// A request that has expired offers both again.
+func TestAllowedActions_PendingDependabotCommandOffersNeitherButton(t *testing.T) {
 	t.Parallel()
 
 	dependabot := func(req *dashboard.BotRequest) dashboard.PullRequest {
@@ -368,47 +409,31 @@ func TestAllowedActions_DependabotRebaseAndRecreateLockEachOther(t *testing.T) {
 		return &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: action, Phase: phase}
 	}
 
-	cases := []struct {
-		name        string
-		req         *dashboard.BotRequest
-		wantLocked  dashboard.ActionName
-		wantMessage string
-	}{
-		{"queued rebase locks recreate", pending(dashboard.BotRebase, dashboard.BotQueued), dashboard.ActionDependabotRecreate, "A Dependabot Rebase is pending on this pull request."},
-		{"rebasing locks recreate", pending(dashboard.BotRebase, dashboard.BotRebasing), dashboard.ActionDependabotRecreate, "A Dependabot Rebase is pending on this pull request."},
-		{"queued recreate locks rebase", pending(dashboard.BotRecreate, dashboard.BotQueued), dashboard.ActionDependabotRebase, "A Dependabot Recreate is pending on this pull request."},
-		{"recreating locks rebase", pending(dashboard.BotRecreate, dashboard.BotRebasing), dashboard.ActionDependabotRebase, "A Dependabot Recreate is pending on this pull request."},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for name, req := range map[string]*dashboard.BotRequest{
+		"queued rebase":   pending(dashboard.BotRebase, dashboard.BotQueued),
+		"rebasing":        pending(dashboard.BotRebase, dashboard.BotRebasing),
+		"queued recreate": pending(dashboard.BotRecreate, dashboard.BotQueued),
+		"recreating":      pending(dashboard.BotRecreate, dashboard.BotRebasing),
+	} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			locked := lockedDependabotActions(dependabot(tc.req))
-			require.Len(t, locked, 1)
-			assert.Equal(t, tc.wantLocked, locked[0].Action)
-			assert.Equal(t, dashboard.ActionAlreadyRequested, locked[0].Blocked.Code)
-			assert.Equal(t, tc.wantMessage, locked[0].Blocked.Message)
+			assert.Empty(t, dependabotCommands(dependabot(req)))
 		})
 	}
 
-	t.Run("an expired request and no request lock nothing", func(t *testing.T) {
+	t.Run("an expired request and no request offer both", func(t *testing.T) {
 		t.Parallel()
 
 		for _, req := range []*dashboard.BotRequest{nil, pending(dashboard.BotRecreate, dashboard.BotExpired)} {
-			for _, a := range dashboard.AllowedActions(dependabot(req), nil) {
-				if a.Action == dashboard.ActionDependabotRebase || a.Action == dashboard.ActionDependabotRecreate {
-					assert.Nil(t, a.Blocked, a.Action)
-				}
-			}
+			assert.Equal(t, []dashboard.ActionName{dashboard.ActionDependabotRebase, dashboard.ActionDependabotRecreate}, dependabotCommands(dependabot(req)))
 		}
 	})
 
-	t.Run("a Renovate request does not lock a Dependabot action", func(t *testing.T) {
+	t.Run("a Renovate request does not hide a Dependabot action", func(t *testing.T) {
 		t.Parallel()
 
 		req := &dashboard.BotRequest{Bot: dashboard.BotRenovate, Action: dashboard.BotRebase, Phase: dashboard.BotQueued}
-		for _, a := range dashboard.AllowedActions(dependabot(req), nil) {
-			assert.Nil(t, a.Blocked, a.Action)
-		}
+		assert.Len(t, dependabotCommands(dependabot(req)), 2)
 	})
 }

@@ -161,6 +161,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/pull-requests/rerun-checks", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestRerunChecks(deps))))
 	mux.Handle("POST /api/pull-requests/dependabot-action", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestDependabotAction(deps))))
 	mux.Handle("POST /api/pull-requests/renovate-rebase", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestRenovateRebase(deps))))
+	mux.Handle("POST /api/pull-requests/renovate-rebase/cancel", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestRenovateRebaseCancel(deps))))
 	mux.Handle("GET /api/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsList(deps)))
 	mux.Handle("POST /api/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCreate(deps)))
 	mux.Handle("DELETE /api/queued-actions/{id}", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCancel(deps)))
