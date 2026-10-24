@@ -371,7 +371,8 @@ func TestRerunFailedChecks_ARequestThatNeverReachedTheForge_IsListedAsNotRestart
 			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
 			assert.Contains(t, got.Message, "Restarted job-1. Did not restart job-2, job-3.")
 			assert.NotContains(t, got.Message, "may have restarted")
-			assert.Equal(t, "The forge didn't answer. Restarted job-1. Did not restart job-2, job-3.", got.Message)
+			// Nothing could be running, so trying again is still good advice.
+			assert.Equal(t, "The forge didn't answer. Try again in a moment. Restarted job-1. Did not restart job-2, job-3.", got.Message)
 		})
 	}
 }
@@ -405,8 +406,21 @@ func TestRerunFailedChecks_AGatewayErrorOnALaterJob_MayHaveRestarted(t *testing.
 			err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 
 			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
-			assert.Contains(t, got.Message, "Restarted job-1. job-2 may have restarted.")
-			assert.NotContains(t, got.Message, "Did not restart")
+			assert.Equal(t, "The forge had a server error. Restarted job-1. job-2 may have restarted.", got.Message)
 		})
 	}
+}
+
+// A job with no name from the lookup is named by its id, and still may have
+// restarted.
+func TestRerunFailedChecks_ANamelessJobThatGotNoAnswer_MayHaveRestarted(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {{"id": 1, "name": "", "status": "failure"}}}
+	s.status = http.StatusBadGateway
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Equal(t, "The forge had a server error. 1 may have restarted.", got.Message)
 }
