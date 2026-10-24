@@ -515,6 +515,10 @@ type ClientError struct {
 	// says which went and which didn't, so a refusal doesn't read as though
 	// nothing happened.
 	Partial string
+	// MayHaveRestarted is set with Partial when a job may be running although
+	// the forge gave no clear answer, so the refusal doesn't tell the person to
+	// try again as though nothing had started.
+	MayHaveRestarted bool
 }
 
 // ForgeFailed reports whether the forge answered with a 5xx: its own failure,

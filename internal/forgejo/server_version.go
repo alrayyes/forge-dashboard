@@ -195,6 +195,11 @@ func (c *Client) serverMajor() (int, bool) {
 // again under the caller's context before it decides anything. A click whose
 // context ends while it waits for another's read, or during its own, gets that
 // error as an unreachable forge, since it has nothing to decide on.
+//
+// Waiters never probe in parallel: one takes the flight and the rest wait on
+// it. They probe one after another only when each leader's own context ended
+// before its read did, which a read that landed (or failed) does not cause, so
+// the forge is asked at most once per cancelled leader.
 func (c *Client) serverMajorFor(ctx context.Context) (int, bool, error) {
 	for {
 		if _, _, fresh := c.version.answer(); fresh {

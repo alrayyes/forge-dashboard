@@ -201,7 +201,7 @@ func TestRerunFailedChecks_StopsWaitingForTheVersionWhenTheCallerGivesUp(t *test
 
 	cancel()
 
-	assert.ErrorIs(t, <-done, context.Canceled)
+	assert.ErrorIs(t, recv(t, done), context.Canceled)
 }
 
 // A read that panics (net/http recovers a handler's panic, but nothing recovers
@@ -253,11 +253,11 @@ func TestRerunFailedChecks_AWaiterThatGivesUpGetsAnUnreachableForgeError(t *test
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- c.RerunFailedChecks(ctx, "alrayyes", "a", 5) }()
-	<-parked
+	recv(t, parked)
 
 	cancel()
 
-	err := <-done
+	err := recv(t, done)
 	require.ErrorIs(t, err, context.Canceled)
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)
@@ -281,13 +281,13 @@ func TestRerunFailedChecks_AWaiterWokenByACancelledRead_ReadsTheVersionItself(t 
 	require.Eventually(t, func() bool { return s.readCount() == 1 }, 5*time.Second, time.Millisecond)
 	waiterDone := make(chan error, 1)
 	go func() { waiterDone <- c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5) }()
-	<-parked
+	recv(t, parked)
 
 	cancelLeader()
-	require.ErrorIs(t, <-leaderDone, context.Canceled)
+	require.ErrorIs(t, recv(t, leaderDone), context.Canceled)
 	close(s.hang)
 
-	assert.Equal(t, noRerunReason, dashboard.ForgeMessage(<-waiterDone))
+	assert.Equal(t, noRerunReason, dashboard.ForgeMessage(recv(t, waiterDone)))
 	assert.Equal(t, 2, s.readCount())
 }
 
@@ -304,4 +304,37 @@ func TestVersionJoin_AReadThatLandedSinceTheStaleCheck_NeitherLeadsNorWaits(t *t
 	assert.False(t, lead)
 	assert.Nil(t, wait)
 	assert.False(t, forgejo.VersionReadOpen(c))
+}
+
+// Click waiters woken by a read their leader cancelled do not read one after
+// another: one of them takes over and the rest wait on its read.
+func TestRerunFailedChecks_WaitersWokenByACancelledRead_ShareOneNewRead(t *testing.T) {
+	t.Parallel()
+	const waiters = 3
+	s := &versionServer{version: "16.0.6+gitea-1.22.0", hang: make(chan struct{})}
+	c := s.start(t)
+	parked := make(chan struct{}, 4*waiters)
+	forgejo.SetVersionParkHook(c, func() { parked <- struct{}{} })
+	leaderCtx, cancelLeader := context.WithCancel(t.Context())
+	defer cancelLeader()
+	leaderDone := make(chan error, 1)
+	go func() { leaderDone <- c.RerunFailedChecks(leaderCtx, "alrayyes", "a", 5) }()
+	require.Eventually(t, func() bool { return s.readCount() == 1 }, 5*time.Second, time.Millisecond)
+	waiterDone := make(chan error, waiters)
+	for range waiters {
+		go func() { waiterDone <- c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5) }()
+	}
+	for range waiters {
+		recv(t, parked)
+	}
+
+	cancelLeader()
+	require.ErrorIs(t, recv(t, leaderDone), context.Canceled)
+	require.Eventually(t, func() bool { return s.readCount() == 2 }, 5*time.Second, time.Millisecond)
+	close(s.hang)
+
+	for range waiters {
+		assert.Equal(t, noRerunReason, dashboard.ForgeMessage(recv(t, waiterDone)))
+	}
+	assert.Equal(t, 2, s.readCount())
 }

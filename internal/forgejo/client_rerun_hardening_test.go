@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -21,6 +22,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// recvWithin is how long a test waits on a channel before it fails, so a
+// regression that leaves a goroutine parked fails the test instead of hanging
+// until the global timeout.
+const recvWithin = 10 * time.Second
+
+// recv takes the next value from ch, or fails the test with a clear message.
+func recv[T any](t *testing.T, ch <-chan T) T {
+	t.Helper()
+	select {
+	case v := <-ch:
+		return v
+	case <-time.After(recvWithin):
+		require.FailNow(t, "timed out waiting on a channel", "nothing arrived within %s", recvWithin)
+
+		panic("unreachable")
+	}
+}
 
 // If Forgejo refuses a later job after an earlier one went, the person is told
 // which jobs restarted and which did not, so a second click isn't a guess.
@@ -151,12 +170,15 @@ func TestRerunFailedChecks_AClickDuringTheBackgroundVersionRead_SharesItsRequest
 	started := make(chan struct{}, 4)
 	release := make(chan struct{})
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		reads++
 		mu.Unlock()
 		started <- struct{}{}
-		<-release
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
 		writeJSON(t, w, map[string]any{"version": "16.0.0"})
 	})
 	srv := httptest.NewServer(mux)
@@ -165,14 +187,14 @@ func TestRerunFailedChecks_AClickDuringTheBackgroundVersionRead_SharesItsRequest
 	parked := make(chan struct{}, 1)
 	forgejo.SetVersionParkHook(c, func() { parked <- struct{}{} })
 	_ = c.RerunChecksBlockedReason()
-	<-started
+	recv(t, started)
 
 	done := make(chan error, 1)
 	go func() { done <- c.RerunFailedChecks(t.Context(), "alrayyes", "a", 5) }()
-	<-parked
+	recv(t, parked)
 	close(release)
 
-	err := <-done
+	err := recv(t, done)
 	require.Error(t, err)
 	mu.Lock()
 	defer mu.Unlock()
@@ -371,7 +393,8 @@ func TestRerunFailedChecks_ARequestThatNeverReachedTheForge_IsListedAsNotRestart
 			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
 			assert.Contains(t, got.Message, "Restarted job-1. Did not restart job-2, job-3.")
 			assert.NotContains(t, got.Message, "may have restarted")
-			assert.Equal(t, "The forge didn't answer. Restarted job-1. Did not restart job-2, job-3.", got.Message)
+			// Nothing could be running, so trying again is still good advice.
+			assert.Equal(t, "The forge didn't answer. Try again in a moment. Restarted job-1. Did not restart job-2, job-3.", got.Message)
 		})
 	}
 }
@@ -405,8 +428,21 @@ func TestRerunFailedChecks_AGatewayErrorOnALaterJob_MayHaveRestarted(t *testing.
 			err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
 
 			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
-			assert.Contains(t, got.Message, "Restarted job-1. job-2 may have restarted.")
-			assert.NotContains(t, got.Message, "Did not restart")
+			assert.Equal(t, "The forge had a server error. Restarted job-1. job-2 may have restarted.", got.Message)
 		})
 	}
+}
+
+// A job with no name from the lookup is named by its id, and still may have
+// restarted.
+func TestRerunFailedChecks_ANamelessJobThatGotNoAnswer_MayHaveRestarted(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {{"id": 1, "name": "", "status": "failure"}}}
+	s.status = http.StatusBadGateway
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Equal(t, "The forge had a server error. 1 may have restarted.", got.Message)
 }
