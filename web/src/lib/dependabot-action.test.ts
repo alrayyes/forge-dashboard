@@ -240,16 +240,19 @@ describe('dependabotPendingReason', () => {
     ).toBeUndefined();
   });
 
-  test('ignores a server entry blocked for any other reason', () => {
+  test('gives the message of a server entry blocked for any reason', () => {
     expect(
       dependabotPendingReason(
         KEY,
-        'rebase',
+        'recreate',
         {},
         {
-          blocked: { code: 'permission', message: 'nope' },
+          blocked: {
+            code: 'blocked_by_protection',
+            message: 'Workflow runs are waiting for approval',
+          },
         },
       ),
-    ).toBeUndefined();
+    ).toBe('Workflow runs are waiting for approval');
   });
 });
