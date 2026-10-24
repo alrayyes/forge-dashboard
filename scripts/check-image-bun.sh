@@ -11,7 +11,35 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 package_json=${PACKAGE_JSON:-package.json}
-wanted=$(node -p "require(require('path').resolve('$package_json')).packageManager.split('@')[1].split('+')[0]")
+die() {
+  echo "check-image-bun: $1" >&2
+  exit 1
+}
+
+[ -f "$package_json" ] || die "$package_json: no such file"
+# The path goes in through the environment, never into the JS source.
+command -v node >/dev/null || die "could not run node, which reads $package_json"
+node_rc=0
+package_manager=$(PACKAGE_JSON_PATH="$package_json" node -e '
+  let parsed;
+  try {
+    parsed = JSON.parse(require("fs").readFileSync(process.env.PACKAGE_JSON_PATH, "utf8"));
+  } catch {
+    process.exit(2);
+  }
+  const named = parsed?.packageManager;
+  process.stdout.write(typeof named === "string" ? named : "");
+') || node_rc=$?
+case $node_rc in
+  0) ;;
+  2) die "$package_json is not valid JSON" ;;
+  *) die "could not run node, which reads $package_json (exit $node_rc)" ;;
+esac
+# Any version after bun@, pre-releases included; the part after `+` is a hash.
+if ! [[ $package_manager =~ ^bun@([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)(\+.*)?$ ]]; then
+  die "$package_json packageManager '${package_manager:-<unset>}' does not name bun@X.Y.Z"
+fi
+wanted=${BASH_REMATCH[1]}
 have=${BUN_VERSION:-$(bun --version)}
 if [ "$have" != "$wanted" ]; then
   echo "the image's bun is $have, but packageManager names $wanted" >&2
