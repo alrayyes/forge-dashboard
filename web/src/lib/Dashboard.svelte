@@ -139,6 +139,7 @@
     dependabotActionKey,
     dependabotButtonDecision,
   } from "#lib/dependabot-action.js";
+  import { settleCancelled } from "#lib/cancelled-bot-rebase.js";
   import {
     type ForgeHealthEntry,
     dependabotBlockedReason,
@@ -369,6 +370,8 @@
     | "requesting"
     | "enabling"
     | "locked"
+    // A Renovate rebase the forge cancelled, until a snapshot says so too.
+    | "cancelled"
     // Found already merged or closed on the forge (the row lagged it).
     | SettledState;
   type ActionState = {
@@ -5720,30 +5723,44 @@
             throw err;
           });
         })
-        .then(() => {
-          delete cancelRenovateRebaseState[key];
+        .then(
+          () => true,
+          (err: ActionRequestError) => {
+            renderActionRefusal(
+              item,
+              err,
+              fkey,
+              "cancel the Renovate rebase",
+              (next) => {
+                cancelRenovateRebaseState[key] = next;
+              },
+            );
+            return false;
+          },
+        )
+        .then(async (took) => {
+          if (!took) return;
+          // The forge took the cancel. The old snapshot still lists it, so it
+          // stays hidden until a snapshot that has read the forge lands.
+          cancelRenovateRebaseState[key] = { phase: "cancelled" };
           feedback.update(fkey, {
             phase: "done",
             message: cancelled,
             toast: true,
             announce: cancelled,
           });
-          // The forge already took the cancel. A refresh that fails is not a
-          // failed action: the next poll brings the board up to date.
-          // Redrawn from local state once it settles, so a refresh that failed
-          // doesn't leave "Cancelling…" on the board until then.
-          return refreshBoard(true).then(() => keepFocusAcross(renderPRBoard));
-        })
-        .catch((err: ActionRequestError) => {
-          renderActionRefusal(
-            item,
-            err,
-            fkey,
-            "cancel the Renovate rebase",
-            (next) => {
-              cancelRenovateRebaseState[key] = next;
-            },
-          );
+          // A refresh that fails is not a failed action: the next poll brings
+          // the board up to date, and the redraw below runs from local state.
+          // A throw while redrawing is a bug to see in the console, not a
+          // failed cancel.
+          try {
+            // The entry is not dropped here: a stale or repeated snapshot
+            // still lists the cancel. Only a snapshot without it settles it.
+            await refreshBoard(true);
+            keepFocusAcross(renderPRBoard);
+          } catch (err) {
+            console.error("redraw after cancelling the Renovate rebase", err);
+          }
         });
     }
 
@@ -5757,6 +5774,9 @@
       if (!findAction(item, "cancel_renovate_rebase")) return null;
 
       const entry = cancelRenovateRebaseState[prKey(item)] || { phase: "idle" };
+
+      // The forge took the cancel and the snapshot has not caught up.
+      if (entry.phase === "cancelled") return null;
 
       // A refused cancel stays a lock with its reason, not a button that
       // fails the same way again.
@@ -8710,6 +8730,18 @@
       // anyRowActionInFlight is consulted below, so a resolved row
       // doesn't also hold the board back.
       const botChanged = syncServerRequests(prs, startedSeq);
+      if (
+        Object.values(cancelRenovateRebaseState).some(
+          (e) => e.phase === "cancelled",
+        )
+      ) {
+        const listingCancel = new Set(
+          prs.filter((p) => findAction(p, "cancel_renovate_rebase")).map(prKey),
+        );
+        settleCancelled(cancelRenovateRebaseState, (key) =>
+          listingCancel.has(key),
+        );
+      }
       const issues = data.issues || [];
       allPRs = prs;
       followOpenPipeline();

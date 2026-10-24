@@ -272,7 +272,7 @@ func (a *Aggregator) performQueued(ctx context.Context, run queuedRun, q QueuedA
 	owner, name, _ := strings.Cut(q.Repo, "/")
 	var err error
 	var refusedAs PullRequestAction
-	alreadyRequested := false
+	alreadyRequested, ticked := false, false
 
 	switch q.Action {
 	case ActionUpdateBranch:
@@ -304,27 +304,40 @@ func (a *Aggregator) performQueued(ctx context.Context, run queuedRun, q QueuedA
 		var outcome RenovateRebaseOutcome
 		outcome, err = RequestRenovateRebase(ctx, a.sourceFor(q.Forge), labeler, owner, name, q.Number, run.label)
 		alreadyRequested = outcome == RenovateRebaseAlreadyRequested
+		ticked = outcome == RenovateRebaseTicked
 	}
 
 	switch {
 	case err != nil:
 		a.refusedQueued(ctx, q, refusedAs, err)
 	case alreadyRequested:
+		// The box is ticked on the forge, whatever the board last read, and a
+		// click that finds it so does the same. The cancel it brings back is
+		// safe: AllowedActions withholds it once Renovate is rebasing, which
+		// is the only state where a ticked box may not be this request's.
+		a.SetRenovateRebaseBox(q.Forge, q.Repo, q.Number, true)
 		a.finishQueued(ctx, q, QueuedSkipped, ActionAlreadyRequested, "A Renovate rebase is already requested on this pull request.")
 	default:
-		a.recordQueuedRequest(q)
+		a.recordQueuedRequest(q, ticked)
 		a.finishQueued(ctx, q, QueuedDone, "", "")
 	}
 }
 
 // recordQueuedRequest puts the request on the pull request, as a click would.
-func (a *Aggregator) recordQueuedRequest(q QueuedAction) {
+// boxTicked says a Renovate rebase went through its checkbox, which the board
+// shows together with the request so it can offer the cancel.
+func (a *Aggregator) recordQueuedRequest(q QueuedAction, boxTicked bool) {
 	switch q.Action {
 	case ActionUpdateBranch:
 		a.RecordUpdateRequest(q.Forge, q.Repo, q.Number)
 	case ActionDependabotRebase:
 		a.RecordBotRequest(q.Forge, q.Repo, q.Number, BotDependabot, BotRebase)
 	case ActionRenovateRebase:
+		if boxTicked {
+			a.RecordRenovateRebase(q.Forge, q.Repo, q.Number)
+
+			return
+		}
 		a.RecordBotRequest(q.Forge, q.Repo, q.Number, BotRenovate, BotRebase)
 	}
 }

@@ -5,6 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { waitOutConfirmGuard } from './confirm-guard-helper';
 import { test } from './server-fixture';
 
 // The Bots page row draws Dependabot's Rebase as the main button of a split
@@ -240,14 +241,13 @@ test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
       row.getByRole('button', { name: 'Confirm recreate?' }),
     ).toBeFocused();
     // An Enter straight after the confirm appears is ignored on purpose, so
-    // press until the guard lets one through. The menu is closed by then and
-    // the row keeps only its wait chip, so the focus has to land on the row.
-    await expect(async () => {
-      await page.keyboard.press('Enter');
-      await expect(
-        row.getByRole('button', { name: 'Confirm recreate?' }),
-      ).toHaveCount(0, { timeout: 300 });
-    }).toPass();
+    // wait the guard out and press once. The menu is closed by then and the
+    // row keeps only its wait chip, so the focus has to land on the row.
+    await waitOutConfirmGuard(page);
+    await page.keyboard.press('Enter');
+    await expect(
+      row.getByRole('button', { name: 'Confirm recreate?' }),
+    ).toHaveCount(0);
     await expect(row.locator('[id^="details-trigger-"]')).toBeFocused();
   });
 

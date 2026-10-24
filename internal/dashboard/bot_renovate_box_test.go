@@ -121,3 +121,77 @@ func TestAggregator_RecordRenovateRebase(t *testing.T) {
 		}
 	})
 }
+
+func TestAggregator_RefreshKeepsABoxSetDuringTheFetch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a box ticked while the fetch is out stays ticked on the snapshot it swaps in", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		src.mu.Lock()
+		src.gate, src.started = make(chan struct{}), make(chan struct{})
+		gate, started := src.gate, src.started
+		src.mu.Unlock()
+
+		done := make(chan struct{})
+		go func() { agg.Refresh(t.Context()); close(done) }()
+		<-started
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		close(gate)
+		<-done
+
+		assert.True(t, agg.Get().PullRequests[0].RenovateRebaseRequested)
+	})
+}
+
+func TestAggregator_BoxOverrideLifetime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a pull request that leaves the board takes its override with it", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		require.Equal(t, 1, agg.BoxOverrideCount())
+
+		src.set()
+		agg.Refresh(t.Context())
+
+		assert.Zero(t, agg.BoxOverrideCount())
+	})
+
+	t.Run("a forge that failed to answer keeps the override", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+
+		src.mu.Lock()
+		src.reachable = false
+		src.mu.Unlock()
+		agg.Refresh(t.Context())
+
+		assert.Equal(t, 1, agg.BoxOverrideCount())
+	})
+
+	t.Run("an override set after the fetch began survives a fetch that could not list the pull request", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, _ := botAggregator(t, src)
+		src.mu.Lock()
+		src.gate, src.started = make(chan struct{}), make(chan struct{})
+		gate, started := src.gate, src.started
+		src.prs = nil
+		src.mu.Unlock()
+
+		done := make(chan struct{})
+		go func() { agg.Refresh(t.Context()); close(done) }()
+		<-started
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		close(gate)
+		<-done
+
+		assert.Equal(t, 1, agg.BoxOverrideCount())
+	})
+}

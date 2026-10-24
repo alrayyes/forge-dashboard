@@ -30,6 +30,8 @@ type queueSource struct {
 	calls  []string
 	// failWith, when set, is what every write answers.
 	failWith error
+	// body is the pull request description Renovate's rebase box lives in.
+	body string
 }
 
 func (s *queueSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
@@ -59,6 +61,21 @@ func (s *queueSource) CommentPullRequest(_ context.Context, _, _ string, number 
 
 func (s *queueSource) AddLabel(_ context.Context, _, _ string, number int, label string) error {
 	return s.record("label #" + strconv.Itoa(number) + " " + label)
+}
+
+func (s *queueSource) PullRequestBody(context.Context, string, string, int) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.body, nil
+}
+
+func (s *queueSource) SetPullRequestBody(_ context.Context, _, _ string, number int, body string) error {
+	s.mu.Lock()
+	s.body = body
+	s.mu.Unlock()
+
+	return s.record("body #" + strconv.Itoa(number))
 }
 
 func (s *queueSource) MergePullRequest(context.Context, string, string, int) error {
@@ -254,6 +271,35 @@ func TestQueuedActions_RunAtTheReset(t *testing.T) {
 		require.Len(t, rig.src.writes(), 1)
 		assert.Contains(t, rig.src.writes()[0], "label #7 ")
 		assert.Equal(t, dashboard.QueuedDone, rig.only(t).Status)
+	})
+
+	t.Run("a Renovate rebase through the box shows the request and the ticked box together", func(t *testing.T) {
+		t.Parallel()
+		rig := newQueueRig(t, behindPR(7, "renovate[bot]"))
+		rig.src.body = "- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box"
+		rig.enqueue(t, dashboard.ActionRenovateRebase, 7)
+		rig.resetPasses()
+
+		rig.agg.ProcessQueuedActions(t.Context())
+
+		assert.Equal(t, []string{"body #7"}, rig.src.writes())
+		pr := rig.agg.Get().PullRequests[0]
+		assert.NotNil(t, pr.BotRequest)
+		assert.True(t, pr.RenovateRebaseRequested, "the board offers the cancel")
+	})
+
+	t.Run("a box already ticked on the forge is shown as ticked when the request is skipped", func(t *testing.T) {
+		t.Parallel()
+		rig := newQueueRig(t, behindPR(7, "renovate[bot]"))
+		rig.src.body = "- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box"
+		rig.enqueue(t, dashboard.ActionRenovateRebase, 7)
+		rig.resetPasses()
+
+		rig.agg.ProcessQueuedActions(t.Context())
+
+		assert.Empty(t, rig.src.writes())
+		assert.Equal(t, dashboard.QueuedSkipped, rig.only(t).Status)
+		assert.True(t, rig.agg.Get().PullRequests[0].RenovateRebaseRequested)
 	})
 }
 

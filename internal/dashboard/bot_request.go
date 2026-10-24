@@ -175,16 +175,22 @@ func (a *Aggregator) SetRenovateRebaseBox(forge Forge, repo string, number int, 
 	})
 }
 
-// applyBoxOverrides puts the box state this app set back over any fetch that
+// settleBoxOverrides puts the box state this app set back over any fetch that
 // started before it, and forgets the override once a later fetch has read the
-// description itself. covers is what applyBotRequests takes. The caller holds
-// botMu.
-func (a *Aggregator) applyBoxOverrides(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
+// description itself. covers says which forge and repo that fetch answered
+// for. The caller holds mu, which every tick and cancel takes too, so no change
+// can land between this and the snapshot swap.
+func (a *Aggregator) settleBoxOverrides(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
+	a.botMu.Lock()
+	defer a.botMu.Unlock()
+
 	if len(a.boxOverrides) == 0 {
 		return
 	}
+	listed := make(map[string]bool, len(prs))
 	for i := range prs {
 		key := settledKey(prs[i].Forge, prs[i].Repo, prs[i].Number)
+		listed[key] = true
 		o, ok := a.boxOverrides[key]
 		if !ok || !covers(prs[i].Forge, prs[i].Repo) {
 			continue
@@ -196,6 +202,22 @@ func (a *Aggregator) applyBoxOverrides(prs []PullRequest, seq uint64, covers fun
 		}
 		delete(a.boxOverrides, key)
 	}
+	// A pull request that merged or closed first never gets a later fetch to
+	// retire its override, so a fetch that covers it and doesn't list it does,
+	// unless the override was set after that fetch began.
+	for key, o := range a.boxOverrides {
+		if !listed[key] && seq > o.seq && botGone(key, covers) {
+			delete(a.boxOverrides, key)
+		}
+	}
+}
+
+// annotateUnderLock is what a full refresh does just before it swaps its
+// snapshot in: it settles the box overrides and re-annotates the requests
+// recorded since applyBotRequests ran. The caller holds mu.
+func (a *Aggregator) annotateUnderLock(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
+	a.settleBoxOverrides(prs, seq, covers)
+	a.annotateBotRequests(prs)
 }
 
 // applyBotRequests moves every request that prs covers along and then marks
@@ -205,7 +227,6 @@ func (a *Aggregator) applyBoxOverrides(prs []PullRequest, seq uint64, covers fun
 // nothing about its request.
 func (a *Aggregator) applyBotRequests(prs []PullRequest, seq uint64, covers func(Forge, string) bool) {
 	a.botMu.Lock()
-	a.applyBoxOverrides(prs, seq, covers)
 	a.advanceUpdateRequests(prs, seq, covers)
 	if len(a.botRequests) > 0 {
 		now := a.now()
