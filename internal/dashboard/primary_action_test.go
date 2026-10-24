@@ -94,17 +94,40 @@ func TestAllowedActions_PrimaryAction(t *testing.T) {
 			p.CI = dashboard.CIFailure
 			p.AwaitingWorkflowApproval = true
 		}), []string{"dependabot_rebase"}},
-		{"Dependabot behind, awaiting approval but status unknown: the rebase, Merge says behind", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
+		{"Dependabot behind, awaiting approval but status unknown: none, Merge gives the approval reason", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) {
 			p.MergeStatus = dashboard.MergeUnknown
 			p.CI = dashboard.CINone
 			p.AwaitingWorkflowApproval = true
-		}), []string{"dependabot_rebase"}},
+		}), []string{}},
 		{"person behind, blocked, failing and awaiting approval: none, Merge gives the approval reason", ghPR(func(p *dashboard.PullRequest) {
 			p.Behind = true
 			p.MergeStatus = dashboard.MergeBlocked
 			p.CI = dashboard.CIFailure
 			p.AwaitingWorkflowApproval = true
 		}), []string{}},
+		{"person behind, awaiting approval but status unknown: none, Merge gives the approval reason", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+			p.CI = dashboard.CINone
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
+		// One unrelated held run is enough: the approval is the one step that is
+		// sure to be needed, so it is the reason even beside a missing review.
+		{"person behind, blocked, CI passing and one held run: none, Merge gives the approval reason", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CISuccess
+			p.AwaitingWorkflowApproval = true
+		}), []string{}},
+		{"person behind, approval granted and run finished: Update branch", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeBlocked
+			p.CI = dashboard.CIFailure
+		}), []string{"update_branch"}},
+		{"person behind, not awaiting approval: Update branch", ghPR(func(p *dashboard.PullRequest) {
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+		}), []string{"update_branch"}},
 		{"Renovate behind and draft: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Dependabot behind and draft: none", botBehindWith("dependabot[bot]", dashboard.ForgeGitHub, func(p *dashboard.PullRequest) { p.Draft = true }), []string{}},
 		{"Renovate behind and stacked: none", botBehindWith("renovate", dashboard.ForgeForgejo, func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 840} }), []string{}},
@@ -196,5 +219,129 @@ func TestPullRequestStatus_BehindBotAwaitingApproval(t *testing.T) {
 		assert.Equal(t, "Workflow runs are waiting for approval", status.Message, author)
 		assert.Empty(t, status.Action, author)
 		assert.Empty(t, primaries(actions), author)
+	}
+}
+
+// A behind pull request whose runs wait for approval and whose merge state
+// the forge hasn't reported yet says the same as the blocked one: approve the
+// runs, not "bring it up to date", for a person and a bot alike.
+func TestPullRequestStatus_BehindAwaitingApprovalWithUnknownState(t *testing.T) {
+	t.Parallel()
+
+	for _, author := range []string{"someone", "dependabot[bot]"} {
+		pr := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = author
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+			p.CI = dashboard.CINone
+			p.AwaitingWorkflowApproval = true
+		})
+		actions := dashboard.AllowedActions(pr, nil)
+		status := dashboard.PullRequestStatus(pr, actions)
+
+		require.NotNil(t, status, author)
+		assert.Equal(t, "Workflow runs are waiting for approval", status.Message, author)
+		assert.Empty(t, status.Action, author)
+		assert.Empty(t, primaries(actions), author)
+	}
+}
+
+// A held behind pull request would only get a head that is held again, so
+// Update branch, the bot rebases and Dependabot's Recreate are listed blocked
+// with the approval reason and their own next step. Other states keep what
+// they had: a stacked or draft one its own, an empty one nothing to unlock,
+// an up-to-date one its rebase, and an action blocked for its own reason that
+// reason. A conflicting pull request is never held (its merge state is
+// conflicting), so it can't reach this rule.
+func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
+	t.Parallel()
+
+	held := func(author string, edit func(*dashboard.PullRequest)) dashboard.PullRequest {
+		return ghPR(func(p *dashboard.PullRequest) {
+			p.Author = author
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeUnknown
+			p.CI = dashboard.CINone
+			p.AwaitingWorkflowApproval = true
+			if edit != nil {
+				edit(p)
+			}
+		})
+	}
+	approval := &dashboard.Blocked{
+		Code:    dashboard.ActionBlockedByProtection,
+		Message: "Workflow runs are waiting for approval",
+		Next:    dashboard.HeadPushBlockedNext,
+	}
+	ownBlock := &dashboard.Blocked{
+		Code:    dashboard.ActionAlreadyRequested,
+		Message: "A Dependabot Rebase is pending on this pull request.",
+		Next:    "It unlocks once Dependabot has finished.",
+	}
+	tests := []struct {
+		name string
+		pr   dashboard.PullRequest
+		want map[dashboard.ActionName]*dashboard.Blocked // nil: listed, not blocked
+	}{
+		{"person", held("someone", nil), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionUpdateBranch: approval,
+		}},
+		{"Renovate", held("renovate", nil), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: approval,
+		}},
+		{"Dependabot", held("dependabot[bot]", nil), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionDependabotRebase:   approval,
+			dashboard.ActionDependabotRecreate: approval,
+		}},
+		{"Dependabot Recreate blocked for its own reason keeps it", held("dependabot[bot]", func(p *dashboard.PullRequest) {
+			p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotDependabot, Action: dashboard.BotRebase, Phase: dashboard.BotQueued}
+		}), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionDependabotRebase:   approval,
+			dashboard.ActionDependabotRecreate: ownBlock,
+		}},
+		{"stacked person keeps Update branch", held("someone", func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 9} }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionUpdateBranch: nil,
+		}},
+		{"draft Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Draft = true }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
+		}},
+		{"empty Renovate has no Merge to unlock", held("renovate", func(p *dashboard.PullRequest) { p.Empty = true }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
+		}},
+		{"empty Dependabot has no Merge to unlock", held("dependabot[bot]", func(p *dashboard.PullRequest) { p.Empty = true }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionDependabotRebase:   nil,
+			dashboard.ActionDependabotRecreate: nil,
+		}},
+		{"Renovate with checks pending keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
+		}},
+		{"Dependabot with checks pending keeps both", held("dependabot[bot]", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionDependabotRebase:   nil,
+			dashboard.ActionDependabotRecreate: nil,
+		}},
+		{"person with checks pending keeps Update branch's own wait", held("someone", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionUpdateBranch: {Code: dashboard.ActionChecksPending, Message: "Waiting for CI to finish", Next: "Merge unlocks automatically"},
+		}},
+		{"up-to-date Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Behind = false }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionRenovateRebase: nil,
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := map[dashboard.ActionName]dashboard.ActionAvailability{}
+			for _, a := range dashboard.AllowedActions(tc.pr, []string{"renovate"}) {
+				got[a.Action] = a
+			}
+			for action, want := range tc.want {
+				a, listed := got[action]
+				require.True(t, listed, "%s is not listed", action)
+				assert.Equal(t, want, a.Blocked, "%s", action)
+				if want != nil {
+					assert.False(t, a.Primary, "%s is blocked, so never primary", action)
+				}
+			}
+		})
 	}
 }

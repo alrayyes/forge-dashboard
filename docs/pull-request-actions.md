@@ -30,19 +30,31 @@ greyed Merge with its reason. A pull request with neither draws none, so a
 draft, one waiting on CI, one with failing CI and one with nothing to act on
 show their status and nothing to click, except a behind bot pull request, which
 shows its rebase (locked while one is already requested or pending). A behind
-bot pull request that is ready to merge keeps Merge as its one button, and its
-rebase is in the pop-up. A pull request that is behind the base branch is the
-one case where a locked Merge is not the row's button: the row draws no button
-of its own, because the cure (Update branch, or the bot's rebase) sits inside
-the status block above, and the greyed Merge is in the pop-up. A behind bot pull
+bot pull request that is ready to merge keeps Merge as its main button and
+draws its rebase beside it, locked with the reason while one is already
+requested. A pull request that is behind the base branch is the one case where
+a locked Merge is not the row's button: the row draws no button of its own,
+because the cure (Update branch, or the bot's rebase) sits inside the status
+block above, and the greyed Merge is in the pop-up. A behind bot pull
 request whose Merge is held back by something else too (checks running, say)
 draws its rebase on the row. Every other action is in the pop-up's footer, one
 click away, and there is no "More actions" menu.
 
 When runs wait for someone to approve them, that is the reason Merge gives,
-ahead of being behind the base branch: a behind pull request in that state shows
-the approval in its status, with no `action`, and its row has no rebase, since
-updating the branch would only start runs that are held again.
+ahead of being behind the base branch, whatever the merge state the forge
+reports (blocked, or not yet known) and for any author. A single held run is
+enough, even when a missing review also blocks Merge, since the approval is the
+one step that is sure to be needed. Checks that are still running are a plain
+wait and keep their own reason. For a behind pull request in that state, Update
+branch, the Renovate and Dependabot rebases and Dependabot's Recreate are listed
+but blocked with the approval reason, because a new head would be held again.
+Each says to approve the runs first, then it can run. None is primary, so the
+status shows the approval with no `action`, and the blocked Update branch and
+rebases show locked on the row with that reason, Recreate in its menu. A
+stacked, draft or empty pull request keeps what it had, and so does one that is
+not behind. A conflicting pull request is never in this state, so its rebase
+stays. Once the runs are approved, the pull request is an ordinary behind one
+and Update branch is primary again.
 
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a

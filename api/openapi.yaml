@@ -5868,8 +5868,14 @@ components:
             holds Merge back. A bot pull request that is behind also has its
             rebase here whatever else holds Merge back (checks running or
             failing, auto-merge armed), unless it conflicts, is a draft, is
-            stacked, or Merge is blocked with failing checks because their
-            runs wait for approval. Every other state has
+            stacked, or its workflow runs wait for approval. In that last
+            case, for any author, whenever Merge is blocked or not yet known
+            and the checks aren't running, Merge gives the approval as its
+            reason. If the pull request is also behind (and not stacked, a
+            draft or empty), `update_branch`, the bot rebases and
+            `dependabot_recreate` are listed blocked with the same code and
+            message and a `next` of their own, so none is primary and a client
+            draws each locked with the reason. Every other state has
             none: checks running or failing on a pull request that is not a
             behind bot one, a conflict, a draft, a stack parent, or the
             forge's own block. `status` gives the reason there.
