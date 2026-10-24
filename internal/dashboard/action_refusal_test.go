@@ -167,7 +167,7 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 	t.Parallel()
 
-	const notFoundMessage = "The forge answered 404: it has no such route, or the token can't see this repository."
+	const notFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
 	cases := []struct {
 		name   string
 		action dashboard.PullRequestAction
@@ -177,6 +177,7 @@ func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 		{"a bare 404 says what it means", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 page not found"), notFoundMessage},
 		{"in any case", dashboard.PullRequestActionRerunBranchChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: refused: 404 Page Not Found"), notFoundMessage},
 		{"a sentence the forge wrote is kept", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/jobs/1/rerun: The repository is not found"), "The repository is not found"},
+		{"a GitHub 404 doesn't blame a Forgejo version", dashboard.PullRequestActionRerunChecks, refusal(dashboard.ForgeErrorNotFound, "github: POST /repos/o/r/actions/runs/1/rerun-failed-jobs: refused: 404 page not found"), notFoundMessage},
 		{"a close is left alone", dashboard.PullRequestActionClose, refusal(dashboard.ForgeErrorNotFound, "forgejo: PATCH /repos/o/r/pulls/5: refused: 404 page not found"), "refused: 404 page not found"},
 	}
 	for _, tc := range cases {
@@ -184,6 +185,36 @@ func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 			t.Parallel()
 
 			got := dashboard.ClassifyActionRefusalFor(tc.action, tc.err, nil)
+
+			assert.Equal(t, tc.want, got.Message)
+		})
+	}
+}
+
+// A rerun that restarted some jobs before the forge refused another says which
+// went and which didn't, whatever the refusal was.
+func TestClassifyActionRefusalFor_PartialRerunSaysWhatRestarted(t *testing.T) {
+	t.Parallel()
+
+	const partial = "Restarted build. Did not restart test, lint."
+	cases := []struct {
+		name   string
+		action dashboard.PullRequestAction
+		kind   dashboard.ForgeErrorKind
+		forge  string
+		want   string
+	}{
+		{"a permission refusal", dashboard.PullRequestActionRerunChecks, dashboard.ForgeErrorUnauthorized, "The job is already running", "Missing permission — check your token in Settings. " + partial},
+		{"a rate limit", dashboard.PullRequestActionRerunBranchChecks, dashboard.ForgeErrorRateLimited, "The job is already running", "The forge's API rate limit is reached. Try again once it resets. " + partial},
+		{"a forge's own words", dashboard.PullRequestActionRerunChecks, dashboard.ForgeErrorConflict, "The job is already running", "The job is already running. " + partial},
+		{"a question", dashboard.PullRequestActionRerunChecks, dashboard.ForgeErrorConflict, "Is the job already running?", "Is the job already running? " + partial},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := &dashboard.ClientError{Kind: tc.kind, Err: errors.New("forgejo: POST /repos/o/r/actions/jobs/2/rerun: " + tc.forge), Partial: partial}
+
+			got := dashboard.ClassifyActionRefusalFor(tc.action, err, nil)
 
 			assert.Equal(t, tc.want, got.Message)
 		})

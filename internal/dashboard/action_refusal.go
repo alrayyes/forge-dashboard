@@ -160,6 +160,20 @@ func ClassifyActionRefusal(actionErr error, state *PullRequestState) ActionRefus
 // so does an Update branch conflict or an auto-merge refusal whose forge
 // text names the reason.
 func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *PullRequestState) ActionRefusal {
+	r := classifyActionRefusal(action, actionErr, state)
+	if action == PullRequestActionRerunChecks || action == PullRequestActionRerunBranchChecks {
+		if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Partial != "" {
+			if !strings.HasSuffix(r.Message, ".") && !strings.HasSuffix(r.Message, "?") && !strings.HasSuffix(r.Message, "!") {
+				r.Message += "."
+			}
+			r.Message += " " + clientErr.Partial
+		}
+	}
+
+	return r
+}
+
+func classifyActionRefusal(action PullRequestAction, actionErr error, state *PullRequestState) ActionRefusal {
 	// A rate limit comes first: it needs no re-read, and a re-read under it
 	// would be limited too.
 	if r, ok := refusalFromKind(actionErr); ok && r.Code == ActionRateLimited {
@@ -215,8 +229,10 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 
 // rerunNotFound says what a rerun's 404 means. "404 page not found" is the web
 // server's, not a sentence the forge wrote for a person. A rerun is the one
-// action that meets it: an older Forgejo has no such route. A sentence the
-// forge did write is kept.
+// action that meets it. The sentence names no forge or version: the 404 can
+// come from a forge with no rerun route (a Gitea, an old Forgejo), or from a
+// run that is gone or a repository the token can't see, on any forge. A
+// sentence the forge did write is kept.
 func rerunNotFound(actionErr error, forgeText string) (ActionRefusal, bool) {
 	clientErr, ok := errors.AsType[*ClientError](actionErr)
 	if !ok || clientErr.Kind != ForgeErrorNotFound {
@@ -250,7 +266,7 @@ func classifyReopenRefusal(actionErr error) (ActionRefusal, bool) {
 
 const (
 	notReopenableMessage = "The forge won't reopen this pull request. Usually its branch was deleted or rewritten after it was closed: restore the branch on the forge, then try again."
-	notFoundMessage      = "The forge answered 404: it has no such route, or the token can't see this repository."
+	notFoundMessage      = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
 	noReasonMessage      = "The forge refused this action and gave no reason."
 	unreachableMessage   = "The forge didn't answer. Try again in a moment."
 	forgeFailedMessage   = "The forge had a server error. Try again in a moment."

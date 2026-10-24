@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.7](https://github.com/alrayyes/forge-dashboard/compare/v2.29.6...v2.29.7) (2026-10-24)
+
+
+### Bug Fixes
+
+* **forgejo:** harden the per-job rerun and its dialog ([#2746](https://github.com/alrayyes/forge-dashboard/issues/2746)) ([99460b1](https://github.com/alrayyes/forge-dashboard/commit/99460b1a1e783d601560fd9ea68b4ff1faa264c4))
+
 ## [2.29.6](https://github.com/alrayyes/forge-dashboard/compare/v2.29.5...v2.29.6) (2026-10-24)
 
 

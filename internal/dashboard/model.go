@@ -511,6 +511,10 @@ type ClientError struct {
 	// sent one (GitHub's X-GitHub-Request-Id). It is what the forge's support
 	// asks for, so it goes in the log and the error report.
 	RequestID string
+	// Partial, set on a refused rerun that had already restarted some jobs,
+	// says which went and which didn't, so a refusal doesn't read as though
+	// nothing happened.
+	Partial string
 }
 
 // ForgeFailed reports whether the forge answered with a 5xx: its own failure,

@@ -146,6 +146,7 @@
     forgeLockReason,
     spentLimit,
   } from "#lib/forge-lock.js";
+  import { LockRedraw } from "#lib/lock-redraw.js";
   import {
     chipClass,
     chipLabel,
@@ -5832,7 +5833,7 @@
     // What the open dialog's rerun control was drawn for. The dialog calls the
     // control once per change of its checks, so a forge that changes under it
     // (a version read landing, an outage) has to ask for a redraw.
-    let pipelineRerunLockDrawn = "";
+    const pipelineRerunLock = new LockRedraw();
     function pipelineRerunLockKey(item: PullRequestItem): string {
       return JSON.stringify([
         proactiveActionLockReason(item.forge)?.reason ?? "",
@@ -5870,8 +5871,8 @@
     // rerun_checks for this pull request and something actually failed. The
     // forge queues the jobs; the next refresh carries their result.
     function pipelineRerunControl(item: PullRequestItem): HTMLElement | null {
+      pipelineRerunLock.drawn(pipelineRerunLockKey(item));
       if (!findAction(item, "rerun_checks")) return null;
-      pipelineRerunLockDrawn = pipelineRerunLockKey(item);
       // The same locks as the row's cell: a spent budget or an unreachable
       // forge draws no button, one banner says why.
       const proactive = proactiveActionLockReason(item.forge);
@@ -5946,6 +5947,7 @@
       if (!pipelineDialog) return;
       pipelineDialogRowKey = prKey(item);
       pipelineItem = item;
+      pipelineRerunLock.reset();
       pipelineDialog.open({
         subtitle: `${item.repo}#${item.number}`,
         // Always fetched fresh, never cached and never part of applySnapshot's
@@ -5974,6 +5976,7 @@
           const rowKey = pipelineDialogRowKey;
           pipelineDialogRowKey = null;
           pipelineItem = null;
+          pipelineRerunLock.reset();
           renderPRBoard();
           if (rowKey) {
             document
@@ -8405,7 +8408,7 @@
       const now = allPRs.find((p) => prKey(p) === pipelineDialogRowKey);
       if (now) pipelineItem = now;
       pipelineDialog?.follow(now ? ciSignature(now) : null);
-      if (now && pipelineRerunLockKey(now) !== pipelineRerunLockDrawn)
+      if (now && pipelineRerunLock.changed(pipelineRerunLockKey(now)))
         pipelineDialog?.redrawControls();
     }
 

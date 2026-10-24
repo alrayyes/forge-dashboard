@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
+	"strings"
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -30,7 +32,8 @@ const firstRerunMajor = 17
 
 // firstForgejoMajor is the first major version only a Forgejo reports. Before
 // it Forgejo numbered itself like the Gitea it forked, so a 1.x could be either
-// and the rerun is left to the forge.
+// and the button is not hidden. The forge then decides: a 404 may mean it has
+// no job rerun route, which the refusal says without naming a version.
 const firstForgejoMajor = 7
 
 // errNoRerunRoute is why a rerun on a Forgejo older than firstRerunMajor never
@@ -72,6 +75,9 @@ func (c *Client) rerunBlocked(ctx context.Context) error {
 // refusal, and Forgejo's own reason (a token without the Actions scope, an
 // instance without the route) is what a person needs.
 func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
+	if err := c.rerunBlocked(ctx); err != nil {
+		return err
+	}
 	c = c.withContext(ctx)
 	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
@@ -112,6 +118,9 @@ var errNothingToRerunOnBranch = errors.New("no failed job to rerun on this branc
 // Main branches row reports. The row names the branch, so the repository isn't
 // read to learn it.
 func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, defaultBranch string) error {
+	if err := c.rerunBlocked(ctx); err != nil {
+		return err
+	}
 	c = c.withContext(ctx)
 	var failed []int64
 	if defaultBranch != "" {
@@ -141,39 +150,118 @@ func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name
 	return nil
 }
 
+// rerunProgress is what a rerun has done so far, for a refusal that comes
+// partway.
+type rerunProgress struct {
+	restarted []string
+}
+
+// partial is the sentence for a refusal after some jobs went: which restarted
+// and which did not. notYet is the failed jobs of the run being worked on that
+// were not restarted, and laterRuns the failed runs not yet looked at. Empty
+// when nothing restarted, since the refusal then says it all.
+func (p *rerunProgress) partial(notYet []string, laterRuns int) string {
+	if len(p.restarted) == 0 {
+		return ""
+	}
+	out := p.restartedSentence()
+	if skipped := listWithRuns(notYet, laterRuns); skipped != "" {
+		out += " Did not restart " + skipped + "."
+	}
+
+	return out
+}
+
+// partialUnknown is partial for a refusal that left the run's jobs unread, so
+// which of its other failed jobs went along with a restarted one is not known.
+func (p *rerunProgress) partialUnknown(laterRuns int) string {
+	if len(p.restarted) == 0 {
+		return ""
+	}
+	out := p.restartedSentence() + " The other failed jobs of this run may have restarted with them."
+	if later := listWithRuns(nil, laterRuns); later != "" {
+		out += " Did not restart " + later + "."
+	}
+
+	return out
+}
+
+func (p *rerunProgress) restartedSentence() string {
+	return "Restarted " + strings.Join(p.restarted, ", ") + "."
+}
+
+// listWithRuns lists the job names, then a note on the failed runs not yet
+// looked at, joined on with "and".
+func listWithRuns(names []string, laterRuns int) string {
+	var note string
+	switch {
+	case laterRuns == 1:
+		note = "the failed jobs of 1 other run"
+	case laterRuns > 1:
+		note = fmt.Sprintf("the failed jobs of %d other runs", laterRuns)
+	}
+	switch {
+	case len(names) == 0:
+		return note
+	case note == "":
+		return strings.Join(names, ", ")
+	}
+
+	return strings.Join(names, ", ") + " and " + note
+}
+
+// withPartial returns err with the partial rerun sentence attached. An error
+// that isn't a ClientError (an undecodable job list, say) is wrapped in one, so
+// the sentence is not lost.
+func withPartial(err error, partial string) error {
+	if partial == "" {
+		return err
+	}
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	if !ok {
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, Err: err, Partial: partial}
+	}
+	cp := *clientErr
+	cp.Partial = partial
+
+	return &cp
+}
+
 // rerunFailedJobs asks Forgejo to rerun each failed job of each run in ids, and
 // says how many it asked for. A run's jobs are read once. Forgejo restarts the
 // jobs that need a rerun job along with it, and refuses to rerun one that is
 // going again, so before each job after the first the run's jobs are read
-// again and a job that is no longer failed is left alone.
+// again and a job that is no longer failed is left alone. That re-read can't be
+// cut to one: whether a rerun restarts other jobs depends on the run's
+// dependency graph, which the job list doesn't carry, so any job's rerun may
+// have started the next failed one.
 func (c *Client) rerunFailedJobs(ctx context.Context, owner, name string, ids []int64) (int, error) {
-	if err := c.rerunBlocked(ctx); err != nil {
-		return 0, err
-	}
-	asked := 0
-	for _, runID := range ids {
-		n, err := c.rerunFailedJobsOfRun(ctx, owner, name, runID)
-		asked += n
+	progress := &rerunProgress{}
+	for i, runID := range ids {
+		err := c.rerunFailedJobsOfRun(ctx, owner, name, runID, progress, len(ids)-i-1)
 		if err != nil {
-			return asked, err
+			return len(progress.restarted), err
 		}
 	}
 
-	return asked, nil
+	return len(progress.restarted), nil
 }
 
-// rerunFailedJobsOfRun does rerunFailedJobs for one run.
-func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, runID int64) (int, error) {
+// rerunFailedJobsOfRun does rerunFailedJobs for one run. laterRuns is how many
+// failed runs come after it.
+func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, runID int64, progress *rerunProgress, laterRuns int) error {
 	jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
 	if err != nil {
-		return 0, err
+		return withPartial(err, progress.partial(nil, laterRuns+1))
 	}
-	asked := 0
-	for i, jobID := range failedJobIDs(jobs) {
+	failed := failedJobIDs(jobs)
+	for i, jobID := range failed {
 		if i > 0 {
-			if jobs, err = c.listActionRunJobs(ctx, owner, name, runID); err != nil {
-				return asked, err
+			fresh, err := c.listActionRunJobs(ctx, owner, name, runID)
+			if err != nil {
+				return withPartial(err, progress.partialUnknown(laterRuns))
 			}
+			jobs = fresh
 			if !slices.Contains(failedJobIDs(jobs), jobID) {
 				continue
 			}
@@ -181,12 +269,38 @@ func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, r
 		rerunPath := fmt.Sprintf("/repos/%s/%s/actions/jobs/%d/rerun", owner, name, jobID)
 		slog.Debug("forgejo request", "method", http.MethodPost, "url", rerunPath)
 		if _, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil); err != nil {
-			return asked, c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
+			err = c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
+
+			return withPartial(err, progress.partial(jobNames(jobs, stillFailed(jobs, failed[i:])), laterRuns))
 		}
-		asked++
+		progress.restarted = append(progress.restarted, jobNames(jobs, []int64{jobID})...)
 	}
 
-	return asked, nil
+	return nil
+}
+
+// stillFailed is the ids that jobs still reads as failed: a job Forgejo
+// restarted along with another is going again and wasn't left undone.
+func stillFailed(jobs []*gitea.ActionWorkflowJob, ids []int64) []int64 {
+	now := failedJobIDs(jobs)
+
+	return slices.DeleteFunc(slices.Clone(ids), func(id int64) bool { return !slices.Contains(now, id) })
+}
+
+// jobNames is the name of each job in ids, or its id when the forge sent none.
+func jobNames(jobs []*gitea.ActionWorkflowJob, ids []int64) []string {
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		name := strconv.FormatInt(id, 10)
+		for _, j := range jobs {
+			if j.ID == id && j.Name != "" {
+				name = j.Name
+			}
+		}
+		names = append(names, name)
+	}
+
+	return names
 }
 
 // failedJobIDs is the id of every job in jobs that failed.
