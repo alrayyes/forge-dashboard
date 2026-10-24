@@ -232,6 +232,12 @@ func botRequestPending(pr PullRequest, bot BotName) bool {
 	return req != nil && req.Bot == bot && (req.Phase == BotQueued || req.Phase == BotRebasing)
 }
 
+func renovateRebasing(pr PullRequest) bool {
+	req := pr.BotRequest
+
+	return req != nil && req.Bot == BotRenovate && req.Phase == BotRebasing
+}
+
 // renovateRebaseActions: a rebase already asked for is not asked for again. When
 // it was asked for through the rebase box, clearing the box withdraws it, so
 // that is offered instead. A request made another way (the label fallback) has
@@ -240,6 +246,10 @@ func botRequestPending(pr PullRequest, bot BotName) bool {
 // snapshot offers the rebase again.
 func renovateRebaseActions(pr PullRequest) []ActionAvailability {
 	switch {
+	case renovateRebasing(pr):
+		// Renovate has consumed the box, so clearing it withdraws nothing and
+		// would drop the in-progress record.
+		return nil
 	case pr.RenovateRebaseRequested:
 		return []ActionAvailability{{Action: ActionCancelRenovateRebase}}
 	case botRequestPending(pr, BotRenovate):

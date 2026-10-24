@@ -319,6 +319,22 @@ func TestAllowedActions_RenovateBoxTickedOffersOnlyTheCancel(t *testing.T) {
 	}
 }
 
+// Once Renovate has taken the box and is rebasing, clearing it withdraws
+// nothing and drops the in-progress record, so the cancel is not offered.
+func TestAllowedActions_RenovateRebasingOffersNoCancel(t *testing.T) {
+	t.Parallel()
+
+	pr := ghPR(func(p *dashboard.PullRequest) {
+		p.Author = "renovate[bot]"
+		p.RenovateRebaseRequested = true
+		p.BotRequest = &dashboard.BotRequest{Bot: dashboard.BotRenovate, Action: dashboard.BotRebase, Phase: dashboard.BotRebasing}
+	})
+
+	names := actionNames(pr)
+	assert.NotContains(t, names, dashboard.ActionCancelRenovateRebase)
+	assert.NotContains(t, names, dashboard.ActionRenovateRebase)
+}
+
 func TestAllowedActions_RenovateRequestWithoutABoxOffersNeitherButton(t *testing.T) {
 	t.Parallel()
 
