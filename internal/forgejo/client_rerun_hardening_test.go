@@ -120,6 +120,22 @@ func TestRerunFailedChecks_AFailedReList_DoesNotClaimWhichJobsWereLeft(t *testin
 	assert.NotContains(t, got.Message, "Did not restart job-3")
 }
 
+// A list that fails partway can't say whether the next failed job went along
+// with the one just restarted, so a job may be running and the refusal is
+// flagged for the panel to drop its retry advice.
+func TestRerunFailedChecks_AFailedReList_FlagsThatAJobMayHaveRestarted(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure"), job(3, "failure")}}
+	s.listFailAfter = 2
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok)
+	assert.True(t, clientErr.MayHaveRestarted)
+}
+
 // A job list the forge answers with something unreadable is still reported
 // with what had already restarted.
 func TestRerunFailedChecks_AnUnreadableJobList_StillSaysWhatRestarted(t *testing.T) {
