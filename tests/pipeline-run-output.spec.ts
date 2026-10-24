@@ -290,7 +290,7 @@ test.describe('a check run output in the pipeline dialog', () => {
 
   // Which control each state gets is proved by checkControl's unit test; this
   // is the one journey that shows the dialog draws it.
-  test('a queued check has no View run, only the link to the forge, and a running or finished one has it on first paint', async ({
+  test('a queued check has no View run, only the link to the forge, and a running or finished one has it', async ({
     page,
   }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } }, [
