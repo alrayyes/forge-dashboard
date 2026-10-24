@@ -228,6 +228,7 @@ func botRebases() []ActionName {
 // expired request has settled and counts for nothing.
 func botRequestPending(pr PullRequest, bot BotName) bool {
 	req := pr.BotRequest
+
 	return req != nil && req.Bot == bot && (req.Phase == BotQueued || req.Phase == BotRebasing)
 }
 

@@ -114,25 +114,35 @@ func notOfferedRefusal(action dashboard.ActionName, pr dashboard.PullRequest) da
 		if pr.Empty {
 			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyUpToDate, Message: "Nothing to merge: the branch is already on the target branch."}
 		}
-	case dashboard.ActionDependabotRebase, dashboard.ActionDependabotRecreate:
-		if pr.BotRequest != nil && pr.BotRequest.Bot == dashboard.BotDependabot && pr.BotRequest.Phase != dashboard.BotExpired {
-			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyRequested, Message: "A Dependabot command is already pending on this pull request."}
-		}
-
-		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Dependabot pull request on GitHub."}
-	case dashboard.ActionRenovateRebase:
-		if pr.RenovateRebaseRequested || (pr.BotRequest != nil && pr.BotRequest.Bot == dashboard.BotRenovate && pr.BotRequest.Phase != dashboard.BotExpired) {
-			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyRequested, Message: "A Renovate rebase is already requested on this pull request."}
-		}
-
-		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Renovate pull request."}
-	case dashboard.ActionCancelRenovateRebase:
-		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "No Renovate rebase is requested through the rebase box on this pull request."}
+	case dashboard.ActionDependabotRebase, dashboard.ActionDependabotRecreate, dashboard.ActionRenovateRebase, dashboard.ActionCancelRenovateRebase:
+		return botActionNotOffered(action, pr)
 	case dashboard.ActionRerunChecks:
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "There are no failed checks to rerun for this pull request."}
 	}
 
 	return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This action doesn't apply to this pull request."}
+}
+
+// botActionNotOffered says why a bot rebase, recreate or cancel isn't listed.
+func botActionNotOffered(action dashboard.ActionName, pr dashboard.PullRequest) dashboard.ActionRefusal {
+	pending := pr.BotRequest != nil && pr.BotRequest.Phase != dashboard.BotExpired
+
+	switch action {
+	case dashboard.ActionDependabotRebase, dashboard.ActionDependabotRecreate:
+		if pending && pr.BotRequest.Bot == dashboard.BotDependabot {
+			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyRequested, Message: "A Dependabot command is already pending on this pull request."}
+		}
+
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Dependabot pull request on GitHub."}
+	case dashboard.ActionRenovateRebase:
+		if pr.RenovateRebaseRequested || (pending && pr.BotRequest.Bot == dashboard.BotRenovate) {
+			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyRequested, Message: "A Renovate rebase is already requested on this pull request."}
+		}
+
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "This isn't a Renovate pull request."}
+	default:
+		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "No Renovate rebase is requested through the rebase box on this pull request."}
+	}
 }
 
 // writeRefusal answers with the shared ActionError. With code unknown the raw
