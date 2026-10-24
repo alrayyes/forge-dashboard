@@ -306,8 +306,15 @@ test.describe('a linked pull request pill on the Issues page', () => {
   });
 });
 
+const mention = (number: number, tracked = true) => ({
+  ...closing(number),
+  tracked,
+});
+const openPullDialog = (page: Page, number: number) =>
+  page.getByRole('button', { name: `#${number} Pull request ${number}` });
+
 test.describe('pills inside the pull request dialog', () => {
-  test('stay links to the Issues page, so a second dialog does not stack on the first', async ({
+  test('a closing pill swaps the dialog for the issue dialog on the same page', async ({
     page,
   }) => {
     await mockBoard(page, {
@@ -315,14 +322,201 @@ test.describe('pills inside the pull request dialog', () => {
       issues: [issue(12)],
     });
     await page.goto('/pull-requests.html');
-
-    await page.getByRole('button', { name: '#1 Pull request 1' }).click();
+    await openPullDialog(page, 1).click();
     await expect(pullDialog(page)).toBeVisible();
 
     const pill = pullDialog(page).locator('.closing-issue');
-    await expect(pill).toHaveCount(1);
-    expect(await pill.evaluate((node) => node.tagName)).toBe('A');
     await expect(pill).toHaveAttribute('href', closing(12).pageUrl);
+    await pill.click();
+
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(pullDialog(page)).toHaveCount(0);
+    await expect(issueDialog(page)).toHaveAccessibleName(
+      `Issue details: ${REPO} #12`,
+    );
+    expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
+    expect(new URL(page.url()).search).toBe('');
+    // Focus moved into the new dialog.
+    expect(
+      await issueDialog(page).evaluate((d) =>
+        d.contains(document.activeElement),
+      ),
+    ).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(issueDialog(page)).toBeHidden();
+    // Focus goes back to the pull request's title in the list.
+    await expect(openPullDialog(page, 1)).toBeFocused();
+  });
+
+  test('a mentions pill for a ticket the dashboard holds opens its dialog', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(1, [], { mentionsIssues: [mention(12)] })],
+      issues: [issue(12)],
+    });
+    await page.goto('/pull-requests.html');
+    await openPullDialog(page, 1).click();
+
+    await pullDialog(page).locator('.mention-pill').click();
+
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(pullDialog(page)).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
+  });
+
+  test('a mentions pill for a ticket the dashboard does not hold still links to the forge', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(1, [], { mentionsIssues: [mention(99, false)] })],
+    });
+    await page.goto('/pull-requests.html');
+    await openPullDialog(page, 1).click();
+
+    const pill = pullDialog(page).locator('.mention-pill');
+    await expect(pill).toHaveAttribute('href', closing(99).url);
+    await expect(pill).toHaveAttribute('target', '_blank');
+    await pill.click();
+    await expect(pullDialog(page)).toBeVisible();
+  });
+
+  test('a modified click is left to the browser and the dialog stays', async ({
+    page,
+    context,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(1, [closing(12)])],
+      issues: [issue(12)],
+    });
+    await page.goto('/pull-requests.html');
+    await openPullDialog(page, 1).click();
+
+    const opened = context.waitForEvent('page');
+    await pullDialog(page)
+      .locator('.closing-issue')
+      .click({ modifiers: ['Control'] });
+    expect((await opened).url()).toContain('/issues.html?issue=github/');
+    await expect(pullDialog(page)).toBeVisible();
+  });
+
+  test('works from the keyboard and at phone width, axe clean', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await mockBoard(page, {
+      shown: [pullRequest(1, [closing(12)])],
+      issues: [issue(12)],
+    });
+    await page.goto('/pull-requests.html');
+    await openPullDialog(page, 1).click();
+    await pullDialog(page).locator('.closing-issue').focus();
+    await page.keyboard.press('Enter');
+
+    await expect(issueDialog(page)).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
+    expect(new URL(page.url()).search).toBe('');
+    await axeClean(page, 'issue dialog opened from the pull request dialog');
+  });
+
+  test('works on the Issues page too: an issue dialog swaps to the pull request dialog and back', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(12, [closing(1)])],
+      issues: [issue(1, [linked(12)])],
+    });
+    await page.goto('/issues.html');
+    await page.locator('#issue-rows .row button.title').first().click();
+    await issueDialog(page).locator('.linked-pr').click();
+    await expect(pullDialog(page)).toBeVisible();
+
+    await pullDialog(page).locator('.closing-issue').click();
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(pullDialog(page)).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe('/issues.html');
+    expect(new URL(page.url()).search).toBe('');
+
+    // This page has no row for the pull request, so focus goes to the filter.
+    await page.keyboard.press('Escape');
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(page.locator('#title-filter')).toBeFocused();
+  });
+});
+
+test.describe('references inside the issue dialog', () => {
+  test('on the Pull requests page a pull request reference opens the pull request dialog', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(1, [closing(12)]), pullRequest(13)],
+      issues: [issue(12, [linked(13)])],
+    });
+    await page.goto('/pull-requests.html');
+    await closingPill(page, 1).click();
+    await expect(issueDialog(page)).toBeVisible();
+
+    await issueDialog(page).locator('.linked-pr').click();
+
+    await expect(pullDialog(page)).toBeVisible();
+    await expect(pullDialog(page)).toHaveAccessibleName(
+      `Pull request details: ${REPO} #13`,
+    );
+    await expect(issueDialog(page)).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
+    // The board's own dialog, with its footer actions, not the read-only
+    // one, which has none.
+    await expect(
+      pullDialog(page).locator('.details-actions button').first(),
+    ).toBeVisible();
+
+    // The issue's row is not on this page, so focus goes to the filter box.
+    await page.keyboard.press('Escape');
+    await expect(pullDialog(page)).toBeHidden();
+    await expect(page.locator('#title-filter')).toBeFocused();
+  });
+
+  for (const [path, label] of [
+    ['/pull-requests.html', 'Pull requests'],
+    ['/issues.html', 'Issues'],
+  ] as const) {
+    for (const width of [1280, 390]) {
+      for (const scheme of ['light', 'dark'] as const) {
+        test(`has no axe violations with the pull request dialog reached from the issue dialog, ${label} page, ${scheme} at ${width}px`, async ({
+          page,
+        }) => {
+          await page.setViewportSize({ width, height: 800 });
+          await page.emulateMedia({ colorScheme: scheme });
+          await mockBoard(page, {
+            shown: [pullRequest(1, [closing(12)]), pullRequest(13)],
+            issues: [issue(12, [linked(13)])],
+          });
+          await page.goto(path);
+          if (path === '/issues.html')
+            await page.locator('#issue-rows .row button.title').first().click();
+          else await closingPill(page, 1).click();
+          await issueDialog(page).locator('.linked-pr').click();
+          await expect(pullDialog(page)).toBeVisible();
+          await axeClean(page, `${label} ${scheme} at ${width}px`);
+        });
+      }
+    }
+  }
+
+  test('a reference the dashboard does not hold is said plainly on the Pull requests page', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      shown: [pullRequest(1, [closing(12)])],
+      issues: [issue(12, [linked(13)])],
+    });
+    await page.goto('/pull-requests.html');
+    await closingPill(page, 1).click();
+    await issueDialog(page).locator('.linked-pr').click();
+
+    await expect(pullDialog(page)).toBeHidden();
+    await expect(page.locator('#hide-status')).toContainText(`${REPO} #13`);
   });
 });
 

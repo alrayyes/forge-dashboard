@@ -10,6 +10,7 @@ import {
   issueNumber,
   splitClosing,
 } from './closing-issues.js';
+import { isPlainClick } from './plain-click.js';
 
 /** Pull requests whose folded mentions the reader opened, so a redraw keeps them open. */
 const expanded = new Set<string>();
@@ -32,12 +33,14 @@ export function mentionPillName(issue: MentionedIssue, prRepo: string) {
  * The pills for one pull request, drawn like the closing ones: the first two,
  * then a count that opens the rest in place. Null when it mentions nothing, so
  * no empty section is left behind. A ticket the dashboard does not track opens
- * on the forge in a new tab.
+ * on the forge in a new tab. With onFollow, a plain click on a tracked one hands
+ * it over so the dialog can be swapped for the issue's.
  */
 export function mentionPills(
   prKey: string,
   prRepo: string,
   list: MentionedIssue[] | undefined,
+  onFollow?: (issue: MentionedIssue) => void,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const wrap = document.createElement('span');
@@ -46,6 +49,12 @@ export function mentionPills(
     const link = document.createElement('a');
     link.className = 'linked-pr mention-pill';
     link.href = issue.tracked ? issue.pageUrl : issue.url;
+    if (issue.tracked && onFollow)
+      link.addEventListener('click', (event) => {
+        if (!isPlainClick(event)) return;
+        event.preventDefault();
+        onFollow(issue);
+      });
     if (!issue.tracked) {
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
