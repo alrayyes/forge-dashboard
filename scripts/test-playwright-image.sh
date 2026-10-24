@@ -52,6 +52,24 @@ if [ "${#images[@]}" -gt 0 ] && [ "$(printf '%s\n' "${images[@]}" | sort -u | wc
   fail "the jobs use different Playwright images: ${images[*]}"
 fi
 
+# The browser jobs themselves, by name: each must hold the image, --ipc=host
+# and the Bun check, so a job that loses its container block can't hide behind
+# another one that has it.
+job_block() { # file job
+  awk -v job="  $2:" '$0 == job {on=1; next} on && /^  [A-Za-z0-9_-]+:/ {exit} on' "$1"
+}
+for entry in ci.yml:e2e-shard ci.yml:lighthouse release.yml:screenshots; do
+  file=${entry%%:*}
+  job=${entry#*:}
+  path=$(printf '%s\n' $workflows | grep -E "/$file\$" | head -n1 || true)
+  [ -n "$path" ] || continue
+  block=$(job_block "$path" "$job")
+  [ -n "$block" ] || { fail "$path has no job '$job'"; continue; }
+  printf '%s\n' "$block" | grep -Eq '^\s+image: ghcr\.io/alrayyes/ci-playwright:' || fail "$path job '$job' does not run in the CI image"
+  printf '%s\n' "$block" | grep -Eq '^\s+options: --ipc=host' || fail "$path job '$job' lacks 'options: --ipc=host'"
+  printf '%s\n' "$block" | grep -Fq 'bun --version' || fail "$path job '$job' does not check the image's bun against package.json"
+done
+
 for workflow in $workflows; do
   if grep -Eq 'playwright install' "$workflow"; then
     fail "$workflow still runs 'playwright install'; the image already has the browsers"

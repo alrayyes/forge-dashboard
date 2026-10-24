@@ -218,7 +218,8 @@ jobs:
     continue-on-error: true
     # The same CI image as ci.yml's browser jobs (browsers, Bun, node, git, gh
     # and ImageMagick are in it); scripts/test-playwright-image.sh keeps the
-    # tag in step with @playwright/test.
+    # tag in step with @playwright/test, and a step below checks the
+    # image's Bun against package.json.
     container:
       image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:8475bb332de43de88e3a442ed5c168586a378790b6a5c109753e7de93bc1dd3d
       options: --ipc=host
@@ -233,6 +234,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      - name: the image's bun is the one package.json names
+        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")"
       - run: bun install --frozen-lockfile
       # //go:embed all:static (internal/api/server.go) reads this directory
       # at compile time — without it, static/ is empty and every
@@ -259,7 +262,7 @@ jobs:
           npx wait-on http://localhost:8080/healthz
           # Real node (via tsx), not bun's own runtime — this shells out to a
           # browser process, the exact case javascript.md's "install a
-          # real node" rule is about; ubuntu-24.04 ships one already.
+          # real node" rule is about; the job's image ships one.
           bun run capture-screenshots
           kill "$(cat server.pid)"
 

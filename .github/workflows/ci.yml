@@ -334,9 +334,10 @@ jobs:
     # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
     # browsers and system packages, Bun, node, git, gh and ImageMagick are
     # already in it, so no step downloads Chromium, installs bun or runs apt.
-    # The tag is the @playwright/test version exactly, and its Bun is the one
-    # package.json names; scripts/test-playwright-image.sh fails the `changes`
-    # job when either differs, so bump them together.
+    # The tag is the @playwright/test version exactly;
+    # scripts/test-playwright-image.sh fails the `changes` job when it differs.
+    # The image's Bun must be the one package.json names; a step below
+    # checks that. Bump them together.
     container:
       image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:8475bb332de43de88e3a442ed5c168586a378790b6a5c109753e7de93bc1dd3d
       # Chromium shares memory through IPC; Playwright's Docker guide asks for this.
@@ -351,7 +352,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: the image's bun is the one package.json names
-        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1]")"
+        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")"
       - run: bun install --frozen-lockfile
       - run: bun run build:web
       # -tags e2e adds POST /__e2e/reset, which the specs call between tests;
@@ -390,9 +391,10 @@ jobs:
     # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
     # browsers and system packages, Bun, node, git, gh and ImageMagick are
     # already in it, so no step downloads Chromium, installs bun or runs apt.
-    # The tag is the @playwright/test version exactly, and its Bun is the one
-    # package.json names; scripts/test-playwright-image.sh fails the `changes`
-    # job when either differs, so bump them together.
+    # The tag is the @playwright/test version exactly;
+    # scripts/test-playwright-image.sh fails the `changes` job when it differs.
+    # The image's Bun must be the one package.json names; a step below
+    # checks that. Bump them together.
     container:
       image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:8475bb332de43de88e3a442ed5c168586a378790b6a5c109753e7de93bc1dd3d
       # Chromium shares memory through IPC; Playwright's Docker guide asks for this.
@@ -403,7 +405,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: the image's bun is the one package.json names
-        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1]")"
+        run: test "$(bun --version)" = "$(node -p "require('./package.json').packageManager.split('@')[1].split('+')[0]")"
       - run: bun install --frozen-lockfile
       - run: bun run build:web
       - run: go build -o forge-dashboard ./cmd/forge-dashboard
