@@ -195,4 +195,6 @@ func TestRerunFailedChecks_PullRequestLookupFails_ReturnsTheError(t *testing.T) 
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	require.True(t, ok, "want a ClientError, got %v", err)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Equal(t, "The forge couldn't find that run, job or pull request. It may not support rerunning checks from here, or the token can't see this repository.", got.Message)
 }

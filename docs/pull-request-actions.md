@@ -828,16 +828,27 @@ half a minute, the button is drawn and the forge decides. A version below 7 is
 left to the forge too, because a Gitea numbers itself that way. Where the forge
 decides, a 404 can mean the route doesn't exist there or that the run is gone
 or the token can't see the repository, so the panel names neither a forge nor
-a version: "The forge couldn't find that run or job. It may not support
-rerunning checks from here, or the token can't see this repository." A block
-that has gone stale is lifted if the read fails, not kept.
+a version: "The forge couldn't find that run, job or pull request. It may not
+support rerunning checks from here, or the token can't see this repository." On
+a default branch, where no pull request is looked up, the sentence reads "run or
+job". A block that has gone stale is lifted if the read fails, not kept.
 
 Forgejo restarts one job per request, so a refusal can come after earlier jobs
 already went. The panel then says which: for example "Restarted build. Did not
 restart test, lint and the failed jobs of 1 other run." Rerunning again starts
 only what is still failed. When the jobs can't be read again after a restart,
 the panel can't say which others went, so it says they may have restarted with
-the one that did. A refusal of the first job says nothing of the kind, because
+the one that did. When a request gets no answer at all, the forge may have
+queued that job and the others that need it. That covers a timeout, a reset, a
+handshake that timed out, a cancelled wait, a gateway error (502, 503 or 504)
+and a success whose body couldn't be read: anything else with no clear answer
+counts as possibly restarted. The panel then says that job may have restarted,
+and so may the other failed jobs of its run, instead of listing them as not
+restarted. This holds for the first job too. Only a request that provably never
+reached the forge (a refused connection or proxy, a name that doesn't resolve,
+a rejected certificate) did nothing and is listed as not restarted. The panel
+leaves out "Try again in a moment" beside such a note, since jobs may already
+be running. A refusal of the first job says nothing of the kind, because
 nothing restarted.
 
 `rerun_checks` still appears in `allowedActions` for a blocked

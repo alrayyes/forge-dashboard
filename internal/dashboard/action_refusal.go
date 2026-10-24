@@ -165,14 +165,28 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	r := classifyActionRefusal(action, actionErr, state)
 	if action == PullRequestActionRerunChecks || action == PullRequestActionRerunBranchChecks {
 		if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Partial != "" {
-			if !strings.HasSuffix(r.Message, ".") && !strings.HasSuffix(r.Message, "?") && !strings.HasSuffix(r.Message, "!") {
-				r.Message += "."
+			if r.Message == unreachableMessage {
+				// "Try again" would read oddly beside jobs that may be running.
+				r.Message = noAnswerMessage
 			}
-			r.Message += " " + clientErr.Partial
+			r.Message = endSentence(r.Message) + " " + clientErr.Partial
 		}
 	}
 
 	return r
+}
+
+// endSentence closes msg with a full stop so another sentence can follow. A
+// message already ending in one, past any closing quotes or brackets, is kept,
+// and a trailing colon, semicolon or comma gives way to the stop.
+func endSentence(msg string) string {
+	msg = strings.TrimRight(msg, " \t\r\n")
+	trimmed := strings.TrimRight(msg, "\"')]}\u201d\u2019")
+	if strings.HasSuffix(trimmed, ".") || strings.HasSuffix(trimmed, "?") || strings.HasSuffix(trimmed, "!") {
+		return msg
+	}
+
+	return strings.TrimRight(msg, ":;, ") + "."
 }
 
 func classifyActionRefusal(action PullRequestAction, actionErr error, state *PullRequestState) ActionRefusal {
@@ -220,7 +234,7 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 			return r
 		}
 	case PullRequestActionRerunChecks, PullRequestActionRerunBranchChecks:
-		if r, ok := rerunNotFound(actionErr, forgeText); ok {
+		if r, ok := rerunNotFound(action, actionErr, forgeText); ok {
 			return r
 		}
 	case PullRequestActionClose, PullRequestActionCancelAutoMerge, PullRequestActionDependabot, PullRequestActionCancelRun, PullRequestActionCancelRenovateRebase:
@@ -234,14 +248,19 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 // action that meets it. The sentence names no forge or version: the 404 can
 // come from a forge with no rerun route (a Gitea, an old Forgejo), or from a
 // run that is gone or a repository the token can't see, on any forge. A
-// sentence the forge did write is kept.
-func rerunNotFound(actionErr error, forgeText string) (ActionRefusal, bool) {
+// sentence the forge did write is kept. A rerun of a default branch looks up no
+// pull request, so its sentence names none.
+func rerunNotFound(action PullRequestAction, actionErr error, forgeText string) (ActionRefusal, bool) {
 	clientErr, ok := errors.AsType[*ClientError](actionErr)
 	if !ok || clientErr.Kind != ForgeErrorNotFound {
 		return ActionRefusal{}, false
 	}
 	if isPlainSentence(forgeText) && !strings.Contains(strings.ToLower(forgeText), "page not found") {
 		return ActionRefusal{}, false
+	}
+
+	if action == PullRequestActionRerunBranchChecks {
+		return ActionRefusal{Code: ActionUnknown, Message: branchNotFoundMessage}, true
 	}
 
 	return ActionRefusal{Code: ActionUnknown, Message: notFoundMessage}, true
@@ -268,11 +287,14 @@ func classifyReopenRefusal(actionErr error) (ActionRefusal, bool) {
 
 const (
 	notReopenableMessage = "The forge won't reopen this pull request. Usually its branch was deleted or rewritten after it was closed: restore the branch on the forge, then try again."
-	notFoundMessage      = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
-	noReasonMessage      = "The forge refused this action and gave no reason."
-	unreachableMessage   = "The forge didn't answer. Try again in a moment."
-	forgeFailedMessage   = "The forge had a server error. Try again in a moment."
-	maxPlainMessageSize  = 200
+	notFoundMessage      = "The forge couldn't find that run, job or pull request. It may not support rerunning checks from here, or the token can't see this repository."
+	// A default branch's rerun looks up no pull request, so it names none.
+	branchNotFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
+	noReasonMessage       = "The forge refused this action and gave no reason."
+	noAnswerMessage       = "The forge didn't answer."
+	unreachableMessage    = "The forge didn't answer. Try again in a moment."
+	forgeFailedMessage    = "The forge had a server error. Try again in a moment."
+	maxPlainMessageSize   = 200
 )
 
 // unknownRefusal is the answer when no code fits. Its message is shown to a
