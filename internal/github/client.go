@@ -1726,7 +1726,8 @@ type graphqlPullRequest struct {
 	HeadRefOid  string `json:"headRefOid"`
 	BaseRefName string `json:"baseRefName"`
 	HeadRefName string `json:"headRefName"`
-	// Body is only read for Renovate's rebase box (#1349), never sent on.
+	// Body feeds Renovate's rebase box (#1349) and, for every pull request, the
+	// tickets it mentions (MentionsIssues). It is never sent on as it is.
 	Body              string                   `json:"body"`
 	IsCrossRepository bool                     `json:"isCrossRepository"`
 	AutoMergeRequest  *graphqlAutoMergeRequest `json:"autoMergeRequest"`

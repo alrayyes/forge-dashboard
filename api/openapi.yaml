@@ -5524,9 +5524,10 @@ components:
             page on the forge, and on GitHub also `GH-NUMBER`. It has to stand
             alone: `abc#1`, `&#1` and `#1abc` are not mentions, while emphasis
             and table markup around it (`**#1**`, `_#1_`, `|#1|`) is fine. Code,
-            HTML comments and the text of a markdown link count for nothing,
-            and a link counts only by its target, when that is a page on the
-            forge. A reference in a quotation still counts, and the pull
+            HTML comments and the text of a link, Markdown or HTML anchor,
+            count for nothing, and a link counts only by its target, when that
+            is a page on the forge. Only the first 64 KiB of the description is
+            read, and the first 100 references in it. A reference in a quotation still counts, and the pull
             request's own number does not. What the pull request actually
             closes is left out, even when the text also mentions it, and the
             cap applies after that. Which references close depends on the

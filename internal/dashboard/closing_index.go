@@ -30,11 +30,11 @@ func PullRequestsMentioning(prs []PullRequest) ClosingIndex {
 func (pr PullRequest) MentionedOnly() []IssueRef {
 	closed := map[string]struct{}{}
 	for _, ref := range pr.ClosesIssues {
-		closed[closingKey(pr.Forge, ref.Repo, ref.Number)] = struct{}{}
+		closed[IssueKey(pr.Forge, ref.Repo, ref.Number)] = struct{}{}
 	}
 	out := []IssueRef{}
 	for _, ref := range pr.MentionsIssues {
-		if _, isClosed := closed[closingKey(pr.Forge, ref.Repo, ref.Number)]; isClosed {
+		if _, isClosed := closed[IssueKey(pr.Forge, ref.Repo, ref.Number)]; isClosed {
 			continue
 		}
 		if out = append(out, ref); len(out) == maxClosingRefs {
@@ -58,7 +58,7 @@ func indexByIssue(prs []PullRequest, refsOf func(PullRequest) []IssueRef) Closin
 		// references to one issue, so a pull request is added once per issue.
 		seen := map[string]struct{}{}
 		for _, ref := range refsOf(pr) {
-			key := closingKey(pr.Forge, ref.Repo, ref.Number)
+			key := IssueKey(pr.Forge, ref.Repo, ref.Number)
 			if _, dup := seen[key]; dup {
 				continue
 			}
@@ -84,7 +84,7 @@ func indexByIssue(prs []PullRequest, refsOf func(PullRequest) []IssueRef) Closin
 // forge, and a repo's name is compared without regard to case, since Forgejo
 // writes a reference lowercased.
 func (c ClosingIndex) For(issue Issue) []PullRequest {
-	found := c[closingKey(issue.Forge, issue.Repo, issue.Number)]
+	found := c[IssueKey(issue.Forge, issue.Repo, issue.Number)]
 	if found == nil {
 		return []PullRequest{}
 	}
@@ -92,6 +92,8 @@ func (c ClosingIndex) For(issue Issue) []PullRequest {
 	return found
 }
 
-func closingKey(forge Forge, repo string, number int) string {
+// IssueKey is the key one issue goes by across the closing and mention lists:
+// its forge, its repo without regard to case, and its number.
+func IssueKey(forge Forge, repo string, number int) string {
 	return string(forge) + "\x00" + strings.ToLower(repo) + "\x00" + strconv.Itoa(number)
 }

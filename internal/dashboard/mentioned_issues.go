@@ -14,7 +14,18 @@ import (
 // maxMentionScan bounds how many references one description is read for. The
 // lists show maxClosingRefs of them once the closed ones are off
 // (PullRequest.MentionedOnly), so the scan leaves room for those.
+//
+// It is a bound on work and memory, not a promise: 100 early references (a
+// long changelog) leave a later one unread even when the early ones turn out
+// to be closed. The parser can't tell, since what closes depends on the branch
+// and on the forge's own list, so a description that long is cut here.
 const maxMentionScan = 100
+
+// maxMentionBody is how much of a description is read, in bytes. Scanning
+// costs time in step with the text (about a second per megabyte), and a
+// description past this is a pasted log or changelog, not the author's own
+// mentions. The title is always read.
+const maxMentionBody = 64 << 10
 
 // mentionRefPattern finds #N and owner/repo#N the way both forges auto-link
 // them: at the start of the text or after whitespace, an opening punctuation
@@ -23,11 +34,27 @@ const maxMentionScan = 100
 var mentionRefPattern = regexp.MustCompile(
 	`(?:^|[\s(\[{,;:>"'*_~|])(?:([0-9A-Za-z._-]+/[0-9A-Za-z._-]+))?#([0-9]+)`)
 
-// markdownLinkPattern finds [text](target). The text of a link is not a
-// reference ("[#1234](https://redirect.github.com/org/lib/issues/1234)" names
-// an issue of org/lib, not of the pull request's repo), and a target counts
-// only as a page on the forge, read before this runs.
-var markdownLinkPattern = regexp.MustCompile(`\[[^\]]*\]\([^)]*\)`)
+// markdownLinkPattern finds [text](target) on one line, with one level of
+// brackets inside the text. The text of a link is not a reference
+// ("[#1234](https://redirect.github.com/org/lib/issues/1234)" names an issue
+// of org/lib, not of the pull request's repo), and a target counts only as a
+// page on the forge, read before this runs.
+var markdownLinkPattern = regexp.MustCompile(`\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\([^)\n]*\)`)
+
+// referenceLinkPattern finds [text][label] and [text][], whose target sits in
+// a definition further down.
+var referenceLinkPattern = regexp.MustCompile(`\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\[[^\[\]\n]*\]`)
+
+// linkDefinitionPattern finds a "[label]: target" line.
+var linkDefinitionPattern = regexp.MustCompile(`(?m)^ {0,3}\[([^\[\]\n]+)\]:[^\n]*$`)
+
+// shortcutLinkPattern finds a lone [label], a link when a definition names it.
+var shortcutLinkPattern = regexp.MustCompile(`\[([^\[\]\n]+)\]`)
+
+// anchorPattern finds an HTML anchor with its text, the form Dependabot writes
+// its release notes in. Its href is read as a page link first; the text counts
+// for nothing, like a Markdown link's.
+var anchorPattern = regexp.MustCompile(`(?is)<a\s[^>]*>.*?</a>`)
 
 // mentionGHPattern finds GitHub's GH-N shorthand for a number in the same repo.
 var mentionGHPattern = regexp.MustCompile(`(?i)(?:^|[\s(\[{,;:>"'*_~|])GH-([0-9]+)`)
@@ -42,14 +69,15 @@ var mentionGHPattern = regexp.MustCompile(`(?i)(?:^|[\s(\[{,;:>"'*_~|])GH-([0-9]
 // off. The pull request itself (number in repo) is not one. Code and HTML
 // comments count for nothing, as for closing references; a quoted line still
 // counts, since both forges link a reference inside a quote. The text of a
-// markdown link counts for nothing, and so does a link to another host.
+// link, Markdown or HTML, counts for nothing, and so does a link to another
+// host. Only the first 64 KiB of the body is read.
 // Never nil.
 func MentionedIssueRefs(forge Forge, title, body, repo string, number int, baseURL string) []IssueRef {
 	refs := []IssueRef{}
 	seen := map[string]struct{}{}
 	base := strings.TrimRight(baseURL, "/")
 
-	text := uncountedText.ReplaceAllString(title+"\n"+body, " ")
+	text := uncountedText.ReplaceAllString(title+"\n"+clip(body, maxMentionBody), " ")
 
 	for _, f := range mentionCandidates(forge, text, base) {
 		n, err := strconv.Atoi(f.number)
@@ -125,7 +153,10 @@ func mentionCandidates(forge Forge, text, base string) []candidate {
 		}
 		text = blank(text, page)
 	}
+	text = blank(text, anchorPattern)
 	text = blank(text, markdownLinkPattern)
+	text = blank(text, referenceLinkPattern)
+	text = blankDefinedShortcuts(text)
 	for _, m := range mentionRefPattern.FindAllStringSubmatchIndex(text, -1) {
 		if !refEnds(text, m[5]) {
 			continue
@@ -152,4 +183,37 @@ func mentionCandidates(forge Forge, text, base string) []candidate {
 // length, so what is left keeps its places.
 func blank(text string, pattern *regexp.Regexp) string {
 	return pattern.ReplaceAllStringFunc(text, func(s string) string { return strings.Repeat(" ", len(s)) })
+}
+
+// clip cuts s to at most n bytes without splitting a character.
+func clip(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+
+	return s[:n]
+}
+
+// blankDefinedShortcuts blanks each "[label]: target" line and each lone
+// [label] that one of them defines, since Markdown reads both as a link.
+func blankDefinedShortcuts(text string) string {
+	defined := map[string]struct{}{}
+	for _, m := range linkDefinitionPattern.FindAllStringSubmatch(text, -1) {
+		defined[strings.ToLower(m[1])] = struct{}{}
+	}
+	if len(defined) == 0 {
+		return text
+	}
+	text = blank(text, linkDefinitionPattern)
+
+	return shortcutLinkPattern.ReplaceAllStringFunc(text, func(s string) string {
+		if _, ok := defined[strings.ToLower(s[1:len(s)-1])]; ok {
+			return strings.Repeat(" ", len(s))
+		}
+
+		return s
+	})
 }

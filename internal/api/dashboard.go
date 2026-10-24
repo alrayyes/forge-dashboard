@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -264,11 +263,11 @@ func mentionedIssues(pr dashboard.PullRequest) []mentionedIssue {
 func resolveMentions(prs []pullRequestView, issues []issueView) {
 	held := map[string]struct{}{}
 	for _, issue := range issues {
-		held[string(issue.Forge)+"\x00"+strings.ToLower(issue.Repo)+"#"+strconv.Itoa(issue.Number)] = struct{}{}
+		held[dashboard.IssueKey(issue.Forge, issue.Repo, issue.Number)] = struct{}{}
 	}
 	for i := range prs {
 		for j, m := range prs[i].MentionsIssues {
-			_, prs[i].MentionsIssues[j].Tracked = held[string(prs[i].Forge)+"\x00"+strings.ToLower(m.Repo)+"#"+strconv.Itoa(m.Number)]
+			_, prs[i].MentionsIssues[j].Tracked = held[dashboard.IssueKey(prs[i].Forge, m.Repo, m.Number)]
 		}
 	}
 }
