@@ -36,7 +36,7 @@ request arrived over HTTPS) is what actually gates `/` and
 - **A security key may hold a passkey that sign-in can't use.** Registered
   before sign-in dropped the username, a key such as a YubiKey stored a
   credential that isn't discoverable, which the browser can't offer without
-  being told its ID. Sign in on a device that has a saved passkey and add the
+  being told its ID. Sign in on a device with a saved passkey, then add the
   key again from Settings: it is now registered as a discoverable passkey.
   If the old key was the only passkey, no device offers one, and the way back
   in is `forge-dashboard reset-passkeys` below.
