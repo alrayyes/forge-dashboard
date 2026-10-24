@@ -250,6 +250,27 @@ func TestAggregator_FullRefreshKeepsTheBoxOverrideOfRowsItCarriedOver(t *testing
 		assert.Equal(t, 1, agg.BoxOverrideCount(), "no fetch read #7's description")
 	})
 
+	t.Run("a forge held for background refreshes", func(t *testing.T) {
+		t.Parallel()
+		src := newBotSource(boxPR(false))
+		agg, clock := botAggregator(t, src)
+		// Under the reserve but not spent: only the background hold keeps it back.
+		src.mu.Lock()
+		src.spent = &dashboard.RateLimit{
+			Limit: 5000, Remaining: 100, ResetsAt: clock.now().Add(time.Hour),
+		}
+		src.mu.Unlock()
+		agg.Refresh(t.Context())
+		agg.SetRenovateRebaseBox(dashboard.ForgeGitHub, "o/r", 7, true)
+		require.Equal(t, 1, agg.BoxOverrideCount())
+
+		src.set()
+		agg.Refresh(dashboard.BackgroundForTest(t.Context()))
+
+		require.Len(t, agg.Get().PullRequests, 1, "the held forge's rows were carried over")
+		assert.Equal(t, 1, agg.BoxOverrideCount(), "no fetch read #7's description")
+	})
+
 	t.Run("a forge that is unreachable", func(t *testing.T) {
 		t.Parallel()
 		src := newBotSource(boxPR(false))

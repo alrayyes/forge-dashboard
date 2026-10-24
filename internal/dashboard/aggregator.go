@@ -667,12 +667,20 @@ func sortByRecency(prs []PullRequest, issues []Issue) {
 	slices.SortFunc(issues, func(a, b Issue) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
 }
 
+// sourceResult is what a source answered, and whether the answer came from
+// asking it. The answer of a source that was not asked is the snapshot's rows
+// carried over, which no fetch read.
+type sourceResult struct {
+	Result
+
+	asked bool
+}
+
 // fetchSources asks every source for its data at once and answers in the
-// order of a.sources, and says which of them it asked: the others were
-// answered from the snapshot.
-func (a *Aggregator) fetchSources(ctx context.Context) ([]Result, []bool) {
-	results := make([]Result, len(a.sources))
-	asked := make([]bool, len(a.sources))
+// order of a.sources. Each answer says whether its source was asked: the
+// others were answered from the snapshot.
+func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
+	results := make([]sourceResult, len(a.sources))
 
 	a.mu.RLock()
 	earlier := a.snap
@@ -685,7 +693,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) ([]Result, []bool) {
 			// No budget left until the reset: a call would only fail, and
 			// the attempt itself counts against the forge (#755). Keep the
 			// last rows and the exhausted budget, so the banner holds.
-			results[i] = carryOver(Result{Health: health}, earlier, src.Forge())
+			results[i].Result = carryOver(Result{Health: health}, earlier, src.Forge())
 
 			continue
 		}
@@ -693,23 +701,23 @@ func (a *Aggregator) fetchSources(ctx context.Context) ([]Result, []bool) {
 			if held := a.budgetHold(earlier, src.Forge(), apistats.KindFull); held {
 				// At the reserve: what is left is for the person clicking.
 				health, _ := healthOf(earlier, src.Forge())
-				results[i] = carryOver(Result{Health: health}, earlier, src.Forge())
+				results[i].Result = carryOver(Result{Health: health}, earlier, src.Forge())
 
 				continue
 			}
 		}
 		wg.Add(1)
-		fetched, asked[i] = true, true
+		fetched = true
 		go func(i int, src Source) {
 			defer wg.Done()
-			results[i] = src.Fetch(ctx)
+			results[i] = sourceResult{Result: src.Fetch(ctx), asked: true}
 		}(i, src)
 	}
 	wg.Wait()
 	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
-	return results, asked
+	return results
 }
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is
@@ -731,7 +739,7 @@ func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bo
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
 	seq := a.fetchSeq.Add(1)
-	results, asked := a.fetchSources(a.refreshContext(ctx))
+	results := a.fetchSources(a.refreshContext(ctx))
 
 	a.mu.RLock()
 	earlier := a.snap
@@ -740,8 +748,9 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 
 	snap := newEmptySnapshot()
 	snap.GeneratedAt = time.Now().UTC()
-	read := rowsRead(results, asked)
-	for i, r := range results {
+	read := rowsRead(results)
+	for i, sr := range results {
+		r := sr.Result
 		forge := a.sources[i].Forge()
 		if r.Health.Reachable {
 			goodAt[forge] = snap.GeneratedAt
@@ -801,10 +810,10 @@ func reachableForges(forges []ForgeHealth) map[Forge]bool {
 // That is what the forge was asked for: a source held back on its budget, and
 // the keep and carry-over steps of a refresh, add rows from the snapshot, which
 // no fetch read.
-func rowsRead(results []Result, asked []bool) readRows {
+func rowsRead(results []sourceResult) readRows {
 	read := make(map[string]bool)
-	for i, r := range results {
-		if !asked[i] {
+	for _, r := range results {
+		if !r.asked {
 			continue
 		}
 		for _, pr := range r.PullRequests {
