@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.29.1](https://github.com/alrayyes/forge-dashboard/compare/v2.29.0...v2.29.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **api:** drop Update branch as primary for a behind pull request held for approval ([#2711](https://github.com/alrayyes/forge-dashboard/issues/2711)) ([930c557](https://github.com/alrayyes/forge-dashboard/commit/930c557817e8253ecfb27f68b5d193f7518dc6c8))
+
 ## [2.29.0](https://github.com/alrayyes/forge-dashboard/compare/v2.28.0...v2.29.0) (2026-10-23)
 
 
