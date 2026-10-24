@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.32.0](https://github.com/alrayyes/forge-dashboard/compare/v2.31.5...v2.32.0) (2026-10-24)
+
+
+### Features
+
+* **auth:** register and sign in without a username ([#2767](https://github.com/alrayyes/forge-dashboard/issues/2767)) ([2cef777](https://github.com/alrayyes/forge-dashboard/commit/2cef777031f3dcfba0a12921831d755e33886837))
+
 ## [2.31.5](https://github.com/alrayyes/forge-dashboard/compare/v2.31.4...v2.31.5) (2026-10-24)
 
 
