@@ -590,10 +590,22 @@
         {#if isBlocking(check)}
           <span class="pipeline-check-flag">Blocking</span>
         {/if}
-        <!-- A skipped job never ran, and a job with no page has nowhere to go:
-             no link, never an empty href, which would resolve to this page. A
-             held workflow's own page is where the forge's approve button is. -->
-        {#if check.state !== "skipped" && check.state !== "awaiting_approval" && check.jobId && check.url && target?.checksUrl}
+        {#if check.state === "queued" && check.url}
+          <!-- A queued job has no log yet, so there is nothing to view: only
+               the forge's own page. -->
+          {@const forge = target ? forgeLabel(target) : "the forge"}
+          <a
+            class="pipeline-check-link"
+            href={check.url}
+            target="_blank"
+            rel="noopener"
+            aria-label="Open on {forge} (opens in a new tab): {check.name}"
+            >Open on {forge}</a
+          >
+        {:else if check.state !== "skipped" && check.state !== "awaiting_approval" && check.jobId && check.url && target?.checksUrl}
+          <!-- A skipped job never ran, and a job with no page has nowhere to go:
+               no link, never an empty href, which would resolve to this page. A
+               held workflow's own page is where the forge's approve button is. -->
           <CheckRunOutput
             name={check.name}
             jobId={check.jobId}
