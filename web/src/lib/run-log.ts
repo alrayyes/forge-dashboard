@@ -174,6 +174,27 @@ export function canCopyLog(
   return !!check.jobId && !!checksUrl && !!logUrl(checksUrl, check.jobId);
 }
 
+// What a check offers beside its name: nothing, the forge's own page, the
+// output panel, or a plain link. A queued job has no log yet, so only the
+// forge's page; a skipped job never ran; a job with no page has nowhere to go.
+// A held workflow's own page is where the forge's approve button is. Only a
+// job with an id, a page and a checks address can open the output panel.
+export type CheckControl = 'none' | 'open-on-forge' | 'output' | 'link';
+
+export function checkControl(
+  check: { state: string; url?: string; jobId?: number },
+  checksUrl: string | undefined,
+): CheckControl {
+  if (!check.url) return 'none';
+  if (check.state === 'queued') return 'open-on-forge';
+  if (check.state === 'skipped') return 'none';
+  if (check.state !== 'awaiting_approval' && check.jobId && checksUrl) {
+    return 'output';
+  }
+
+  return 'link';
+}
+
 // What a failed check's Copy button puts on the clipboard: the whole log when
 // the log endpoint answers, else the excerpt the list already carries. `kind`
 // says which landed ("cut" is a whole log the server trimmed to its last
