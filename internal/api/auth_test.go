@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -514,10 +515,10 @@ func beginAndAttest(tb testing.TB, srv *httptest.Server) string {
 
 // Only the first passkey registration on an empty instance wins. Two visitors
 // who both began before either finished leave one owner with one passkey: the
-// second to finish gets no session, and no account is left behind.
-func TestRegisterFinish_TwoCeremoniesFinishingTogether_AtMostOneWins(t *testing.T) {
+// second to finish is told registration is closed, and no account is left behind.
+func TestRegisterFinish_TwoCeremoniesFinishingTogether_ExactlyOneWins(t *testing.T) {
 	t.Parallel()
-	srv := newTestServer(t)
+	srv, _, store, _, _, _ := newTestServerWithDatabase(t, noSources, false, 0)
 
 	attestations := []string{beginAndAttest(t, srv), beginAndAttest(t, srv)}
 
@@ -538,18 +539,14 @@ func TestRegisterFinish_TwoCeremoniesFinishingTogether_AtMostOneWins(t *testing.
 	close(start)
 	wg.Wait()
 
-	wins := 0
-	for _, status := range statuses {
-		if status == http.StatusOK {
-			wins++
-		}
-	}
-	// Both begins share one ceremony, so the stale attestation can also spoil the
-	// winner by clearing it first: what must never happen is two registrations.
-	assert.LessOrEqual(t, wins, 1, "statuses: %v", statuses)
+	assert.ElementsMatch(t, []int{http.StatusOK, http.StatusForbidden}, statuses)
+	owner, err := store.Owner(t.Context())
+	require.NoError(t, err)
+	assert.Len(t, owner.Credentials, 1)
 }
 
-func TestRegisterFinish_AnotherCeremonyAlreadyFinished_IsRefused(t *testing.T) {
+// A ceremony is single-use: its attestation replayed finds nothing to finish.
+func TestRegisterFinish_ReplayedAttestation_IsRefused(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
@@ -563,5 +560,106 @@ func TestRegisterFinish_AnotherCeremonyAlreadyFinished_IsRefused(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.GreaterOrEqual(t, resp.StatusCode, http.StatusBadRequest)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// Visitors who hit register/begin together, on a database with no user yet,
+// all get a ceremony. Before, the loser of the race to create the owner got a
+// server error.
+func TestRegisterBegin_ManyAtOnceOnAFreshInstance_AllSucceed(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+
+	statuses := make([]int, 8)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range statuses {
+		wg.Go(func() {
+			<-start
+			resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
+			if err != nil {
+				return
+			}
+			defer func() { _ = resp.Body.Close() }()
+			statuses[i] = resp.StatusCode
+		})
+	}
+	close(start)
+	wg.Wait()
+
+	assert.Equal(t, slices.Repeat([]int{http.StatusOK}, len(statuses)), statuses)
+}
+
+// beginLogin starts a login ceremony and returns the assertion options.
+func beginLogin(tb testing.TB, srv *httptest.Server) *virtualwebauthn.AssertionOptions {
+	tb.Helper()
+
+	resp, err := testClient(tb).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+	require.NoError(tb, err)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(tb, http.StatusOK, resp.StatusCode)
+
+	options, err := virtualwebauthn.ParseAssertionOptions(readAll(tb, resp))
+	require.NoError(tb, err)
+
+	return options
+}
+
+func finishLogin(tb testing.TB, srv *httptest.Server, body string) *http.Response {
+	tb.Helper()
+
+	resp, err := testClient(tb).Post(srv.URL+"/api/auth/login/finish", "application/json", strings.NewReader(body))
+	require.NoError(tb, err)
+	tb.Cleanup(func() { _ = resp.Body.Close() })
+
+	return resp
+}
+
+// Anyone can call login/begin, so one visitor's begin must not undo another's:
+// the owner on a laptop and a phone both finish, in either order.
+func TestLoginFinish_TwoBeginsInterleaved_BothFinish(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	_, cred, authenticator := registerViaRealCeremony(t, srv)
+	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
+
+	first := beginLogin(t, srv)
+	second := beginLogin(t, srv)
+
+	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *first)).StatusCode)
+	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *second)).StatusCode)
+}
+
+// A stranger who begins a login, or finishes one with junk, leaves the owner's
+// pending sign-in alone.
+func TestLoginFinish_StrangerBeginsAndFinishes_OwnersCeremonySurvives(t *testing.T) {
+	t.Parallel()
+	srv := newTestServer(t)
+	_, cred, authenticator := registerViaRealCeremony(t, srv)
+	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
+
+	owners := beginLogin(t, srv)
+	stranger := beginLogin(t, srv)
+	junk := virtualwebauthn.CreateAssertionResponse(rp, authenticator, virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2), *stranger)
+	assert.Equal(t, http.StatusBadRequest, finishLogin(t, srv, junk).StatusCode)
+	assert.Equal(t, http.StatusBadRequest, finishLogin(t, srv, `{"not":"a credential"}`).StatusCode)
+
+	assert.Equal(t, http.StatusOK, finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *owners)).StatusCode)
+}
+
+// The counter an authenticator reports is stored at login, so a cloned
+// authenticator that falls behind it is caught on a later one.
+func TestLoginFinish_StoresTheAuthenticatorsSignCount(t *testing.T) {
+	t.Parallel()
+	srv, _, store, _, _, _ := newTestServerWithDatabase(t, noSources, false, 0)
+	_, cred, authenticator := registerViaRealCeremony(t, srv)
+	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
+	cred.Counter = 7
+
+	resp := finishLogin(t, srv, virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *beginLogin(t, srv)))
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	owner, err := store.Owner(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, uint32(7), owner.Credentials[0].Authenticator.SignCount)
 }

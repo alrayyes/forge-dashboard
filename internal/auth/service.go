@@ -32,15 +32,10 @@ const (
 )
 
 // A first registration names its account itself: the instance has one user, so
-// the visitor is asked for nothing. The username is also the key the pending
-// registration ceremony is stored under.
+// the visitor is asked for nothing.
 const (
 	newOwnerUsername    = "owner"
 	newOwnerDisplayName = "Owner"
-
-	// loginCeremonyKey keys the pending login: whatever username the owner's
-	// row holds, there is only ever one.
-	loginCeremonyKey = "owner-login"
 )
 
 // Service drives WebAuthn registration and login ceremonies against the
@@ -82,7 +77,7 @@ func (s *Service) BeginRegistration(ctx context.Context) (*protocol.CredentialCr
 	if err != nil {
 		return nil, fmt.Errorf("auth: begin registration: %w", err)
 	}
-	if err := s.store.SaveCeremony(ctx, newOwnerUsername, kindRegister, *session, ceremonyTTL); err != nil {
+	if err := s.store.SaveCeremony(ctx, session.Challenge, kindRegister, *session, ceremonyTTL); err != nil {
 		return nil, err
 	}
 
@@ -93,11 +88,19 @@ func (s *Service) BeginRegistration(ctx context.Context) (*protocol.CredentialCr
 // began, attaching the new passkey to the account BeginRegistration
 // already created.
 func (s *Service) FinishRegistration(ctx context.Context, r *http.Request) (*User, error) {
-	session, err := s.store.LoadCeremony(ctx, newOwnerUsername, kindRegister)
+	parsed, err := parseCreation(r)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = s.store.DeleteCeremony(ctx, newOwnerUsername, kindRegister) }()
+	// The ceremony is found by the challenge the authenticator signed. Only the
+	// browser that began it holds that challenge, so a stranger's request
+	// finds nothing and disturbs nothing.
+	key := parsed.Response.CollectedClientData.Challenge
+	session, err := s.store.LoadCeremony(ctx, key, kindRegister)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = s.store.DeleteCeremony(ctx, key, kindRegister) }()
 
 	// The ceremony names the row: the owner's row may hold another username
 	// until this registration wins.
@@ -106,19 +109,18 @@ func (s *Service) FinishRegistration(ctx context.Context, r *http.Request) (*Use
 		return nil, err
 	}
 
-	cred, err := s.webauthn.FinishRegistration(u, session, r)
+	cred, err := s.webauthn.CreateCredential(u, session, parsed)
 	if err != nil {
 		return nil, fmt.Errorf("auth: finish registration: %w", err)
 	}
 	// The first passkey on an instance is first-wins: two ceremonies that
 	// finish together can't both register an owner.
-	if err := s.store.AddFirstCredential(ctx, u.ID, newOwnerUsername, *cred); err != nil {
+	if err := s.store.AddFirstCredential(ctx, u.ID, *cred); err != nil {
 		return nil, err
 	}
 	if err := s.store.SetCredentialLabel(ctx, cred.ID, initialCredentialLabel); err != nil {
 		return nil, err
 	}
-	u.Username = newOwnerUsername
 	u.Credentials = append(u.Credentials, *cred)
 
 	return u, nil
@@ -189,7 +191,7 @@ func (s *Service) BeginLogin(ctx context.Context) (*protocol.CredentialAssertion
 	if err != nil {
 		return nil, fmt.Errorf("auth: begin login: %w", err)
 	}
-	if err := s.store.SaveCeremony(ctx, loginCeremonyKey, kindLogin, *session, ceremonyTTL); err != nil {
+	if err := s.store.SaveCeremony(ctx, session.Challenge, kindLogin, *session, ceremonyTTL); err != nil {
 		return nil, err
 	}
 
@@ -200,18 +202,23 @@ func (s *Service) BeginLogin(ctx context.Context) (*protocol.CredentialAssertion
 // authenticator's bumped signature counter so a cloned authenticator is caught
 // on a later login.
 func (s *Service) FinishLogin(ctx context.Context, r *http.Request) (*User, error) {
-	session, err := s.store.LoadCeremony(ctx, loginCeremonyKey, kindLogin)
+	parsed, err := parseAssertion(r)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = s.store.DeleteCeremony(ctx, loginCeremonyKey, kindLogin) }()
+	key := parsed.Response.CollectedClientData.Challenge
+	session, err := s.store.LoadCeremony(ctx, key, kindLogin)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = s.store.DeleteCeremony(ctx, key, kindLogin) }()
 
 	u, err := s.store.Owner(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	cred, err := s.webauthn.FinishLogin(u, session, r)
+	cred, err := s.webauthn.ValidateLogin(u, session, parsed)
 	if err != nil {
 		return nil, fmt.Errorf("auth: finish login: %w", err)
 	}
@@ -220,6 +227,24 @@ func (s *Service) FinishLogin(ctx context.Context, r *http.Request) (*User, erro
 	}
 
 	return u, nil
+}
+
+func parseCreation(r *http.Request) (*protocol.ParsedCredentialCreationData, error) {
+	parsed, err := protocol.ParseCredentialCreationResponseBody(r.Body)
+	if err != nil {
+		return nil, fmt.Errorf("auth: parse registration response: %w", err)
+	}
+
+	return parsed, nil
+}
+
+func parseAssertion(r *http.Request) (*protocol.ParsedCredentialAssertionData, error) {
+	parsed, err := protocol.ParseCredentialRequestResponseBody(r.Body)
+	if err != nil {
+		return nil, fmt.Errorf("auth: parse login response: %w", err)
+	}
+
+	return parsed, nil
 }
 
 // CreateSession issues a session token for the owner, ready to set as a cookie.
