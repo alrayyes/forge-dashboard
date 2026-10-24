@@ -200,7 +200,7 @@ test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
     await expect(row.getByRole('menu')).toHaveCount(0);
   });
 
-  test('a queued Recreate leaves neither Dependabot command on the row or in the pop-up', async ({
+  test('a queued Recreate reads Recreate requested and the other command is not drawn', async ({
     page,
   }) => {
     await mockDashboard(page, makePR());
@@ -215,15 +215,12 @@ test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
     await expect(
       row.getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
     ).toHaveCount(0);
-    await expect(
-      row.getByRole('button', { name: 'Recreate requested' }),
-    ).toHaveCount(0);
     const footer = await openFooter(row);
     await expect(
-      footer.getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
-    ).toHaveCount(0);
+      footer.getByRole('button', { name: 'Recreate requested' }),
+    ).toHaveAttribute('aria-disabled', 'true');
     await expect(
-      footer.getByRole('button', { name: /(Rebase|Recreate) requested/ }),
+      footer.getByRole('button', { name: /Dependabot: (Rebase|Recreate)/ }),
     ).toHaveCount(0);
     await expect(footer).not.toContainText('is pending on this pull request');
   });

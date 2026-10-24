@@ -95,17 +95,19 @@ describe('dependabotButtonDecision', () => {
     ).toBe('locked');
   });
 
-  // Dependabot has no command to withdraw a request, so a pending one leaves
-  // neither button: the wait chip says what the pull request is waiting on.
-  for (const pending of ['rebase', 'recreate'] as const) {
+  // The command just sent keeps its pending button until the server lists the
+  // request; the other command is not drawn meanwhile.
+  for (const sent of ['rebase', 'recreate'] as const) {
     for (const phase of ['queued', 'rebasing']) {
-      test(`a ${phase} ${pending} draws neither command`, () => {
-        const states = { [dependabotActionKey(KEY, pending)]: { phase } };
-        for (const action of ['rebase', 'recreate'] as const) {
-          expect(dependabotButtonDecision(input({ action, states }))).toEqual({
-            kind: 'hidden',
-          });
-        }
+      test(`a ${phase} ${sent} keeps its pending button and hides the other`, () => {
+        const states = { [dependabotActionKey(KEY, sent)]: { phase } };
+        const other = sent === 'rebase' ? 'recreate' : 'rebase';
+        expect(
+          dependabotButtonDecision(input({ action: sent, states })),
+        ).toEqual({ kind: 'button', queued: true });
+        expect(
+          dependabotButtonDecision(input({ action: other, states })),
+        ).toEqual({ kind: 'hidden' });
       });
     }
   }

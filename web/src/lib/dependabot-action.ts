@@ -95,7 +95,11 @@ export function dependabotButtonDecision(
       printNote: false,
     };
 
-  if (dependabotCommandPending(i.prKey, i.states)) return { kind: 'hidden' };
+  // The command this page just sent keeps its pending button until the server
+  // lists the request; the other command is not drawn meanwhile.
+  const sent = entry.phase === 'queued' || entry.phase === 'rebasing';
+  if (!sent && dependabotCommandPending(i.prKey, i.states))
+    return { kind: 'hidden' };
 
   if (entry.phase === 'idle') {
     const pending = dependabotServerLock(i.serverEntry());
@@ -111,5 +115,5 @@ export function dependabotButtonDecision(
       return { kind: 'confirm' };
   }
 
-  return { kind: 'button', queued: false };
+  return { kind: 'button', queued: sent };
 }
