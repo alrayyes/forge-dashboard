@@ -243,3 +243,19 @@ func TestRerunChecksBlockedReason_ARateLimitedVersionProbeIsLoggedAsRateLimited(
 	}
 	assert.Equal(t, []string{string(dashboard.ForgeErrorRateLimited)}, outcomes)
 }
+
+// A POST that got no answer may still have been queued, so the job it was for
+// is not reported as one that did not restart.
+func TestRerunFailedChecks_APostWithNoAnswer_SaysTheJobMayHaveRestarted(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+	s.jobs = map[int][]map[string]any{42: {job(1, "failure"), job(2, "failure"), job(3, "failure")}}
+	s.status = http.StatusForbidden
+	s.okFirst = 1
+	s.drop = true
+
+	err := s.start(t).RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+	assert.Contains(t, got.Message, "Restarted job-1. job-2 may have restarted too. Did not restart job-3.")
+}

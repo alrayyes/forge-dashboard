@@ -162,13 +162,18 @@ type rerunProgress struct {
 
 // partial is the sentence for a refusal after some jobs went: which restarted
 // and which did not. notYet is the failed jobs of the run being worked on that
-// were not restarted, and laterRuns the failed runs not yet looked at. Empty
+// were not restarted, and laterRuns the failed runs not yet looked at. maybe
+// names the job whose request got no answer, which the forge may have queued.
+// Empty
 // when nothing restarted, since the refusal then says it all.
-func (p *rerunProgress) partial(notYet []string, laterRuns int) string {
+func (p *rerunProgress) partial(notYet []string, laterRuns int, maybe string) string {
 	if len(p.restarted) == 0 {
 		return ""
 	}
 	out := p.restartedSentence()
+	if maybe != "" {
+		out += " " + maybe + " may have restarted too."
+	}
 	if skipped := listWithRuns(notYet, laterRuns); skipped != "" {
 		out += " Did not restart " + skipped + "."
 	}
@@ -256,7 +261,7 @@ func (c *Client) rerunFailedJobs(ctx context.Context, owner, name string, ids []
 func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, runID int64, progress *rerunProgress, laterRuns int) error {
 	jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
 	if err != nil {
-		return withPartial(err, progress.partial(nil, laterRuns+1))
+		return withPartial(err, progress.partial(nil, laterRuns+1, ""))
 	}
 	failed := failedJobIDs(jobs)
 	for i, jobID := range failed {
@@ -275,7 +280,14 @@ func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, r
 		if _, resp, err := c.rawRequest(ctx, http.MethodPost, rerunPath, nil); err != nil {
 			err = c.forgejoError(ctx, http.MethodPost, rerunPath, resp, err)
 
-			return withPartial(err, progress.partial(jobNames(jobs, stillFailed(jobs, failed[i:])), laterRuns))
+			left, maybe := stillFailed(jobs, failed[i:]), ""
+			if resp == nil {
+				// No answer at all (a timeout after the request went out): the
+				// forge may have queued this job, so it is not "not restarted".
+				left, maybe = left[1:], strings.Join(jobNames(jobs, []int64{jobID}), "")
+			}
+
+			return withPartial(err, progress.partial(jobNames(jobs, left), laterRuns, maybe))
 		}
 		progress.restarted = append(progress.restarted, jobNames(jobs, []int64{jobID})...)
 	}

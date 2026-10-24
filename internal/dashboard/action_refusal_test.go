@@ -167,7 +167,7 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 func TestClassifyActionRefusalFor_RerunNotFound(t *testing.T) {
 	t.Parallel()
 
-	const notFoundMessage = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
+	const notFoundMessage = "The forge couldn't find that run, job or pull request. It may not support rerunning checks from here, or the token can't see this repository."
 	cases := []struct {
 		name   string
 		action dashboard.PullRequestAction
@@ -336,4 +336,27 @@ func TestClassifyActionRefusal_NoUpstreamStatus_IsNotAForgeServerError(t *testin
 	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionMerge, err, nil)
 
 	assert.NotEqual(t, dashboard.ActionForgeError, got.Code)
+}
+
+// The partial sentence is its own sentence, whatever the refusal ended in.
+func TestClassifyActionRefusalFor_PartialRerunReadsAsItsOwnSentence(t *testing.T) {
+	t.Parallel()
+
+	const partial = "Restarted build."
+	cases := []struct{ name, forge, want string }{
+		{"a quote", `No such job "build"`, `No such job "build". Restarted build.`},
+		{"a closing parenthesis", "The job is running (try later)", "The job is running (try later). Restarted build."},
+		{"a colon", "The job is running:", "The job is running. Restarted build."},
+		{"a full stop inside a quote", `The job said "no."`, `The job said "no." Restarted build.`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errors.New("forgejo: POST /x: " + tc.forge), Partial: partial}
+
+			got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
+
+			assert.Equal(t, tc.want, got.Message)
+		})
+	}
 }

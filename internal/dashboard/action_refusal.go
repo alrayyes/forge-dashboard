@@ -163,14 +163,23 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	r := classifyActionRefusal(action, actionErr, state)
 	if action == PullRequestActionRerunChecks || action == PullRequestActionRerunBranchChecks {
 		if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Partial != "" {
-			if !strings.HasSuffix(r.Message, ".") && !strings.HasSuffix(r.Message, "?") && !strings.HasSuffix(r.Message, "!") {
-				r.Message += "."
-			}
-			r.Message += " " + clientErr.Partial
+			r.Message = endSentence(r.Message) + " " + clientErr.Partial
 		}
 	}
 
 	return r
+}
+
+// endSentence closes msg with a full stop so another sentence can follow. A
+// message already ending in one, past any closing quotes or brackets, is kept,
+// and a trailing colon, semicolon or comma gives way to the stop.
+func endSentence(msg string) string {
+	trimmed := strings.TrimRight(msg, "\"')]}\u201d\u2019")
+	if strings.HasSuffix(trimmed, ".") || strings.HasSuffix(trimmed, "?") || strings.HasSuffix(trimmed, "!") {
+		return msg
+	}
+
+	return strings.TrimRight(msg, ":;, ") + "."
 }
 
 func classifyActionRefusal(action PullRequestAction, actionErr error, state *PullRequestState) ActionRefusal {
@@ -266,7 +275,7 @@ func classifyReopenRefusal(actionErr error) (ActionRefusal, bool) {
 
 const (
 	notReopenableMessage = "The forge won't reopen this pull request. Usually its branch was deleted or rewritten after it was closed: restore the branch on the forge, then try again."
-	notFoundMessage      = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
+	notFoundMessage      = "The forge couldn't find that run, job or pull request. It may not support rerunning checks from here, or the token can't see this repository."
 	noReasonMessage      = "The forge refused this action and gave no reason."
 	unreachableMessage   = "The forge didn't answer. Try again in a moment."
 	forgeFailedMessage   = "The forge had a server error. Try again in a moment."

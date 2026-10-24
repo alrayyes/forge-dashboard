@@ -18,6 +18,9 @@ type fakeJobs struct {
 	cascade map[int][]int
 	status  int
 	okFirst int
+	// drop makes a refused rerun hang up with no answer at all, as a timeout
+	// after the request went out would.
+	drop bool
 	// listFail maps a run id to the status its job list answers; listBody to
 	// a raw 200 body. listFailAfter makes every job listing past the nth fail.
 	listFail      map[int]int
@@ -67,6 +70,14 @@ func (f *fakeJobs) register(t *testing.T, mux *http.ServeMux) {
 			f.restart(id)
 		}
 		f.mu.Unlock()
+		if refused && f.drop {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err == nil {
+				_ = conn.Close()
+			}
+
+			return
+		}
 		if refused {
 			w.WriteHeader(f.status)
 			writeJSON(t, w, map[string]any{"message": "token does not have at least one of required scope(s)"})
