@@ -162,12 +162,7 @@ func mentionCandidates(forge Forge, text, base string, bodyAt int) []candidate {
 	// Definitions are found before the page links are blanked, since a
 	// target that is a page on the forge would otherwise be only spaces.
 	// Every blanking keeps the length of the text, so the places hold.
-	var definitions [][]int
-	for _, m := range linkDefinitionPattern.FindAllStringSubmatchIndex(text, -1) {
-		if m[0] >= bodyAt {
-			definitions = append(definitions, m)
-		}
-	}
+	definitions := definitionsFrom(text, bodyAt)
 	if base != "" {
 		page := pagePattern(base)
 		for _, m := range page.FindAllStringSubmatchIndex(text, -1) {
@@ -198,6 +193,18 @@ func mentionCandidates(forge Forge, text, base string, bodyAt int) []candidate {
 	slices.SortStableFunc(all, func(a, b candidate) int { return cmp.Compare(a.at, b.at) })
 
 	return all
+}
+
+// definitionsFrom finds the link definitions in text that start at or after at.
+func definitionsFrom(text string, at int) [][]int {
+	var found [][]int
+	for _, m := range linkDefinitionPattern.FindAllStringSubmatchIndex(text, -1) {
+		if m[0] >= at {
+			found = append(found, m)
+		}
+	}
+
+	return found
 }
 
 // blank replaces every match of pattern in text with spaces of the same
