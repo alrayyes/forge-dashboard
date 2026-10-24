@@ -64,6 +64,7 @@
   import {
     activeRuns,
     cancelLocksRepo,
+    cancelText,
     cancelRun,
     runStopped,
     runLabel,
@@ -663,7 +664,7 @@
         type="button"
         class="row-action"
         data-cancel-run={run.runId}
-        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+        onclick={() => startCancel(run)}>{cancelText(run)}</button
       >
     {:else if state?.phase === "cancelled"}
       <p class="pipeline-rerun-status" role="status">
@@ -675,14 +676,14 @@
       </p>
     {:else if cancelLock}
       <p class="pipeline-rerun-status">
-        Cancel run: {runLabel(run)} isn't available. {cancelLock}
+        {cancelText(run)} isn't available. {cancelLock}
       </p>
     {:else}
       <button
         type="button"
         class="row-action"
         data-cancel-run={run.runId}
-        onclick={() => startCancel(run)}>Cancel run: {runLabel(run)}</button
+        onclick={() => startCancel(run)}>{cancelText(run)}</button
       >
     {/if}
   </div>
