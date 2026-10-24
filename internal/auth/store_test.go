@@ -223,6 +223,26 @@ func TestStore_SaveCeremony_PastTheCap_DropsTheOldest(t *testing.T) {
 	assert.NoError(t, newest)
 }
 
+// An expired ceremony can never finish, so saving the next one clears it out
+// rather than leaving it to count against the cap.
+func TestStore_SaveCeremony_ExpiredOneIsDropped_WhenAnotherIsSaved(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "auth.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	store := auth.NewStore(db)
+	require.NoError(t, store.Init(t.Context()))
+	session := webauthn.SessionData{Challenge: "c"}
+
+	require.NoError(t, store.SaveCeremony(t.Context(), "stale", "login", session, -time.Minute))
+	require.NoError(t, store.SaveCeremony(t.Context(), "fresh", "login", session, time.Minute))
+
+	var rows int
+	require.NoError(t, db.QueryRowContext(t.Context(),
+		`SELECT COUNT(*) FROM ceremonies WHERE username = 'stale'`).Scan(&rows))
+	assert.Zero(t, rows)
+}
+
 func TestStore_ClaimUnregisteredUser_LeavesARegisteredUserAlone(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
