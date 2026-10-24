@@ -619,6 +619,7 @@ test.describe('settings page', () => {
       ).toBeVisible();
       await expect(input).toHaveAttribute('aria-invalid', 'true');
       await expect(page.locator('#passkey-status')).toHaveText('');
+      expect((await scan(page)).violations).toEqual([]);
     });
 
     test('removing a passkey when more than one exists removes just that one', async ({
@@ -735,7 +736,7 @@ test.describe('settings page', () => {
       );
     });
 
-    test('the field stops at 64 characters, and a refusal from the server shows its message', async ({
+    test('64 emoji are a valid name, counted as characters, and save', async ({
       page,
     }) => {
       await page.goto('/settings.html#integrations');
@@ -743,8 +744,64 @@ test.describe('settings page', () => {
         .getByRole('button', { name: 'Rename Initial passkey' })
         .click();
       const input = page.getByLabel('New name for Initial passkey');
-      await input.fill('x'.repeat(80));
-      await expect(input).toHaveValue('x'.repeat(64));
+      const name = '\u{1F511}'.repeat(64);
+
+      await input.fill(name);
+      await expect(input).toHaveValue(name);
+      await page.getByRole('button', { name: 'Save' }).click();
+
+      await expect(page.locator('#passkey-status')).toHaveText(
+        `Renamed to "${name}".`,
+      );
+      await expect(page.locator('#passkey-list li').first()).toContainText(
+        name,
+      );
+    });
+
+    test('a name of 65 characters is refused next to the rename field before anything is sent', async ({
+      page,
+    }) => {
+      let patched = false;
+      await page.route('**/api/auth/credentials/*', (route) => {
+        if (route.request().method() !== 'PATCH') return route.continue();
+        patched = true;
+        return route.continue();
+      });
+      await page.goto('/settings.html#integrations');
+      await page
+        .getByRole('button', { name: 'Rename Initial passkey' })
+        .click();
+      const input = page.getByLabel('New name for Initial passkey');
+
+      await input.fill('\u{1F511}'.repeat(65));
+      await page.getByRole('button', { name: 'Save' }).click();
+
+      const error = page
+        .getByRole('alert')
+        .filter({ hasText: 'at most 64 characters' });
+      await expect(error).toBeVisible();
+      await expect(input).toHaveAttribute('aria-invalid', 'true');
+      await expect(input).toHaveAttribute(
+        'aria-describedby',
+        (await error.getAttribute('id')) ?? '',
+      );
+      expect((await scan(page)).violations).toEqual([]);
+      expect(patched).toBe(false);
+
+      await input.fill('\u{1F511}'.repeat(64));
+      await expect(error).toBeHidden();
+      await expect(input).not.toHaveAttribute('aria-invalid', 'true');
+    });
+
+    test('a refusal of the new name from the server shows its message', async ({
+      page,
+    }) => {
+      await page.goto('/settings.html#integrations');
+      await page
+        .getByRole('button', { name: 'Rename Initial passkey' })
+        .click();
+      const input = page.getByLabel('New name for Initial passkey');
+      await input.fill('Proton Pass');
 
       await page.route('**/api/auth/credentials/*', (route) =>
         route.request().method() === 'PATCH'
@@ -756,8 +813,10 @@ test.describe('settings page', () => {
           : route.continue(),
       );
       await page.getByRole('button', { name: 'Save' }).click();
-      await expect(page.getByRole('alert')).toContainText('refused here');
+      const error = page.getByRole('alert').filter({ hasText: 'refused here' });
+      await expect(error).toBeVisible();
       await expect(input).toBeVisible();
+      expect((await scan(page)).violations).toEqual([]);
     });
 
     test('a name is shown as text, never as markup', async ({ page }) => {
