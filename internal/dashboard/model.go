@@ -475,6 +475,11 @@ type ForgeHealth struct {
 	// (#666): Dependabot ignores GitHub Apps. The frontend locks the
 	// Dependabot buttons with this exact text.
 	DependabotCommandsBlocked string `json:"dependabotCommandsBlocked,omitempty"`
+	// RerunChecksBlocked, when non-empty, is why this forge can't rerun
+	// checks: a Forgejo older than version 17 has no route for it. The
+	// Rerun failed checks buttons are not drawn, and the page shows this
+	// text where they would be.
+	RerunChecksBlocked string `json:"rerunChecksBlocked,omitempty"`
 }
 
 // ClientError carries a ForgeErrorKind classification alongside the

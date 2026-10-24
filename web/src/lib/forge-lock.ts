@@ -22,10 +22,16 @@ export type ForgeHealthEntry = {
   rateLimitGraphQL?: RateLimit;
   // Why Dependabot would refuse a command through this credential.
   dependabotCommandsBlocked?: string;
+  // Why this forge can't rerun checks: an old Forgejo has no route for it.
+  rerunChecksBlocked?: string;
 };
 
 export type ForgeLock = {
-  code: 'forge_unreachable' | 'forge_starting' | 'rate_limited';
+  code:
+    | 'forge_unreachable'
+    | 'forge_starting'
+    | 'rate_limited'
+    | 'rerun_unsupported';
   reason: string;
   // When a rate limit lifts, so a caller can look again then.
   resetsAt?: string;
@@ -117,4 +123,21 @@ export function dependabotBlockedReason(
   return hosts.length > 0 && hosts.every((f) => f.dependabotCommandsBlocked)
     ? hosts[0].dependabotCommandsBlocked
     : undefined;
+}
+
+// The lock for a rerun on a kind whose every host has no rerun route, or
+// nothing. It is keyed by forge kind, not host: the pull request rows carry
+// the kind only, so with a Forgejo 16 and a Forgejo 17 side by side the
+// button stays until both lack the route, and the server's 409 answers a
+// click on the older one. Not part of forgeLockReason: only the rerun
+// controls ask it.
+export function rerunBlockedLock(
+  forges: readonly ForgeHealthEntry[] | undefined,
+  forge: string,
+): ForgeLock | null {
+  const hosts = (forges ?? []).filter((f) => f.forge === forge);
+  const reason = hosts[0]?.rerunChecksBlocked;
+  return reason && hosts.every((f) => f.rerunChecksBlocked)
+    ? { code: 'rerun_unsupported', reason }
+    : null;
 }

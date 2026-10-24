@@ -42,10 +42,15 @@ const noReactions = {
   thumbsDown: { count: 0, logins: [] },
 };
 
-function snapshot(prs: Record<string, unknown>[]) {
+function snapshot(
+  prs: Record<string, unknown>[],
+  forges: Record<string, unknown>[] = [
+    { forge: 'github', reachable: true, repoCount: 1 },
+  ],
+) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges,
     pullRequests: prs,
     issues: [],
     repos: [],
@@ -61,6 +66,7 @@ async function start(
   page: Page,
   prs: Record<string, unknown>[],
   answers: Record<string, { status: number; body?: unknown }> = {},
+  forges?: Record<string, unknown>[],
 ) {
   const state = {
     current: prs,
@@ -88,7 +94,7 @@ async function start(
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(snapshot(state.current)),
+        body: JSON.stringify(snapshot(state.current, forges)),
       }),
     );
   await page.route('**/api/pull-requests/details*', (route: Route) => {
@@ -361,6 +367,42 @@ test.describe('a locked action', () => {
     await expect(
       footer(dialog).getByRole('button', { name: /Confirm merge/ }),
     ).toHaveCount(0);
+    expect(state.posted).toEqual([]);
+  });
+
+  test('"Rerun failed checks" on a Forgejo with no rerun route stays greyed, with the reason', async ({
+    page,
+  }) => {
+    const why =
+      'This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.';
+    const state = await start(
+      page,
+      [
+        makePR({
+          forge: 'forgejo',
+          ci: 'failure',
+          allowedActions: [{ action: 'rerun_checks' }],
+        }),
+      ],
+      {},
+      [
+        {
+          forge: 'forgejo',
+          reachable: true,
+          repoCount: 1,
+          rerunChecksBlocked: why,
+        },
+      ],
+    );
+    const dialog = await openActionsDialog(row(page));
+    const rerun = footer(dialog).getByRole('button', {
+      name: 'Rerun failed checks',
+      exact: true,
+    });
+
+    await expect(rerun).toHaveAttribute('aria-disabled', 'true');
+    await expect(rerun).toHaveAccessibleDescription(new RegExp(why));
+    await rerun.click({ force: true });
     expect(state.posted).toEqual([]);
   });
 

@@ -1,0 +1,169 @@
+package forgejo
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	// versionProbeTimeout bounds one read of the instance's version, on top of
+	// whatever deadline the caller's context carries.
+	versionProbeTimeout = 3 * time.Second
+	// blockedVersionTTL is how long an "older than the rerun route" answer is
+	// trusted. An instance that upgrades unhides the button within this time,
+	// or at once on a click.
+	blockedVersionTTL = time.Hour
+	// versionRetryAfter is how long a failed read is left alone before the next
+	// try, so a dead forge is not asked on every refresh.
+	versionRetryAfter = 30 * time.Second
+)
+
+// versionCache remembers the instance's major version. The zero value works.
+// No lock is held while the network is asked.
+type versionCache struct {
+	mu       sync.Mutex
+	major    int
+	known    bool
+	readAt   time.Time
+	failedAt time.Time
+	probing  bool
+	// now and probes exist for the tests: a clock they move, and a way to wait
+	// for the background read.
+	now    func() time.Time
+	probes sync.WaitGroup
+}
+
+func (v *versionCache) clock() time.Time {
+	if v.now != nil {
+		return v.now()
+	}
+
+	return time.Now()
+}
+
+// answerLocked is the cached major version and whether it can still be
+// trusted. A recent failure counts as trusted, so it is not repeated at once.
+func (v *versionCache) answerLocked() (major int, known, fresh bool) {
+	now := v.clock()
+	switch {
+	case !v.failedAt.IsZero() && now.Sub(v.failedAt) < versionRetryAfter:
+		fresh = true
+	case !v.known:
+		fresh = false
+	case v.major >= firstRerunMajor || v.major < firstForgejoMajor:
+		// An answer that can't change what is done is kept: 17 and later have
+		// the route for good, and a 1.x is a Gitea or an old Forgejo that is
+		// left to the forge whatever its number.
+		fresh = true
+	default:
+		fresh = now.Sub(v.readAt) < blockedVersionTTL
+	}
+
+	return v.major, v.known, fresh
+}
+
+// peek is the cached answer, and whether a refresh should start a read.
+func (v *versionCache) peek() (major int, known, startRead bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	major, known, fresh := v.answerLocked()
+	if fresh || v.probing {
+		return major, known, false
+	}
+	v.probing = true
+	v.probes.Add(1)
+
+	return major, known, true
+}
+
+func (v *versionCache) answer() (major int, known, fresh bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	return v.answerLocked()
+}
+
+func (v *versionCache) record(major int, ok bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if !ok {
+		v.failedAt = v.clock()
+		// A block that has gone stale is not served on trust while the forge
+		// can't be asked: the rerun is left to the forge until a read lands.
+		if v.major >= firstForgejoMajor && v.major < firstRerunMajor {
+			v.known = false
+		}
+
+		return
+	}
+	v.major, v.known, v.readAt, v.failedAt = major, true, v.clock(), time.Time{}
+}
+
+// readVersion asks the forge for its version under ctx and remembers the
+// answer. A read the caller cancelled says nothing about the forge.
+func (c *Client) readVersion(ctx context.Context) {
+	probeCtx, cancel := context.WithTimeout(ctx, versionProbeTimeout)
+	defer cancel()
+	body, _, err := c.rawRequest(probeCtx, http.MethodGet, "/version", nil)
+	if err != nil {
+		if ctx.Err() == nil {
+			c.version.record(0, false)
+		}
+
+		return
+	}
+	var v struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(body, &v) != nil {
+		c.version.record(0, false)
+
+		return
+	}
+	major, _, _ := strings.Cut(strings.TrimPrefix(v.Version, "v"), ".")
+	n, _ := strconv.Atoi(major)
+	// A version in words, or none, says nothing about the instance: it is
+	// read again later like a failed read.
+	c.version.record(n, n > 0)
+}
+
+// startVersionRead reads the version in the background, so a refresh never
+// waits on the forge for it.
+func (c *Client) startVersionRead() {
+	go func() {
+		defer c.version.probes.Done()
+		defer func() {
+			c.version.mu.Lock()
+			c.version.probing = false
+			c.version.mu.Unlock()
+		}()
+		c.readVersion(context.Background())
+	}()
+}
+
+// serverMajor is the cached major version for a refresh: it answers at once
+// and starts a read in the background when the answer has gone stale.
+func (c *Client) serverMajor() (int, bool) {
+	major, known, start := c.version.peek()
+	if start {
+		c.startVersionRead()
+	}
+
+	return major, known && major >= firstForgejoMajor
+}
+
+// serverMajorFor is the major version for a click: a stale answer is read
+// again under the caller's context before it decides anything.
+func (c *Client) serverMajorFor(ctx context.Context) (int, bool) {
+	if _, _, fresh := c.version.answer(); !fresh {
+		c.readVersion(ctx)
+	}
+	major, known, _ := c.version.answer()
+
+	return major, known && major >= firstForgejoMajor
+}

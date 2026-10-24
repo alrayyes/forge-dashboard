@@ -7,6 +7,13 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
+// SetVersionClock replaces the clock the cached server version expires by.
+func SetVersionClock(c *Client, now func() time.Time) { c.version.now = now }
+
+// WaitForVersionProbe waits for the version read a refresh started in the
+// background.
+func WaitForVersionProbe(c *Client) { c.version.probes.Wait() }
+
 // ReadAdvisories reads a repo's advisories once, past the cache, deadline and
 // back-off that ReadMainBranch applies.
 func ReadAdvisories(ctx context.Context, c *Client, owner, name string) (dashboard.Advisories, error) {
@@ -47,3 +54,7 @@ func ListJoined(c *Client) int { return int(c.listJoined.Load()) }
 
 // CountChecks exposes the production tally of a check list to the black-box tests.
 var CountChecks = countChecks
+
+// RerunJobPath is the route the client reruns one Actions job through, as an
+// OpenAPI path template.
+const RerunJobPath = rerunJobPath

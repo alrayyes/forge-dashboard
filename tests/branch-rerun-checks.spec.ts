@@ -302,6 +302,28 @@ test.describe('main branches rerun failed checks', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('a Forgejo with no rerun route gets no Rerun button, only the reason', async ({
+    page,
+  }) => {
+    const reason =
+      'This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.';
+    const dialog = await openPanel(page, 'failed', {
+      checks: failedCheck,
+      row: { forge: 'forgejo' },
+      forges: [
+        {
+          forge: 'forgejo',
+          reachable: true,
+          repoCount: 1,
+          rerunChecksBlocked: reason,
+        },
+      ],
+    });
+
+    await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
+    await expect(dialog.getByRole('status')).toHaveText(reason);
+  });
+
   test('a forge out of REST budget gets no Rerun button and says when it resumes', async ({
     page,
   }) => {
