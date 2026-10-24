@@ -32,8 +32,8 @@ const firstRerunMajor = 17
 
 // firstForgejoMajor is the first major version only a Forgejo reports. Before
 // it Forgejo numbered itself like the Gitea it forked, so a 1.x could be either
-// and the button is not hidden. A Gitea has no job rerun route, so a click on
-// one gets a 404, which the refusal explains.
+// and the button is not hidden. The forge then decides: a 404 may mean it has
+// no job rerun route, which the refusal says without naming a version.
 const firstForgejoMajor = 7
 
 // errNoRerunRoute is why a rerun on a Forgejo older than firstRerunMajor never
@@ -164,40 +164,62 @@ func (p *rerunProgress) partial(notYet []string, laterRuns int) string {
 	if len(p.restarted) == 0 {
 		return ""
 	}
-	skipped := notYet
-	if laterRuns == 1 {
-		skipped = append(skipped, "the failed jobs of 1 other run")
-	} else if laterRuns > 1 {
-		skipped = append(skipped, fmt.Sprintf("the failed jobs of %d other runs", laterRuns))
-	}
-	out := "Restarted " + strings.Join(p.restarted, ", ") + "."
-	if len(skipped) > 0 {
-		out += " Did not restart " + joinAnd(skipped) + "."
+	out := p.restartedSentence()
+	if skipped := listWithRuns(notYet, laterRuns); skipped != "" {
+		out += " Did not restart " + skipped + "."
 	}
 
 	return out
 }
 
-// joinAnd lists items with commas, and joins the note about other runs on with
-// "and". Job names are listed as they come.
-func joinAnd(items []string) string {
-	last := items[len(items)-1]
-	if len(items) == 1 || !strings.HasPrefix(last, "the failed jobs of ") {
-		return strings.Join(items, ", ")
+// partialUnknown is partial for a refusal that left the run's jobs unread, so
+// which of its other failed jobs went along with a restarted one is not known.
+func (p *rerunProgress) partialUnknown(laterRuns int) string {
+	if len(p.restarted) == 0 {
+		return ""
+	}
+	out := p.restartedSentence() + " The other failed jobs of this run may have restarted with them."
+	if later := listWithRuns(nil, laterRuns); later != "" {
+		out += " Did not restart " + later + "."
 	}
 
-	return strings.Join(items[:len(items)-1], ", ") + " and " + last
+	return out
 }
 
-// withPartial returns err with the partial rerun sentence attached when err is
-// a ClientError.
+func (p *rerunProgress) restartedSentence() string {
+	return "Restarted " + strings.Join(p.restarted, ", ") + "."
+}
+
+// listWithRuns lists the job names, then a note on the failed runs not yet
+// looked at, joined on with "and".
+func listWithRuns(names []string, laterRuns int) string {
+	var note string
+	switch {
+	case laterRuns == 1:
+		note = "the failed jobs of 1 other run"
+	case laterRuns > 1:
+		note = fmt.Sprintf("the failed jobs of %d other runs", laterRuns)
+	}
+	switch {
+	case len(names) == 0:
+		return note
+	case note == "":
+		return strings.Join(names, ", ")
+	}
+
+	return strings.Join(names, ", ") + " and " + note
+}
+
+// withPartial returns err with the partial rerun sentence attached. An error
+// that isn't a ClientError (an undecodable job list, say) is wrapped in one, so
+// the sentence is not lost.
 func withPartial(err error, partial string) error {
 	if partial == "" {
 		return err
 	}
 	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
 	if !ok {
-		return err
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, Err: err, Partial: partial}
 	}
 	cp := *clientErr
 	cp.Partial = partial
@@ -237,7 +259,7 @@ func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, r
 		if i > 0 {
 			fresh, err := c.listActionRunJobs(ctx, owner, name, runID)
 			if err != nil {
-				return withPartial(err, progress.partial(jobNames(jobs, stillFailed(jobs, failed[i:])), laterRuns))
+				return withPartial(err, progress.partialUnknown(laterRuns))
 			}
 			jobs = fresh
 			if !slices.Contains(failedJobIDs(jobs), jobID) {

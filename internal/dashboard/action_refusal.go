@@ -163,7 +163,7 @@ func ClassifyActionRefusalFor(action PullRequestAction, actionErr error, state *
 	r := classifyActionRefusal(action, actionErr, state)
 	if action == PullRequestActionRerunChecks || action == PullRequestActionRerunBranchChecks {
 		if clientErr, ok := errors.AsType[*ClientError](actionErr); ok && clientErr.Partial != "" {
-			if !strings.HasSuffix(r.Message, ".") {
+			if !strings.HasSuffix(r.Message, ".") && !strings.HasSuffix(r.Message, "?") && !strings.HasSuffix(r.Message, "!") {
 				r.Message += "."
 			}
 			r.Message += " " + clientErr.Partial
@@ -229,8 +229,10 @@ func classifyByAction(action PullRequestAction, actionErr error, forgeText strin
 
 // rerunNotFound says what a rerun's 404 means. "404 page not found" is the web
 // server's, not a sentence the forge wrote for a person. A rerun is the one
-// action that meets it: a Gitea, or a Forgejo whose version could not be read, has no such route. A sentence the
-// forge did write is kept.
+// action that meets it. The sentence names no forge or version: the 404 can
+// come from a forge with no rerun route (a Gitea, an old Forgejo), or from a
+// run that is gone or a repository the token can't see, on any forge. A
+// sentence the forge did write is kept.
 func rerunNotFound(actionErr error, forgeText string) (ActionRefusal, bool) {
 	clientErr, ok := errors.AsType[*ClientError](actionErr)
 	if !ok || clientErr.Kind != ForgeErrorNotFound {
@@ -264,7 +266,7 @@ func classifyReopenRefusal(actionErr error) (ActionRefusal, bool) {
 
 const (
 	notReopenableMessage = "The forge won't reopen this pull request. Usually its branch was deleted or rewritten after it was closed: restore the branch on the forge, then try again."
-	notFoundMessage      = "Only Forgejo 17 and later can rerun checks from here, or the token can't see this repository."
+	notFoundMessage      = "The forge couldn't find that run or job. It may not support rerunning checks from here, or the token can't see this repository."
 	noReasonMessage      = "The forge refused this action and gave no reason."
 	unreachableMessage   = "The forge didn't answer. Try again in a moment."
 	forgeFailedMessage   = "The forge had a server error. Try again in a moment."

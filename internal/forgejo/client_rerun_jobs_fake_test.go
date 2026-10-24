@@ -18,6 +18,11 @@ type fakeJobs struct {
 	cascade map[int][]int
 	status  int
 	okFirst int
+	// listFail maps a run id to the status its job list answers; listBody to
+	// a raw 200 body. listFailAfter makes every job listing past the nth fail.
+	listFail      map[int]int
+	listBody      map[int]string
+	listFailAfter int
 
 	mu       sync.Mutex
 	rerun    []string
@@ -34,8 +39,23 @@ func (f *fakeJobs) register(t *testing.T, mux *http.ServeMux) {
 		run, _ := strconv.Atoi(r.PathValue("run"))
 		f.mu.Lock()
 		f.listings++
+		status := f.listFail[run]
+		if status == 0 && f.listFailAfter > 0 && f.listings > f.listFailAfter {
+			status = http.StatusInternalServerError
+		}
+		body, garbled := f.listBody[run]
 		jobs := append([]map[string]any(nil), f.jobs[run]...)
 		f.mu.Unlock()
+		if status != 0 {
+			w.WriteHeader(status)
+
+			return
+		}
+		if garbled {
+			_, _ = w.Write([]byte(body))
+
+			return
+		}
 		writeJSON(t, w, map[string]any{"total_count": len(jobs), "jobs": jobs})
 	})
 	mux.HandleFunc("POST /api/v1/repos/alrayyes/a/actions/jobs/{job}/rerun", func(w http.ResponseWriter, r *http.Request) {

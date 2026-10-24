@@ -31,7 +31,9 @@ type versionCache struct {
 	known    bool
 	readAt   time.Time
 	failedAt time.Time
-	probing  bool
+	// flight is open while a read is under way, so a second caller waits for
+	// that read instead of sending its own. Nil when none is.
+	flight chan struct{}
 	// now and probes exist for the tests: a clock they move, and a way to wait
 	// for the background read.
 	now    func() time.Time
@@ -72,13 +74,34 @@ func (v *versionCache) peek() (major int, known, startRead bool) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	major, known, fresh := v.answerLocked()
-	if fresh || v.probing {
+	if fresh || v.flight != nil {
 		return major, known, false
 	}
-	v.probing = true
+	v.flight = make(chan struct{})
 	v.probes.Add(1)
 
 	return major, known, true
+}
+
+// join is the read under way to wait for, or nil after taking the right to
+// start one: the caller then reads and calls land.
+func (v *versionCache) join() <-chan struct{} {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.flight != nil {
+		return v.flight
+	}
+	v.flight = make(chan struct{})
+
+	return nil
+}
+
+// land ends the read under way and lets its waiters go.
+func (v *versionCache) land() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	close(v.flight)
+	v.flight = nil
 }
 
 func (v *versionCache) answer() (major int, known, fresh bool) {
@@ -112,8 +135,12 @@ func (c *Client) readVersion(ctx context.Context) {
 	body, resp, err := c.rawRequest(probeCtx, http.MethodGet, "/version", nil)
 	if err != nil {
 		if ctx.Err() == nil {
-			// Classified like any forge call, so a 429 counts as rate limiting.
-			_ = c.forgejoError(ctx, http.MethodGet, "/version", resp, err)
+			// An answer from the forge is classified like any forge call, so a
+			// 429 counts as rate limiting. A read that got no answer (a timeout,
+			// a refused connection) adds nothing to the log.
+			if resp != nil {
+				_ = c.forgejoError(ctx, http.MethodGet, "/version", resp, err)
+			}
 			c.version.record(0, false)
 		}
 
@@ -139,11 +166,7 @@ func (c *Client) readVersion(ctx context.Context) {
 func (c *Client) startVersionRead() {
 	go func() {
 		defer c.version.probes.Done()
-		defer func() {
-			c.version.mu.Lock()
-			c.version.probing = false
-			c.version.mu.Unlock()
-		}()
+		defer c.version.land()
 		c.readVersion(context.Background())
 	}()
 }
@@ -163,7 +186,15 @@ func (c *Client) serverMajor() (int, bool) {
 // again under the caller's context before it decides anything.
 func (c *Client) serverMajorFor(ctx context.Context) (int, bool) {
 	if _, _, fresh := c.version.answer(); !fresh {
-		c.readVersion(ctx)
+		if wait := c.version.join(); wait != nil {
+			select {
+			case <-wait:
+			case <-ctx.Done():
+			}
+		} else {
+			c.readVersion(ctx)
+			c.version.land()
+		}
 	}
 	major, known, _ := c.version.answer()
 

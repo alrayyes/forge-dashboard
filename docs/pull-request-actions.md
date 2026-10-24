@@ -811,17 +811,20 @@ answer that blocks is read again after an hour, and a click reads it again at
 once when it has gone stale, so an upgraded instance works without a restart.
 When the version can't be read, or isn't a number, it is tried again after
 half a minute, the button is drawn and the forge decides. A version below 7 is
-left to the forge too, because a Gitea numbers itself that way. A Gitea, and a
-Forgejo whose version can't be read, has no job rerun route on the server side
-that this uses, so the click gets a 404 and the panel says: "Only Forgejo 17 and
-later can rerun checks from here, or the token can't see this repository." A
-block that has gone stale is lifted if the read fails, not kept.
+left to the forge too, because a Gitea numbers itself that way. Where the forge
+decides, a 404 can mean the route doesn't exist there or that the run is gone
+or the token can't see the repository, so the panel names neither a forge nor
+a version: "The forge couldn't find that run or job. It may not support
+rerunning checks from here, or the token can't see this repository." A block
+that has gone stale is lifted if the read fails, not kept.
 
 Forgejo restarts one job per request, so a refusal can come after earlier jobs
 already went. The panel then says which: for example "Restarted build. Did not
 restart test, lint and the failed jobs of 1 other run." Rerunning again starts
-only what is still failed. A refusal of the first job says nothing of the kind,
-because nothing restarted.
+only what is still failed. When the jobs can't be read again after a restart,
+the panel can't say which others went, so it says they may have restarted with
+the one that did. A refusal of the first job says nothing of the kind, because
+nothing restarted.
 
 `rerun_checks` still appears in `allowedActions` for a blocked
 Forgejo. The block shows in the forge's health as `rerunChecksBlocked`, and a

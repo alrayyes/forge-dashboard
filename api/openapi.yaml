@@ -1438,10 +1438,11 @@ paths:
         old or already running) arrives with its own plain-words `message`.
         Jobs are rerun one request at a time, so a refusal can come after
         earlier jobs restarted; the `message` then ends with which jobs
-        restarted and which did not. A Gitea, or a Forgejo whose version can't
-        be read, has no route to rerun a job: the 404 reads "Only Forgejo 17
-        and later can rerun checks from here, or the token can't see this
-        repository."
+        restarted and which did not. When the version could not be read the
+        forge decides, and a 404 from it reads "The forge couldn't find that
+        run or job. It may not support rerunning checks from here, or the
+        token can't see this repository." That sentence names no forge or
+        version, because a 404 can mean either.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -5090,15 +5091,14 @@ components:
           type: string
           description: >-
             Why this forge can't rerun checks. Set only for a Forgejo whose
-            version is 7 to 16, which has no API route for it; a version below
-            7 may be a Gitea, which has no rerun route here; a click on it gets a
-            404 with a plain sentence saying so. The version is read in
-            the background, read again after an hour while it blocks, and
-            retried after a failed read or one that gives no number. A block
-            that has gone stale is dropped when the read fails. Rerun failed checks is
-            not offered for the forge, and the page shows this text where the
-            button would be. Omitted when rerunning works or the version
-            could not be read.
+            version is 7 to 16, which has no API route for it. A version
+            below 7 is left to the forge, because a Gitea numbers itself that
+            way. The version is read in the background, read again after an
+            hour while it blocks, and retried after a failed read or one that
+            gives no number. A block that has gone stale is dropped when the
+            read fails. Rerun failed checks is not offered for the forge, and
+            the page shows this text where the button would be. Omitted when
+            rerunning works or the version could not be read.
 
     ForgeApiStats:
       type: object
