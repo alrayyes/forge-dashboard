@@ -74,7 +74,8 @@ describe('loginFailure', () => {
 
 describe('checkRegistrationOpen', () => {
   const answer = (body: unknown, ok = true) =>
-    (async () => ({ ok, json: async () => body }) as Response) as typeof fetch;
+    (async () =>
+      ({ ok, json: async () => body }) as Response) as unknown as typeof fetch;
 
   test('is true when the server says registration is open', async () => {
     expect(await checkRegistrationOpen(answer({ open: true }))).toBe(true);
@@ -91,7 +92,7 @@ describe('checkRegistrationOpen', () => {
   test('is false when the request throws', async () => {
     const down = (async () => {
       throw new Error('offline');
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     expect(await checkRegistrationOpen(down)).toBe(false);
   });
 });
