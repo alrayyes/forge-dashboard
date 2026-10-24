@@ -212,3 +212,41 @@ func TestAggregator_PollCIKeepsTheBoxOverrideOfAPullRequestItDidNotRead(t *testi
 	require.Len(t, src.lastBatch(), 1, "only the pending pull request is asked about")
 	assert.Equal(t, 1, agg.BoxOverrideCount(), "the poll never read #8's description")
 }
+
+func TestNoteRenovateRebase(t *testing.T) {
+	t.Parallel()
+
+	note := func(t *testing.T, outcome dashboard.RenovateRebaseOutcome) dashboard.PullRequest {
+		t.Helper()
+		agg, _ := botAggregator(t, newBotSource(boxPR(false)))
+		dashboard.NoteRenovateRebase(agg, dashboard.ForgeGitHub, "o/r", 7, outcome)
+
+		return agg.Get().PullRequests[0]
+	}
+
+	t.Run("a ticked box shows the request and the box together", func(t *testing.T) {
+		t.Parallel()
+		pr := note(t, dashboard.RenovateRebaseTicked)
+
+		assert.True(t, pr.RenovateRebaseRequested)
+		require.NotNil(t, pr.BotRequest)
+		assert.Equal(t, dashboard.BotRenovate, pr.BotRequest.Bot)
+	})
+
+	t.Run("a box found ticked shows the box and records no request", func(t *testing.T) {
+		t.Parallel()
+		pr := note(t, dashboard.RenovateRebaseAlreadyRequested)
+
+		assert.True(t, pr.RenovateRebaseRequested)
+		assert.Nil(t, pr.BotRequest)
+	})
+
+	t.Run("a label shows the request and leaves the box alone", func(t *testing.T) {
+		t.Parallel()
+		pr := note(t, dashboard.RenovateRebaseLabeled)
+
+		assert.False(t, pr.RenovateRebaseRequested)
+		require.NotNil(t, pr.BotRequest)
+		assert.Equal(t, dashboard.BotRenovate, pr.BotRequest.Bot)
+	})
+}
