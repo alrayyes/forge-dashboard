@@ -759,10 +759,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		snap.MainBranches = append(snap.MainBranches, r.MainBranches...)
 	}
 	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
-	reachable := make(map[Forge]bool, len(snap.Forges))
-	for _, h := range snap.Forges {
-		reachable[h.Forge] = h.Reachable
-	}
+	reachable := reachableForges(snap.Forges)
 	a.checkDependabotAcks(ctx)
 	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
 	AnnotateStacks(snap.PullRequests)
@@ -786,6 +783,16 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.runAutoUpdateBranch(ctx, snap)
 	a.runAutoMerge(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// reachableForges says which forges answered, by forge.
+func reachableForges(forges []ForgeHealth) map[Forge]bool {
+	reachable := make(map[Forge]bool, len(forges))
+	for _, h := range forges {
+		reachable[h.Forge] = h.Reachable
+	}
+
+	return reachable
 }
 
 // rowsRead is the settledKey of each pull request the sources returned. That
