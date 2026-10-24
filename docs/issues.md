@@ -153,8 +153,10 @@ pipeline of each pull request as on the row, and nothing when no pull request
 closes it. They are links to the
 [pull request page](pull-request-pages.md#pull-request-details), so a middle
 or modified click opens that page in a new tab. A plain click closes the
-issue's pop-up and opens the pull request's in its place, on the Issues page, so
-you stay where you are and the address and the browser history don't change.
+issue's pop-up and opens the pull request's in its place, on the page you are
+on, so you stay where you are and the address and the browser history don't
+change. On the Pull requests page a pull request the board lists opens with its
+actions. One the dashboard doesn't hold is named in a note instead.
 Closing that pop-up puts keyboard focus back on the pill in the list. The links
 follow the board while the pop-up stays open.
 

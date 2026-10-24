@@ -1,3 +1,5 @@
+import { isPlainClick } from './plain-click.js';
+
 // The pills on a pull request that link to the issues it will close, and the
 // address that opens one of them on the Issues page. The server decides which
 // issues those are and builds each address; this only words them and reads
@@ -113,14 +115,16 @@ export const closingPillId = (prKey: string, issue: ClosingIssue) =>
  * rest in place. Null when it closes nothing. With onOpen, each pill is a
  * button that opens that issue's dialog where the reader is, and hands over
  * the pill's id so focus can return to it. Without it, the pill is a link to
- * the Issues page with that issue's pop-up open (inside a dialog, where a
- * second one would stack).
+ * the Issues page with that issue's pop-up open. With onFollow instead, inside
+ * a dialog, a plain click on that link hands the issue over so the dialog can
+ * be swapped for the issue's.
  */
 export function closingPills(
   prKey: string,
   prRepo: string,
   list: ClosingIssue[] | undefined,
   onOpen?: (issue: ClosingIssue, triggerId: string) => void,
+  onFollow?: (issue: ClosingIssue) => void,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitClosing(list);
@@ -130,7 +134,17 @@ export function closingPills(
       onOpen !== undefined ? 'button' : 'a',
       'linked-pr closing-issue',
     );
-    if (link instanceof HTMLAnchorElement) link.href = issue.pageUrl;
+    if (link instanceof HTMLAnchorElement) {
+      link.href = issue.pageUrl;
+      // Inside a dialog: a plain click swaps it for the issue's, the address
+      // stays a real link for a new tab.
+      if (onFollow)
+        link.addEventListener('click', (event) => {
+          if (!isPlainClick(event)) return;
+          event.preventDefault();
+          onFollow(issue);
+        });
+    }
     if (link instanceof HTMLButtonElement && onOpen) {
       link.type = 'button';
       link.id = closingPillId(prKey, issue);

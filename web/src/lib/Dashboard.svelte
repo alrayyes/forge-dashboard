@@ -1314,12 +1314,21 @@
       }
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
-      const closing = closingPills(prKey(item), item.repo, item.closesIssues);
+      // Links, so a modified click still opens the page in a new tab, but a
+      // plain click swaps this dialog for the issue's, on this page.
+      const closing = closingPills(
+        prKey(item),
+        item.repo,
+        item.closesIssues,
+        undefined,
+        (issue) => followIssueFromDialog(item, issue),
+      );
       if (closing) attributes.appendChild(closing);
       const mentions = mentionPills(
         `${prKey(item)}:mentions`,
         item.repo,
         item.mentionsIssues,
+        (issue) => followIssueFromDialog(item, issue),
       );
       if (mentions) attributes.appendChild(mentions);
       return { state, attributes };
@@ -2071,6 +2080,13 @@
       );
     }
 
+    // One dialog at a time: the pull request's closes, then the issue's opens
+    // once its close has run, with focus returning to the pull request's title.
+    function followIssueFromDialog(pr: PullRequestItem, issue: ClosingIssue) {
+      afterDetailsClosed = () => openClosingIssue(pr, issue, addressFocus(pr));
+      detailsDialog?.close();
+    }
+
     async function openLinkedPullRequest(
       linked: LinkedPullRequest,
       triggerId: string,
@@ -2083,6 +2099,13 @@
       const note = document.getElementById("issue-address-note");
       if (note) note.hidden = true;
       const listed = allPRs.find((p) => sameAddress(wanted, p));
+      // On the Pull requests page a listed one gets the board's own dialog,
+      // with its actions; elsewhere, or when the board leaves it out, it is
+      // read only.
+      if (listed && pullsView) {
+        openDetailsDialog(listed, triggerId, "title-filter");
+        return;
+      }
       const looked = listed
         ? { found: listed }
         : await lookUpPullRequest(wanted);
@@ -2090,12 +2113,16 @@
         openPullRequestReadOnly(looked.found, triggerId, "title-filter");
         return;
       }
-      if (!note) return;
-      note.textContent =
+      const text =
         "failed" in looked
           ? `Could not look up pull request ${wanted.repo} #${wanted.number}. Try again.`
           : missingNote(wanted);
-      note.hidden = false;
+      // The Issues page has a note under its filters; the Pull requests page
+      // says it in its own status line.
+      if (note) {
+        note.textContent = text;
+        note.hidden = false;
+      } else setHideStatus(text);
     }
 
     // One dialog at a time: the issue's closes, then the pull request's opens

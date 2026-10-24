@@ -107,10 +107,12 @@ in place. An issue in another repository than the pull request's names its
 repo. On a row, each pill is a button that opens that issue's pop-up on this page,
 and Escape puts focus back on the pill. An issue the board doesn't list still
 opens, with a link to its forge, and the pop-up says plainly if the forge can't
-show it. Inside a pull request's own pop-up the pill stays a link to the
-[Issues page](issues.md#opening-an-issue-from-its-address), so no pop-up sits
-on top of another. Screen readers hear "Closes", the number and "opens the
-issue".
+show it. Inside a pull request's own pop-up the pill is a link to the
+[Issues page](issues.md#opening-an-issue-from-its-address), so a middle or
+modified click opens that page in a new tab. A plain click closes the pull
+request's pop-up and opens the issue's in its place without leaving the
+page, with the address and your filters untouched. Screen readers hear
+"Closes", the number and "opens the issue".
 
 The server works out which issues those are, and builds the address that opens
 each. In `GET /api/dashboard` each pull request has `closesIssues`, always
@@ -151,7 +153,9 @@ issue, another repo, a pull request), a client links to `url` on the forge.
 
 The pull request's pop-up shows each one among the attributes, after the issues
 it closes, as a "Mentions" link drawn like the "Closes" ones. A tracked ticket
-opens on the [Issues page](issues.md#opening-an-issue-from-its-address). One the
+opens on the [Issues page](issues.md#opening-an-issue-from-its-address) in a
+new tab on a middle or modified click, and its pop-up in place of this one on a
+plain click. One the
 dashboard doesn't hold opens on its forge in a new tab, and screen readers hear
 "opens on the forge" instead of "opens the issue". The first two show, and the
 rest sit behind a "more" button that opens them in place, as with the closing
