@@ -80,14 +80,41 @@ done
 # can carry, since a regression there only shows when a job runs.
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-bun_check() { # packageManager installed-bun
+bun_out=
+bun_check() { # packageManager installed-bun; leaves the script's output in bun_out
   printf '{"packageManager": "%s"}\n' "$1" >"$tmp/package.json"
-  PACKAGE_JSON="$tmp/package.json" BUN_VERSION="$2" scripts/check-image-bun.sh >/dev/null 2>&1
+  bun_run "$tmp/package.json" "$2"
 }
-bun_check 'bun@1.3.14' 1.3.14 || fail "check-image-bun.sh rejects a matching Bun"
-bun_check 'bun@1.3.14+sha512.deadbeef' 1.3.14 || fail "check-image-bun.sh does not drop the +sha512 suffix from packageManager"
-if bun_check 'bun@1.3.14' 1.3.13; then fail "check-image-bun.sh accepts a Bun that differs from packageManager"; fi
-if bun_check 'bun@1.3.14+sha512.deadbeef' 1.3.13; then fail "check-image-bun.sh accepts a differing Bun when packageManager has a suffix"; fi
+bun_run() { # package.json installed-bun; stderr is kept so a script that can't run fails the match
+  local rc=0
+  bun_out=$(PACKAGE_JSON="$1" BUN_VERSION="$2" scripts/check-image-bun.sh 2>&1) || rc=$?
+  return "$rc"
+}
+# A refusal counts only when it exits non-zero and says why.
+expect_refusal() { # description expected-message-fragment command...
+  local what=$1 want=$2
+  shift 2
+  if "$@"; then
+    fail "check-image-bun.sh accepts $what"
+  elif ! grep -Fq -- "$want" <<<"$bun_out"; then
+    fail "check-image-bun.sh refuses $what without saying '$want' (got: ${bun_out:-nothing})"
+  fi
+}
+bun_check 'bun@1.3.14' 1.3.14 || fail "check-image-bun.sh rejects a matching Bun: $bun_out"
+bun_check 'bun@1.3.14+sha512.deadbeef' 1.3.14 || fail "check-image-bun.sh does not drop the +sha512 suffix from packageManager: $bun_out"
+expect_refusal "a Bun that differs from packageManager" "bun is 1.3.13, but packageManager names 1.3.14" bun_check 'bun@1.3.14' 1.3.13
+expect_refusal "a differing Bun when packageManager has a suffix" "bun is 1.3.13, but packageManager names 1.3.14" bun_check 'bun@1.3.14+sha512.deadbeef' 1.3.13
+expect_refusal "a packageManager that is not Bun" "does not name bun@" bun_check 'pnpm@9.0.0' 1.3.14
+expect_refusal "a packageManager without a version" "does not name bun@" bun_check 'bun' 1.3.14
+printf '{"name": "x"}\n' >"$tmp/package.json"
+expect_refusal "a package.json with no packageManager" "does not name bun@" bun_run "$tmp/package.json" 1.3.14
+expect_refusal "a missing package.json" "no such file" bun_run "$tmp/absent.json" 1.3.14
+printf 'not json\n' >"$tmp/package.json"
+expect_refusal "a package.json that is not JSON" "is not valid JSON" bun_run "$tmp/package.json" 1.3.14
+# A quote in the path must not reach a JS string literal.
+mkdir "$tmp/it's"
+printf '{"packageManager": "bun@1.3.14"}\n' >"$tmp/it's/package.json"
+bun_run "$tmp/it's/package.json" 1.3.14 || fail "check-image-bun.sh breaks on a quote in the package.json path: $bun_out"
 
 # Not checked here: that each digest is the image built for its tag. That
 # needs a registry call (`docker manifest inspect`), so a digest taken from
