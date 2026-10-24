@@ -39,7 +39,9 @@ func WaitForAdvisories(c *Client) { c.advisoryReads.Wait() }
 
 // ReadMainBranchSettled is ReadMainBranch as a caller sees it once the advisory
 // read it started has finished: the first call starts the read, and the second
-// one is answered from what it remembered.
+// one is answered from what it remembered. It is not safe to call concurrently
+// on one client: its Wait would race another caller's first read starting its
+// background read. Start concurrent reads with ReadMainBranch, then settle once.
 func ReadMainBranchSettled(ctx context.Context, c *Client, repo dashboard.RepoRef) (dashboard.MainBranch, error) {
 	if _, err := c.ReadMainBranch(ctx, repo); err != nil {
 		return dashboard.MainBranch{}, err
