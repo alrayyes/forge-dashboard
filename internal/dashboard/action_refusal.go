@@ -248,7 +248,7 @@ func unknownRefusal(actionErr error, forgeText string) ActionRefusal {
 		}
 		// "404 page not found" is the web server's, not a sentence the forge
 		// wrote for a person.
-		if clientErr.Kind == ForgeErrorNotFound && (!isPlainSentence(forgeText) || strings.Contains(forgeText, "page not found")) {
+		if clientErr.Kind == ForgeErrorNotFound && (!isPlainSentence(forgeText) || strings.Contains(strings.ToLower(forgeText), "page not found")) {
 			return ActionRefusal{Code: ActionUnknown, Message: notFoundMessage}
 		}
 		if isPlainSentence(forgeText) {

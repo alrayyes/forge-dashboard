@@ -150,6 +150,8 @@ func TestClassifyActionRefusal_UnknownMessageIsPlainWords(t *testing.T) {
 		{"an empty answer says no reason", refusal(dashboard.ForgeErrorUnknown, "forgejo: PATCH x: "), noReason},
 		{"an unreachable forge says it didn't answer", refusal(dashboard.ForgeErrorUnreachable, "github: PUT x: dial tcp: refused"), "The forge didn't answer. Try again in a moment."},
 		{"a 404 says the forge has no such thing, once", refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/runs/1/rerun: refused: 404 page not found"), notFoundMessage},
+		{"a 404 in any case says the same", refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/runs/1/rerun: refused: 404 Page Not Found"), notFoundMessage},
+		{"a repository the forge names as missing keeps its own words", refusal(dashboard.ForgeErrorNotFound, "forgejo: POST /repos/o/r/actions/runs/1/rerun: The repository is not found"), "The repository is not found"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
