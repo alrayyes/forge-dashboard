@@ -115,6 +115,43 @@ func TestListDefaultBranchChecks_RunWithNoReadableJobs_IsCancellableButHasNoJob(
 	assert.Zero(t, checks[0].JobID, "the stand-in check is the run, not a job")
 }
 
+// Forgejo's runs list names a run by workflow_id, title and index_in_repo and
+// sends none of the SDK's path, display_title or run_number, so a run read
+// through the SDK type had no name at all.
+func TestListChecks_NamesTheRunsFromForgejosOwnFields(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 2, "workflow_runs": []map[string]any{
+			{"id": 15785, "workflow_id": "ci.yml", "title": "fix it", "index_in_repo": 614, "event": "pull_request", "status": "running"},
+			{"id": 15786, "workflow_id": "pr-title.yml", "title": "fix it", "index_in_repo": 615, "event": "pull_request", "status": "running"},
+		}})
+	})
+	for _, id := range []string{"15785", "15786"} {
+		mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/"+id+"/jobs", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, map[string]any{"total_count": 1, "jobs": []map[string]any{{"id": 1, "name": "test", "status": "running"}}})
+		})
+	}
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": []map[string]string{}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	checks, err := forgejo.NewClient(srv.URL, "test-token", "").ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 2)
+	assert.Equal(t, "ci", checks[0].RunName)
+	assert.Equal(t, int64(614), checks[0].RunNumber)
+	assert.Equal(t, "pr-title", checks[1].RunName)
+	assert.Equal(t, int64(615), checks[1].RunNumber)
+}
+
 func TestCancelRun(t *testing.T) {
 	t.Parallel()
 

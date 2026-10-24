@@ -39,6 +39,7 @@ type CheckFixture = {
   jobId?: number;
   runId?: number;
   runName?: string;
+  runNumber?: number;
 };
 
 const RUNNING: CheckFixture[] = [
@@ -226,6 +227,75 @@ test.describe('cancel a running pipeline', () => {
     await expect(
       dialog.getByRole('button', { name: /Cancel run/ }),
     ).toHaveCount(1);
+  });
+
+  test('three runs each get a button of their own name, at phone width, with no scroll', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    const run = (n: number, id: number, name: string): CheckFixture => ({
+      name: `job-${id}`,
+      state: 'running',
+      url: `https://example.com/r/${id}`,
+      jobId: id,
+      runId: n,
+      runName: name,
+      runNumber: n + 600,
+    });
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), {
+      checks: [run(1, 11, 'ci'), run(2, 12, 'ci'), run(3, 13, 'release')],
+      posted: [],
+    });
+
+    const buttons = dialog.getByRole('button', { name: /^Cancel run/ });
+    await expect(buttons).toHaveCount(3);
+    await expect(buttons).toHaveText([
+      'Cancel run: ci #601',
+      'Cancel run: ci #602',
+      'Cancel run: release',
+    ]);
+    const overflow = await dialog.evaluate(
+      (d) => d.scrollWidth > d.clientWidth,
+    );
+    expect(overflow).toBe(false);
+    await axeClean(page);
+
+    await buttons.nth(1).click();
+    await expect(dialog.getByRole('group', { name: /ci #602/ })).toBeVisible();
+  });
+
+  test('a confirm keeps its run name when a sibling run finishes under it', async ({
+    page,
+  }) => {
+    const run = (n: number): CheckFixture => ({
+      name: `job-${n}`,
+      state: 'running',
+      url: `https://example.com/r/${n}`,
+      jobId: 10 + n,
+      runId: n,
+      runName: 'ci',
+      runNumber: n + 600,
+    });
+    const state = { checks: [run(1), run(2)], posted: [] as unknown[] };
+    const dialog = await open(page, pr([{ action: 'cancel_run' }]), state);
+    await dialog.getByRole('button', { name: 'Cancel run: ci #602' }).click();
+    const confirm = dialog.getByRole('group', { name: /ci #602/ });
+    await expect(confirm).toBeVisible();
+
+    state.checks = [run(2)];
+    await page.evaluate(
+      (item) => window.__push(item),
+      snapshot({
+        ...pr([{ action: 'cancel_run' }]),
+        checks: { passed: 1, running: 1, waiting: 0, failed: 0 },
+      }),
+    );
+
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toContainText('ci #602');
+    await expect(
+      dialog.getByRole('button', { name: 'Yes, cancel run' }),
+    ).toBeVisible();
   });
 
   test('offers nothing once every run has finished', async ({ page }) => {

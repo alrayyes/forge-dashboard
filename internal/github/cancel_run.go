@@ -47,8 +47,9 @@ func jobStillGoing(ch dashboard.Check) bool {
 
 // runRef is the workflow run a job belongs to.
 type runRef struct {
-	id   int64
-	name string
+	id     int64
+	name   string
+	number int64
 }
 
 // attachRuns names the workflow run behind each queued or running check, so
@@ -64,7 +65,7 @@ func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks
 	byJob := c.activeRunJobs(ctx, owner, name, sha)
 	for i := range checks {
 		if ref, ok := byJob[checks[i].JobID]; ok && jobStillGoing(checks[i]) {
-			checks[i].RunID, checks[i].RunName = ref.id, ref.name
+			checks[i].RunID, checks[i].RunName, checks[i].RunNumber = ref.id, ref.name, ref.number
 		}
 	}
 }
@@ -86,7 +87,7 @@ func (c *Client) activeRunJobs(ctx context.Context, owner, name, sha string) map
 		}
 		c.recordRESTSuccess(ctx, http.MethodGet, jobsPath, jobsResp)
 		for _, job := range jobs.Jobs {
-			byJob[job.GetID()] = runRef{id: run.GetID(), name: run.GetName()}
+			byJob[job.GetID()] = runRef{id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber())}
 		}
 	}
 

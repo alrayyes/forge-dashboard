@@ -91,7 +91,7 @@ func (s *cancelServer) runsHandler(t *testing.T) http.HandlerFunc {
 		}
 		all := []map[string]any{
 			{"id": 800, "name": "Old", "status": "completed"},
-			{"id": 900, "name": "CI", "status": "in_progress"},
+			{"id": 900, "name": "CI", "run_number": 12, "status": "in_progress"},
 			{"id": 901, "name": "Release", "status": "queued"},
 		}
 		status := r.URL.Query().Get("status")
@@ -126,6 +126,7 @@ func TestListChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
 	assert.Equal(t, int64(900), byName["test"].RunID)
 	assert.Equal(t, "CI", byName["test"].RunName)
 	assert.Equal(t, int64(900), byName["build"].RunID, "a queued job belongs to its run too")
+	assert.Equal(t, int64(12), byName["test"].RunNumber)
 	assert.Equal(t, int64(901), byName["publish"].RunID)
 	assert.Equal(t, "Release", byName["publish"].RunName)
 }
