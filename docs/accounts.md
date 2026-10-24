@@ -81,9 +81,8 @@ skipping every address listed in `TRUSTED_PROXIES` (see
 [Configuration](configuration.md)). It believes that header only from those
 proxies, and only the entries they wrote. An IPv6 client counts by its /64.
 
-The proxy must forward the client's address in `X-Forwarded-For`. Caddy and
-Traefik do by default; nginx needs `proxy_set_header X-Forwarded-For
-$proxy_add_x_forwarded_for`. When a
+The proxy must forward the client's address in `X-Forwarded-For`. Most
+do by default; some need a setting that adds the header. When a
 trusted proxy sends none (or only addresses of trusted proxies), every visitor
 would count as the proxy, and a stranger sending one request every few seconds
 could keep the owner at `429`. So such a request is let through uncounted, and
