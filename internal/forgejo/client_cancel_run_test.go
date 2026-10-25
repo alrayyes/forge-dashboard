@@ -152,6 +152,104 @@ func TestListChecks_NamesTheRunsFromForgejosOwnFields(t *testing.T) {
 	assert.Equal(t, int64(615), checks[1].RunNumber)
 }
 
+// Runs the forge has queued may have no jobs yet (waiting, blocked, unknown).
+// They still have to be offered for cancel, as the main branch does, or a push
+// that queued many runs leaves all but the running one with no button.
+func TestListChecks_QueuedRunWithNoJobs_IsCancellable(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 5, "workflow_runs": []map[string]any{
+			{"id": 41, "workflow_id": "ci.yml", "event": "pull_request", "status": "running"},
+			{"id": 42, "workflow_id": "e2e.yml", "event": "pull_request", "status": "waiting"},
+			{"id": 43, "workflow_id": "lint.yml", "event": "pull_request", "status": "blocked"},
+			{"id": 44, "workflow_id": "docs.yml", "event": "pull_request", "status": "unknown"},
+			{"id": 45, "workflow_id": "old.yml", "event": "pull_request", "status": "success"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/41/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "jobs": []map[string]any{{"id": 1, "name": "test", "status": "running"}}})
+	})
+	for _, id := range []string{"42", "43", "44", "45"} {
+		mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/"+id+"/jobs", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, map[string]any{"total_count": 0, "jobs": []map[string]any{}})
+		})
+	}
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": []map[string]string{}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	checks, err := forgejo.NewClient(srv.URL, "test-token", "").ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	var cancellable []int64
+	for _, c := range checks {
+		if c.RunID != 0 {
+			cancellable = append(cancellable, c.RunID)
+		}
+	}
+	assert.ElementsMatch(t, []int64{41, 42, 43, 44}, cancellable, "every unfinished run, and no finished one")
+}
+
+// queuedRunServer plays Forgejo for pull request 5 into a protected main: one
+// waiting run, no jobs yet.
+func queuedRunServer(t *testing.T) *forgejo.Client {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
+			{"id": 42, "workflow_id": "e2e.yml", "event": "pull_request", "status": "waiting"},
+		}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 0, "jobs": []map[string]any{}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/branch_protections", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"rule_name": "main", "enable_status_check": true, "status_check_contexts": []string{"ci / test (pull_request)"}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"state": "pending", "statuses": []map[string]string{}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func TestListChecks_QueuedRunWithNoJobs_StandsInAsOneQueuedCheckNamedForTheWorkflow(t *testing.T) {
+	t.Parallel()
+
+	checks, err := queuedRunServer(t).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, "e2e", checks[0].Name)
+	assert.Equal(t, dashboard.CheckQueued, checks[0].State)
+	assert.Zero(t, checks[0].JobID, "the stand-in is the run, not a job")
+}
+
+// The stand-in is a run, with no job context a branch rule could name, so
+// whether it is required is unknown, not "advisory".
+func TestListChecks_QueuedRunWithNoJobs_RequiredStaysUnknown(t *testing.T) {
+	t.Parallel()
+
+	checks, err := queuedRunServer(t).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Nil(t, checks[0].Required)
+}
+
 func TestCancelRun(t *testing.T) {
 	t.Parallel()
 
