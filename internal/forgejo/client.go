@@ -1373,6 +1373,10 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		if err != nil {
 			return nil, nil, err
 		}
+		if stand, ok := queuedRunCheck(run, jobs); ok {
+			checks = append(checks, stand)
+			probes = append(probes, "")
+		}
 		for _, j := range jobs {
 			checks = append(checks, withRun(dashboard.Check{
 				Name:       j.Name,
@@ -1388,6 +1392,19 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 	c.rememberFailedJobs(owner, name, checks, excerptKeys)
 
 	return checks, probes, nil
+}
+
+// queuedRunCheck is the one check that stands in for a run still going that
+// has no jobs yet (waiting, blocked, unknown), so the pipeline dialog can
+// cancel it. A run with jobs shows them instead, and a finished run has
+// nothing to show.
+func queuedRunCheck(run *gitea.ActionWorkflowRun, jobs []*gitea.ActionWorkflowJob) (dashboard.Check, bool) {
+	state := checkStateFromWorkflowStatus(run.Status)
+	if len(jobs) > 0 || (state != dashboard.CheckRunning && state != dashboard.CheckQueued) {
+		return dashboard.Check{}, false
+	}
+
+	return withRun(dashboard.Check{Name: workflowName(run), State: state, URL: run.HTMLURL}, run.ID, workflowName(run), run.RunNumber), true
 }
 
 // statusChecks wraps checksFromCombinedStatus for listChecksForSHA's
