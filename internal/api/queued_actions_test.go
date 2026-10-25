@@ -200,18 +200,17 @@ func TestQueuedActions_PullRequestNotBehind_Answers409AlreadyUpToDate(t *testing
 	assert.Equal(t, "already_up_to_date", got["code"])
 }
 
-func TestQueuedActions_UpdateBranchWhileCIRuns_Answers409ChecksPending(t *testing.T) {
+func TestQueuedActions_UpdateBranchWhileCIRuns_IsStored(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
 	status, got := queueUpdate(t, srv, cookie, 9)
 
-	require.Equal(t, http.StatusConflict, status)
-	assert.Equal(t, "checks_pending", got["code"])
-	assert.Equal(t, "Waiting for CI to finish", got["message"])
+	require.Equal(t, http.StatusCreated, status, "checks running is no reason to refuse (#2837): %v", got)
+	assert.Equal(t, "queued", got["status"])
 }
 
-func TestUpdateBranch_WhileCIRuns_Answers409ChecksPending(t *testing.T) {
+func TestUpdateBranch_WhileCIRuns_IsNotRefusedForPendingChecks(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, false, time.Time{})
 
@@ -220,9 +219,7 @@ func TestUpdateBranch_WhileCIRuns_Answers409ChecksPending(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
 
-	require.Equal(t, http.StatusConflict, resp.StatusCode)
-	assert.Equal(t, "checks_pending", got["code"])
-	assert.Equal(t, "Waiting for CI to finish", got["message"])
+	assert.NotEqual(t, "checks_pending", got["code"], "#2837")
 }
 
 func TestQueuedActions_UpdateBranchOnABotPullRequest_IsRefused(t *testing.T) {

@@ -63,15 +63,15 @@ func TestAllowedActions(t *testing.T) {
 		{"unstable with an optional check pending still merges (#956)", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnstable; p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge"}},
 		{"CI pending locks merge even when mergeable", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending"}},
 		{"behind and not mergeable", ghPR(func(p *dashboard.PullRequest) { p.Behind = true; p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:behind", "update_branch"}},
-		{"behind and waiting for CI (Forgejo): update branch is locked with Merge's reason", ghPR(func(p *dashboard.PullRequest) {
+		{"behind and waiting for CI (Forgejo): update branch stays open (#2837)", ghPR(func(p *dashboard.PullRequest) {
 			p.Forge = dashboard.ForgeForgejo
 			p.Behind = true
 			p.CI = dashboard.CIPending
-		}), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending", "update_branch:checks_pending"}},
-		{"behind and waiting for CI (GitHub): update branch is locked with Merge's reason", ghPR(func(p *dashboard.PullRequest) {
+		}), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending", "update_branch"}},
+		{"behind and waiting for CI (GitHub): update branch stays open (#2837)", ghPR(func(p *dashboard.PullRequest) {
 			p.Behind = true
 			p.CI = dashboard.CIPending
-		}), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending", "update_branch:checks_pending"}},
+		}), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending", "update_branch"}},
 		{"behind but mergeable keeps merge (Forgejo)", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.Behind = true }), []string{"auto_merge", "close", "merge", "update_branch"}},
 		{"blocked with CI failing", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge:checks_failing", "rerun_checks"}},
 		{"failing CI on GitHub offers rerunning the failed checks (#698)", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), []string{"auto_merge", "close", "merge", "rerun_checks"}},

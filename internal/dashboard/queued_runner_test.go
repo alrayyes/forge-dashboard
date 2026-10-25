@@ -356,7 +356,7 @@ func TestQueuedActions_ReCheckTheRequestAtRunTime(t *testing.T) {
 		skipped(t, rig, dashboard.ActionConflict)
 	})
 
-	t.Run("CI that started running meanwhile skips the update with Merge's reason", func(t *testing.T) {
+	t.Run("CI that started running meanwhile still gets the update (#2837)", func(t *testing.T) {
 		t.Parallel()
 		rig := newQueueRig(t, behindPR(5, "alice"))
 		rig.enqueue(t, dashboard.ActionUpdateBranch, 5)
@@ -367,8 +367,8 @@ func TestQueuedActions_ReCheckTheRequestAtRunTime(t *testing.T) {
 
 		rig.agg.ProcessQueuedActions(t.Context())
 
-		skipped(t, rig, dashboard.ActionChecksPending)
-		assert.Equal(t, "Waiting for CI to finish", rig.only(t).Message)
+		assert.Equal(t, []string{"update o/r#5"}, rig.src.writes())
+		assert.Equal(t, dashboard.QueuedDone, rig.only(t).Status)
 	})
 
 	t.Run("a bot that already rebased meanwhile is skipped", func(t *testing.T) {

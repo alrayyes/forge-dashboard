@@ -308,8 +308,8 @@ func TestAllowedActions_HeldBehindBlocksHeadPushes(t *testing.T) {
 			dashboard.ActionDependabotRebase:   nil,
 			dashboard.ActionDependabotRecreate: nil,
 		}},
-		{"person with checks pending keeps Update branch's own wait", held("someone", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
-			dashboard.ActionUpdateBranch: {Code: dashboard.ActionChecksPending, Message: "Waiting for CI to finish", Next: "Merge unlocks automatically"},
+		{"person with checks pending keeps Update branch open (#2837)", held("someone", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }), map[dashboard.ActionName]*dashboard.Blocked{
+			dashboard.ActionUpdateBranch: nil,
 		}},
 		{"up-to-date Renovate keeps its rebase", held("renovate", func(p *dashboard.PullRequest) { p.Behind = false }), map[dashboard.ActionName]*dashboard.Blocked{
 			dashboard.ActionRenovateRebase: nil,

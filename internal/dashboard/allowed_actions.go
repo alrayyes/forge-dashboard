@@ -344,13 +344,6 @@ func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionA
 		}}, true
 	}
 
-	// While Merge waits for CI, a branch update would only restart the checks
-	// it is waiting for. Listed blocked with Merge's own reason, so the board
-	// hides it and the API and a queued run refuse it truthfully.
-	if m := mergeAvailability(pr); m.Blocked != nil && m.Blocked.Code == ActionChecksPending {
-		return ActionAvailability{Action: ActionUpdateBranch, Blocked: m.Blocked}, true
-	}
-
 	return ActionAvailability{Action: ActionUpdateBranch}, true
 }
 
