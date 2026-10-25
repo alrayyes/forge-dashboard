@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -58,13 +59,12 @@ func workflowName(run *gitea.ActionWorkflowRun) string {
 }
 
 // listRunsForSHA lists the Actions runs of sha. Forgejo names a run by
-// workflow_id, title and index_in_repo, while the SDK's ActionWorkflowRun reads
-// path, display_title and run_number, which Forgejo doesn't send. So the list
-// is decoded by hand and those fields filled from Forgejo's own; a server that
-// does send the SDK's names keeps them. Only this call is hand-decoded: it is
-// the one that shows a run's name and number, while the other runs-list reads
-// (a re-run, the running split) use only ids and states, which the SDK reads
-// fine. It logs the request and rawRequest records it, so the caller does neither.
+// workflow_id, title, index_in_repo, commit_sha and stopped, while the SDK's
+// ActionWorkflowRun reads path, display_title, run_number, head_sha and
+// completed_at, which Forgejo doesn't send. So the list is decoded by hand and
+// those fields filled from Forgejo's own; a server that does send the SDK's
+// names keeps them. It logs the request and rawRequest records it, so the caller
+// does neither.
 func (c *Client) listRunsForSHA(ctx context.Context, owner, name, sha string) (*gitea.ActionWorkflowRunsResponse, *gitea.Response, error) {
 	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
@@ -79,13 +79,15 @@ func (c *Client) listRunsForSHA(ctx context.Context, owner, name, sha string) (*
 			WorkflowID  string `json:"workflow_id"`
 			Title       string `json:"title"`
 			IndexInRepo int64  `json:"index_in_repo"`
+			CommitSHA   string `json:"commit_sha"`
+			Stopped     string `json:"stopped"`
 		} `json:"workflow_runs"`
 	}
 	if err := json.Unmarshal(body, &list); err != nil {
 		return nil, resp, fmt.Errorf("forgejo: unmarshal action runs response: %w", err)
 	}
 
-	out := &gitea.ActionWorkflowRunsResponse{}
+	out := &gitea.ActionWorkflowRunsResponse{TotalCount: int64(len(list.WorkflowRuns))}
 	for _, entry := range list.WorkflowRuns {
 		run := entry.ActionWorkflowRun
 		if run.Path == "" {
@@ -97,9 +99,15 @@ func (c *Client) listRunsForSHA(ctx context.Context, owner, name, sha string) (*
 		if run.RunNumber == 0 {
 			run.RunNumber = entry.IndexInRepo
 		}
+		if stopped, err := time.Parse(time.RFC3339, entry.Stopped); err == nil && run.CompletedAt.IsZero() {
+			// Read as text: an unset or odd value must not fail the whole list.
+			run.CompletedAt = stopped
+		}
+		if run.HeadSha == "" {
+			run.HeadSha = entry.CommitSHA
+		}
 		out.WorkflowRuns = append(out.WorkflowRuns, &run)
 	}
-	out.TotalCount = int64(len(out.WorkflowRuns))
 
 	return out, resp, nil
 }

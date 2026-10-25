@@ -295,9 +295,16 @@ Forgejo reports no request budget of its own to spend, so each read costs a
 round trip and nothing more. Check again when you upgrade Forgejo; if it starts
 sending ETags, add a cache for it the way GitHub's works. Until then the
 default-branch pill keeps a finished run's job list in memory (a finished run
-never changes) and reads the jobs of runs still going on each poll. A run that
-finished with no jobs is read again for five minutes, in case the forge is still
-catching up, then kept empty too.
+never changes) and reads the jobs of runs still going on each poll. A pull
+request row with a failed status that points at an Actions job also reads the
+runs of its commit on each poll, and the jobs of each run such a failure
+points at, to tell a cancelled job from a failed one. A run's job list is
+kept once every job is over, or five minutes after a failed run ended, so only
+a run still going, one with no jobs yet, or one with no stop time is read
+again.
+A run that finished with no jobs is read again for five minutes on the
+default-branch pill, in case the forge is still catching up, then kept empty
+too.
 
 Each row below is one source file with its number of REST `GET` call sites. A
 test reads this table and fails when a file's count differs from the source, so
@@ -315,7 +322,7 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/forgejo/advisories.go`           | 3     | The repository's file tree, one call per 1000 files up to five, a slashed default branch's commit, and each lock file (at most 20)                                  | No, Forgejo sends no ETag         |
 | `internal/forgejo/advisory_list.go`        | 1     | The repository, for its default branch, when someone opens the dialog                                                                                               | No, Forgejo sends no ETag         |
 | `internal/forgejo/cancel_run.go`           | 1     | The Actions runs of a commit, for the pipeline dialog                                                                                                               | No, Forgejo sends no ETag         |
-| `internal/forgejo/client.go`               | 15    | Hooks, repositories, pull requests, issues, labels, reviews, statuses, Actions runs and jobs, protection                                                            | No, Forgejo sends no ETag         |
+| `internal/forgejo/client.go`               | 14    | Hooks, repositories, pull requests, issues, labels, reviews, statuses, Actions runs and jobs, protection                                                            | No, Forgejo sends no ETag         |
 | `internal/forgejo/issue_details.go`        | 1     | One issue                                                                                                                                                           | No, Forgejo sends no ETag         |
 | `internal/forgejo/job_log.go`              | 1     | One job's log                                                                                                                                                       | No, Forgejo sends no ETag         |
 | `internal/forgejo/main_branch.go`          | 3     | Repository, Actions runs, one commit                                                                                                                                | No, Forgejo sends no ETag         |

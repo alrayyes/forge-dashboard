@@ -1146,11 +1146,194 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 		// One page of the statuses was read: a count of it would undercount.
 		counts = dashboard.CheckCounts{}
 	}
-	if counts.Waiting > 0 {
-		counts = c.splitRunning(ctx, owner, name, sha, counts)
+	state := statusFromCombinedState(combined.State)
+	maybeCancelled := counts.Failed > 0 && hasJobTarget(combined.Statuses)
+	if counts.Waiting == 0 && !maybeCancelled {
+		return state, counts, nil
+	}
+	runs, haveRuns := c.commitRuns(ctx, owner, name, sha)
+	if haveRuns && maybeCancelled {
+		if n := c.cancelledFailures(ctx, owner, name, runs, combined.Statuses); n > 0 {
+			counts.Failed -= n
+			if counts.Failed == 0 {
+				state = stateWithoutFailures(counts, combined.Statuses)
+			}
+		}
+	}
+	if haveRuns && counts.Waiting > 0 {
+		counts = c.splitRunning(ctx, owner, name, runs, counts)
 	}
 
-	return statusFromCombinedState(combined.State), counts, nil
+	return state, counts, nil
+}
+
+// commitRuns lists the Actions runs of sha. ok is false when they can't be
+// read, which leaves the statuses as they were.
+func (c *Client) commitRuns(ctx context.Context, owner, name, sha string) (runs []*gitea.ActionWorkflowRun, ok bool) {
+	list, resp, err := c.listRunsForSHA(ctx, owner, name, strings.ToLower(sha))
+	if err != nil {
+		// forgejoError records the failed request; the statuses stay as they were.
+		_ = c.forgejoError(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name), resp, err)
+		slog.Debug("commit runs not read", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "error", err)
+
+		return nil, false
+	}
+	if len(list.WorkflowRuns) >= pageLimit {
+		slog.Debug("commit runs capped at one page", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "sha", sha, "runs", len(list.WorkflowRuns))
+	}
+	// A forge that ignores the head_sha filter answers with other commits' runs.
+	return slices.DeleteFunc(list.WorkflowRuns, func(r *gitea.ActionWorkflowRun) bool { return !sameCommit(r.HeadSha, sha) }), true
+}
+
+// jobTargetRe is the target_url of an Actions job's commit status:
+// /<owner>/<repo>/actions/runs/<run number>/jobs/<job index>.
+var jobTargetRe = regexp.MustCompile(`/actions/runs/(\d+)/jobs/(\d+)$`)
+
+// jobTarget is the run number and the position in the run's job list that a
+// status's target_url names. ok is false for a status that isn't an Actions
+// job's, such as an external CI's.
+func jobTarget(s *gitea.Status) (run int64, job int, ok bool) {
+	m := jobTargetRe.FindStringSubmatch(s.TargetURL)
+	if m == nil {
+		return 0, 0, false
+	}
+	run, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	job, err = strconv.Atoi(m[2])
+
+	return run, job, err == nil
+}
+
+func isFailureStatus(s *gitea.Status) bool {
+	return s != nil && (s.State == gitea.StatusFailure || s.State == gitea.StatusError)
+}
+
+// hasJobTarget reports a failure status that points at an Actions job.
+func hasJobTarget(statuses []*gitea.Status) bool {
+	return slices.ContainsFunc(statuses, func(s *gitea.Status) bool {
+		_, _, ok := jobTarget(s)
+
+		return isFailureStatus(s) && ok
+	})
+}
+
+// stateWithoutFailures is the state of counts once no check has failed. A
+// warning counts as passed but still needs a look, as statusFromCombinedState
+// has it.
+func stateWithoutFailures(counts dashboard.CheckCounts, statuses []*gitea.Status) dashboard.CIStatus {
+	hasWarning := slices.ContainsFunc(statuses, func(s *gitea.Status) bool { return s != nil && s.State == gitea.StatusWarning })
+	switch {
+	case counts.Waiting > 0 || hasWarning:
+		return dashboard.CIPending
+	case counts.Passed > 0:
+		return dashboard.CISuccess
+	default:
+		return dashboard.CINone
+	}
+}
+
+// cancelledFailures counts the failure statuses that are a cancelled Actions
+// job (#2846). Forgejo records a cancelled job as a failure status, but the
+// pipeline panel reads the job itself and says Cancelled, and nothing broke. A
+// status names its job in its target_url, by run number and position in the
+// run's job list, so no workflow or job name has to match. The jobs of each run
+// a failure points at are read side by side, at most
+// dashboard.DefaultMaxConcurrency at once. A run that isn't listed or whose jobs
+// can't be read excuses nothing, which leaves its statuses as they were.
+func (c *Client) cancelledFailures(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) int {
+	byNumber, pointed := failuresByRun(runs, statuses)
+
+	var (
+		mu sync.Mutex
+		wg sync.WaitGroup
+		n  int
+	)
+	sem := make(chan struct{}, dashboard.DefaultMaxConcurrency)
+	for number, positions := range pointed {
+		run := byNumber[number]
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			jobs, err := c.finishedRunJobs(ctx, owner, name, run)
+			if err != nil {
+				slog.Debug("cancelled failures not read", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
+
+				return
+			}
+			mu.Lock()
+			n += cancelledAt(jobs, positions)
+			mu.Unlock()
+		})
+	}
+	wg.Wait()
+
+	return n
+}
+
+// failuresByRun indexes runs by run number and groups the job positions that
+// failure statuses point at by the number of the run they point into, leaving
+// out a run the list doesn't hold.
+func failuresByRun(runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) (map[int64]*gitea.ActionWorkflowRun, map[int64][]int) {
+	byNumber := map[int64]*gitea.ActionWorkflowRun{}
+	for _, r := range runs {
+		if r.RunNumber > 0 {
+			byNumber[r.RunNumber] = r
+		}
+	}
+	pointed := map[int64][]int{}
+	for _, s := range statuses {
+		if run, job, ok := jobTarget(s); ok && isFailureStatus(s) && byNumber[run] != nil {
+			pointed[run] = append(pointed[run], job)
+		}
+	}
+
+	return byNumber, pointed
+}
+
+// cancelledAt counts the positions whose job was cancelled.
+func cancelledAt(jobs []*gitea.ActionWorkflowJob, positions []int) int {
+	n := 0
+	for _, i := range positions {
+		if i < len(jobs) && checkStateFromWorkflowStatus(jobs[i].Status) == dashboard.CheckCancelled {
+			n++
+		}
+	}
+
+	return n
+}
+
+// finishedRunJobs reads the jobs of run. A finished run's job list never
+// changes, so once it is final it is kept (see finishedJobs) and a repeat poll
+// costs nothing; a run still going is read each time. A list is final when
+// every job is over, or, for a run that failed or was cancelled, once the forge
+// has had jobsCatchUp to settle a job it left queued. A run with no stop time
+// of its own is read each time.
+func (c *Client) finishedRunJobs(ctx context.Context, owner, name string, run *gitea.ActionWorkflowRun) ([]*gitea.ActionWorkflowJob, error) {
+	if !isFinished(run.Status) {
+		return c.listActionRunJobs(ctx, owner, name, run.ID)
+	}
+	key := func(stopped time.Time) string {
+		return fmt.Sprintf("%s/%s/%d/%s", owner, name, run.ID, stopped.Format(time.RFC3339Nano))
+	}
+	if !run.CompletedAt.IsZero() {
+		if cached, ok := c.finishedJobs.get(key(run.CompletedAt)); ok {
+			return cached, nil
+		}
+	}
+	jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	_, _, over := jobsOutcome(jobs)
+	stopped := run.CompletedAt
+	final := over || (!isPassing(run.Status) && time.Since(stopped) > jobsCatchUp)
+	if !stopped.IsZero() && final && (len(jobs) > 0 || time.Since(stopped) > jobsCatchUp) {
+		c.finishedJobs.put(key(stopped), jobs)
+	}
+
+	return jobs, nil
 }
 
 // statusListIsCapped reports whether the combined-status answer holds fewer
@@ -1177,33 +1360,12 @@ func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bo
 // from waiting to running, never more than were pending, as a pending status
 // can come from an external CI the jobs know nothing about. Any failure keeps
 // counts as it was.
-func (c *Client) splitRunning(ctx context.Context, owner, name, sha string, counts dashboard.CheckCounts) dashboard.CheckCounts {
-	sha = strings.ToLower(sha)
-	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", runsPath)
-	runs, resp, err := c.withContext(ctx).sdk.ListRepoActionRuns(owner, name, gitea.ListRepoActionRunsOptions{
-		PageSize: pageLimit,
-		HeadSHA:  sha,
-	})
-	if err != nil {
-		// forgejoError records the failed request; the pending checks stay queued.
-		_ = c.forgejoError(ctx, http.MethodGet, runsPath, resp, err)
-		slog.Debug("split running checks failed", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "error", err)
-
-		return counts
-	}
-	c.recordRequest(ctx, http.MethodGet, runsPath, resp.StatusCode, requestlog.OutcomeSuccess)
-
-	// A forge that ignores the head_sha filter answers with other commits' runs.
-	onCommit := slices.DeleteFunc(slices.Clone(runs.WorkflowRuns), func(r *gitea.ActionWorkflowRun) bool { return !sameCommit(r.HeadSha, sha) })
-	if len(onCommit) == 0 && len(runs.WorkflowRuns) > 0 {
-		slog.Debug("split running checks found no run on the commit", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "sha", sha, "runs", len(runs.WorkflowRuns))
-	}
+func (c *Client) splitRunning(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, counts dashboard.CheckCounts) dashboard.CheckCounts {
 	// Only a run that is running can hold a running job: a queued or blocked
 	// one has none, and a finished one is past it. This comes before the push
 	// runs are dropped, so a finished pull_request run doesn't hide a push run
 	// that is still going.
-	going := slices.DeleteFunc(onCommit, func(r *gitea.ActionWorkflowRun) bool {
+	going := slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool {
 		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning
 	})
 	going = withoutShadowedPushRuns(going)
