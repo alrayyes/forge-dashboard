@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.4](https://github.com/alrayyes/forge-dashboard/compare/v2.34.3...v2.34.4) (2026-10-25)
+
+
+### Bug Fixes
+
+* **forgejo:** don't count a cancelled job as failed on the pull request row ([#2847](https://github.com/alrayyes/forge-dashboard/issues/2847)) ([33c6569](https://github.com/alrayyes/forge-dashboard/commit/33c6569da559d97d8a9230daf60be138dee45fbf)), closes [#2846](https://github.com/alrayyes/forge-dashboard/issues/2846) [#2848](https://github.com/alrayyes/forge-dashboard/issues/2848)
+
 ## [2.34.3](https://github.com/alrayyes/forge-dashboard/compare/v2.34.2...v2.34.3) (2026-10-25)
 
 
