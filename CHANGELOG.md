@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.2](https://github.com/alrayyes/forge-dashboard/compare/v2.34.1...v2.34.2) (2026-10-25)
+
+
+### Bug Fixes
+
+* **dashboard:** offer Update branch while checks are running ([#2838](https://github.com/alrayyes/forge-dashboard/issues/2838)) ([5f90012](https://github.com/alrayyes/forge-dashboard/commit/5f90012519c6cb98518c4e5720a8b62c20de466c)), closes [#2837](https://github.com/alrayyes/forge-dashboard/issues/2837)
+
 ## [2.34.1](https://github.com/alrayyes/forge-dashboard/compare/v2.34.0...v2.34.1) (2026-10-24)
 
 
