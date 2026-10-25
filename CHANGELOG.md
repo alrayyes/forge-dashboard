@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.3](https://github.com/alrayyes/forge-dashboard/compare/v2.34.2...v2.34.3) (2026-10-25)
+
+
+### Bug Fixes
+
+* **forgejo:** offer Cancel run for queued runs that have no jobs yet ([#2844](https://github.com/alrayyes/forge-dashboard/issues/2844)) ([3d1fe3e](https://github.com/alrayyes/forge-dashboard/commit/3d1fe3eb0cbb1e1350b4404e30ae443bfdee3bb4))
+
 ## [2.34.2](https://github.com/alrayyes/forge-dashboard/compare/v2.34.1...v2.34.2) (2026-10-25)
 
 
