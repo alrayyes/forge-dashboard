@@ -16,7 +16,9 @@ bot pull request. A behind bot pull request has its rebase as primary whatever
 else holds Merge back (checks running or failing, auto-merge armed), so a stale
 bot branch can be fixed from the row. A conflict, a draft or a stacked pull
 request never qualifies, and neither does one whose checks are held for workflow
-approval, which a rebase can't release. Like Update branch, the rebase is
+approval, which a rebase can't release. Update branch is offered while checks run
+too, but never as the primary action, since the reason Merge is waiting is the status
+then. Like it, the rebase is
 offered while checks run: it does restart them, but only when someone clicks
 it, and a stuck bot pull request is the case it is for. A rebase that is
 already requested is not listed at all, so it is not primary: Renovate's lists
