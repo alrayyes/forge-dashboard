@@ -1681,7 +1681,9 @@ func (c *Client) markRequired(ctx context.Context, owner, name, base string, che
 		switch {
 		case matches(checks[i].Name) || (isJob && matches(probes[i])):
 			checks[i].Required = new(true)
-		case !isJob:
+		case !isJob && checks[i].RunID == 0:
+			// A legacy status. A run's stand-in check has a run id and no
+			// job context to match, so its requirement stays unknown.
 			checks[i].Required = new(false)
 		}
 	}
