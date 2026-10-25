@@ -163,6 +163,12 @@ test.describe('a browser that reports UTC (#996)', () => {
 test.describe('the time zone control on Settings (#996)', () => {
   test.use({ locale: 'en-GB', timezoneId: 'Europe/Amsterdam' });
 
+  // The preview shows the current time, so without a fixed clock these
+  // specs assert CEST only while Amsterdam is in summer time.
+  test.beforeEach(async ({ page }) => {
+    await page.clock.setFixedTime(NOW);
+  });
+
   test('defaults to the browser zone, named in the option', async ({
     page,
   }) => {
