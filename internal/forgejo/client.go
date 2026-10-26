@@ -520,6 +520,87 @@ func forgeErrorKind(statusCode int) dashboard.ForgeErrorKind {
 	}
 }
 
+// branchToDelete names the head branch of a merged pull request, or says why
+// it must be left alone: it is on a fork, or is the default branch. A pull
+// request with no head branch is a failure.
+func branchToDelete(pr *gitea.PullRequest, owner, name string) (string, *dashboard.BranchDeletion) {
+	if pr.Head == nil || pr.Head.Repository == nil || pr.Head.Repository.FullName != owner+"/"+name {
+		return "", &dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork}
+	}
+	branch := pr.Head.Ref
+	if branch == "" {
+		return "", &dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
+	}
+	if pr.Base != nil && pr.Base.Repository != nil && branch == pr.Base.Repository.DefaultBranch {
+		return "", &dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipDefaultBranch}
+	}
+
+	return branch, nil
+}
+
+// DeletePullRequestBranch implements dashboard.PullRequestBranchDeleter. It
+// deletes the head branch of a merged pull request, unless that branch is on
+// a fork, is the default branch or is protected. A branch Forgejo has already
+// removed counts as deleted. Every problem is a reported outcome, never an
+// error: the merge is done either way.
+func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string, number int) dashboard.BranchDeletion {
+	c = c.withContext(ctx)
+	failed := dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
+
+	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
+	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
+	if err != nil {
+		slog.Warn("reading the pull request before deleting its branch failed", "repo", owner+"/"+name, "number", number, "error", c.forgejoError(ctx, http.MethodGet, prPath, resp, err))
+
+		return failed
+	}
+	c.recordRequest(ctx, http.MethodGet, prPath, resp.StatusCode, requestlog.OutcomeSuccess)
+	branch, skip := branchToDelete(pr, owner, name)
+	if skip != nil {
+		return *skip
+	}
+
+	branchPath := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, name, branch)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", branchPath)
+	found, resp, err := c.sdk.GetRepoBranch(owner, name, branch)
+	switch {
+	case resp != nil && resp.StatusCode == http.StatusNotFound:
+		c.recordRequest(ctx, http.MethodGet, branchPath, resp.StatusCode, requestlog.OutcomeSuccess)
+
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}
+	case err != nil:
+		slog.Warn("reading the branch before deleting it failed", "repo", owner+"/"+name, "branch", branch, "error", c.forgejoError(ctx, http.MethodGet, branchPath, resp, err))
+
+		return failed
+	}
+	c.recordRequest(ctx, http.MethodGet, branchPath, resp.StatusCode, requestlog.OutcomeSuccess)
+	if found.Protected {
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipProtected}
+	}
+
+	slog.Debug("forgejo request", "method", http.MethodDelete, "url", branchPath)
+	// The SDK reports any status but 204 as false with no error.
+	removed, resp, err := c.sdk.DeleteRepoBranch(owner, name, branch)
+	switch {
+	case resp != nil && resp.StatusCode == http.StatusNotFound:
+		// Gone between the lookup and the delete: the outcome we wanted.
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}
+	case err == nil && !removed:
+		slog.Warn("deleting the merged branch was refused", "repo", owner+"/"+name, "branch", branch, "status", resp.StatusCode)
+		c.recordRequest(ctx, http.MethodDelete, branchPath, resp.StatusCode, string(dashboard.ForgeErrorUnknown))
+
+		return failed
+	case err != nil:
+		slog.Warn("deleting the merged branch failed", "repo", owner+"/"+name, "branch", branch, "error", c.forgejoError(ctx, http.MethodDelete, branchPath, resp, err))
+
+		return failed
+	}
+	c.recordRequest(ctx, http.MethodDelete, branchPath, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	return dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}
+}
+
 // MergePullRequest implements dashboard.PullRequestMerger: merges
 // owner/name#number using the repo's own configured default merge style.
 // Unlike GitHub, Forgejo's merge API has no "use the repo default"

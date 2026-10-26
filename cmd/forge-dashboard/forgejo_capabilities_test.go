@@ -46,6 +46,7 @@ var optionalCapabilities = []optionalCapability{
 	// Asked for by the aggregator (webhook_upgrade.go), not the API.
 	capabilityNamed[dashboard.WebhookUpgrader](false),
 	capabilityNamed[dashboard.PullRequestMerger](false),
+	capabilityNamed[dashboard.PullRequestBranchDeleter](false),
 	capabilityNamed[dashboard.PullRequestStateReader](false),
 	capabilityNamed[dashboard.PullRequestCloser](false),
 	capabilityNamed[dashboard.PullRequestReopener](false),

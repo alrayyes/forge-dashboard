@@ -950,3 +950,29 @@ to offer isn't counted. When no pull request can be asked, the button is
 disabled. With nothing behind, the line reads `Nothing is out of date.` A
 Dependabot pull request on a GitHub App with no saved personal token is left
 out too, and the line gives the reason.
+
+## Deleting the source branch on merge
+
+`POST /api/pull-requests/merge` can also delete the branch the pull request came
+from. Send `deleteBranch: true` with the usual `forge`, `fullName` and `number`.
+Without it, or with `false`, nothing changes: the answer is `204` and the branch
+stays.
+
+The branch is deleted after the merge succeeds, and never before. With
+`deleteBranch` set, the answer is `200` and says what happened to the branch:
+
+```json
+{ "branchDeletion": { "outcome": "skipped", "reason": "protected" } }
+```
+
+`outcome` is one of:
+
+- `deleted`: the branch is gone. A branch the forge had already removed counts.
+- `skipped`: the branch was left alone on purpose. `reason` is `fork` (the
+  branch lives in another repository), `default_branch`, `protected`, or
+  `unsupported` (the forge's client can't delete branches).
+- `failed`: the forge refused or couldn't be reached.
+
+A skipped or failed deletion never turns a merge into a failure. The pull
+request is merged either way, so the caller reads `branchDeletion` to decide
+what to tell the person. Auto-merge doesn't delete branches.
