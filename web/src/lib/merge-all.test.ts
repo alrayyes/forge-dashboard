@@ -146,7 +146,7 @@ describe('branchNote', () => {
 
   test('says the branch could not be deleted when deleting failed', () => {
     expect(branchNote({ outcome: 'failed' })).toBe(
-      'Merged, but the branch could not be deleted.',
+      'The branch could not be deleted.',
     );
   });
 });

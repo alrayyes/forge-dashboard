@@ -77,8 +77,7 @@ export function branchNote(
   deletion: BranchDeletion | undefined,
 ): string | undefined {
   if (!deletion) return undefined;
-  if (deletion.outcome === 'failed')
-    return 'Merged, but the branch could not be deleted.';
+  if (deletion.outcome === 'failed') return 'The branch could not be deleted.';
   if (deletion.outcome !== 'skipped') return undefined;
   const because = deletion.reason && KEPT_BECAUSE[deletion.reason];
   return because ? `Branch kept: ${because}.` : 'Branch kept.';
