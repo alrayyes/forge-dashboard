@@ -43,6 +43,8 @@ var mcpPending = []string{
 	"unignoreRepo",
 	"enableAutoUpdateBranch",
 	"disableAutoUpdateBranch",
+	"enableRebaseBots",
+	"disableRebaseBots",
 	"mergePullRequest",
 	"enablePullRequestAutoMerge",
 	"cancelPullRequestAutoMerge",

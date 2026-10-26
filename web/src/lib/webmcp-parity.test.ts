@@ -105,6 +105,8 @@ const PENDING_OPERATIONS = [
   'unignoreRepo',
   'enableAutoUpdateBranch',
   'disableAutoUpdateBranch',
+  'enableRebaseBots',
+  'disableRebaseBots',
   'mergePullRequest',
   'enablePullRequestAutoMerge',
   'cancelPullRequestAutoMerge',

@@ -34,6 +34,7 @@ type repoStatus struct {
 	IgnoredPRs        bool            `json:"ignoredPRs"`
 	IgnoredIssues     bool            `json:"ignoredIssues"`
 	AutoUpdateBranch  bool            `json:"autoUpdateBranch"`
+	RebaseBots        bool            `json:"rebaseBots"`
 
 	// WebhookLockedByConnection: the credential, not the user's role, is
 	// why CanManageWebhooks is false (see dashboard.Repo).
@@ -490,6 +491,7 @@ type boardSettings struct {
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
+	rebaseBots       map[string]struct{}
 	// autoUpdateChoices are the pull requests with their own choice about
 	// automatic branch updates, keyed by settings.AutoMergeKey.
 	autoUpdateChoices map[string]bool
@@ -521,6 +523,11 @@ func loadBoardSettings(ctx context.Context, store *settings.Store) boardSettings
 	if err != nil {
 		slog.Warn("could not load auto-update-branch repos for dashboard response", "error", err)
 		autoUpdateBranch = nil
+	}
+	rebaseBots, err := store.RebaseBotsRepos(ctx)
+	if err != nil {
+		slog.Warn("could not load rebase-bots repos for dashboard response", "error", err)
+		rebaseBots = nil
 	}
 
 	autoUpdateChoices, err := store.PullRequestAutoUpdates(ctx)
@@ -557,7 +564,7 @@ func loadBoardSettings(ctx context.Context, store *settings.Store) boardSettings
 		logins[dashboard.ForgeForgejo] = creds.ForgejoUsername
 	}
 
-	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, autoUpdateChoices: autoUpdateChoices, autoMerge: autoMerge, queued: queued, hidden: hidden, logins: logins, renovateAuthors: renovateAuthors}
+	return boardSettings{deliveries: deliveries, ignored: ignored, autoUpdateBranch: autoUpdateBranch, rebaseBots: rebaseBots, autoUpdateChoices: autoUpdateChoices, autoMerge: autoMerge, queued: queued, hidden: hidden, logins: logins, renovateAuthors: renovateAuthors}
 }
 
 // repoStatuses is the tracked-repo list with each repo's webhook coverage and
@@ -580,6 +587,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 		}
 		scope := b.ignored[key]
 		_, autoUpdate := b.autoUpdateBranch[key]
+		_, rebaseBots := b.rebaseBots[key]
 		out = append(out, repoStatus{
 			Forge:             r.Forge,
 			FullName:          r.FullName,
@@ -591,6 +599,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 			IgnoredPRs:        scope.PRs,
 			IgnoredIssues:     scope.Issues,
 			AutoUpdateBranch:  autoUpdate,
+			RebaseBots:        rebaseBots,
 
 			WebhookLockedByConnection: r.WebhookLockedByConnection,
 			WebhookNeedsToken:         r.WebhookNeedsToken,

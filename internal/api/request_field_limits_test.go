@@ -107,6 +107,7 @@ func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 		"ignore repo":      {http.MethodPost, "/api/repos/ignore", `{"forge":"github","fullName":"` + repo() + `/x","prs":true,"issues":false}`, "fullName", true},
 		"unignore repo":    {http.MethodPost, "/api/repos/unignore", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
 		"auto update repo": {http.MethodPost, "/api/repos/auto-update-branch/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"rebase bots repo": {http.MethodPost, "/api/repos/rebase-bots/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
 		"merge repo":       {http.MethodPost, "/api/pull-requests/merge", `{"forge":"github","fullName":"` + repo() + `/x","number":1}`, "fullName", true},
 		"dependabot repo":  {http.MethodPost, "/api/pull-requests/dependabot-action", `{"forge":"github","fullName":"` + repo() + `/x","number":1,"action":"rebase"}`, "fullName", true},
 	} {
