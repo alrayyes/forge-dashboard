@@ -298,7 +298,10 @@ default-branch pill keeps a finished run's job list in memory (a finished run
 never changes) and reads the jobs of runs still going on each poll. A pull
 request row with a failed status that points at an Actions job also reads the
 runs of its commit on each poll, and the jobs of each run such a failure
-points at, to tell a cancelled job from a failed one. A run's job list is
+points at, to tell a cancelled job from a failed one. A job list is read a
+page of 50 at a time, so a run with more jobs than that costs one request per
+page. A status only counts as cancelled when the job at its position carries
+the name its context gives. A run's job list is
 kept once every job is over, or five minutes after a failed run ended, so only
 a run still going, one with no jobs yet, or one with no stop time is read
 again.
