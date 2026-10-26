@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.40.0](https://github.com/alrayyes/forge-dashboard/compare/v2.39.0...v2.40.0) (2026-10-26)
+
+
+### Features
+
+* **web:** add Merge all to the Pull requests page ([#2915](https://github.com/alrayyes/forge-dashboard/issues/2915)) ([5e65b56](https://github.com/alrayyes/forge-dashboard/commit/5e65b5665198c6a631b1f0759ca8db093c4879f2))
+
 ## [2.39.0](https://github.com/alrayyes/forge-dashboard/compare/v2.38.0...v2.39.0) (2026-10-26)
 
 
