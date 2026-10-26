@@ -53,14 +53,42 @@ func repoWithHook(name string, has bool) dashboard.Repo {
 	return dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: name, HasWebhook: has}
 }
 
-func runCount(t *testing.T, repos []dashboard.Repo, interval, wait time.Duration) int {
+// fakeRunTimer is Run's timer under a test's hand: it reports each delay Run
+// arms it with and fires only when the test sends a tick.
+type fakeRunTimer struct {
+	ticks  chan time.Time
+	delays chan time.Duration
+}
+
+func newFakeRunTimer() *fakeRunTimer {
+	return &fakeRunTimer{ticks: make(chan time.Time, 1), delays: make(chan time.Duration, 16)}
+}
+
+func (f *fakeRunTimer) C() <-chan time.Time { return f.ticks }
+
+func (f *fakeRunTimer) Reset(d time.Duration) { f.delays <- d }
+
+func (f *fakeRunTimer) Stop() bool { return true }
+
+func (f *fakeRunTimer) option() dashboard.AggregatorOption {
+	return dashboard.WithRunTimer(func(d time.Duration) dashboard.RunTimer {
+		f.delays <- d
+
+		return f
+	})
+}
+
+// runDelays runs Run over repos and returns the delay it armed the timer with
+// after its refresh on entry, then after one tick, with the refreshes made.
+func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (first, second time.Duration, refreshes int) {
 	t.Helper()
 
 	src := &fakeSource{result: dashboard.Result{
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 		Repos:  repos,
 	}}
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option())
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -70,28 +98,32 @@ func runCount(t *testing.T, repos []dashboard.Repo, interval, wait time.Duration
 		close(done)
 	}()
 
-	time.Sleep(wait)
+	first = <-timer.delays
+	timer.ticks <- time.Time{}
+	second = <-timer.delays
 	cancel()
 	<-done
 
-	return src.callCount()
+	return first, second, src.callCount()
 }
 
 func TestAggregator_Run_WaitsTheStretchedDelayWhileEveryWebhookIsHealthy(t *testing.T) {
 	t.Parallel()
 
-	// Stretched, the wait is 80ms: only Run's refresh on entry fits in 60ms.
-	got := runCount(t, []dashboard.Repo{repoWithHook("alrayyes/a", true)}, 20*time.Millisecond, 60*time.Millisecond)
+	first, second, _ := runDelays(t, []dashboard.Repo{repoWithHook("alrayyes/a", true)}, 20*time.Millisecond)
 
-	assert.Equal(t, 1, got)
+	assert.Equal(t, 80*time.Millisecond, first)
+	assert.Equal(t, 80*time.Millisecond, second)
 }
 
 func TestAggregator_Run_KeepsTheIntervalWhenAWebhookIsMissing(t *testing.T) {
 	t.Parallel()
 
-	got := runCount(t, []dashboard.Repo{repoWithHook("alrayyes/a", false)}, 20*time.Millisecond, 70*time.Millisecond)
+	first, second, refreshes := runDelays(t, []dashboard.Repo{repoWithHook("alrayyes/a", false)}, 20*time.Millisecond)
 
-	assert.GreaterOrEqual(t, got, 3)
+	assert.Equal(t, 20*time.Millisecond, first)
+	assert.Equal(t, 20*time.Millisecond, second)
+	assert.Equal(t, 2, refreshes, "the entry refresh and the one the tick caused")
 }
 
 func TestAggregator_NextDelay_StretchesWhileEveryWebhookIsHealthy(t *testing.T) {

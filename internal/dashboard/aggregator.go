@@ -78,8 +78,10 @@ type Aggregator struct {
 	now    func() time.Time
 	// after and debounce hold back the scoped refresh a webhook delivery
 	// asks for until its burst is over (RefreshRepoDebounced).
-	after    AfterFunc
-	debounce *debouncer
+	after AfterFunc
+	// newRunTimer makes the timer Run waits on; a test supplies its own.
+	newRunTimer func(d time.Duration) RunTimer
+	debounce    *debouncer
 	// debounceOwner, when set, ends the debouncer with the Aggregator's run.
 	debounceOwner context.Context
 
@@ -158,6 +160,26 @@ func WithClock(now func() time.Time) AggregatorOption {
 	return func(a *Aggregator) { a.now = now }
 }
 
+// RunTimer is the timer Run waits on between scheduled refreshes. *time.Timer
+// is the real one, wrapped by realRunTimer.
+type RunTimer interface {
+	C() <-chan time.Time
+	Reset(d time.Duration)
+	Stop() bool
+}
+
+type realRunTimer struct{ *time.Timer }
+
+func (t realRunTimer) C() <-chan time.Time { return t.Timer.C }
+
+func (t realRunTimer) Reset(d time.Duration) { t.Timer.Reset(d) }
+
+// WithRunTimer sets the timer Run waits on, for tests that drive time by hand.
+// newTimer is called once, with the first delay.
+func WithRunTimer(newTimer func(d time.Duration) RunTimer) AggregatorOption {
+	return func(a *Aggregator) { a.newRunTimer = newTimer }
+}
+
 // WithActivity makes Run skip its scheduled refresh while act reports the
 // dashboard idle, and refresh once when use returns. Refresh and RefreshRepo
 // are unaffected: a forced refresh and a webhook delivery run regardless.
@@ -182,6 +204,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		updateRequests:   make(map[string]*updateEntry),
 		now:              time.Now,
 		after:            realAfterFunc,
+		newRunTimer:      func(d time.Duration) RunTimer { return realRunTimer{time.NewTimer(d)} },
 		lastGood:         make(map[Forge]time.Time),
 		queuedBuffer:     backoffBuffer,
 		firstRefreshedCh: make(chan struct{}),
@@ -902,14 +925,14 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	a.activity.drainWake()
 	a.refreshBackground(ctx)
 
-	timer := time.NewTimer(a.NextDelay(interval))
+	timer := a.newRunTimer(a.NextDelay(interval))
 	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-timer.C:
+		case <-timer.C():
 			if a.activity.Idle() && !a.automationPending(ctx) {
 				timer.Reset(a.NextDelay(interval))
 
@@ -923,7 +946,7 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 			a.Refresh(ctx)
 			if !timer.Stop() {
 				select {
-				case <-timer.C:
+				case <-timer.C():
 				default:
 				}
 			}
