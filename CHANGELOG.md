@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.35.0](https://github.com/alrayyes/forge-dashboard/compare/v2.34.11...v2.35.0) (2026-10-26)
+
+
+### Features
+
+* **web:** update main branches from the stream ([#2902](https://github.com/alrayyes/forge-dashboard/issues/2902)) ([f94fe2d](https://github.com/alrayyes/forge-dashboard/commit/f94fe2da817ff0dd21b73df3e273c940517386fd))
+
 ## [2.34.11](https://github.com/alrayyes/forge-dashboard/compare/v2.34.10...v2.34.11) (2026-10-26)
 
 
