@@ -2284,3 +2284,157 @@ func TestListOpenPullRequests_ReadsTheClosingKeywordsInTheDescription(t *testing
 	}, prs[0].ClosesIssues)
 	assert.Equal(t, []dashboard.IssueRef{}, prs[1].ClosesIssues, "never null: an empty list")
 }
+
+// branchDeletionServer answers the reads and the delete that
+// DeletePullRequestBranch makes, and records the branches it was asked to
+// delete.
+type branchDeletionServer struct {
+	pr        map[string]any
+	branch    map[string]any
+	branchErr int
+	deleteErr int
+	deleted   []string
+}
+
+func forgejoPullRequestFrom(headRepo, head string) map[string]any {
+	pr := map[string]any{
+		"base": map[string]any{"ref": "main", "repo": map[string]any{"full_name": "alrayyes/a", "default_branch": "main"}},
+		"head": map[string]any{"ref": head, "repo": map[string]any{"full_name": headRepo}},
+	}
+	if headRepo == "" {
+		pr["head"] = map[string]any{"ref": head, "repo": nil}
+	}
+
+	return pr
+}
+
+func (b *branchDeletionServer) start(t *testing.T) *forgejo.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		if b.pr == nil {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+		writeJSON(t, w, b.pr)
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/branches/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			b.deleted = append(b.deleted, r.URL.Path)
+			if b.deleteErr != 0 {
+				w.WriteHeader(b.deleteErr)
+
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+
+			return
+		}
+		if b.branchErr != 0 {
+			w.WriteHeader(b.branchErr)
+
+			return
+		}
+		writeJSON(t, w, b.branch)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return forgejo.NewClient(srv.URL, "test-token", "")
+}
+
+func TestDeletePullRequestBranch_DeletesTheHeadBranchOfASameRepoPullRequest(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("alrayyes/a", "feat/x"), branch: map[string]any{"name": "feat/x", "protected": false}}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}, got)
+	assert.Equal(t, []string{"/api/v1/repos/alrayyes/a/branches/feat/x"}, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_LeavesAForkBranchAlone(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("someone/a", "feat/x")}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork}, got)
+	assert.Empty(t, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_ADeletedForkIsStillAFork(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("", "feat/x")}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork}, got)
+	assert.Empty(t, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_LeavesTheDefaultBranchAlone(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("alrayyes/a", "main")}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipDefaultBranch}, got)
+	assert.Empty(t, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_LeavesAProtectedBranchAlone(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("alrayyes/a", "release/1"), branch: map[string]any{"name": "release/1", "protected": true}}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipProtected}, got)
+	assert.Empty(t, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_ABranchTheForgeAlreadyRemovedCountsAsDeleted(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("alrayyes/a", "feat/x"), branchErr: http.StatusNotFound}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}, got)
+	assert.Empty(t, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_AnErrorFromTheForgeIsAFailureNotAnError(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("alrayyes/a", "feat/x"), branch: map[string]any{"name": "feat/x"}, deleteErr: http.StatusForbidden}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}, got)
+}
+
+func TestDeletePullRequestBranch_APullRequestThatCannotBeReadIsAFailure(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}, got)
+	assert.Empty(t, srv.deleted)
+}
