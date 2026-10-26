@@ -63,6 +63,7 @@ test.describe('rebase bots setting on the webhooks page', () => {
     await page.goto('/webhooks.html');
 
     const row = page.locator('#webhooks-rows tr').first();
+    await expectNoAxeViolations(page);
     await row.getByRole('button', { name: 'Rebase bots: off' }).click();
     await expect(
       row.getByRole('button', { name: 'Rebase bots: on' }),
@@ -111,6 +112,38 @@ test.describe('rebase bots setting on the webhooks page', () => {
     await expect(
       page.getByRole('button', { name: 'Rebase bots off for 3 repos' }),
     ).toBeVisible();
+  });
+
+  test('the header button skips a repo whose forge is locked', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [repo('a'), repo('b', { forge: 'forgejo' })],
+      [
+        {
+          forge: 'github',
+          reachable: true,
+          dependabotCommandsBlocked: 'Dependabot ignores GitHub Apps',
+        },
+        { forge: 'forgejo', reachable: true },
+      ],
+    );
+    const calls: unknown[] = [];
+    await page.route('**/api/repos/rebase-bots/*', (route) => {
+      calls.push(route.request().postDataJSON());
+      return route.fulfill({ status: 204 });
+    });
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.goto('/webhooks.html');
+
+    await page
+      .getByRole('button', { name: 'Rebase bots on for 1 repo' })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Rebase bots off for 1 repo' }),
+    ).toBeVisible();
+    expect(calls).toEqual([{ forge: 'forgejo', fullName: 'alrayyes/b' }]);
   });
 
   test('a GitHub App with no token greys the switch and says why', async ({
