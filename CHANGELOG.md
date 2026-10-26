@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.10](https://github.com/alrayyes/forge-dashboard/compare/v2.34.9...v2.34.10) (2026-10-26)
+
+
+### Bug Fixes
+
+* **forgejo:** read only the page of a status's job ([#2897](https://github.com/alrayyes/forge-dashboard/issues/2897)) ([f1c31de](https://github.com/alrayyes/forge-dashboard/commit/f1c31de95ac8904c277ce3f34d9ec71ad332b830))
+
 ## [2.34.9](https://github.com/alrayyes/forge-dashboard/compare/v2.34.8...v2.34.9) (2026-10-26)
 
 
