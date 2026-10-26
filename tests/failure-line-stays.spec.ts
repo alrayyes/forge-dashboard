@@ -161,6 +161,34 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     await expect(line).toBeVisible();
   });
 
+  test('a toast opening under the pointer keeps the board still until the pointer leaves it', async ({
+    page,
+  }) => {
+    const both = [pr(613), pr(603)];
+    await open(page, both);
+
+    await rowFor(page, 613)
+      .getByRole('button', { name: 'Update branch' })
+      .click();
+    const toast = page.locator('#feedback-toasts li').first();
+    await expect(toast).toBeVisible();
+
+    // The pointer slides from the list onto the toast that just opened.
+    const box = await toast.boundingBox();
+    if (!box) throw new Error('the toast has no box');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+    await push(page, [pr(603)]);
+    await page.clock.runFor(300);
+    await expect(rowFor(page, 613)).toHaveCount(1);
+
+    // Off both the list and the toast, the next snapshot may move rows.
+    await page.mouse.move(2, 2);
+    await push(page, [pr(603)]);
+    await page.clock.runFor(300);
+    await expect(rowFor(page, 613)).toHaveCount(0);
+  });
+
   test('a permission refusal locks only that action on that pull request, across snapshots', async ({
     page,
   }) => {

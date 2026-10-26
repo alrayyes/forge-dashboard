@@ -4655,8 +4655,23 @@
       };
       listen(list, "pointerenter", mark);
       listen(list, "pointermove", mark);
-      listen(list, "pointerleave", releasePointer);
+      // A toast opening under a resting pointer takes it off the list
+      // without the user moving; the toast keeps the claim instead.
+      listen(list, "pointerleave", (e) => {
+        if (!onToast((e as PointerEvent).relatedTarget)) releasePointer();
+      });
     }
+    const toastsEl = document.getElementById("feedback-toasts");
+    function onToast(target: EventTarget | null): boolean {
+      return target instanceof Node && !!toastsEl?.contains(target);
+    }
+    // Leaving the toast for anywhere but a list ends the claim.
+    listen(toastsEl, "pointerleave", (e) => {
+      const to = (e as PointerEvent).relatedTarget;
+      const toList =
+        to instanceof Element && !!to.closest("#pr-rows, #issue-rows");
+      if (!toList) releasePointer();
+    });
     for (const type of ["pointerdown", "pointerup", "pointercancel"]) {
       listen(
         document,
