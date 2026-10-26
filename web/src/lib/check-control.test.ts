@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { checkControl, checkLinkLabel } from './run-log';
 
 const checksUrl = '/api/checks?forge=github&fullName=a/b&number=1';
+const forgejoUrl = '/api/checks?forge=forgejo&fullName=a/b&number=1';
 const url = 'https://example.test/run/1';
 
 // What the pipeline dialog offers beside a check, decided with no browser. A
@@ -19,8 +20,19 @@ describe('checkControl', () => {
 
   test('a running or finished job with an id opens its output', () => {
     for (const state of ['running', 'success', 'failure']) {
+      expect(checkControl({ state, url, jobId: 7 }, forgejoUrl)).toBe('output');
+    }
+    for (const state of ['success', 'failure']) {
       expect(checkControl({ state, url, jobId: 7 }, checksUrl)).toBe('output');
     }
+  });
+
+  // GitHub serves a job's log only once the job has finished: the endpoint
+  // answers 404 while it runs. Forgejo streams a running job's log.
+  test('a running GitHub job links to the forge, which shows it live', () => {
+    expect(checkControl({ state: 'running', url, jobId: 7 }, checksUrl)).toBe(
+      'open-on-forge',
+    );
   });
 
   test('a job with no id, or no checks address, gets the plain link', () => {

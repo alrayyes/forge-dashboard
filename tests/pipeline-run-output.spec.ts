@@ -290,7 +290,7 @@ test.describe('a check run output in the pipeline dialog', () => {
 
   // Which control each state gets is proved by checkControl's unit test; this
   // is the one journey that shows the dialog draws it.
-  test('a queued check has no View run, only the link to the forge, and a running or finished one has it', async ({
+  test('a queued or running GitHub check has no View run, only the link to the forge, and a finished one has it', async ({
     page,
   }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } }, [
@@ -300,18 +300,33 @@ test.describe('a check run output in the pipeline dialog', () => {
     ]);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
-      dialog.getByRole('button', { name: 'View run: running-job' }),
-    ).toBeVisible();
-    await expect(
       dialog.getByRole('button', { name: 'View run: done-job' }),
     ).toBeVisible();
+    // GitHub serves a job's log only once it has finished.
+    for (const name of ['queued-job', 'running-job']) {
+      await expect(
+        dialog.getByRole('button', { name: `View run: ${name}` }),
+      ).toHaveCount(0);
+      await expect(
+        dialog.getByRole('link', {
+          name: checkLinkName('Open on GitHub', name),
+        }),
+      ).toBeVisible();
+    }
+  });
+
+  test('a running Forgejo check keeps View run, since Forgejo streams its log', async ({
+    page,
+  }) => {
+    await setup(
+      page,
+      { status: 200, body: { text: '', truncated: false } },
+      [{ name: 'running-job', state: 'running', url: runUrl, jobId: 8 }],
+      'forgejo',
+    );
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
-      dialog.getByRole('button', { name: 'View run: queued-job' }),
-    ).toHaveCount(0);
-    await expect(
-      dialog.getByRole('link', {
-        name: checkLinkName('Open on GitHub', 'queued-job'),
-      }),
+      dialog.getByRole('button', { name: 'View run: running-job' }),
     ).toBeVisible();
   });
 

@@ -176,8 +176,8 @@ export function canCopyLog(
 
 // What a check offers beside its name: nothing, the forge's own page, the
 // output panel, or a plain link. A queued job has no log yet, so only the
-// forge's page; a skipped job never ran; a job with no page has nowhere to go.
-// A held workflow's own page is where the forge's approve button is. Only a
+// forge's page, and so has a running GitHub job; a skipped job never ran; a
+// job with no page has nowhere to go. A held workflow's own page is where the forge's approve button is. Only a
 // job with an id, a page and a checks address can open the output panel.
 export type CheckControl = 'none' | 'open-on-forge' | 'output' | 'link';
 
@@ -188,6 +188,13 @@ export function checkLinkLabel(text: string, check: string): string {
   return `${text} (opens in a new tab): ${check}`;
 }
 
+function isGitHub(checksUrl: string | undefined): boolean {
+  return (
+    new URLSearchParams(checksUrl?.split('?')[1] ?? '').get('forge') ===
+    'github'
+  );
+}
+
 export function checkControl(
   check: { state: string; url?: string; jobId?: number },
   checksUrl: string | undefined,
@@ -195,6 +202,8 @@ export function checkControl(
   if (!check.url) return 'none';
   if (check.state === 'queued') return 'open-on-forge';
   if (check.state === 'skipped') return 'none';
+  // GitHub answers 404 for a job's log until the job finishes.
+  if (check.state === 'running' && isGitHub(checksUrl)) return 'open-on-forge';
   if (check.state !== 'awaiting_approval' && check.jobId && checksUrl) {
     return 'output';
   }
