@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
+import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 import { addVirtualAuthenticator } from './webauthn-helper';
 
@@ -24,12 +25,12 @@ test.describe('settings page', () => {
           pullRequests: [],
           issues: [],
           navCounts: {
-            branches: { total: 12, failed: 3 },
             pullRequests: { total: 27, failed: 5 },
             issues: { total: 9 },
             releases: { total: 2, failed: 0 },
             bots: { total: 14, failed: 1 },
           },
+          mainBranchPage: mainBranchPageFor(12, 3),
         }),
       }),
     );

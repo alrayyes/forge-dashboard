@@ -74,6 +74,29 @@ export type MainBranchCounts = Record<
   number
 >;
 
+// The tally of the rows the page holds. The server sends rows and no counts, so
+// the chips and the nav pill both read this one function. A status the page
+// does not know counts as having no pipeline.
+export function countMainBranches(
+  rows: readonly Pick<MainBranch, 'status'>[],
+): MainBranchCounts {
+  const counts: MainBranchCounts = {
+    failed: 0,
+    passed: 0,
+    running: 0,
+    cancelled: 0,
+    awaitingApproval: 0,
+    none: 0,
+    total: rows.length,
+  };
+  for (const { status } of rows) {
+    if (status === 'awaiting_approval') counts.awaitingApproval++;
+    else if (status in counts && status !== 'none') counts[status]++;
+    else counts.none++;
+  }
+  return counts;
+}
+
 // What a status pill shows: its status's count, or all of them.
 export function statusCount(counts: MainBranchCounts, key: StatusPill): number {
   if (key === 'all') return counts.total;
@@ -122,7 +145,6 @@ export function sortMainBranches(rows: readonly MainBranch[]): MainBranch[] {
 
 export type MainBranches = {
   generatedAt: string;
-  counts: MainBranchCounts;
   forges: ForgeHealthEntry[];
   branches: MainBranch[];
 };

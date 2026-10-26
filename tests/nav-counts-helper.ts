@@ -21,16 +21,11 @@ type Page = {
   running: number;
   failed: number;
   passed: number;
-  none?: number;
 };
 
 const empty = (): Page => ({ total: 0, running: 0, failed: 0, passed: 0 });
 
-export function navCountsFor(
-  pullRequests: unknown[],
-  openIssueCount: number,
-  branches: Partial<Page> = {},
-) {
+export function navCountsFor(pullRequests: unknown[], openIssueCount: number) {
   const pages: Record<string, Page> = {
     pullRequests: empty(),
     releases: empty(),
@@ -57,10 +52,41 @@ export function navCountsFor(
   }
 
   return {
-    branches: { ...empty(), none: 0, ...branches },
     pullRequests: pages.pullRequests,
     issues: { total: openIssueCount },
     releases: pages.releases,
     bots: pages.bots,
+  };
+}
+
+// The Branches badge is not in navCounts: the page counts the main branch rows
+// the snapshot carries (#2886). A mocked dashboard sends this beside navCounts
+// so the nav has `total` rows to count, `failed` of them failing.
+export function mainBranchPageFor(total: number, failed = 0) {
+  return mainBranchPageOf(
+    Array.from({ length: total }, (_, i) => (i < failed ? 'failed' : 'passed')),
+  );
+}
+
+// The same page with one row per status given, in order.
+export function mainBranchPageOf(statuses: string[]) {
+  return {
+    generatedAt: new Date().toISOString(),
+    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    branches: statuses.map((status, i) => ({
+      forge: 'github',
+      fullName: `acme/repo-${i}`,
+      url: `https://github.com/acme/repo-${i}`,
+      branch: 'main',
+      status,
+      commit: null,
+      failingJobs: [],
+      finishedAt: null,
+      durationSeconds: null,
+      runUrl: '',
+      checks: { passed: 0, skipped: 0, running: 0, waiting: 0, failed: 0 },
+      latestRelease: null,
+      staleSince: null,
+    })),
   };
 }

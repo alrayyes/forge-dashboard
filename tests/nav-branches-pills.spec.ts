@@ -1,10 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { mainBranchPageOf } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1458: the Branches item shows the total and how many default branches are
 // failing, running and passing, as the pull request items do (#1439). The
-// server counts them (`navCounts.branches`); the page only draws them.
+// page counts the rows of `mainBranchPage` (#2886) and draws the tally.
 // https://github.com/alrayyes/forge-dashboard/issues/1458
 
 type Counts = {
@@ -15,6 +16,19 @@ type Counts = {
   none: number;
   awaitingApproval?: number;
 };
+
+// One row per branch, so the page has exactly these counts to work out.
+function rowsFor(c: Counts) {
+  const n = (status: string, count = 0) => Array(count).fill(status);
+
+  return mainBranchPageOf([
+    ...n('failed', c.failed),
+    ...n('running', c.running),
+    ...n('passed', c.passed),
+    ...n('none', c.none),
+    ...n('awaiting_approval', c.awaitingApproval),
+  ]);
+}
 
 const MIXED: Counts = { total: 7, failed: 2, running: 1, passed: 3, none: 1 };
 
@@ -32,8 +46,8 @@ async function open(page: Page, branches: Counts) {
         openIssueCount: 0,
         repos: [],
         hiddenDrafts: 0,
+        mainBranchPage: rowsFor(branches),
         navCounts: {
-          branches,
           pullRequests: { total: 0, failed: 0, running: 0, passed: 0 },
           issues: { total: 0 },
           releases: { total: 0, failed: 0, running: 0, passed: 0 },

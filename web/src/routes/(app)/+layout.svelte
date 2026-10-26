@@ -11,6 +11,7 @@
   } from "#lib/dashboard-read.svelte.js";
   import { navCounts, setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
+  import type { MainBranches } from "#lib/main-branches.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
   import { adviseReadIntervalMs } from "#lib/read-interval.js";
   import {
@@ -227,6 +228,7 @@
             data:
               | (DashboardReadData & {
                   navCounts?: ServerNavCounts;
+                  mainBranchPage?: MainBranches;
                   firstRefreshDone?: boolean;
                   readIntervalSeconds?: number;
                 })
@@ -241,7 +243,11 @@
             const pending = firstRefreshPending(data.firstRefreshDone);
             // The Branches page reads its own list and keeps the pill to
             // its counts, so a snapshot from before that read can't undo them.
-            setNavCounts(pending ? null : data.navCounts, isCurrentRoute("/"));
+            setNavCounts(
+              pending ? null : data.navCounts,
+              data.mainBranchPage?.branches,
+              isCurrentRoute("/"),
+            );
             // The server advises a short interval while the first refresh
             // runs, so the pages that draw no snapshot of their own leave the
             // loading state at once.

@@ -1,8 +1,15 @@
+import {
+  branchNavCount,
+  countMainBranches,
+  type MainBranch,
+} from './main-branches';
+
 // The numbers each nav item shows (#1315): how many items its page lists and
-// how many of them are failing. The server counts them (`navCounts` on
-// /api/dashboard, from the same filtered lists the pages show); this only
-// holds the latest answer. The dashboard views set it from each snapshot, and
-// the layout asks once on pages that load none. null until it is known, so an
+// how many of them are failing. The server counts all but Branches
+// (`navCounts` on /api/dashboard, from the same filtered lists the pages show);
+// Branches is counted here from the main branch rows the snapshot carries, by
+// the function the Main branches page uses. This holds the latest answer. The
+// dashboard views set it from each snapshot, and the layout asks once on pages that load none. null until it is known, so an
 // item shows no number rather than a misleading 0.
 
 // running and passed come with the pages that have CI (#1439, #1458):
@@ -27,9 +34,9 @@ export type NavCounts = {
   bots: NavCount;
 };
 
-// components.schemas.NavCounts: Issues has a total only.
+// components.schemas.NavCounts: Issues has a total only, and Branches is not
+// here: the page counts the main branch rows the snapshot carries.
 export type ServerNavCounts = {
-  branches: NavCount;
   pullRequests: NavCount;
   issues: { total: number };
   releases: NavCount;
@@ -40,11 +47,14 @@ export const navCounts = $state<{ value: NavCounts | null }>({ value: null });
 
 export function setNavCounts(
   raw: ServerNavCounts | undefined | null,
+  branchRows: readonly MainBranch[] | undefined,
   keepPageBranches = false,
 ) {
   navCounts.value = raw
     ? {
-        branches: (keepPageBranches && pageBranches) || raw.branches,
+        branches:
+          (keepPageBranches && pageBranches) ||
+          branchNavCount(countMainBranches(branchRows ?? [])),
         pullRequests: raw.pullRequests,
         issues: { total: raw.issues.total, failed: 0 },
         releases: raw.releases,

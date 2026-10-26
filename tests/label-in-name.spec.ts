@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1135: WCAG 2.5.3 (Label in Name). Someone who drives the page by voice
@@ -213,12 +214,12 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
           issues: [issue(2), issue(3)],
           openIssueCount: 2,
           navCounts: {
-            branches: { total: 0, failed: 0 },
             pullRequests: { total: 1, failed: 1 },
             issues: { total: 2 },
             releases: { total: 0, failed: 0 },
             bots: { total: 0, failed: 0 },
           },
+          mainBranchPage: mainBranchPageFor(0),
         }),
       }),
     );

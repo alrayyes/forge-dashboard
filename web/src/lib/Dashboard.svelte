@@ -42,6 +42,7 @@
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
+  import type { MainBranch } from "#lib/main-branches.js";
   import {
     firstRefreshLoading,
     firstRefreshPending,
@@ -355,6 +356,8 @@
     openIssueCount?: number;
     // What each nav item shows: its page's total and failed count (#1315).
     navCounts?: ServerNavCounts;
+    // The main branch rows, which the Branches nav badge is counted from.
+    mainBranchPage?: { branches: MainBranch[] };
     // False from process start until this viewer's first refresh has finished
     // (succeeded or failed), true after (#1672, spec #1674, server #1673).
     // Optional in the spec until the server emits it; missing counts as loaded.
@@ -9042,6 +9045,7 @@
       setFirstRefresh(data.firstRefreshDone);
       setNavCounts(
         firstRefreshPending(data.firstRefreshDone) ? null : data.navCounts,
+        data.mainBranchPage?.branches,
       );
       // The snapshot carries the viewer's two flags (#1630), so no second
       // request decides which fields to draw.

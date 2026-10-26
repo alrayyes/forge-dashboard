@@ -62,6 +62,7 @@
     type MainBranches,
     type MainBranchFilter,
     branchNavCount,
+    countMainBranches,
     CI_SLOT,
     SEGMENTED_STATUSES,
     STATUS_LABEL,
@@ -128,9 +129,10 @@
       .filter((s): s is string => !!s)
       .sort()[0] ?? null,
   );
-  const allGreen = $derived(
-    !!data && data.counts.total > 0 && data.counts.passed === data.counts.total,
-  );
+  // The server sends rows and no tally: the chips below and the nav pill read
+  // this one count of them.
+  const counts = $derived(countMainBranches(data?.branches ?? []));
+  const allGreen = $derived(counts.total > 0 && counts.passed === counts.total);
 
   const STATUS_PILLS: { key: StatusPill; label: string }[] = [
     { key: "all", label: "All" },
@@ -274,7 +276,7 @@
     failed = false;
     // The pill in the header is the same tally as the chips below it.
     if (!firstRefreshPending(firstRefresh.done))
-      setBranchNavCount(branchNavCount(next.counts));
+      setBranchNavCount(branchNavCount(countMainBranches(next.branches)));
     // An open pipeline panel reads again if its own row's CI changed.
     const row = openRow;
     const now = row
@@ -924,11 +926,11 @@
       </div>
     {/if}
 
-    {#if branchesAwaitingFlag(firstRefresh.settled, data.counts.total)}
+    {#if branchesAwaitingFlag(firstRefresh.settled, counts.total)}
       <p class="mb-loading" data-testid="branches-awaiting-flag">
         Loading the main branches…
       </p>
-    {:else if data.counts.total === 0}
+    {:else if counts.total === 0}
       <div class="mb-empty" data-testid="no-repos">
         <p>No repositories are tracked yet.</p>
       </div>
@@ -948,8 +950,7 @@
               aria-pressed={filter.status === key}
               onclick={() => setStatus(key)}
               >{label}
-              <span class="mb-count">{statusCount(data.counts, key)}</span
-              ></button
+              <span class="mb-count">{statusCount(counts, key)}</span></button
             >
           {/each}
         </div>
