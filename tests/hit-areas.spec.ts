@@ -656,6 +656,7 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
       ignoredPRs: false,
       ignoredIssues: false,
       autoUpdateBranch: false,
+      rebaseBots: false,
       ...extra,
     });
     // A filter that keeps every repo, so Clear filters is enabled and swept.
@@ -670,7 +671,7 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     );
     await mockDashboard(page, PULL_REQUESTS, [
       repo('one'),
-      repo('two', { autoUpdateBranch: true }),
+      repo('two', { autoUpdateBranch: true, rebaseBots: true }),
       repo('three', { hasWebhook: false }),
       repo('four', { hasWebhook: false, canManageWebhooks: false }),
       repo('five', { ignored: true, ignoredPRs: true }),

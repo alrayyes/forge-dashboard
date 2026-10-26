@@ -492,6 +492,69 @@ func TestStore_DisableAutoUpdateBranch_NeverEnabled_IsANoOp(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestStore_RebaseBotsRepos_NoneEnabled_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	got, err := store.RebaseBotsRepos(t.Context())
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_EnableRebaseBots_ThenRebaseBotsRepos_ReturnsIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	require.NoError(t, store.EnableRebaseBots(t.Context(), "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.RebaseBotsRepos(t.Context())
+	require.NoError(t, err)
+	assert.Contains(t, got, settings.WebhookDeliveryKey("github", "alrayyes/forge-dashboard"))
+}
+
+func TestStore_EnableRebaseBots_Twice_IsANoOp(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	require.NoError(t, store.EnableRebaseBots(t.Context(), "github", "alrayyes/forge-dashboard"))
+	require.NoError(t, store.EnableRebaseBots(t.Context(), "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.RebaseBotsRepos(t.Context())
+	require.NoError(t, err)
+	assert.Len(t, got, 1)
+}
+
+func TestStore_DisableRebaseBots_RemovesIt(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	require.NoError(t, store.EnableRebaseBots(t.Context(), "github", "alrayyes/forge-dashboard"))
+
+	require.NoError(t, store.DisableRebaseBots(t.Context(), "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.RebaseBotsRepos(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestStore_DisableRebaseBots_NeverEnabled_IsANoOp(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+
+	require.NoError(t, store.DisableRebaseBots(t.Context(), "github", "alrayyes/forge-dashboard"))
+}
+
+func TestStore_RebaseBots_IsIndependentOfAutoUpdateBranch(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	require.NoError(t, store.EnableRebaseBots(t.Context(), "github", "alrayyes/forge-dashboard"))
+
+	got, err := store.AutoUpdateBranchRepos(t.Context())
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
 func TestStore_RenovateRebaseLabel_NeverSaved_ReturnsDefault(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)

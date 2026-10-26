@@ -95,10 +95,11 @@ refresh tries again.
     auto-merge armed.
   - The scheduled refresh itself, while something is waiting on it: a pull
     request armed for auto-merge, or a behind pull request with auto-update on
-    (for its repository or for that pull request) that hasn't been tried yet or
-    whose retry wait is up. Those only ever happen after a refresh, so "merge
-    when green" doesn't stall overnight. A refused update (a conflict) isn't
-    waiting on anything.
+    (for its repository or for that pull request), or a behind Dependabot or
+    Renovate pull request in a repository with rebase bots on, that hasn't
+    been tried yet or whose retry wait is up. Those only ever happen after a
+    refresh, so "merge when green" doesn't stall overnight. A refused update
+    (a conflict) isn't waiting on anything.
 
   What waits for the next use instead: Dependabot's acknowledgement checks and
   the check on a rebased Dependabot pull request.

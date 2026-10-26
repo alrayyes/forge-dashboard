@@ -158,6 +158,8 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/repos/unignore", auth.RequireAuth(deps.AuthStore)(handleRepoUnignore(deps)))
 	mux.Handle("POST /api/repos/auto-update-branch/enable", auth.RequireAuth(deps.AuthStore)(handleAutoUpdateBranchEnable(deps)))
 	mux.Handle("POST /api/repos/auto-update-branch/disable", auth.RequireAuth(deps.AuthStore)(handleAutoUpdateBranchDisable(deps)))
+	mux.Handle("POST /api/repos/rebase-bots/enable", auth.RequireAuth(deps.AuthStore)(handleRebaseBotsEnable(deps)))
+	mux.Handle("POST /api/repos/rebase-bots/disable", auth.RequireAuth(deps.AuthStore)(handleRebaseBotsDisable(deps)))
 	mux.Handle("POST /api/pull-requests/merge", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestMerge(deps))))
 	mux.Handle("POST /api/pull-requests/auto-merge", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handlePullRequestAutoMerge(deps))))
 	mux.Handle("POST /api/pull-requests/hide", auth.RequireAuth(deps.AuthStore)(handlePullRequestHide(deps)))

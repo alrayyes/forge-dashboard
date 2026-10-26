@@ -38,6 +38,14 @@ type AutoUpdateBranchLister interface {
 	RenovateAuthors(ctx context.Context) ([]string, error)
 }
 
+// RebaseBotsLister reports the repos whose Dependabot and Renovate pull
+// requests the pass rebases when they fall behind, whether or not the repo
+// has auto-update on. It is optional: a lister that doesn't implement it
+// leaves the pass as it was. settings.Store satisfies it.
+type RebaseBotsLister interface {
+	RebaseBotsRepos(ctx context.Context) (map[string]struct{}, error)
+}
+
 // autoUpdateBranchConfig holds what an Aggregator needs to run the
 // post-refresh auto-update-branch hook — nil on an Aggregator that never
 // called EnableAutoUpdateBranch, which is every one before #365 and
@@ -145,21 +153,21 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 		slog.Warn("auto-update-branch: could not load pull request choices", "error", err)
 		overrides = nil
 	}
-	a.forgetStaleAutoUpdateChoices(ctx, snap, enabled, overrides)
-	if len(enabled) == 0 && len(overrides) == 0 {
+	rebaseBots := a.rebaseBotRepos(ctx)
+	renovateAuthors, err := a.autoUpdate.lister.RenovateAuthors(ctx)
+	if err != nil {
+		slog.Warn("auto-update-branch: could not load renovate authors", "error", err)
+
+		return
+	}
+	a.forgetStaleAutoUpdateChoices(ctx, snap, enabled, overrides, botRebaseKeys(snap, rebaseBots, renovateAuthors))
+	if len(enabled) == 0 && len(overrides) == 0 && len(rebaseBots) == 0 {
 		return
 	}
 
 	renovateLabel, err := a.autoUpdate.lister.RenovateRebaseLabel(ctx)
 	if err != nil {
 		slog.Warn("auto-update-branch: could not load renovate rebase label", "error", err)
-
-		return
-	}
-
-	renovateAuthors, err := a.autoUpdate.lister.RenovateAuthors(ctx)
-	if err != nil {
-		slog.Warn("auto-update-branch: could not load renovate authors", "error", err)
 
 		return
 	}
@@ -171,7 +179,7 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 			continue
 		}
 		// autoUpdateWanted also skips a release-please pull request.
-		if !autoUpdateWanted(pr, enabled, overrides) {
+		if !autoUpdateWantedWithBots(pr, enabled, rebaseBots, overrides, renovateAuthors) {
 			continue
 		}
 
@@ -179,12 +187,30 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 	}
 }
 
+// rebaseBotRepos loads the repos set to rebase bot pull requests: none when
+// the lister doesn't offer them, and none, logged, when it fails, so the
+// repo-level auto-update below still runs.
+func (a *Aggregator) rebaseBotRepos(ctx context.Context) map[string]struct{} {
+	lister, ok := a.autoUpdate.lister.(RebaseBotsLister)
+	if !ok {
+		return nil
+	}
+	repos, err := lister.RebaseBotsRepos(ctx)
+	if err != nil {
+		slog.Warn("auto-update-branch: could not load rebase-bots repos", "error", err)
+
+		return nil
+	}
+
+	return repos
+}
+
 // forgetStaleAutoUpdateChoices deletes the choices staleAutoUpdateChoices names,
 // here because this is where the aggregator first sees a pull request gone: a
 // close and reopen between two dashboard loads still drops the choice. A
 // failure is logged and leaves the rows for the next pass.
-func (a *Aggregator) forgetStaleAutoUpdateChoices(ctx context.Context, snap Snapshot, enabled map[string]struct{}, overrides map[string]bool) {
-	stale := staleAutoUpdateChoices(snap, enabled, overrides)
+func (a *Aggregator) forgetStaleAutoUpdateChoices(ctx context.Context, snap Snapshot, enabled map[string]struct{}, overrides map[string]bool, botRebased map[string]struct{}) {
+	stale := staleAutoUpdateChoices(snap, enabled, overrides, botRebased)
 	if len(stale) == 0 {
 		return
 	}

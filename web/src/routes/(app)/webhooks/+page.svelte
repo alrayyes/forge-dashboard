@@ -18,6 +18,7 @@
     saveState,
     touchKey,
   } from "#lib/filters.js";
+  import { dependabotBlockedReason } from "#lib/forge-lock.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
@@ -36,7 +37,13 @@
   // Webhook management (list/create/edit a hook) is REST-only (#361) —
   // rateLimitGraphQL exists on the real ForgeHealth this page reads but
   // is deliberately not modeled here at all.
-  type ForgeHealthEntry = { forge: string; rateLimitREST?: RateLimit };
+  type ForgeHealthEntry = {
+    forge: string;
+    reachable: boolean;
+    rateLimitREST?: RateLimit;
+    // Why Dependabot commands are refused through this credential (#2861).
+    dependabotCommandsBlocked?: string;
+  };
   type Repo = {
     forge: string;
     fullName: string;
@@ -55,6 +62,7 @@
     ignoredPRs: boolean;
     ignoredIssues: boolean;
     autoUpdateBranch: boolean;
+    rebaseBots: boolean;
   };
 
   // The three choices POST /api/repos/ignore's scope maps to (#511) — a
@@ -598,6 +606,94 @@
     );
   }
 
+  // Rebase bots (#2861): the bot's own rebase, never a generic branch update.
+  // Same shape as the auto-update setter above.
+  let rebaseBotsBusy = $state<Record<string, boolean>>({});
+
+  // Dependabot ignores a GitHub App, so the switch can't work on a repo whose
+  // forge has no personal access token. The server says so per forge; the
+  // wording is the page's.
+  function rebaseBotsLock(repo: Repo): string | null {
+    return dependabotBlockedReason(forges, repo.forge)
+      ? "Dependabot needs a personal access token when a GitHub App is connected."
+      : null;
+  }
+
+  async function setRebaseBots(repo: Repo, enabled: boolean) {
+    const key = rowKey(repo);
+    rebaseBotsBusy[key] = true;
+    setStatus(
+      `${enabled ? "Turning on" : "Turning off"} rebase bots for ${repo.fullName}…`,
+    );
+
+    try {
+      const res = await fetch(
+        `/api/repos/rebase-bots/${enabled ? "enable" : "disable"}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ forge: repo.forge, fullName: repo.fullName }),
+        },
+      );
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `backend answered ${res.status}`);
+      }
+      repo.rebaseBots = enabled;
+      setStatus(`Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`);
+    } catch (err) {
+      setStatus(
+        `Couldn't turn ${enabled ? "on" : "off"} rebase bots for ${repo.fullName}: ${(err as Error).message}`,
+        "error",
+      );
+    } finally {
+      delete rebaseBotsBusy[key];
+    }
+  }
+
+  // A locked repo can't be switched on, so the bulk "on" skips it; "off" still
+  // reaches every repo that has it.
+  const reposMissingRebaseBots = $derived(
+    repos.filter((r) => !r.ignored && !r.rebaseBots && !rebaseBotsLock(r)),
+  );
+  const reposWithRebaseBots = $derived(
+    repos.filter((r) => !r.ignored && r.rebaseBots),
+  );
+
+  let bulkRebaseBotsDirection = $state<"enable" | "disable" | null>(null);
+
+  async function bulkSetRebaseBots(enabled: boolean) {
+    const targets = enabled ? reposMissingRebaseBots : reposWithRebaseBots;
+    if (targets.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Turn ${enabled ? "on" : "off"} rebase bots for ${targets.length} repo${targets.length === 1 ? "" : "s"}?`,
+    );
+    if (!confirmed) return;
+
+    bulkRebaseBotsDirection = enabled ? "enable" : "disable";
+    for (const repo of targets) {
+      await setRebaseBots(repo, enabled);
+    }
+    bulkRebaseBotsDirection = null;
+
+    const succeeded = targets.filter((r) => r.rebaseBots === enabled).length;
+    const failed = targets.length - succeeded;
+    setStatus(
+      failed === 0
+        ? `Rebase bots ${enabled ? "on" : "off"} for all ${succeeded} repos.`
+        : `Rebase bots ${enabled ? "on" : "off"} for ${succeeded} of ${targets.length} repos — ${failed} failed, see status above.`,
+      failed === 0 ? "" : "error",
+    );
+  }
+
   onMount(() => {
     saved = loadState();
     applySaved();
@@ -983,6 +1079,32 @@
       </button>
     {/if}
 
+    {#if loaded && reposMissingRebaseBots.length > 0}
+      <button
+        type="button"
+        class="row-action bulk-webhook-button"
+        disabled={bulkRebaseBotsDirection !== null}
+        onclick={() => bulkSetRebaseBots(true)}
+      >
+        {bulkRebaseBotsDirection === "enable"
+          ? "Turning rebase bots on…"
+          : `Rebase bots on for ${reposMissingRebaseBots.length} repo${reposMissingRebaseBots.length === 1 ? "" : "s"}`}
+      </button>
+    {/if}
+
+    {#if loaded && reposWithRebaseBots.length > 0}
+      <button
+        type="button"
+        class="row-action bulk-webhook-button"
+        disabled={bulkRebaseBotsDirection !== null}
+        onclick={() => bulkSetRebaseBots(false)}
+      >
+        {bulkRebaseBotsDirection === "disable"
+          ? "Turning rebase bots off…"
+          : `Rebase bots off for ${reposWithRebaseBots.length} repo${reposWithRebaseBots.length === 1 ? "" : "s"}`}
+      </button>
+    {/if}
+
     {#if loaded && repos.length === 0}
       <p class="empty-state" id="webhooks-empty">
         Nothing tracked yet — save GitHub or Forgejo credentials in Settings
@@ -1210,6 +1332,16 @@
               </th>
               <th scope="col" role="columnheader">Set up</th>
               <th scope="col" role="columnheader">Auto-update</th>
+              <th scope="col" role="columnheader"
+                >Rebase bots
+                <span
+                  class="info-hint"
+                  role="img"
+                  aria-label="Rebase bots sends Dependabot and Renovate pull requests their own rebase when they fall behind. Human, draft and release pull requests are left alone."
+                  title="Rebase bots sends Dependabot and Renovate pull requests their own rebase when they fall behind. Human, draft and release pull requests are left alone."
+                  >ⓘ</span
+                ></th
+              >
               <th scope="col" role="columnheader">Ignore</th>
             </tr>
           </thead>
@@ -1335,6 +1467,35 @@
                         ? "Disable auto-update"
                         : "Enable auto-update"}</button
                   >
+                </td>
+                <td class="action" role="cell">
+                  {#if rebaseBotsLock(repo) && !repo.rebaseBots}
+                    <button
+                      type="button"
+                      disabled
+                      aria-describedby={`rebase-bots-lock-${rowKey(repo)}`}
+                      >Rebase bots</button
+                    >
+                    <span
+                      class="row-action-note"
+                      id={`rebase-bots-lock-${rowKey(repo)}`}
+                      >{rebaseBotsLock(repo)}</span
+                    >
+                  {:else}
+                    <button
+                      type="button"
+                      aria-pressed={repo.rebaseBots}
+                      disabled={rebaseBotsBusy[rowKey(repo)]}
+                      onclick={() => setRebaseBots(repo, !repo.rebaseBots)}
+                      >{rebaseBotsBusy[rowKey(repo)]
+                        ? repo.rebaseBots
+                          ? "Turning off…"
+                          : "Turning on…"
+                        : repo.rebaseBots
+                          ? "Rebase bots: on"
+                          : "Rebase bots: off"}</button
+                    >
+                  {/if}
                 </td>
                 <td class="action" role="cell">
                   <select
