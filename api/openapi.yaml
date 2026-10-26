@@ -6515,7 +6515,8 @@ components:
           description: |
             What `GET /api/main-branches` answers, from the same snapshot and
             with the same ignore list, so the Main branches page redraws from
-            the message every other page reads and keeps no poll of its own.
+            the message every other page reads. It reads the endpoint itself only
+            while the stream is down or just back.
             Always present.
         generatedAt:
           type: string

@@ -419,6 +419,7 @@
     return followMainBranchPage({
       onPage: apply,
       onDown: () => load(),
+      onUp: () => load(),
     });
   });
 </script>

@@ -55,9 +55,11 @@ async function open(
 ) {
   const reads: string[] = [];
   let body = first;
+  let gate: Promise<void> | null = null;
   await installFakeStream(pageUnderTest);
-  await pageUnderTest.route('**/api/main-branches', (route) => {
+  await pageUnderTest.route('**/api/main-branches', async (route) => {
     reads.push(route.request().url());
+    await gate;
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -69,6 +71,14 @@ async function open(
     reads,
     answerWith: (next: ReturnType<typeof page>) => {
       body = next;
+    },
+    // Holds every read until the returned function is called.
+    hold: () => {
+      let release = () => {};
+      gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return release;
     },
   };
 }
@@ -105,5 +115,29 @@ test.describe('main branches on the dashboard stream', () => {
 
     await expect(browser.getByText('fix: from the read')).toBeVisible();
     expect(reads).toHaveLength(2);
+  });
+
+  test('a late fallback read does not overwrite a newer stream row', async ({
+    page: browser,
+  }) => {
+    const { reads, answerWith, hold } = await open(
+      browser,
+      page('fix: before', 'failed'),
+    );
+    await expect(browser.getByText('fix: before')).toBeVisible();
+
+    answerWith(page('fix: stale read', 'failed'));
+    const release = hold();
+    await closeStream(browser);
+    await expect.poll(() => reads.length).toBeGreaterThan(1);
+
+    await pushStream(browser, {
+      mainBranchPage: page('fix: from the stream', 'passed'),
+    });
+    await expect(browser.getByText('fix: from the stream')).toBeVisible();
+    release();
+
+    await expect(browser.getByText('fix: from the stream')).toBeVisible();
+    await expect(browser.getByText('fix: stale read')).toHaveCount(0);
   });
 });

@@ -273,8 +273,12 @@ notice does the same for its own rows). GitHub's reference:
 The page draws from one read of `GET /api/main-branches`, then takes every
 update from the dashboard stream. Each stream message carries the same
 document under `mainBranchPage`, so a branch row and its open pipeline dialog
-change on one message and the page never polls. If the stream closes, the page
-reads the endpoint once more and opens the stream again after a short wait.
+change on one message and the page never polls. If the stream closes, or hasn't
+opened after 30 seconds, the page reads the endpoint once and opens the stream
+again after a wait that doubles from two seconds. It reads once more when the
+stream is back, since the server sends nothing on connect and a change in the
+gap would otherwise go unseen. After five streams in a row fail to open, the
+page stops retrying and shows what it last read until you reload.
 The stream's copy leaves out the repos ignored for pull requests, as the
 endpoint does.
 
