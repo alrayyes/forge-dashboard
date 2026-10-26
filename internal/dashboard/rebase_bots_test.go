@@ -3,9 +3,8 @@ package dashboard_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/stretchr/testify/assert"
 )
 
 func rebaseBotsRepo() map[string]struct{} {
