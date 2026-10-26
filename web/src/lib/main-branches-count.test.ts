@@ -14,6 +14,12 @@ const rows = (...statuses: MainBranchStatus[]) =>
   statuses.map((status) => ({ status }) as unknown as MainBranch);
 
 describe('countMainBranches', () => {
+  test('a status that names another field is counted as none, not added to it', () => {
+    expect(
+      countMainBranches(rows('total' as MainBranchStatus, 'passed')),
+    ).toMatchObject({ total: 2, passed: 1, none: 1 });
+  });
+
   test('counts add up to the total, a cancelled branch apart from the failed ones', () => {
     expect(
       countMainBranches(

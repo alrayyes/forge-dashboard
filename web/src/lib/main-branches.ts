@@ -90,9 +90,19 @@ export function countMainBranches(
     total: rows.length,
   };
   for (const { status } of rows) {
-    if (status === 'awaiting_approval') counts.awaitingApproval++;
-    else if (status in counts && status !== 'none') counts[status]++;
-    else counts.none++;
+    switch (status) {
+      case 'failed':
+      case 'passed':
+      case 'running':
+      case 'cancelled':
+        counts[status]++;
+        break;
+      case 'awaiting_approval':
+        counts.awaitingApproval++;
+        break;
+      default:
+        counts.none++;
+    }
   }
   return counts;
 }
