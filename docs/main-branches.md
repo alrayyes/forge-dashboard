@@ -270,6 +270,14 @@ notice does the same for its own rows). GitHub's reference:
 
 ## Main branches API
 
+The page draws from one read of `GET /api/main-branches`, then takes every
+update from the dashboard stream. Each stream message carries the same
+document under `mainBranchPage`, so a branch row and its open pipeline dialog
+change on one message and the page never polls. If the stream closes, the page
+reads the endpoint once more and opens the stream again after a short wait.
+The stream's copy leaves out the repos ignored for pull requests, as the
+endpoint does.
+
 `GET /api/main-branches` answers the CI status of every tracked repo's default
 branch, so a broken main shows up without opening each repo. One row per repo:
 its default branch, the status of the pipeline on the newest commit (`failed`,

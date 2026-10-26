@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { checkLinkName } from './check-link-name-helper';
+import { installFakeStream, pushStream } from './fake-stream-helper';
 import { test } from './server-fixture';
 
 const pr = {
@@ -641,24 +642,26 @@ async function openBranchFailure(
     attempt: undefined as number | undefined,
   };
   await page.clock.install();
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await installFakeStream(page);
+  const body = () => ({
+    generatedAt: new Date().toISOString(),
+    counts: {
+      failed: 1,
+      passed: 0,
+      running: 0,
+      cancelled: 0,
+      awaitingApproval: 0,
+      none: 0,
+      total: 1,
+    },
+    branches: [row(state.failed)],
+  });
+  const send = () => pushStream(page, { mainBranchPage: body() });
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
-        counts: {
-          failed: 1,
-          passed: 0,
-          running: 0,
-          cancelled: 0,
-          awaitingApproval: 0,
-          none: 0,
-          total: 1,
-        },
-        branches: [row(state.failed)],
-      }),
+      body: JSON.stringify(body()),
     }),
   );
   await page.route('**/api/main-branches/checks*', (route: Route) =>
@@ -702,14 +705,14 @@ async function openBranchFailure(
     state,
     poll: async () => {
       state.failed++;
-      await page.clock.runFor(60_000);
+      await send();
     },
     // The forge kept the job id (a GitHub rerun does) but ran it again.
     rerunSameJob: async () => {
       state.failed = 2;
       state.seconds = 73;
       state.excerpt = 'new boom';
-      await page.clock.runFor(60_000);
+      await send();
     },
     // Forgejo keeps the job id, the page and has no duration: only the
     // attempt number says it ran again.
@@ -718,13 +721,13 @@ async function openBranchFailure(
       state.seconds = undefined;
       state.attempt = 2;
       state.excerpt = 'new boom';
-      await page.clock.runFor(60_000);
+      await send();
     },
-    rerun: async (ms = 60_000) => {
+    rerun: async () => {
       state.failed = 2;
       state.jobId = 10;
       state.excerpt = 'new boom';
-      await page.clock.runFor(ms);
+      await send();
     },
   };
 }
@@ -892,14 +895,11 @@ test.describe('a rerun gives a failed check a new job', () => {
     await watchLogReads(page);
     await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
 
-    // The page gives up on a log read after 30 seconds, and this page's clock
-    // is faked: start the read late enough that the next poll lands first.
-    await page.clock.runFor(40_000);
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
       'Copying',
     );
-    await rerun(21_000);
+    await rerun();
     await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
       'new boom',
     );

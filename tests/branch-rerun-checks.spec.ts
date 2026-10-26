@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { installFakeStream, pushStream } from './fake-stream-helper';
 import { test } from './server-fixture';
 
 // The Main branches pipeline dialog offers "Rerun failed checks" on a failed
@@ -29,16 +30,53 @@ function branch(status: 'failed' | 'passed', running = 0) {
   };
 }
 
+type PanelState = {
+  checks: unknown[];
+  running?: number;
+  forges?: unknown[];
+  row?: Record<string, unknown>;
+  checksGate?: Promise<void>;
+};
+
+// The page body the branches read answers with, from the state as it stands.
+function snapshot(status: 'failed' | 'passed', state: PanelState) {
+  return {
+    generatedAt: new Date().toISOString(),
+    counts: {
+      failed: status === 'failed' ? 1 : 0,
+      passed: status === 'passed' ? 1 : 0,
+      running: 0,
+      cancelled: 0,
+      awaitingApproval: 0,
+      none: 0,
+      total: 1,
+    },
+    forges: state.forges ?? [
+      { forge: 'github', reachable: true, repoCount: 1 },
+    ],
+    branches: [{ ...branch(status, state.running ?? 0), ...state.row }],
+  };
+}
+
+const opened = new WeakMap<
+  Page,
+  { status: 'failed' | 'passed'; state: PanelState }
+>();
+
+// Sends the page a stream message with the state as it now stands, where the
+// page used to wait out a poll.
+async function poll(page: Page) {
+  const panel = opened.get(page);
+  if (!panel) throw new Error('open the panel first');
+  await pushStream(page, {
+    mainBranchPage: snapshot(panel.status, panel.state),
+  });
+}
+
 async function openPanel(
   page: Page,
   status: 'failed' | 'passed',
-  state: {
-    checks: unknown[];
-    running?: number;
-    forges?: unknown[];
-    row?: Record<string, unknown>;
-    checksGate?: Promise<void>;
-  } = {
+  state: PanelState = {
     checks: [
       {
         name: 'test',
@@ -48,27 +86,13 @@ async function openPanel(
     ],
   },
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await installFakeStream(page);
+  opened.set(page, { status, state });
   await page.route('**/api/main-branches', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
-        counts: {
-          failed: status === 'failed' ? 1 : 0,
-          passed: status === 'passed' ? 1 : 0,
-          running: 0,
-          cancelled: 0,
-          awaitingApproval: 0,
-          none: 0,
-          total: 1,
-        },
-        forges: state.forges ?? [
-          { forge: 'github', reachable: true, repoCount: 1 },
-        ],
-        branches: [{ ...branch(status, state.running ?? 0), ...state.row }],
-      }),
+      body: JSON.stringify(snapshot(status, state)),
     }),
   );
   await page.route('**/api/main-branches/checks*', async (route) => {
@@ -89,18 +113,6 @@ async function openPanel(
   // Mounted empty so it can be announced, and must not show until it speaks.
   await expect(page.getByTestId('rerun-redraw-note')).toBeHidden();
   return dialog;
-}
-
-// Steps the page's clock until its own poll of the branches has gone out,
-// whatever the interval is. It returns once the request is seen, before the
-// answer is fulfilled, so the next step must be an auto-waiting expect.
-async function runUntilPolled(page: Page) {
-  let polled = false;
-  page.on('request', (req) => {
-    if (req.url().endsWith('/api/main-branches')) polled = true;
-  });
-  for (let i = 0; i < 120 && !polled; i++) await page.clock.runFor(5_000);
-  expect(polled).toBe(true);
 }
 
 test.describe('main branches rerun failed checks', () => {
@@ -143,7 +155,7 @@ test.describe('main branches rerun failed checks', () => {
       { name: 'build', state: 'success', url: 'https://example.com/r/1' },
       { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
     ];
-    await page.clock.runFor(60_000);
+    await poll(page);
     await expect(dialog.getByRole('listitem').first()).toContainText('Passed');
     await expect(dialog.getByRole('status')).toContainText('Queuing the rerun');
     await expect(
@@ -265,7 +277,7 @@ test.describe('main branches rerun failed checks', () => {
       commit: { ...branch('failed').commit, sha: 'a1b2c3d' },
       runUrl: 'https://example.com/acme/auth-service/actions/runs/2',
     };
-    await page.clock.runFor(60_000);
+    await poll(page);
 
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
@@ -367,7 +379,7 @@ test.describe('main branches rerun failed checks', () => {
     forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
 
     // Step the clock until the page's own poll has run, whatever its interval.
-    await runUntilPolled(page);
+    await poll(page);
 
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
@@ -425,7 +437,7 @@ test.describe('main branches rerun failed checks', () => {
     await expect(dialog.getByRole('status')).toContainText('Rerun queued');
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
     await expect(dialog.getByRole('status')).toContainText('Rerun queued');
@@ -530,11 +542,11 @@ test.describe('main branches rerun failed checks', () => {
     await expect(dialog.getByRole('alert')).toContainText('forge is down');
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
     forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
     ).toBeVisible();
@@ -566,11 +578,11 @@ test.describe('main branches rerun failed checks', () => {
     await expect(dialog.getByRole('alert')).toContainText('cannot rerun');
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
     forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
     ).toBeVisible();
@@ -588,7 +600,7 @@ test.describe('main branches rerun failed checks', () => {
     await copy.focus();
     await copy.evaluate((el) => el.setAttribute('data-mark', 'same'));
 
-    await runUntilPolled(page);
+    await poll(page);
 
     await expect(copy).toBeFocused();
     await expect(copy).toHaveAttribute('data-mark', 'same');
@@ -608,7 +620,7 @@ test.describe('main branches rerun failed checks', () => {
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).focus();
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
     await expect(
@@ -636,7 +648,7 @@ test.describe('main branches rerun failed checks', () => {
     await copy.focus();
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
 
     await expect(copy).toHaveCount(0);
     await expect(
@@ -681,7 +693,7 @@ test.describe('main branches rerun failed checks', () => {
         },
       });
     });
-    await runUntilPolled(page);
+    await poll(page);
     await expect(pageNote).toBeVisible();
     await expect(pageNote).toContainText('could not be updated');
     await expect(dialogNote).toBeVisible();
@@ -694,7 +706,7 @@ test.describe('main branches rerun failed checks', () => {
         (window as unknown as { __real: PropertyDescriptor }).__real,
       );
     });
-    await runUntilPolled(page);
+    await poll(page);
     await expect(pageNote).toBeHidden();
     await expect(dialogNote).toBeHidden();
   });
@@ -712,11 +724,11 @@ test.describe('main branches rerun failed checks', () => {
     });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).focus();
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
     forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
-    await runUntilPolled(page);
+    await poll(page);
 
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
