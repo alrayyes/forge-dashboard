@@ -37,10 +37,9 @@ func TestListOpenPullRequests_AListFromAForgeThatIgnoresPagingIsNotKept(t *testi
 	s.pullRequest(t)
 	s.pullRequest(t)
 
-	// The first poll reads the status's page, then the walk's two: the first
-	// and the repeat that ends it. The second poll has the page kept, and walks
-	// again as the list was not.
-	assert.EqualValues(t, 5, s.jobReads.Load())
+	// Each poll walks two pages, the first and the repeat that ends it: the
+	// list was not kept, and the status's page is the walk's first.
+	assert.EqualValues(t, 4, s.jobReads.Load())
 }
 
 // The status says where its job is, so only the page holding that position is
@@ -159,4 +158,45 @@ func TestListOpenPullRequests_AJobOnAnotherPageThanItsPositionIsFoundByName(t *t
 	got := f.pullRequest(t)
 
 	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+}
+
+// A run still going with one failed job and one running: the row needs its jobs
+// to tell a cancelled failure from a real one and to tell running from waiting,
+// and asks the forge once.
+func TestListOpenPullRequests_ARunningRunsJobsAreReadOnceForTheRow(t *testing.T) {
+	t.Parallel()
+	f := forge{
+		statuses: []map[string]string{
+			jobStatus("failure", "ci / lint (pull_request)", 1, 0),
+			jobStatus("pending", "ci / test (pull_request)", 1, 1),
+		},
+		runs: []map[string]any{actionsRun(11, 1, "running", map[string]any{"stopped": "0001-01-01T00:00:00Z"})},
+		jobs: map[int][]string{11: {"failure", "running"}},
+	}
+	s := f.serve(t)
+
+	got := s.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Failed: 1}, got.Checks)
+	assert.EqualValues(t, 1, s.jobReads.Load())
+}
+
+// The share ends with the row: a second poll of a run still going reads again,
+// or it would show the first poll's states for as long as the run goes.
+func TestListOpenPullRequests_ARunningRunsJobsAreReadAgainOnTheNextPoll(t *testing.T) {
+	t.Parallel()
+	f := forge{
+		statuses: []map[string]string{
+			jobStatus("failure", "ci / lint (pull_request)", 1, 0),
+			jobStatus("pending", "ci / test (pull_request)", 1, 1),
+		},
+		runs: []map[string]any{actionsRun(11, 1, "running", map[string]any{"stopped": "0001-01-01T00:00:00Z"})},
+		jobs: map[int][]string{11: {"failure", "running"}},
+	}
+	s := f.serve(t)
+
+	s.pullRequest(t)
+	s.pullRequest(t)
+
+	assert.EqualValues(t, 2, s.jobReads.Load())
 }

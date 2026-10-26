@@ -1135,6 +1135,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 		return dashboard.CINone, dashboard.CheckCounts{}, nil
 	}
 	c = c.withContext(ctx)
+	ctx = withJobPagesMemo(ctx)
 
 	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -1790,6 +1791,24 @@ const maxJobPages = 20
 // listActionRunJobsPage reads one page of a run's jobs, and the total the
 // forge says the run has, or 0 when it doesn't say.
 func (c *Client) listActionRunJobsPage(ctx context.Context, owner, name string, runID int64, page int) ([]*gitea.ActionWorkflowJob, int, error) {
+	memo := memoFrom(ctx)
+	if memo == nil {
+		return c.fetchActionRunJobsPage(ctx, owner, name, runID, page)
+	}
+	key := jobPageKey{runID: runID, page: page}
+	if hit, ok := memo.get(key); ok {
+		return hit.jobs, hit.total, nil
+	}
+	jobs, total, err := c.fetchActionRunJobsPage(ctx, owner, name, runID, page)
+	if err == nil {
+		memo.put(key, jobPage{jobs: jobs, total: total})
+	}
+
+	return jobs, total, err
+}
+
+// fetchActionRunJobsPage is listActionRunJobsPage's request.
+func (c *Client) fetchActionRunJobsPage(ctx context.Context, owner, name string, runID int64, page int) ([]*gitea.ActionWorkflowJob, int, error) {
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs?page=%d&limit=%d", owner, name, runID, page, pageLimit)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
