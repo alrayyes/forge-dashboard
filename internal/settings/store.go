@@ -152,6 +152,11 @@ func (s *Store) Init(ctx context.Context) error {
 		repo_full_name TEXT NOT NULL,
 		PRIMARY KEY (forge, repo_full_name)
 	);
+	CREATE TABLE IF NOT EXISTS rebase_bots_repos (
+		forge TEXT NOT NULL,
+		repo_full_name TEXT NOT NULL,
+		PRIMARY KEY (forge, repo_full_name)
+	);
 	CREATE TABLE IF NOT EXISTS auto_merge_intents (
 		forge TEXT NOT NULL,
 		repo_full_name TEXT NOT NULL,
@@ -563,6 +568,67 @@ func (s *Store) AutoUpdateBranchRepos(ctx context.Context) (map[string]struct{},
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("settings: list auto-update-branch repos: %w", err)
+	}
+
+	return enabled, nil
+}
+
+// EnableRebaseBots turns on automatic rebases of Dependabot and Renovate
+// pull requests for forge/repoFullName: one the background refresh finds
+// behind its base branch gets the bot's own rebase, from then on. It is a
+// separate switch from EnableAutoUpdateBranch, so human pull requests are
+// never touched by it. Idempotent: enabling an already-enabled repo is a
+// no-op, not an error.
+func (s *Store) EnableRebaseBots(ctx context.Context, forge, repoFullName string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO rebase_bots_repos (forge, repo_full_name)
+		VALUES (?, ?)
+		ON CONFLICT (forge, repo_full_name) DO NOTHING`,
+		forge, repoFullName,
+	)
+	if err != nil {
+		return fmt.Errorf("settings: enable rebase-bots: %w", err)
+	}
+
+	return nil
+}
+
+// DisableRebaseBots reverses EnableRebaseBots. Idempotent: disabling a repo
+// that was never enabled is a no-op, not an error.
+func (s *Store) DisableRebaseBots(ctx context.Context, forge, repoFullName string) error {
+	_, err := s.db.ExecContext(ctx, `
+		DELETE FROM rebase_bots_repos WHERE forge = ? AND repo_full_name = ?`,
+		forge, repoFullName,
+	)
+	if err != nil {
+		return fmt.Errorf("settings: disable rebase-bots: %w", err)
+	}
+
+	return nil
+}
+
+// RebaseBotsRepos returns the set of forge/repo pairs (keyed by
+// WebhookDeliveryKey) the user has turned automatic bot rebases on for:
+// empty, never an error, for a user who's never enabled any.
+func (s *Store) RebaseBotsRepos(ctx context.Context) (map[string]struct{}, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT forge, repo_full_name FROM rebase_bots_repos`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("settings: list rebase-bots repos: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	enabled := make(map[string]struct{})
+	for rows.Next() {
+		var forge, repoFullName string
+		if err := rows.Scan(&forge, &repoFullName); err != nil {
+			return nil, fmt.Errorf("settings: scan rebase-bots repo row: %w", err)
+		}
+		enabled[WebhookDeliveryKey(forge, repoFullName)] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("settings: list rebase-bots repos: %w", err)
 	}
 
 	return enabled, nil
