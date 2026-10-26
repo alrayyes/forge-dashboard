@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.5](https://github.com/alrayyes/forge-dashboard/compare/v2.34.4...v2.34.5) (2026-10-26)
+
+
+### Bug Fixes
+
+* **deps:** bump the docker-images group with 2 updates ([#2858](https://github.com/alrayyes/forge-dashboard/issues/2858)) ([939309e](https://github.com/alrayyes/forge-dashboard/commit/939309eb7d0c4c30f2687a8ae121ab6bd8d64b3f))
+
 ## [2.34.4](https://github.com/alrayyes/forge-dashboard/compare/v2.34.3...v2.34.4) (2026-10-25)
 
 
