@@ -6,6 +6,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // A failed run can leave a job queued for good. Its jobs are kept only once the
@@ -106,4 +107,21 @@ func TestListOpenPullRequests_APassingRunWithAJobStillGoingIsReadAgainWhateverIt
 	s.pullRequest(t)
 
 	assert.EqualValues(t, 2, s.jobReads.Load())
+}
+
+// A rerun keeps the run's id and stop time and moves its start. The job a
+// failure status points at must be read again, not taken from the list kept
+// before the rerun.
+func TestListOpenPullRequests_AFinishedRunRerunIsReadAgain(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.runs[1] = actionsRun(12, 2, "cancelled", map[string]any{"started": "2026-09-01T00:00:00Z"})
+	s := f.serve(t)
+	require.Equal(t, dashboard.CISuccess, s.pullRequest(t).CI)
+
+	f.runs[1]["started"] = "2026-09-01T00:05:00Z"
+	f.jobs[12][0] = "failure"
+	got := s.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
 }

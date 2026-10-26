@@ -295,7 +295,7 @@ const jobsPageSize = 30
 func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) map[int64][]*gitea.ActionWorkflowJob {
 	out := make(map[int64][]*gitea.ActionWorkflowJob, len(runs))
 	for _, run := range runs {
-		jobs, err := c.readRunJobs(ctx, repo.Owner, repo.Name, run.ID, run.Status, run.StoppedAt)
+		jobs, err := c.readRunJobs(ctx, repo.Owner, repo.Name, run.ID, run.Status, run.StartedAt, run.StoppedAt)
 		if err != nil {
 			slog.Warn("list default-branch run jobs failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "run", run.ID, "error", err)
 
