@@ -479,5 +479,5 @@ func TestListOpenPullRequests_AForgeThatIgnoresPagingIsReadTwice(t *testing.T) {
 
 	s.pullRequest(t)
 
-	assert.Equal(t, int32(3), s.jobReads.Load()) // the status's page, then the walk's two
+	assert.Equal(t, int32(2), s.jobReads.Load()) // the status's page is the walk's first
 }

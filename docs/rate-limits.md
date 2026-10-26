@@ -313,7 +313,9 @@ A rerun is the exception: it needs every job, so for a run past 1,000 jobs it
 stops with an error instead of rerunning part of it. A page, or a
 whole list, is kept once every job is over, or five minutes after a failed run
 ended, so only a run still going, one with no jobs yet, or one with no stop
-time is read again.
+time is read again. The pages one row reads are shared, so a run still going
+whose jobs the row needs twice (a failed job to check, a pending one to tell
+running from waiting) is requested once.
 A run that finished with no jobs is read again for five minutes on the
 default-branch pill, in case the forge is still catching up, then kept empty
 too.
