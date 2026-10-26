@@ -1088,6 +1088,12 @@ paths:
         `merge` in `allowedActions`. A Merge posted for one anyway
         gets 409 `already_up_to_date` from this server, which never asks the
         forge.
+
+        `deleteBranch: true` also asks for the pull request's source branch
+        to be deleted once the merge has landed. The merge never depends on
+        it: a branch that can't or shouldn't be deleted leaves the merge
+        done and is reported in `branchDeletion`. Without `deleteBranch`
+        the answer is a bare 204 and the branch is left alone.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -1095,10 +1101,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PullRequestActionRequest"
+              $ref: "#/components/schemas/PullRequestMergeRequest"
       responses:
+        "200":
+          description: |
+            Merged, with `deleteBranch` set. `branchDeletion` says what
+            happened to the source branch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullRequestMergeResult"
         "204":
-          description: Merged.
+          description: Merged, with `deleteBranch` unset or false.
         "400":
           description: |
             The request body wasn't valid JSON, `fullName` wasn't
@@ -4542,6 +4556,50 @@ components:
           type: integer
           maximum: 2147483647
           description: Matching a PullRequest.number from GET /api/dashboard.
+
+    PullRequestMergeRequest:
+      description: Which pull request to merge, and whether to delete its source branch afterwards.
+      allOf:
+        - $ref: "#/components/schemas/PullRequestActionRequest"
+        - type: object
+          properties:
+            deleteBranch:
+              type: boolean
+              default: false
+              description: Delete the source branch once the merge has landed.
+
+    PullRequestMergeResult:
+      type: object
+      required: [branchDeletion]
+      description: What a merge that asked for `deleteBranch` did besides merging.
+      properties:
+        branchDeletion:
+          $ref: "#/components/schemas/BranchDeletion"
+
+    BranchDeletion:
+      type: object
+      required: [outcome]
+      description: |
+        What happened to the source branch. A fact for the client to word,
+        never a reason to treat the merge as failed.
+      properties:
+        outcome:
+          type: string
+          enum: [deleted, skipped, failed]
+          description: |
+            `deleted`: the branch is gone, including when the forge had
+            already removed it. `skipped`: it was left alone on purpose,
+            see `reason`. `failed`: the forge refused or couldn't be
+            reached, and the branch may still exist.
+        reason:
+          type: string
+          enum: [fork, default_branch, protected, unsupported]
+          description: |
+            Why a `skipped` branch was left. `fork`: the branch lives in
+            another repo. `default_branch`: it is the repo's default
+            branch. `protected`: the forge protects it. `unsupported`: the
+            forge's client can't delete branches. Absent unless `outcome`
+            is `skipped`.
 
     IssueActionRequest:
       type: object
