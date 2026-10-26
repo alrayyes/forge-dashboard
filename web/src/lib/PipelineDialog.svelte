@@ -64,6 +64,7 @@
     canCopyLog,
     checkControl,
     checkLinkLabel,
+    checkLinkText,
     forgeOf,
   } from "#lib/run-log.js";
   import {
@@ -616,12 +617,7 @@
           <!-- Never an empty href, which would resolve to this page. A job with
                no log to read yet (queued, or running on GitHub) links to the
                forge's own page. -->
-          {@const forgeOnly = control === "open-on-forge"}
-          {@const linkText = forgeOnly
-            ? `Open on ${forge}`
-            : check.state === "awaiting_approval"
-              ? "Approve on GitHub"
-              : "View run"}
+          {@const linkText = checkLinkText(control, check.state, forge)}
           <a
             class="pipeline-check-link"
             href={check.url}

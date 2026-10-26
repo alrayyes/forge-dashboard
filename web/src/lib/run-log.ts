@@ -20,11 +20,17 @@ export type LogResult =
   | { ok: true; text: string; truncated: boolean }
   | { ok: false; message: string; signedOut?: boolean };
 
+// The query of a checks url, which is where it names its forge and repository.
+// The one place that reads it, so the forge rule can't drift between callers.
+function checksQuery(checksUrl: string | undefined): URLSearchParams {
+  return new URLSearchParams(checksUrl?.split('?')[1] ?? '');
+}
+
 // The log endpoint for one job, from the checks url the board gave the dialog:
 // it carries the forge and repository, so the boards need to say nothing more.
 // Null when the url names no repository.
 export function logUrl(checksUrl: string, jobId: number): string | null {
-  const query = new URLSearchParams(checksUrl.split('?')[1] ?? '');
+  const query = checksQuery(checksUrl);
   const forge = query.get('forge');
   const fullName = query.get('fullName');
   if (!forge || !fullName) return null;
@@ -192,7 +198,17 @@ export function checkLinkLabel(text: string, check: string): string {
 
 // The forge a checks url names ("github", "forgejo"), or null.
 export function forgeOf(checksUrl: string | undefined): string | null {
-  return new URLSearchParams(checksUrl?.split('?')[1] ?? '').get('forge');
+  return checksQuery(checksUrl).get('forge');
+}
+
+// Whether a running job's output can't be read yet: only Forgejo serves a
+// running job's log, and GitHub answers 404 until the job finishes. A checks
+// address that names no forge counts as not Forgejo.
+function runningWithoutLog(
+  state: string,
+  checksUrl: string | undefined,
+): boolean {
+  return state === 'running' && !!checksUrl && forgeOf(checksUrl) !== 'forgejo';
 }
 
 export function checkControl(
@@ -202,20 +218,27 @@ export function checkControl(
   if (!check.url) return 'none';
   if (check.state === 'queued') return 'open-on-forge';
   if (check.state === 'skipped') return 'none';
-  // Only Forgejo serves a running job's log; GitHub answers 404 until the
-  // job finishes.
-  if (
-    check.state === 'running' &&
-    checksUrl &&
-    forgeOf(checksUrl) !== 'forgejo'
-  ) {
-    return 'open-on-forge';
-  }
+  if (runningWithoutLog(check.state, checksUrl)) return 'open-on-forge';
   if (check.state !== 'awaiting_approval' && check.jobId && checksUrl) {
     return 'output';
   }
 
   return 'link';
+}
+
+// The words on the link a check offers beside its name. A running job that
+// links out has no output to show until it finishes, and says that it is
+// watched on the forge; a queued one has not started, and is only opened.
+export function checkLinkText(
+  control: CheckControl,
+  state: string,
+  forgeName: string,
+): string {
+  if (control === 'open-on-forge') {
+    return `${state === 'running' ? 'Watch' : 'Open'} on ${forgeName}`;
+  }
+
+  return state === 'awaiting_approval' ? 'Approve on GitHub' : 'View run';
 }
 
 // What a failed check's Copy button puts on the clipboard: the whole log when

@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { checkControl, checkLinkLabel } from './run-log';
+import { checkControl, checkLinkLabel, checkLinkText } from './run-log';
 
 const checksUrl = '/api/checks?forge=github&fullName=a/b&number=1';
 const forgejoUrl = '/api/checks?forge=forgejo&fullName=a/b&number=1';
@@ -89,5 +89,39 @@ describe('checkLinkLabel', () => {
     expect(checkLinkLabel('Open on Forgejo', 'queued-job')).toBe(
       'Open on Forgejo (opens in a new tab): queued-job',
     );
+  });
+});
+
+// The words on the link beside a check. A running GitHub job has no output to
+// show until it finishes, and the link says so rather than offering the same
+// words as a queued one.
+describe('checkLinkText', () => {
+  test('a queued job opens on the forge', () => {
+    expect(checkLinkText('open-on-forge', 'queued', 'GitHub')).toBe(
+      'Open on GitHub',
+    );
+  });
+
+  test('a running job with no log to read says it is watched on the forge', () => {
+    expect(checkLinkText('open-on-forge', 'running', 'GitHub')).toBe(
+      'Watch on GitHub',
+    );
+  });
+
+  test('a job going from queued to running changes its words', () => {
+    const queued = checkControl({ state: 'queued', url, jobId: 7 }, checksUrl);
+    const running = checkControl(
+      { state: 'running', url, jobId: 7 },
+      checksUrl,
+    );
+    expect(checkLinkText(queued, 'queued', 'GitHub')).toBe('Open on GitHub');
+    expect(checkLinkText(running, 'running', 'GitHub')).toBe('Watch on GitHub');
+  });
+
+  test('a held workflow is approved and any other plain link is a run', () => {
+    expect(checkLinkText('link', 'awaiting_approval', 'GitHub')).toBe(
+      'Approve on GitHub',
+    );
+    expect(checkLinkText('link', 'success', 'GitHub')).toBe('View run');
   });
 });

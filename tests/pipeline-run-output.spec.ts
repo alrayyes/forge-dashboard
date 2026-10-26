@@ -303,14 +303,15 @@ test.describe('a check run output in the pipeline dialog', () => {
       dialog.getByRole('button', { name: 'View run: done-job' }),
     ).toBeVisible();
     // GitHub serves a job's log only once it has finished.
-    for (const name of ['queued-job', 'running-job']) {
+    for (const [name, words] of [
+      ['queued-job', 'Open on GitHub'],
+      ['running-job', 'Watch on GitHub'],
+    ]) {
       await expect(
         dialog.getByRole('button', { name: `View run: ${name}` }),
       ).toHaveCount(0);
       await expect(
-        dialog.getByRole('link', {
-          name: checkLinkName('Open on GitHub', name),
-        }),
+        dialog.getByRole('link', { name: checkLinkName(words, name) }),
       ).toBeVisible();
     }
   });
