@@ -4919,6 +4919,9 @@ type branchDeletionServer struct {
 	headUsers []map[string]any
 	baseUsers []map[string]any
 	listErr   int
+	// heads and bases are the head and base filters the list was asked for.
+	heads []string
+	bases []string
 	// uris are the request URIs of the branch lookup and the delete, still escaped.
 	uris []string
 }
@@ -4935,6 +4938,32 @@ func pullRequestFrom(headRepo, head string) map[string]any {
 	return pr
 }
 
+// listPulls answers the open pull request list: the head users to a list
+// filtered by head, the base users to one filtered by base. It records the
+// filters it was given.
+func (b *branchDeletionServer) listPulls(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "open", r.URL.Query().Get("state"))
+		if b.listErr != 0 {
+			w.WriteHeader(b.listErr)
+
+			return
+		}
+		users := []map[string]any{}
+		if head := r.URL.Query().Get("head"); head != "" {
+			b.heads = append(b.heads, head)
+			users = append(users, b.headUsers...)
+		}
+		if base := r.URL.Query().Get("base"); base != "" {
+			b.bases = append(b.bases, base)
+			users = append(users, b.baseUsers...)
+		}
+		writeJSON(t, w, users)
+	}
+}
+
 func (b *branchDeletionServer) start(t *testing.T) *github.Client {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -4946,22 +4975,7 @@ func (b *branchDeletionServer) start(t *testing.T) *github.Client {
 		}
 		writeJSON(t, w, b.pr)
 	})
-	mux.HandleFunc("/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "open", r.URL.Query().Get("state"))
-		if b.listErr != 0 {
-			w.WriteHeader(b.listErr)
-
-			return
-		}
-		users := []map[string]any{}
-		if r.URL.Query().Get("head") != "" {
-			users = append(users, b.headUsers...)
-		}
-		if r.URL.Query().Get("base") != "" {
-			users = append(users, b.baseUsers...)
-		}
-		writeJSON(t, w, users)
-	})
+	mux.HandleFunc("/repos/alrayyes/a/pulls", b.listPulls(t))
 	mux.HandleFunc("/repos/alrayyes/a/branches/", func(w http.ResponseWriter, r *http.Request) {
 		b.branches = append(b.branches, r.URL.Path)
 		b.uris = append(b.uris, r.RequestURI)
@@ -5117,6 +5131,28 @@ func TestDeletePullRequestBranch_KeepsABranchAnotherOpenPullRequestTargets(t *te
 
 	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipInUse}, got)
 	assert.Empty(t, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_AsksForOpenPullRequestsFromTheBranchInThisRepoOnly(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: pullRequestFrom("alrayyes/a", "feat/x"), branch: map[string]any{"name": "feat/x"}}
+	client := srv.start(t)
+
+	client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, []string{"alrayyes:feat/x"}, srv.heads, "the owner prefix keeps a fork's branch of the same name out")
+}
+
+func TestDeletePullRequestBranch_AsksForOpenPullRequestsThatTargetTheBranch(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: pullRequestFrom("alrayyes/a", "feat/x"), branch: map[string]any{"name": "feat/x"}}
+	client := srv.start(t)
+
+	client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, []string{"feat/x"}, srv.bases)
 }
 
 func TestDeletePullRequestBranch_ABranchItCannotCheckIsLeftAlone(t *testing.T) {

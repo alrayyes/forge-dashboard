@@ -2297,6 +2297,10 @@ type branchDeletionServer struct {
 	// open are the repo's open pull requests; listErr fails the list.
 	open    []map[string]any
 	listErr int
+	// nextOpen, when set, is a second page of open pull requests, linked from the first.
+	nextOpen []map[string]any
+	// listPages are the page parameters the list was asked for.
+	listPages []string
 	// uris are the request URIs of the branch lookup and the delete, still escaped.
 	uris []string
 }
@@ -2321,6 +2325,32 @@ func forgejoPullRequestFrom(headRepo, head string) map[string]any {
 	return pr
 }
 
+// listPulls answers the open pull request list, linking a second page from the
+// first when nextOpen is set, and records the pages it was asked for.
+func (b *branchDeletionServer) listPulls(t *testing.T) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "open", r.URL.Query().Get("state"))
+		if b.listErr != 0 {
+			w.WriteHeader(b.listErr)
+
+			return
+		}
+		page := r.URL.Query().Get("page")
+		b.listPages = append(b.listPages, page)
+		if page == "2" {
+			writeJSON(t, w, b.nextOpen)
+
+			return
+		}
+		if b.nextOpen != nil {
+			w.Header().Set("Link", `<http://`+r.Host+`/api/v1/repos/alrayyes/a/pulls?state=open&page=2>; rel="next"`)
+		}
+		writeJSON(t, w, append([]map[string]any{}, b.open...))
+	}
+}
+
 func (b *branchDeletionServer) start(t *testing.T) *forgejo.Client {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -2332,15 +2362,7 @@ func (b *branchDeletionServer) start(t *testing.T) *forgejo.Client {
 		}
 		writeJSON(t, w, b.pr)
 	})
-	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "open", r.URL.Query().Get("state"))
-		if b.listErr != 0 {
-			w.WriteHeader(b.listErr)
-
-			return
-		}
-		writeJSON(t, w, append([]map[string]any{}, b.open...))
-	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", b.listPulls(t))
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/branches/", func(w http.ResponseWriter, r *http.Request) {
 		b.uris = append(b.uris, r.RequestURI)
 		if r.Method == http.MethodDelete {
@@ -2484,6 +2506,36 @@ func TestDeletePullRequestBranch_KeepsABranchAnotherOpenPullRequestTargets(t *te
 
 	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipInUse}, got)
 	assert.Empty(t, srv.deleted)
+}
+
+func TestDeletePullRequestBranch_FindsAnInUsePullRequestOnTheSecondPage(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{
+		pr:       forgejoPullRequestFrom("alrayyes/a", "feat/x"),
+		open:     []map[string]any{openPullRequest("alrayyes/a", "feat/y", "main")},
+		nextOpen: []map[string]any{openPullRequest("alrayyes/a", "feat/x", "other")},
+	}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipInUse}, got)
+}
+
+func TestDeletePullRequestBranch_ReadsEveryPageOfOpenPullRequests(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{
+		pr:       forgejoPullRequestFrom("alrayyes/a", "feat/x"),
+		open:     []map[string]any{openPullRequest("alrayyes/a", "feat/y", "main")},
+		nextOpen: []map[string]any{openPullRequest("alrayyes/a", "feat/x", "other")},
+	}
+	client := srv.start(t)
+
+	client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, []string{"1", "2"}, srv.listPages)
 }
 
 func TestDeletePullRequestBranch_AForkBranchOfTheSameNameDoesNotKeepIt(t *testing.T) {
