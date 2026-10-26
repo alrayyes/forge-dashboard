@@ -149,6 +149,52 @@ type PullRequestMerger interface {
 	MergePullRequest(ctx context.Context, owner, name string, number int) error
 }
 
+// BranchDeletionOutcome is what became of a pull request's source branch
+// after a merge that asked for it to be deleted.
+type BranchDeletionOutcome string
+
+const (
+	// BranchDeleted: the branch is gone, including when the forge had
+	// already removed it.
+	BranchDeleted BranchDeletionOutcome = "deleted"
+	// BranchSkipped: the branch was left alone on purpose, see the reason.
+	BranchSkipped BranchDeletionOutcome = "skipped"
+	// BranchDeleteFailed: the forge refused or couldn't be reached.
+	BranchDeleteFailed BranchDeletionOutcome = "failed"
+)
+
+// BranchSkipReason is why a source branch was left alone.
+type BranchSkipReason string
+
+const (
+	// SkipFork: the branch lives in another repo than the one merged into.
+	SkipFork BranchSkipReason = "fork"
+	// SkipDefaultBranch: the branch is the repo's default branch.
+	SkipDefaultBranch BranchSkipReason = "default_branch"
+	// SkipProtected: the forge protects the branch.
+	SkipProtected BranchSkipReason = "protected"
+	// SkipUnsupported: the forge's client can't delete branches.
+	SkipUnsupported BranchSkipReason = "unsupported"
+)
+
+// BranchDeletion is the fact a merge reports about the source branch. Reason
+// is set only for a skipped branch.
+type BranchDeletion struct {
+	Outcome BranchDeletionOutcome
+	Reason  BranchSkipReason
+}
+
+// PullRequestBranchDeleter is implemented by a ForgeClient (or, for
+// github.Client, a Source directly) that can delete the source branch of a
+// pull request that has just been merged, checked via a type assertion like
+// PullRequestMerger. It answers a fact rather than an error: the merge has
+// already landed, so a branch that can't be deleted must never read as a
+// failed merge. A fork's branch, the default branch and a protected branch are
+// left alone.
+type PullRequestBranchDeleter interface {
+	DeletePullRequestBranch(ctx context.Context, owner, name string, number int) BranchDeletion
+}
+
 // PullRequestAutoMerger is implemented by a ForgeClient (or, for
 // github.Client, a Source directly) that can arm a pull request's own
 // native auto-merge — checked via a type assertion, the same

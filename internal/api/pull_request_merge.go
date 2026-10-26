@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -14,13 +15,29 @@ type pullRequestActionRequest struct {
 	Number   int    `json:"number"`
 }
 
+// pullRequestMergeRequest matches components.schemas.PullRequestMergeRequest.
+type pullRequestMergeRequest struct {
+	pullRequestActionRequest
+	DeleteBranch bool `json:"deleteBranch"`
+}
+
+// branchDeletionBody matches components.schemas.BranchDeletion.
+type branchDeletionBody struct {
+	Outcome string `json:"outcome"`
+	Reason  string `json:"reason,omitempty"`
+}
+
 // handlePullRequestMerge merges the named pull request using its repo's
 // own configured default merge method — dashboard.PullRequestMerger's own
 // MergePullRequest decides how, per forge. Follows the same shape
 // handleWebhookEnsure already established for a write to a forge.
 func handlePullRequestMerge(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		t, ok := readActionTarget(w, r)
+		var req pullRequestMergeRequest
+		if !decodeActionBody(w, r, &req) {
+			return
+		}
+		t, ok := validateActionTarget(w, req.pullRequestActionRequest)
 		if !ok {
 			return
 		}
@@ -44,6 +61,27 @@ func handlePullRequestMerge(deps Deps) http.HandlerFunc {
 		}
 
 		deps.Service.MarkSettled(dashboard.Forge(t.req.Forge), t.req.FullName, t.req.Number)
-		w.WriteHeader(http.StatusNoContent)
+		if !req.DeleteBranch {
+			w.WriteHeader(http.StatusNoContent)
+
+			return
+		}
+
+		deletion := deleteMergedBranch(r.Context(), src, t)
+		writeJSON(w, http.StatusOK, map[string]branchDeletionBody{
+			"branchDeletion": {Outcome: string(deletion.Outcome), Reason: string(deletion.Reason)},
+		})
 	}
+}
+
+// deleteMergedBranch asks the source to delete the branch of a pull request
+// that has just merged. A source that can't is reported as skipped, since
+// the merge is done either way.
+func deleteMergedBranch(ctx context.Context, src dashboard.Source, t actionTarget) dashboard.BranchDeletion {
+	deleter, ok := src.(dashboard.PullRequestBranchDeleter)
+	if !ok {
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipUnsupported}
+	}
+
+	return deleter.DeletePullRequestBranch(ctx, t.owner, t.name, t.req.Number)
 }

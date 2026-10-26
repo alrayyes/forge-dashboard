@@ -421,3 +421,137 @@ func TestPullRequestMerge_PermissionRefusalOnAMergedPullRequest_AnswersAlreadyMe
 	assert.Equal(t, "already_merged", body.Code)
 	assert.Equal(t, 1, source.stateReads, "the pull request was re-read")
 }
+
+// fakeBranchDeleterSource is a merger that can also delete the source
+// branch, as github.Client and the Forgejo-backed GenericSource can.
+type fakeBranchDeleterSource struct {
+	fakePullRequestMergerSource
+	deletion        dashboard.BranchDeletion
+	deleteCalls     int
+	mergedBeforeDel bool
+}
+
+func (f *fakeBranchDeleterSource) DeletePullRequestBranch(_ context.Context, owner, name string, number int) dashboard.BranchDeletion {
+	f.deleteCalls++
+	f.mergedBeforeDel = f.lastOwner == owner && f.lastName == name && f.lastNumber == number
+
+	return f.deletion
+}
+
+func postMergeDeletingBranch(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName string, number int, deleteBranch bool) *http.Response {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": fullName, "number": number, "deleteBranch": deleteBranch})
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/merge", strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
+func TestPullRequestMerge_DeleteBranch_DeletesAfterTheMergeAndReportsIt(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchDeleterSource{
+		fakePullRequestMergerSource: fakePullRequestMergerSource{forge: dashboard.ForgeGitHub},
+		deletion:                    dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42, true)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body map[string]map[string]string
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, map[string]map[string]string{"branchDeletion": {"outcome": "deleted"}}, body)
+	assert.Equal(t, 1, source.deleteCalls)
+	assert.True(t, source.mergedBeforeDel, "the branch is deleted only after the merge landed")
+}
+
+func TestPullRequestMerge_DeleteBranch_ReportsWhyABranchWasLeftAlone(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchDeleterSource{
+		fakePullRequestMergerSource: fakePullRequestMergerSource{forge: dashboard.ForgeForgejo},
+		deletion:                    dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+
+	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7, true)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body map[string]map[string]string
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, map[string]string{"outcome": "skipped", "reason": "fork"}, body["branchDeletion"])
+}
+
+func TestPullRequestMerge_DeleteBranch_AFailedDeletionIsNotAFailedMerge(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchDeleterSource{
+		fakePullRequestMergerSource: fakePullRequestMergerSource{forge: dashboard.ForgeGitHub},
+		deletion:                    dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42, true)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body map[string]map[string]string
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, map[string]string{"outcome": "failed"}, body["branchDeletion"])
+}
+
+func TestPullRequestMerge_WithoutDeleteBranch_AnswersNoContentAndKeepsTheBranch(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchDeleterSource{
+		fakePullRequestMergerSource: fakePullRequestMergerSource{forge: dashboard.ForgeGitHub},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42, false)
+	_ = resp.Body.Close()
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Zero(t, source.deleteCalls)
+}
+
+func TestPullRequestMerge_DeleteBranch_AFailedMergeDeletesNothing(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchDeleterSource{
+		fakePullRequestMergerSource: fakePullRequestMergerSource{
+			forge:    dashboard.ForgeGitHub,
+			mergeErr: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError},
+		},
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42, true)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Zero(t, source.deleteCalls)
+}
+
+func TestPullRequestMerge_DeleteBranch_ASourceThatCannotDeleteReportsItSkipped(t *testing.T) {
+	t.Parallel()
+
+	source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42, true)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body map[string]map[string]string
+	require.NoError(t, readJSON(resp, &body))
+	assert.Equal(t, map[string]string{"outcome": "skipped", "reason": "unsupported"}, body["branchDeletion"])
+}
