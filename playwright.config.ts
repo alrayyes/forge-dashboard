@@ -28,6 +28,7 @@ const singleUserSpecs = [
   '**/webhooks-page.spec.ts',
   '**/webhooks-phone-sort.spec.ts',
   '**/webhooks-status-line.spec.ts',
+  '**/webhooks-rebase-bots.spec.ts',
   '**/auto-merge-filter.spec.ts',
   '**/conflicts-filter.spec.ts',
   '**/filter-choices-pills.spec.ts',
