@@ -969,7 +969,9 @@ The branch is deleted after the merge succeeds, and never before. With
 
 - `deleted`: the branch is gone. A branch the forge had already removed counts.
 - `skipped`: the branch was left alone on purpose. `reason` is `fork` (the
-  branch lives in another repository), `default_branch`, `protected`, or
+  branch lives in another repository), `default_branch`, `protected`,
+  `in_use` (another open pull request in the repository has the branch as its
+  head or base, such as a stacked pull request that targets it), or
   `unsupported` (the forge's client can't delete branches).
 - `failed`: the forge refused or couldn't be reached.
 
