@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.9](https://github.com/alrayyes/forge-dashboard/compare/v2.34.8...v2.34.9) (2026-10-26)
+
+
+### Bug Fixes
+
+* **forgejo:** subscribe hooks to Actions run events ([#2892](https://github.com/alrayyes/forge-dashboard/issues/2892)) ([97cef0b](https://github.com/alrayyes/forge-dashboard/commit/97cef0b78b2e81a596b2eb03188a2c70f4c96269)), closes [#2882](https://github.com/alrayyes/forge-dashboard/issues/2882)
+
 ## [2.34.8](https://github.com/alrayyes/forge-dashboard/compare/v2.34.7...v2.34.8) (2026-10-26)
 
 
