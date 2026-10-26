@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.37.0](https://github.com/alrayyes/forge-dashboard/compare/v2.36.0...v2.37.0) (2026-10-26)
+
+
+### Features
+
+* **api:** delete the source branch after a merge ([#2910](https://github.com/alrayyes/forge-dashboard/issues/2910)) ([aec33b1](https://github.com/alrayyes/forge-dashboard/commit/aec33b1beb2837f15bd1cde0b484fc3df3a3c00a))
+
 ## [2.36.0](https://github.com/alrayyes/forge-dashboard/compare/v2.35.0...v2.36.0) (2026-10-26)
 
 
