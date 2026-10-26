@@ -1,8 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { pickedValues, pickOnly, pickTexts } from './label-filter-helper';
+import { rateLimit } from './rate-limit-mock';
 import { landOnPullRequests, test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
 interface RateLimit {
   limit: number;

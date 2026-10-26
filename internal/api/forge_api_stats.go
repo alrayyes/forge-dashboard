@@ -64,7 +64,7 @@ func resolveForgeAPIStatsFor(ctx context.Context, deps Deps) (forgeAPIStatsRespo
 	return forgeAPIStatsResponse{
 		Since:   deps.APIStats.Since(),
 		Buckets: ownBuckets(deps.APIStats.Snapshot(), creds.StatsCredentials()),
-		Budgets: budgetsOf(withRateLimitSeverity(snap.Forges, time.Now())),
+		Budgets: budgetsOf(snap.Forges),
 	}, nil
 }
 

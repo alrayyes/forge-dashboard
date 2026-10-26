@@ -1,6 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
 // The forge health live region speaks when the health state changes, not on
 // every snapshot (WCAG 4.1.3, status messages). The visible pill is redrawn on

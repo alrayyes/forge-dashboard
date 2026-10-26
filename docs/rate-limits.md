@@ -120,7 +120,8 @@ a token suits any account with more than a few repositories.
 
 ## What the dashboard shows
 
-For GitHub, the server grades each budget and the page follows the grade:
+For GitHub, the server reports each budget's numbers and the page grades them
+against its own clock:
 
 | Severity   | Meaning                    | What you see                                                                |
 | ---------- | -------------------------- | --------------------------------------------------------------------------- |

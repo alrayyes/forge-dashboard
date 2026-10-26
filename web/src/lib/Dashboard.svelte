@@ -127,6 +127,7 @@
   import {
     budgetText,
     isRateLimited,
+    isRunningLow,
     msUntilReset,
     PERMISSION_REASON,
     type RateLimit,
@@ -8031,7 +8032,7 @@
           // The band is spoken with it, so a drain from under 5% to under 1%
           // is told as it happens and the count inside a band is not.
           const lows = [f.rateLimitREST, f.rateLimitGraphQL].filter(
-            (l): l is RateLimit => l?.severity === "low",
+            (l): l is RateLimit => !!l && isRunningLow(l),
           );
           const band = lows
             .map((l) => remainingBand(l))
@@ -8204,10 +8205,9 @@
           ["GraphQL", f.rateLimitGraphQL],
           ["REST", f.rateLimitREST],
         ] as const) {
-          // The server grades each budget from its own threshold, so the
-          // page holds none (#806). Exceeded is the read-only row above; a
-          // warning is the gauge's amber stage and nothing here acts on it.
-          if (!rl || rl.severity !== "low") continue;
+          // Exceeded is the read-only row above; a warning is the gauge's
+          // amber stage and nothing here acts on it.
+          if (!rl || !isRunningLow(rl)) continue;
           out.push({
             kind: "low",
             label: `${name} ${kind}`,

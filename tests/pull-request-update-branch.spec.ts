@@ -1,8 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
 interface MockLabel {
   name: string;
@@ -68,7 +68,6 @@ interface MockForge {
     limit: number;
     remaining: number;
     resetsAt: string;
-    severity: string;
   };
 }
 

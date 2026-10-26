@@ -1,9 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { closeActionsDialog, openActionsDialog } from './actions-dialog-helper';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
-import { rateLimit } from './severity-stand-in';
 
 // Once a Renovate rebase is requested the pull request offers the cancel and
 // no second request: the server lists `cancel_renovate_rebase` instead of

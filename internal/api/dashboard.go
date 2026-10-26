@@ -447,7 +447,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
-		Forges:         withRateLimitSeverity(snap.Forges, time.Now()),
+		Forges:         snap.Forges,
 		PullRequests:   pullRequests,
 		Issues:         issues,
 		OpenIssueCount: openIssues,
@@ -458,7 +458,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 		HideDependencyDashboard:  filter.hideHousekeeping,
 		IgnoredTitlesSet:         filter.titlesSet,
 		NavCounts:                buildNavCounts(pullRequests, openIssues, branches),
-		MainBranchPage:           buildMainBranchesResponse(snap.GeneratedAt, board.now, snap.Forges, branches),
+		MainBranchPage:           buildMainBranchesResponse(snap.GeneratedAt, snap.Forges, branches),
 		Repos:                    board.repoStatuses(snap.Repos),
 		HiddenDrafts:             hiddenDrafts,
 
@@ -869,30 +869,6 @@ func viewOf(r *http.Request) boardView {
 	q := r.URL.Query()
 
 	return boardView{includeDrafts: q.Get("includeDrafts") == "true", includeHidden: q.Get("includeHidden") == "true"}
-}
-
-// withRateLimitSeverity returns forges with each rate-limit budget graded as
-// of now (#806). The snapshot's own ForgeHealth is left as it is: severity is
-// worked out per response, from the clock, so it never goes stale in one.
-func withRateLimitSeverity(forges []dashboard.ForgeHealth, now time.Time) []dashboard.ForgeHealth {
-	graded := func(rl *dashboard.RateLimit) *dashboard.RateLimit {
-		if rl == nil {
-			return nil
-		}
-		copied := *rl
-		copied.Severity = copied.SeverityAt(now)
-
-		return &copied
-	}
-
-	out := make([]dashboard.ForgeHealth, len(forges))
-	for i, f := range forges {
-		f.RateLimitGraphQL = graded(f.RateLimitGraphQL)
-		f.RateLimitREST = graded(f.RateLimitREST)
-		out[i] = f
-	}
-
-	return out
 }
 
 // dashboardFor returns the dashboard data currently held. Shared

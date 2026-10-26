@@ -350,7 +350,6 @@ test.describe('main branches rerun failed checks', () => {
             limit: 5000,
             remaining: 0,
             resetsAt,
-            severity: 'exceeded',
           },
         },
       ],
@@ -401,7 +400,6 @@ test.describe('main branches rerun failed checks', () => {
             limit: 5000,
             remaining: 0,
             resetsAt,
-            severity: 'exceeded',
           },
         },
       ],
@@ -465,7 +463,6 @@ test.describe('main branches rerun failed checks', () => {
     limit: 5000,
     remaining: 0,
     resetsAt: new Date(Date.now() + minutes * 60_000).toISOString(),
-    severity: 'exceeded',
   });
 
   for (const [name, forges] of [

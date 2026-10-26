@@ -1,6 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from './server-fixture';
-import { severityOf } from './severity-stand-in';
 
 // A rate limit is a "wait until" condition, not a transient fault: the
 // forge says when it resets, so the blocked actions are greyed out with
@@ -45,10 +44,7 @@ async function mockDashboard(
           forge: 'github',
           reachable: true,
           repoCount: 1,
-          rateLimitREST: rateLimitREST && {
-            ...rateLimitREST,
-            severity: severityOf(rateLimitREST.limit, rateLimitREST.remaining),
-          },
+          rateLimitREST,
         },
       ],
       pullRequests: prs,
