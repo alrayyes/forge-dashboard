@@ -647,6 +647,19 @@ conflict, isn't tried again until the pull request changes or an hour passes,
 and any other failure waits five minutes, so a stuck pull request costs one
 request, not one per refresh.
 
+A repo can also rebase only its bot pull requests. Switch on rebase bots for
+it on the Webhooks page, beside Auto-update, and the background pass sends a
+behind Dependabot or Renovate pull request its own rebase, the same
+`@dependabot rebase` comment or Renovate rebase label as above, never a generic
+branch update. Human, draft and release-please pull requests are left alone.
+With both switches on, the rebase-bots switch decides a behind bot pull request.
+With only Auto-update on, nothing changes. A choice made on a single pull request
+still wins: a bot pull request switched off stays put. The setting is off by
+default. `POST /api/repos/rebase-bots/enable` and `/disable` set it, and
+`rebaseBots` on each repo in `GET /api/dashboard` reports it. With a GitHub App
+and no saved personal access token the switch is locked, for the same reason
+the Dependabot buttons are.
+
 Each pull request can also have its own say, whatever its repo does. Every
 pull request in `GET /api/dashboard` carries its own state under `autoUpdate`:
 whether the pass updates it (`enabled`), where that comes from (`source` is
