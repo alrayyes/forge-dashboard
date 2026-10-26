@@ -180,3 +180,23 @@ func TestListOpenPullRequests_ARunningRunsJobsAreReadOnceForTheRow(t *testing.T)
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Failed: 1}, got.Checks)
 	assert.EqualValues(t, 1, s.jobReads.Load())
 }
+
+// The share ends with the row: a second poll of a run still going reads again,
+// or it would show the first poll's states for as long as the run goes.
+func TestListOpenPullRequests_ARunningRunsJobsAreReadAgainOnTheNextPoll(t *testing.T) {
+	t.Parallel()
+	f := forge{
+		statuses: []map[string]string{
+			jobStatus("failure", "ci / lint (pull_request)", 1, 0),
+			jobStatus("pending", "ci / test (pull_request)", 1, 1),
+		},
+		runs: []map[string]any{actionsRun(11, 1, "running", map[string]any{"stopped": "0001-01-01T00:00:00Z"})},
+		jobs: map[int][]string{11: {"failure", "running"}},
+	}
+	s := f.serve(t)
+
+	s.pullRequest(t)
+	s.pullRequest(t)
+
+	assert.EqualValues(t, 2, s.jobReads.Load())
+}

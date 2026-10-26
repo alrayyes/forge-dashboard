@@ -12,6 +12,10 @@ import (
 // cancelled, which pending job is running) cost one request between them.
 // It lives as long as that resolution and no longer, so it never serves an old
 // read to a later poll.
+//
+// The row reads its pages one phase after another, so a miss is never fetched
+// twice at once; running the phases side by side would need the reads to be
+// de-duplicated. The slices it holds are shared, so a caller only reads them.
 type jobPagesMemo struct {
 	mu    sync.Mutex
 	pages map[jobPageKey]jobPage
