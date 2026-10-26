@@ -22,9 +22,9 @@ type Counts = {
   failed: number;
 };
 
-function pr(ci: string, checks: Counts) {
+function pr(ci: string, checks: Counts, forge = 'github') {
   return {
-    forge: 'github',
+    forge,
     repo: 'alrayyes/forge-dashboard',
     number: 42,
     title: 'Add structured logging',
@@ -55,6 +55,16 @@ function snapshot(item: ReturnType<typeof pr>) {
 
 const RUNNING = pr('pending', { passed: 1, running: 1, waiting: 0, failed: 0 });
 const PASSED = pr('success', { passed: 2, running: 0, waiting: 0, failed: 0 });
+const RUNNING_FORGEJO = pr(
+  'pending',
+  { passed: 1, running: 1, waiting: 0, failed: 0 },
+  'forgejo',
+);
+const PASSED_FORGEJO = pr(
+  'success',
+  { passed: 2, running: 0, waiting: 0, failed: 0 },
+  'forgejo',
+);
 
 const RUN = [
   { name: 'build', state: 'success', url: 'https://example.com/r/1' },
@@ -138,15 +148,19 @@ async function push(page: Page, item: ReturnType<typeof pr>) {
 const dialog = (page: Page) => page.locator('#pipeline-dialog');
 
 test.describe('pipeline panel updates live', () => {
-  test('a check going from queued to running shows View run at once, with no reload', async ({
+  test('a check going from queued to running shows View run at once on Forgejo, with no reload', async ({
     page,
   }) => {
-    const QUEUED = pr('pending', {
-      passed: 1,
-      running: 0,
-      waiting: 1,
-      failed: 0,
-    });
+    const QUEUED = pr(
+      'pending',
+      {
+        passed: 1,
+        running: 0,
+        waiting: 1,
+        failed: 0,
+      },
+      'forgejo',
+    );
     const before = [
       { name: 'build', state: 'success', url: 'https://example.com/r/1' },
       {
@@ -161,17 +175,24 @@ test.describe('pipeline panel updates live', () => {
     await expect(view).toHaveCount(0);
     await expect(
       dialog(page).getByRole('link', {
-        name: checkLinkName('Open on GitHub', 'test'),
+        name: checkLinkName('Open on Forgejo', 'test'),
       }),
     ).toBeVisible();
 
     state.checks = [before[0], { ...before[1], state: 'running' }];
-    await push(page, RUNNING);
+    await push(
+      page,
+      pr(
+        'pending',
+        { passed: 1, running: 1, waiting: 0, failed: 0 },
+        'forgejo',
+      ),
+    );
 
     await expect(view).toBeVisible();
     await expect(
       dialog(page).getByRole('link', {
-        name: checkLinkName('Open on GitHub', 'test'),
+        name: checkLinkName('Open on Forgejo', 'test'),
       }),
     ).toHaveCount(1);
   });
@@ -310,7 +331,7 @@ test.describe('pipeline panel updates live', () => {
       { name: 'build', state: 'success', url: 'https://example.com/r/1' },
       { name: 'test', state: 'running', url: 'https://example.com/r/2' },
     ];
-    const state = await open(page, RUNNING, three, 3);
+    const state = await open(page, RUNNING_FORGEJO, three, 3);
     const link = dialog(page).getByRole('link', {
       name: checkLinkName('View run', 'test'),
     });
@@ -320,7 +341,7 @@ test.describe('pipeline panel updates live', () => {
       { name: 'build', state: 'success', url: 'https://example.com/r/1' },
       { name: 'test', state: 'success', url: 'https://example.com/r/2' },
     ];
-    await push(page, PASSED);
+    await push(page, PASSED_FORGEJO);
 
     await expect(dialog(page).locator('.pipeline-check')).toHaveCount(2);
     await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
@@ -336,7 +357,7 @@ test.describe('pipeline panel updates live', () => {
   test('a redraw moves focus to the close button when its check is gone', async ({
     page,
   }) => {
-    const state = await open(page, RUNNING, RUN);
+    const state = await open(page, RUNNING_FORGEJO, RUN);
     await dialog(page)
       .getByRole('link', { name: checkLinkName('View run', 'test') })
       .focus();
@@ -346,7 +367,11 @@ test.describe('pipeline panel updates live', () => {
     ];
     await push(
       page,
-      pr('failure', { passed: 0, running: 0, waiting: 0, failed: 1 }),
+      pr(
+        'failure',
+        { passed: 0, running: 0, waiting: 0, failed: 1 },
+        'forgejo',
+      ),
     );
 
     await expect(dialog(page).locator('.pipeline-check')).toHaveCount(1);

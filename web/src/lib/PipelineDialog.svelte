@@ -60,7 +60,12 @@
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
-  import { canCopyLog, checkControl, checkLinkLabel } from "#lib/run-log.js";
+  import {
+    canCopyLog,
+    checkControl,
+    checkLinkLabel,
+    forgeOf,
+  } from "#lib/run-log.js";
   import {
     activeRuns,
     cancelLocksRepo,
@@ -513,9 +518,7 @@
   // The forge's name for a board that doesn't name it: the checks url carries
   // the forge.
   function forgeLabel(t: PipelineTarget): string {
-    const forge = new URLSearchParams(t.checksUrl.split("?")[1] ?? "").get(
-      "forge",
-    );
+    const forge = forgeOf(t.checksUrl);
 
     return t.forgeName ?? FORGE_LABELS[forge ?? ""] ?? forge ?? "the forge";
   }
@@ -610,10 +613,11 @@
             forgeName={forge}
           />
         {:else if control === "open-on-forge" || control === "link"}
-          <!-- Never an empty href, which would resolve to this page. A queued
-               job has no log yet, so it links to the forge's own page. -->
-          {@const queued = control === "open-on-forge"}
-          {@const linkText = queued
+          <!-- Never an empty href, which would resolve to this page. A job with
+               no log to read yet (queued, or running on GitHub) links to the
+               forge's own page. -->
+          {@const forgeOnly = control === "open-on-forge"}
+          {@const linkText = forgeOnly
             ? `Open on ${forge}`
             : check.state === "awaiting_approval"
               ? "Approve on GitHub"
