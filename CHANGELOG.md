@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.11](https://github.com/alrayyes/forge-dashboard/compare/v2.34.10...v2.34.11) (2026-10-26)
+
+
+### Bug Fixes
+
+* **forgejo:** read a running run's jobs once per row ([#2898](https://github.com/alrayyes/forge-dashboard/issues/2898)) ([f935929](https://github.com/alrayyes/forge-dashboard/commit/f935929250d57be2190e059de79df6c42a5b1b4c))
+
 ## [2.34.10](https://github.com/alrayyes/forge-dashboard/compare/v2.34.9...v2.34.10) (2026-10-26)
 
 
