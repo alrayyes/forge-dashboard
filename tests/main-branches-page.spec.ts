@@ -36,19 +36,28 @@ function row(
           sha: 'd98f3c2',
           subject: `fix: change in ${fullName}`,
           author: 'sre-dev',
-          committedAt: minutesAgo(30),
+          committedAt: DEFAULT_COMMIT_AT,
         },
     failingJobs: status === 'failed' ? ['lint', 'e2e-playwright'] : [],
     finishedAt: status === 'running' || noCommit ? null : minutesAgo(12),
     durationSeconds: status === 'running' || noCommit ? null : 252,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
-    stale: false,
     staleSince: null,
     ...overrides,
   };
 }
 
-function snapshot(branches: ReturnType<typeof row>[]) {
+// The page orders rows newest commit first (#2886), so a row left on this
+// default commit time is staggered by its place in the list: the rows then keep
+// the order a test wrote them in. A row given its own time keeps it.
+const DEFAULT_COMMIT_AT = minutesAgo(30);
+
+function snapshot(rows: ReturnType<typeof row>[]) {
+  const branches = rows.map((b, i) =>
+    b.commit?.committedAt === DEFAULT_COMMIT_AT
+      ? { ...b, commit: { ...b.commit, committedAt: minutesAgo(30 + i) } }
+      : b,
+  );
   const count = (s: string) => branches.filter((b) => b.status === s).length;
   return {
     generatedAt: new Date().toISOString(),
@@ -206,7 +215,36 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await context.close();
   });
 
-  test('lists one row per repo in the server order, with a summary and pill counts', async ({
+  test('orders rows the server sent unsorted, newest commit first (#2886)', async ({
+    page,
+  }) => {
+    const passed = (name: string, minutes: number) =>
+      row(name, 'passed', {
+        commit: {
+          sha: 'd98f3c2',
+          subject: 'fix',
+          author: 'sre-dev',
+          committedAt: minutesAgo(minutes),
+        },
+      });
+    await mock(
+      page,
+      snapshot([
+        row('acme/b-none', 'none'),
+        passed('acme/old', 90),
+        passed('acme/new', 5),
+      ]),
+    );
+    await page.goto('/');
+
+    await expect(rows(page).locator('.mb-repo')).toHaveText([
+      'acme/new',
+      'acme/old',
+      'acme/b-none',
+    ]);
+  });
+
+  test('lists one row per repo with a summary and pill counts', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
@@ -730,7 +768,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
   test('rows saved by the last run say the app is starting, not that the forge is down', async ({
     page,
   }) => {
-    const stale = { stale: true, staleSince: minutesAgo(11) };
+    const stale = { staleSince: minutesAgo(11) };
     await mock(page, {
       ...snapshot([row('acme/a', 'passed', stale)]),
       forges: [
@@ -748,7 +786,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
   test('stale rows sit under one banner and offer nothing to write', async ({
     page,
   }) => {
-    const stale = { stale: true, staleSince: minutesAgo(11) };
+    const stale = { staleSince: minutesAgo(11) };
     await mock(
       page,
       snapshot([
@@ -822,7 +860,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
   test('has no axe violations in light and dark, desktop and 390px, and no horizontal scroll', async ({
     page,
   }) => {
-    const stale = { stale: true, staleSince: minutesAgo(11) };
+    const stale = { staleSince: minutesAgo(11) };
     await mock(page, snapshot([...MIXED, row('acme/stale', 'failed', stale)]));
     await page.goto('/');
     await expect(rows(page)).toHaveCount(7);

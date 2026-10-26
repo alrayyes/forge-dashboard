@@ -96,6 +96,36 @@ describe('WebMCP read tools', () => {
     );
   });
 
+  test('get_main_branches lists the rows newest commit first', async () => {
+    const row = (fullName: string, committedAt: string | null) => ({
+      forge: 'github',
+      fullName,
+      commit: committedAt ? { committedAt } : null,
+    });
+    const { tool } = setup({
+      body: {
+        counts: { total: 3 },
+        branches: [
+          row('o/undated', null),
+          row('o/older', '2026-10-01T00:00:00Z'),
+          row('o/newer', '2026-10-02T00:00:00Z'),
+        ],
+      },
+    });
+
+    const got = (await tool('get_main_branches').execute({})) as {
+      counts: unknown;
+      branches: { fullName: string }[];
+    };
+
+    expect(got.branches.map((b) => b.fullName)).toEqual([
+      'o/newer',
+      'o/older',
+      'o/undated',
+    ]);
+    expect(got.counts).toEqual({ total: 3 });
+  });
+
   test('get_main_branch_checks reads /api/main-branches/checks with the repository', async () => {
     const { calls, tool } = setup({ body: { checks: [] } });
     expect(

@@ -63,7 +63,7 @@ export type MainBranch = {
   checks: CheckCounts;
   latestRelease: MainBranchRelease | null;
   advisories?: Advisories;
-  stale: boolean;
+  // Set when the row is carried over from an earlier refresh.
   staleSince: string | null;
 };
 
@@ -92,6 +92,32 @@ export function branchNavCount(counts: MainBranchCounts): NavCount {
     none: counts.none,
     awaitingApproval: counts.awaitingApproval,
   };
+}
+
+// A row carried over from an earlier refresh. The server sends the time and
+// nothing else, so there is one fact and no second field to disagree.
+export function isStale(b: Pick<MainBranch, 'staleSince'>): boolean {
+  return b.staleSince != null;
+}
+
+// The rows newest default-branch commit first, whatever their status. A row
+// with no readable commit time goes after every dated one. Ties and undated
+// rows go by full name, then forge. The server sends rows unordered; this is
+// the one place the page orders them. Returns a new array.
+export function sortMainBranches(rows: readonly MainBranch[]): MainBranch[] {
+  const committed = (b: MainBranch): number | null => {
+    const t = Date.parse(b.commit?.committedAt ?? '');
+    return Number.isNaN(t) ? null : t;
+  };
+  const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return rows.toSorted((a, b) => {
+    const ta = committed(a);
+    const tb = committed(b);
+    if (ta !== null && tb === null) return -1;
+    if (ta === null && tb !== null) return 1;
+    if (ta !== null && tb !== null && ta !== tb) return tb - ta;
+    return compare(a.fullName, b.fullName) || compare(a.forge, b.forge);
+  });
 }
 
 export type MainBranches = {
@@ -177,8 +203,8 @@ export function isFiltered(filter: MainBranchFilter): boolean {
   );
 }
 
-// The rows a filter keeps, in the order the server sent them: it already
-// puts the newest commit first, and a client sort here would only fight it.
+// The rows a filter keeps, in the order given: the page sorts them first with
+// sortMainBranches, and a sort here would only fight it.
 export function applyFilter(
   branches: MainBranch[],
   filter: MainBranchFilter,
