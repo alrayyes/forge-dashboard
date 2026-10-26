@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.34.7](https://github.com/alrayyes/forge-dashboard/compare/v2.34.6...v2.34.7) (2026-10-26)
+
+
+### Bug Fixes
+
+* **checks:** don't offer View run on a running GitHub job ([#2871](https://github.com/alrayyes/forge-dashboard/issues/2871)) ([181bf98](https://github.com/alrayyes/forge-dashboard/commit/181bf98519473d9af080daae3153e505a1cc2475))
+* **deps:** bump the go-dependencies group across 1 directory with 3 updates ([#2855](https://github.com/alrayyes/forge-dashboard/issues/2855)) ([8830a8e](https://github.com/alrayyes/forge-dashboard/commit/8830a8e39815e062454200d833571f7f0ccb05da))
+* **forgejo:** match a failed status to its job by name ([#2872](https://github.com/alrayyes/forge-dashboard/issues/2872)) ([6995a7f](https://github.com/alrayyes/forge-dashboard/commit/6995a7fd084d366809c6918e2cae4bddf137e06f))
+
 ## [2.34.6](https://github.com/alrayyes/forge-dashboard/compare/v2.34.5...v2.34.6) (2026-10-26)
 
 
