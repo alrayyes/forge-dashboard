@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.42.0](https://github.com/alrayyes/forge-dashboard/compare/v2.41.0...v2.42.0) (2026-10-26)
+
+
+### Features
+
+* **web:** order main branch rows on the page ([#2930](https://github.com/alrayyes/forge-dashboard/issues/2930)) ([78a6d74](https://github.com/alrayyes/forge-dashboard/commit/78a6d741003dbc269a013738e7e84a0c48352143))
+
 ## [2.41.0](https://github.com/alrayyes/forge-dashboard/compare/v2.40.0...v2.41.0) (2026-10-26)
 
 
