@@ -154,12 +154,12 @@ type PullRequestMerger interface {
 type BranchDeletionOutcome string
 
 const (
-	// BranchDeleted: the branch is gone, including when the forge had
+	// BranchDeleted means the branch is gone, including when the forge had
 	// already removed it.
 	BranchDeleted BranchDeletionOutcome = "deleted"
-	// BranchSkipped: the branch was left alone on purpose, see the reason.
+	// BranchSkipped means the branch was left alone on purpose, see the reason.
 	BranchSkipped BranchDeletionOutcome = "skipped"
-	// BranchDeleteFailed: the forge refused or couldn't be reached.
+	// BranchDeleteFailed means the forge refused or couldn't be reached.
 	BranchDeleteFailed BranchDeletionOutcome = "failed"
 )
 
@@ -167,13 +167,13 @@ const (
 type BranchSkipReason string
 
 const (
-	// SkipFork: the branch lives in another repo than the one merged into.
+	// SkipFork means the branch lives in another repo than the one merged into.
 	SkipFork BranchSkipReason = "fork"
-	// SkipDefaultBranch: the branch is the repo's default branch.
+	// SkipDefaultBranch means the branch is the repo's default branch.
 	SkipDefaultBranch BranchSkipReason = "default_branch"
-	// SkipProtected: the forge protects the branch.
+	// SkipProtected means the forge protects the branch.
 	SkipProtected BranchSkipReason = "protected"
-	// SkipUnsupported: the forge's client can't delete branches.
+	// SkipUnsupported means the forge's client can't delete branches.
 	SkipUnsupported BranchSkipReason = "unsupported"
 )
 

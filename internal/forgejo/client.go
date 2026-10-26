@@ -520,6 +520,24 @@ func forgeErrorKind(statusCode int) dashboard.ForgeErrorKind {
 	}
 }
 
+// branchToDelete names the head branch of a merged pull request, or says why
+// it must be left alone: it is on a fork, or is the default branch. A pull
+// request with no head branch is a failure.
+func branchToDelete(pr *gitea.PullRequest, owner, name string) (string, *dashboard.BranchDeletion) {
+	if pr.Head == nil || pr.Head.Repository == nil || pr.Head.Repository.FullName != owner+"/"+name {
+		return "", &dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork}
+	}
+	branch := pr.Head.Ref
+	if branch == "" {
+		return "", &dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
+	}
+	if pr.Base != nil && pr.Base.Repository != nil && branch == pr.Base.Repository.DefaultBranch {
+		return "", &dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipDefaultBranch}
+	}
+
+	return branch, nil
+}
+
 // DeletePullRequestBranch implements dashboard.PullRequestBranchDeleter. It
 // deletes the head branch of a merged pull request, unless that branch is on
 // a fork, is the default branch or is protected. A branch Forgejo has already
@@ -538,15 +556,9 @@ func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string
 		return failed
 	}
 	c.recordRequest(ctx, http.MethodGet, prPath, resp.StatusCode, requestlog.OutcomeSuccess)
-	if pr.Head == nil || pr.Head.Repository == nil || pr.Head.Repository.FullName != owner+"/"+name {
-		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork}
-	}
-	branch := pr.Head.Ref
-	if branch == "" {
-		return failed
-	}
-	if pr.Base != nil && pr.Base.Repository != nil && branch == pr.Base.Repository.DefaultBranch {
-		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipDefaultBranch}
+	branch, skip := branchToDelete(pr, owner, name)
+	if skip != nil {
+		return *skip
 	}
 
 	branchPath := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, name, branch)
