@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.6](https://github.com/alrayyes/forge-dashboard/compare/v2.34.5...v2.34.6) (2026-10-26)
+
+
+### Bug Fixes
+
+* **requestlog:** stop pinning the sqlite driver's busy-wait behaviour ([#2866](https://github.com/alrayyes/forge-dashboard/issues/2866)) ([2fbbe38](https://github.com/alrayyes/forge-dashboard/commit/2fbbe383607fe10033590300253e68f1fd6c130f)), closes [#2864](https://github.com/alrayyes/forge-dashboard/issues/2864)
+
 ## [2.34.5](https://github.com/alrayyes/forge-dashboard/compare/v2.34.4...v2.34.5) (2026-10-26)
 
 
