@@ -60,12 +60,19 @@ func (a *Aggregator) updatePending(ctx context.Context) bool {
 		slog.Warn("auto-update-branch: could not load pull request choices", "error", err)
 		overrides = nil
 	}
-	if len(enabled) == 0 && len(overrides) == 0 {
+	rebaseBots := a.rebaseBotRepos(ctx)
+	if len(enabled) == 0 && len(overrides) == 0 && len(rebaseBots) == 0 {
+		return false
+	}
+	renovateAuthors, err := cfg.lister.RenovateAuthors(ctx)
+	if err != nil {
+		slog.Warn("auto-update-branch: could not load renovate authors", "error", err)
+
 		return false
 	}
 
 	for _, pr := range a.Get().PullRequests {
-		if !pr.Behind || pr.Draft || !autoUpdateWanted(pr, enabled, overrides) {
+		if !pr.Behind || pr.Draft || !autoUpdateWantedWithBots(pr, enabled, rebaseBots, overrides, renovateAuthors) {
 			continue
 		}
 		if a.updateWouldBeTried(pr) {

@@ -78,7 +78,11 @@ func PullRequestAutoUpdate(pr PullRequest, repoEnabled bool, own *bool) AutoUpda
 // Nothing is gone while its forge is unreachable, since an outage returns no
 // pull requests and that isn't a close. A repo that is no longer tracked has no
 // pull requests in the snapshot either, so its choices go with them.
-func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, overrides map[string]bool) []string {
+//
+// botRebased names the open bot pull requests a rebase-bots repo covers. The
+// repo setting is effectively on for them, so a choice of false differs from it
+// and is kept.
+func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, overrides map[string]bool, botRebased map[string]struct{}) []string {
 	open := make(map[string]struct{}, len(snap.PullRequests))
 	for _, pr := range snap.PullRequests {
 		open[autoUpdateKey(pr.Forge, pr.Repo, pr.Number)] = struct{}{}
@@ -111,7 +115,7 @@ func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, ove
 		switch {
 		case !isOpen && reachable[forge] && !repoFailed:
 			stale = append(stale, key)
-		case isOpen && own == repoEnabled:
+		case isOpen && own == repoEnabled && !inSet(botRebased, key):
 			stale = append(stale, key)
 		}
 	}
@@ -149,4 +153,40 @@ func autoUpdateWanted(pr PullRequest, enabledRepos map[string]struct{}, override
 	}
 
 	return PullRequestAutoUpdate(pr, repoEnabled, own).Enabled
+}
+
+func inSet(set map[string]struct{}, key string) bool {
+	_, ok := set[key]
+
+	return ok
+}
+
+// isBotPR is whether pr is one the bot's own rebase command covers.
+func isBotPR(pr PullRequest, renovateAuthors []string) bool {
+	return isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)
+}
+
+// autoUpdateWantedWithBots is autoUpdateWanted, except that a Dependabot or
+// Renovate pull request in a repo set to rebase bots counts as enabled there.
+// The pull request's own choice still wins, and draft and release-please pull
+// requests stay out, because PullRequestAutoUpdate decides both.
+func autoUpdateWantedWithBots(pr PullRequest, enabledRepos, rebaseBots map[string]struct{}, overrides map[string]bool, renovateAuthors []string) bool {
+	repo := string(pr.Forge) + "/" + pr.Repo
+	if inSet(rebaseBots, repo) && isBotPR(pr, renovateAuthors) {
+		enabledRepos = map[string]struct{}{repo: {}}
+	}
+
+	return autoUpdateWanted(pr, enabledRepos, overrides)
+}
+
+// botRebaseKeys names the pull requests in snap that a rebase-bots repo covers.
+func botRebaseKeys(snap Snapshot, rebaseBots map[string]struct{}, renovateAuthors []string) map[string]struct{} {
+	keys := make(map[string]struct{})
+	for _, pr := range snap.PullRequests {
+		if inSet(rebaseBots, string(pr.Forge)+"/"+pr.Repo) && isBotPR(pr, renovateAuthors) {
+			keys[autoUpdateKey(pr.Forge, pr.Repo, pr.Number)] = struct{}{}
+		}
+	}
+
+	return keys
 }

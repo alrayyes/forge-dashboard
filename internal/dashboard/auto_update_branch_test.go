@@ -52,6 +52,17 @@ type fakeAutoUpdateBranchLister struct {
 	forgotten     []string // keys the pass asked to forget
 	// forgetBounded is whether the last forget came with a deadline.
 	forgetBounded bool
+	rebaseBots    map[string]struct{} // repos whose bot pull requests are rebased
+	rebaseBotsErr error
+}
+
+// RebaseBotsRepos makes the fake a dashboard.RebaseBotsLister too.
+func (f *fakeAutoUpdateBranchLister) RebaseBotsRepos(_ context.Context) (map[string]struct{}, error) {
+	if f.rebaseBotsErr != nil {
+		return nil, f.rebaseBotsErr
+	}
+
+	return f.rebaseBots, nil
 }
 
 // ForgetPullRequestAutoUpdates deletes the keys from the choices, as the store
