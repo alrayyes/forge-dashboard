@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.34.8](https://github.com/alrayyes/forge-dashboard/compare/v2.34.7...v2.34.8) (2026-10-26)
+
+
+### Bug Fixes
+
+* **forgejo:** key finished-run jobs on the run's start ([#2889](https://github.com/alrayyes/forge-dashboard/issues/2889)) ([d05f01d](https://github.com/alrayyes/forge-dashboard/commit/d05f01d4235d883a201fbeff5070386a51d3840e))
+
 ## [2.34.7](https://github.com/alrayyes/forge-dashboard/compare/v2.34.6...v2.34.7) (2026-10-26)
 
 
