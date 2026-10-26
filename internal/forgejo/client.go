@@ -1274,23 +1274,27 @@ func (c *Client) cancelledFailures(ctx context.Context, owner, name string, runs
 }
 
 // jobRef is the job a failure status points at: its position in the run's job
-// list, and the job's name as the status's context gives it.
+// list, and the status's context without its trailing event.
 type jobRef struct {
 	position int
-	name     string
+	context  string
 }
 
-// contextJobName is the job in a status context, "<workflow> / <job> (<event>)".
-// The workflow's own name isn't in the runs API, so only the job is compared.
-// Empty when the context has no such shape.
-func contextJobName(context string) string {
-	_, rest, ok := strings.Cut(context, " / ")
-	if !ok {
-		return ""
+// withoutEvent is a status context without its trailing " (<event>)". Only the
+// last parenthesis goes: a matrix job's own name holds some.
+func withoutEvent(context string) string {
+	if before, _, found := strings.CutLast(context, " ("); found {
+		return before
 	}
-	job, _, _ := strings.Cut(rest, " (")
 
-	return strings.TrimSpace(job)
+	return context
+}
+
+// namesJob reports whether a status context, "<workflow> / <job> (<event>)",
+// names job. The runs API doesn't give the workflow's name, which can hold " / "
+// itself, so the job is looked for at the end instead of cut out of the middle.
+func namesJob(context, job string) bool {
+	return job != "" && strings.HasSuffix(withoutEvent(context), " / "+job)
 }
 
 // failuresByRun indexes runs by run number and groups the jobs that failure
@@ -1306,7 +1310,7 @@ func failuresByRun(runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) (m
 	pointed := map[int64][]jobRef{}
 	for _, s := range statuses {
 		if run, job, ok := jobTarget(s); ok && isFailureStatus(s) && byNumber[run] != nil {
-			pointed[run] = append(pointed[run], jobRef{position: job, name: contextJobName(s.Context)})
+			pointed[run] = append(pointed[run], jobRef{position: job, context: s.Context})
 		}
 	}
 
@@ -1314,14 +1318,14 @@ func failuresByRun(runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) (m
 }
 
 // cancelledAt counts the statuses whose job was cancelled. The position alone
-// isn't trusted: the job there must carry the name the status's context gives,
-// or the status stays a failure. The position counts jobs in the order the run
+// isn't trusted: the job there must be the one the status's context names, or
+// the status stays a failure. The position counts jobs in the order the run
 // ran them, which the jobs list need not follow, and a cancelled sibling must
 // never excuse a real failure.
 func cancelledAt(jobs []*gitea.ActionWorkflowJob, refs []jobRef) int {
 	n := 0
 	for _, ref := range refs {
-		if ref.position >= len(jobs) || ref.name == "" || jobs[ref.position].Name != ref.name {
+		if ref.position >= len(jobs) || !namesJob(ref.context, jobs[ref.position].Name) {
 			continue
 		}
 		if checkStateFromWorkflowStatus(jobs[ref.position].Status) == dashboard.CheckCancelled {
@@ -1679,22 +1683,35 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 // for, sidesteps it instead of rediscovering it against a real instance.
 func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runID int64) ([]*gitea.ActionWorkflowJob, error) {
 	var all []*gitea.ActionWorkflowJob
+	seen := map[int64]bool{}
 	for page := 1; page <= maxJobPages; page++ {
 		jobs, total, err := c.listActionRunJobsPage(ctx, owner, name, runID, page)
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, jobs...)
-		// A short page is the last. A forge that ignores the page parameter
-		// answers a full first page every time, so the total it reports ends
-		// the walk too.
-		if len(jobs) < pageLimit || (total > 0 && len(all) >= total) {
-			break
+		fresh := 0
+		for _, j := range jobs {
+			if j.ID == 0 || !seen[j.ID] {
+				seen[j.ID] = true
+				all = append(all, j)
+				fresh++
+			}
+		}
+		// The page that adds nothing ends the walk: it is the last, or the forge
+		// ignores the page parameter and answers the first again. With a total
+		// the walk goes on past a short page, as an instance can cap the page
+		// size below the one asked for; without one a short page is the last.
+		if fresh == 0 || (total > 0 && len(all) >= total) || (total == 0 && len(jobs) < pageLimit) {
+			return all, nil
 		}
 	}
 
-	return all, nil
+	return nil, fmt.Errorf("%w: run %d has more than %d jobs", errTooManyJobs, runID, maxJobPages*pageLimit)
 }
+
+// errTooManyJobs is a run whose jobs the walk gave up on. The list is not
+// returned half-read, as it would be kept as final and excuse nothing past the cut.
+var errTooManyJobs = errors.New("forgejo: too many jobs to read")
 
 // maxJobPages bounds the walk through a run's jobs, so a forge that keeps
 // answering full pages can't hold a poll forever.

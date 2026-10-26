@@ -51,6 +51,9 @@ type forge struct {
 	// jobNames overrides the names of a run's jobs, by run id. A job is
 	// otherwise named for the status that points at it, as the forge does.
 	jobNames map[int][]string
+	// ignorePaging makes the jobs endpoint answer its first page whatever page
+	// is asked for, as a forge that doesn't page does.
+	ignorePaging bool
 }
 
 // jobsPageSize is how many jobs the fake forge serves a page when the request
@@ -60,9 +63,11 @@ const jobsPageSize = 30
 // contextJob is the job name in a status context, "<workflow> / <job> (<event>)".
 func contextJob(context string) string {
 	_, rest, _ := strings.Cut(context, " / ")
-	job, _, _ := strings.Cut(rest, " (")
+	if i := strings.LastIndex(rest, " ("); i >= 0 {
+		rest = rest[:i]
+	}
 
-	return job
+	return rest
 }
 
 // jobName is the name of job i of run id: an override, else the job the
@@ -76,7 +81,7 @@ func (f forge) jobName(id, i int) string {
 			continue
 		}
 		for _, st := range f.statuses {
-			if strings.Contains(st["target_url"], fmt.Sprintf("/runs/%v/jobs/%d", r["index_in_repo"], i)) {
+			if strings.HasSuffix(st["target_url"], fmt.Sprintf("/runs/%v/jobs/%d", r["index_in_repo"], i)) {
 				return contextJob(st["context"])
 			}
 		}
@@ -156,7 +161,7 @@ func (f forge) serveJobs(t *testing.T, id int, states []string, reads *atomic.In
 
 				return
 			}
-			jobs = append(jobs, map[string]any{"name": f.jobName(id, i), "status": state, "completed_at": "2026-09-01T00:00:00Z"})
+			jobs = append(jobs, map[string]any{"id": id*1000 + i + 1, "name": f.jobName(id, i), "status": state, "completed_at": "2026-09-01T00:00:00Z"})
 		}
 		q := r.URL.Query()
 		limit, err := strconv.Atoi(q.Get("limit"))
@@ -164,7 +169,7 @@ func (f forge) serveJobs(t *testing.T, id int, states []string, reads *atomic.In
 			limit = jobsPageSize
 		}
 		page, err := strconv.Atoi(q.Get("page"))
-		if err != nil {
+		if err != nil || f.ignorePaging {
 			page = 1
 		}
 		lo := min((page-1)*limit, len(jobs))
@@ -419,4 +424,59 @@ func TestListOpenPullRequests_AStatusThatNamesAnotherJobThanItsPositionIsNotExcu
 	got := f.pullRequest(t)
 
 	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+}
+
+// A matrix leg's name holds parentheses of its own, and the context ends in the
+// event: "ci / build (ubuntu, 1.22) (pull_request)".
+func TestListOpenPullRequests_ACancelledMatrixJobWithParenthesesInItsNameIsExcused(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.statuses[1] = jobStatus("failure", "ci / build (ubuntu, 1.22) (pull_request)", 2, 0)
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+}
+
+// A workflow's name can hold " / " itself, and the runs API doesn't give it.
+func TestListOpenPullRequests_ACancelledJobOfAWorkflowNamedWithASlashIsExcused(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.statuses[1] = jobStatus("failure", "CI / Lint / go (pull_request)", 2, 0)
+	f.jobNames = map[int][]string{12: {"go"}}
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+}
+
+// A context that names no job can't be checked against the run, so it stays a
+// failure.
+func TestListOpenPullRequests_AContextWithNoJobInItStaysFailed(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.statuses[1] = jobStatus("failure", "build", 2, 0)
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+}
+
+// A forge that ignores the page parameter answers the same page each time: the
+// walk stops when a page brings no new job, instead of reading it again and
+// again.
+func TestListOpenPullRequests_AForgeThatIgnoresPagingIsReadTwice(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	states := make([]string, 60)
+	for i := range states {
+		states[i] = "success"
+	}
+	f.jobs[12] = states
+	f.ignorePaging = true
+	s := f.serve(t)
+
+	s.pullRequest(t)
+
+	assert.Equal(t, int32(2), s.jobReads.Load())
 }
