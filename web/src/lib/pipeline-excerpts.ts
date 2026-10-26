@@ -4,7 +4,7 @@
 // DOM here.
 
 import { type Check, checkRunKey } from './pipeline-checks';
-import { logUrl } from './run-log';
+import { forgeOf, logUrl } from './run-log';
 
 // How many failed checks of one list are asked for an excerpt, the newest
 // first: each is a log read on the forge.
@@ -33,8 +33,8 @@ export function newExcerptReads(): ExcerptReads {
 // The log endpoint's excerpt for one job, or null where the list already
 // carries the excerpt (GitHub) or the checks url names no repository.
 export function excerptUrl(checksUrl: string, jobId: number): string | null {
-  const forge = new URLSearchParams(checksUrl.split('?')[1] ?? '').get('forge');
-  const url = forge === 'forgejo' ? logUrl(checksUrl, jobId) : null;
+  const url =
+    forgeOf(checksUrl) === 'forgejo' ? logUrl(checksUrl, jobId) : null;
 
   return url ? `${url}&excerpt=true` : null;
 }

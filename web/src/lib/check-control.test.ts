@@ -35,6 +35,13 @@ describe('checkControl', () => {
     );
   });
 
+  test('a running GitHub job on the main-branches route links to the forge too', () => {
+    const mainUrl = '/api/main-branches/checks?fullName=a/b&forge=github';
+    expect(checkControl({ state: 'running', url, jobId: 7 }, mainUrl)).toBe(
+      'open-on-forge',
+    );
+  });
+
   test('a job with no id, or no checks address, gets the plain link', () => {
     expect(checkControl({ state: 'success', url }, checksUrl)).toBe('link');
     expect(checkControl({ state: 'running', url, jobId: 7 }, undefined)).toBe(

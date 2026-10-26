@@ -610,10 +610,11 @@
             forgeName={forge}
           />
         {:else if control === "open-on-forge" || control === "link"}
-          <!-- Never an empty href, which would resolve to this page. A queued
-               job has no log yet, so it links to the forge's own page. -->
-          {@const queued = control === "open-on-forge"}
-          {@const linkText = queued
+          <!-- Never an empty href, which would resolve to this page. A job with
+               no log to read yet (queued, or running on GitHub) links to the
+               forge's own page. -->
+          {@const forgeOnly = control === "open-on-forge"}
+          {@const linkText = forgeOnly
             ? `Open on ${forge}`
             : check.state === "awaiting_approval"
               ? "Approve on GitHub"
