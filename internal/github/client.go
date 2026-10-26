@@ -716,6 +716,68 @@ func (c *Client) readPullRequest(ctx context.Context, owner, name string, number
 	return pr
 }
 
+// DeletePullRequestBranch implements dashboard.PullRequestBranchDeleter. It
+// deletes the head branch of a merged pull request, unless that branch is on
+// a fork, is the default branch or is protected. A branch GitHub has already
+// removed (its own "delete branch on merge" setting) counts as deleted. Every
+// problem is a reported outcome, never an error: the merge is done either way.
+func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string, number int) dashboard.BranchDeletion {
+	failed := dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
+	pr := c.readPullRequest(ctx, owner, name, number)
+	if pr == nil {
+		return failed
+	}
+	branch := pr.GetHead().GetRef()
+	if pr.GetHead().GetRepo().GetFullName() != owner+"/"+name {
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork}
+	}
+	if branch == "" {
+		return failed
+	}
+	if branch == pr.GetBase().GetRepo().GetDefaultBranch() {
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipDefaultBranch}
+	}
+
+	branchPath := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, name, branch)
+	slog.Debug("github request", "method", http.MethodGet, "url", branchPath)
+	found, resp, err := c.restClient.Repositories.GetBranch(ctx, owner, name, branch, 0)
+	switch {
+	case resp != nil && resp.StatusCode == http.StatusNotFound:
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}
+	case err != nil:
+		slog.Warn("reading the branch before deleting it failed", "repo", owner+"/"+name, "branch", branch, "error", err)
+
+		return failed
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, branchPath, resp)
+	if found.GetProtected() {
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipProtected}
+	}
+
+	refPath := fmt.Sprintf("/repos/%s/%s/git/refs/heads/%s", owner, name, branch)
+	slog.Debug("github request", "method", http.MethodDelete, "url", refPath)
+	resp, err = c.restClient.Git.DeleteRef(ctx, owner, name, "heads/"+branch)
+	switch {
+	case isStatus(err, http.StatusNotFound, http.StatusUnprocessableEntity):
+		// Gone between the lookup and the delete: the outcome we wanted.
+		return dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}
+	case err != nil:
+		slog.Warn("deleting the merged branch failed", "repo", owner+"/"+name, "branch", branch, "error", err)
+
+		return failed
+	}
+	c.recordRESTSuccess(ctx, http.MethodDelete, refPath, resp)
+
+	return dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted}
+}
+
+// isStatus reports whether err is a GitHub API error with one of the statuses.
+func isStatus(err error, statuses ...int) bool {
+	errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err)
+
+	return ok && errResp.Response != nil && slices.Contains(statuses, errResp.Response.StatusCode)
+}
+
 // ReadPullRequestState implements dashboard.PullRequestStateReader via
 // GitHub's "Get a pull request": merged and state say whether there's
 // anything left to merge; mergeable_state says why a merge was refused.
