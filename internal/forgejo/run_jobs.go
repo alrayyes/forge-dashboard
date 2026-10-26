@@ -23,20 +23,52 @@ import (
 // cancelled can leave a job queued for good, so once the forge has had
 // jobsCatchUp to settle, its list is final too.
 func (c *Client) readRunJobs(ctx context.Context, owner, name string, runID int64, status string, started, stopped time.Time) ([]*gitea.ActionWorkflowJob, error) {
-	if stopped.IsZero() || !isFinished(status) {
-		return c.listActionRunJobs(ctx, owner, name, runID)
-	}
+	return c.keepJobs(status, jobsKey(owner, name, runID, started, stopped, 0), stopped, func() ([]*gitea.ActionWorkflowJob, bool, error) {
+		return c.walkActionRunJobs(ctx, owner, name, runID)
+	})
+}
+
+// readRunJobsPage is readRunJobs for the one page of a run's jobs, counted from
+// 1, kept the same way. A status names its job's position, so the page holding
+// it is all that is read.
+func (c *Client) readRunJobsPage(ctx context.Context, owner, name string, runID int64, status string, started, stopped time.Time, page int) ([]*gitea.ActionWorkflowJob, error) {
+	return c.keepJobs(status, jobsKey(owner, name, runID, started, stopped, page), stopped, func() ([]*gitea.ActionWorkflowJob, bool, error) {
+		jobs, _, err := c.listActionRunJobsPage(ctx, owner, name, runID, page)
+
+		return jobs, true, err
+	})
+}
+
+// jobsKey names the kept jobs of a run, or of one page of them when page is
+// above 0.
+func jobsKey(owner, name string, runID int64, started, stopped time.Time, page int) string {
 	key := fmt.Sprintf("%s/%s/%d/%s/%s", owner, name, runID, started.Format(time.RFC3339Nano), stopped.Format(time.RFC3339Nano))
+	if page > 0 {
+		key += fmt.Sprintf("/page/%d", page)
+	}
+
+	return key
+}
+
+// keepJobs reads jobs with read, and keeps them under key once they are final
+// (see readRunJobs). A list that read says is not whole is never kept: it is
+// what the forge showed, and a kept one would stand in for the rest for good.
+func (c *Client) keepJobs(status, key string, stopped time.Time, read func() ([]*gitea.ActionWorkflowJob, bool, error)) ([]*gitea.ActionWorkflowJob, error) {
+	if stopped.IsZero() || !isFinished(status) {
+		jobs, _, err := read()
+
+		return jobs, err
+	}
 	if cached, ok := c.finishedJobs.get(key); ok {
 		return cached, nil
 	}
-	jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
+	jobs, whole, err := read()
 	if err != nil {
 		return nil, err
 	}
 	settled := time.Since(stopped) > jobsCatchUp
 	_, _, over := jobsOutcome(jobs)
-	final := over || (!isPassing(status) && settled)
+	final := whole && (over || (!isPassing(status) && settled))
 	if final && (len(jobs) > 0 || settled) {
 		c.finishedJobs.put(key, jobs)
 	}
