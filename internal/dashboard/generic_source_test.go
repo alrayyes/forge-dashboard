@@ -452,3 +452,39 @@ func TestGenericSource_ClosePullRequest_ClientWithoutSupport_ReturnsError(t *tes
 
 	require.Error(t, err)
 }
+
+// fakeBranchDeleterClient is a ForgeClient that can also delete the source
+// branch of a merged pull request.
+type fakeBranchDeleterClient struct {
+	fakeForgeClient
+	deletion dashboard.BranchDeletion
+	calls    []string
+}
+
+func (f *fakeBranchDeleterClient) DeletePullRequestBranch(_ context.Context, owner, name string, number int) dashboard.BranchDeletion {
+	f.calls = append(f.calls, owner+"/"+name+fmt.Sprintf("#%d", number))
+
+	return f.deletion
+}
+
+func TestGenericSource_DeletePullRequestBranch_DelegatesToClient(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeBranchDeleterClient{deletion: dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipProtected}}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+
+	got := source.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 42)
+
+	assert.Equal(t, client.deletion, got)
+	assert.Equal(t, []string{"alrayyes/a#42"}, client.calls)
+}
+
+func TestGenericSource_DeletePullRequestBranch_ClientWithoutItIsSkippedAsUnsupported(t *testing.T) {
+	t.Parallel()
+
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, &fakeForgeClient{}, 4)
+
+	got := source.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 42)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipUnsupported}, got)
+}

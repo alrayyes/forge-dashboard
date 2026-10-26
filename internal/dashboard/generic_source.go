@@ -285,6 +285,18 @@ func (s *GenericSource) MergePullRequest(ctx context.Context, owner, name string
 	return nil
 }
 
+// DeletePullRequestBranch implements PullRequestBranchDeleter at the Source
+// level by delegating to the client's own, when it has one. A client without
+// one reports the deletion as skipped: the merge is done either way.
+func (s *GenericSource) DeletePullRequestBranch(ctx context.Context, owner, name string, number int) BranchDeletion {
+	deleter, ok := s.client.(PullRequestBranchDeleter)
+	if !ok {
+		return BranchDeletion{Outcome: BranchSkipped, Reason: SkipUnsupported}
+	}
+
+	return deleter.DeletePullRequestBranch(ctx, owner, name, number)
+}
+
 // ReadPullRequestState implements PullRequestStateReader at the Source
 // level by delegating to the underlying client, the same shape
 // MergePullRequest uses. The client's own error is returned as is, so its
