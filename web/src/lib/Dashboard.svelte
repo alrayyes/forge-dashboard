@@ -163,6 +163,15 @@
     rebaseAllPlan,
     summaryLine,
   } from "#lib/bot-rebase-all.js";
+  import {
+    branchNote,
+    chosenRows,
+    mergeAllLabel,
+    mergeAllPlan,
+    progressLabel as mergeProgressLabel,
+    summaryLine as mergeSummaryLine,
+    type BranchDeletion,
+  } from "#lib/merge-all.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -2961,8 +2970,19 @@
     // mergeActionCell's own click handler only ever flips into
     // "confirming", so a single accidental click can never merge
     // anything.
-    function doMerge(item: PullRequestItem, confirmButton: HTMLButtonElement) {
+    // Resolves true once the merge went through, false when it did not.
+    // `deleteBranch` asks the server to delete the source branch too; the
+    // row's own Merge never sets it.
+    function doMerge(
+      item: PullRequestItem,
+      confirmButton: HTMLButtonElement,
+      {
+        deleteBranch = false,
+        onFailure,
+      }: { deleteBranch?: boolean; onFailure?: (reason: string) => void } = {},
+    ): Promise<boolean> {
       const key = prKey(item);
+      let merged = false;
       mergeState[key] = { phase: "merging" };
       confirmButton.disabled = true;
       confirmButton.textContent = "Merging…";
@@ -2987,7 +3007,7 @@
         },
       });
 
-      fetch("/api/pull-requests/merge", {
+      return fetch("/api/pull-requests/merge", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2997,26 +3017,37 @@
           forge: item.forge,
           fullName: item.repo,
           number: item.number,
+          ...(deleteBranch ? { deleteBranch: true } : {}),
         }),
       })
-        .then((res) => {
+        .then((res): Promise<BranchDeletion | undefined> | undefined => {
           if (res.status === 401) {
             window.location.href = "/login.html";
             throw new Error("session expired");
           }
-          if (res.status === 204) return null;
+          if (res.status === 204) return undefined;
+          // Asked to delete the branch, the server answers 200 with what it
+          // did. A body that won't parse still means the merge went through.
+          if (res.status === 200 && deleteBranch)
+            return res
+              .json()
+              .then((body) => body?.branchDeletion as BranchDeletion)
+              .catch(() => undefined);
           return readActionFailure(res).then((err) => {
             throw err;
           });
         })
-        .then(() => {
+        .then((deletion) => {
+          merged = true;
           delete mergeState[key];
           closeDialogOf(key);
+          const note = branchNote(deletion);
+          const said = note ? `Merged. ${note}` : "Merged.";
           feedback.update(fkey, {
             phase: "done",
-            message: "Merged.",
+            message: said,
             toast: true,
-            announce: "Merged.",
+            announce: said,
           });
           // Pulls a fresh snapshot right away rather than waiting out
           // the rest of the background poll's own interval — the same
@@ -3040,7 +3071,7 @@
           // value — the same resilience doUpdateBranch's own fix
           // (#447) already applies to its own ambiguous-outcome case.
           if (err.status === undefined) {
-            fetch(withDrafts("/api/dashboard/refresh"), {
+            return fetch(withDrafts("/api/dashboard/refresh"), {
               method: "POST",
               headers: { Accept: "application/json" },
             })
@@ -3054,6 +3085,7 @@
                   // went through despite the network error, so this
                   // reports as the same success the happy path does
                   // rather than a false failure.
+                  merged = true;
                   delete mergeState[key];
                   closeDialogOf(key);
                   applySnapshot(data, true);
@@ -3065,6 +3097,7 @@
                   });
                   return;
                 }
+                onFailure?.(NETWORK_FAILURE);
                 mergeState[key] = { phase: "idle" };
                 if (data) {
                   applySnapshot(data, true);
@@ -3081,6 +3114,7 @@
                 );
               })
               .catch(() => {
+                onFailure?.(NETWORK_FAILURE);
                 mergeState[key] = { phase: "idle" };
                 failAction(
                   fkey,
@@ -3092,13 +3126,14 @@
                 );
                 renderPRBoard();
               });
-            return;
           }
 
+          onFailure?.(err.message);
           renderActionRefusal(item, err, fkey, "merge", (next) => {
             mergeState[key] = next;
           });
-        });
+        })
+        .then(() => merged);
     }
 
     // The one place on a row that says what the pull request is waiting on or
@@ -4620,8 +4655,23 @@
       };
       listen(list, "pointerenter", mark);
       listen(list, "pointermove", mark);
-      listen(list, "pointerleave", releasePointer);
+      // A toast opening under a resting pointer takes it off the list
+      // without the user moving; the toast keeps the claim instead.
+      listen(list, "pointerleave", (e) => {
+        if (!onToast((e as PointerEvent).relatedTarget)) releasePointer();
+      });
     }
+    const toastsEl = document.getElementById("feedback-toasts");
+    function onToast(target: EventTarget | null): boolean {
+      return target instanceof Node && !!toastsEl?.contains(target);
+    }
+    // Leaving the toast for anywhere but a list ends the claim.
+    listen(toastsEl, "pointerleave", (e) => {
+      const to = (e as PointerEvent).relatedTarget;
+      const toList =
+        to instanceof Element && !!to.closest("#pr-rows, #issue-rows");
+      if (!toList) releasePointer();
+    });
     for (const type of ["pointerdown", "pointerup", "pointercancel"]) {
       listen(
         document,
@@ -5742,6 +5792,154 @@
         rebaseAllDialog()?.close();
         void runRebaseAll();
       });
+
+    // ---- merge all, on the Pull requests page (#2860) ----
+    // The rows the filters leave. Each chosen row goes through the same Merge
+    // a row has, so the server's own refusal shows on that row of the dialog.
+    let visiblePullRows: PullRequestItem[] = [];
+    let mergeAllRun: { done: number; total: number } | null = null;
+    let mergeAllShown: {
+      item: PullRequestItem;
+      box: HTMLInputElement;
+      note: HTMLElement;
+    }[] = [];
+
+    function currentMergePlan() {
+      return mergeAllPlan(visiblePullRows, {
+        merging: (item) => mergeState[prKey(item)]?.phase === "merging",
+      });
+    }
+
+    function updateMergeAll() {
+      const button = document.getElementById("merge-all-button");
+      const summary = document.getElementById("merge-all-summary");
+      if (!(button instanceof HTMLButtonElement) || !summary) return;
+      const plan = currentMergePlan();
+      const ready = plan.eligible.length;
+      button.textContent = mergeAllRun
+        ? mergeProgressLabel(mergeAllRun.done, mergeAllRun.total)
+        : mergeAllLabel(ready);
+      markPending(button, mergeAllRun !== null || ready === 0);
+      summary.textContent = mergeSummaryLine(ready, plan.total);
+    }
+
+    function mergeAllDialog(): HTMLDialogElement | null {
+      const dialog = document.getElementById("merge-all-dialog");
+      return dialog instanceof HTMLDialogElement ? dialog : null;
+    }
+
+    function openMergeAll() {
+      const dialog = mergeAllDialog();
+      const plan = currentMergePlan();
+      if (!dialog || mergeAllRun || plan.eligible.length === 0) return;
+      const count = plan.eligible.length;
+      const title = document.getElementById("merge-all-title");
+      if (title)
+        title.textContent = `Merge ${count} pull request${count === 1 ? "" : "s"}?`;
+      const progress = document.getElementById("merge-all-progress");
+      if (progress) progress.textContent = "";
+      const confirm = document.getElementById("merge-all-confirm");
+      if (confirm instanceof HTMLButtonElement) confirm.disabled = false;
+      mergeAllShown = plan.eligible.map((item) => {
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = true;
+        return { item, box, note: el("span", "merge-all-note") };
+      });
+      document.getElementById("merge-all-list")?.replaceChildren(
+        ...mergeAllShown.map(({ item, box, note }) => {
+          const li = el("li", "merge-all-item");
+          const label = el("label", "merge-all-label");
+          label.appendChild(box);
+          const text = el("span", "merge-all-text");
+          const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+          badge.appendChild(el("span", "dot"));
+          badge.appendChild(
+            document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
+          );
+          text.appendChild(badge);
+          text.appendChild(
+            document.createTextNode(
+              ` ${item.repo} #${item.number} · ${item.title}`,
+            ),
+          );
+          label.appendChild(text);
+          li.appendChild(label);
+          li.appendChild(note);
+          return li;
+        }),
+      );
+      dialog.showModal();
+    }
+
+    // One after another, so a forge sees a steady trickle and not a burst. The
+    // plan is read again here, so a row the server stopped offering since the
+    // dialog opened is left alone.
+    async function runMergeAll() {
+      if (mergeAllRun) return;
+      const left = new Set(
+        mergeAllShown.filter((r) => !r.box.checked).map((r) => prKey(r.item)),
+      );
+      const chosen = chosenRows(
+        mergeAllShown.map((r) => r.item),
+        left,
+        prKey,
+        currentMergePlan().eligible,
+      );
+      if (chosen.length === 0) {
+        mergeAllDialog()?.close();
+        return;
+      }
+      const confirm = document.getElementById("merge-all-confirm");
+      if (confirm instanceof HTMLButtonElement) confirm.disabled = true;
+      for (const r of mergeAllShown) r.box.disabled = true;
+      const progress = document.getElementById("merge-all-progress");
+      const status = document.getElementById("merge-all-status");
+      mergeAllRun = { done: 0, total: chosen.length };
+      let failed = 0;
+      updateMergeAll();
+      if (progress) progress.textContent = mergeProgressLabel(0, chosen.length);
+      for (const item of chosen) {
+        const row = mergeAllShown.find((r) => r.item === item);
+        const merged = await doMerge(item, buttonEl("row-action"), {
+          deleteBranch: true,
+          onFailure: (reason) => {
+            if (row) row.note.textContent = reason;
+          },
+        });
+        if (!merged) failed++;
+        else if (row) row.note.textContent = "Merged.";
+        mergeAllRun.done++;
+        updateMergeAll();
+        if (progress)
+          progress.textContent = mergeProgressLabel(
+            mergeAllRun.done,
+            mergeAllRun.total,
+          );
+      }
+      const total = mergeAllRun.total;
+      mergeAllRun = null;
+      updateMergeAll();
+      const summary =
+        failed === 0
+          ? `Merged ${total}.`
+          : `Merged ${total - failed} of ${total}. ${failed} failed.`;
+      if (progress) progress.textContent = summary;
+      if (status) status.textContent = summary;
+    }
+
+    document
+      .getElementById("merge-all-button")
+      ?.addEventListener("click", (event) => {
+        if (isPending(event.currentTarget as HTMLButtonElement)) return;
+        openMergeAll();
+      });
+    document
+      .getElementById("merge-all-cancel")
+      ?.addEventListener("click", () => mergeAllDialog()?.close());
+    document
+      .getElementById("merge-all-confirm")
+      ?.addEventListener("click", () => void runMergeAll());
 
     // A button that stands in for another when the request turns into its
     // cancel names the place it holds, so focus can follow the swap.
@@ -6986,7 +7184,9 @@
         if (isPR === pullsView) {
           visibleResultCount = visible.length;
           visibleBotRows = visible as PullRequestItem[];
+          visiblePullRows = visibleBotRows;
           updateRebaseAll();
+          updateMergeAll();
         }
         const count = document.getElementById(`${idPrefix}-count`);
         if (count)
@@ -9609,6 +9809,35 @@
             <button type="button" id="rebase-all-confirm">Rebase</button>
           </div>
           <p class="rebase-all-hint">Esc closes this.</p>
+        </dialog>
+      {:else if view === "pulls"}
+        <div class="merge-all">
+          <p class="merge-all-summary" id="merge-all-summary"></p>
+          <button
+            type="button"
+            class="merge-all-button"
+            id="merge-all-button"
+            aria-haspopup="dialog"
+            aria-disabled="true"
+            aria-describedby="merge-all-summary">Merge all</button
+          >
+          <span class="sr-only" id="merge-all-status" role="status"></span>
+        </div>
+        <dialog
+          id="merge-all-dialog"
+          class="merge-all-dialog"
+          aria-labelledby="merge-all-title"
+        >
+          <h2 id="merge-all-title">Merge pull requests?</h2>
+          <ul class="merge-all-list" id="merge-all-list"></ul>
+          <p class="merge-all-progress" id="merge-all-progress"></p>
+          <div class="merge-all-actions">
+            <button type="button" id="merge-all-cancel">Close</button>
+            <button type="button" id="merge-all-confirm">Merge</button>
+          </div>
+          <p class="merge-all-hint">
+            Source branches are deleted. Esc closes this.
+          </p>
         </dialog>
       {/if}
 

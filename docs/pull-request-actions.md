@@ -951,6 +951,28 @@ disabled. With nothing behind, the line reads `Nothing is out of date.` A
 Dependabot pull request on a GitHub App with no saved personal token is left
 out too, and the line gives the reason.
 
+## Merging every ready pull request
+
+The Pull requests page header has a `Merge all` button. It counts the pull
+requests the filters leave whose `merge` action the server offers and doesn't
+block, so `Merge all (4)` means four, and a filter that narrows the list
+narrows the count. A line beside it says how many are ready, for example
+`4 of 6 are ready to merge.` Bots have their own page and aren't listed here.
+
+Pressing it opens a confirm dialog with a tick box for each pull request, all
+ticked. Clear a box to leave that one out. The dialog says source branches are
+deleted. `Merge` then merges the ticked ones one after another, each with
+`deleteBranch` set and by the repo's own merge method, the same request the
+row's `Merge` sends. The dialog reads `Merging 2 of 4` as it goes. A merge the
+forge refuses shows its reason on its own row and the others carry on.
+
+A branch that is kept, or can't be deleted, doesn't count as a failed merge.
+The note rides on the toast for that merge, such as `Merged. Branch kept: it is
+protected.` when the branch is protected.
+
+Escape, or `Close`, before `Merge` merges nothing. When no pull request can
+merge, the button is disabled and the line reads `Nothing is ready to merge.`
+
 ## Deleting the source branch on merge
 
 `POST /api/pull-requests/merge` can also delete the branch the pull request came
