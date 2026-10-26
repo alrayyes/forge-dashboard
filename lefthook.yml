@@ -56,7 +56,7 @@ pre-commit:
       run: bunx markdownlint-cli2 --no-globs {staged_files}
 
     # Biome leads for every file type it supports -- linting.md. Excludes
-    # .html/.svg via biome.json's own files.includes, not the glob here:
+    # .html/.svg/.md via biome.json's own files.includes, not the glob here:
     # this repo's HTML pages carry inline <style>/embedded content Biome
     # would otherwise also lint, out of scope for now.
     # Sorts the manifests before Biome reads them, so dependency diffs don't

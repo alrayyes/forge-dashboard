@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -12,6 +12,7 @@
       "!**/*.html",
       "!**/*.svg",
       "!**/*.svelte",
+      "!**/*.md",
       "!.claude/worktrees",
       "!tests/generated"
     ]
@@ -25,8 +26,13 @@
     "rules": {
       "preset": "recommended",
       "nursery": {
-        "useBaseline": "warn",
         "noFloatingPromises": "warn"
+      },
+      "correctness": {
+        "noInvalidGridAreas": "off"
+      },
+      "suspicious": {
+        "useBaseline": "warn"
       }
     },
     "domains": {
