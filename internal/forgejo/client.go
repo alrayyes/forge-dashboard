@@ -1257,7 +1257,7 @@ func (c *Client) cancelledFailures(ctx context.Context, owner, name string, runs
 		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			jobs, err := c.finishedRunJobs(ctx, owner, name, run)
+			jobs, err := c.readRunJobs(ctx, owner, name, run.ID, run.Status, run.CompletedAt)
 			if err != nil {
 				slog.Debug("cancelled failures not read", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
 
@@ -1334,38 +1334,6 @@ func cancelledAt(jobs []*gitea.ActionWorkflowJob, refs []jobRef) int {
 	}
 
 	return n
-}
-
-// finishedRunJobs reads the jobs of run. A finished run's job list never
-// changes, so once it is final it is kept (see finishedJobs) and a repeat poll
-// costs nothing; a run still going is read each time. A list is final when
-// every job is over, or, for a run that failed or was cancelled, once the forge
-// has had jobsCatchUp to settle a job it left queued. A run with no stop time
-// of its own is read each time.
-func (c *Client) finishedRunJobs(ctx context.Context, owner, name string, run *gitea.ActionWorkflowRun) ([]*gitea.ActionWorkflowJob, error) {
-	if !isFinished(run.Status) {
-		return c.listActionRunJobs(ctx, owner, name, run.ID)
-	}
-	key := func(stopped time.Time) string {
-		return fmt.Sprintf("%s/%s/%d/%s", owner, name, run.ID, stopped.Format(time.RFC3339Nano))
-	}
-	if !run.CompletedAt.IsZero() {
-		if cached, ok := c.finishedJobs.get(key(run.CompletedAt)); ok {
-			return cached, nil
-		}
-	}
-	jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
-	if err != nil {
-		return nil, err
-	}
-	_, _, over := jobsOutcome(jobs)
-	stopped := run.CompletedAt
-	final := over || (!isPassing(run.Status) && time.Since(stopped) > jobsCatchUp)
-	if !stopped.IsZero() && final && (len(jobs) > 0 || time.Since(stopped) > jobsCatchUp) {
-		c.finishedJobs.put(key(stopped), jobs)
-	}
-
-	return jobs, nil
 }
 
 // statusListIsCapped reports whether the combined-status answer holds fewer

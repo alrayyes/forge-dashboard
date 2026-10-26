@@ -290,41 +290,18 @@ func jobsOutcome(list []*gitea.ActionWorkflowJob) (status string, stopped time.T
 const jobsPageSize = 30
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be
-// read is left out, and counts as one check (see branchChecks, countChecks). A
-// finished run's jobs are kept (see finishedJobs), so only runs still going
-// cost a request on a repeat poll.
+// read is left out, and counts as one check (see branchChecks, countChecks).
+// Which lists are kept for a repeat poll is readRunJobs's rule.
 func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) map[int64][]*gitea.ActionWorkflowJob {
 	out := make(map[int64][]*gitea.ActionWorkflowJob, len(runs))
 	for _, run := range runs {
-		key := ""
-		if finished := !run.StoppedAt.IsZero() && isFinished(run.Status); finished {
-			key = fmt.Sprintf("%s/%d/%s", repo.FullName, run.ID, run.StoppedAt.Format(time.RFC3339Nano))
-			if cached, ok := c.finishedJobs.get(key); ok {
-				out[run.ID] = cached
-
-				continue
-			}
-		}
-		jobs, err := c.listActionRunJobs(ctx, repo.Owner, repo.Name, run.ID)
+		jobs, err := c.readRunJobs(ctx, repo.Owner, repo.Name, run.ID, run.Status, run.StoppedAt)
 		if err != nil {
 			slog.Warn("list default-branch run jobs failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "run", run.ID, "error", err)
 
 			continue
 		}
 		out[run.ID] = jobs
-		// An empty list for a run that just finished may be the forge catching
-		// up, so it is read again rather than kept. Once the run is older than
-		// jobsCatchUp the list is final, however short.
-		// A list with a job still going is read again too: the run was listed as
-		// finished, but the jobs may have been read before the forge caught up,
-		// and a kept list would show that job running for as long as we live.
-		// A run that ended in failure or cancellation can leave a job queued for
-		// good, so once the forge has had time to catch up its list is final.
-		_, _, over := jobsOutcome(jobs)
-		final := over || (!isPassing(run.Status) && time.Since(run.StoppedAt) > jobsCatchUp)
-		if key != "" && final && (len(jobs) > 0 || time.Since(run.StoppedAt) > jobsCatchUp) {
-			c.finishedJobs.put(key, jobs)
-		}
 	}
 
 	return out
