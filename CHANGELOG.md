@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.38.0](https://github.com/alrayyes/forge-dashboard/compare/v2.37.0...v2.38.0) (2026-10-26)
+
+
+### Features
+
+* **api:** keep a merged branch other open PRs use ([#2914](https://github.com/alrayyes/forge-dashboard/issues/2914)) ([c53df38](https://github.com/alrayyes/forge-dashboard/commit/c53df380b6dcb2376d17e2d6006a7cb0f266879c))
+
 ## [2.37.0](https://github.com/alrayyes/forge-dashboard/compare/v2.36.0...v2.37.0) (2026-10-26)
 
 
