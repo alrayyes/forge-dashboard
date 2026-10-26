@@ -60,7 +60,12 @@
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
-  import { canCopyLog, checkControl, checkLinkLabel } from "#lib/run-log.js";
+  import {
+    canCopyLog,
+    checkControl,
+    checkLinkLabel,
+    forgeOf,
+  } from "#lib/run-log.js";
   import {
     activeRuns,
     cancelLocksRepo,
@@ -513,9 +518,7 @@
   // The forge's name for a board that doesn't name it: the checks url carries
   // the forge.
   function forgeLabel(t: PipelineTarget): string {
-    const forge = new URLSearchParams(t.checksUrl.split("?")[1] ?? "").get(
-      "forge",
-    );
+    const forge = forgeOf(t.checksUrl);
 
     return t.forgeName ?? FORGE_LABELS[forge ?? ""] ?? forge ?? "the forge";
   }

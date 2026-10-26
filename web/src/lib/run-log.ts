@@ -202,9 +202,15 @@ export function checkControl(
   if (!check.url) return 'none';
   if (check.state === 'queued') return 'open-on-forge';
   if (check.state === 'skipped') return 'none';
-  // GitHub answers 404 for a job's log until the job finishes.
-  if (check.state === 'running' && forgeOf(checksUrl) === 'github')
+  // Only Forgejo serves a running job's log; GitHub answers 404 until the
+  // job finishes.
+  if (
+    check.state === 'running' &&
+    checksUrl &&
+    forgeOf(checksUrl) !== 'forgejo'
+  ) {
     return 'open-on-forge';
+  }
   if (check.state !== 'awaiting_approval' && check.jobId && checksUrl) {
     return 'output';
   }

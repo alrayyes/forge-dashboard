@@ -42,6 +42,15 @@ describe('checkControl', () => {
     );
   });
 
+  test('a running job whose checks url names no forgejo links to the forge', () => {
+    expect(
+      checkControl(
+        { state: 'running', url, jobId: 7 },
+        '/api/checks?fullName=a/b',
+      ),
+    ).toBe('open-on-forge');
+  });
+
   test('a job with no id, or no checks address, gets the plain link', () => {
     expect(checkControl({ state: 'success', url }, checksUrl)).toBe('link');
     expect(checkControl({ state: 'running', url, jobId: 7 }, undefined)).toBe(
