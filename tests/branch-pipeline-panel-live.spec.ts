@@ -14,9 +14,9 @@ type Counts = {
   failed: number;
 };
 
-function branch(status: string, checks: Counts) {
+function branch(status: string, checks: Counts, forge = 'github') {
   return {
-    forge: 'github',
+    forge,
     fullName: 'acme/auth-service',
     url: 'https://example.com/acme/auth-service',
     branch: 'main',
@@ -49,6 +49,17 @@ const PASSED = branch('passed', {
   waiting: 0,
   failed: 0,
 });
+
+const RUNNING_FORGEJO = branch(
+  'running',
+  { passed: 1, running: 1, waiting: 0, failed: 0 },
+  'forgejo',
+);
+const PASSED_FORGEJO = branch(
+  'passed',
+  { passed: 2, running: 0, waiting: 0, failed: 0 },
+  'forgejo',
+);
 
 const RUN = [
   { name: 'build', state: 'success', url: 'https://example.com/r/1' },
@@ -145,12 +156,12 @@ test.describe('main branches pipeline panel updates live', () => {
       { name: 'build', state: 'success', url: 'https://example.com/r/1' },
       { name: 'test', state: 'running', url: 'https://example.com/r/2' },
     ];
-    const state = await open(page, RUNNING, three, 3);
+    const state = await open(page, RUNNING_FORGEJO, three, 3);
     await panel(page)
       .getByRole('link', { name: checkLinkName('View run', 'test') })
       .focus();
 
-    state.row = PASSED;
+    state.row = PASSED_FORGEJO;
     state.checks = DONE;
     await poll(page);
 
@@ -165,12 +176,12 @@ test.describe('main branches pipeline panel updates live', () => {
   test('a redraw moves focus to the close button when its check is gone', async ({
     page,
   }) => {
-    const state = await open(page, RUNNING, RUN);
+    const state = await open(page, RUNNING_FORGEJO, RUN);
     await panel(page)
       .getByRole('link', { name: checkLinkName('View run', 'test') })
       .focus();
 
-    state.row = PASSED;
+    state.row = PASSED_FORGEJO;
     state.checks = [
       { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
     ];
