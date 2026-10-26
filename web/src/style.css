@@ -2242,6 +2242,13 @@ a.ci-pill:hover {
 .row-action-note-next {
   color: var(--ink-3);
 }
+/* A column-header hint. Not a control, so it needs no hit area; the text
+   carries the explanation for hover and for a screen reader. */
+.info-hint {
+  margin-left: 4px;
+  color: var(--ink-3);
+  cursor: help;
+}
 /* The reason comes from the forge; a long unbroken one wraps in the cue
    instead of pushing the row wider. */
 .row-lock-cue {
