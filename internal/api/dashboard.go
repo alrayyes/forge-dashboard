@@ -80,6 +80,10 @@ type dashboardResponse struct {
 	// from the lists above so they always agree with the pages.
 	NavCounts navCounts    `json:"navCounts"`
 	Repos     []repoStatus `json:"repos"`
+	// MainBranchPage is what GET /api/main-branches answers, so the Main branches
+	// page takes its rows from the same message as every other page and
+	// keeps no poll of its own.
+	MainBranchPage mainBranchesResponse `json:"mainBranchPage"`
 	// HiddenDrafts is how many draft pull requests PullRequests leaves out
 	// (#791). Always serialized, and zero when the request included drafts.
 	HiddenDrafts int `json:"hiddenDrafts"`
@@ -432,6 +436,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
 	resolveMentions(pullRequests, issues)
 
+	branches := board.mainBranchRows(snap.MainBranches)
+
 	done := firstRefreshDone(deps.Service)
 	// A snapshot with forges in it was either refreshed or restored from the
 	// last run, and either way there is something to show instead of a
@@ -450,7 +456,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 		SettingsHiddenIssueCount: settingsHidden,
 		HideDependencyDashboard:  filter.hideHousekeeping,
 		IgnoredTitlesSet:         filter.titlesSet,
-		NavCounts:                buildNavCounts(pullRequests, openIssues, board.mainBranchRows(snap.MainBranches)),
+		NavCounts:                buildNavCounts(pullRequests, openIssues, branches),
+		MainBranchPage:           buildMainBranchesResponse(snap.GeneratedAt, board.now, snap.Forges, branches),
 		Repos:                    board.repoStatuses(snap.Repos),
 		HiddenDrafts:             hiddenDrafts,
 

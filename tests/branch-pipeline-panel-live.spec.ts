@@ -1,11 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { checkLinkName } from './check-link-name-helper';
+import { installFakeStream, pushStream } from './fake-stream-helper';
 import { test } from './server-fixture';
 
 // The Main branches pipeline panel reads its checks again only when the row's
-// own CI changed in the page's poll: no request while nothing changes, none for
-// a finished pipeline.
+// own CI changed in a stream message: no request while nothing changes, none
+// for a finished pipeline.
 
 type Counts = {
   passed: number;
@@ -94,7 +95,7 @@ async function open(
 ) {
   const state = { row: first, checks, requests: 0, status: 200 };
   await page.clock.install();
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await installFakeStream(page);
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -125,8 +126,9 @@ async function open(
 }
 
 const panel = (page: Page) => page.getByRole('dialog', { name: /pipeline/i });
-// The page's own poll, one interval on.
-const poll = (page: Page) => page.clock.runFor(60_000);
+// The stream's next message, carrying the state as it now stands.
+const poll = (page: Page, state: { row: ReturnType<typeof branch> }) =>
+  pushStream(page, { mainBranchPage: snapshot(state.row) });
 
 test.describe('main branches pipeline panel updates live', () => {
   test('a check finishing changes its pill where it stands, announced once', async ({
@@ -138,7 +140,7 @@ test.describe('main branches pipeline panel updates live', () => {
 
     state.row = PASSED;
     state.checks = DONE;
-    await poll(page);
+    await poll(page, state);
 
     await expect(items.nth(1)).toContainText('Passed');
     await expect(items.nth(0)).toContainText('build');
@@ -163,7 +165,7 @@ test.describe('main branches pipeline panel updates live', () => {
 
     state.row = PASSED_FORGEJO;
     state.checks = DONE;
-    await poll(page);
+    await poll(page, state);
 
     await expect(panel(page).getByRole('listitem')).toHaveCount(2);
     await expect(
@@ -185,7 +187,7 @@ test.describe('main branches pipeline panel updates live', () => {
     state.checks = [
       { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
     ];
-    await poll(page);
+    await poll(page, state);
 
     await expect(panel(page).getByRole('listitem')).toHaveCount(1);
     await expect(
@@ -199,7 +201,7 @@ test.describe('main branches pipeline panel updates live', () => {
     const state = await open(page, RUNNING, RUN);
     state.row = PASSED;
     state.checks = DONE;
-    await poll(page);
+    await poll(page, state);
     await expect(panel(page).getByRole('listitem').nth(1)).toContainText(
       'Passed',
     );
@@ -230,7 +232,7 @@ test.describe('main branches pipeline panel updates live', () => {
       waiting: 0,
       failed: 0,
     });
-    await poll(page);
+    await poll(page, state);
     await expect(
       page.getByRole('button', { name: /open pipeline/i }).first(),
     ).toContainText('2');
@@ -248,12 +250,12 @@ test.describe('main branches pipeline panel updates live', () => {
       .first()
       .elementHandle();
 
-    await poll(page);
+    await poll(page, state);
     expect(await handle!.evaluate((n) => n.isConnected)).toBe(true);
 
     state.row = PASSED;
     state.checks = DONE;
-    await poll(page);
+    await poll(page, state);
     await expect(
       page.getByRole('button', { name: /^Passed.*open pipeline/i }),
     ).toBeVisible();
@@ -273,7 +275,7 @@ test.describe('main branches pipeline panel updates live', () => {
 
     state.row = PASSED;
     state.checks = DONE;
-    await poll(page);
+    await poll(page, state);
 
     await expect(
       page.getByRole('button', { name: /^Passed.*open pipeline/i }),
@@ -286,7 +288,7 @@ test.describe('main branches pipeline panel updates live', () => {
     const state = await open(page, RUNNING, RUN);
     state.status = 500;
     state.row = PASSED;
-    await poll(page);
+    await poll(page, state);
     await expect(
       panel(page).getByText(
         "Couldn't refresh these checks. They may be out of date.",
@@ -296,7 +298,7 @@ test.describe('main branches pipeline panel updates live', () => {
 
     state.status = 200;
     state.checks = DONE;
-    await poll(page);
+    await poll(page, state);
     await expect(panel(page).getByRole('listitem').nth(1)).toContainText(
       'Passed',
     );
@@ -305,8 +307,8 @@ test.describe('main branches pipeline panel updates live', () => {
 
   test('a poll that finds the same CI makes no request', async ({ page }) => {
     const state = await open(page, PASSED, DONE);
-    await poll(page);
-    await poll(page);
+    await poll(page, state);
+    await poll(page, state);
     expect(state.requests).toBe(1);
   });
 
@@ -320,7 +322,7 @@ test.describe('main branches pipeline panel updates live', () => {
         const state = await open(page, RUNNING, RUN);
         state.row = PASSED;
         state.checks = DONE;
-        await poll(page);
+        await poll(page, state);
         await expect(panel(page).getByRole('listitem').nth(1)).toContainText(
           'Passed',
         );

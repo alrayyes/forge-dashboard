@@ -101,6 +101,19 @@ export type MainBranches = {
   branches: MainBranch[];
 };
 
+// Whether next may replace current. A read that was slow can answer after a
+// newer stream message; the older rows then stay out. A time that can't be
+// read counts for the newer page, so nothing is dropped over it.
+export function supersedes(
+  next: MainBranches,
+  current: MainBranches | null,
+): boolean {
+  if (!current) return true;
+  const a = Date.parse(next.generatedAt);
+  const b = Date.parse(current.generatedAt);
+  return Number.isNaN(a) || Number.isNaN(b) || a >= b;
+}
+
 export type StatusPill = 'all' | MainBranchStatus;
 export type ForgeFilter = 'all' | 'github' | 'forgejo';
 

@@ -66,9 +66,9 @@
     statusCount,
     type StatusPill,
     type ForgeFilter,
+    supersedes,
   } from "#lib/main-branches.js";
-
-  const REFRESH_MS = 60_000;
+  import { followMainBranchPage } from "#lib/main-branch-stream.js";
 
   let data = $state<MainBranches | null>(null);
   let failed = $state(false);
@@ -268,39 +268,51 @@
     );
   }
 
+  // Takes a page of rows, from the stream or from the fallback read.
+  function apply(next: MainBranches) {
+    if (!supersedes(next, data)) return;
+    data = next;
+    failed = false;
+    // The pill in the header is the same tally as the chips below it.
+    if (!firstRefreshPending(firstRefresh.done))
+      setBranchNavCount(branchNavCount(next.counts));
+    // An open pipeline panel reads again if its own row's CI changed.
+    const row = openRow;
+    const now = row
+      ? next.branches.find(
+          (b) => b.forge === row.forge && b.fullName === row.fullName,
+        )
+      : undefined;
+    if (row) pipeline?.follow(now ? branchSignature(now) : null);
+    redrawOpenControl();
+  }
+
+  // The forge may have gone down, or come back, since the last page; a failed
+  // read still moves the clock. A control that can't draw must not fail the
+  // page, but a lock left on screen from the last draw should not go
+  // unexplained.
+  function redrawOpenControl() {
+    redrawFailed = redrawGuard.run(() => {
+      if (openRow) rerun.redraw(openRow);
+    });
+  }
+
+  // The one read of GET /api/main-branches: the first draw, and the fallback
+  // when the stream is down. Every update after that comes from the stream.
   async function load(initial = false) {
     try {
       const res = await fetch("/api/main-branches", {
         headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(String(res.status));
-      data = (await res.json()) as MainBranches;
-      failed = false;
-      // The pill in the header is the same tally as the chips below it.
-      if (!firstRefreshPending(firstRefresh.done))
-        setBranchNavCount(branchNavCount(data.counts));
-      // An open pipeline panel reads again if its own row's CI changed.
-      const row = openRow;
-      const now = row
-        ? data.branches.find(
-            (b) => b.forge === row.forge && b.fullName === row.fullName,
-          )
-        : undefined;
-      if (row) pipeline?.follow(now ? branchSignature(now) : null);
+      apply((await res.json()) as MainBranches);
     } catch {
       // A refresh that fails keeps the rows already on screen.
       if (initial || !data) failed = true;
+      redrawOpenControl();
     } finally {
       loading = false;
     }
-    // The forge may have gone down, or come back, since the last poll; a
-    // failed poll still moves the clock. Outside the try, so a throw here is
-    // not a failed poll.
-    // A control that can't draw must not fail the page's load, but a lock left
-    // on screen from the last draw should not go unexplained.
-    redrawFailed = redrawGuard.run(() => {
-      if (openRow) rerun.redraw(openRow);
-    });
   }
 
   function retry() {
@@ -404,8 +416,11 @@
       if (hasTouched()) saveState(saved);
     });
     load(true);
-    const timer = setInterval(() => load(), REFRESH_MS);
-    return () => clearInterval(timer);
+    return followMainBranchPage({
+      onPage: apply,
+      onDown: () => load(),
+      onUp: () => load(),
+    });
   });
 </script>
 

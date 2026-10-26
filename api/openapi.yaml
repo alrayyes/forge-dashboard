@@ -6451,6 +6451,7 @@ components:
           openIssueCount,
           firstRefreshDone,
           navCounts,
+          mainBranchPage,
           repos,
           hiddenDrafts,
           autoMerged,
@@ -6509,6 +6510,14 @@ components:
             lacks it should treat a missing flag as true (loaded).
         navCounts:
           $ref: "#/components/schemas/NavCounts"
+        mainBranchPage:
+          $ref: "#/components/schemas/MainBranches"
+          description: |
+            What `GET /api/main-branches` answers, from the same snapshot and
+            with the same ignore list, so the Main branches page redraws from
+            the message every other page reads. It reads the endpoint itself only
+            while the stream is down or just back.
+            Always present.
         generatedAt:
           type: string
           format: date-time
