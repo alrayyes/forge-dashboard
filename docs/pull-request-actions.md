@@ -929,3 +929,24 @@ Timed out a cross, Running an amber spinning arc (a still clock under reduced
 motion), Queued an hourglass in a dashed blue ring, Waiting for approval a pause
 sign in a ring (the row's pill draws the same one), Skipped a slashed circle in
 the quietest weight, and Cancelled a stop square in a circle.
+
+## Asking every out-of-date bot to catch up
+
+The Bots page header has a `Rebase all` button for the whole list. It counts
+the pull requests the filters leave that are behind their base and offer a
+rebase, so `Rebase all (6)` means six, and a filter that narrows the list
+narrows the count. A line beside it says how many of the listed pull requests
+are out of date, for example `6 of 9 are out of date.`
+
+Pressing it opens a confirm dialog that lists each pull request with its forge.
+`Rebase` then asks the bots one pull request after another, through the same
+`Dependabot: Rebase` and `Renovate: Rebase` actions the rows use, so nothing is
+pushed by the dashboard. The button reads `Rebasing 3 of 6` as it goes. A
+request the forge refuses shows its reason on its own row, with that row's
+retry, and the others carry on.
+
+A pull request that is empty, already has a rebase requested, or has no rebase
+to offer isn't counted. When no pull request can be asked, the button is
+disabled. With nothing behind, the line reads `Nothing is out of date.` A
+Dependabot pull request on a GitHub App with no saved personal token is left
+out too, and the line gives the reason.
