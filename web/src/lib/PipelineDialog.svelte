@@ -29,7 +29,7 @@
     // button. Drawn again whenever the checks change; `failed` says whether any
     // check failed or timed out.
     // The call is untracked, so the control must redraw itself when anything
-    // else it reads changes (the Main branches page does, after each poll).
+    // else it reads changes (the Main branches page does, per stream message).
     controls?: (failed: boolean) => HTMLElement | null;
     // Offers Cancel run for each queued or running Actions run among the
     // checks. `allowed` is the board's own rule, read each time the checks
