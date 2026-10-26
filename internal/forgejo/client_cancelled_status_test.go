@@ -5,6 +5,8 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -46,6 +48,46 @@ type forge struct {
 	statuses []map[string]string
 	runs     []map[string]any
 	jobs     map[int][]string
+	// jobNames overrides the names of a run's jobs, by run id. A job is
+	// otherwise named for the status that points at it, as the forge does.
+	jobNames map[int][]string
+	// ignorePaging makes the jobs endpoint answer its first page whatever page
+	// is asked for, as a forge that doesn't page does.
+	ignorePaging bool
+}
+
+// jobsPageSize is how many jobs the fake forge serves a page when the request
+// names no limit, as the live forge does.
+const jobsPageSize = 30
+
+// contextJob is the job name in a status context, "<workflow> / <job> (<event>)".
+func contextJob(context string) string {
+	_, rest, _ := strings.Cut(context, " / ")
+	if i := strings.LastIndex(rest, " ("); i >= 0 {
+		rest = rest[:i]
+	}
+
+	return rest
+}
+
+// jobName is the name of job i of run id: an override, else the job the
+// statuses name there, else a stand-in.
+func (f forge) jobName(id, i int) string {
+	if names := f.jobNames[id]; i < len(names) {
+		return names[i]
+	}
+	for _, r := range f.runs {
+		if r["id"] != id {
+			continue
+		}
+		for _, st := range f.statuses {
+			if strings.HasSuffix(st["target_url"], fmt.Sprintf("/runs/%v/jobs/%d", r["index_in_repo"], i)) {
+				return contextJob(st["context"])
+			}
+		}
+	}
+
+	return fmt.Sprintf("job%d", i)
 }
 
 // cancelledPassing is a commit with one passed job and a failed status for the
@@ -96,25 +138,43 @@ func (f forge) serve(t *testing.T) served {
 		writeJSON(t, w, map[string]any{"workflow_runs": f.runs})
 	})
 	for id, states := range f.jobs {
-		mux.HandleFunc(fmt.Sprintf("/api/v1/repos/alrayyes/a/actions/runs/%d/jobs", id), func(w http.ResponseWriter, _ *http.Request) {
-			s.jobReads.Add(1)
-			jobs := []map[string]any{}
-			for i, state := range states {
-				if state == "error" {
-					w.WriteHeader(http.StatusInternalServerError)
-
-					return
-				}
-				jobs = append(jobs, map[string]any{"name": fmt.Sprintf("job%d", i), "status": state, "completed_at": "2026-09-01T00:00:00Z"})
-			}
-			writeJSON(t, w, jobs)
-		})
+		mux.HandleFunc(fmt.Sprintf("/api/v1/repos/alrayyes/a/actions/runs/%d/jobs", id), f.serveJobs(t, id, states, s.jobReads))
 	}
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	s.client = forgejo.NewClient(srv.URL, "test-token", "")
 
 	return s
+}
+
+// serveJobs answers a run's jobs a page at a time, or 500 when one of them is
+// "error".
+func (f forge) serveJobs(t *testing.T, id int, states []string, reads *atomic.Int32) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		reads.Add(1)
+		jobs := []map[string]any{}
+		for i, state := range states {
+			if state == "error" {
+				w.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
+			jobs = append(jobs, map[string]any{"id": id*1000 + i + 1, "name": f.jobName(id, i), "status": state, "completed_at": "2026-09-01T00:00:00Z"})
+		}
+		q := r.URL.Query()
+		limit, err := strconv.Atoi(q.Get("limit"))
+		if err != nil {
+			limit = jobsPageSize
+		}
+		page, err := strconv.Atoi(q.Get("page"))
+		if err != nil || f.ignorePaging {
+			page = 1
+		}
+		lo := min((page-1)*limit, len(jobs))
+		writeJSON(t, w, jobs[lo:min(lo+limit, len(jobs))])
+	}
 }
 
 func (s served) pullRequest(t *testing.T) dashboard.PullRequest {
@@ -320,4 +380,103 @@ func TestListOpenPullRequests_ARunningJobOfARunListedByCommitSHACountsAsRunning(
 	got := f.pullRequest(t)
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 1}, got.Checks)
+}
+
+// A run with more jobs than one page: a status that points past the first page
+// still finds its job.
+func TestListOpenPullRequests_AJobPastTheFirstPageIsFound(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	states := make([]string, 60)
+	for i := range states {
+		states[i] = "success"
+	}
+	states[55] = "cancelled"
+	f.jobs[12] = states
+	f.statuses[1] = jobStatus("failure", "pr-title / shard-55 (pull_request_target)", 2, 55)
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+}
+
+// The run lists a cancelled job first, but the status numbers the job that
+// failed: the position names the wrong job, so the failure stands.
+func TestListOpenPullRequests_ARealFailureStaysFailedWhenTheJobOrderDiffers(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.statuses[1] = jobStatus("failure", "pr-title / lint (pull_request_target)", 2, 0)
+	f.jobs[12] = []string{"cancelled", "failure"}
+	f.jobNames = map[int][]string{12: {"check", "lint"}}
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+}
+
+// A status whose context names one job while its position holds another excuses
+// nothing, even when that other job was cancelled.
+func TestListOpenPullRequests_AStatusThatNamesAnotherJobThanItsPositionIsNotExcused(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.jobNames = map[int][]string{12: {"build"}}
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+}
+
+// A matrix leg's name holds parentheses of its own, and the context ends in the
+// event: "ci / build (ubuntu, 1.22) (pull_request)".
+func TestListOpenPullRequests_ACancelledMatrixJobWithParenthesesInItsNameIsExcused(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.statuses[1] = jobStatus("failure", "ci / build (ubuntu, 1.22) (pull_request)", 2, 0)
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+}
+
+// A workflow's name can hold " / " itself, and the runs API doesn't give it.
+func TestListOpenPullRequests_ACancelledJobOfAWorkflowNamedWithASlashIsExcused(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.statuses[1] = jobStatus("failure", "CI / Lint / go (pull_request)", 2, 0)
+	f.jobNames = map[int][]string{12: {"go"}}
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+}
+
+// A context that names no job can't be checked against the run, so it stays a
+// failure.
+func TestListOpenPullRequests_AContextWithNoJobInItStaysFailed(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	f.statuses[1] = jobStatus("failure", "build", 2, 0)
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+}
+
+// A forge that ignores the page parameter answers the same page each time: the
+// walk stops when a page brings no new job, instead of reading it again and
+// again.
+func TestListOpenPullRequests_AForgeThatIgnoresPagingIsReadTwice(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	states := make([]string, 60)
+	for i := range states {
+		states[i] = "success"
+	}
+	f.jobs[12] = states
+	f.ignorePaging = true
+	s := f.serve(t)
+
+	s.pullRequest(t)
+
+	assert.Equal(t, int32(2), s.jobReads.Load())
 }

@@ -1238,7 +1238,8 @@ func stateWithoutFailures(counts dashboard.CheckCounts, statuses []*gitea.Status
 // job (#2846). Forgejo records a cancelled job as a failure status, but the
 // pipeline panel reads the job itself and says Cancelled, and nothing broke. A
 // status names its job in its target_url, by run number and position in the
-// run's job list, so no workflow or job name has to match. The jobs of each run
+// run's job list, and the job there must carry the name the status's context
+// gives (the workflow's name needn't match). The jobs of each run
 // a failure points at are read side by side, at most
 // dashboard.DefaultMaxConcurrency at once. A run that isn't listed or whose jobs
 // can't be read excuses nothing, which leaves its statuses as they were.
@@ -1272,31 +1273,62 @@ func (c *Client) cancelledFailures(ctx context.Context, owner, name string, runs
 	return n
 }
 
-// failuresByRun indexes runs by run number and groups the job positions that
-// failure statuses point at by the number of the run they point into, leaving
-// out a run the list doesn't hold.
-func failuresByRun(runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) (map[int64]*gitea.ActionWorkflowRun, map[int64][]int) {
+// jobRef is the job a failure status points at: its position in the run's job
+// list, and the status's context without its trailing event.
+type jobRef struct {
+	position int
+	context  string
+}
+
+// withoutEvent is a status context without its trailing " (<event>)". Only the
+// last parenthesis goes: a matrix job's own name holds some.
+func withoutEvent(context string) string {
+	if before, _, found := strings.CutLast(context, " ("); found {
+		return before
+	}
+
+	return context
+}
+
+// namesJob reports whether a status context, "<workflow> / <job> (<event>)",
+// names job. The runs API doesn't give the workflow's name, which can hold " / "
+// itself, so the job is looked for at the end instead of cut out of the middle.
+func namesJob(context, job string) bool {
+	return job != "" && strings.HasSuffix(withoutEvent(context), " / "+job)
+}
+
+// failuresByRun indexes runs by run number and groups the jobs that failure
+// statuses point at by the number of the run they point into, leaving out a run
+// the list doesn't hold.
+func failuresByRun(runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) (map[int64]*gitea.ActionWorkflowRun, map[int64][]jobRef) {
 	byNumber := map[int64]*gitea.ActionWorkflowRun{}
 	for _, r := range runs {
 		if r.RunNumber > 0 {
 			byNumber[r.RunNumber] = r
 		}
 	}
-	pointed := map[int64][]int{}
+	pointed := map[int64][]jobRef{}
 	for _, s := range statuses {
 		if run, job, ok := jobTarget(s); ok && isFailureStatus(s) && byNumber[run] != nil {
-			pointed[run] = append(pointed[run], job)
+			pointed[run] = append(pointed[run], jobRef{position: job, context: s.Context})
 		}
 	}
 
 	return byNumber, pointed
 }
 
-// cancelledAt counts the positions whose job was cancelled.
-func cancelledAt(jobs []*gitea.ActionWorkflowJob, positions []int) int {
+// cancelledAt counts the statuses whose job was cancelled. The position alone
+// isn't trusted: the job there must be the one the status's context names, or
+// the status stays a failure. The position counts jobs in the order the run
+// ran them, which the jobs list need not follow, and a cancelled sibling must
+// never excuse a real failure.
+func cancelledAt(jobs []*gitea.ActionWorkflowJob, refs []jobRef) int {
 	n := 0
-	for _, i := range positions {
-		if i < len(jobs) && checkStateFromWorkflowStatus(jobs[i].Status) == dashboard.CheckCancelled {
+	for _, ref := range refs {
+		if ref.position >= len(jobs) || !namesJob(ref.context, jobs[ref.position].Name) {
+			continue
+		}
+		if checkStateFromWorkflowStatus(jobs[ref.position].Status) == dashboard.CheckCancelled {
 			n++
 		}
 	}
@@ -1650,23 +1682,61 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 // via a raw request the SDK's own private HTTP plumbing isn't exported
 // for, sidesteps it instead of rediscovering it against a real instance.
 func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runID int64) ([]*gitea.ActionWorkflowJob, error) {
-	path := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs", owner, name, runID)
+	var all []*gitea.ActionWorkflowJob
+	seen := map[int64]bool{}
+	for page := 1; page <= maxJobPages; page++ {
+		jobs, total, err := c.listActionRunJobsPage(ctx, owner, name, runID, page)
+		if err != nil {
+			return nil, err
+		}
+		fresh := 0
+		for _, j := range jobs {
+			if j.ID == 0 || !seen[j.ID] {
+				seen[j.ID] = true
+				all = append(all, j)
+				fresh++
+			}
+		}
+		// The page that adds nothing ends the walk: it is the last, or the forge
+		// ignores the page parameter and answers the first again. With a total
+		// the walk goes on past a short page, as an instance can cap the page
+		// size below the one asked for; without one a short page is the last.
+		if fresh == 0 || (total > 0 && len(all) >= total) || (total == 0 && len(jobs) < pageLimit) {
+			return all, nil
+		}
+	}
+
+	return nil, fmt.Errorf("%w: run %d has more than %d jobs", errTooManyJobs, runID, maxJobPages*pageLimit)
+}
+
+// errTooManyJobs is a run whose jobs the walk gave up on. The list is not
+// returned half-read, as it would be kept as final and excuse nothing past the cut.
+var errTooManyJobs = errors.New("forgejo: too many jobs to read")
+
+// maxJobPages bounds the walk through a run's jobs, so a forge that keeps
+// answering full pages can't hold a poll forever.
+const maxJobPages = 20
+
+// listActionRunJobsPage reads one page of a run's jobs, and the total the
+// forge says the run has, or 0 when it doesn't say.
+func (c *Client) listActionRunJobsPage(ctx context.Context, owner, name string, runID int64, page int) ([]*gitea.ActionWorkflowJob, int, error) {
+	path := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs?page=%d&limit=%d", owner, name, runID, page, pageLimit)
 	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+		return nil, 0, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 	}
 
 	var wrapped gitea.ActionWorkflowJobsResponse
 	if jsonErr := json.Unmarshal(body, &wrapped); jsonErr == nil {
-		return wrapped.Jobs, nil
+		return wrapped.Jobs, int(wrapped.TotalCount), nil
 	}
 	var bare []*gitea.ActionWorkflowJob
 	if jsonErr := json.Unmarshal(body, &bare); jsonErr != nil {
-		return nil, fmt.Errorf("forgejo: unmarshal action run jobs response: %w", jsonErr)
+		return nil, 0, fmt.Errorf("forgejo: unmarshal action run jobs response: %w", jsonErr)
 	}
 
-	return bare, nil
+	return bare, 0, nil
 }
 
 // rawRequest is a plain authenticated request against this instance,
