@@ -157,6 +157,12 @@
     isUnreachable,
     staleNote,
   } from "#lib/forge-starting.js";
+  import {
+    progressLabel,
+    rebaseAllLabel,
+    rebaseAllPlan,
+    summaryLine,
+  } from "#lib/bot-rebase-all.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -4164,7 +4170,7 @@
       action: "rebase" | "recreate",
       button: HTMLButtonElement,
       focusWasOnConfirm = false,
-    ) {
+    ): Promise<boolean> {
       const key = dependabotActionKey(prKey(item), action);
       dependabotActionState[key] = {
         phase: "queued",
@@ -4233,7 +4239,7 @@
         keepFocusAcross(renderPRBoard);
       };
 
-      fetch("/api/pull-requests/dependabot-action", {
+      return fetch("/api/pull-requests/dependabot-action", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4256,13 +4262,16 @@
             throw err;
           });
         })
-        .then(() => requested())
+        .then(() => {
+          requested();
+          return true;
+        })
         .catch((err: ActionRequestError) => {
           // Another tab, or an earlier click, got there first. That is the
           // state the user asked for.
           if (err.code === "already_requested") {
             requested(true);
-            return;
+            return true;
           }
           renderActionRefusal(
             item,
@@ -4274,6 +4283,7 @@
             },
             { actionName: `dependabot-${action}` },
           );
+          return false;
         });
     }
 
@@ -5536,7 +5546,7 @@
     function doRenovateRebase(
       item: PullRequestItem,
       button: HTMLButtonElement,
-    ) {
+    ): Promise<boolean> {
       const key = prKey(item);
       renovateRebaseState[key] = {
         phase: "queued",
@@ -5568,7 +5578,7 @@
         keepFocusAcross(renderPRBoard);
       };
 
-      fetch("/api/pull-requests/renovate-rebase", {
+      return fetch("/api/pull-requests/renovate-rebase", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5590,13 +5600,16 @@
             throw err;
           });
         })
-        .then(() => requested())
+        .then(() => {
+          requested();
+          return true;
+        })
         .catch((err: ActionRequestError) => {
           // The body's checkbox was already ticked: someone, or an earlier
           // click, got there first. That is the state the user asked for.
           if (err.code === "already_requested") {
             requested(true);
-            return;
+            return true;
           }
           renderActionRefusal(
             item,
@@ -5607,8 +5620,128 @@
               renovateRebaseState[key] = next;
             },
           );
+          return false;
         });
     }
+
+    // ---- rebase all, on the Bots page (#2859) ----
+    // The rows the filters leave, set by the board's render(). The page asks
+    // for nothing the rows don't already offer: each one goes through its own
+    // Rebase action, so a failure shows on its row with that row's retry.
+    let visibleBotRows: PullRequestItem[] = [];
+    let rebaseAllRun: { done: number; total: number } | null = null;
+
+    function rebaseRequested(item: PullRequestItem): boolean {
+      const waiting = (entry: ActionState | undefined) =>
+        entry?.phase === "queued" || entry?.phase === "rebasing";
+      return (
+        waiting(
+          dependabotActionState[dependabotActionKey(prKey(item), "rebase")],
+        ) || waiting(renovateRebaseState[prKey(item)])
+      );
+    }
+
+    function currentRebasePlan() {
+      return rebaseAllPlan(visibleBotRows, {
+        blockedReason: (forge) => dependabotBlockedReason(lastForges, forge),
+        requested: rebaseRequested,
+      });
+    }
+
+    function updateRebaseAll() {
+      const button = document.getElementById("rebase-all-button");
+      const summary = document.getElementById("rebase-all-summary");
+      if (!(button instanceof HTMLButtonElement) || !summary) return;
+      const plan = currentRebasePlan();
+      const asking = plan.eligible.length;
+      button.textContent = rebaseAllRun
+        ? progressLabel(rebaseAllRun.done, rebaseAllRun.total)
+        : rebaseAllLabel(asking);
+      markPending(button, rebaseAllRun !== null || asking === 0);
+      const lines = [summaryLine(plan.behind, plan.total)];
+      if (plan.behind > 0 && asking === 0 && plan.blockedReasons.length === 0)
+        lines.push("None can be asked to rebase now.");
+      lines.push(...plan.blockedReasons);
+      summary.textContent = lines.join(" ");
+    }
+
+    function rebaseAllDialog(): HTMLDialogElement | null {
+      const dialog = document.getElementById("rebase-all-dialog");
+      return dialog instanceof HTMLDialogElement ? dialog : null;
+    }
+
+    function openRebaseAll() {
+      const dialog = rebaseAllDialog();
+      const plan = currentRebasePlan();
+      if (!dialog || plan.eligible.length === 0) return;
+      const count = plan.eligible.length;
+      const title = document.getElementById("rebase-all-title");
+      if (title)
+        title.textContent = `Rebase ${count} pull request${count === 1 ? "" : "s"}?`;
+      const list = document.getElementById("rebase-all-list");
+      list?.replaceChildren(
+        ...plan.eligible.map(({ item }) => {
+          const li = el("li", "rebase-all-item");
+          const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+          badge.appendChild(el("span", "dot"));
+          badge.appendChild(
+            document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
+          );
+          li.appendChild(badge);
+          li.appendChild(
+            document.createTextNode(
+              ` ${item.repo} #${item.number} \u00b7 ${item.title}`,
+            ),
+          );
+          return li;
+        }),
+      );
+      dialog.showModal();
+    }
+
+    // One after another, so a forge sees a steady trickle and not a burst.
+    async function runRebaseAll() {
+      if (rebaseAllRun) return;
+      const { eligible } = currentRebasePlan();
+      if (eligible.length === 0) return;
+      const status = document.getElementById("rebase-all-status");
+      rebaseAllRun = { done: 0, total: eligible.length };
+      let failed = 0;
+      updateRebaseAll();
+      for (const { item, bot } of eligible) {
+        const asked =
+          bot === "dependabot"
+            ? doDependabotAction(item, "rebase", buttonEl("row-action"))
+            : doRenovateRebase(item, buttonEl("row-action"));
+        if (!(await asked)) failed++;
+        rebaseAllRun.done++;
+        updateRebaseAll();
+      }
+      const total = rebaseAllRun.total;
+      rebaseAllRun = null;
+      updateRebaseAll();
+      if (status)
+        status.textContent =
+          failed === 0
+            ? `Rebase requested for ${total}.`
+            : `Rebase requested for ${total - failed} of ${total}. ${failed} failed.`;
+    }
+
+    document
+      .getElementById("rebase-all-button")
+      ?.addEventListener("click", (event) => {
+        if (isPending(event.currentTarget as HTMLButtonElement)) return;
+        openRebaseAll();
+      });
+    document
+      .getElementById("rebase-all-cancel")
+      ?.addEventListener("click", () => rebaseAllDialog()?.close());
+    document
+      .getElementById("rebase-all-confirm")
+      ?.addEventListener("click", () => {
+        rebaseAllDialog()?.close();
+        void runRebaseAll();
+      });
 
     // A button that stands in for another when the request turns into its
     // cancel names the place it holds, so focus can follow the swap.
@@ -6852,6 +6985,8 @@
 
         if (isPR === pullsView) {
           visibleResultCount = visible.length;
+          visibleBotRows = visible as PullRequestItem[];
+          updateRebaseAll();
         }
         const count = document.getElementById(`${idPrefix}-count`);
         if (count)
@@ -9446,6 +9581,36 @@
           <span class="count" id="pr-count">&ndash;</span>
         </div>
       </div>
+
+      {#if view === "bots"}
+        <div class="rebase-all">
+          <p class="rebase-all-summary" id="rebase-all-summary"></p>
+          <button
+            type="button"
+            class="rebase-all-button"
+            id="rebase-all-button"
+            aria-haspopup="dialog"
+            aria-describedby="rebase-all-summary">Rebase all</button
+          >
+          <span class="sr-only" id="rebase-all-status" role="status"></span>
+        </div>
+        <dialog
+          id="rebase-all-dialog"
+          class="rebase-all-dialog"
+          aria-labelledby="rebase-all-title"
+        >
+          <h2 id="rebase-all-title">Rebase pull requests?</h2>
+          <p>
+            Asks Dependabot and Renovate to rebase. Nothing is pushed by you.
+          </p>
+          <ul class="rebase-all-list" id="rebase-all-list"></ul>
+          <div class="rebase-all-actions">
+            <button type="button" id="rebase-all-cancel">Cancel</button>
+            <button type="button" id="rebase-all-confirm">Rebase</button>
+          </div>
+          <p class="rebase-all-hint">Esc closes this.</p>
+        </dialog>
+      {/if}
 
       <p class="hide-status" id="hide-status" role="status" hidden></p>
       <div
