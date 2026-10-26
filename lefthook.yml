@@ -4,8 +4,7 @@
 # Grows a job here the same PR that adds the tool it runs — a linter with no
 # hook is a linter you only meet at CI.
 #
-# CI-only, on purpose: gitleaks (the scan needs the pushed history, not the
-# staged files), `go build` (the pre-push test run compiles everything it
+# CI-only, on purpose: `go build` (the pre-push test run compiles everything it
 # tests), `go test -race` (about three times slower than the plain run),
 # container-integration (needs Docker and several minutes), e2e and
 # Lighthouse (need a built image and a browser). Everything else CI runs has
@@ -102,6 +101,15 @@ pre-commit:
         docker run --rm -v "$(pwd):/work" -w /work
         hadolint/hadolint:v2.15.1-alpine@sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3cac50335198552
         /bin/hadolint {staged_files}
+
+    # The index, not the tree: what this commit is about to record. The image
+    # and digest are the ones gitleaks.yml runs. CI scans the history (about
+    # five seconds here), which is the part a hook can't see.
+    - name: gitleaks
+      run: >-
+        docker run --rm -v "$(pwd):/repo" -w /repo
+        ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+        git --staged --redact --no-banner .
 
 commit-msg:
   jobs:
