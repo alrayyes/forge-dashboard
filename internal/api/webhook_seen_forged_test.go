@@ -57,3 +57,38 @@ func TestWebhook_ACheckHeaderOverABodyThatIsNotThatCheckEventDoesNotMarkChecksSe
 		})
 	}
 }
+
+// The dashboard never subscribes a hook to check_suite, since check_run
+// already reports every run and rerun. A check_suite delivery, from a hook
+// ticked by hand, proves nothing about check deliveries arriving and must not
+// silence the CI poll.
+func TestWebhook_ACheckSuiteDeliveryDoesNotMarkChecksSeen(t *testing.T) {
+	t.Parallel()
+
+	source := &repoCountingSource{fetchCalls: &atomic.Int64{}}
+	srvURL, sessionCookie, service := newTestServerWithService(t, source, func(_ time.Duration, f func()) func() bool {
+		return time.AfterFunc(time.Millisecond, f).Stop
+	})
+	require.Eventually(t, func() bool { return source.fetchCalls.Load() >= 1 }, time.Second, 5*time.Millisecond)
+	token, secret := webhookCredentials(t, srvURL, sessionCookie)
+
+	body := []byte(`{"action":"completed","check_suite":{"id":1,"head_sha":"` + headSHA + `"},"repository":{"full_name":"alrayyes/suite","name":"suite","owner":{"login":"alrayyes"}}}`)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/github/"+token, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("X-Hub-Signature-256", "sha256="+hexHMAC(body, secret))
+	req.Header.Set("X-GitHub-Event", "check_suite")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	require.Eventually(t, func() bool {
+		_, ok := service.LastDelivery(dashboard.ForgeGitHub, "alrayyes/suite", dashboard.EventClassOther)
+
+		return ok
+	}, time.Second, 5*time.Millisecond, "the delivery is still recorded, as an event of no particular class")
+	_, seen := service.LastDelivery(dashboard.ForgeGitHub, "alrayyes/suite", dashboard.EventClassCheck)
+	assert.False(t, seen)
+	_, shaSeen := service.LastCheckDelivery(dashboard.ForgeGitHub, "alrayyes/suite", headSHA)
+	assert.False(t, shaSeen)
+}

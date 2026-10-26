@@ -117,6 +117,7 @@ request or a comment but never to that pull request's checks finishing.
 | An issue opening or closing                                                                     | Issues                                             | Issue                                                                                   |
 | A comment on an issue or a pull request, which also moves "Last activity"                       | Issue comments                                     | Issue Comment, Pull Request Comment                                                     |
 | A review on a pull request, or a comment on its diff                                            | Pull request reviews, Pull request review comments | Pull Request Review Approved, Pull Request Review Rejected, Pull Request Review Comment |
+| A review thread being resolved or unresolved (GitHub only)                                      | Pull request review threads                        | not tracked                                                                             |
 | **CI/build status** — Actions, a third-party check, or a classic commit status, on either forge | Statuses, Check runs                               | Status                                                                                  |
 | A commit landing outside an open pull request                                                   | not tracked                                        | Push                                                                                    |
 | An Actions run finishing, including a rerun, so a branch's pill leaves the old result           | covered above                                      | Action Run Failure, Action Run Success                                                  |
@@ -160,8 +161,9 @@ working; there's no separate step to "save" them.
 5. **Which events would you like to trigger this webhook?** → "Let me
    select individual events", then check **Pull requests**, **Issues**,
    **Issue comments**, **Pull request reviews**, **Pull request review
-   comments**, **Statuses**, and **Check runs**. (Selecting "Send me everything"
-   works too, see below — it's just more traffic than needed.)
+   comments**, **Pull request review threads**, **Statuses**, and **Check
+   runs**. (Selecting "Send me everything" works too, see below — it's just
+   more traffic than needed.)
 6. Leave **Active** checked, then **Add webhook**.
 
 GitHub sends a `ping` event via POST immediately to confirm the URL is reachable;
