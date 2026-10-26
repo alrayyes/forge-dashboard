@@ -4605,6 +4605,8 @@
     // click lands on a different row. A modal being open means the pointer
     // is on its backdrop, not the list.
     let pointerInList = false;
+    // The claim passed from the list to a toast opening under the pointer.
+    let claimedByToast = false;
     // A finger has no resting position, but a tap right after the list
     // shifted lands on another row, and a list under a scrolling finger
     // must not change. So rows wait for a moment after the last touch or
@@ -4630,6 +4632,7 @@
     // with the mouse still over the list must not hold the board for good.
     function releasePointer() {
       pointerInList = false;
+      claimedByToast = false;
       reconcileCurrentView();
     }
     // Everything added here is taken off again when the page goes.
@@ -4650,6 +4653,7 @@
       const mark = (e: Event) => {
         if ((e as PointerEvent).pointerType !== "touch") {
           pointerInList = true;
+          claimedByToast = false;
           touchMode = false;
         }
       };
@@ -4658,7 +4662,8 @@
       // A toast opening under a resting pointer takes it off the list
       // without the user moving; the toast keeps the claim instead.
       listen(list, "pointerleave", (e) => {
-        if (!onToast((e as PointerEvent).relatedTarget)) releasePointer();
+        if (onToast((e as PointerEvent).relatedTarget)) claimedByToast = true;
+        else releasePointer();
       });
     }
     const toastsEl = document.getElementById("feedback-toasts");
@@ -4672,6 +4677,16 @@
         to instanceof Element && !!to.closest("#pr-rows, #issue-rows");
       if (!toList) releasePointer();
     });
+    // A toast removed under the pointer fires no pointerleave, so the claim
+    // it holds ends here once no toast is left under the pointer.
+    if (toastsEl) {
+      const toastWatch = new MutationObserver(() => {
+        if (claimedByToast && !toastsEl.querySelector(":hover"))
+          releasePointer();
+      });
+      toastWatch.observe(toastsEl, { childList: true });
+      stopListening.push(() => toastWatch.disconnect());
+    }
     for (const type of ["pointerdown", "pointerup", "pointercancel"]) {
       listen(
         document,
