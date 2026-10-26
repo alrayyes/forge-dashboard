@@ -88,8 +88,12 @@ export function followMainBranchPage({
       }
     };
     next.onerror = () => {
-      // Not closed means the browser is retrying on its own.
-      if (next.readyState !== CLOSED) return;
+      // Not closed means the browser is retrying on its own. It reopens the
+      // same stream, so the gap still needs a catch-up read on open.
+      if (next.readyState !== CLOSED) {
+        wasDown = true;
+        return;
+      }
       cancelWatchdog();
       fail(next);
     };

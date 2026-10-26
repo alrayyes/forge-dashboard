@@ -102,6 +102,14 @@ describe('followMainBranchPage', () => {
     expect(h.retries()).toEqual([]);
   });
 
+  test('reads once when the browser reconnects a stream by itself', () => {
+    const h = harness();
+    h.sources[0].onopen?.();
+    h.sources[0].onerror?.();
+    h.sources[0].onopen?.();
+    expect(h.up()).toBe(1);
+  });
+
   test('a closed stream asks for one fallback read and opens again later', () => {
     const h = harness();
     h.sources[0].fail();
