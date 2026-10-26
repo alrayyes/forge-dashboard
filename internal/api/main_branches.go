@@ -33,7 +33,7 @@ func (b boardSettings) mainBranchRows(rows []dashboard.MainBranch) []dashboard.M
 // snapshot holds them: the client orders them. A row the caller passes is never
 // left out, whatever its status: the client filters, and its pill counts then
 // always match what each pill lists.
-func buildMainBranchesResponse(generatedAt, now time.Time, forges []dashboard.ForgeHealth, branches []dashboard.MainBranch) mainBranchesResponse {
+func buildMainBranchesResponse(generatedAt time.Time, forges []dashboard.ForgeHealth, branches []dashboard.MainBranch) mainBranchesResponse {
 	rows := slices.Clone(branches)
 	if rows == nil {
 		rows = []dashboard.MainBranch{}
@@ -47,7 +47,7 @@ func buildMainBranchesResponse(generatedAt, now time.Time, forges []dashboard.Fo
 	return mainBranchesResponse{
 		GeneratedAt: generatedAt,
 		Counts:      dashboard.CountMainBranches(rows),
-		Forges:      withRateLimitSeverity(forges, now),
+		Forges:      forges,
 		Branches:    rows,
 	}
 }
@@ -60,7 +60,7 @@ func buildMainBranchesResponse(generatedAt, now time.Time, forges []dashboard.Fo
 func resolveMainBranchesFor(ctx context.Context, deps Deps) mainBranchesResponse {
 	snap, rows := followedSnapshot(ctx, deps)
 
-	return buildMainBranchesResponse(snap.GeneratedAt, time.Now(), snap.Forges, rows)
+	return buildMainBranchesResponse(snap.GeneratedAt, snap.Forges, rows)
 }
 
 // followedSnapshot waits for the first refresh, then returns the snapshot with

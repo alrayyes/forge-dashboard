@@ -344,53 +344,6 @@ type RateLimit struct {
 	// RateLimitREST's own RateLimit never sets this, and it stays at its
 	// zero value there rather than a fabricated 1.
 	Cost int `json:"cost,omitempty"`
-	// Severity is how worried a client should be about this budget (#806).
-	// The API fills it in when it answers, from the clock, so it never goes
-	// stale in a snapshot; it is empty inside the aggregator's own snapshot.
-	Severity RateLimitSeverity `json:"severity,omitempty"`
-}
-
-// RateLimitSeverity grades a RateLimit. Matches
-// components.schemas.RateLimit.severity.
-type RateLimitSeverity string
-
-// The grades: Exceeded means the budget is spent and not seen to have
-// reset, Low means under lowBudgetFraction of it is left, and Warning means
-// under warningBudgetFraction is left but not yet low.
-const (
-	RateLimitOK       RateLimitSeverity = "ok"
-	RateLimitWarning  RateLimitSeverity = "warning"
-	RateLimitLow      RateLimitSeverity = "low"
-	RateLimitExceeded RateLimitSeverity = "exceeded"
-)
-
-// lowBudgetFraction is the share of a budget below which it counts as low.
-// The same 5% cutoff Insights' gauge uses for its critical colour.
-const lowBudgetFraction = 0.05
-
-// warningBudgetFraction is the share below which a budget counts as a
-// warning: the amber stage before low (#979). Insights' gauge had its own
-// copy of both cutoffs; the server decides now.
-const warningBudgetFraction = 0.2
-
-// SeverityAt grades r as of now. A spent budget whose reset time has passed
-// is not exceeded any more, since the forge has refilled it; the reading is
-// just stale, so it grades low until the next snapshot says otherwise.
-func (r RateLimit) SeverityAt(now time.Time) RateLimitSeverity {
-	if r.Remaining == 0 && (r.ResetsAt.IsZero() || r.ResetsAt.After(now)) {
-		return RateLimitExceeded
-	}
-	if r.Limit > 0 {
-		fraction := float64(r.Remaining) / float64(r.Limit)
-		if fraction < lowBudgetFraction {
-			return RateLimitLow
-		}
-		if fraction < warningBudgetFraction {
-			return RateLimitWarning
-		}
-	}
-
-	return RateLimitOK
 }
 
 // ForgeErrorKind classifies why a forge is unreachable, or why a write to

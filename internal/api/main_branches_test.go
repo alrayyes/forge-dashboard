@@ -212,7 +212,7 @@ func TestMainBranches_CarryTheForgeHealth(t *testing.T) {
 	assert.Equal(t, dashboard.ForgeGitHub, body.Forges[0].Forge)
 	assert.True(t, body.Forges[0].Reachable)
 	require.NotNil(t, body.Forges[0].RateLimitREST)
-	assert.Equal(t, "exceeded", string(body.Forges[0].RateLimitREST.Severity))
+	assert.Equal(t, 0, body.Forges[0].RateLimitREST.Remaining)
 }
 
 func TestMainBranches_SayWhenAForgeCannotBeReached(t *testing.T) {

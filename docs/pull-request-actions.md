@@ -302,8 +302,9 @@ reset time as text, one line per budget and labelled ("GH GraphQL", "GH REST"),
 since GitHub keeps the two apart. A remaining count above its limit shows how
 many are left and no ratio. Which locks offer Retry follows the refusal's `code`
 (`rate_limited` and `permission` don't), not the words in its message. The
-banner at the top of the page follows each budget's `severity` (`ok`, `low` or
-`exceeded`), which the server grades, so the page holds no threshold of its own.
+banner at the top of the page follows how much of each budget is left (see
+[Rate limits](rate-limits.md#what-the-dashboard-shows)). The server sends the
+numbers and the page grades them against its own clock.
 
 While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
 or `Renovate: Rebase` to run when its budget comes back, instead of returning to

@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The response grades each rate-limit budget (#806), so no client carries its
-// own threshold or reads the clock to say a budget is spent.
-func TestDashboard_RateLimitsCarryTheirSeverity(t *testing.T) {
+// The response carries each rate-limit budget's numbers and no grade: the page
+// grades them itself, from its own clock (#2929).
+func TestDashboard_RateLimitsCarryTheNumbersAndNoGrade(t *testing.T) {
 	t.Parallel()
 
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
@@ -55,6 +55,8 @@ func TestDashboard_RateLimitsCarryTheirSeverity(t *testing.T) {
 
 	graphql, _ := forge["rateLimitGraphQL"].(map[string]any)
 	rest, _ := forge["rateLimitREST"].(map[string]any)
-	assert.Equal(t, "exceeded", graphql["severity"])
-	assert.Equal(t, "low", rest["severity"])
+	assert.InDelta(t, 0, graphql["remaining"], 0)
+	assert.InDelta(t, 100, rest["remaining"], 0)
+	assert.NotContains(t, graphql, "severity", "the page grades the numbers itself")
+	assert.NotContains(t, rest, "severity", "the page grades the numbers itself")
 }

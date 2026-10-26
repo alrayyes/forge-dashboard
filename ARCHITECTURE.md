@@ -41,13 +41,12 @@ One Go binary serves all of it. `web/` builds to static files that
 
 ## Where logic lives
 
-A rule that decides what a pull request may do, which issues count as work, or
-how worried to be about a rate limit lives in `internal/dashboard`. The API
-works the answer out and sends it (`allowedActions`, `housekeeping`,
-`severity`), and the write endpoints enforce it. The page only shows what it
-was told. The test is whether a second client, a client library or an agent,
-would need the same answer. The reasons, and what it costs, are in
-[ADR 0001](docs/adr/0001-business-rules-live-behind-the-api.md).
+A rule that decides what a pull request may do or which issues count as work
+lives in `internal/dashboard`. The API works the answer out and sends it
+(`allowedActions`, `housekeeping`), and the write endpoints enforce it. The
+page only shows what it was told. The test is whether a second client, a client
+library or an agent, would need the same answer. The reasons, and what it
+costs, are in [ADR 0001](docs/adr/0001-business-rules-live-behind-the-api.md).
 
 ## One user per instance
 

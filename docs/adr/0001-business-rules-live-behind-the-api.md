@@ -18,10 +18,10 @@ rules scattered through a single page of several thousand lines.
 
 A rule that a second client would need the same answer for lives in the
 backend, in `internal/dashboard`. The API sends the answer as a field
-(`allowedActions`, `readyToMerge`, `housekeeping`, `severity`) and the write
-endpoints enforce the same rule, so a client that skips the page still can't
-merge a draft. The page formats, lays out and keeps view state, and holds no
-copy of a rule. Validation is decided by the server, and a client may repeat it
+(`allowedActions`, `readyToMerge`, `housekeeping`) and the write endpoints
+enforce the same rule, so a client that skips the page still can't merge a
+draft. The page formats, lays out and keeps view state, and holds no copy of
+a rule. Validation is decided by the server, and a client may repeat it
 from the OpenAPI schema for quick feedback.
 
 A rule the API doesn't expose yet is a gap in the API: the spec changes first,
