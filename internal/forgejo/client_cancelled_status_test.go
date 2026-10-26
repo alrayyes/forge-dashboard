@@ -473,10 +473,11 @@ func TestListOpenPullRequests_AForgeThatIgnoresPagingIsReadTwice(t *testing.T) {
 		states[i] = "success"
 	}
 	f.jobs[12] = states
+	f.jobNames = map[int][]string{12: {"other"}} // not where the status says: the whole run is read
 	f.ignorePaging = true
 	s := f.serve(t)
 
 	s.pullRequest(t)
 
-	assert.Equal(t, int32(2), s.jobReads.Load())
+	assert.Equal(t, int32(3), s.jobReads.Load()) // the status's page, then the walk's two
 }
