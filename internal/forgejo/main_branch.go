@@ -290,9 +290,8 @@ func jobsOutcome(list []*gitea.ActionWorkflowJob) (status string, stopped time.T
 const jobsPageSize = 30
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be
-// read is left out, and counts as one check (see branchChecks, countChecks). A
-// finished run's jobs are kept (see finishedJobs), so only runs still going
-// cost a request on a repeat poll.
+// read is left out, and counts as one check (see branchChecks, countChecks).
+// Which lists are kept for a repeat poll is readRunJobs's rule.
 func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) map[int64][]*gitea.ActionWorkflowJob {
 	out := make(map[int64][]*gitea.ActionWorkflowJob, len(runs))
 	for _, run := range runs {
