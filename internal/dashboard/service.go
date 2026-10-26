@@ -45,6 +45,8 @@ type Service struct {
 	// firstRefreshGrace is how long an Aggregator's first refresh is waited
 	// for before the process counts as ready anyway (#893).
 	firstRefreshGrace time.Duration
+	// now is the clock the grace runs on; SetClock swaps it for a test.
+	now func() time.Time
 	// firstStarted is when the Service first started an Aggregator, which is
 	// what the grace runs from. A replacement doesn't move it, so repeated
 	// logins or saves during a slow first refresh can't keep restarting the
@@ -87,6 +89,7 @@ func NewService(refreshInterval time.Duration) *Service {
 	return &Service{
 		refreshInterval:   refreshInterval,
 		firstRefreshGrace: defaultFirstRefreshGrace,
+		now:               time.Now,
 
 		forceRefreshCooldown: DefaultForceRefreshCooldown,
 	}
@@ -311,7 +314,7 @@ func (s *Service) startLocked(ctx context.Context, sources []Source) {
 	}
 	s.current = &managedAggregator{agg: agg, cancel: cancel}
 	if s.firstStarted.IsZero() {
-		s.firstStarted = time.Now()
+		s.firstStarted = s.now()
 	}
 	go agg.Run(runCtx, s.refreshInterval)
 	if s.ciPollInterval > 0 {
@@ -372,13 +375,21 @@ func (s *Service) FirstRefreshComplete() bool {
 	if s.firstRefreshSeen || s.current == nil || s.bootStarted {
 		return true
 	}
-	if s.current.agg.FirstRefreshDone() || time.Since(s.firstStarted) > s.firstRefreshGrace {
+	if s.current.agg.FirstRefreshDone() || s.now().Sub(s.firstStarted) > s.firstRefreshGrace {
 		s.firstRefreshSeen = true
 
 		return true
 	}
 
 	return false
+}
+
+// SetClock replaces the clock the first-refresh grace is measured on, so a
+// test can move it by hand instead of sleeping. Call before the first Ensure.
+func (s *Service) SetClock(now func() time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.now = now
 }
 
 // SetFirstRefreshGrace changes how long readiness waits for a first refresh
