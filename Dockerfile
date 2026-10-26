@@ -3,7 +3,7 @@
 # internal/api/static before the Go build stage below, not after.
 # scripts/sync-web-build.sh does the merge; see its own header comment
 # for why it's a merge and not a directory replace.
-FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS web-build
+FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS web-build
 
 WORKDIR /src
 
@@ -22,7 +22,7 @@ RUN bun run --filter web build && ./scripts/sync-web-build.sh
 # the runtime stage. Distroless because the build is static — there's no libc
 # to bring along, and nothing left in the image to exec into if it's ever
 # reached from outside.
-FROM golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61 AS build
+FROM golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 AS build
 
 WORKDIR /src
 
