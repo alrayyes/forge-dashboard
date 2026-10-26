@@ -44,24 +44,14 @@ func (s *flippingSource) flip() {
 	s.mergeable = true
 }
 
-// runIdle starts agg.Run on a short interval and returns once the entry
-// refresh is done and the activity has gone idle.
-func runIdle(t *testing.T, agg *dashboard.Aggregator, act *dashboard.Activity, calls func() int) {
+// runIdle starts agg.Run and returns once the entry refresh is done and the
+// activity, on clock, has gone idle.
+func runIdle(t *testing.T, agg *dashboard.Aggregator, act *dashboard.Activity, clock *fakeClock, timer *fakeRunTimer) {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, 20*time.Millisecond)
-		close(done)
-	}()
-	t.Cleanup(func() {
-		cancel()
-		<-done
-	})
-
-	require.Eventually(t, func() bool { return calls() >= 1 }, time.Second, 2*time.Millisecond, "the refresh on entry")
-	require.Eventually(t, act.Idle, time.Second, 2*time.Millisecond)
+	timer.start(t, agg, 20*time.Millisecond)
+	clock.advance(time.Hour)
+	require.True(t, act.Idle())
 }
 
 // A pull request armed for merge whose mergeability flips later, with no
@@ -72,16 +62,19 @@ func TestAggregator_Run_WhileIdle_StillRefreshesForAnArmedPullRequest(t *testing
 
 	src := &flippingSource{}
 	store := armedStore(armedKey)
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 	agg.EnableAutoMerge(store)
 
-	runIdle(t, agg, act, src.callCount)
+	runIdle(t, agg, act, clock, timer)
 	require.Empty(t, src.mergedPullRequests(), "not mergeable yet")
 
 	src.flip()
 
-	require.Eventually(t, func() bool { return len(src.mergedPullRequests()) == 1 }, time.Second, 5*time.Millisecond, "the armed pull request is merged while the dashboard is idle")
+	timer.tick(t)
+	require.Len(t, src.mergedPullRequests(), 1, "the armed pull request is merged while the dashboard is idle")
 }
 
 func TestAggregator_Run_WhileIdle_RestsWhenNothingIsArmed(t *testing.T) {
@@ -89,12 +82,15 @@ func TestAggregator_Run_WhileIdle_RestsWhenNothingIsArmed(t *testing.T) {
 
 	src := &flippingSource{}
 	store := armedStore()
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 	agg.EnableAutoMerge(store)
 
-	runIdle(t, agg, act, src.callCount)
-	time.Sleep(100 * time.Millisecond)
+	runIdle(t, agg, act, clock, timer)
+	timer.tick(t)
+	timer.tick(t)
 
 	assert.Equal(t, 1, src.callCount(), "nothing is waiting on the schedule, so it rests")
 }
@@ -108,16 +104,19 @@ func TestAggregator_Run_WhileIdle_StillRefreshesForABehindPullRequestNotYetUpdat
 	}}}
 	// Switched on after the entry refresh, as the user switching it on would be.
 	lister := &switchableLister{}
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 	agg.EnableAutoUpdateBranch(lister)
 
-	runIdle(t, agg, act, src.callCount)
+	runIdle(t, agg, act, clock, timer)
 	require.Empty(t, src.updatedBranches())
 
 	lister.enable("github/alrayyes/a")
 
-	require.Eventually(t, func() bool { return len(src.updatedBranches()) >= 1 }, time.Second, 5*time.Millisecond, "a behind pull request the hook has not yet tried is updated while idle")
+	timer.tick(t)
+	require.NotEmpty(t, src.updatedBranches(), "a behind pull request the hook has not yet tried is updated while idle")
 }
 
 // conflictingUpdater is a source whose forge refuses every branch update with a
@@ -140,12 +139,15 @@ func TestAggregator_Run_WhileIdle_RestsForABehindPullRequestAlreadyTried(t *test
 		PullRequests: []dashboard.PullRequest{{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true}},
 	}}}
 	lister := &fakeAutoUpdateBranchLister{enabled: map[string]struct{}{"github/alrayyes/a": {}}}
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 	agg.EnableAutoUpdateBranch(lister)
 
-	runIdle(t, agg, act, src.callCount)
-	time.Sleep(100 * time.Millisecond)
+	runIdle(t, agg, act, clock, timer)
+	timer.tick(t)
+	timer.tick(t)
 
 	assert.Equal(t, 1, src.callCount(), "the entry refresh tried it; an attempt that stands is not a reason to refresh")
 }
@@ -200,13 +202,16 @@ func TestAggregator_Run_WhileIdle_StillRefreshesForAPullRequestSwitchedOnByItsOw
 
 	src := behindSource()
 	lister := &fakeAutoUpdateBranchLister{overrides: map[string]bool{"github/alrayyes/a#1": true}}
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 	agg.EnableAutoUpdateBranch(lister)
 
-	runIdle(t, agg, act, src.callCount)
+	runIdle(t, agg, act, clock, timer)
 
-	require.Eventually(t, func() bool { return src.callCount() >= 3 }, time.Second, 5*time.Millisecond, "the repo is off but this pull request is on, so the idle tick still runs")
+	timer.tick(t)
+	require.Equal(t, 2, src.callCount(), "the repo is off but this pull request is on, so the idle tick still runs")
 }
 
 // A pull request switched off by its own choice is left alone however its
@@ -219,12 +224,15 @@ func TestAggregator_Run_WhileIdle_RestsForAPullRequestSwitchedOffByItsOwnChoice(
 		enabled:   map[string]struct{}{"github/alrayyes/a": {}},
 		overrides: map[string]bool{"github/alrayyes/a#1": false},
 	}
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 	agg.EnableAutoUpdateBranch(lister)
 
-	runIdle(t, agg, act, src.callCount)
-	time.Sleep(100 * time.Millisecond)
+	runIdle(t, agg, act, clock, timer)
+	timer.tick(t)
+	timer.tick(t)
 
 	assert.Equal(t, 1, src.callCount(), "the repo is on but this pull request is off, so the idle tick rests")
 }

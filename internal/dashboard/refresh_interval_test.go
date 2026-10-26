@@ -58,10 +58,14 @@ func repoWithHook(name string, has bool) dashboard.Repo {
 type fakeRunTimer struct {
 	ticks  chan time.Time
 	delays chan time.Duration
+
+	t      *testing.T
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func newFakeRunTimer() *fakeRunTimer {
-	return &fakeRunTimer{ticks: make(chan time.Time, 1), delays: make(chan time.Duration, 16)}
+	return &fakeRunTimer{ticks: make(chan time.Time), delays: make(chan time.Duration, 16)}
 }
 
 func (f *fakeRunTimer) C() <-chan time.Time { return f.ticks }
@@ -93,6 +97,48 @@ func nextDelay(t *testing.T, timer *fakeRunTimer) time.Duration {
 	}
 }
 
+// start runs agg.Run on this timer and returns the delay Run armed it with
+// after its refresh on entry. Run stops when the test ends or at stop.
+func (f *fakeRunTimer) start(t *testing.T, agg *dashboard.Aggregator, interval time.Duration) time.Duration {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	f.t, f.cancel = t, cancel
+	f.done = make(chan struct{})
+	go func() {
+		agg.Run(ctx, interval)
+		close(f.done)
+	}()
+	t.Cleanup(f.stop)
+
+	return nextDelay(t, f)
+}
+
+// tick fires the timer once and returns the delay Run arms it with next. The
+// timer's channel is unbuffered, so the send returns once Run has taken the
+// tick, and a later stop waits for Run to finish handling it.
+func (f *fakeRunTimer) tick(t *testing.T) time.Duration {
+	t.Helper()
+
+	select {
+	case f.ticks <- time.Time{}:
+	case <-time.After(time.Second):
+		require.FailNow(t, "Run did not take the tick")
+	}
+
+	return nextDelay(t, f)
+}
+
+// stop ends Run and waits a second for it to return.
+func (f *fakeRunTimer) stop() {
+	f.cancel()
+	select {
+	case <-f.done:
+	case <-time.After(time.Second):
+		f.t.Error("Run did not return after cancellation")
+	}
+}
+
 // runDelays runs Run over repos and returns the delay it armed the timer with
 // after its refresh on entry, then after one tick, with the refreshes made.
 func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (first, second time.Duration, refreshes int) {
@@ -105,19 +151,9 @@ func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (fi
 	timer := newFakeRunTimer()
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option())
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, interval)
-		close(done)
-	}()
-
-	first = nextDelay(t, timer)
-	timer.ticks <- time.Time{}
-	second = nextDelay(t, timer)
-	cancel()
-	<-done
+	first = timer.start(t, agg, interval)
+	second = timer.tick(t)
+	timer.stop()
 
 	return first, second, src.callCount()
 }
