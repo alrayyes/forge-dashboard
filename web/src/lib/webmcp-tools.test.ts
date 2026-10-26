@@ -104,7 +104,6 @@ describe('WebMCP read tools', () => {
     });
     const { tool } = setup({
       body: {
-        counts: { total: 3 },
         branches: [
           row('o/undated', null),
           row('o/older', '2026-10-01T00:00:00Z'),
@@ -114,7 +113,6 @@ describe('WebMCP read tools', () => {
     });
 
     const got = (await tool('get_main_branches').execute({})) as {
-      counts: unknown;
       branches: { fullName: string }[];
     };
 
@@ -123,7 +121,6 @@ describe('WebMCP read tools', () => {
       'o/older',
       'o/undated',
     ]);
-    expect(got.counts).toEqual({ total: 3 });
   });
 
   test('get_main_branch_checks reads /api/main-branches/checks with the repository', async () => {

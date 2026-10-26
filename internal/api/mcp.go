@@ -93,7 +93,7 @@ func newMCPServer(deps Deps) *mcp.Server {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_main_branches",
 		Description: "Fetch the CI status of every tracked repo's default branch " +
-			"(newest commit first, with counts per status), the same data the web UI's " +
+			"(newest commit first, one row per repo), the same data the web UI's " +
 			"Main branches page renders, including each repo's open dependency advisories " +
 			"(count, highest severity and a link), and each forge's health (reachable, rate " +
 			"limits as of the last refresh) under forges. The advisories key is absent when no source " +
