@@ -2538,6 +2538,17 @@ func TestDeletePullRequestBranch_ReadsEveryPageOfOpenPullRequests(t *testing.T) 
 	assert.Equal(t, []string{"1", "2"}, srv.listPages)
 }
 
+func TestDeletePullRequestBranch_ComparesTheHeadRepoWithoutCase(t *testing.T) {
+	t.Parallel()
+
+	srv := &branchDeletionServer{pr: forgejoPullRequestFrom("alrayyes/a", "feat/x"), branch: map[string]any{"name": "feat/x"}, open: []map[string]any{openPullRequest("Alrayyes/A", "feat/x", "main")}}
+	client := srv.start(t)
+
+	got := client.DeletePullRequestBranch(t.Context(), "alrayyes", "a", 5)
+
+	assert.Equal(t, dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipInUse}, got)
+}
+
 func TestDeletePullRequestBranch_AForkBranchOfTheSameNameDoesNotKeepIt(t *testing.T) {
 	t.Parallel()
 

@@ -716,7 +716,7 @@ func (c *Client) readPullRequest(ctx context.Context, owner, name string, number
 	return pr
 }
 
-// branchInUse reports whether an open pull request in the repo has branch as
+// branchUseSkip reports whether an open pull request in the repo has branch as
 // its head or its base: a stacked pull request that targets it, or a second
 // one raised from it. Closing the branch under either would close that pull
 // request. Nil means nothing uses it. A list that fails is a failed deletion,
@@ -747,9 +747,9 @@ func (c *Client) branchUseSkip(ctx context.Context, owner, name, branch string) 
 // DeletePullRequestBranch implements dashboard.PullRequestBranchDeleter. It
 // deletes the head branch of a merged pull request, unless that branch is on
 // a fork, is the default branch, is protected or is still the head or base of
-// another open pull request. A branch GitHub has already
-// removed (its own "delete branch on merge" setting) counts as deleted. Every
-// problem is a reported outcome, never an error: the merge is done either way.
+// another open pull request. A branch GitHub has already removed (its own
+// "delete branch on merge" setting) counts as deleted. Every problem is a
+// reported outcome, never an error: the merge is done either way.
 func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string, number int) dashboard.BranchDeletion {
 	failed := dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
 	pr := c.readPullRequest(ctx, owner, name, number)
