@@ -133,35 +133,43 @@ func (f forge) serve(t *testing.T) served {
 		writeJSON(t, w, map[string]any{"workflow_runs": f.runs})
 	})
 	for id, states := range f.jobs {
-		mux.HandleFunc(fmt.Sprintf("/api/v1/repos/alrayyes/a/actions/runs/%d/jobs", id), func(w http.ResponseWriter, r *http.Request) {
-			s.jobReads.Add(1)
-			jobs := []map[string]any{}
-			for i, state := range states {
-				if state == "error" {
-					w.WriteHeader(http.StatusInternalServerError)
-
-					return
-				}
-				jobs = append(jobs, map[string]any{"name": f.jobName(id, i), "status": state, "completed_at": "2026-09-01T00:00:00Z"})
-			}
-			q := r.URL.Query()
-			limit, err := strconv.Atoi(q.Get("limit"))
-			if err != nil {
-				limit = jobsPageSize
-			}
-			page, err := strconv.Atoi(q.Get("page"))
-			if err != nil {
-				page = 1
-			}
-			lo := min((page-1)*limit, len(jobs))
-			writeJSON(t, w, jobs[lo:min(lo+limit, len(jobs))])
-		})
+		mux.HandleFunc(fmt.Sprintf("/api/v1/repos/alrayyes/a/actions/runs/%d/jobs", id), f.serveJobs(t, id, states, s.jobReads))
 	}
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	s.client = forgejo.NewClient(srv.URL, "test-token", "")
 
 	return s
+}
+
+// serveJobs answers a run's jobs a page at a time, or 500 when one of them is
+// "error".
+func (f forge) serveJobs(t *testing.T, id int, states []string, reads *atomic.Int32) http.HandlerFunc {
+	t.Helper()
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		reads.Add(1)
+		jobs := []map[string]any{}
+		for i, state := range states {
+			if state == "error" {
+				w.WriteHeader(http.StatusInternalServerError)
+
+				return
+			}
+			jobs = append(jobs, map[string]any{"name": f.jobName(id, i), "status": state, "completed_at": "2026-09-01T00:00:00Z"})
+		}
+		q := r.URL.Query()
+		limit, err := strconv.Atoi(q.Get("limit"))
+		if err != nil {
+			limit = jobsPageSize
+		}
+		page, err := strconv.Atoi(q.Get("page"))
+		if err != nil {
+			page = 1
+		}
+		lo := min((page-1)*limit, len(jobs))
+		writeJSON(t, w, jobs[lo:min(lo+limit, len(jobs))])
+	}
 }
 
 func (s served) pullRequest(t *testing.T) dashboard.PullRequest {
