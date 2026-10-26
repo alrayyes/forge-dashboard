@@ -824,7 +824,6 @@ test.describe('cancel a running pipeline', () => {
               durationSeconds: null,
               runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
               checks: { passed: 0, running: 2, waiting: 0, failed: 0 },
-              stale: false,
               staleSince: null,
             },
           ],

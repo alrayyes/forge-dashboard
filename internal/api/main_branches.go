@@ -10,15 +10,6 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
-// mainBranchView is a default-branch row as the API serves it: the snapshot's
-// own fields plus the stale flag a client branches on.
-type mainBranchView struct {
-	dashboard.MainBranch
-	// Stale is true when StaleSince is set: the row is the last known one
-	// because its forge couldn't be read or has no budget left (#1199).
-	Stale bool `json:"stale"`
-}
-
 // mainBranchesResponse matches components.schemas.MainBranches.
 type mainBranchesResponse struct {
 	GeneratedAt time.Time                  `json:"generatedAt"`
@@ -26,7 +17,7 @@ type mainBranchesResponse struct {
 	// Forges is each forge's health, as the dashboard snapshot carries it, so
 	// the page can lock a control the forge would only refuse.
 	Forges   []dashboard.ForgeHealth `json:"forges"`
-	Branches []mainBranchView        `json:"branches"`
+	Branches []dashboard.MainBranch  `json:"branches"`
 }
 
 // mainBranchRows is snap's default branches without the repos the user ignored
@@ -38,26 +29,26 @@ func (b boardSettings) mainBranchRows(rows []dashboard.MainBranch) []dashboard.M
 	})
 }
 
-// buildMainBranchesResponse orders the rows newest commit first and counts
-// them. A row the caller passes is never left out, whatever its status: the
-// client filters, and its pill counts then always match what each pill lists.
+// buildMainBranchesResponse counts the rows and leaves them in the order the
+// snapshot holds them: the client orders them. A row the caller passes is never
+// left out, whatever its status: the client filters, and its pill counts then
+// always match what each pill lists.
 func buildMainBranchesResponse(generatedAt, now time.Time, forges []dashboard.ForgeHealth, branches []dashboard.MainBranch) mainBranchesResponse {
 	rows := slices.Clone(branches)
-	dashboard.SortMainBranches(rows)
-
-	views := make([]mainBranchView, 0, len(rows))
-	for _, r := range rows {
-		if r.FailingJobs == nil {
-			r.FailingJobs = []string{}
+	if rows == nil {
+		rows = []dashboard.MainBranch{}
+	}
+	for i := range rows {
+		if rows[i].FailingJobs == nil {
+			rows[i].FailingJobs = []string{}
 		}
-		views = append(views, mainBranchView{MainBranch: r, Stale: r.StaleSince != nil})
 	}
 
 	return mainBranchesResponse{
 		GeneratedAt: generatedAt,
 		Counts:      dashboard.CountMainBranches(rows),
 		Forges:      withRateLimitSeverity(forges, now),
-		Branches:    views,
+		Branches:    rows,
 	}
 }
 

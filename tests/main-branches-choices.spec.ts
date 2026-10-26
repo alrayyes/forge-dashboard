@@ -36,7 +36,6 @@ function row(fullName: string, status: Status, forge = 'github') {
       status === 'running' || status === 'none' ? null : minutesAgo(12),
     durationSeconds: status === 'running' || status === 'none' ? null : 252,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
-    stale: false,
     staleSince: null,
   };
 }

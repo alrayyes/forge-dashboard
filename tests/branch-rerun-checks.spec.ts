@@ -25,7 +25,6 @@ function branch(status: 'failed' | 'passed', running = 0) {
     durationSeconds: null,
     runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
     checks: { passed: 1, running, waiting: 0, failed: failed ? 1 : 0 },
-    stale: false,
     staleSince: null,
   };
 }

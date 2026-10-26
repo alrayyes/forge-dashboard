@@ -41,7 +41,6 @@ const ROW = {
   durationSeconds: null,
   runUrl: 'https://example.com/scaffolding/scaffold-go-cli/actions/runs/582',
   checks: { passed: 14, skipped: 10, running: 0, waiting: 0, failed: 0 },
-  stale: false,
   staleSince: null,
 };
 

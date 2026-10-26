@@ -36,7 +36,6 @@ function row(fullName: string, status: Status, checks: Counts | undefined) {
     durationSeconds: null,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
     ...(checks ? { checks } : {}),
-    stale: false,
     staleSince: null,
   };
 }

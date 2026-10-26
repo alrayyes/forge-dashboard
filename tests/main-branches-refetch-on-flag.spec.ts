@@ -23,7 +23,6 @@ function row(fullName: string) {
     finishedAt: new Date().toISOString(),
     durationSeconds: 60,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
-    stale: false,
     staleSince: null,
   };
 }

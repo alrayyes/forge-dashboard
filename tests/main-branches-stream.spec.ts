@@ -42,7 +42,6 @@ function page(subject: string, status: 'failed' | 'passed') {
         durationSeconds: null,
         runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
         checks: { passed: 0, running: 0, waiting: 0, failed: failed ? 1 : 0 },
-        stale: false,
         staleSince: null,
       },
     ],
