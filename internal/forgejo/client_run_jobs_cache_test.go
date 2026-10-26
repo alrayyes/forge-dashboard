@@ -67,3 +67,43 @@ func TestListOpenPullRequests_AFailureWhosePositionIsPastTheJobsReadStaysFailed(
 
 	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
 }
+
+// An empty job list for a run that just stopped may be the forge catching up,
+// so it is read again; once the run is older than the window it is final.
+func TestListOpenPullRequests_AnEmptyJobListIsReadAgainOnlyWithinTheCatchUpWindow(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		stopped time.Time
+		reads   int32
+	}{
+		"just stopped": {time.Now().Add(-time.Minute), 2},
+		"long stopped": {time.Now().Add(-10 * time.Minute), 1},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := failedWithQueuedJob(tt.stopped)
+			f.jobs[12] = []string{}
+			s := f.serve(t)
+
+			s.pullRequest(t)
+			s.pullRequest(t)
+
+			assert.Equal(t, tt.reads, s.jobReads.Load())
+		})
+	}
+}
+
+// A passing run is never settled by the clock: a job still going in its list
+// means the read ran ahead of the forge, so it is read again however old.
+func TestListOpenPullRequests_APassingRunWithAJobStillGoingIsReadAgainWhateverItsAge(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("in_progress")
+	f.runs[1] = actionsRun(12, 2, "success", map[string]any{"stopped": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)})
+	s := f.serve(t)
+
+	s.pullRequest(t)
+	s.pullRequest(t)
+
+	assert.EqualValues(t, 2, s.jobReads.Load())
+}
