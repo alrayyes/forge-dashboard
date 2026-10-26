@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.36.0](https://github.com/alrayyes/forge-dashboard/compare/v2.35.0...v2.36.0) (2026-10-26)
+
+
+### Features
+
+* **web:** add Rebase all to the Bots page ([#2905](https://github.com/alrayyes/forge-dashboard/issues/2905)) ([1f079eb](https://github.com/alrayyes/forge-dashboard/commit/1f079ebb22e1edd46ee50372c6d171e3640f9db9))
+
 ## [2.35.0](https://github.com/alrayyes/forge-dashboard/compare/v2.34.11...v2.35.0) (2026-10-26)
 
 
