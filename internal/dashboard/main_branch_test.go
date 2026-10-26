@@ -280,22 +280,8 @@ func TestAggregator_AFailedMainBranchReadKeepsThatRepoStale(t *testing.T) {
 	assert.Nil(t, b.StaleSince)
 }
 
-func TestMainBranches_CountSortAndShortSHA(t *testing.T) {
+func TestMainBranches_SortAndShortSHA(t *testing.T) {
 	t.Parallel()
-	rows := []dashboard.MainBranch{
-		row(dashboard.ForgeGitHub, "o/d", dashboard.MainBranchNone),
-		row(dashboard.ForgeGitHub, "o/c", dashboard.MainBranchPassed),
-		row(dashboard.ForgeForgejo, "o/b", dashboard.MainBranchRunning),
-		row(dashboard.ForgeGitHub, "o/z", dashboard.MainBranchFailed),
-		row(dashboard.ForgeGitHub, "o/a", dashboard.MainBranchFailed),
-		row(dashboard.ForgeGitHub, "o/y", dashboard.MainBranchCancelled),
-	}
-
-	t.Run("counts add up to the total, a cancelled branch apart from the failed ones", func(t *testing.T) {
-		t.Parallel()
-
-		assert.Equal(t, dashboard.MainBranchCounts{Failed: 2, Passed: 1, Running: 1, Cancelled: 1, None: 1, Total: 6}, dashboard.CountMainBranches(rows))
-	})
 
 	t.Run("newest commit first whatever the status, undated rows last", func(t *testing.T) {
 		t.Parallel()

@@ -160,17 +160,19 @@ tab, which shows its numbers before its word.
 
 The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
 
-`GET /api/dashboard` and its stream carry `navCounts`, the numbers behind every
-navigation badge: for Branches, Pull requests, Releases and Bots a `total` and
-how many have CI `running`, `failed` and `passed` (a branch by its
-default-branch pipeline); and for Issues a `total` only. A pull request with no
-checks counts in the total alone, so the four numbers need not add up. A branch
-with no pipeline is counted as `none`, so a branch's four states add up to its
-total. They count what each page shows when it opens. Pull requests
-leave out ignored repos, drafts and hidden ones, even while Show drafts or
-Show hidden is on. Branches counts the default branches its page lists, which
-also leave out ignored repos. They are always present, zero when nothing is
-there.
+`GET /api/dashboard` and its stream carry `navCounts`, the numbers behind the
+navigation badges for Pull requests, Releases and Bots: a `total` and how many
+have CI `running`, `failed` and `passed`; and for Issues a `total` only. A pull
+request with no checks counts in the total alone, so the four numbers need not
+add up. They count what each page shows when it opens. Pull requests leave out
+ignored repos, drafts and hidden ones, even while Show drafts or Show hidden is
+on. They are always present, zero when nothing is there.
+
+The Branches badge isn't in `navCounts`. The page counts the default branches
+in `mainBranchPage`, the same rows the Main branches page lists, so the badge
+and the page's filter pills come from one count. A branch with no pipeline is
+counted as `none`, so a branch's states add up to the total. A repo ignored for
+pull requests is left out of both.
 
 ## Which filter choices a page offers
 

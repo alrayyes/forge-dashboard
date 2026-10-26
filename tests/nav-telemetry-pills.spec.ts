@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1439: the Pull requests, Bots and Releases items show the total and how
@@ -41,12 +42,12 @@ async function open(
         repos: [],
         hiddenDrafts: 0,
         navCounts: {
-          branches: { total: 3, failed: 0 },
           pullRequests: counts.pullRequests ?? MIXED,
           issues: { total: 4 },
           releases: counts.releases ?? NONE,
           bots: counts.bots ?? NONE,
         },
+        mainBranchPage: mainBranchPageFor(3),
       }),
     }),
   );

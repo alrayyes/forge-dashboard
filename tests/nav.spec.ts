@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // Coverage for issue #269: one persistent nav, shared markup, present and
@@ -107,12 +108,12 @@ test.describe('persistent top nav', () => {
           // With counts, every name opens with its numbers (#1944), so the
           // checks below must not lean on the name starting with the page.
           navCounts: {
-            branches: { total: 12, failed: 3 },
             pullRequests: { total: 15, failed: 2, passed: 10, running: 3 },
             issues: { total: 1 },
             releases: { total: 1, failed: 0, passed: 1 },
             bots: { total: 1, failed: 0, passed: 1 },
           },
+          mainBranchPage: mainBranchPageFor(12, 3),
         }),
       }),
     );

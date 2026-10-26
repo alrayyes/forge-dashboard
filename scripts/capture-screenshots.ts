@@ -179,6 +179,7 @@ function mainBranch(
   fullName: string,
   status: 'failed' | 'running' | 'passed' | 'cancelled' | 'none',
   branch = 'main',
+  minutesAgo = 45,
 ) {
   const noCommit = status === 'none';
   const minutes = (n: number) =>
@@ -195,36 +196,28 @@ function mainBranch(
           sha: 'd98f3c2',
           subject: `fix: handle an empty response in ${fullName.split('/')[1]}`,
           author: 'demo-user',
-          committedAt: minutes(45),
+          committedAt: minutes(minutesAgo),
         },
     failingJobs: status === 'failed' ? ['lint', 'e2e-playwright'] : [],
     finishedAt: status === 'running' || noCommit ? null : minutes(12),
     durationSeconds: status === 'running' || noCommit ? null : 252,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
-    stale: false,
     staleSince: null,
   };
 }
 
 const MAIN_BRANCH_ROWS = [
-  mainBranch('github', 'example-org/api-gateway', 'failed'),
-  mainBranch('forgejo', 'sandbox/dotfiles', 'failed', 'master'),
-  mainBranch('github', 'alrayyes/forge-dashboard', 'running'),
-  mainBranch('github', 'example-org/wiki', 'passed'),
-  mainBranch('github', 'example-org/docs-site', 'passed'),
-  mainBranch('forgejo', 'sandbox/vps-docker', 'passed'),
+  mainBranch('github', 'example-org/api-gateway', 'failed', 'main', 10),
+  mainBranch('forgejo', 'sandbox/dotfiles', 'failed', 'master', 20),
+  mainBranch('github', 'alrayyes/forge-dashboard', 'running', 'main', 30),
+  mainBranch('github', 'example-org/wiki', 'passed', 'main', 40),
+  mainBranch('github', 'example-org/docs-site', 'passed', 'main', 50),
+  mainBranch('forgejo', 'sandbox/vps-docker', 'passed', 'main', 60),
   mainBranch('forgejo', 'sandbox/scratch', 'none', 'master'),
 ];
 
 const MAIN_BRANCHES = {
   generatedAt: new Date().toISOString(),
-  counts: {
-    failed: 2,
-    running: 1,
-    passed: 3,
-    none: 1,
-    total: MAIN_BRANCH_ROWS.length,
-  },
   branches: MAIN_BRANCH_ROWS,
 };
 

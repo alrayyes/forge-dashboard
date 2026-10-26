@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // Every nav item shows how many items its page lists and how many of them are
@@ -33,13 +34,16 @@ const CLEAN: Counts = {
   bots: { total: 8, failed: 0 },
 };
 
-function snapshot(navCounts: Counts) {
+// The Branches badge counts the main branch rows the snapshot carries, so the
+// `branches` pair becomes that many rows rather than a number sent as is.
+function snapshot({ branches, ...navCounts }: Counts) {
   return {
     generatedAt: new Date().toISOString(),
     forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
     pullRequests: [],
     issues: [],
     navCounts,
+    mainBranchPage: mainBranchPageFor(branches.total, branches.failed),
   };
 }
 
@@ -73,7 +77,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     await expect(link.locator('.nav-total')).toHaveText('12');
     await expect(link.locator('.nav-failed')).toHaveText('3');
     await expect(link).toHaveAccessibleName(
-      '12 3, Branches, 12 total, 3 failing',
+      '12 3 9, Branches, 12 total, 3 failing, 9 passing',
     );
   });
 
@@ -120,7 +124,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
 
     await expect(page.locator('.app-nav .nav-failed')).toHaveCount(0);
     await expect(header(page, '/')).toHaveAccessibleName(
-      '12, Branches, 12 total',
+      '12 12, Branches, 12 total, 12 passing',
     );
   });
 
@@ -198,7 +202,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
 
       await expect(header(page, '/').locator('.nav-failed')).toHaveCount(0);
       await expect(header(page, '/')).toHaveAccessibleName(
-        '12, Branches, 12 total',
+        '12 12, Branches, 12 total, 12 passing',
       );
     });
   }
@@ -213,18 +217,13 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          // The page's own read is what the pill follows on this page.
-          counts: {
-            failed: state.counts.branches.failed,
-            running: 0,
-            passed: 0,
-            none: 0,
-            total: state.counts.branches.total,
-          },
-          branches: [],
-        }),
+        // The page's own read is what the pill follows on this page.
+        body: JSON.stringify(
+          mainBranchPageFor(
+            state.counts.branches.total,
+            state.counts.branches.failed,
+          ),
+        ),
       }),
     );
     await page.goto('/');
@@ -347,22 +346,15 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
     const body = await res.json();
 
     expect(res.ok()).toBe(true);
-    // Every page except Issues counts running and passed (#1439, #1458);
-    // Branches also counts those with no pipeline (#1531).
+    // The Branches badge is not here: the page counts the rows in
+    // mainBranchPage (#2886).
     const checkedPage = {
       total: expect.any(Number),
       running: expect.any(Number),
       failed: expect.any(Number),
       passed: expect.any(Number),
     };
-    // A branch with no pipeline is counted as none (#1531), and one whose runs
-    // are held for approval on its own (#2024), so the parts add up.
     expect(body.navCounts).toEqual({
-      branches: {
-        ...checkedPage,
-        none: expect.any(Number),
-        awaitingApproval: expect.any(Number),
-      },
       pullRequests: checkedPage,
       issues: { total: expect.any(Number) },
       releases: checkedPage,
@@ -419,7 +411,9 @@ test.describe('nav counts on a phone (#1315)', () => {
 
     // The wording for each combination of counts is proved in
     // web/src/lib/nav-labels.test.ts; this only checks each tab is wired to it.
-    await expect(branches).toHaveAccessibleName('12 3 Branches, 3 failing');
+    await expect(branches).toHaveAccessibleName(
+      '12 3 9 Branches, 3 failing, 9 passing',
+    );
     await expect(tab(page, '/pull-requests.html')).toHaveAccessibleName(
       '27 5 PRs, 5 failing',
     );

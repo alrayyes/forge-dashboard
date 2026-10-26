@@ -3218,10 +3218,10 @@ paths:
       description: |
         One row per tracked repository, showing the latest pipeline on its
         default branch: failed, passed, running or none. A repository
-        ignored for pull requests is left out, as on the pull requests page. Every other row is returned, whatever its status, with a
-        count per status, so a client
-        filters and sorts locally and its pill counts always match what each
-        pill lists. Rows come in no particular order: the client orders them.
+        ignored for pull requests is left out, as on the pull requests page.
+        Every other row is returned, whatever its status, and no tally comes
+        with them, so a client filters, sorts and counts locally and its pill
+        counts always match what each pill lists. Rows come in no particular order: the client orders them.
 
         Served from the snapshot the background refresh already holds, so it
         never calls a forge. On GitHub the branch's check status rides the
@@ -6442,46 +6442,6 @@ components:
           type: string
           format: date-time
 
-    NavCount:
-      type: object
-      required: [total, running, failed, passed, none, awaitingApproval]
-      description: |
-        The Branches page's numbers: how many default branches
-        it lists and how many of those have a pipeline running, failed and
-        passed, the same four as `NavPullRequestCount`, plus `none`, the ones
-        with no pipeline, and `awaitingApproval`, the ones whose workflow runs
-        are held until someone approves them. A branch whose only trouble is a
-        cancelled run counts in `total` only, as a pull request with no checks
-        does, so the parts need not add up. All six are always present.
-      properties:
-        total:
-          type: integer
-          minimum: 0
-          description: How many default branches the page lists.
-        running:
-          type: integer
-          minimum: 0
-          description: How many of them have a pipeline that is still running.
-        failed:
-          type: integer
-          minimum: 0
-          description: How many of them have a failing pipeline.
-        passed:
-          type: integer
-          minimum: 0
-          description: How many of them have a pipeline that passed.
-        none:
-          type: integer
-          minimum: 0
-          description: How many of them have no pipeline.
-        awaitingApproval:
-          type: integer
-          minimum: 0
-          description: |
-            How many of them have workflow runs held until someone approves
-            them. Nothing has run and nothing has failed, so they are in none
-            of `running`, `failed` and `passed`.
-
     NavPullRequestCount:
       type: object
       required: [total, running, failed, passed]
@@ -6532,19 +6492,16 @@ components:
         board shows by default, so they match each page when it opens. Pull
         requests leave out ignored repos, draft pull requests and hidden pull
         requests whatever `includeDrafts` and `includeHidden` ask for, so the
-        badge doesn't jump when a toggle flips; branches counts the default
-        branches GET /api/main-branches lists, which also leave out ignored
-        repos. Pull requests are
+        badge doesn't jump when a toggle flips. Pull requests are
         split by `kind`
         (release pull requests under `releases`, Dependabot and Renovate
         under `bots`, the rest under `pullRequests`). Always present, with
         zeros when there is nothing. A client hides a page's whole nav item at
         zero total, and a state's number at zero. Every page except Issues also
-        carries `running` and `passed`.
-      required: [branches, pullRequests, issues, releases, bots]
+        carries `running` and `passed`. The Branches badge isn't here: a
+        client counts the rows of `mainBranchPage`.
+      required: [pullRequests, issues, releases, bots]
       properties:
-        branches:
-          $ref: "#/components/schemas/NavCount"
         pullRequests:
           $ref: "#/components/schemas/NavPullRequestCount"
         issues:
@@ -6999,46 +6956,18 @@ components:
           type: string
           description: The release's own page on its forge.
 
-    MainBranchCounts:
-      type: object
-      required:
-        [failed, passed, running, cancelled, awaitingApproval, none, total]
-      description: |
-        How many rows are in each status, the numbers on the filter pills.
-        `total` is every row, so it equals the sum of the other six.
-      properties:
-        failed:
-          type: integer
-          minimum: 0
-        passed:
-          type: integer
-          minimum: 0
-        running:
-          type: integer
-          minimum: 0
-        cancelled:
-          type: integer
-          minimum: 0
-        awaitingApproval:
-          type: integer
-          minimum: 0
-        none:
-          type: integer
-          minimum: 0
-        total:
-          type: integer
-          minimum: 0
-
     MainBranches:
       type: object
-      required: [generatedAt, counts, forges, branches]
+      description: |
+        Every default branch the page lists, in no particular order. There is
+        no tally: a client counts the rows it holds, so the filter pills and
+        the navigation badge always agree with the list.
+      required: [generatedAt, forges, branches]
       properties:
         generatedAt:
           type: string
           format: date-time
           description: When the snapshot was refreshed, not when it was requested.
-        counts:
-          $ref: "#/components/schemas/MainBranchCounts"
         forges:
           type: array
           description: >-

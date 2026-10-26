@@ -108,42 +108,6 @@ type MainBranchRelease struct {
 	URL string `json:"url"`
 }
 
-// MainBranchCounts is how many rows each status holds. Matches
-// components.schemas.MainBranchCounts.
-type MainBranchCounts struct {
-	Failed    int `json:"failed"`
-	Passed    int `json:"passed"`
-	Running   int `json:"running"`
-	Cancelled int `json:"cancelled"`
-	// AwaitingApproval counts the branches whose runs are held for approval.
-	AwaitingApproval int `json:"awaitingApproval"`
-	None             int `json:"none"`
-	Total            int `json:"total"`
-}
-
-// CountMainBranches tallies rows by status.
-func CountMainBranches(rows []MainBranch) MainBranchCounts {
-	counts := MainBranchCounts{Total: len(rows)}
-	for _, r := range rows {
-		switch r.Status {
-		case MainBranchFailed:
-			counts.Failed++
-		case MainBranchPassed:
-			counts.Passed++
-		case MainBranchRunning:
-			counts.Running++
-		case MainBranchCancelled:
-			counts.Cancelled++
-		case MainBranchAwaitingApproval:
-			counts.AwaitingApproval++
-		default:
-			counts.None++
-		}
-	}
-
-	return counts
-}
-
 // SortMainBranches orders rows by the default branch's newest commit, newest
 // first, whatever the status (#1552): what just changed is at the top, and
 // status is only a filter. A row with no commit time goes after every dated
