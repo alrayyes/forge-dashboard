@@ -173,6 +173,8 @@ const (
 	SkipDefaultBranch BranchSkipReason = "default_branch"
 	// SkipProtected means the forge protects the branch.
 	SkipProtected BranchSkipReason = "protected"
+	// SkipInUse means another open pull request has the branch as its head or base.
+	SkipInUse BranchSkipReason = "in_use"
 	// SkipUnsupported means the forge's client can't delete branches.
 	SkipUnsupported BranchSkipReason = "unsupported"
 )

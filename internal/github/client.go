@@ -716,9 +716,38 @@ func (c *Client) readPullRequest(ctx context.Context, owner, name string, number
 	return pr
 }
 
+// branchInUse reports whether an open pull request in the repo has branch as
+// its head or its base: a stacked pull request that targets it, or a second
+// one raised from it. Closing the branch under either would close that pull
+// request. Nil means nothing uses it. A list that fails is a failed deletion,
+// so a branch that can't be checked is left alone.
+func (c *Client) branchUseSkip(ctx context.Context, owner, name, branch string) *dashboard.BranchDeletion {
+	filters := []ghsdk.PullRequestListOptions{
+		{State: "open", Head: owner + ":" + branch},
+		{State: "open", Base: branch},
+	}
+	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
+	for _, filter := range filters {
+		slog.Debug("github request", "method", http.MethodGet, "url", path)
+		found, resp, err := c.restClient.PullRequests.List(ctx, owner, name, &filter)
+		if err != nil {
+			slog.Warn("listing the pull requests that use the branch failed", "repo", owner+"/"+name, "branch", branch, "error", err)
+
+			return &dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
+		}
+		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+		if len(found) > 0 {
+			return &dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipInUse}
+		}
+	}
+
+	return nil
+}
+
 // DeletePullRequestBranch implements dashboard.PullRequestBranchDeleter. It
 // deletes the head branch of a merged pull request, unless that branch is on
-// a fork, is the default branch or is protected. A branch GitHub has already
+// a fork, is the default branch, is protected or is still the head or base of
+// another open pull request. A branch GitHub has already
 // removed (its own "delete branch on merge" setting) counts as deleted. Every
 // problem is a reported outcome, never an error: the merge is done either way.
 func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string, number int) dashboard.BranchDeletion {
@@ -736,6 +765,10 @@ func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string
 	}
 	if branch == pr.GetBase().GetRepo().GetDefaultBranch() {
 		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipDefaultBranch}
+	}
+
+	if skip := c.branchUseSkip(ctx, owner, name, branch); skip != nil {
+		return *skip
 	}
 
 	branchPath := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, name, branch)

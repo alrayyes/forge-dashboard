@@ -538,9 +538,42 @@ func branchToDelete(pr *gitea.PullRequest, owner, name string) (string, *dashboa
 	return branch, nil
 }
 
+// branchInUse reports whether an open pull request in the repo has branch as
+// its head or its base: a stacked pull request that targets it, or a second
+// one raised from it. Forgejo can't filter the list by branch, so it reads
+// every open pull request and compares. A fork's branch of the same name
+// isn't this one. Nil means nothing uses it. A list that fails is a failed
+// deletion, so a branch that can't be checked is left alone.
+func (c *Client) branchUseSkip(ctx context.Context, owner, name, branch string) *dashboard.BranchDeletion {
+	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
+	opt := gitea.ListPullRequestsOptions{State: gitea.StateOpen, PageSize: pageLimit}
+	for {
+		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+		batch, resp, err := c.sdk.ListRepoPullRequests(owner, name, opt)
+		if err != nil {
+			slog.Warn("listing the pull requests that use the branch failed", "repo", owner+"/"+name, "branch", branch, "error", c.forgejoError(ctx, http.MethodGet, path, resp, err))
+
+			return &dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
+		}
+		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
+		for _, p := range batch {
+			targets := p.Base != nil && p.Base.Ref == branch
+			raisedFrom := p.Head != nil && p.Head.Ref == branch && p.Head.Repository != nil && p.Head.Repository.FullName == owner+"/"+name
+			if targets || raisedFrom {
+				return &dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipInUse}
+			}
+		}
+		if resp.NextPage == 0 {
+			return nil
+		}
+		opt.Page = resp.NextPage
+	}
+}
+
 // DeletePullRequestBranch implements dashboard.PullRequestBranchDeleter. It
 // deletes the head branch of a merged pull request, unless that branch is on
-// a fork, is the default branch or is protected. A branch Forgejo has already
+// a fork, is the default branch, is protected or is still the head or base of
+// another open pull request. A branch Forgejo has already
 // removed counts as deleted. Every problem is a reported outcome, never an
 // error: the merge is done either way.
 func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string, number int) dashboard.BranchDeletion {
@@ -558,6 +591,10 @@ func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string
 	c.recordRequest(ctx, http.MethodGet, prPath, resp.StatusCode, requestlog.OutcomeSuccess)
 	branch, skip := branchToDelete(pr, owner, name)
 	if skip != nil {
+		return *skip
+	}
+
+	if skip := c.branchUseSkip(ctx, owner, name, branch); skip != nil {
 		return *skip
 	}
 
@@ -579,6 +616,14 @@ func (c *Client) DeletePullRequestBranch(ctx context.Context, owner, name string
 		return dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipProtected}
 	}
 
+	return c.removeBranch(ctx, owner, name, branch)
+}
+
+// removeBranch deletes a branch that has passed every check. A branch already
+// gone counts as deleted.
+func (c *Client) removeBranch(ctx context.Context, owner, name, branch string) dashboard.BranchDeletion {
+	failed := dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
+	branchPath := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, name, branch)
 	slog.Debug("forgejo request", "method", http.MethodDelete, "url", branchPath)
 	// The SDK reports any status but 204 as false with no error.
 	removed, resp, err := c.sdk.DeleteRepoBranch(owner, name, branch)
