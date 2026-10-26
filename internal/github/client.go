@@ -552,9 +552,13 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 // or a review, moves an item's updated_at, and without one of these the
 // snapshot only learns of it at the next poll (#1552). issue_comment covers
 // conversation comments on issues and on pull requests alike.
+// pull_request_review_thread fires when a thread is resolved or unresolved,
+// which bumps no comment, so the unresolved count would otherwise wait for the
+// next poll.
 var githubWebhookEvents = []string{
 	"pull_request", "issues", "issue_comment",
 	"pull_request_review", "pull_request_review_comment",
+	"pull_request_review_thread",
 	"status", "check_run",
 }
 

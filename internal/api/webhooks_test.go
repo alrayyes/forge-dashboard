@@ -666,6 +666,7 @@ func TestWebhook_CommentDelivery_TriggersOnlyAScopedRefresh(t *testing.T) {
 		{"github issue_comment", "github", "X-Hub-Signature-256", "sha256=", "X-GitHub-Event", "issue_comment"},
 		{"github pull_request_review", "github", "X-Hub-Signature-256", "sha256=", "X-GitHub-Event", "pull_request_review"},
 		{"github pull_request_review_comment", "github", "X-Hub-Signature-256", "sha256=", "X-GitHub-Event", "pull_request_review_comment"},
+		{"github pull_request_review_thread", "github", "X-Hub-Signature-256", "sha256=", "X-GitHub-Event", "pull_request_review_thread"},
 		{"forgejo issue_comment", "forgejo", "X-Forgejo-Signature", "", "X-Forgejo-Event", "issue_comment"},
 		{"forgejo pull_request_comment", "forgejo", "X-Forgejo-Signature", "", "X-Forgejo-Event", "pull_request_comment"},
 		{"gitea-named header", "forgejo", "X-Gitea-Signature", "", "X-Gitea-Event", "issue_comment"},
