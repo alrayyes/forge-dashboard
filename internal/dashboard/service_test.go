@@ -408,20 +408,20 @@ func TestService_FirstRefreshComplete_ReplacingTheAggregatorDoesNotRestartTheGra
 
 	blocked := &gatedSource{release: make(chan struct{})}
 	t.Cleanup(func() { close(blocked.release) })
+	clock := newActivityClock()
 	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
+	m.SetClock(clock.now)
 	m.SetFirstRefreshGrace(150 * time.Millisecond)
 
-	start := time.Now()
 	m.Ensure(t.Context(), []dashboard.Source{blocked})
-
-	for time.Since(start) < 100*time.Millisecond {
-		time.Sleep(20 * time.Millisecond)
+	for range 5 {
+		clock.advance(20 * time.Millisecond)
 		m.Ensure(t.Context(), []dashboard.Source{blocked})
 	}
 	require.False(t, m.FirstRefreshComplete(), "still inside the grace")
 
-	time.Sleep(time.Until(start.Add(200 * time.Millisecond)))
+	clock.advance(100 * time.Millisecond)
 	assert.True(t, m.FirstRefreshComplete(),
 		"the grace ran from the first start, not from the latest Ensure")
 }
@@ -433,14 +433,15 @@ func TestService_Stop_KeepsTheGraceAnchor(t *testing.T) {
 
 	blocked := &gatedSource{release: make(chan struct{})}
 	t.Cleanup(func() { close(blocked.release) })
+	clock := newActivityClock()
 	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
+	m.SetClock(clock.now)
 	m.SetFirstRefreshGrace(100 * time.Millisecond)
 
-	start := time.Now()
 	m.Ensure(t.Context(), []dashboard.Source{blocked})
 	m.Stop()
-	time.Sleep(time.Until(start.Add(150 * time.Millisecond)))
+	clock.advance(150 * time.Millisecond)
 	m.Ensure(t.Context(), []dashboard.Source{blocked})
 
 	assert.True(t, m.FirstRefreshComplete(),
@@ -453,15 +454,16 @@ func TestService_Reset_ClearsTheGraceAnchor(t *testing.T) {
 
 	blocked := &gatedSource{release: make(chan struct{})}
 	t.Cleanup(func() { close(blocked.release) })
+	clock := newActivityClock()
 	m := dashboard.NewService(time.Hour)
 	t.Cleanup(m.Stop)
+	m.SetClock(clock.now)
 	m.SetFirstRefreshGrace(100 * time.Millisecond)
 
-	start := time.Now()
 	m.Ensure(t.Context(), []dashboard.Source{blocked})
 	m.Stop()
 	m.Reset()
-	time.Sleep(time.Until(start.Add(150 * time.Millisecond)))
+	clock.advance(150 * time.Millisecond)
 	m.Ensure(t.Context(), []dashboard.Source{blocked})
 
 	assert.False(t, m.FirstRefreshComplete(),
