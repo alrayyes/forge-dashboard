@@ -12,8 +12,7 @@ import (
 
 // mainBranchesResponse matches components.schemas.MainBranches.
 type mainBranchesResponse struct {
-	GeneratedAt time.Time                  `json:"generatedAt"`
-	Counts      dashboard.MainBranchCounts `json:"counts"`
+	GeneratedAt time.Time `json:"generatedAt"`
 	// Forges is each forge's health, as the dashboard snapshot carries it, so
 	// the page can lock a control the forge would only refuse.
 	Forges   []dashboard.ForgeHealth `json:"forges"`
@@ -21,16 +20,17 @@ type mainBranchesResponse struct {
 }
 
 // mainBranchRows is snap's default branches without the repos the user ignored
-// for pull requests, so Branches and navCounts.branches follow the same ignore
-// list as the pull requests page (#1337). A repo ignored only for issues stays.
+// for pull requests, so Branches, and the nav badge the page counts from it,
+// follow the same ignore list as the pull requests page (#1337). A repo ignored
+// only for issues stays.
 func (b boardSettings) mainBranchRows(rows []dashboard.MainBranch) []dashboard.MainBranch {
 	return slices.DeleteFunc(slices.Clone(rows), func(r dashboard.MainBranch) bool {
 		return b.ignored[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)].PRs
 	})
 }
 
-// buildMainBranchesResponse counts the rows and leaves them in the order the
-// snapshot holds them: the client orders them. A row the caller passes is never
+// buildMainBranchesResponse leaves the rows in the order the snapshot holds
+// them: the client orders and tallies them. A row the caller passes is never
 // left out, whatever its status: the client filters, and its pill counts then
 // always match what each pill lists.
 func buildMainBranchesResponse(generatedAt time.Time, forges []dashboard.ForgeHealth, branches []dashboard.MainBranch) mainBranchesResponse {
@@ -46,7 +46,6 @@ func buildMainBranchesResponse(generatedAt time.Time, forges []dashboard.ForgeHe
 
 	return mainBranchesResponse{
 		GeneratedAt: generatedAt,
-		Counts:      dashboard.CountMainBranches(rows),
 		Forges:      forges,
 		Branches:    rows,
 	}

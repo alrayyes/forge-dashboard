@@ -39,7 +39,7 @@ func TestDashboard_CarriesTheMainBranchRows(t *testing.T) {
 	}, pollBudget, 10*time.Millisecond)
 
 	section := fetchDashboard(t, srvURL, cookie)["mainBranchPage"].(map[string]any)
-	assert.EqualValues(t, 1, section["counts"].(map[string]any)["failed"])
+	assert.NotContains(t, section, "counts", "the page tallies the rows it holds")
 }
 
 // The rows follow the same ignore list as GET /api/main-branches.

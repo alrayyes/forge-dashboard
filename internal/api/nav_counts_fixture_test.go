@@ -28,16 +28,9 @@ type navCountsContribution struct {
 	State  string `json:"state"`
 }
 
-// navCountsBranch is what one default branch adds to the Branches badge.
-type navCountsBranch struct {
-	Status string `json:"status"`
-	State  string `json:"state"`
-}
-
 type navCountsFixture struct {
 	Note         string                  `json:"note"`
 	PullRequests []navCountsContribution `json:"pullRequests"`
-	Branches     []navCountsBranch       `json:"branches"`
 }
 
 // contributionOf runs the server's own buildNavCounts on the one item and reads
@@ -78,19 +71,13 @@ func buildNavCountsFixture(t *testing.T) []byte {
 				for _, hidden := range []bool{false, true} {
 					view := pullRequestView{Kind: kind}
 					view.CI, view.Draft, view.Hidden = ci, draft, hidden
-					page, state := contributionOf(t, buildNavCounts([]pullRequestView{view}, 0, nil))
+					page, state := contributionOf(t, buildNavCounts([]pullRequestView{view}, 0))
 					file.PullRequests = append(file.PullRequests, navCountsContribution{
 						Kind: string(kind), CI: string(ci), Draft: draft, Hidden: hidden, Page: page, State: state,
 					})
 				}
 			}
 		}
-	}
-	for _, status := range []dashboard.MainBranchStatus{
-		dashboard.MainBranchNone, dashboard.MainBranchRunning, dashboard.MainBranchPassed, dashboard.MainBranchFailed,
-	} {
-		_, state := contributionOf(t, buildNavCounts(nil, 0, []dashboard.MainBranch{{Status: status}}))
-		file.Branches = append(file.Branches, navCountsBranch{Status: string(status), State: state})
 	}
 
 	var buf bytes.Buffer

@@ -210,7 +210,9 @@ has no value for fails loudly: widen the axis in
 
 The nav badges work the same way. A mocked `/api/dashboard` takes its `navCounts`
 from `navCountsFor` in `tests/nav-counts-helper.ts`, which adds up what
-`tests/generated/nav-counts.json` says each pull request and branch contributes.
+`tests/generated/nav-counts.json` says each pull request contributes. The
+Branches badge isn't in it: the page counts the `mainBranchPage` rows, so a
+mocked dashboard carries those.
 `go test ./internal/api` fails when `buildNavCounts` or a field name changes
 until `UPDATE_FIXTURES=1 go test ./internal/api -run TestNavCountsFixture`
 regenerates it.

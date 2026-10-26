@@ -346,22 +346,15 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
     const body = await res.json();
 
     expect(res.ok()).toBe(true);
-    // Every page except Issues counts running and passed (#1439, #1458);
-    // Branches also counts those with no pipeline (#1531).
+    // The Branches badge is not here: the page counts the rows in
+    // mainBranchPage (#2886).
     const checkedPage = {
       total: expect.any(Number),
       running: expect.any(Number),
       failed: expect.any(Number),
       passed: expect.any(Number),
     };
-    // A branch with no pipeline is counted as none (#1531), and one whose runs
-    // are held for approval on its own (#2024), so the parts add up.
     expect(body.navCounts).toEqual({
-      branches: {
-        ...checkedPage,
-        none: expect.any(Number),
-        awaitingApproval: expect.any(Number),
-      },
       pullRequests: checkedPage,
       issues: { total: expect.any(Number) },
       releases: checkedPage,

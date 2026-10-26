@@ -67,11 +67,12 @@ first, whatever order the server sends them in.
 
 The pills (All, Failing, Passing, Running, Cancelled, Waiting for approval, No
 pipeline) keep their filter names, like the quick pills on the pull request
-board, and carry the server's counts. A pill, and each forge in the toggle, is
-offered only when a row would show under it, given the search and the other
-pill, so none leads to an empty list; the one that is active always stays, so it
-can be cleared. A forge toggle and a search box narrow the list further; search
-matches the repo, branch, commit, author and failing job names. The filter is
+board, and carry a count the page works out from the rows it lists. A pill, and
+each forge in the toggle, is offered only when a row would show under it, given
+the search and the other pill, so none leads to an empty list; the one that is
+active always stays, so it can be cleared. A forge toggle and a search box
+narrow the list further; search matches the repo, branch, commit, author and
+failing job names. The filter is
 saved with the other pages' filters, in the shared filter cookie and in the copy
 on the server, so it is still set after a reload and in another browser.
 
@@ -297,10 +298,11 @@ forge could not say, for example alerts switched off or a token without the
 scope, and is never a count of zero; `reason` then says why when the dashboard
 can tell. The release's title and notes are a
 separate read, `GET /api/releases/details`, made when the dialog opens. The
-response also counts the rows per status. Every row is returned whatever its
-status, ordered by commit time, latest first (rows with no commit time last,
-then by repo name), so a client filters it and its counts always match what it
-lists. Status is a filter, not the order.
+response carries no tally: the page counts the rows it holds, and the
+navigation badge counts the same rows from the dashboard snapshot. Every row is
+returned whatever its status, ordered by commit time, latest first (rows with
+no commit time last, then by repo name), so a client filters it and its counts
+always match what it lists. Status is a filter, not the order.
 
 It reads the snapshot the background refresh already holds and never calls a
 forge, so reading it costs no rate-limit budget. The refresh gets the data

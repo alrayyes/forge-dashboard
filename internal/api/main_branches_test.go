@@ -14,8 +14,7 @@ import (
 
 // mainBranchesBody is GET /api/main-branches as a client reads it.
 type mainBranchesBody struct {
-	Counts   dashboard.MainBranchCounts `json:"counts"`
-	Forges   []dashboard.ForgeHealth    `json:"forges"`
+	Forges   []dashboard.ForgeHealth `json:"forges"`
 	Branches []struct {
 		FullName   string     `json:"fullName"`
 		Status     string     `json:"status"`
@@ -99,10 +98,8 @@ func TestMainBranches_LeaveOutARepoIgnoredForPullRequests(t *testing.T) {
 
 	require.Len(t, body.Branches, 1)
 	assert.Equal(t, "acme/kept", body.Branches[0].FullName)
-	assert.Equal(t, 1, body.Counts.Total)
-	assert.Equal(t, 0, body.Counts.Failed)
-	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 0.0, "passed": 1.0, "none": 0.0, "awaitingApproval": 0.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"),
-		"the badge agrees with the page")
+	page, _ := fetchDashboard(t, srvURL, cookie)["mainBranchPage"].(map[string]any)
+	assert.Len(t, page["branches"], 1, "the snapshot's rows, which the nav badge counts, leave the ignored repo out too")
 }
 
 // Ignoring only a repo's issues leaves its branch alone: Branches follows the
@@ -118,8 +115,9 @@ func TestMainBranches_KeepARepoIgnoredOnlyForIssues(t *testing.T) {
 
 	body := readMainBranchesFrom(t, srvURL, cookie, 1)
 
-	assert.Equal(t, 1, body.Counts.Failed)
-	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 1.0, "passed": 0.0, "none": 0.0, "awaitingApproval": 0.0}, navCount(t, fetchDashboard(t, srvURL, cookie), "branches"))
+	assert.Equal(t, "failed", body.Branches[0].Status)
+	page, _ := fetchDashboard(t, srvURL, cookie)["mainBranchPage"].(map[string]any)
+	assert.Len(t, page["branches"], 1)
 }
 
 func branchRow(repo string, status dashboard.MainBranchStatus) dashboard.MainBranch {
@@ -153,10 +151,14 @@ func TestMainBranches(t *testing.T) {
 		assert.Equal(t, []string{"o/passing", "o/none", "o/broken", "o/building"}, order)
 	})
 
-	t.Run("counts each status, so the pills match what they list", func(t *testing.T) {
+	t.Run("sends rows and no tally: the page counts what it lists", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, dashboard.MainBranchCounts{Failed: 1, Passed: 1, Running: 1, None: 1, Total: 4}, body.Counts)
+		srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{branchRow("o/passing", dashboard.MainBranchPassed)})
+		readMainBranchesFrom(t, srvURL, cookie, 1)
+		_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
+
+		assert.NotContains(t, rawFields(t, got.body), "counts")
 	})
 
 	t.Run("a row carried over from an earlier refresh carries the time, with no stale flag", func(t *testing.T) {
@@ -183,7 +185,15 @@ func TestMainBranches_NoRepos(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	assert.JSONEq(t, `[]`, string(rawField(t, got.body, "branches")), "an array, never null")
-	assert.JSONEq(t, `{"failed":0,"passed":0,"running":0,"cancelled":0,"awaitingApproval":0,"none":0,"total":0}`, string(rawField(t, got.body, "counts")))
+}
+
+func rawFields(t *testing.T, body []byte) map[string]json.RawMessage {
+	t.Helper()
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &fields))
+
+	return fields
 }
 
 func rawField(t *testing.T, body []byte, name string) json.RawMessage {

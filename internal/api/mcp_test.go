@@ -321,7 +321,7 @@ func TestMCP_GetMainBranches_LeavesOutARepoIgnoredForPullRequests(t *testing.T) 
 
 	branches := content["branches"].([]any)
 	assert.Equal(t, "acme/kept", branches[0].(map[string]any)["fullName"])
-	assert.EqualValues(t, 0, content["counts"].(map[string]any)["failed"])
+	assert.Len(t, branches, 1, "the ignored repo's failing branch is left out")
 }
 
 // callDetailsTool calls get_pull_request_details with args on a session for

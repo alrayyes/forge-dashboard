@@ -457,7 +457,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 		SettingsHiddenIssueCount: settingsHidden,
 		HideDependencyDashboard:  filter.hideHousekeeping,
 		IgnoredTitlesSet:         filter.titlesSet,
-		NavCounts:                buildNavCounts(pullRequests, openIssues, branches),
+		NavCounts:                buildNavCounts(pullRequests, openIssues),
 		MainBranchPage:           buildMainBranchesResponse(snap.GeneratedAt, snap.Forges, branches),
 		Repos:                    board.repoStatuses(snap.Repos),
 		HiddenDrafts:             hiddenDrafts,
