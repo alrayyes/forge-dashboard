@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.39.0](https://github.com/alrayyes/forge-dashboard/compare/v2.38.0...v2.39.0) (2026-10-26)
+
+
+### Features
+
+* **github:** subscribe hooks to review thread events ([#2918](https://github.com/alrayyes/forge-dashboard/issues/2918)) ([d886649](https://github.com/alrayyes/forge-dashboard/commit/d886649ef61147c44b8e136c2d123b31342c731e))
+
 ## [2.38.0](https://github.com/alrayyes/forge-dashboard/compare/v2.37.0...v2.38.0) (2026-10-26)
 
 
