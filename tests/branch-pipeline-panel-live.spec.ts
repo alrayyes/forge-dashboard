@@ -33,7 +33,6 @@ function branch(status: string, checks: Counts, forge = 'github') {
     durationSeconds: null,
     runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
     checks,
-    stale: false,
     staleSince: null,
   };
 }

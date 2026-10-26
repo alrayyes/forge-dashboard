@@ -239,7 +239,6 @@ test.describe('the Branches page drops its summary line (#1325)', () => {
       finishedAt: null,
       durationSeconds: null,
       runUrl: '',
-      stale: false,
       staleSince: null,
     });
     const branches = [row('a/one', 'failed'), row('a/two', 'passed')];

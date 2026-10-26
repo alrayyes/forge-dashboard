@@ -32,7 +32,6 @@ function row(
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
     checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
     latestRelease,
-    stale: false,
     staleSince: null,
   };
 }

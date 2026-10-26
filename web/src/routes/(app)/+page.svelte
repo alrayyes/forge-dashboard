@@ -36,6 +36,8 @@
   import {
     ago,
     applyFilter,
+    isStale,
+    sortMainBranches,
     DEFAULT_FILTER,
     duration,
     forgeCounts,
@@ -100,7 +102,7 @@
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
   const pending = $derived(firstRefreshLoading(firstRefresh));
-  const branches = $derived(data?.branches ?? []);
+  const branches = $derived(sortMainBranches(data?.branches ?? []));
   const visible = $derived(applyFilter(branches, filter));
   const perForge = $derived(forgeCounts(branches));
   // A status or forge pill is offered only when clicking it would show
@@ -116,10 +118,7 @@
     advisoryUnknownReason(branches, "forgejo"),
   );
   const staleSplit = $derived(
-    splitStaleRows(
-      branches.filter((b) => b.stale),
-      data?.forges,
-    ),
+    splitStaleRows(branches.filter(isStale), data?.forges),
   );
   const staleRows = $derived(staleSplit.outage);
   const startingRows = $derived(staleSplit.starting);
@@ -1072,7 +1071,8 @@
                     ><span class="dot"></span>{FORGE_LABELS[b.forge] ??
                       b.forge}</span
                   >
-                  {#if b.stale}<span class="mb-chip mb-stale">stale</span>{/if}
+                  {#if isStale(b)}<span class="mb-chip mb-stale">stale</span
+                    >{/if}
                   {#if b.latestRelease && httpHref(b.latestRelease.url)}
                     {@const release = b.latestRelease}
                     <!-- A native button, as the CI pill is: it opens the

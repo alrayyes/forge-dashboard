@@ -210,7 +210,6 @@ const BRANCHES = [
   durationSeconds: null,
   runUrl: `https://example.com/${fullName}/actions/runs/1`,
   checks,
-  stale: false,
   staleSince: null,
 }));
 

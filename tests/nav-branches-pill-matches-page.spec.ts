@@ -29,7 +29,6 @@ function row(fullName: string, status: Status) {
     durationSeconds: null,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
     checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
-    stale: false,
     staleSince: null,
   };
 }

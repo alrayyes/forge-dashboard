@@ -19,7 +19,6 @@ type mainBranchesBody struct {
 	Branches []struct {
 		FullName   string     `json:"fullName"`
 		Status     string     `json:"status"`
-		Stale      bool       `json:"stale"`
 		StaleSince *time.Time `json:"staleSince"`
 	} `json:"branches"`
 }
@@ -144,14 +143,14 @@ func TestMainBranches(t *testing.T) {
 	rows[0].StaleSince = &stale
 	body := readMainBranches(t, rows)
 
-	t.Run("every row is listed, newest commit first, undated last", func(t *testing.T) {
+	t.Run("every row is listed, in the order the snapshot holds them", func(t *testing.T) {
 		t.Parallel()
 
 		var order []string
 		for _, b := range body.Branches {
 			order = append(order, b.FullName)
 		}
-		assert.Equal(t, []string{"o/building", "o/passing", "o/broken", "o/none"}, order)
+		assert.Equal(t, []string{"o/passing", "o/none", "o/broken", "o/building"}, order)
 	})
 
 	t.Run("counts each status, so the pills match what they list", func(t *testing.T) {
@@ -160,16 +159,14 @@ func TestMainBranches(t *testing.T) {
 		assert.Equal(t, dashboard.MainBranchCounts{Failed: 1, Passed: 1, Running: 1, None: 1, Total: 4}, body.Counts)
 	})
 
-	t.Run("a row carried over from an earlier refresh is stale, with the time", func(t *testing.T) {
+	t.Run("a row carried over from an earlier refresh carries the time, with no stale flag", func(t *testing.T) {
 		t.Parallel()
 
 		for _, b := range body.Branches {
 			if b.FullName == "o/passing" {
-				assert.True(t, b.Stale)
 				require.NotNil(t, b.StaleSince)
 				assert.WithinDuration(t, stale, *b.StaleSince, time.Second)
 			} else {
-				assert.False(t, b.Stale, b.FullName)
 				assert.Nil(t, b.StaleSince, b.FullName)
 			}
 		}

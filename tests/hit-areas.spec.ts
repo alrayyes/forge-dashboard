@@ -344,7 +344,6 @@ function branchRow(fullName: string, status: string) {
     finishedAt: ago(12),
     durationSeconds: 252,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
-    stale: false,
     staleSince: null,
   };
 }

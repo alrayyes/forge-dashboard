@@ -105,7 +105,11 @@ func newMCPServer(deps Deps) *mcp.Server {
 			"forge through this tool. Reads the snapshot the background refresh " +
 			"already holds, so it costs no forge budget however often you call it.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, mainBranchesResponse, error) {
-		return nil, resolveMainBranchesFor(ctx, deps), nil
+		// The page orders its own rows, so the tool does the same for its caller.
+		res := resolveMainBranchesFor(ctx, deps)
+		dashboard.SortMainBranches(res.Branches)
+
+		return nil, res, nil
 	})
 
 	addMainBranchChecksTool(server, deps)

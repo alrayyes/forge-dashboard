@@ -62,13 +62,13 @@ func handleMainBranchChecks(deps Deps) http.HandlerFunc {
 // branches page shows, so the rerun route can't be aimed at a repository the
 // dashboard doesn't follow. The row also names the default branch, which saves
 // the forge a lookup.
-func trackedMainBranch(ctx context.Context, deps Deps, forge, fullName string) (mainBranchView, bool) {
+func trackedMainBranch(ctx context.Context, deps Deps, forge, fullName string) (dashboard.MainBranch, bool) {
 	rows := resolveMainBranchesFor(ctx, deps).Branches
-	i := slices.IndexFunc(rows, func(b mainBranchView) bool {
+	i := slices.IndexFunc(rows, func(b dashboard.MainBranch) bool {
 		return string(b.Forge) == forge && b.FullName == fullName
 	})
 	if i < 0 {
-		return mainBranchView{}, false
+		return dashboard.MainBranch{}, false
 	}
 
 	return rows[i], true

@@ -147,7 +147,6 @@ test.describe('mono face and tabular figures (#1754)', () => {
             finishedAt: now,
             durationSeconds: 252,
             runUrl: `https://example.com/${fullName}/actions/runs/1`,
-            stale: false,
             staleSince: null,
           })),
         }),

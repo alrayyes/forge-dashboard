@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -269,7 +270,39 @@ func TestMCP_GetMainBranches_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
 	// generatedAt is the one field that may differ (#1549).
 	delete(httpContent, "generatedAt")
 	delete(toolContent, "generatedAt")
+	// The page orders its own rows and the tool orders its own, so the two
+	// agree on the rows, not on where they sit.
+	byName := func(rows any) {
+		sort.Slice(rows.([]any), func(i, j int) bool {
+			l, r := rows.([]any)[i].(map[string]any), rows.([]any)[j].(map[string]any)
+
+			return l["fullName"].(string) < r["fullName"].(string)
+		})
+	}
+	byName(httpContent["branches"])
+	byName(toolContent["branches"])
 	assert.Equal(t, httpContent, toolContent)
+}
+
+func TestMCP_GetMainBranches_ListsNewestCommitFirstWhateverTheSnapshotOrder(t *testing.T) {
+	t.Parallel()
+
+	older := branchRow("acme/older", dashboard.MainBranchPassed)
+	newer := branchRow("acme/newer", dashboard.MainBranchFailed)
+	undated := branchRow("acme/undated", dashboard.MainBranchNone)
+	for row, ago := range map[*dashboard.MainBranch]time.Duration{&older: 5 * time.Hour, &newer: time.Hour} {
+		c := time.Now().Add(-ago).UTC()
+		row.Commit = &dashboard.MainBranchCommit{CommittedAt: &c}
+	}
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{undated, older, newer})
+
+	content := callMainBranchesTool(t, srvURL, cookie, 3)
+
+	var order []string
+	for _, row := range content["branches"].([]any) {
+		order = append(order, row.(map[string]any)["fullName"].(string))
+	}
+	assert.Equal(t, []string{"acme/newer", "acme/older", "acme/undated"}, order)
 }
 
 func TestMCP_GetMainBranches_LeavesOutARepoIgnoredForPullRequests(t *testing.T) {

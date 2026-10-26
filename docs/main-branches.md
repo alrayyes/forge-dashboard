@@ -62,8 +62,8 @@ they are never older than the click, and a read that fails offers Retry. The
 pill has the pull request board's colours but is taller and larger, 32 pixels
 high on a desktop and 44 on a phone, because this page has room and the pill is
 the main control on the row. The "No pipeline" note is plain, not a button,
-since there is no pipeline to open. Rows come latest commit first, in the order
-the server sends them.
+since there is no pipeline to open. The page orders the rows, latest commit
+first, whatever order the server sends them in.
 
 The pills (All, Failing, Passing, Running, Cancelled, Waiting for approval, No
 pipeline) keep their filter names, like the quick pills on the pull request

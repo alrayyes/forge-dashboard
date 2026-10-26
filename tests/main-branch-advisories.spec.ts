@@ -30,7 +30,6 @@ function row(fullName: string, advisories?: object) {
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
     checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
     latestRelease: null,
-    stale: false,
     staleSince: null,
     ...(advisories ? { advisories } : {}),
   };
@@ -59,7 +58,6 @@ const BRANCHES = [
       highest: 'medium',
       url: 'https://example.com/acme/stale/security/dependabot',
     }),
-    stale: true,
     staleSince: new Date(Date.now() - 3_600_000).toISOString(),
   },
   row('acme/unsafe', {

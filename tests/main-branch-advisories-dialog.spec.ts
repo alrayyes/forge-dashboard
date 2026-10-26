@@ -28,7 +28,6 @@ function branch() {
     runUrl: `https://example.com/${REPO}/actions/runs/1`,
     checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
     latestRelease: null,
-    stale: false,
     staleSince: null,
     advisories: {
       state: 'known',
