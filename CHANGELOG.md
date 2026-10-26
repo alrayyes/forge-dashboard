@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.41.0](https://github.com/alrayyes/forge-dashboard/compare/v2.40.0...v2.41.0) (2026-10-26)
+
+
+### Features
+
+* rebase bot pull requests per repo ([#2921](https://github.com/alrayyes/forge-dashboard/issues/2921)) ([8534fc0](https://github.com/alrayyes/forge-dashboard/commit/8534fc0eabfdc447df43b6fd48b9e6e2f4ad6ae5)), closes [#2861](https://github.com/alrayyes/forge-dashboard/issues/2861)
+
+
+### Bug Fixes
+
+* **web:** release the board hold on toast removal ([#2923](https://github.com/alrayyes/forge-dashboard/issues/2923)) ([1b750e0](https://github.com/alrayyes/forge-dashboard/commit/1b750e0b45b137ae8899572ece76fa9a9dd40f1b)), closes [#2919](https://github.com/alrayyes/forge-dashboard/issues/2919)
+
 ## [2.40.0](https://github.com/alrayyes/forge-dashboard/compare/v2.39.0...v2.40.0) (2026-10-26)
 
 
