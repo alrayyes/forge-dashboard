@@ -59,12 +59,13 @@ type fakeRunTimer struct {
 	ticks  chan time.Time
 	delays chan time.Duration
 
+	t      *testing.T
 	cancel context.CancelFunc
 	done   chan struct{}
 }
 
 func newFakeRunTimer() *fakeRunTimer {
-	return &fakeRunTimer{ticks: make(chan time.Time, 1), delays: make(chan time.Duration, 16)}
+	return &fakeRunTimer{ticks: make(chan time.Time), delays: make(chan time.Duration, 16)}
 }
 
 func (f *fakeRunTimer) C() <-chan time.Time { return f.ticks }
@@ -102,7 +103,7 @@ func (f *fakeRunTimer) start(t *testing.T, agg *dashboard.Aggregator, interval t
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(t.Context())
-	f.cancel = cancel
+	f.t, f.cancel = t, cancel
 	f.done = make(chan struct{})
 	go func() {
 		agg.Run(ctx, interval)
@@ -113,20 +114,29 @@ func (f *fakeRunTimer) start(t *testing.T, agg *dashboard.Aggregator, interval t
 	return nextDelay(t, f)
 }
 
-// tick fires the timer once and returns the delay Run arms it with next, which
-// it does only after handling the tick: whatever the tick refreshed is done.
+// tick fires the timer once and returns the delay Run arms it with next. The
+// timer's channel is unbuffered, so the send returns once Run has taken the
+// tick, and a later stop waits for Run to finish handling it.
 func (f *fakeRunTimer) tick(t *testing.T) time.Duration {
 	t.Helper()
 
-	f.ticks <- time.Time{}
+	select {
+	case f.ticks <- time.Time{}:
+	case <-time.After(time.Second):
+		require.FailNow(t, "Run did not take the tick")
+	}
 
 	return nextDelay(t, f)
 }
 
-// stop ends Run and waits for it to return.
+// stop ends Run and waits a second for it to return.
 func (f *fakeRunTimer) stop() {
 	f.cancel()
-	<-f.done
+	select {
+	case <-f.done:
+	case <-time.After(time.Second):
+		f.t.Error("Run did not return after cancellation")
+	}
 }
 
 // runDelays runs Run over repos and returns the delay it armed the timer with

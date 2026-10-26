@@ -323,16 +323,8 @@ func TestAggregator_Run_ReturnsPromptlyOnShutdownWhileIdle(t *testing.T) {
 	clock.advance(time.Hour)
 	require.True(t, act.Idle())
 
-	done := make(chan struct{})
-	go func() {
-		timer.stop()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Run did not return after cancellation while idle")
-	}
+	// stop fails the test itself if Run does not return in a second.
+	timer.stop()
 }
 
 // Signing in builds a new Aggregator, whose Run refreshes at once, and the
