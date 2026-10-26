@@ -6,26 +6,62 @@
 
 import { formatTime } from './time.svelte';
 
-// severity is the server's grade of the budget as of the response (#806).
+// The budget as the server reports it: the numbers only. How worried to be
+// about them is graded by rateLimitSeverity below (#2929).
 export type RateLimit = {
   limit: number;
   remaining: number;
   resetsAt: string;
-  severity: 'ok' | 'warning' | 'low' | 'exceeded';
 };
+
+export type RateLimitSeverity = 'ok' | 'warning' | 'low' | 'exceeded';
+
+// Under this share of a budget left it is low, under the next it is a warning.
+const LOW_FRACTION = 0.05;
+const WARNING_FRACTION = 0.2;
+
+// The one grade of a budget, used by the banner, the lock, the footer and the
+// Insights gauge. Exceeded is a spent budget whose reset is still ahead (or
+// has no usable time): once the reset has passed the forge has refilled it,
+// so a stale reading grades low until the next snapshot says otherwise. The
+// numbers are the server's; the clock is this tab's.
+export function rateLimitSeverity(
+  limit: RateLimit,
+  now: number = Date.now(),
+): RateLimitSeverity {
+  if (limit.remaining === 0) {
+    const resetsAt = Date.parse(limit.resetsAt);
+    if (!Number.isFinite(resetsAt) || resetsAt > now) return 'exceeded';
+  }
+  if (limit.limit > 0) {
+    const fraction = limit.remaining / limit.limit;
+    if (fraction < LOW_FRACTION) return 'low';
+    if (fraction < WARNING_FRACTION) return 'warning';
+  }
+  return 'ok';
+}
 
 export const PERMISSION_REASON =
   'Missing permission — check your token in Settings.';
 
-// True while the server grades the budget exceeded and the reset is still
-// ahead. The reset is checked against the clock, not stored, so a stale
-// snapshot can't keep an action locked past the reset time; whether the
-// budget is spent is the server's call (#979).
+// True when the banner should say the budget is running low: graded low with
+// something still left. A spent budget past its reset grades low too, but it
+// is a stale reading the next snapshot replaces, not a budget running low.
+export function isRunningLow(
+  limit: RateLimit,
+  now: number = Date.now(),
+): boolean {
+  return limit.remaining > 0 && rateLimitSeverity(limit, now) === 'low';
+}
+
+// True while the budget grades exceeded and the reset is still ahead. The
+// reset is checked against the clock, not stored, so a stale snapshot can't
+// keep an action locked past the reset time (#979).
 export function isRateLimited(
   limit: RateLimit | undefined,
   now: number = Date.now(),
 ): limit is RateLimit {
-  if (limit?.severity !== 'exceeded') return false;
+  if (!limit || rateLimitSeverity(limit, now) !== 'exceeded') return false;
   const resetsAt = Date.parse(limit.resetsAt);
   return Number.isFinite(resetsAt) && resetsAt > now;
 }

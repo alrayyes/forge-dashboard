@@ -5,8 +5,8 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
 // #756: while a forge is rate limited (read-only, #755), a behind pull
 // request can queue Update branch (or a bot rebase) to run at the reset. The

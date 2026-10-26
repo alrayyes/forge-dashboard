@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
 // #1433: GitHub has two independent budgets. The text under the forge pill
 // shows each one, labelled, so it never describes a different budget from the
@@ -107,7 +107,6 @@ test.describe('the budget text under the forge pill (#1433)', () => {
         limit: 1000,
         remaining: 9992,
         resetsAt: inMinutes(40),
-        severity: 'ok',
       },
     });
 

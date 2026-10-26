@@ -7,7 +7,6 @@ const rl = (limit: number, remaining: number): RateLimit => ({
   limit,
   remaining,
   resetsAt: '2030-01-01T00:00:00Z',
-  severity: 'low',
 });
 
 describe('remainingBand', () => {

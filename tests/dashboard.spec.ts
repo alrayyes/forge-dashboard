@@ -12,8 +12,8 @@ import {
   pickTexts,
   toggleLabels,
 } from './label-filter-helper';
+import { rateLimit } from './rate-limit-mock';
 import { landOnPullRequests, test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 import { setTheme } from './theme-helper';
 
 interface MockItem {

@@ -1,8 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
 // #755: a rate-limited forge goes read-only. Its mutating controls are not
 // drawn at all (not greyed), one banner per forge says so with the reset

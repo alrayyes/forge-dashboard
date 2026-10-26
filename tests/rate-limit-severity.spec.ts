@@ -1,11 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
-// #806: the banner reads each rate limit's `severity` from the server, and a
-// locked action offers Retry from the refusal's `code`, not from the words in
-// its message. The mocks below state `severity` and `code` so they disagree
-// with what the page used to work out itself.
+// #806, #2929: the page grades each rate limit from its numbers (the grading
+// itself is covered in web/src/lib/rate-limit.test.ts), and a locked action
+// offers Retry from the refusal's `code`, not from the words in its message.
 
 const FUTURE = () => new Date(Date.now() + 20 * 60_000).toISOString();
 
@@ -32,50 +31,21 @@ async function open(
   await page.goto('/pull-requests.html');
 }
 
-test.describe('rate limits follow the server (#806)', () => {
-  test('severity exceeded shows the banner even when the numbers look healthy', async ({
-    page,
-  }) => {
-    await open(page, {
-      rateLimitREST: {
-        limit: 5000,
-        remaining: 4000,
-        resetsAt: FUTURE(),
-        severity: 'exceeded',
-      },
-    });
+test.describe('rate limits are graded by the page (#2929)', () => {
+  test('a spent budget shows the rate-limited banner', async ({ page }) => {
+    await open(page, { rateLimitREST: rateLimit(5000, 0, FUTURE()) });
     await expect(page.locator('#rate-limit-banner')).toContainText(
       'GitHub is rate limited',
     );
   });
 
-  test('severity low shows the running-low banner', async ({ page }) => {
-    await open(page, {
-      rateLimitGraphQL: {
-        limit: 5000,
-        remaining: 4000,
-        resetsAt: FUTURE(),
-        severity: 'low',
-      },
-    });
+  test('a nearly spent budget shows the running-low banner', async ({
+    page,
+  }) => {
+    await open(page, { rateLimitGraphQL: rateLimit(5000, 100, FUTURE()) });
     await expect(page.locator('#rate-limit-banner')).toContainText(
       'Rate limit running low',
     );
-  });
-
-  test('severity ok shows no banner even when the numbers look nearly spent', async ({
-    page,
-  }) => {
-    await open(page, {
-      rateLimitREST: {
-        limit: 5000,
-        remaining: 10,
-        resetsAt: FUTURE(),
-        severity: 'ok',
-      },
-    });
-    await expect(page.locator('#pr-rows')).toBeAttached();
-    await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
   });
 
   test('a coded refusal offers Retry whatever words its message holds', async ({

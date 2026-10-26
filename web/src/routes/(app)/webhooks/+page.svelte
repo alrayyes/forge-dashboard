@@ -32,7 +32,6 @@
     limit: number;
     remaining: number;
     resetsAt: string;
-    severity: "ok" | "warning" | "low" | "exceeded";
   };
   // Webhook management (list/create/edit a hook) is REST-only (#361) —
   // rateLimitGraphQL exists on the real ForgeHealth this page reads but

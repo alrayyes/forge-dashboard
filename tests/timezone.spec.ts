@@ -1,6 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
-import { rateLimit } from './severity-stand-in';
 
 // Times show in one zone, with its name, everywhere (#996). The zone is the
 // saved setting when there is one, otherwise the browser's own. Browsers

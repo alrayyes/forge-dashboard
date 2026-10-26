@@ -5,14 +5,13 @@
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
+  import { rateLimitSeverity } from "#lib/rate-limit.js";
 
   type RateLimit = {
     limit: number;
     remaining: number;
     resetsAt: string;
     cost?: number;
-    // The server's grade of the budget (#806, #979).
-    severity: "ok" | "warning" | "low" | "exceeded";
   };
   type Forge = {
     forge: string;
@@ -64,8 +63,8 @@
 
   // The gauge colour follows the budget's health, not forge identity —
   // --gh/--fj don't pass as chart-mark fills (see the CSS comment on this
-  // card's rules). The server grades each budget (#979), so the page holds
-  // no cutoff: it only picks the colour for the grade.
+  // card's rules). rateLimitSeverity grades each budget (#2929), the same
+  // grade the banner and the lock use; this only picks the colour for it.
   const RATE_LIMIT_STATUS_CLASS = {
     ok: "rl-good",
     warning: "rl-warning",
@@ -1028,8 +1027,9 @@
         </div>
       {:else}
         {@const pct = rl.limit > 0 ? (rl.remaining / rl.limit) * 100 : 0}
-        {@const statusClass = RATE_LIMIT_STATUS_CLASS[rl.severity]}
-        {@const exhausted = rl.severity === "exceeded"}
+        {@const severity = rateLimitSeverity(rl, now)}
+        {@const statusClass = RATE_LIMIT_STATUS_CLASS[severity]}
+        {@const exhausted = severity === "exceeded"}
         <div
           class={`rate-limit-budget${exhausted ? " rl-exhausted" : ""}`}
           data-rate-limit-kind={kind}

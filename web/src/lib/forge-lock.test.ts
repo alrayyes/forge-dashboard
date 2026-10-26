@@ -15,7 +15,6 @@ const spent = (resetsAt: string) => ({
   limit: 5000,
   remaining: 0,
   resetsAt,
-  severity: 'exceeded' as const,
 });
 const host = (over: Record<string, unknown> = {}) => ({
   forge: 'github',
@@ -106,7 +105,6 @@ describe('spentLimit', () => {
     const healthy = {
       ...spent('2026-10-22T13:30:00Z'),
       remaining: 4000,
-      severity: 'ok' as const,
     };
     const forges = [
       host({ rateLimitREST: healthy }),
