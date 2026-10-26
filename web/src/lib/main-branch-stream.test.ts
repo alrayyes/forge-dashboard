@@ -79,7 +79,7 @@ function harness() {
   };
 }
 
-const PAGE = { generatedAt: 'now', counts: {}, forges: [], branches: [] };
+const PAGE = { generatedAt: 'now', forges: [], branches: [] };
 
 describe('followMainBranchPage', () => {
   test('hands over the page a stream message carries', () => {
