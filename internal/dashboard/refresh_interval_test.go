@@ -58,6 +58,9 @@ func repoWithHook(name string, has bool) dashboard.Repo {
 type fakeRunTimer struct {
 	ticks  chan time.Time
 	delays chan time.Duration
+
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func newFakeRunTimer() *fakeRunTimer {
@@ -93,6 +96,39 @@ func nextDelay(t *testing.T, timer *fakeRunTimer) time.Duration {
 	}
 }
 
+// start runs agg.Run on this timer and returns the delay Run armed it with
+// after its refresh on entry. Run stops when the test ends or at stop.
+func (f *fakeRunTimer) start(t *testing.T, agg *dashboard.Aggregator, interval time.Duration) time.Duration {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	f.cancel = cancel
+	f.done = make(chan struct{})
+	go func() {
+		agg.Run(ctx, interval)
+		close(f.done)
+	}()
+	t.Cleanup(f.stop)
+
+	return nextDelay(t, f)
+}
+
+// tick fires the timer once and returns the delay Run arms it with next, which
+// it does only after handling the tick: whatever the tick refreshed is done.
+func (f *fakeRunTimer) tick(t *testing.T) time.Duration {
+	t.Helper()
+
+	f.ticks <- time.Time{}
+
+	return nextDelay(t, f)
+}
+
+// stop ends Run and waits for it to return.
+func (f *fakeRunTimer) stop() {
+	f.cancel()
+	<-f.done
+}
+
 // runDelays runs Run over repos and returns the delay it armed the timer with
 // after its refresh on entry, then after one tick, with the refreshes made.
 func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (first, second time.Duration, refreshes int) {
@@ -105,19 +141,9 @@ func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (fi
 	timer := newFakeRunTimer()
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option())
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, interval)
-		close(done)
-	}()
-
-	first = nextDelay(t, timer)
-	timer.ticks <- time.Time{}
-	second = nextDelay(t, timer)
-	cancel()
-	<-done
+	first = timer.start(t, agg, interval)
+	second = timer.tick(t)
+	timer.stop()
 
 	return first, second, src.callCount()
 }

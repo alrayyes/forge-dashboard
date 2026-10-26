@@ -1,7 +1,6 @@
 package dashboard_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -215,21 +214,17 @@ func TestAggregator_Run_SkipsScheduledRefreshesWhileIdle(t *testing.T) {
 	t.Parallel()
 
 	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
-	// Idle after 5ms with nobody asking: every scheduled tick at 20ms finds it idle.
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, 20*time.Millisecond)
-		close(done)
-	}()
-
-	time.Sleep(150 * time.Millisecond)
-	cancel()
-	<-done
+	timer.start(t, agg, 20*time.Millisecond)
+	clock.advance(time.Hour)
+	for range 3 {
+		timer.tick(t)
+	}
+	timer.stop()
 
 	assert.Equal(t, 1, src.callCount(), "only the refresh Run does on entry; every scheduled one was skipped while idle")
 }
@@ -240,30 +235,24 @@ func TestAggregator_Run_FirstRequestAfterIdleRunsOneCatchUpRefresh(t *testing.T)
 	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
 	clock := newActivityClock()
 	act := dashboard.NewActivity(15*time.Minute, clock.now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		// A long interval: nothing scheduled can explain a refresh in this test.
-		agg.Run(ctx, time.Hour)
-		close(done)
-	}()
-
-	require.Eventually(t, func() bool { return src.callCount() == 1 }, time.Second, 5*time.Millisecond, "the refresh on entry")
+	// The timer never fires here: nothing scheduled can explain a refresh.
+	timer.start(t, agg, time.Hour)
+	require.Equal(t, 1, src.callCount(), "the refresh on entry")
 	clock.advance(time.Hour)
 
 	act.Touch()
 
 	require.Eventually(t, func() bool { return src.callCount() == 2 }, time.Second, 5*time.Millisecond, "the first request after idle runs one catch-up refresh")
+	nextDelay(t, timer)
 
 	act.Touch()
-	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, 2, src.callCount(), "later requests do not each refresh")
+	timer.tick(t)
+	timer.stop()
 
-	cancel()
-	<-done
+	assert.Equal(t, 3, src.callCount(), "later requests do not each refresh: only the tick did")
 }
 
 func TestAggregator_Run_NoCatchUpWhenNothingWasSkipped(t *testing.T) {
@@ -271,47 +260,36 @@ func TestAggregator_Run_NoCatchUpWhenNothingWasSkipped(t *testing.T) {
 
 	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
 	act := dashboard.NewActivity(time.Hour, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, time.Hour)
-		close(done)
-	}()
-
-	require.Eventually(t, func() bool { return src.callCount() == 1 }, time.Second, 5*time.Millisecond)
+	timer.start(t, agg, time.Hour)
 	act.Touch()
 	act.Present("tab-a", true)
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-	<-done
+	timer.tick(t)
+	timer.stop()
 
-	assert.Equal(t, 1, src.callCount(), "activity while the data is fresh must not trigger a refresh")
+	assert.Equal(t, 2, src.callCount(), "activity while the data is fresh must not trigger a refresh: only the tick did")
 }
 
 func TestAggregator_Run_KeepsRefreshingWhileAViewerIsVisible(t *testing.T) {
 	t.Parallel()
 
 	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
-	act := dashboard.NewActivity(5*time.Millisecond, time.Now)
+	clock := newActivityClock()
+	act := dashboard.NewActivity(time.Millisecond, clock.now)
 	act.Present("tab-a", true)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, 10*time.Millisecond)
-		close(done)
-	}()
+	timer.start(t, agg, 10*time.Millisecond)
+	// Past the idle period, within the time a visible tab holds it off.
+	clock.advance(10 * time.Millisecond)
+	timer.tick(t)
+	timer.tick(t)
+	timer.stop()
 
-	time.Sleep(100 * time.Millisecond)
-	cancel()
-	<-done
-
-	assert.GreaterOrEqual(t, src.callCount(), 3, "a visible tab counts as activity, so the schedule runs as usual")
+	assert.Equal(t, 3, src.callCount(), "a visible tab counts as activity, so the schedule runs as usual")
 }
 
 func TestAggregator_ForcedRefreshAndWebhookRefreshRunWhileIdle(t *testing.T) {
@@ -319,9 +297,10 @@ func TestAggregator_ForcedRefreshAndWebhookRefreshRunWhileIdle(t *testing.T) {
 
 	src := newFakeRepoRefresherSource()
 	src.setRepo("alrayyes/a", nil)
-	act := dashboard.NewActivity(time.Millisecond, time.Now)
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
 	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
-	time.Sleep(20 * time.Millisecond)
+	clock.advance(time.Hour)
 	require.True(t, act.Idle())
 
 	agg.Refresh(t.Context())
@@ -335,19 +314,20 @@ func TestAggregator_Run_ReturnsPromptlyOnShutdownWhileIdle(t *testing.T) {
 	t.Parallel()
 
 	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}}
-	act := dashboard.NewActivity(time.Millisecond, time.Now)
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 
-	ctx, cancel := context.WithCancel(t.Context())
+	timer.start(t, agg, time.Hour)
+	clock.advance(time.Hour)
+	require.True(t, act.Idle())
+
 	done := make(chan struct{})
 	go func() {
-		agg.Run(ctx, time.Hour)
+		timer.stop()
 		close(done)
 	}()
-	require.Eventually(t, func() bool { return src.callCount() == 1 }, time.Second, 5*time.Millisecond)
-	time.Sleep(10 * time.Millisecond)
-
-	cancel()
 	select {
 	case <-done:
 	case <-time.After(time.Second):
@@ -366,22 +346,14 @@ func TestAggregator_Run_AWakeLeftBeforeTheEntryRefreshIsNotAnsweredTwice(t *test
 	act := dashboard.NewActivity(15*time.Minute, clock.now)
 	clock.advance(time.Hour)
 	act.Touch() // idle to active: leaves a wake nobody has read
-	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option(), dashboard.WithActivity(act))
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, time.Hour)
-		close(done)
-	}()
+	timer.start(t, agg, time.Hour)
+	timer.tick(t)
+	timer.stop()
 
-	require.Eventually(t, func() bool { return src.callCount() >= 1 }, time.Second, 5*time.Millisecond)
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-	<-done
-
-	assert.Equal(t, 1, src.callCount(), "only the refresh on entry")
+	assert.Equal(t, 2, src.callCount(), "the refresh on entry and the tick's, none for the wake")
 }
 
 func TestActivity_TheNumberOfViewersIsCappedAndTheOldestGoesFirst(t *testing.T) {

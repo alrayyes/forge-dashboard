@@ -190,25 +190,16 @@ func TestAggregator_Run_RefreshesOnIntervalUntilCanceled(t *testing.T) {
 	src := &fakeSource{result: dashboard.Result{
 		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
 	}}
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option())
 
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, 10*time.Millisecond)
-		close(done)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Run did not return after context cancellation")
+	timer.start(t, agg, 10*time.Millisecond)
+	for range 3 {
+		timer.tick(t)
 	}
+	timer.stop()
 
-	assert.GreaterOrEqual(t, src.callCount(), 2, "expected multiple refreshes over 50ms at a 10ms interval")
+	assert.Equal(t, 4, src.callCount(), "the refresh on entry and one for each tick")
 }
 
 // TestAggregator_Run_CriticallyLowBudget_DelaysNextRefresh is the backoff
@@ -231,28 +222,17 @@ func TestAggregator_Run_CriticallyLowBudget_DelaysNextRefresh(t *testing.T) {
 			},
 		},
 	}}
-	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option())
 
-	ctx, cancel := context.WithCancel(t.Context())
-	done := make(chan struct{})
-	go func() {
-		agg.Run(ctx, 10*time.Millisecond)
-		close(done)
-	}()
+	// At the normal 10ms interval the timer would be armed for 10ms; backed off
+	// against an hour-away reset, it is armed for about that hour, and Run has
+	// made only the one refresh it always does on entry.
+	delay := timer.start(t, agg, 10*time.Millisecond)
+	timer.stop()
 
-	// At the normal 10ms interval this would see 5+ calls; backed off
-	// against an hour-away reset, it should still be sitting at the one
-	// immediate refresh Run always does on entry.
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Run did not return after context cancellation")
-	}
-
-	assert.Equal(t, 1, src.callCount(), "a critically low budget should have suppressed every scheduled refresh after the initial one")
+	assert.Greater(t, delay, 10*time.Minute, "a critically low budget should push the next refresh out past its reset")
+	assert.Equal(t, 1, src.callCount())
 }
 
 func TestNextRefreshDelay(t *testing.T) {
