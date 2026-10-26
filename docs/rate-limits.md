@@ -308,7 +308,9 @@ excuses nothing. Elsewhere a run's job list is read 50 jobs at a time, up to
 when it sends a bare array the walk ends on the first short or empty page, so a
 run of exactly 50 jobs costs one more request than it has pages. A run past
 1,000 jobs, or a forge that ignores the page number, gives the jobs read so far
-and the list is not kept, so it is read again on the next poll. A page, or a
+and the list is not kept, so it is read again on the next poll.
+A rerun is the exception: it needs every job, so for a run past 1,000 jobs it
+stops with an error instead of rerunning part of it. A page, or a
 whole list, is kept once every job is over, or five minutes after a failed run
 ended, so only a run still going, one with no jobs yet, or one with no stop
 time is read again.

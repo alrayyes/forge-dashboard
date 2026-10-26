@@ -280,14 +280,14 @@ func (c *Client) rerunFailedJobs(ctx context.Context, owner, name string, ids []
 // rerunFailedJobsOfRun does rerunFailedJobs for one run. laterRuns is how many
 // failed runs come after it.
 func (c *Client) rerunFailedJobsOfRun(ctx context.Context, owner, name string, runID int64, progress *rerunProgress, laterRuns int) error {
-	jobs, err := c.listActionRunJobs(ctx, owner, name, runID)
+	jobs, err := c.listWholeRunJobs(ctx, owner, name, runID)
 	if err != nil {
 		return withPartial(err, progress.partial(nil, laterRuns+1, "", false))
 	}
 	failed := failedJobIDs(jobs)
 	for i, jobID := range failed {
 		if i > 0 {
-			fresh, err := c.listActionRunJobs(ctx, owner, name, runID)
+			fresh, err := c.listWholeRunJobs(ctx, owner, name, runID)
 			if err != nil {
 				return withPartial(err, progress.partialUnknown(laterRuns))
 			}

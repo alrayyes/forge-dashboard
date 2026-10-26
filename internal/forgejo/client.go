@@ -1695,7 +1695,9 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 	}
 }
 
-// listActionRunJobs lists the jobs for runID, up to maxJobPages pages, decoding leniently rather
+// listActionRunJobs lists the jobs for runID, up to maxJobPages pages, and gives
+// the ones read when there are more. A caller that needs every job uses
+// listWholeRunJobs. It decodes leniently rather
 // than trusting the gitea SDK's own typed ListRepoActionRunJobs. A real,
 // newer Forgejo instance can answer this exact endpoint with a bare JSON
 // array instead of the {"total_count":N,"jobs":[...]} wrapper
@@ -1710,6 +1712,24 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 	jobs, _, err := c.walkActionRunJobs(ctx, owner, name, runID)
 
 	return jobs, err
+}
+
+// errTooManyJobs is a run whose jobs were not all read. A caller that has to act
+// on every job, such as a rerun, takes this over a partial list.
+var errTooManyJobs = errors.New("forgejo: too many jobs to read")
+
+// listWholeRunJobs is listActionRunJobs for a caller that must see every job:
+// a list that is not whole is errTooManyJobs, not a shorter list.
+func (c *Client) listWholeRunJobs(ctx context.Context, owner, name string, runID int64) ([]*gitea.ActionWorkflowJob, error) {
+	jobs, whole, err := c.walkActionRunJobs(ctx, owner, name, runID)
+	if err != nil {
+		return nil, err
+	}
+	if !whole {
+		return nil, fmt.Errorf("%w: run %d has more jobs than are read", errTooManyJobs, runID)
+	}
+
+	return jobs, nil
 }
 
 // walkActionRunJobs is listActionRunJobs that also says whether the list is

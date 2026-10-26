@@ -2,10 +2,15 @@ package forgejo_test
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // successes is n jobs that passed.
@@ -100,4 +105,58 @@ func TestListOpenPullRequests_ARunWithOverAThousandJobsStillCountsItsFirstPage(t
 	got := f.pullRequest(t)
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 1}, got.Checks, fmt.Sprint(got.Checks))
+}
+
+// A rerun must not report success for a run whose failed job it never saw:
+// the walk gives up at 1,000 jobs, and the failure sits past them.
+func TestRerunFailedChecks_AFailedJobPastTheJobsReadIsAnErrorNotAPass(t *testing.T) {
+	t.Parallel()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"workflow_runs": []map[string]any{{"id": 42, "status": "failure"}}})
+	})
+	mux.HandleFunc("GET /api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, r *http.Request) {
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		jobs := []map[string]any{}
+		for i := (page - 1) * 50; i < min(page*50, 1100); i++ {
+			status := "success"
+			if i == 1050 {
+				status = "failure"
+			}
+			jobs = append(jobs, job(i+1, status))
+		}
+		writeJSON(t, w, jobs)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	err := forgejo.NewClient(srv.URL, "test-token", "").RerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.Error(t, err)
+	assert.NotEqual(t, "no failed job to rerun on this pull request", dashboard.ForgeMessage(err))
+}
+
+// The job at the status's position is another one and the named job sits on a
+// later page: the whole run is read and the job found by its name.
+func TestListOpenPullRequests_AJobOnAnotherPageThanItsPositionIsFoundByName(t *testing.T) {
+	t.Parallel()
+	f := cancelledPassing("cancelled")
+	states := successes(120)
+	states[105] = "cancelled"
+	f.jobs[12] = states
+	f.jobNames = map[int][]string{12: {"other"}}
+	f.statuses[1] = jobStatus("failure", "pr-title / job105 (pull_request_target)", 2, 0)
+	names := make([]string, 106)
+	for i := range names {
+		names[i] = fmt.Sprintf("job%d", i)
+	}
+	names[0] = "other"
+	f.jobNames[12] = names
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
 }
