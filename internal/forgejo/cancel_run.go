@@ -80,6 +80,7 @@ func (c *Client) listRunsForSHA(ctx context.Context, owner, name, sha string) (*
 			Title       string `json:"title"`
 			IndexInRepo int64  `json:"index_in_repo"`
 			CommitSHA   string `json:"commit_sha"`
+			Started     string `json:"started"`
 			Stopped     string `json:"stopped"`
 		} `json:"workflow_runs"`
 	}
@@ -99,10 +100,10 @@ func (c *Client) listRunsForSHA(ctx context.Context, owner, name, sha string) (*
 		if run.RunNumber == 0 {
 			run.RunNumber = entry.IndexInRepo
 		}
-		if stopped, err := time.Parse(time.RFC3339, entry.Stopped); err == nil && run.CompletedAt.IsZero() {
-			// Read as text: an unset or odd value must not fail the whole list.
-			run.CompletedAt = stopped
-		}
+		// Read as text: an unset or odd value must not fail the whole list. A
+		// rerun moves the start and not the stop, which is how it is told apart.
+		fillTime(&run.CompletedAt, entry.Stopped)
+		fillTime(&run.StartedAt, entry.Started)
 		if run.HeadSha == "" {
 			run.HeadSha = entry.CommitSHA
 		}
@@ -110,4 +111,11 @@ func (c *Client) listRunsForSHA(ctx context.Context, owner, name, sha string) (*
 	}
 
 	return out, resp, nil
+}
+
+// fillTime sets t from text when t is unset and the text is a time.
+func fillTime(t *time.Time, text string) {
+	if parsed, err := time.Parse(time.RFC3339, text); err == nil && t.IsZero() {
+		*t = parsed
+	}
 }

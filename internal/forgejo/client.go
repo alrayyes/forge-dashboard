@@ -1257,7 +1257,7 @@ func (c *Client) cancelledFailures(ctx context.Context, owner, name string, runs
 		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			jobs, err := c.readRunJobs(ctx, owner, name, run.ID, run.Status, run.CompletedAt)
+			jobs, err := c.readRunJobs(ctx, owner, name, run.ID, run.Status, run.StartedAt, run.CompletedAt)
 			if err != nil {
 				slog.Debug("cancelled failures not read", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
 
