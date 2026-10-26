@@ -61,6 +61,8 @@ jobs:
         run: scripts/test-release-workflow.sh
       - name: check the hadolint pins agree
         run: scripts/test-hadolint-pin.sh
+      - name: check the gitleaks pins agree
+        run: scripts/test-gitleaks-pin.sh
       - name: check the Playwright image matches the library
         run: scripts/test-playwright-image.sh
       - name: check the audit gate and scan shape

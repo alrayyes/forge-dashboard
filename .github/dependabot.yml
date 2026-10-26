@@ -13,7 +13,8 @@
 # scripts/golangci-lint-docker.sh, the goreleaser image in
 # scripts/goreleaser-docker.sh, lefthook.yml and ci.yml (the release job's
 # goreleaser version is its own pin in release.yml), the hadolint image in
-# lefthook.yml and ci.yml, and the `go run ...@vX` pins (gotestsum,
+# lefthook.yml and ci.yml, the gitleaks image in lefthook.yml and
+# gitleaks.yml, and the `go run ...@vX` pins (gotestsum,
 # govulncheck). Moving them into Dockerfiles or go.mod just so a bot sees
 # them is a bigger change than the bumps cost.
 version: 2
