@@ -78,6 +78,21 @@ func (f *fakeRunTimer) option() dashboard.AggregatorOption {
 	})
 }
 
+// nextDelay is the next delay Run arms the timer with. A Run that never does
+// fails the test in a second, where a bare receive would hang it.
+func nextDelay(t *testing.T, timer *fakeRunTimer) time.Duration {
+	t.Helper()
+
+	select {
+	case d := <-timer.delays:
+		return d
+	case <-time.After(time.Second):
+		require.FailNow(t, "Run did not arm its timer")
+
+		return 0
+	}
+}
+
 // runDelays runs Run over repos and returns the delay it armed the timer with
 // after its refresh on entry, then after one tick, with the refreshes made.
 func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (first, second time.Duration, refreshes int) {
@@ -98,9 +113,9 @@ func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (fi
 		close(done)
 	}()
 
-	first = <-timer.delays
+	first = nextDelay(t, timer)
 	timer.ticks <- time.Time{}
-	second = <-timer.delays
+	second = nextDelay(t, timer)
 	cancel()
 	<-done
 
@@ -110,10 +125,11 @@ func runDelays(t *testing.T, repos []dashboard.Repo, interval time.Duration) (fi
 func TestAggregator_Run_WaitsTheStretchedDelayWhileEveryWebhookIsHealthy(t *testing.T) {
 	t.Parallel()
 
-	first, second, _ := runDelays(t, []dashboard.Repo{repoWithHook("alrayyes/a", true)}, 20*time.Millisecond)
+	first, second, refreshes := runDelays(t, []dashboard.Repo{repoWithHook("alrayyes/a", true)}, 20*time.Millisecond)
 
 	assert.Equal(t, 80*time.Millisecond, first)
 	assert.Equal(t, 80*time.Millisecond, second)
+	assert.Equal(t, 2, refreshes, "the entry refresh and the one the tick caused")
 }
 
 func TestAggregator_Run_KeepsTheIntervalWhenAWebhookIsMissing(t *testing.T) {
