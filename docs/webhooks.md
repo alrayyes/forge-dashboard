@@ -119,6 +119,7 @@ request or a comment but never to that pull request's checks finishing.
 | A review on a pull request, or a comment on its diff                                            | Pull request reviews, Pull request review comments | Pull Request Review Approved, Pull Request Review Rejected, Pull Request Review Comment |
 | **CI/build status** — Actions, a third-party check, or a classic commit status, on either forge | Statuses, Check runs                               | Status                                                                                  |
 | A commit landing outside an open pull request                                                   | not tracked                                        | Push                                                                                    |
+| An Actions run finishing, including a rerun, so a branch's pill leaves the old result           | covered above                                      | Action Run Failure, Action Run Success                                                  |
 
 GitHub splits CI into two separate events because it has two separate
 CI mechanisms with two separate APIs — **Statuses** is the older
@@ -128,7 +129,12 @@ and a pull request whose only checks come from the mechanism you didn't
 select won't update its CI colour until the next poll — everything else
 about that pull request still updates live. Forgejo doesn't have this
 split: its own Actions runs post to the same combined commit-status
-endpoint external CI does, so **Status** alone covers both.
+endpoint external CI does, so **Status** covers both. A rerun is the
+exception. It posts nothing until a job ends, so **Action Run Failure**
+and **Action Run Success** are what refresh a branch's pill when a run
+finishes. Forgejo sends them on the final state only, so the pill can
+show the old result until then. A Forgejo that drops these names falls
+back to the next poll.
 
 Forgejo's **Push** doesn't feed anything the dashboard displays on its
 own — there's no commit feed here — but it's cheap to include: a push to
@@ -173,7 +179,8 @@ was accepted.
 5. **Trigger On**: "Custom Events", then check **Pull Request**,
    **Issue**, **Issue Comment**, **Pull Request Comment**, **Pull Request
    Review Approved**, **Pull Request Review Rejected**, **Pull Request
-   Review Comment**, **Push**, and **Status**. ("All Events" works too, same
+   Review Comment**, **Push**, **Status**, **Action Run Failure** and
+   **Action Run Success**. ("All Events" works too, same
    reasoning as the preceding GitHub section.) A webhook the button creates
    through the API needs no extra ticks: Forgejo's **Pull Request** and
    **Issue** types already deliver comments and reviews on those items.
@@ -242,8 +249,9 @@ can't administer is tried once and left until the next restart.
 - **Everything about a pull request updates live except its CI colour**:
   the webhook is working, it's just missing the CI-specific event — see
   the preceding table. Re-open the webhook on your forge and check
-  **Statuses**/**Check runs** (GitHub) or **Status** (Forgejo); nothing
-  else about the webhook needs changing.
+  **Statuses**/**Check runs** (GitHub) or **Status**, **Action Run
+  Failure** and **Action Run Success** (Forgejo); nothing else about the
+  webhook needs changing.
 - **A Forgejo webhook's `status` event won't stick, however it's
   created**: confirmed live against two separate real instances
   (`16.0.4+gitea-1.22.0` among them) — both the settings form's own

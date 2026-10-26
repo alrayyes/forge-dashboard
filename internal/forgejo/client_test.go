@@ -975,7 +975,7 @@ func TestEnsureWebhook_CreatesWhenMissing(t *testing.T) {
 	assert.Equal(t, "https://dashboard.example/api/webhooks/forgejo/tok123", config["url"])
 	assert.Equal(t, "sekret", config["secret"])
 	assert.Equal(t, true, createBody["active"])
-	assert.ElementsMatch(t, []any{"pull_request", "issues", "issue_comment", "pull_request_comment", "pull_request_review_comment", "pull_request_review_approved", "pull_request_review_rejected", "push", "status"}, createBody["events"])
+	assert.ElementsMatch(t, []any{"pull_request", "issues", "issue_comment", "pull_request_comment", "pull_request_review_comment", "pull_request_review_approved", "pull_request_review_rejected", "push", "status", "action_run_failure", "action_run_success"}, createBody["events"])
 }
 
 func TestEnsureWebhook_EditsExistingHookInPlace(t *testing.T) {
@@ -2189,7 +2189,7 @@ func TestUpgradeWebhook_HookAlreadyHasEveryEvent_WritesNothing(t *testing.T) {
 			return
 		}
 		writeJSON(t, w, []map[string]any{
-			{"id": 7, "type": "forgejo", "events": []string{"status", "push", "pull_request_review_rejected", "pull_request_review_approved", "pull_request_review_comment", "pull_request_comment", "issue_comment", "issues", "pull_request"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
+			{"id": 7, "type": "forgejo", "events": []string{"action_run_success", "action_run_failure", "status", "push", "pull_request_review_rejected", "pull_request_review_approved", "pull_request_review_comment", "pull_request_comment", "issue_comment", "issues", "pull_request"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
 		})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(_ http.ResponseWriter, r *http.Request) {
@@ -2223,7 +2223,7 @@ func TestUpgradeWebhook_HookMissingOnlyStatus_WritesNothing(t *testing.T) {
 			return
 		}
 		writeJSON(t, w, []map[string]any{
-			{"id": 7, "type": "forgejo", "events": []string{"push", "pull_request_review_rejected", "pull_request_review_approved", "pull_request_review_comment", "pull_request_comment", "issue_comment", "issues", "pull_request"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
+			{"id": 7, "type": "forgejo", "events": []string{"action_run_failure", "action_run_success", "push", "pull_request_review_rejected", "pull_request_review_approved", "pull_request_review_comment", "pull_request_comment", "issue_comment", "issues", "pull_request"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": true},
 		})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(_ http.ResponseWriter, r *http.Request) {

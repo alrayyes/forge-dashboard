@@ -315,11 +315,14 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 // comment and review names below are explicit rather than the fix; the fix for
 // a stale "Last activity" sort (#1552) is on GitHub, whose "issues" and
 // "pull_request" events do not carry comments. Names are Forgejo's own hook
-// event types (modules/webhook/type.go).
+// event types (modules/webhook/type.go). The two action_run names are what
+// make a rerun of an Actions run reach us: a rerun posts no commit status of
+// its own until a job ends, so without them a branch pill stays on the old run.
 var forgejoWebhookEvents = []string{
 	"pull_request", "issues", "issue_comment", "pull_request_comment",
 	"pull_request_review_comment", "pull_request_review_approved",
 	"pull_request_review_rejected", "push", "status",
+	"action_run_failure", "action_run_success",
 }
 
 // EnsureWebhook implements dashboard.WebhookManager: create a webhook
