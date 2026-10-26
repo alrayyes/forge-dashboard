@@ -4742,7 +4742,7 @@ footer a[aria-current="page"] {
 }
 .rebase-all-button,
 .rebase-all-actions button {
-  min-height: 36px;
+  min-height: 44px;
   padding: 6px 14px;
   font-family: inherit;
   font-size: 0.8125rem;
