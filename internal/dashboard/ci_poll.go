@@ -366,7 +366,7 @@ func (a *Aggregator) pendingRefresherFor(forge Forge) PendingCheckRefresher {
 }
 
 // checkEventNames are the hook events a GitHub hook gets finished checks from.
-var checkEventNames = []string{"check_run", "check_suite"}
+var checkEventNames = []string{"check_run"}
 
 // checksArriveByWebhook reports whether a poll of it can wait for the webhook:
 // the pull request waits on a check, the forge is GitHub (Forgejo's hook drops

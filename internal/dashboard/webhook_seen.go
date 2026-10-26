@@ -13,8 +13,8 @@ import (
 type EventClass string
 
 const (
-	// EventClassCheck is a finished or started check: check_run, check_suite
-	// or a commit status.
+	// EventClassCheck is a finished or started check: check_run or a commit
+	// status.
 	EventClassCheck EventClass = "check"
 	// EventClassPullRequest is a pull_request event.
 	EventClassPullRequest EventClass = "pull_request"
@@ -26,7 +26,7 @@ const (
 // it in its event header.
 func ClassifyEvent(event string) EventClass {
 	switch event {
-	case "check_run", "check_suite", "status":
+	case "check_run", "status":
 		return EventClassCheck
 	case "pull_request":
 		return EventClassPullRequest

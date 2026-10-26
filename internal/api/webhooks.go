@@ -135,15 +135,14 @@ func pullRequestAction(body []byte) (action string, number int, ok bool) {
 	return ev.Action, ev.PullRequest.Number, true
 }
 
-// checkEvent is the shape of the three check events: each names the commit its
-// checks ran against, in a different place.
+// checkEvent is the shape of the two check events: each names the commit its
+// checks ran against, in a different place. check_suite is not one of them: a
+// hook the app creates is not subscribed to it, since check_run already
+// reports every run and rerun.
 type checkEvent struct {
 	CheckRun *struct {
 		HeadSHA string `json:"head_sha"`
 	} `json:"check_run"`
-	CheckSuite *struct {
-		HeadSHA string `json:"head_sha"`
-	} `json:"check_suite"`
 	SHA string `json:"sha"`
 }
 
@@ -163,10 +162,6 @@ func checkCommit(event string, body []byte) (string, bool) {
 	case "check_run":
 		if ev.CheckRun != nil {
 			sha = ev.CheckRun.HeadSHA
-		}
-	case "check_suite":
-		if ev.CheckSuite != nil {
-			sha = ev.CheckSuite.HeadSHA
 		}
 	case "status":
 		sha = ev.SHA

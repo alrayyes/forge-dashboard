@@ -213,14 +213,14 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
   auto-merge armed never backs off, because GitHub merges it without telling us
   and the board should notice within one interval.
 - **No poll while the webhook is working.** A pull request is left out of the poll
-  when its repo's webhook is confirmed to deliver check events (`check_run` or
-  `check_suite`) and a delivery for that pull request's own head commit arrived
+  when its repo's webhook is confirmed to deliver check events (`check_run`)
+  and a delivery for that pull request's own head commit arrived
   within three poll intervals. A delivery for another pull request, or for
   another commit, doesn't count, so one busy pull request can't hide a quiet
   one. The delivery has to carry a valid signature, and its body has to name the
-  commit (`check_run.head_sha`, `check_suite.head_sha` or a status event's
-  `sha`). A check header on some other body counts as nothing. Once deliveries go
-  quiet for longer than that, polling starts again by itself. This applies only
+  commit (`check_run.head_sha` or a status event's `sha`). A check header on
+  some other body counts as nothing. Once deliveries go quiet for longer than
+  that, polling starts again by itself. This applies only
   to pull requests waiting on a check, never to an armed auto-merge, because the
   merge itself isn't a check delivery. Forgejo is never skipped: its webhook
   can't subscribe to the event CI status rides on.

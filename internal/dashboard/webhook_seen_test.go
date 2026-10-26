@@ -13,7 +13,7 @@ func TestClassifyEvent(t *testing.T) {
 
 	cases := map[string]dashboard.EventClass{
 		"check_run":     dashboard.EventClassCheck,
-		"check_suite":   dashboard.EventClassCheck,
+		"check_suite":   dashboard.EventClassOther,
 		"status":        dashboard.EventClassCheck,
 		"pull_request":  dashboard.EventClassPullRequest,
 		"issue_comment": dashboard.EventClassOther,
