@@ -918,12 +918,12 @@ started by a newer push, and a cancel can't be undone (`POST
 in `allowedActions`).
 A job of a workflow run carries that run, so a finished job says which run it
 came from. On GitHub the run's id is in the job's page address and costs
-nothing. Its name and number come from the commit's runs, which the checks list
-reads extra. While some check is running or queued it reads the queued workflow
+nothing. Its name and number come from the runs for that commit, which the checks
+list reads extra. While some check is running or queued it reads the queued workflow
 runs, the running ones, and the jobs of each: three reads for a commit with one
 active run, and the same three again on every re-read after a cancel. When a
-finished job names a run those reads didn't list, it also reads the commit's
-completed runs, once however many jobs there are. So a finished GitHub pipeline
+finished job names a run those reads didn't list, it also reads the completed
+runs for that commit, once however many jobs there are. So a finished GitHub pipeline
 costs one extra read each time its list is read, and a pipeline with a running
 check costs up to four. A failed lookup leaves the run's name and number empty
 and the list intact, and the run id still lets the panel offer the cancel. The
