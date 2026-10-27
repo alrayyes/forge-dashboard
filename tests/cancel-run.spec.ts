@@ -44,7 +44,14 @@ type CheckFixture = {
 };
 
 const RUNNING: CheckFixture[] = [
-  { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+  {
+    name: 'build',
+    state: 'success',
+    url: 'https://example.com/r/1',
+    jobId: 1,
+    runId: 77,
+    runName: 'ci',
+  },
   {
     name: 'lint',
     state: 'running',
