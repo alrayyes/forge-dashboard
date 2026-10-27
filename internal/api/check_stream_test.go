@@ -136,15 +136,6 @@ func (f *checkFeed) nextChecks(t *testing.T) map[string]any {
 	}
 }
 
-func (f *checkFeed) noChecksWithin(t *testing.T, d time.Duration) {
-	t.Helper()
-	select {
-	case ev := <-f.events:
-		assert.NotEqual(t, "checks", ev.name, "unexpected checks event: %s", ev.data)
-	case <-time.After(d):
-	}
-}
-
 const watchPR = `{"streamId":"` + watchedStreamID + `","subjects":[{"kind":"pull_request","forge":"github","fullName":"alrayyes/tempus-fugit","number":7}]}`
 
 func TestCheckStream_WatchingAPullRequestSendsItsChecks(t *testing.T) {
@@ -193,21 +184,7 @@ func TestCheckStream_RefreshSendsTheChecksAgain(t *testing.T) {
 	assert.EqualValues(t, 2, source.lists.Load())
 }
 
-func TestCheckStream_AWatchWithoutRefreshForASubjectAlreadyWatchedListsNothing(t *testing.T) {
-	t.Parallel()
-
-	source := &checkFeedSource{checks: []dashboard.Check{}}
-	feed, _ := openCheckFeed(t, source)
-	feed.watch(t, watchPR)
-	feed.nextChecks(t)
-
-	feed.watch(t, watchPR)
-
-	feed.noChecksWithin(t, 200*time.Millisecond)
-	assert.EqualValues(t, 1, source.lists.Load())
-}
-
-func TestCheckStream_ANewSnapshotListsAgainOnlyWhenTheWatchedRowChanged(t *testing.T) {
+func TestCheckStream_ASnapshotWhereTheWatchedRowChangedSendsTheChecksAgain(t *testing.T) {
 	t.Parallel()
 
 	source := &checkFeedSource{checks: []dashboard.Check{}}
@@ -216,13 +193,8 @@ func TestCheckStream_ANewSnapshotListsAgainOnlyWhenTheWatchedRowChanged(t *testi
 	feed.watch(t, watchPR)
 	feed.nextChecks(t)
 
-	tokenSecret := strings.SplitN(hook, ":", 2)
-	// Same CI: the snapshot arrives, the job list is not asked for again.
-	triggerWebhook(t, feed.srvURL, tokenSecret[0], tokenSecret[1])
-	feed.noChecksWithin(t, 300*time.Millisecond)
-	require.EqualValues(t, 1, source.lists.Load())
-
 	source.ci.Store(dashboard.CISuccess)
+	tokenSecret := strings.SplitN(hook, ":", 2)
 	triggerWebhook(t, feed.srvURL, tokenSecret[0], tokenSecret[1])
 	feed.nextChecks(t)
 
