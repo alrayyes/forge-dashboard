@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/alrayyes/forge-dashboard/compare/v2.44.0...v3.0.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop the GET checks endpoints ([#2962](https://github.com/alrayyes/forge-dashboard/issues/2962))
+
+### Code Refactoring
+
+* drop the GET checks endpoints ([#2962](https://github.com/alrayyes/forge-dashboard/issues/2962)) ([774506b](https://github.com/alrayyes/forge-dashboard/commit/774506b040aebd187e72ad57d4ec5d2220ea25c8))
+
 ## [2.44.0](https://github.com/alrayyes/forge-dashboard/compare/v2.43.1...v2.44.0) (2026-10-27)
 
 
