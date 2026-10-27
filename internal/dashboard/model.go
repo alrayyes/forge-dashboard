@@ -72,7 +72,8 @@ type Label struct {
 
 // CheckState is one job/check's own status — the per-job detail CIStatus
 // deliberately doesn't carry, since CIStatus is the combined result across
-// every one of them. Matches components.schemas.CheckState.
+// every one of them. It is the server's internal enum, never sent: WithFacts
+// turns it into the status and conclusion on the wire.
 type CheckState string
 
 // The states a single check/job can be in, coarse enough for both forges'

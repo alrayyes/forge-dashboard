@@ -53,6 +53,36 @@ func TestWithFacts_SendsStatusAndConclusionNotState(t *testing.T) {
 	}
 }
 
+func TestWithFacts_EveryStateMapsToAnEnumValueTheSpecAllows(t *testing.T) {
+	t.Parallel()
+
+	statuses := []dashboard.CheckStatus{
+		dashboard.CheckStatusQueued, dashboard.CheckStatusInProgress,
+		dashboard.CheckStatusCompleted, dashboard.CheckStatusWaiting,
+	}
+	conclusions := []dashboard.CheckConclusion{
+		"", dashboard.CheckConclusionSuccess, dashboard.CheckConclusionFailure,
+		dashboard.CheckConclusionCancelled, dashboard.CheckConclusionSkipped,
+		dashboard.CheckConclusionTimedOut,
+	}
+	states := []dashboard.CheckState{
+		dashboard.CheckQueued, dashboard.CheckRunning, dashboard.CheckSuccess,
+		dashboard.CheckFailure, dashboard.CheckCancelled, dashboard.CheckSkipped,
+		dashboard.CheckTimedOut, dashboard.CheckAwaitingApproval,
+	}
+
+	for _, s := range states {
+		t.Run(string(s), func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.WithFacts([]dashboard.Check{{State: s}})[0]
+
+			assert.Contains(t, statuses, got.Status)
+			assert.Contains(t, conclusions, got.Conclusion)
+		})
+	}
+}
+
 func TestWithFacts_KeepsTheOtherFieldsAndTheStateInProcess(t *testing.T) {
 	t.Parallel()
 

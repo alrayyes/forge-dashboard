@@ -173,7 +173,7 @@ func addMainBranchChecksTool(server *mcp.Server, deps Deps) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_main_branch_checks",
 		Description: "List every individual check (CI job) of the newest pipeline on one " +
-			"repo's default branch, with its state, link, duration and, for a failed one, " +
+			"repo's default branch, with its status and conclusion, link, duration and, for a failed one, " +
 			"the failed step and, on GitHub, a log excerpt -- the same data as the web UI's pipeline " +
 			"panel on the Main branches page. Read-only: this app never writes to either " +
 			"forge through this tool. Fetched on demand from the forge, never from the " +
@@ -277,7 +277,7 @@ func addPullRequestTools(server *mcp.Server, deps Deps) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "get_pull_request_checks",
 		Description: "List every individual check (CI job) on one pull request's head " +
-			"commit, with its state, link, duration and, for a failed one, the failed " +
+			"commit, with its status and conclusion, link, duration and, for a failed one, the failed " +
 			"step and, on GitHub, a log excerpt -- the same data as the web UI's pipeline panel. " +
 			"Read-only: this app never writes to either forge through this tool. " +
 			"Fetched on demand from the forge, never from the snapshot, so each call " +
