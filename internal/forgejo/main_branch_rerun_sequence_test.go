@@ -18,8 +18,8 @@ type rerunPoll struct {
 	Jobs  map[string][]map[string]any `json:"jobs"`
 }
 
-// rerunPolls loads the three answers Forgejo gave around a manual rerun
-// (testdata/actions_rerun_sequence.json), in order.
+// rerunPolls loads the three answers Forgejo is modelled as giving around a manual rerun
+// (testdata/actions_rerun_sequence.json, modelled by hand), in order.
 func rerunPolls(t *testing.T) []rerunPoll {
 	t.Helper()
 
@@ -36,7 +36,7 @@ func rerunPolls(t *testing.T) []rerunPoll {
 // A rerun of a finished, failed run answers the same run id and job ids with a
 // new attempt. Each poll across it has to give a pill and a dialog that count
 // the same jobs, and the rerun's jobs, not the failed attempt's.
-func TestReadMainBranch_ARecordedRerunMovesThePillAndTheDialogTogether(t *testing.T) {
+func TestReadMainBranch_ARerunSequenceMovesThePillAndTheDialogTogether(t *testing.T) {
 	t.Parallel()
 
 	polls := rerunPolls(t)
@@ -55,20 +55,27 @@ func TestReadMainBranch_ARecordedRerunMovesThePillAndTheDialogTogether(t *testin
 		return row, checks
 	}
 
-	before, _ := read(t, 0)
+	attempts := func(checks []dashboard.Check) map[string]int64 {
+		out := map[string]int64{}
+		for _, c := range checks {
+			out[c.Name] = c.RunAttempt
+		}
+
+		return out
+	}
+
+	before, beforeChecks := read(t, 0)
+	assert.Equal(t, map[string]int64{"lint": 1, "build": 1, "deploy": 1}, attempts(beforeChecks))
 	assert.Equal(t, dashboard.MainBranchFailed, before.Status)
 	assert.Equal(t, dashboard.CheckCounts{Passed: 2, Failed: 1}, before.Checks)
 
 	mid, midChecks := read(t, 1)
 	assert.Equal(t, dashboard.MainBranchRunning, mid.Status, "no failed job is left, so the row is running")
 	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Running: 1, Waiting: 1}, mid.Checks)
-	for _, c := range midChecks {
-		if c.Name == "build" || c.Name == "deploy" {
-			assert.EqualValues(t, 2, c.RunAttempt, c.Name)
-		}
-	}
+	assert.Equal(t, map[string]int64{"lint": 1, "build": 2, "deploy": 2}, attempts(midChecks))
 
-	after, _ := read(t, 2)
+	after, afterChecks := read(t, 2)
+	assert.Equal(t, map[string]int64{"lint": 1, "build": 2, "deploy": 2}, attempts(afterChecks))
 	assert.Equal(t, dashboard.MainBranchPassed, after.Status)
 	assert.Equal(t, dashboard.CheckCounts{Passed: 3}, after.Checks)
 }

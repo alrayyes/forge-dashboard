@@ -1,5 +1,5 @@
 {
-  "note": "Three polls of one commit on homelab/vps-docker shaped as Forgejo answered them around a manual rerun of run 5001: before, mid-rerun, after. A rerun keeps the run id and job ids, bumps the job attempt and resets the run's stop to the Unix epoch while it goes.",
+  "note": "Hand-built from the #2691 description and the SDK's field names, not captured live. Three polls of one commit around a manual rerun of run 5001: before, mid-rerun, after. A rerun is modelled as keeping the run id and job ids, bumping run_attempt and resetting the run's stop to the Unix epoch while it goes.",
   "polls": [
     {
       "label": "before the rerun: release failed, lint passed",
