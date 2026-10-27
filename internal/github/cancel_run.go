@@ -60,8 +60,9 @@ func refOf(run *ghsdk.WorkflowRun) runRef {
 }
 
 // jobRunID is the id of the workflow run in an Actions job's page address
-// ("/actions/runs/<run>/job/<job>"), 0 for any other address.
-var jobRunID = regexp.MustCompile(`/actions/runs/(\d+)/job/\d+`)
+// ("/actions/runs/<run>/job/<job>", with an "/attempts/<n>" after the run
+// tolerated), 0 for any other address.
+var jobRunID = regexp.MustCompile(`/actions/runs/(\d+)(?:/attempts/\d+)?/job/\d+`)
 
 func runIDOf(jobURL string) int64 {
 	m := jobRunID.FindStringSubmatch(jobURL)
@@ -81,8 +82,9 @@ func runIDOf(jobURL string) int64 {
 // job is matched to its run by the run's job list, which only unfinished runs
 // are asked for. A finished job carries its run's id in its page address, so
 // its run's name and number come from one more list of the commit's completed
-// runs, read only when such a job needs it. The names are a convenience: a read
-// that fails leaves the checks as they were, never an error.
+// runs, read only when such a job needs it. The id of a finished job's run is
+// set whenever its address gives one; the name and number are a convenience,
+// and a read that fails leaves them empty, never an error.
 func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks []dashboard.Check) {
 	known := c.attachGoingRuns(ctx, owner, name, sha, checks)
 
@@ -99,9 +101,16 @@ func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks
 		}
 	}
 	for i := range checks {
-		if ref, ok := known[runIDOf(checks[i].URL)]; ok && checks[i].RunID == 0 {
-			setRun(&checks[i], ref)
+		id := runIDOf(checks[i].URL)
+		if checks[i].RunID != 0 || id == 0 {
+			continue
 		}
+		// The id is a fact of the address; the name and number need the lookup.
+		ref, ok := known[id]
+		if !ok {
+			ref = runRef{id: id}
+		}
+		setRun(&checks[i], ref)
 	}
 }
 

@@ -4804,14 +4804,16 @@ components:
           type: string
           description: |
             The name of that workflow run, for a client to say which run a
-            cancel stops. Present with `runId`.
+            cancel stops. Present with `runId`; on GitHub it can be absent
+            when the lookup of the commit's runs failed or didn't list the run.
         runNumber:
           type: integer
           minimum: 1
           description: |
             The forge's own number for that run, the one in the run's page
             address. It tells two runs of one workflow apart. Present with
-            `runId` when the forge says it.
+            `runId` when the forge says it; on GitHub it can be absent when
+            the lookup of the commit's runs failed or didn't list the run.
         required:
           type: boolean
           description: |
