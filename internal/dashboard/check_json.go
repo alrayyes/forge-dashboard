@@ -54,6 +54,17 @@ func checkFacts(state CheckState) (CheckStatus, CheckConclusion) {
 	}
 }
 
+// StatusFacts is the status and conclusion to send for something in state,
+// where reported is the word the forge gave for how it ended, if it gave one.
+// A reported word wins over the state, since it is the forge's own.
+func StatusFacts(state CheckState, reported string) (CheckStatus, CheckConclusion) {
+	if reported != "" {
+		return CheckStatusCompleted, CheckConclusion(reported)
+	}
+
+	return checkFacts(state)
+}
+
 // WithFacts fills in each check's status and conclusion from its State, the
 // last step before the checks leave the server. State stays the server's own
 // shorthand for deciding rerun, cancel and the main branch counts; the status
@@ -66,10 +77,7 @@ func WithFacts(checks []Check) []Check {
 
 	out := make([]Check, len(checks))
 	for i, c := range checks {
-		c.Status, c.Conclusion = checkFacts(c.State)
-		if c.ReportedConclusion != "" {
-			c.Status, c.Conclusion = CheckStatusCompleted, CheckConclusion(c.ReportedConclusion)
-		}
+		c.Status, c.Conclusion = StatusFacts(c.State, c.ReportedConclusion)
 		out[i] = c
 	}
 

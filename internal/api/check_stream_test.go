@@ -202,6 +202,48 @@ func TestCheckStream_WatchingAPullRequestSendsOneEventPerRun(t *testing.T) {
 	assert.Equal(t, true, got[2]["final"])
 }
 
+func TestCheckStream_ARunEventCarriesTheRunsOwnFacts(t *testing.T) {
+	t.Parallel()
+
+	started := time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC)
+	finished := started.Add(3 * time.Minute)
+	run := &dashboard.RunFacts{
+		Status: dashboard.CheckStatusCompleted, Conclusion: "failure", StartedAt: &started, CompletedAt: &finished,
+	}
+	source := &checkFeedSource{checks: []dashboard.Check{
+		{Name: "build", State: dashboard.CheckSuccess, RunID: 11, RunAttempt: 2, Run: run},
+		{Name: "lint", State: dashboard.CheckFailure, RunID: 11, RunAttempt: 2, Run: run},
+		{Name: "codecov", State: dashboard.CheckSuccess, URL: "https://codecov.io/x"},
+	}}
+	feed, _ := openCheckFeed(t, source)
+	feed.watch(t, watchPR)
+
+	got := feed.nextListing(t)
+
+	require.Len(t, got, 2)
+	assert.Equal(t, "completed", got[0]["status"])
+	assert.Equal(t, "failure", got[0]["conclusion"])
+	assert.Equal(t, started.Format(time.RFC3339), got[0]["startedAt"])
+	assert.Equal(t, finished.Format(time.RFC3339), got[0]["completedAt"])
+	assert.NotContains(t, got[1], "status")
+	assert.NotContains(t, got[1], "conclusion")
+	assert.NotContains(t, got[1], "startedAt")
+	assert.NotContains(t, got[1], "completedAt")
+}
+
+func TestCheckStream_ARunWithoutFactsSendsNone(t *testing.T) {
+	t.Parallel()
+
+	source := &checkFeedSource{checks: []dashboard.Check{{Name: "build", State: dashboard.CheckRunning, RunID: 11}}}
+	feed, _ := openCheckFeed(t, source)
+	feed.watch(t, watchPR)
+
+	got := feed.nextRun(t)
+
+	assert.Equal(t, "run/11/0", got["key"])
+	assert.NotContains(t, got, "status")
+}
+
 func TestCheckStream_ASubjectWithoutChecksSendsOneEmptyEvent(t *testing.T) {
 	t.Parallel()
 

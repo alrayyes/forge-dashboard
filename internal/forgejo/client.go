@@ -1724,7 +1724,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			probes = append(probes, "")
 		}
 		for _, j := range jobs {
-			checks = append(checks, withRun(withJobTimes(dashboard.Check{
+			check := withRun(withJobTimes(dashboard.Check{
 				Name:       j.Name,
 				State:      checkStateFromWorkflowStatus(j.Status),
 				URL:        j.HTMLURL,
@@ -1732,7 +1732,8 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				RunAttempt: j.RunAttempt,
 
 				ReportedConclusion: reportedConclusion(j.Status),
-			}, j), run.ID, workflowName(run), run.RunNumber))
+			}, j), run.ID, workflowName(run), run.RunNumber)
+			checks = append(checks, withRunFacts(check, run.Status, run.StartedAt, run.CompletedAt))
 			probes = append(probes, workflowContext(run, j.Name))
 			excerptKeys[j.ID] = newExcerptKey(owner, name, j)
 		}
@@ -1752,7 +1753,9 @@ func queuedRunCheck(run *gitea.ActionWorkflowRun, jobs []*gitea.ActionWorkflowJo
 		return dashboard.Check{}, false
 	}
 
-	return withRun(dashboard.Check{Name: workflowName(run), State: state, URL: run.HTMLURL}, run.ID, workflowName(run), run.RunNumber), true
+	stand := withRun(dashboard.Check{Name: workflowName(run), State: state, URL: run.HTMLURL}, run.ID, workflowName(run), run.RunNumber)
+
+	return withRunFacts(stand, run.Status, run.StartedAt, run.CompletedAt), true
 }
 
 // statusChecks wraps checksFromCombinedStatus for listChecksForSHA's
