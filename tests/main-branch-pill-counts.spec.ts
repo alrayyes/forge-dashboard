@@ -171,7 +171,7 @@ test.describe('Main branches pill counts (#2074)', () => {
     await page.setViewportSize({ width: 390, height: 800 });
     await open(page);
 
-    await expect(pill(page, 'acme/red').locator('.ci-seg-label')).toBeHidden();
+    await expect(pill(page, 'acme/red').locator('.ci-word')).toBeHidden();
     await expect(segments(page, 'acme/red')).toHaveText(['8', '1', '2', '3']);
     const box = await pill(page, 'acme/red').boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
