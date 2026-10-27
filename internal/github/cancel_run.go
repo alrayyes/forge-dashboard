@@ -84,28 +84,16 @@ func runIDOf(jobURL string) int64 {
 // runs, read only when such a job needs it. The names are a convenience: a read
 // that fails leaves the checks as they were, never an error.
 func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks []dashboard.Check) {
-	known := map[int64]runRef{}
-	if slices.ContainsFunc(checks, jobStillGoing) {
-		byJob := map[int64]runRef{}
-		for _, run := range c.unfinishedRuns(ctx, owner, name, sha) {
-			known[run.GetID()] = refOf(run)
-			maps.Copy(byJob, c.runJobs(ctx, owner, name, run))
-		}
-		for i := range checks {
-			if ref, ok := byJob[checks[i].JobID]; ok && jobStillGoing(checks[i]) {
-				setRun(&checks[i], ref)
-			}
-		}
-	}
+	known := c.attachGoingRuns(ctx, owner, name, sha, checks)
 
 	// The runs still going are known already; a job of one of the others needs
 	// the commit's completed runs.
-	var unknown bool
-	for _, ch := range checks {
-		_, ok := known[runIDOf(ch.URL)]
-		unknown = unknown || (ch.RunID == 0 && runIDOf(ch.URL) != 0 && !ok)
-	}
-	if unknown {
+	if slices.ContainsFunc(checks, func(ch dashboard.Check) bool {
+		id := runIDOf(ch.URL)
+		_, ok := known[id]
+
+		return ch.RunID == 0 && id != 0 && !ok
+	}) {
 		for _, run := range c.completedRuns(ctx, owner, name, sha) {
 			known[run.GetID()] = refOf(run)
 		}
@@ -115,6 +103,28 @@ func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks
 			setRun(&checks[i], ref)
 		}
 	}
+}
+
+// attachGoingRuns names the run of each queued or running job, and returns the
+// unfinished runs it read. Without a going job it reads nothing.
+func (c *Client) attachGoingRuns(ctx context.Context, owner, name, sha string, checks []dashboard.Check) map[int64]runRef {
+	known := map[int64]runRef{}
+	if !slices.ContainsFunc(checks, jobStillGoing) {
+		return known
+	}
+
+	byJob := map[int64]runRef{}
+	for _, run := range c.unfinishedRuns(ctx, owner, name, sha) {
+		known[run.GetID()] = refOf(run)
+		maps.Copy(byJob, c.runJobs(ctx, owner, name, run))
+	}
+	for i := range checks {
+		if ref, ok := byJob[checks[i].JobID]; ok && jobStillGoing(checks[i]) {
+			setRun(&checks[i], ref)
+		}
+	}
+
+	return known
 }
 
 func setRun(ch *dashboard.Check, ref runRef) {
