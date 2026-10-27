@@ -1,0 +1,186 @@
+{
+  "note": "Hand-built from the #2691 description and the SDK's field names, not captured live. Three polls of one commit around a manual rerun of run 5001: before, mid-rerun, after. A rerun is modelled as keeping the run id and job ids, bumping run_attempt and resetting the run's stop to the Unix epoch while it goes.",
+  "polls": [
+    {
+      "label": "before the rerun: release failed, lint passed",
+      "workflow_runs": [
+        {
+          "id": 5002,
+          "prettyref": "main",
+          "commit_sha": "db621b2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "success",
+          "event": "push",
+          "workflow_id": "lint.yml",
+          "html_url": "https://forge.example/homelab/vps-docker/actions/runs/402",
+          "started": "2026-10-27T08:00:00Z",
+          "stopped": "2026-10-27T08:02:00Z",
+          "title": "fix(forgejo): give the runner's dind 5 cpus and 8G (#1363)",
+          "index_in_repo": 402
+        },
+        {
+          "id": 5001,
+          "prettyref": "main",
+          "commit_sha": "db621b2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "failure",
+          "event": "push",
+          "workflow_id": "release.yml",
+          "html_url": "https://forge.example/homelab/vps-docker/actions/runs/401",
+          "started": "2026-10-27T08:00:00Z",
+          "stopped": "2026-10-27T08:05:00Z",
+          "title": "fix(forgejo): give the runner's dind 5 cpus and 8G (#1363)",
+          "index_in_repo": 401
+        }
+      ],
+      "jobs": {
+        "5002": [
+          {
+            "id": 90010,
+            "run_id": 5002,
+            "run_attempt": 1,
+            "name": "lint",
+            "status": "success",
+            "completed_at": "2026-10-27T08:02:00Z"
+          }
+        ],
+        "5001": [
+          {
+            "id": 90001,
+            "run_id": 5001,
+            "run_attempt": 1,
+            "name": "build",
+            "status": "success",
+            "completed_at": "2026-10-27T08:03:00Z"
+          },
+          {
+            "id": 90002,
+            "run_id": 5001,
+            "run_attempt": 1,
+            "name": "deploy",
+            "status": "failure",
+            "completed_at": "2026-10-27T08:05:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mid-rerun: release started again, build running, deploy queued",
+      "workflow_runs": [
+        {
+          "id": 5002,
+          "prettyref": "main",
+          "commit_sha": "db621b2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "success",
+          "event": "push",
+          "workflow_id": "lint.yml",
+          "html_url": "https://forge.example/homelab/vps-docker/actions/runs/402",
+          "started": "2026-10-27T08:00:00Z",
+          "stopped": "2026-10-27T08:02:00Z",
+          "title": "fix(forgejo): give the runner's dind 5 cpus and 8G (#1363)",
+          "index_in_repo": 402
+        },
+        {
+          "id": 5001,
+          "prettyref": "main",
+          "commit_sha": "db621b2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "running",
+          "event": "push",
+          "workflow_id": "release.yml",
+          "html_url": "https://forge.example/homelab/vps-docker/actions/runs/401",
+          "started": "2026-10-27T08:20:00Z",
+          "stopped": "1970-01-01T00:00:00Z",
+          "title": "fix(forgejo): give the runner's dind 5 cpus and 8G (#1363)",
+          "index_in_repo": 401
+        }
+      ],
+      "jobs": {
+        "5002": [
+          {
+            "id": 90010,
+            "run_id": 5002,
+            "run_attempt": 1,
+            "name": "lint",
+            "status": "success",
+            "completed_at": "2026-10-27T08:02:00Z"
+          }
+        ],
+        "5001": [
+          {
+            "id": 90001,
+            "run_id": 5001,
+            "run_attempt": 2,
+            "name": "build",
+            "status": "running"
+          },
+          {
+            "id": 90002,
+            "run_id": 5001,
+            "run_attempt": 2,
+            "name": "deploy",
+            "status": "waiting"
+          }
+        ]
+      }
+    },
+    {
+      "label": "after the rerun: both release jobs passed",
+      "workflow_runs": [
+        {
+          "id": 5002,
+          "prettyref": "main",
+          "commit_sha": "db621b2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "success",
+          "event": "push",
+          "workflow_id": "lint.yml",
+          "html_url": "https://forge.example/homelab/vps-docker/actions/runs/402",
+          "started": "2026-10-27T08:00:00Z",
+          "stopped": "2026-10-27T08:02:00Z",
+          "title": "fix(forgejo): give the runner's dind 5 cpus and 8G (#1363)",
+          "index_in_repo": 402
+        },
+        {
+          "id": 5001,
+          "prettyref": "main",
+          "commit_sha": "db621b2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "status": "success",
+          "event": "push",
+          "workflow_id": "release.yml",
+          "html_url": "https://forge.example/homelab/vps-docker/actions/runs/401",
+          "started": "2026-10-27T08:20:00Z",
+          "stopped": "2026-10-27T08:26:00Z",
+          "title": "fix(forgejo): give the runner's dind 5 cpus and 8G (#1363)",
+          "index_in_repo": 401
+        }
+      ],
+      "jobs": {
+        "5002": [
+          {
+            "id": 90010,
+            "run_id": 5002,
+            "run_attempt": 1,
+            "name": "lint",
+            "status": "success",
+            "completed_at": "2026-10-27T08:02:00Z"
+          }
+        ],
+        "5001": [
+          {
+            "id": 90001,
+            "run_id": 5001,
+            "run_attempt": 2,
+            "name": "build",
+            "status": "success",
+            "completed_at": "2026-10-27T08:23:00Z"
+          },
+          {
+            "id": 90002,
+            "run_id": 5001,
+            "run_attempt": 2,
+            "name": "deploy",
+            "status": "success",
+            "completed_at": "2026-10-27T08:26:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}
