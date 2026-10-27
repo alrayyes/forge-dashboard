@@ -157,6 +157,18 @@ func TestCheckStream_WatchingAPullRequestSendsItsChecks(t *testing.T) {
 	assert.Equal(t, "build", checks[0].(map[string]any)["name"])
 }
 
+func TestCheckStream_EachCheckCarriesStatusAndConclusionNotState(t *testing.T) {
+	t.Parallel()
+
+	source := &checkFeedSource{checks: []dashboard.Check{{Name: "build", State: dashboard.CheckTimedOut}}}
+	feed, _ := openCheckFeed(t, source)
+	feed.watch(t, watchPR)
+
+	check := feed.nextChecks(t)["checks"].([]any)[0].(map[string]any)
+
+	assert.Equal(t, map[string]any{"name": "build", "status": "completed", "conclusion": "timed_out", "url": ""}, check)
+}
+
 func TestCheckStream_AFailedListSendsTheErrorInsteadOfChecks(t *testing.T) {
 	t.Parallel()
 

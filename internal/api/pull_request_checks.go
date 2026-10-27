@@ -40,5 +40,5 @@ func resolvePullRequestChecksFor(ctx context.Context, deps Deps, forge, fullName
 		return nil, &statusError{clientErrorStatus(err), err.Error()}
 	}
 
-	return checks, nil
+	return dashboard.WithFacts(checks), nil
 }
