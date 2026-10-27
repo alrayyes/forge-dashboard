@@ -5,7 +5,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -99,13 +101,12 @@ func enumOf(t *testing.T, doc *openapi3.T, schema string) []string {
 	return out
 }
 
-func TestWithFacts_EveryStateMapsToAnEnumValueTheSpecAllows(t *testing.T) {
+func TestWithFacts_EveryStateMapsToAStatusTheSpecAllows(t *testing.T) {
 	t.Parallel()
 
 	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
 	require.NoError(t, err)
 	statuses := enumOf(t, doc, "CheckStatus")
-	conclusions := enumOf(t, doc, "CheckConclusion")
 	states := checkStatesInModel(t)
 	require.NotEmpty(t, states)
 
@@ -116,13 +117,77 @@ func TestWithFacts_EveryStateMapsToAnEnumValueTheSpecAllows(t *testing.T) {
 			got := dashboard.WithFacts([]dashboard.Check{{State: s}})[0]
 
 			assert.Contains(t, statuses, string(got.Status))
-			if got.Status == dashboard.CheckStatusCompleted {
-				assert.Contains(t, conclusions, string(got.Conclusion))
-			} else {
+			if got.Status != dashboard.CheckStatusCompleted {
 				assert.Empty(t, got.Conclusion)
 			}
 		})
 	}
+}
+
+func TestSpec_TheConclusionIsTheForgesOwnWordNotAnEnum(t *testing.T) {
+	t.Parallel()
+
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+
+	assert.Empty(t, enumOf(t, doc, "CheckConclusion"))
+}
+
+func TestSpec_ACheckCarriesTheFactsTheServerSendsAndNothingElse(t *testing.T) {
+	t.Parallel()
+
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+	var specced []string
+	for name := range doc.Components.Schemas["Check"].Value.Properties {
+		specced = append(specced, name)
+	}
+
+	var sent []string
+	typ := reflect.TypeFor[dashboard.Check]()
+	for field := range typ.Fields() {
+		if tag, _, _ := strings.Cut(field.Tag.Get("json"), ","); tag != "" && tag != "-" {
+			sent = append(sent, tag)
+		}
+	}
+
+	assert.ElementsMatch(t, sent, specced)
+}
+
+func TestWithFacts_SendsTheConclusionTheForgeReported(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		check      dashboard.Check
+		status     dashboard.CheckStatus
+		conclusion dashboard.CheckConclusion
+	}{
+		{"neutral stays neutral", dashboard.Check{State: dashboard.CheckSuccess, ReportedConclusion: "neutral"}, dashboard.CheckStatusCompleted, "neutral"},
+		{"stale stays stale", dashboard.Check{State: dashboard.CheckFailure, ReportedConclusion: "stale"}, dashboard.CheckStatusCompleted, "stale"},
+		{"action_required is a finished job", dashboard.Check{State: dashboard.CheckAwaitingApproval, ReportedConclusion: "action_required"}, dashboard.CheckStatusCompleted, "action_required"},
+		{"no report falls back to the fold", dashboard.Check{State: dashboard.CheckFailure}, dashboard.CheckStatusCompleted, dashboard.CheckConclusionFailure},
+		{"a held run has none", dashboard.Check{State: dashboard.CheckAwaitingApproval}, dashboard.CheckStatusWaiting, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dashboard.WithFacts([]dashboard.Check{c.check})[0]
+
+			assert.Equal(t, c.status, got.Status)
+			assert.Equal(t, c.conclusion, got.Conclusion)
+		})
+	}
+}
+
+func TestWithFacts_NeverSendsTheReportedConclusionAsItsOwnKey(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal(dashboard.WithFacts([]dashboard.Check{{State: dashboard.CheckSuccess, ReportedConclusion: "neutral"}})[0])
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(raw), "reported")
 }
 
 func TestWithFacts_KeepsTheOtherFieldsAndTheStateInProcess(t *testing.T) {

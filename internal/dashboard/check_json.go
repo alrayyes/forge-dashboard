@@ -14,11 +14,13 @@ const (
 )
 
 // CheckConclusion is how a finished job ended, the other wire fact. It is
-// empty until the status is "completed". Matches
-// components.schemas.CheckConclusion.
+// empty until the status is "completed", and is the forge's own word.
+// Matches components.schemas.CheckConclusion.
 type CheckConclusion string
 
-// The conclusions a finished job can have, coarse enough for both forges.
+// The conclusions the server falls back on for a finished job whose forge gave
+// none, a legacy commit status. Otherwise the conclusion is the forge's own
+// word (Check.ReportedConclusion), which can be any value it has.
 const (
 	CheckConclusionSuccess   CheckConclusion = "success"
 	CheckConclusionFailure   CheckConclusion = "failure"
@@ -65,6 +67,9 @@ func WithFacts(checks []Check) []Check {
 	out := make([]Check, len(checks))
 	for i, c := range checks {
 		c.Status, c.Conclusion = checkFacts(c.State)
+		if c.ReportedConclusion != "" {
+			c.Status, c.Conclusion = CheckStatusCompleted, CheckConclusion(c.ReportedConclusion)
+		}
 		out[i] = c
 	}
 

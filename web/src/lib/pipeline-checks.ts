@@ -52,8 +52,10 @@ export function checkRunKey(check: Check): string {
 }
 
 // The one word the page shows and decides on for a check, worked out from the
-// two facts the server sends: queued, running, awaiting_approval, or the
-// conclusion once it is completed.
+// two facts the server sends: queued, running, awaiting_approval, or how it
+// ended once it is completed. The conclusion is the forge's own word, so this
+// is where the page decides what each one means: a neutral job passed, a stale
+// or never-started one failed, and a word it doesn't know reads as a failure.
 export function checkState(
   check: Pick<Check, 'status' | 'conclusion'>,
 ): string {
@@ -64,8 +66,26 @@ export function checkState(
       return 'running';
     case 'waiting':
       return 'awaiting_approval';
+    case 'completed':
+      return concludedState(check.conclusion);
     default:
-      return check.status === 'completed' ? (check.conclusion ?? '') : '';
+      return '';
+  }
+}
+
+function concludedState(conclusion: string | undefined): string {
+  switch (conclusion) {
+    case 'success':
+    case 'neutral':
+      return 'success';
+    case 'cancelled':
+    case 'skipped':
+    case 'timed_out':
+      return conclusion;
+    case 'action_required':
+      return 'awaiting_approval';
+    default:
+      return 'failure';
   }
 }
 

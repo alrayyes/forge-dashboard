@@ -352,12 +352,17 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 					URL:        j.HTMLURL,
 					JobID:      j.ID,
 					RunAttempt: j.RunAttempt,
+
+					ReportedConclusion: reportedConclusion(j.Status),
 				}, j), r.ID, runName(r), r.Number))
 			}
 
 			continue
 		}
-		out = append(out, withRun(dashboard.Check{Name: runName(r), State: checkStateFromWorkflowStatus(r.Status), URL: r.HTMLURL}, r.ID, runName(r), r.Number))
+		out = append(out, withRun(dashboard.Check{
+			Name: runName(r), State: checkStateFromWorkflowStatus(r.Status), URL: r.HTMLURL,
+			ReportedConclusion: reportedConclusion(r.Status),
+		}, r.ID, runName(r), r.Number))
 	}
 
 	return out

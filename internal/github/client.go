@@ -4097,12 +4097,14 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		checks := make([]dashboard.Check, 0, len(runs.CheckRuns))
 		for _, r := range runs.CheckRuns {
 			checks = append(checks, dashboard.Check{
-				Name:        r.GetName(),
-				State:       checkStateFromRun(r),
-				URL:         r.GetHTMLURL(),
-				JobID:       r.GetID(),
-				StartedAt:   runTime(r.StartedAt),
-				CompletedAt: runTime(r.CompletedAt),
+				Name:  r.GetName(),
+				State: checkStateFromRun(r),
+				URL:   r.GetHTMLURL(),
+
+				ReportedConclusion: reportedConclusion(r),
+				JobID:              r.GetID(),
+				StartedAt:          runTime(r.StartedAt),
+				CompletedAt:        runTime(r.CompletedAt),
 			})
 		}
 		c.addFailureDetail(ctx, owner, name, runs.CheckRuns, checks)
@@ -4263,6 +4265,17 @@ func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 	default: // "failure", "stale"
 		return dashboard.CheckFailure
 	}
+}
+
+// reportedConclusion is the conclusion GitHub gave a finished check run, word
+// for word, or "" while it is still going. The page, not the server, decides
+// what neutral, stale or action_required mean.
+func reportedConclusion(r *ghsdk.CheckRun) string {
+	if r.GetStatus() != "completed" {
+		return ""
+	}
+
+	return r.GetConclusion()
 }
 
 // checkStateFromCombinedState maps the legacy commit-status API's own

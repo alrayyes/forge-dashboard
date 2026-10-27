@@ -1730,6 +1730,8 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				URL:        j.HTMLURL,
 				JobID:      j.ID,
 				RunAttempt: j.RunAttempt,
+
+				ReportedConclusion: reportedConclusion(j.Status),
 			}, j), run.ID, workflowName(run), run.RunNumber))
 			probes = append(probes, workflowContext(run, j.Name))
 			excerptKeys[j.ID] = newExcerptKey(owner, name, j)
@@ -1819,6 +1821,19 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 		return dashboard.CheckRunning
 	default: // "waiting", "blocked", "unknown", or anything unrecognized
 		return dashboard.CheckQueued
+	}
+}
+
+// reportedConclusion is the status Forgejo gave a finished job or run, word
+// for word, as its conclusion: success, failure, cancelled or skipped. Forgejo
+// has no separate conclusion, and any other status (waiting, running, blocked,
+// unknown) means it has not concluded.
+func reportedConclusion(status string) string {
+	switch status {
+	case "success", "failure", "cancelled", "skipped":
+		return status
+	default:
+		return ""
 	}
 }
 

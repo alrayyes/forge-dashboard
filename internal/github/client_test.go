@@ -2934,7 +2934,7 @@ func TestListChecks_ReturnsEveryCheckRunForThePullRequestsHeadSHA(t *testing.T) 
 
 	require.NoError(t, err)
 	require.Len(t, checks, 2)
-	assert.Equal(t, dashboard.Check{Name: "build", State: dashboard.CheckSuccess, URL: "https://github.com/alrayyes/a/runs/1"}, checks[0])
+	assert.Equal(t, dashboard.Check{Name: "build", State: dashboard.CheckSuccess, ReportedConclusion: "success", URL: "https://github.com/alrayyes/a/runs/1"}, checks[0])
 	assert.Equal(t, dashboard.Check{Name: "test", State: dashboard.CheckRunning, URL: "https://github.com/alrayyes/a/runs/2"}, checks[1])
 }
 
@@ -3057,7 +3057,7 @@ func TestListDefaultBranchChecks_ReturnsTheCheckRunsOfTheNewestCommit(t *testing
 
 	require.NoError(t, err)
 	assert.Equal(t, []dashboard.Check{
-		{Name: "build", State: dashboard.CheckSuccess, URL: "https://github.com/alrayyes/a/runs/1"},
+		{Name: "build", State: dashboard.CheckSuccess, ReportedConclusion: "success", URL: "https://github.com/alrayyes/a/runs/1"},
 		{Name: "test", State: dashboard.CheckRunning, URL: "https://github.com/alrayyes/a/runs/2"},
 	}, checks)
 }

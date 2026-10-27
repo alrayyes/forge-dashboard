@@ -106,6 +106,13 @@ type Check struct {
 	// State is the server's own one-word reading of the job, which decides
 	// rerun, cancel and the main branch counts. It is not on the wire.
 	State CheckState `json:"-"`
+	// ReportedConclusion is the word the forge itself gave for how a finished
+	// job ended (GitHub's conclusion, Forgejo's terminal status), kept raw
+	// because the page, not the server, decides what it means. Empty while the
+	// job is going and where the forge gives none, such as a legacy commit
+	// status; WithFacts then folds State instead. Not on the wire as its own
+	// key: it is sent as Conclusion.
+	ReportedConclusion string `json:"-"`
 	// URL is that job's own page on the forge that ran it — a GitHub
 	// Actions job page, a Forgejo Actions job page, or a third-party CI's
 	// own details page for the legacy commit-status case — never the
