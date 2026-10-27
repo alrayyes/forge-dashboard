@@ -41,6 +41,7 @@
   } from "#lib/label-filter.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
   import {
@@ -6514,14 +6515,15 @@
       pipelineItem = item;
       pipelineRerunLock.reset();
       pipelineDialog.open({
-        subtitle: `${item.repo}#${item.number}`,
-        // Always fetched fresh, never cached and never part of applySnapshot's
-        // own eager pull: this is detail a row doesn't show until the dialog is
-        // opened for it.
-        checksUrl: `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
-        signature: ciSignature(item),
-        emptyText: "No CI configured for this pull request.",
-        errorText: `Couldn't load pipeline checks for ${item.repo}#${item.number}`,
+        // The checks are always fetched fresh, never cached and never part of
+        // applySnapshot's own eager pull: this is detail a row doesn't show
+        // until the dialog is opened for it.
+        ...pipelineTarget({
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+          signature: ciSignature(item),
+        }),
         paused: updatesPaused,
         controls: (failed) =>
           failed && pipelineItem ? pipelineRerunControl(pipelineItem) : null,
