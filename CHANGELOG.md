@@ -1,5 +1,16 @@
 # Changelog
 
+## [7.0.0](https://github.com/alrayyes/forge-dashboard/compare/v6.1.0...v7.0.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* the stream's named `checks` event is gone. A client reads `run` events instead. `RunEvent` replaces `CheckListEvent` in the OpenAPI spec.
+
+### Features
+
+* stream a run event per run attempt ([#2981](https://github.com/alrayyes/forge-dashboard/issues/2981)) ([bb1995f](https://github.com/alrayyes/forge-dashboard/commit/bb1995f135f084d773de2ec4497f1871afc14285))
+
 ## [6.1.0](https://github.com/alrayyes/forge-dashboard/compare/v6.0.0...v6.1.0) (2026-10-27)
 
 
