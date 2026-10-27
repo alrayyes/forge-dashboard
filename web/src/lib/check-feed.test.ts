@@ -113,8 +113,9 @@ describe('watch', () => {
     const branchGot: CheckFeedMessage[] = [];
     feed.watch(pr, (m) => prGot.push(m));
     feed.watch(branch, (m) => branchGot.push(m));
-    source.emit('checks', { ...pr, checks: [{ name: 'build' }] });
-    expect(prGot).toEqual([{ checks: [{ name: 'build' }] }]);
+    const build = { name: 'build', state: 'success', url: '' };
+    source.emit('checks', { ...pr, checks: [build] });
+    expect(prGot).toEqual([{ checks: [build] }]);
     expect(branchGot).toEqual([]);
   });
 
@@ -154,6 +155,23 @@ describe('watch', () => {
     feed.watch(pr, (m) => got.push(m));
     source.emit('error');
     expect(got).toEqual([{ error: 'the live connection is down' }]);
+  });
+
+  test('tells the listener at once when the stream is closed', async () => {
+    const { feed, source } = harness();
+    source.readyState = 2;
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    await flush();
+    expect(got).toEqual([{ error: 'the live connection is down' }]);
+  });
+
+  test('waits for a stream that is still connecting', async () => {
+    const { feed } = harness();
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    await flush();
+    expect(got).toEqual([]);
   });
 
   test('tells the listener when the watch is refused', async () => {

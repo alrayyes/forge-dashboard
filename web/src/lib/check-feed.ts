@@ -38,6 +38,7 @@ type Options = {
 const WATCH_URL = '/api/dashboard/stream/watch';
 const DOWN = 'the live connection is down';
 const OPEN = 1;
+const CLOSED = 2;
 
 const keyOf = (s: Subject) =>
   `${s.kind}|${s.forge}|${s.fullName}|${s.number ?? 0}`;
@@ -65,6 +66,7 @@ export function createCheckFeed({
   const subjects = new Map<string, Subject>();
   const listeners = new Map<string, Set<Listener>>();
   let open = false;
+  let source: FeedSource | null = null;
   // Posts go one at a time, so a stale watch can't land after a newer one.
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -101,16 +103,18 @@ export function createCheckFeed({
 
     // Follows the stream's events. The server forgets a watch when its
     // stream goes, so the watch is posted again on every open.
-    attach(source: FeedSource) {
-      source.addEventListener('open', () => {
+    attach(next: FeedSource) {
+      source = next;
+      open = next.readyState === OPEN;
+      next.addEventListener('open', () => {
         open = true;
         if (subjects.size > 0) send(false);
       });
-      source.addEventListener('error', () => {
-        if (source.readyState !== OPEN) open = false;
+      next.addEventListener('error', () => {
+        if (next.readyState !== OPEN) open = false;
         tellAll({ error: DOWN });
       });
-      source.addEventListener('checks', (event) => {
+      next.addEventListener('checks', (event) => {
         let body: Subject & { checks?: Check[] | null; error?: string };
         try {
           body = JSON.parse(event.data ?? '');
@@ -134,6 +138,9 @@ export function createCheckFeed({
       const fresh = !subjects.has(key);
       subjects.set(key, subject);
       if (fresh) send(false);
+      // A stream that is gone will never answer: say so rather than wait.
+      if (!open && (!source || source.readyState === CLOSED))
+        queueMicrotask(() => listener({ error: DOWN }));
       return () => {
         set.delete(listener);
         if (set.size > 0) return;
