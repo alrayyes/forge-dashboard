@@ -62,9 +62,16 @@ func (c *checkWatches) open(ctx context.Context, deps Deps, id string) *checkWat
 	}
 	w := &checkWatch{
 		ctx:     apistats.WithKind(ctx, apistats.KindDetails),
-		deps:    deps,
 		out:     make(chan []byte, maxWatchedSubjects*2),
 		watched: map[checkSubject]*watchedSubject{},
+	}
+	w.snapshot = deps.Service.Get
+	w.fetch = func(ctx context.Context, s checkSubject) ([]dashboard.Check, *statusError) {
+		if s.Kind == subjectPullRequest {
+			return resolvePullRequestChecksFor(ctx, deps, s.Forge, s.FullName, s.Number)
+		}
+
+		return resolveMainBranchChecksFor(ctx, deps, s.Forge, s.FullName)
 	}
 	c.mu.Lock()
 	c.streams[id] = w
@@ -104,9 +111,13 @@ const retrySig = "retry"
 // goroutines and hand finished events to out, which the stream goroutine, the
 // only writer to the response, drains.
 type checkWatch struct {
-	ctx  context.Context
-	deps Deps
-	out  chan []byte
+	ctx context.Context
+	out chan []byte
+
+	// fetch lists one subject's jobs and snapshot reads the current rows. They
+	// are fields so a test can drive the watch without a forge.
+	fetch    func(context.Context, checkSubject) ([]dashboard.Check, *statusError)
+	snapshot func() dashboard.Snapshot
 
 	mu      sync.Mutex
 	watched map[checkSubject]*watchedSubject
@@ -148,7 +159,7 @@ func (w *checkWatch) onSnapshot(snap dashboard.Snapshot) {
 func (w *checkWatch) listLocked(s checkSubject, held *watchedSubject) {
 	held.gen++
 	gen := held.gen
-	held.sig, _ = rowSignature(w.deps.Service.Get(), s)
+	held.sig, _ = rowSignature(w.snapshot(), s)
 
 	go w.list(s, held, gen)
 }
@@ -156,11 +167,7 @@ func (w *checkWatch) listLocked(s checkSubject, held *watchedSubject) {
 func (w *checkWatch) list(s checkSubject, held *watchedSubject, gen int) {
 	ev := checkListEvent{checkSubject: s}
 	var serr *statusError
-	if s.Kind == subjectPullRequest {
-		ev.Checks, serr = resolvePullRequestChecksFor(w.ctx, w.deps, s.Forge, s.FullName, s.Number)
-	} else {
-		ev.Checks, serr = resolveMainBranchChecksFor(w.ctx, w.deps, s.Forge, s.FullName)
-	}
+	ev.Checks, serr = w.fetch(w.ctx, s)
 	if serr != nil {
 		ev.Checks, ev.Error = nil, serr.message
 	} else if ev.Checks == nil {
