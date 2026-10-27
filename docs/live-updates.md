@@ -34,7 +34,11 @@ panel tells the stream which row it shows, and the server sends that row's job
 list when the panel opens and again for each such change, and none while
 nothing changes, so a finished pipeline is not read again, and a rerun
 that starts sends it again once. The panel never polls the forge, and the list
-arrives as a named `checks` event that the plain snapshot readers don't see.
+arrives as named `run` events that the plain snapshot readers don't see. There
+is one event for each workflow run attempt, and one for each check that
+belongs to no run. A rerun is a new attempt, so it sends a new event, and a
+`gone` event retires the attempt it replaces. The last event of a list is
+marked `final`, and the panel redraws once it arrives.
 Each job in it carries a `status` (queued, in progress, completed or waiting)
 and, once it has finished, a `conclusion`. The panel works out the word and
 glyph it shows from those two, so a client of the stream does the same.
