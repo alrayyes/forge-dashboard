@@ -45,7 +45,11 @@ const ROW = {
   staleSince: null,
 };
 
-async function open(page: Page, row = ROW, jobs: unknown[] = JOBS) {
+async function open(
+  page: Page,
+  row: Record<string, unknown> = ROW,
+  jobs: unknown[] = JOBS,
+) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
