@@ -4097,11 +4097,12 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		checks := make([]dashboard.Check, 0, len(runs.CheckRuns))
 		for _, r := range runs.CheckRuns {
 			checks = append(checks, dashboard.Check{
-				Name:            r.GetName(),
-				State:           checkStateFromRun(r),
-				URL:             r.GetHTMLURL(),
-				JobID:           r.GetID(),
-				DurationSeconds: runDurationSeconds(r),
+				Name:        r.GetName(),
+				State:       checkStateFromRun(r),
+				URL:         r.GetHTMLURL(),
+				JobID:       r.GetID(),
+				StartedAt:   runTime(r.StartedAt),
+				CompletedAt: runTime(r.CompletedAt),
 			})
 		}
 		c.addFailureDetail(ctx, owner, name, runs.CheckRuns, checks)
@@ -4312,17 +4313,15 @@ const logTailBytes = 16 * 1024
 
 var logFetchTimeout = dashboard.ExcerptReadTimeout
 
-// runDurationSeconds is how long a completed check run ran, nil otherwise.
-func runDurationSeconds(r *ghsdk.CheckRun) *int {
-	if r.GetStatus() != "completed" || r.StartedAt == nil || r.CompletedAt == nil {
+// runTime is a check run's timestamp as the forge sent it, nil when it sent
+// none. GitHub zeroes the end of a run that hasn't finished.
+func runTime(t *ghsdk.Timestamp) *time.Time {
+	if t == nil || t.IsZero() {
 		return nil
 	}
-	secs := int(r.CompletedAt.Sub(r.StartedAt.Time).Seconds())
-	if secs < 0 {
-		return nil
-	}
+	v := t.Time
 
-	return &secs
+	return &v
 }
 
 // addFailureDetail fills FailedStep and Excerpt on the failed GitHub Actions

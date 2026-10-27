@@ -4820,13 +4820,20 @@ components:
             `status_check_contexts`). Absent when the forge can't tell — a
             token that can't read protection, or a check that can't be
             mapped to a protection entry. Absent is not the same as false.
-        durationSeconds:
-          type: integer
-          minimum: 0
+        startedAt:
+          type: string
+          format: date-time
           description: |
-            How long a completed check ran. Absent while it runs, or when
-            the forge doesn't say. GitHub only: Forgejo's API doesn't give
-            a job's timing.
+            When the forge says the job started. Absent until it has, and when
+            the forge doesn't say. GitHub only: Forgejo's API doesn't give a
+            job's timing. A client works out how long a job ran from this and
+            `completedAt`.
+        completedAt:
+          type: string
+          format: date-time
+          description: |
+            When the forge says the job finished. Absent while it runs, and
+            when the forge doesn't say. GitHub only, like `startedAt`.
         runAttempt:
           type: integer
           minimum: 1

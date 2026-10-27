@@ -629,6 +629,7 @@ async function openBranchFailure(
     checks: { passed: 0, running: 0, waiting: 0, failed },
     staleSince: null,
   });
+  const START = '2026-10-03T10:00:00.000Z';
   const state = {
     failed: 1,
     jobId: 9,
@@ -643,7 +644,11 @@ async function openBranchFailure(
       name: 'build',
       state: state.check,
       url: 'https://example.com/r/1',
-      durationSeconds: state.seconds,
+      startedAt: state.seconds === undefined ? undefined : START,
+      completedAt:
+        state.seconds === undefined
+          ? undefined
+          : new Date(Date.parse(START) + state.seconds * 1000).toISOString(),
       runAttempt: state.attempt,
       jobId: state.jobId,
       excerpt: state.excerpt,

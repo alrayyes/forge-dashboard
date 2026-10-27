@@ -83,6 +83,7 @@
     blockingFirst,
     CHECK_STATE_LABELS,
     checkRunKey,
+    checkDurationSeconds,
     formatCheckDuration,
     groupChecks,
     isBlocking,
@@ -601,9 +602,9 @@
           {CHECK_STATE_LABELS[check.state] || check.state}
         </span>
         <span class="pipeline-check-name">{check.name}</span>
-        {#if check.durationSeconds !== undefined}
+        {#if checkDurationSeconds(check) !== undefined}
           <span class="pipeline-check-duration"
-            >{formatCheckDuration(check.durationSeconds)}</span
+            >{formatCheckDuration(checkDurationSeconds(check) ?? 0)}</span
           >
         {/if}
         {#if isBlocking(check)}

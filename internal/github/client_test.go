@@ -4161,12 +4161,17 @@ func TestListChecks_FailureDetail(t *testing.T) {
 		return checks
 	}
 
-	t.Run("a completed check reports how long it ran", func(t *testing.T) {
+	t.Run("a completed check carries its start and end as facts", func(t *testing.T) {
 		t.Parallel()
 		checks := setup(t, &failedCheckServer{log: log.String()})
 
-		assert.Equal(t, new(20), checkNamed(t, checks, "lint").DurationSeconds)
-		assert.Equal(t, new(90), checkNamed(t, checks, "test").DurationSeconds)
+		lint := checkNamed(t, checks, "lint")
+		require.NotNil(t, lint.StartedAt)
+		require.NotNil(t, lint.CompletedAt)
+		assert.Equal(t, time.Date(2026, 10, 3, 10, 0, 0, 0, time.UTC), *lint.StartedAt)
+		assert.Equal(t, time.Date(2026, 10, 3, 10, 0, 20, 0, time.UTC), *lint.CompletedAt)
+		test := checkNamed(t, checks, "test")
+		assert.Equal(t, time.Date(2026, 10, 3, 10, 1, 30, 0, time.UTC), *test.CompletedAt)
 	})
 
 	t.Run("a failed check names the step that failed", func(t *testing.T) {

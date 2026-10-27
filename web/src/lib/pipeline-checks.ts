@@ -11,7 +11,10 @@ export type Check = {
   state: string;
   url: string;
   required?: boolean;
-  durationSeconds?: number;
+  // When the forge says the job started and finished (RFC 3339); the page
+  // works the duration out from them. Absent when the forge doesn't say.
+  startedAt?: string;
+  completedAt?: string;
   // Which attempt of its run the job is (Forgejo), so a retry reads as new.
   runAttempt?: number;
   failedStep?: string;
@@ -28,18 +31,18 @@ export type Check = {
 };
 
 // What tells one run of a job from another, for the forge that reuses the job
-// id and page when a run is retried. The attempt number and the duration say it
+// id and page when a run is retried. The attempt number and the end time say it
 // when the forge gives them. A forge that gives neither leaves the log's own
 // tail as the only sign of a rerun that failed again, so that stands in; it
 // then also changes when a still-running job's later lines arrive, which only
 // costs a copy the person has to press again.
 export function checkRunKey(check: Check): string {
   const known =
-    check.runAttempt !== undefined || check.durationSeconds !== undefined;
+    check.runAttempt !== undefined || check.completedAt !== undefined;
 
   return [
     check.url,
-    check.durationSeconds ?? '',
+    check.completedAt ?? '',
     check.runAttempt ?? '',
     known ? '' : (check.excerpt ?? ''),
   ].join('|');
@@ -57,6 +60,16 @@ export const CHECK_STATE_LABELS: Record<string, string> = {
   timed_out: 'Timed out',
   awaiting_approval: 'Waiting for approval',
 };
+
+// How long a finished job ran, from the two timestamps the server sends.
+// Undefined while it has no end, or when either date is unusable.
+export function checkDurationSeconds(check: Check): number | undefined {
+  if (!check.startedAt || !check.completedAt) return undefined;
+  const ms = Date.parse(check.completedAt) - Date.parse(check.startedAt);
+  if (!Number.isFinite(ms) || ms < 0) return undefined;
+
+  return Math.floor(ms / 1000);
+}
 
 // 125 -> "2m 5s", 42 -> "42s", 3700 -> "1h 1m": a duration the way a person
 // reads it, not a bare second count.

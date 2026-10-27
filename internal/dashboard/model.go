@@ -123,9 +123,11 @@ type Check struct {
 	// can't read protection, or a check whose protection name can't be
 	// mapped, must not read as advisory.
 	Required *bool `json:"required,omitempty"`
-	// DurationSeconds is how long a completed check ran (#697), nil when
-	// the forge didn't say or it hasn't finished.
-	DurationSeconds *int `json:"durationSeconds,omitempty"`
+	// StartedAt and CompletedAt are when the forge says the job started and
+	// finished, nil when it didn't say or the job hasn't got there. They are
+	// the facts a duration is worked out from; the page does that sum.
+	StartedAt   *time.Time `json:"startedAt,omitempty"`
+	CompletedAt *time.Time `json:"completedAt,omitempty"`
 	// RunAttempt is which attempt of its workflow run the job belongs to,
 	// 0 and omitted when the forge doesn't number them. Forgejo keeps a
 	// job's id and page when it reruns, so the attempt is what tells the
