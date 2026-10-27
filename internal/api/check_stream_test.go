@@ -103,7 +103,8 @@ func openCheckFeed(t *testing.T, source *checkFeedSource) (*checkFeed, string) {
 	return &checkFeed{srvURL: srvURL, cookie: sessionCookie, events: events}, webhookToken + ":" + webhookSecret
 }
 
-func (f *checkFeed) watch(t *testing.T, body string) *http.Response {
+// watch posts a watch and answers the status code.
+func (f *checkFeed) watch(t *testing.T, body string) int {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, f.srvURL+"/api/dashboard/stream/watch", strings.NewReader(body))
 	require.NoError(t, err)
@@ -111,9 +112,9 @@ func (f *checkFeed) watch(t *testing.T, body string) *http.Response {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = resp.Body.Close() })
+	require.NoError(t, resp.Body.Close())
 
-	return resp
+	return resp.StatusCode
 }
 
 func (f *checkFeed) nextChecks(t *testing.T) map[string]any {
@@ -152,8 +153,7 @@ func TestCheckStream_WatchingAPullRequestSendsItsChecks(t *testing.T) {
 	source := &checkFeedSource{checks: []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess}}}
 	feed, _ := openCheckFeed(t, source)
 
-	resp := feed.watch(t, watchPR)
-	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Equal(t, http.StatusNoContent, feed.watch(t, watchPR))
 
 	got := feed.nextChecks(t)
 	assert.Equal(t, "pull_request", got["kind"])
@@ -234,9 +234,9 @@ func TestCheckStream_UnknownStreamIs404(t *testing.T) {
 
 	feed, _ := openCheckFeed(t, &checkFeedSource{})
 
-	resp := feed.watch(t, strings.Replace(watchPR, watchedStreamID, "ffffffff-5d2a-4e7b-9c3d-2a6f8e1b7c40", 1))
+	status := feed.watch(t, strings.Replace(watchPR, watchedStreamID, "ffffffff-5d2a-4e7b-9c3d-2a6f8e1b7c40", 1))
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, status)
 }
 
 func TestCheckStream_RefusesMoreSubjectsThanTheCap(t *testing.T) {
@@ -246,9 +246,9 @@ func TestCheckStream_RefusesMoreSubjectsThanTheCap(t *testing.T) {
 	subject := `{"kind":"main_branch","forge":"github","fullName":"a/b"}`
 	many := strings.TrimSuffix(strings.Repeat(subject+",", 9), ",")
 
-	resp := feed.watch(t, `{"streamId":"`+watchedStreamID+`","subjects":[`+many+`]}`)
+	status := feed.watch(t, `{"streamId":"`+watchedStreamID+`","subjects":[`+many+`]}`)
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, http.StatusBadRequest, status)
 }
 
 func TestCheckStream_RefusesASubjectItCannotRead(t *testing.T) {
@@ -261,8 +261,8 @@ func TestCheckStream_RefusesASubjectItCannotRead(t *testing.T) {
 		"no owner and repo":    `{"kind":"main_branch","forge":"github","fullName":"ab"}`,
 		"pull request, no num": `{"kind":"pull_request","forge":"github","fullName":"a/b"}`,
 	} {
-		resp := feed.watch(t, `{"streamId":"`+watchedStreamID+`","subjects":[`+subject+`]}`)
-		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, name)
+		status := feed.watch(t, `{"streamId":"`+watchedStreamID+`","subjects":[`+subject+`]}`)
+		assert.Equal(t, http.StatusBadRequest, status, name)
 	}
 }
 

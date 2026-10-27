@@ -1033,25 +1033,41 @@ func streamSnapshots(ctx context.Context, stopped <-chan struct{}, w http.Respon
 		case <-stopped:
 			return
 		case data := <-checkEvents:
-			if _, err := fmt.Fprintf(w, "event: checks\ndata: %s\n\n", data); err != nil {
+			if !writeEvent(w, flusher, "event: checks\n", data) {
 				return
 			}
-			flusher.Flush()
 		case snap, open := <-ch:
 			if !open {
 				return
 			}
-			if onSnapshot != nil {
-				onSnapshot(snap)
-			}
-			data, err := json.Marshal(render(snap))
-			if err != nil {
+			if !writeSnapshot(w, flusher, snap, render, onSnapshot) {
 				return
 			}
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				return
-			}
-			flusher.Flush()
 		}
 	}
+}
+
+// writeSnapshot renders one snapshot and writes it as an event. It reports
+// whether the stream can go on.
+func writeSnapshot(w http.ResponseWriter, flusher http.Flusher, snap dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse, onSnapshot func(dashboard.Snapshot)) bool {
+	if onSnapshot != nil {
+		onSnapshot(snap)
+	}
+	data, err := json.Marshal(render(snap))
+	if err != nil {
+		return false
+	}
+
+	return writeEvent(w, flusher, "", data)
+}
+
+// writeEvent writes one server-sent event, named when prefix says so, and
+// reports whether the client is still there.
+func writeEvent(w http.ResponseWriter, flusher http.Flusher, prefix string, data []byte) bool {
+	if _, err := fmt.Fprintf(w, "%sdata: %s\n\n", prefix, data); err != nil {
+		return false
+	}
+	flusher.Flush()
+
+	return true
 }

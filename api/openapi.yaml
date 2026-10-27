@@ -5341,14 +5341,18 @@ components:
       properties:
         kind:
           type: string
+          maxLength: 16
           enum: [pull_request, main_branch]
         forge:
           type: string
+          maxLength: 32
         fullName:
           type: string
+          maxLength: 256
           description: The repository, as `owner/repo`.
         number:
           type: integer
+          maximum: 2147483647
           description: The pull request number. Required for `pull_request`.
 
     StreamWatchRequest:
@@ -5357,6 +5361,7 @@ components:
       properties:
         streamId:
           type: string
+          maxLength: 128
           description: The `sid` the stream was opened with.
         subjects:
           type: array
