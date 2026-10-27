@@ -180,6 +180,17 @@ test.describe('WebMCP tools', () => {
     page,
   }) => {
     const checks = [{ name: 'build', state: 'success', url: 'https://ci/1' }];
+    // The page opens its stream once a forge is configured.
+    await page.route('**/api/dashboard', (route) =>
+      route.fulfill({
+        json: {
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+        },
+      }),
+    );
     const feed = await serveChecks(page, () => checks);
     await stubModelContext(page);
     await page.goto('/pull-requests.html');

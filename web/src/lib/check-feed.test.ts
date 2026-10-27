@@ -245,12 +245,12 @@ describe('without a stream', () => {
     expect(posts).toEqual([]);
   });
 
-  test('a page with no stream at all says the same', async () => {
-    const feed = createCheckFeed({ newId: () => 'x' });
+  test('a page with no stream yet waits, then gives up', async () => {
+    const feed = createCheckFeed({ newId: () => 'x', timeoutMs: 0 });
     const got: CheckFeedMessage[] = [];
     feed.watch(branch, (m) => got.push(m));
     await flush();
-    expect(got).toEqual([{ error: 'the live connection is down' }]);
+    expect(got).toEqual([{ error: 'no answer from the server' }]);
   });
 
   test('a stream that closes for good tells its watchers', async () => {
@@ -323,6 +323,31 @@ describe('read', () => {
   test('gives up when nothing comes back in time', async () => {
     const { feed, source } = harness(204, 0);
     source.open();
+    expect(await feed.read(pr)).toEqual({ error: 'no answer from the server' });
+  });
+
+  test('waits for a stream that is not attached yet', async () => {
+    const posts: Post[] = [];
+    const feed = createCheckFeed({
+      newId: () => 'stream-0001',
+      post: async (body) => {
+        posts.push(JSON.parse(body));
+        return 204;
+      },
+      timeoutMs: 60000,
+    });
+    const done = feed.read(pr);
+    const source = new FakeSource();
+    feed.attach(source);
+    source.open();
+    await flush();
+    expect(posts.at(-1)?.subjects).toEqual([pr]);
+    source.emit('checks', { ...pr, checks: list });
+    expect(await done).toEqual({ checks: list });
+  });
+
+  test('gives up on a stream that never attaches', async () => {
+    const feed = createCheckFeed({ newId: () => 'x', timeoutMs: 0 });
     expect(await feed.read(pr)).toEqual({ error: 'no answer from the server' });
   });
 });

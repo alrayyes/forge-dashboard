@@ -85,9 +85,10 @@ export function createCheckFeed({
       for (const listener of [...(map.get(key) ?? [])]) listener(message);
   }
 
-  // A stream that is gone, or never was, will not answer.
+  // A stream that closed for good will not answer. One not attached yet
+  // may: the page opens it after its tools and dialogs are ready.
   function unavailable() {
-    return !open && (!source || source.readyState === CLOSED);
+    return !open && source?.readyState === CLOSED;
   }
 
   function send(refresh: boolean) {
@@ -121,6 +122,7 @@ export function createCheckFeed({
     attach(next: FeedSource) {
       source = next;
       open = next.readyState === OPEN;
+      if (open && subjects.size > 0) send(false);
       next.addEventListener('open', () => {
         open = true;
         if (subjects.size > 0) send(false);
