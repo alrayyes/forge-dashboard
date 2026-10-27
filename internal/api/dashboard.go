@@ -995,15 +995,11 @@ func handleDashboardStream(deps Deps, watches *checkWatches) http.HandlerFunc {
 		// opened with, and a client that changes its mind reconnects.
 		view := viewOf(r)
 
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.WriteHeader(http.StatusOK)
-		flusher.Flush()
-
 		// A page that names itself (?sid=) can ask for the job lists of the
 		// pull requests and branches it has open; they ride this stream as
 		// "checks" events, which the default message handler never sees.
+		// Registered before the headers go out: the page may post its watch
+		// the moment it sees the stream open.
 		var feed *checkWatch
 		var checkEvents <-chan []byte
 		var onSnapshot func(dashboard.Snapshot)
@@ -1013,6 +1009,12 @@ func handleDashboardStream(deps Deps, watches *checkWatches) http.HandlerFunc {
 				checkEvents, onSnapshot = feed.out, feed.onSnapshot
 			}
 		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+		flusher.Flush()
 
 		streamSnapshots(r.Context(), deps.Drain.streamsStopped(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
 			return buildDashboardResponse(r.Context(), deps, snap, view)
