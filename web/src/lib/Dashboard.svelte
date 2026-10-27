@@ -6519,6 +6519,7 @@
         // own eager pull: this is detail a row doesn't show until the dialog is
         // opened for it.
         checksUrl: `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
+        repo: { forge: item.forge, fullName: item.repo },
         signature: ciSignature(item),
         emptyText: "No CI configured for this pull request.",
         errorText: `Couldn't load pipeline checks for ${item.repo}#${item.number}`,

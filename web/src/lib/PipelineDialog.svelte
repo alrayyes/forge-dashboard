@@ -9,6 +9,8 @@
     // The GET endpoint that answers { checks }, read when the dialog opens and
     // never as part of a snapshot.
     checksUrl: string;
+    // The repository the checks belong to: where a job's log is read from.
+    repo: RepoRef;
     // The row's ciSignature when the dialog opened, to tell later whether the
     // pipeline behind it moved on.
     signature: string;
@@ -65,7 +67,7 @@
     checkControl,
     checkLinkLabel,
     checkLinkText,
-    forgeOf,
+    type RepoRef,
   } from "#lib/run-log.js";
   import {
     activeRuns,
@@ -336,13 +338,13 @@
     return `${labels.slice(0, -1).join(", ")} ${word} ${labels[labels.length - 1]}`;
   }
 
-  function askForExcerpts(list: Check[], url: string) {
+  function askForExcerpts(list: Check[], repo: RepoRef) {
     const picks = pickExcerptJobs(list, reads);
     if (!picks.length) return;
     const mine = excerptRun;
     void fillExcerpts(
       picks,
-      url,
+      repo,
       (check, text) => {
         excerpts[excerptKey(check)] = text;
         speak(`Log excerpt loaded for ${check.name}.`);
@@ -452,7 +454,7 @@
           ?.contains(document.activeElement);
         checks = ordered;
         const said = reconcileRuns(ordered);
-        askForExcerpts(ordered, row.checksUrl);
+        askForExcerpts(ordered, row.repo);
         // One message per read: the announcer holds one at a time.
         const both = [said, line].filter(Boolean).join(" ");
         if (both) speak(both);
@@ -472,7 +474,7 @@
       const said = reconcileRuns(checks);
       phase = "ready";
       if (said) speak(said);
-      askForExcerpts(checks, row.checksUrl);
+      askForExcerpts(checks, row.repo);
       return true;
     } catch (err) {
       if (mine !== request) return false;
@@ -513,15 +515,14 @@
   // those two states carry an excerpt from the server, and a cancelled run is
   // not a failure to debug (View run still opens its output).
   function copyableLog(check: Check): boolean {
-    return canCopyLog(check, target?.checksUrl);
+    return canCopyLog(check, target?.repo);
   }
 
-  // The forge's name for a board that doesn't name it: the checks url carries
-  // the forge.
+  // The forge's name for a board that doesn't name it.
   function forgeLabel(t: PipelineTarget): string {
-    const forge = forgeOf(t.checksUrl);
+    const forge = t.repo.forge;
 
-    return t.forgeName ?? FORGE_LABELS[forge ?? ""] ?? forge ?? "the forge";
+    return t.forgeName ?? FORGE_LABELS[forge] ?? forge ?? "the forge";
   }
 
   // Each check's key, so a redraw keeps a node, and the focus on it, with the
@@ -578,7 +579,7 @@
     {#each items as check (keyOf.get(check))}
       {@const copyable = copyableLog(check)}
       {@const forge = target ? forgeLabel(target) : "the forge"}
-      {@const control = checkControl(check, target?.checksUrl)}
+      {@const control = checkControl(check, target?.repo)}
       <li class="pipeline-check">
         <span class="pipeline-check-status {check.state}">
           {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}
@@ -610,7 +611,7 @@
           <CheckRunOutput
             name={check.name}
             jobId={check.jobId}
-            checksUrl={target.checksUrl}
+            repo={target.repo}
             runUrl={check.url}
             forgeName={forge}
           />
@@ -633,7 +634,7 @@
         <CopyCheckLog
           name={check.name}
           jobId={check.jobId}
-          checksUrl={target?.checksUrl ?? ""}
+          repo={target?.repo}
           excerpt={check.excerpt ?? excerpts[excerptKey(check)] ?? ""}
           forgeName={forge}
           {copyable}

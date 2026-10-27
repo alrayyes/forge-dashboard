@@ -10,23 +10,24 @@
     loadRunLog,
     logUrl,
     notePlaces,
+    type RepoRef,
   } from "#lib/run-log.js";
 
   let {
     name,
     jobId,
-    checksUrl,
+    repo,
     runUrl,
     forgeName,
   }: {
     name: string;
     jobId: number;
-    checksUrl: string;
+    repo: RepoRef | undefined;
     runUrl: string;
     forgeName: string;
   } = $props();
 
-  const url = $derived(logUrl(checksUrl, jobId));
+  const url = $derived(logUrl(repo, jobId));
   let shown = $state(false);
   let phase = $state<"loading" | "ready" | "error">("loading");
   let text = $state("");

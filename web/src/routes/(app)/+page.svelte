@@ -202,6 +202,7 @@
     pipeline?.open({
       subtitle: `${b.fullName}${b.branch ? ` · ${b.branch}` : ""}`,
       checksUrl: `/api/main-branches/checks?forge=${encodeURIComponent(b.forge)}&fullName=${encodeURIComponent(b.fullName)}`,
+      repo: { forge: b.forge, fullName: b.fullName },
       signature: branchSignature(b),
       emptyText: "No jobs were found for this branch.",
       errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
