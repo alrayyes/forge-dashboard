@@ -916,14 +916,19 @@ never queued for a rate-limit reset: by then the run may be a different one,
 started by a newer push, and a cancel can't be undone (`POST
 /api/checks/cancel-run` with `{forge, fullName, runId}`, listed as `cancel_run`
 in `allowedActions`).
-To name the run of a running job, GitHub's checks list makes more reads of
-the commit, only while some check is still running or queued: its queued
-workflow runs, its running ones, and the jobs of each. That is three reads for
-a commit with one active run, and the same three again on every re-read after
-a cancel. A finished pipeline costs nothing extra, and a failed lookup leaves
-the list without the button rather than failing it. In that case the panel
-doesn't claim a run has finished or stopped until it sees the run's own jobs
-finish.
+A job of a workflow run carries that run, so a finished job says which run it
+came from. On GitHub the run's id is in the job's page address and costs
+nothing. Its name and number come from the runs for that commit, which the checks
+list reads extra. While some check is running or queued it reads the queued workflow
+runs, the running ones, and the jobs of each: three reads for a commit with one
+active run, and the same three again on every re-read after a cancel. When a
+finished job names a run those reads didn't list, it also reads the completed
+runs for that commit, once however many jobs there are. So a finished GitHub pipeline
+costs one extra read each time its list is read, and a pipeline with a running
+check costs up to four. A failed lookup leaves the run's name and number empty
+and the list intact, and the run id still lets the panel offer the cancel. The
+panel doesn't claim a run has finished or stopped until it sees the run's own
+jobs finish.
 
 When the forge says which checks the base branch's protection requires,
 the panel groups them: a `Required` group first, with a failing required

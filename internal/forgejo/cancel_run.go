@@ -35,12 +35,10 @@ func (c *Client) CancelRun(ctx context.Context, owner, name string, runID int64)
 	return nil
 }
 
-// withRun marks check as a job of the run runID named runName when the job is
-// still queued or running, the only state a cancel can still change.
+// withRun names the run a check belongs to, whatever state it is in. Whether
+// the run can still be cancelled is the page's call, from the check's state.
 func withRun(check dashboard.Check, runID int64, runName string, runNumber int64) dashboard.Check {
-	if check.State == dashboard.CheckRunning || check.State == dashboard.CheckQueued {
-		check.RunID, check.RunName, check.RunNumber = runID, runName, runNumber
-	}
+	check.RunID, check.RunName, check.RunNumber = runID, runName, runNumber
 
 	return check
 }

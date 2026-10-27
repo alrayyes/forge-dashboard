@@ -74,7 +74,8 @@ func TestListChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
 	for _, c := range checks {
 		byName[c.Name] = c
 	}
-	assert.Zero(t, byName["lint"].RunID, "a finished job has no run to cancel")
+	assert.Equal(t, int64(42), byName["lint"].RunID, "a finished job still says which run it belongs to")
+	assert.Equal(t, "ci", byName["lint"].RunName)
 	assert.Equal(t, int64(42), byName["test"].RunID)
 	assert.Equal(t, "ci", byName["test"].RunName, "the workflow file without its extension")
 	assert.Equal(t, int64(42), byName["build"].RunID, "a waiting job belongs to its run too")
@@ -94,7 +95,7 @@ func TestListDefaultBranchChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
 	require.Len(t, checks, 2)
 	assert.Equal(t, int64(3), checks[0].RunID)
 	assert.Equal(t, "ci", checks[0].RunName)
-	assert.Zero(t, checks[1].RunID)
+	assert.Equal(t, int64(3), checks[1].RunID, "a finished job names its run too")
 }
 
 // A run whose jobs can't be read stands in as one check named for the run. It
@@ -190,7 +191,7 @@ func TestListChecks_QueuedRunWithNoJobs_IsCancellable(t *testing.T) {
 	require.NoError(t, err)
 	var cancellable []int64
 	for _, c := range checks {
-		if c.RunID != 0 {
+		if c.RunID != 0 && (c.State == dashboard.CheckRunning || c.State == dashboard.CheckQueued) {
 			cancellable = append(cancellable, c.RunID)
 		}
 	}

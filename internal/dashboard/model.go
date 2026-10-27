@@ -108,9 +108,12 @@ type Check struct {
 	// which have no log to read.
 	JobID int64 `json:"jobId,omitempty"`
 	// RunID is the Actions workflow run the job belongs to and RunName that
-	// run's workflow, set only while the run is queued or running: the unit a
-	// cancel acts on, since no forge cancels one job. 0 and omitted for a
-	// finished run, a legacy commit status or a held workflow.
+	// run's workflow, set on every Actions job, finished or not. Whether the
+	// run can still be cancelled, the unit a cancel acts on since no forge
+	// cancels one job, is read from State. 0 and omitted for a legacy commit
+	// status, a third-party check or a held workflow. On GitHub the name and
+	// number are best effort: the id comes from the job's address, and a failed
+	// or partial lookup leaves them empty.
 	RunID   int64  `json:"runId,omitempty"`
 	RunName string `json:"runName,omitempty"`
 	// RunNumber is the forge's own number for that run (the one in its page
