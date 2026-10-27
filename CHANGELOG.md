@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.43.0](https://github.com/alrayyes/forge-dashboard/compare/v2.42.3...v2.43.0) (2026-10-27)
+
+
+### Features
+
+* stream job lists to the pipeline dialog ([#2952](https://github.com/alrayyes/forge-dashboard/issues/2952)) ([1f9d087](https://github.com/alrayyes/forge-dashboard/commit/1f9d08713c0380364ce31f531c174027c444834b))
+
 ## [2.42.3](https://github.com/alrayyes/forge-dashboard/compare/v2.42.2...v2.42.3) (2026-10-27)
 
 
