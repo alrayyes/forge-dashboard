@@ -39,6 +39,9 @@ export type CiPillModel = {
   glyph: string;
   word: string;
   segments: CheckSegment[];
+  // A failed pill whose pipeline has checks running or queued: the failure
+  // stands, but the run can still change, so the pill says it is not over.
+  live: boolean;
   // The accessible name, without the "Open pipeline" a button adds.
   name: string;
 };
@@ -49,6 +52,9 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
     input.segmented === false || awaiting ? [] : checkSegments(input.counts);
   const word = pillWord(input.cls, input.word, segments);
   const segmented = segments.length > 0;
+  const live =
+    input.cls === 'failure' &&
+    segments.some((s) => s.kind === 'running' || s.kind === 'waiting');
   const held = awaiting ? ' awaiting' : '';
   // A fully skipped pass keeps its state class but must not read as a pass.
   const quiet = onlySkipped(input.cls, segments) ? ' all-skipped' : '';
@@ -59,7 +65,10 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
     glyph: input.glyph,
     word,
     segments,
-    name: segmented ? pillName(word, segments) : word,
+    live,
+    name: segmented
+      ? `${pillName(word, segments)}${live ? ', still running' : ''}`
+      : word,
   };
 }
 
@@ -112,7 +121,17 @@ export function renderCiPill(
     else root.appendChild(span('dot'));
     root.appendChild(document.createTextNode(model.word));
   } else {
-    root.appendChild(span('ci-seg ci-seg-label', model.word));
+    const label = span('ci-seg ci-seg-label', model.word);
+    if (model.live) {
+      // The same arc and still clock a running count uses, so the marker
+      // honours prefers-reduced-motion with no rule of its own. The name says
+      // "still running", so a screen reader skips the glyph.
+      const live = span('ci-live');
+      live.setAttribute('aria-hidden', 'true');
+      for (const g of checkGlyphElements('running')) live.appendChild(g);
+      label.appendChild(live);
+    }
+    root.appendChild(label);
     for (const { kind, n } of model.segments) {
       const seg = span(`ci-seg ci-seg-${kind}`);
       // The counts are said in words by the name (or, on a badge, by the hidden

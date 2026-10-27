@@ -126,9 +126,26 @@ test.describe('Passed and Failed pill counts (#2074)', () => {
     ]);
     await expect(pill(page, 'Mixed run')).toHaveAttribute(
       'aria-label',
-      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed. Open pipeline',
+      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed, still running. Open pipeline',
     );
     await expect(segments(page, 'Lone fail')).toHaveText(['1']);
+  });
+
+  test('a failed pill whose pipeline is still going says so, and one that is done does not', async ({
+    page,
+  }) => {
+    await open(page);
+    const live = (title: string) => pill(page, title).locator('.ci-live');
+
+    await expect(live('Mixed run')).toBeVisible();
+    await expect(live('Mixed run').locator('.check-glyph-arc')).toBeVisible();
+    await expect(live('Lone fail')).toHaveCount(0);
+    await expect(live('Going')).toHaveCount(0);
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    await expect(live('Mixed run').locator('.check-glyph-arc')).toBeHidden();
+    await expect(live('Mixed run').locator('.check-glyph-clock')).toBeVisible();
   });
 
   test('each pill keeps its own state colours', async ({ page }) => {

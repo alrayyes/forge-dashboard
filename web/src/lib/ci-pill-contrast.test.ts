@@ -23,6 +23,7 @@ const SEGMENTS = [
   '.ci-seg-passed',
   '.ci-seg-skipped',
   '.ci-seg-running',
+  '.ci-live',
   '.ci-seg-waiting',
   '.ci-seg-failed',
 ];

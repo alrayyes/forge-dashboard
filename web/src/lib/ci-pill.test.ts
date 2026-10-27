@@ -23,8 +23,58 @@ describe('ciPillModel', () => {
       'failed',
     ]);
     expect(m.name).toBe(
-      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed',
+      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed, still running',
     );
+  });
+
+  // A failed pill whose pipeline has not finished can still change, so it says
+  // so: a marker beside the word, and the same in the spoken name.
+  test('a failed pill with checks still going is marked live', () => {
+    const running = ciPillModel({
+      cls: 'failure',
+      glyph: 'failure',
+      word: 'Failed',
+      counts: { passed: 0, running: 1, waiting: 0, failed: 1 },
+    });
+    const queued = ciPillModel({
+      cls: 'failure',
+      glyph: 'failure',
+      word: 'Failed',
+      counts: { passed: 0, running: 0, waiting: 2, failed: 1 },
+    });
+
+    expect(running.live).toBe(true);
+    expect(queued.live).toBe(true);
+    expect(running.name).toBe('Failed 1 1: 1 running, 1 failed, still running');
+  });
+
+  test('a failed pill with nothing left to run is not live', () => {
+    const m = ciPillModel({
+      cls: 'failure',
+      glyph: 'failure',
+      word: 'Failed',
+      counts: { passed: 4, running: 0, waiting: 0, failed: 1 },
+    });
+
+    expect(m.live).toBe(false);
+    expect(m.name).toBe('Failed 4 1: 4 passed, 1 failed');
+  });
+
+  test('only a failed pill is marked live', () => {
+    const m = ciPillModel({
+      cls: 'pending',
+      glyph: 'running',
+      word: 'Running',
+      counts: { passed: 1, running: 1, waiting: 0, failed: 0 },
+    });
+
+    expect(m.live).toBe(false);
+  });
+
+  test('a failed pill with no counts is not live', () => {
+    const m = ciPillModel({ cls: 'failure', glyph: 'failure', word: 'Failed' });
+
+    expect(m.live).toBe(false);
   });
 
   test('keeps waiting as the spoken word for queued checks', () => {
@@ -231,6 +281,28 @@ describe('renderCiPill', () => {
     expect(seg.attrs.get('aria-hidden')).toBe('true');
     expect(seg.children[0].attrs.get('data-glyph')).toBeDefined();
     expect(seg.children.at(-1)?.textContent).toBe('2');
+  });
+
+  test('a live pill draws the running glyphs inside its label, hidden from a screen reader', () => {
+    const label = as(as(render(failed())).find('ci-seg-label'));
+    const live = as(label.find('ci-live'));
+
+    expect(live.attrs.get('aria-hidden')).toBe('true');
+    expect(live.children.map((g) => g.attrs.get('data-glyph')).sort()).toEqual([
+      'arc',
+      'clock',
+    ]);
+  });
+
+  test('a pill that is not live draws no marker', () => {
+    const done = ciPillModel({
+      cls: 'failure',
+      glyph: 'failure',
+      word: 'Failed',
+      counts: { passed: 4, running: 0, waiting: 0, failed: 1 },
+    });
+
+    expect(as(render(done)).find('ci-live')).toBeUndefined();
   });
 
   test('checkGlyphElements gives nothing for an unknown state', () => {

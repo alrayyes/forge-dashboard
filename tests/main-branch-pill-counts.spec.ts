@@ -110,8 +110,18 @@ test.describe('Main branches pill counts (#2074)', () => {
     await expect(segments(page, 'acme/red')).toHaveText(['8', '1', '2', '3']);
     await expect(pill(page, 'acme/red')).toHaveAttribute(
       'aria-label',
-      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed. Open pipeline',
+      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed, still running. Open pipeline',
     );
+  });
+
+  test('a failed branch with a job still running carries the live marker', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await expect(pill(page, 'acme/red').locator('.ci-live')).toBeVisible();
+    await expect(pill(page, 'acme/going').locator('.ci-live')).toHaveCount(0);
+    await expect(pill(page, 'acme/older').locator('.ci-live')).toHaveCount(0);
   });
 
   test('a running and a passed branch draw theirs', async ({ page }) => {
