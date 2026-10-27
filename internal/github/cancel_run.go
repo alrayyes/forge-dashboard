@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
+	"regexp"
 	"slices"
+	"strconv"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	ghsdk "github.com/google/go-github/v75/github"
@@ -52,46 +55,109 @@ type runRef struct {
 	number int64
 }
 
-// attachRuns names the workflow run behind each queued or running check, so
-// the pipeline dialog can offer to cancel it. It reads the commit's runs and
-// the jobs of each unfinished one, and only when a check is still going, so a
-// finished pipeline costs nothing extra. The names are a convenience: a read
-// that fails leaves the checks as they were, never an error.
-func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks []dashboard.Check) {
-	if !slices.ContainsFunc(checks, jobStillGoing) {
-		return
+func refOf(run *ghsdk.WorkflowRun) runRef {
+	return runRef{id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber())}
+}
+
+// jobRunID is the id of the workflow run in an Actions job's page address
+// ("/actions/runs/<run>/job/<job>"), 0 for any other address.
+var jobRunID = regexp.MustCompile(`/actions/runs/(\d+)/job/\d+`)
+
+func runIDOf(jobURL string) int64 {
+	m := jobRunID.FindStringSubmatch(jobURL)
+	if m == nil {
+		return 0
+	}
+	id, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0
 	}
 
-	byJob := c.activeRunJobs(ctx, owner, name, sha)
+	return id
+}
+
+// attachRuns names the workflow run behind each check: the unit a cancel acts
+// on while a job is going, and the identity of a finished job's run. A going
+// job is matched to its run by the run's job list, which only unfinished runs
+// are asked for. A finished job carries its run's id in its page address, so
+// its run's name and number come from one more list of the commit's completed
+// runs, read only when such a job needs it. The names are a convenience: a read
+// that fails leaves the checks as they were, never an error.
+func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks []dashboard.Check) {
+	known := map[int64]runRef{}
+	if slices.ContainsFunc(checks, jobStillGoing) {
+		byJob := map[int64]runRef{}
+		for _, run := range c.unfinishedRuns(ctx, owner, name, sha) {
+			known[run.GetID()] = refOf(run)
+			maps.Copy(byJob, c.runJobs(ctx, owner, name, run))
+		}
+		for i := range checks {
+			if ref, ok := byJob[checks[i].JobID]; ok && jobStillGoing(checks[i]) {
+				setRun(&checks[i], ref)
+			}
+		}
+	}
+
+	// The runs still going are known already; a job of one of the others needs
+	// the commit's completed runs.
+	var unknown bool
+	for _, ch := range checks {
+		_, ok := known[runIDOf(ch.URL)]
+		unknown = unknown || (ch.RunID == 0 && runIDOf(ch.URL) != 0 && !ok)
+	}
+	if unknown {
+		for _, run := range c.completedRuns(ctx, owner, name, sha) {
+			known[run.GetID()] = refOf(run)
+		}
+	}
 	for i := range checks {
-		if ref, ok := byJob[checks[i].JobID]; ok && jobStillGoing(checks[i]) {
-			checks[i].RunID, checks[i].RunName, checks[i].RunNumber = ref.id, ref.name, ref.number
+		if ref, ok := known[runIDOf(checks[i].URL)]; ok && checks[i].RunID == 0 {
+			setRun(&checks[i], ref)
 		}
 	}
 }
 
-// activeRunJobs maps the id of each job of an unfinished run on sha to its run.
-func (c *Client) activeRunJobs(ctx context.Context, owner, name, sha string) map[int64]runRef {
+func setRun(ch *dashboard.Check, ref runRef) {
+	ch.RunID, ch.RunName, ch.RunNumber = ref.id, ref.name, ref.number
+}
+
+// runJobs maps the id of each job of run to the run.
+func (c *Client) runJobs(ctx context.Context, owner, name string, run *ghsdk.WorkflowRun) map[int64]runRef {
 	byJob := map[int64]runRef{}
 
-	for _, run := range c.unfinishedRuns(ctx, owner, name, sha) {
-		jobsPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs", owner, name, run.GetID())
-		slog.Debug("github request", "method", http.MethodGet, "url", jobsPath)
-		jobOpts := &ghsdk.ListWorkflowJobsOptions{}
-		jobOpts.PerPage = perPage
-		jobs, jobsResp, err := c.restClient.Actions.ListWorkflowJobs(ctx, owner, name, run.GetID(), jobOpts)
-		if err != nil {
-			slog.Debug("github workflow jobs unavailable", "path", jobsPath, "err", err)
+	jobsPath := fmt.Sprintf("/repos/%s/%s/actions/runs/%d/jobs", owner, name, run.GetID())
+	slog.Debug("github request", "method", http.MethodGet, "url", jobsPath)
+	jobOpts := &ghsdk.ListWorkflowJobsOptions{}
+	jobOpts.PerPage = perPage
+	jobs, jobsResp, err := c.restClient.Actions.ListWorkflowJobs(ctx, owner, name, run.GetID(), jobOpts)
+	if err != nil {
+		slog.Debug("github workflow jobs unavailable", "path", jobsPath, "err", err)
 
-			continue
-		}
-		c.recordRESTSuccess(ctx, http.MethodGet, jobsPath, jobsResp)
-		for _, job := range jobs.Jobs {
-			byJob[job.GetID()] = runRef{id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber())}
-		}
+		return byJob
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, jobsPath, jobsResp)
+	for _, job := range jobs.Jobs {
+		byJob[job.GetID()] = refOf(run)
 	}
 
 	return byJob
+}
+
+// completedRuns lists the finished workflow runs of sha, one request.
+func (c *Client) completedRuns(ctx context.Context, owner, name, sha string) []*ghsdk.WorkflowRun {
+	runsPath := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
+	slog.Debug("github request", "method", http.MethodGet, "url", runsPath, "status", "completed")
+	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha, Status: "completed"}
+	opts.PerPage = perPage
+	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, opts)
+	if err != nil {
+		slog.Debug("github workflow runs unavailable", "path", runsPath, "status", "completed", "err", err)
+
+		return nil
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, runsPath, resp)
+
+	return runs.WorkflowRuns
 }
 
 // unfinishedRuns lists the queued and running workflow runs of sha. It asks

@@ -37,7 +37,9 @@ func (s *cancelServer) start(t *testing.T) *github.Client {
 	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
 		const u = "https://github.com/alrayyes/a/runs/x"
 		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
-			{"id": 76, "name": "lint", "status": "completed", "conclusion": "success", "html_url": u},
+			{"id": 76, "name": "lint", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/actions/runs/800/job/76"},
+			{"id": 80, "name": "docs", "status": "completed", "conclusion": "success", "html_url": "https://github.com/alrayyes/a/actions/runs/900/job/80"},
+			{"id": 81, "name": "external", "status": "completed", "conclusion": "success", "html_url": u},
 			{"id": 77, "name": "test", "status": "in_progress", "html_url": u},
 			{"id": 78, "name": "build", "status": "queued", "html_url": u},
 			{"id": 79, "name": "publish", "status": "in_progress", "html_url": u},
@@ -90,7 +92,7 @@ func (s *cancelServer) runsHandler(t *testing.T) http.HandlerFunc {
 			return
 		}
 		all := []map[string]any{
-			{"id": 800, "name": "Old", "status": "completed"},
+			{"id": 800, "name": "Old", "run_number": 11, "status": "completed"},
 			{"id": 900, "name": "CI", "run_number": 12, "status": "in_progress"},
 			{"id": 901, "name": "Release", "status": "queued"},
 		}
@@ -122,7 +124,12 @@ func TestListChecks_NamesTheRunOfEachActiveJob(t *testing.T) {
 	for _, c := range checks {
 		byName[c.Name] = c
 	}
-	assert.Zero(t, byName["lint"].RunID, "a finished job has no run to cancel")
+	assert.Equal(t, int64(800), byName["lint"].RunID, "a finished job still says which run it belongs to")
+	assert.Equal(t, "Old", byName["lint"].RunName)
+	assert.Equal(t, int64(11), byName["lint"].RunNumber)
+	assert.Equal(t, int64(900), byName["docs"].RunID, "a finished job of a run still going")
+	assert.Equal(t, "CI", byName["docs"].RunName)
+	assert.Zero(t, byName["external"].RunID, "a check that is not an Actions job belongs to no run")
 	assert.Equal(t, int64(900), byName["test"].RunID)
 	assert.Equal(t, "CI", byName["test"].RunName)
 	assert.Equal(t, int64(900), byName["build"].RunID, "a queued job belongs to its run too")
@@ -155,7 +162,7 @@ func TestListChecks_ARunLookupThatFailsStillListsTheChecks(t *testing.T) {
 	checks, err := (&cancelServer{runsStatus: http.StatusInternalServerError}).start(t).ListChecks(t.Context(), "alrayyes", "a", 5)
 
 	require.NoError(t, err)
-	require.Len(t, checks, 4)
+	require.Len(t, checks, 6)
 	for _, c := range checks {
 		assert.Zero(t, c.RunID, c.Name)
 	}
