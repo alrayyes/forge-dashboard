@@ -45,7 +45,7 @@ export function checkRunKey(check: Check): string {
   ].join('|');
 }
 
-// The per-check status vocabulary of the checks endpoints' CheckState enum.
+// The per-check status vocabulary of the CheckState enum.
 // Distinct from the row-level CI labels, which describe a whole pipeline.
 export const CHECK_STATE_LABELS: Record<string, string> = {
   queued: 'Queued',

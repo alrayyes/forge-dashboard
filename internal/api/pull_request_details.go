@@ -44,7 +44,7 @@ func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, forge, fullNam
 }
 
 // handlePullRequestDetails serves resolvePullRequestDetailsFor over HTTP. A GET
-// like the checks endpoint: it fetches on demand and writes nothing, so it takes
+// that fetches on demand and writes nothing, so it takes
 // a query string, and it is never part of the snapshot, so a thread nobody opens
 // costs no budget.
 func handlePullRequestDetails(deps Deps) http.HandlerFunc {
