@@ -87,7 +87,6 @@ export function rebaseAllLabel(count: number): string {
 }
 
 export function summaryLine(count: number, total: number): string {
-  if (count === 0) return 'Nothing is out of date.';
   return `${count} of ${total} ${count === 1 ? 'is' : 'are'} out of date.`;
 }
 

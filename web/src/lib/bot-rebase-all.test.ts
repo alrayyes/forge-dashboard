@@ -139,9 +139,8 @@ describe('labels', () => {
     expect(rebaseAllLabel(6)).toBe('Rebase all (6)');
   });
 
-  test('with none, the button reads plain and the summary says why', () => {
+  test('with none, the button reads plain', () => {
     expect(rebaseAllLabel(0)).toBe('Rebase all');
-    expect(summaryLine(0, 9)).toBe('Nothing is out of date.');
   });
 
   test('the summary counts out of date against listed', () => {
