@@ -499,22 +499,23 @@ func unset(t time.Time) bool {
 }
 
 // runTimes is when the last run finished and how long the commit's pipeline
-// took, from the first start to that finish. Nil when no run has both times.
+// took, from the first start to that finish. The finish is nil when no run has
+// a real stop. The duration is nil when no run has a real start as well.
 func runTimes(runs []*branchRun) (finished *time.Time, seconds *int) {
 	var first, last time.Time
 	for _, r := range runs {
-		if unset(r.StartedAt) || unset(r.StoppedAt) {
-			continue
-		}
-		if first.IsZero() || r.StartedAt.Before(first) {
+		if !unset(r.StartedAt) && (first.IsZero() || r.StartedAt.Before(first)) {
 			first = r.StartedAt
 		}
-		if r.StoppedAt.After(last) {
+		if !unset(r.StoppedAt) && r.StoppedAt.After(last) {
 			last = r.StoppedAt
 		}
 	}
 	if last.IsZero() {
 		return nil, nil
+	}
+	if first.IsZero() {
+		return &last, nil
 	}
 	d := max(int(last.Sub(first).Seconds()), 0)
 
