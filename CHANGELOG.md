@@ -1,5 +1,16 @@
 # Changelog
 
+## [6.0.0](https://github.com/alrayyes/forge-dashboard/compare/v5.0.0...v6.0.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* a stream or MCP check no longer has `state`. It has `status` plus `conclusion`: `queued` stays `queued`, `running` becomes `in_progress`, `awaiting_approval` becomes `waiting`, and `success`, `failure`, `cancelled`, `skipped` and `timed_out` become `completed` with that conclusion. Clients to update: forge-dashboard-sdk-go, forge-dashboard-sdk-node, forge-dashboard-sdk-php, forge-dashboard-sdk-python and forge-board-cloud-api.
+
+### Features
+
+* send check status and conclusion ([#2976](https://github.com/alrayyes/forge-dashboard/issues/2976)) ([6fe8578](https://github.com/alrayyes/forge-dashboard/commit/6fe857812bd6e52c747999c09cd08c841ccfe160))
+
 ## [5.0.0](https://github.com/alrayyes/forge-dashboard/compare/v4.0.1...v5.0.0) (2026-10-27)
 
 
