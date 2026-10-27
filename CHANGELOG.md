@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.42.1](https://github.com/alrayyes/forge-dashboard/compare/v2.42.0...v2.42.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **web:** widen the title search, narrow the selects ([#2938](https://github.com/alrayyes/forge-dashboard/issues/2938)) ([2291822](https://github.com/alrayyes/forge-dashboard/commit/2291822c50c0edde00b231eb7cba754663b63908))
+
 ## [2.42.0](https://github.com/alrayyes/forge-dashboard/compare/v2.41.0...v2.42.0) (2026-10-26)
 
 
