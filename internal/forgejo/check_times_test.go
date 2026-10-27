@@ -6,10 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 )
 
 var (
