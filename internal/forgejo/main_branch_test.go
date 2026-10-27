@@ -259,6 +259,19 @@ func TestReadMainBranch(t *testing.T) {
 		assert.Contains(t, row.RunURL, "/actions/runs/1")
 	})
 
+	t.Run("a run started at the Unix epoch has no duration", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{runs: []map[string]any{
+			actionRun(1, "main", "cafef00d", "failure", "1970-01-01T00:00:00Z", "2026-10-10T09:02:00Z"),
+		}}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Nil(t, row.DurationSeconds, "an epoch start is an unset start, not 56 years of running")
+	})
+
 	t.Run("a run still going is running, with no finish time", func(t *testing.T) {
 		t.Parallel()
 		s := &mainBranchServer{runs: []map[string]any{

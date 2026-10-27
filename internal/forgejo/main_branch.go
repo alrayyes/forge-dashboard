@@ -491,12 +491,19 @@ func (c *Client) branchCommit(ctx context.Context, repo dashboard.RepoRef, run *
 	return commit
 }
 
+// unset is a time Forgejo left blank: Go's zero time, or the Unix epoch it
+// writes for a run that has not started. Either one would make a duration of
+// decades.
+func unset(t time.Time) bool {
+	return t.IsZero() || t.Unix() <= 0
+}
+
 // runTimes is when the last run finished and how long the commit's pipeline
 // took, from the first start to that finish. Nil when no run has both times.
 func runTimes(runs []*branchRun) (finished *time.Time, seconds *int) {
 	var first, last time.Time
 	for _, r := range runs {
-		if r.StartedAt.IsZero() || r.StoppedAt.IsZero() {
+		if unset(r.StartedAt) || unset(r.StoppedAt) {
 			continue
 		}
 		if first.IsZero() || r.StartedAt.Before(first) {
