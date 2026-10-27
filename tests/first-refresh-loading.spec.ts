@@ -46,7 +46,7 @@ type Mode = { done: boolean | undefined; withItems: boolean };
 // Answers /api/dashboard from `mode`, which a test flips to release the first
 // refresh. The poll interval is one second so the page picks the flip up.
 async function holdDashboard(page: Page, mode: Mode) {
-  await page.route('**/api/dashboard/stream', (route: Route) => route.abort());
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) => {
     const prs = mode.withItems
       ? [makePR(1), makePR(2, 'release'), makePR(3, 'dependency')]
@@ -339,7 +339,7 @@ test.describe('first refresh loading state (#1672)', () => {
     page,
   }) => {
     // The snapshot request fails: the real state shows, not an endless wait.
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard', (route: Route) => route.abort());
@@ -355,7 +355,7 @@ test.describe('first refresh loading state (#1672)', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', async (route: Route) => {

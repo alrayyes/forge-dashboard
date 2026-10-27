@@ -57,7 +57,7 @@ async function holdFirstAnswer(page: Page, after: Answer) {
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/api/dashboard/stream', (route: Route) => route.abort());
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', async (route: Route) => {
     if (new URL(route.request().url()).pathname !== '/api/dashboard')
       return route.fallback();
@@ -211,7 +211,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   test('a failed first request settles to the real state and does not hang', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', (route: Route) =>
@@ -237,7 +237,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
       generatedAt: zero,
       readIntervalSeconds: 1,
     };
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', (route: Route) =>
@@ -301,7 +301,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', (route: Route) => {
@@ -340,7 +340,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', async (route: Route) => {
@@ -381,7 +381,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', async (route: Route) => {
@@ -422,7 +422,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', async (route: Route) => {
@@ -455,7 +455,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', async (route: Route) => {
@@ -482,7 +482,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream', (route: Route) =>
+    await page.route('**/api/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     await page.route('**/api/dashboard*', (route: Route) => {
@@ -509,7 +509,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     }) => {
       await page.clock.install();
       let reads = 0;
-      await page.route('**/api/dashboard/stream', (route: Route) =>
+      await page.route('**/api/dashboard/stream*', (route: Route) =>
         route.abort(),
       );
       await page.route('**/api/dashboard*', (route: Route) => {

@@ -21,7 +21,7 @@ function snapshot(extra: Record<string, unknown> = {}) {
 
 test.describe('refresh follows the server (#809)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream', (route) =>
+    await page.route('**/api/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
   });

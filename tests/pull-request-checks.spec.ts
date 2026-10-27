@@ -7,6 +7,7 @@ import {
   openActionsDialog,
 } from './actions-dialog-helper';
 import { checkLinkName } from './check-link-name-helper';
+import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 interface MockPR {
@@ -65,13 +66,12 @@ function mockDashboard(
   );
 }
 
-function mockChecks(page: Page, body: unknown, status = 200) {
-  return page.route('**/api/pull-requests/checks*', (route: Route) =>
-    route.fulfill({
-      status,
-      contentType: 'application/json',
-      body: JSON.stringify(body),
-    }),
+async function mockChecks(
+  page: Page,
+  body: { checks?: unknown[]; error?: string },
+) {
+  return await serveChecks(page, () =>
+    body.error === undefined ? (body.checks ?? []) : { error: body.error },
   );
 }
 
@@ -114,8 +114,7 @@ test.describe('pull request pipeline checks panel', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    let requestURL = '';
-    await mockChecks(page, {
+    const { asked } = await mockChecks(page, {
       checks: [
         {
           name: 'build',
@@ -128,10 +127,6 @@ test.describe('pull request pipeline checks panel', () => {
           url: 'https://github.com/alrayyes/forge-dashboard/runs/2',
         },
       ],
-    });
-    page.on('request', (req) => {
-      if (req.url().includes('/api/pull-requests/checks'))
-        requestURL = req.url();
     });
     await page.goto('/pull-requests.html');
 
@@ -159,10 +154,14 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(buildLink).toHaveAttribute('target', '_blank');
     await expect(buildLink).toHaveAttribute('rel', 'noopener');
 
-    const url = new URL(requestURL);
-    expect(url.searchParams.get('forge')).toBe('github');
-    expect(url.searchParams.get('fullName')).toBe('alrayyes/forge-dashboard');
-    expect(url.searchParams.get('number')).toBe('42');
+    expect(asked).toEqual([
+      {
+        kind: 'pull_request',
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+      },
+    ]);
   });
 
   test('a skipped check shows its status but no "View run" link', async ({
@@ -1142,26 +1141,11 @@ test.describe('pull request pipeline checks panel', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    let attempts = 0;
-    await page.route('**/api/pull-requests/checks*', (route: Route) => {
-      attempts += 1;
-      if (attempts === 1) {
-        return route.fulfill({
-          status: 502,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'github: unreachable' }),
-        });
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          checks: [
-            { name: 'build', state: 'success', url: 'https://example.com/1' },
-          ],
-        }),
-      });
-    });
+    await serveChecks(page, (_, call) =>
+      call === 1
+        ? { error: 'github: unreachable' }
+        : [{ name: 'build', state: 'success', url: 'https://example.com/1' }],
+    );
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();

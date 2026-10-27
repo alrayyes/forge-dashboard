@@ -4,7 +4,7 @@
 // DOM here.
 
 import { type Check, checkRunKey } from './pipeline-checks';
-import { forgeOf, logUrl } from './run-log';
+import { logUrl, type RepoRef } from './run-log';
 
 // How many failed checks of one list are asked for an excerpt, the newest
 // first: each is a log read on the forge.
@@ -31,10 +31,12 @@ export function newExcerptReads(): ExcerptReads {
 }
 
 // The log endpoint's excerpt for one job, or null where the list already
-// carries the excerpt (GitHub) or the checks url names no repository.
-export function excerptUrl(checksUrl: string, jobId: number): string | null {
-  const url =
-    forgeOf(checksUrl) === 'forgejo' ? logUrl(checksUrl, jobId) : null;
+// carries the excerpt (GitHub) or no repository is named.
+export function excerptUrl(
+  repo: RepoRef | undefined,
+  jobId: number,
+): string | null {
+  const url = repo?.forge === 'forgejo' ? logUrl(repo, jobId) : null;
 
   return url ? `${url}&excerpt=true` : null;
 }
@@ -79,7 +81,7 @@ const pause = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 // the dialog moved on.
 export async function fillExcerpts(
   picks: Check[],
-  checksUrl: string,
+  repo: RepoRef | undefined,
   fill: (check: Check, text: string) => void,
   fetchImpl: typeof fetch = fetch,
   stopped: () => boolean = () => false,
@@ -96,7 +98,7 @@ export async function fillExcerpts(
     for (const check of pending) {
       // A job with no log address shows without an excerpt and costs no read;
       // the others are still asked for theirs.
-      const url = check.jobId ? excerptUrl(checksUrl, check.jobId) : null;
+      const url = check.jobId ? excerptUrl(repo, check.jobId) : null;
       if (!url) continue;
       if (round > 0) {
         if (reads.left <= 0) return;

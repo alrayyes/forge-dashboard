@@ -1,7 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { checkLinkName } from './check-link-name-helper';
-import { installFakeStream, pushStream } from './fake-stream-helper';
+import { pushChecks, serveChecks } from './checks-feed-helper';
+import { pushStream } from './fake-stream-helper';
 import { test } from './server-fixture';
 
 const pr = {
@@ -59,13 +60,7 @@ async function setup(
       }),
     }),
   );
-  await page.route('**/api/pull-requests/checks*', (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ checks }),
-    }),
-  );
+  await serveChecks(page, () => checks);
   await page.route('**/api/checks/log*', (route: Route) => {
     asked.push(route.request().url());
     return route.fulfill({
@@ -458,6 +453,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     ]);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
+    await expect(dialog.getByRole('listitem')).toHaveCount(1);
     await expect(
       dialog.getByRole('button', { name: 'Copy log: build' }),
     ).toHaveCount(0);
@@ -466,6 +462,7 @@ test.describe('a check run output in the pipeline dialog', () => {
   test('a passed check has no Copy log button', async ({ page }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.getByRole('listitem')).toHaveCount(2);
     await expect(
       dialog.getByRole('button', { name: 'Copy log: lint' }),
     ).toHaveCount(0);
@@ -641,7 +638,18 @@ async function openBranchFailure(
     attempt: undefined as number | undefined,
   };
   await page.clock.install();
-  await installFakeStream(page);
+  const list = () => [
+    {
+      name: 'build',
+      state: state.check,
+      url: 'https://example.com/r/1',
+      durationSeconds: state.seconds,
+      runAttempt: state.attempt,
+      jobId: state.jobId,
+      excerpt: state.excerpt,
+    },
+  ];
+  await serveChecks(page, list);
   const body = () => ({
     generatedAt: new Date().toISOString(),
     counts: {
@@ -655,31 +663,20 @@ async function openBranchFailure(
     },
     branches: [row(state.failed)],
   });
-  const send = () => pushStream(page, { mainBranchPage: body() });
+  // A poll that moves the row also brings the new list, as the server sends it.
+  const send = async () => {
+    await pushStream(page, { mainBranchPage: body() });
+    await pushChecks(
+      page,
+      { kind: 'main_branch', forge: 'github', fullName: 'acme/auth-service' },
+      list(),
+    );
+  };
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(body()),
-    }),
-  );
-  await page.route('**/api/main-branches/checks*', (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        checks: [
-          {
-            name: 'build',
-            state: state.check,
-            url: 'https://example.com/r/1',
-            durationSeconds: state.seconds,
-            runAttempt: state.attempt,
-            jobId: state.jobId,
-            excerpt: state.excerpt,
-          },
-        ],
-      }),
     }),
   );
   await page.route('**/api/checks/log*', async (route: Route) => {

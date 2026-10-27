@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { checkLinkName } from './check-link-name-helper';
+import { type Reply, serveChecks } from './checks-feed-helper';
 import { createFirstRefreshGate, twoFrames } from './first-refresh-gate-helper';
 import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
@@ -136,8 +137,8 @@ async function mock(
   });
 }
 
-// The jobs behind a row, from GET /api/main-branches/checks. Records each
-// request so a test can say which repo the panel asked for.
+// The jobs behind a row, as the dashboard stream sends them. Records each
+// subject the page watched so a test can say which repo the panel asked for.
 const JOBS = [
   {
     name: 'lint',
@@ -156,19 +157,8 @@ const JOBS = [
   { name: 'e2e-playwright', state: 'skipped', url: '' },
 ];
 
-async function mockChecks(
-  page: Page,
-  answer: { status?: number; body: unknown } = { body: { checks: JOBS } },
-) {
-  const asked: URL[] = [];
-  await page.route('**/api/main-branches/checks*', (route: Route) => {
-    asked.push(new URL(route.request().url()));
-    return route.fulfill({
-      status: answer.status ?? 200,
-      contentType: 'application/json',
-      body: JSON.stringify(answer.body),
-    });
-  });
+async function mockChecks(page: Page, answer: Reply = JOBS) {
+  const { asked } = await serveChecks(page, () => answer);
 
   return asked;
 }
@@ -421,8 +411,12 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const panel = dialog(page);
     await expect(panel).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
-    expect(asked.map((u) => u.search)).toEqual([
-      '?forge=github&fullName=acme%2Fingress-controller',
+    expect(asked).toEqual([
+      {
+        kind: 'main_branch',
+        forge: 'github',
+        fullName: 'acme/ingress-controller',
+      },
     ]);
     await expect(panel).toContainText('acme/ingress-controller');
     const checks = panel.getByRole('listitem');
@@ -508,9 +502,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
   }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await mock(page, snapshot(MIXED));
-    await mockChecks(page, {
-      body: { checks: [{ ...JOBS[0], jobId: 11 }, JOBS[1]] },
-    });
+    await mockChecks(page, [{ ...JOBS[0], jobId: 11 }, JOBS[1]]);
     await page.route('**/api/checks/log*', (route: Route) =>
       route.fulfill({
         status: 200,
@@ -561,10 +553,9 @@ test.describe('Main branches page (#1224, #1279)', () => {
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    const asked = await mockChecks(page, {
-      status: 403,
-      body: { error: 'token cannot read checks' },
-    });
+    const { asked } = await serveChecks(page, (_, call) =>
+      call === 1 ? { error: 'token cannot read checks' } : JOBS,
+    );
     await page.goto('/');
     await rows(page)
       .first()
@@ -573,25 +564,19 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const alert = dialog(page).getByRole('alert');
     await expect(alert).toContainText('token cannot read checks');
 
-    await page.unroute('**/api/main-branches/checks*');
-    await mockChecks(page);
     await alert.getByRole('button', { name: 'Retry' }).click();
     await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
-    expect(asked).toHaveLength(1);
+    expect(asked).toHaveLength(2);
   });
 
   test('two jobs with the same name and no page both list', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
-    await mockChecks(page, {
-      body: {
-        checks: [
-          { name: 'build', state: 'success', url: '' },
-          { name: 'build', state: 'failure', url: '' },
-        ],
-      },
-    });
+    await mockChecks(page, [
+      { name: 'build', state: 'success', url: '' },
+      { name: 'build', state: 'failure', url: '' },
+    ]);
     await page.goto('/');
     await rows(page)
       .first()
@@ -605,8 +590,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
   }) => {
     await mock(page, snapshot(MIXED));
     await mockChecks(page, {
-      status: 429,
-      body: { error: 'github rate limit exceeded, resets in 12 minutes' },
+      error: 'github rate limit exceeded, resets in 12 minutes',
     });
     await page.goto('/');
     await rows(page)
@@ -627,24 +611,16 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const slowHeld = new Promise<void>((resolve) => {
       releaseSlow = resolve;
     });
-    await page.route('**/api/main-branches/checks*', async (route: Route) => {
-      const slow = new URL(route.request().url()).searchParams
-        .get('fullName')
-        ?.includes('ingress');
+    const { idle } = await serveChecks(page, async (subject) => {
+      const slow = subject.fullName.includes('ingress');
       if (slow) await slowHeld;
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          checks: [
-            {
-              name: slow ? 'from-the-first-row' : 'from-the-second-row',
-              state: 'success',
-              url: '',
-            },
-          ],
-        }),
-      });
+      return [
+        {
+          name: slow ? 'from-the-first-row' : 'from-the-second-row',
+          state: 'success',
+          url: '',
+        },
+      ];
     });
     await page.goto('/');
     await rows(page)
@@ -660,11 +636,8 @@ test.describe('Main branches page (#1224, #1279)', () => {
       .click();
     await expect(dialog(page)).toContainText('from-the-second-row');
 
-    const late = page.waitForResponse((r) =>
-      r.url().includes('fullName=acme%2Fingress-controller'),
-    );
     releaseSlow();
-    await late;
+    await idle();
     // Two frames after the late answer, when a draw would have happened.
     await twoFrames(page);
     await expect(dialog(page)).toContainText('from-the-second-row');
@@ -673,7 +646,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
 
   test('a branch with no jobs says so in the panel', async ({ page }) => {
     await mock(page, snapshot(MIXED));
-    await mockChecks(page, { body: { checks: [] } });
+    await mockChecks(page, []);
     await page.goto('/');
     await rows(page)
       .first()

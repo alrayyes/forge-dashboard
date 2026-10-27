@@ -548,7 +548,7 @@ async function main() {
 
   // The live stream is aborted so nothing replaces the fixture after the
   // page loads.
-  await page.route('**/api/dashboard/stream', (route) => route.abort());
+  await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/main-branches', (route) =>
     route.fulfill({
       status: 200,

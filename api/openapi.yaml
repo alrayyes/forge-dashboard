@@ -3059,21 +3059,41 @@ paths:
         `includeDrafts` is read once, when the connection opens, and
         applies to every event on it. A client that changes its mind
         reconnects with the new value.
+
+        A client that passes `sid` can also follow the job lists of the
+        pull requests and default branches it has open, through
+        `POST /api/dashboard/stream/watch`. Each list arrives as a named
+        `checks` event on this stream, so a client that only listens for
+        default messages never sees one. A reconnect reuses the same
+        `sid` with nothing watched, so the client sends its watch again.
       tags: [dashboard]
       parameters:
         - $ref: "#/components/parameters/QueryIncludeDrafts"
         - $ref: "#/components/parameters/QueryIncludeHidden"
+        - name: sid
+          in: query
+          required: false
+          description: |
+            A random id the client makes up for this connection, 8 to 64
+            letters, digits and dashes. It names the stream for the watch
+            call. Anything else is ignored and the stream watches nothing.
+          schema:
+            type: string
+            pattern: "^[A-Za-z0-9-]{8,64}$"
       security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: |
             An SSE stream. Each event's `data` field is a JSON-encoded
             snapshot, identical in shape to GET /api/dashboard's
-            response body.
+            response body. A named `checks` event carries a
+            `CheckListEvent` instead.
           content:
             text/event-stream:
               schema:
-                $ref: "#/components/schemas/Dashboard"
+                oneOf:
+                  - $ref: "#/components/schemas/Dashboard"
+                  - $ref: "#/components/schemas/CheckListEvent"
         "401":
           description: No valid session cookie was presented.
           content:
@@ -3082,6 +3102,54 @@ paths:
                 $ref: "#/components/schemas/Error"
         "404":
           description: No background refresh is running yet — Settings has never been saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/dashboard/stream/watch:
+    post:
+      operationId: watchDashboardStreamChecks
+      x-mcp-excluded: "Steers an open event stream, which a tool call cannot hold. get_pull_request_checks and get_main_branch_checks list the jobs once."
+      summary: Choose which job lists a dashboard stream sends
+      description: |
+        Replaces the set of pull requests and default branches whose job
+        lists the stream named by `streamId` sends as `checks` events.
+        The server lists a subject when it is newly watched, when its row
+        in a new snapshot changed (CI state, check counts, or a branch's
+        run), and when `refresh` is true. Nothing else costs a forge
+        request. A failed listing is sent as an event with `error` set,
+        and every snapshot after it tries again, changed or not, until a
+        listing works.
+
+        The event is the JSON of the `CheckListEvent` schema.
+      tags: [dashboard]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StreamWatchRequest"
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204":
+          description: The watch is set. The lists follow on the stream.
+        "400":
+          description: |
+            The body is not valid, a subject is malformed, or there are more
+            than 8 subjects.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No open stream has that id.
           content:
             application/json:
               schema:
@@ -5268,6 +5336,62 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Check"
+
+    CheckSubject:
+      type: object
+      required: [kind, forge, fullName]
+      properties:
+        kind:
+          type: string
+          maxLength: 16
+          enum: [pull_request, main_branch]
+        forge:
+          type: string
+          maxLength: 32
+        fullName:
+          type: string
+          maxLength: 256
+          description: The repository, as `owner/repo`.
+        number:
+          type: integer
+          maximum: 2147483647
+          description: The pull request number. Required for `pull_request`.
+
+    StreamWatchRequest:
+      type: object
+      required: [streamId, subjects]
+      properties:
+        streamId:
+          type: string
+          maxLength: 128
+          description: The `sid` the stream was opened with.
+        subjects:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/CheckSubject"
+        refresh:
+          type: boolean
+          description: |
+            List every subject again, including the ones already watched.
+            A client sends it after an action that changes the jobs.
+
+    CheckListEvent:
+      description: |
+        The `data` of a `checks` event on the dashboard stream: one
+        subject and its job list, or why it could not be listed.
+      allOf:
+        - $ref: "#/components/schemas/CheckSubject"
+        - type: object
+          required: [checks]
+          properties:
+            checks:
+              type: [array, "null"]
+              items:
+                $ref: "#/components/schemas/Check"
+              description: Null when `error` is set.
+            error:
+              type: string
 
     MergeStatus:
       type: string

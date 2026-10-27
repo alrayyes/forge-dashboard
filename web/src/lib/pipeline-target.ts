@@ -7,7 +7,6 @@ import type { PipelineTarget } from './PipelineDialog.svelte';
 export type PipelineSubject = {
   forge: string;
   fullName: string;
-  signature: string;
   // A pull request has a number, a branch a name.
   number?: number;
   branch?: string;
@@ -19,8 +18,8 @@ export type PipelineSubject = {
 export type PipelineBase = Pick<
   PipelineTarget,
   | 'subtitle'
-  | 'checksUrl'
-  | 'signature'
+  | 'subject'
+  | 'repo'
   | 'emptyText'
   | 'errorText'
   | 'runUrl'
@@ -28,24 +27,23 @@ export type PipelineBase = Pick<
 >;
 
 export function pipelineTarget(s: PipelineSubject): PipelineBase {
-  const forge = encodeURIComponent(s.forge);
-  const fullName = encodeURIComponent(s.fullName);
   const pr = s.number !== undefined;
+  const { forge, fullName } = s;
   return {
     subtitle: pr
-      ? `${s.fullName}#${s.number}`
-      : `${s.fullName}${s.branch ? ` · ${s.branch}` : ''}`,
-    checksUrl: pr
-      ? `/api/pull-requests/checks?forge=${forge}&fullName=${fullName}&number=${s.number}`
-      : `/api/main-branches/checks?forge=${forge}&fullName=${fullName}`,
-    signature: s.signature,
+      ? `${fullName}#${s.number}`
+      : `${fullName}${s.branch ? ` · ${s.branch}` : ''}`,
+    subject: pr
+      ? { kind: 'pull_request', forge, fullName, number: s.number }
+      : { kind: 'main_branch', forge, fullName },
+    repo: { forge, fullName },
     emptyText: pr
       ? 'No CI configured for this pull request.'
       : 'No jobs were found for this branch.',
     errorText: pr
-      ? `Couldn't load pipeline checks for ${s.fullName}#${s.number}`
-      : `Couldn't load the pipeline jobs for ${s.fullName}`,
+      ? `Couldn't load pipeline checks for ${fullName}#${s.number}`
+      : `Couldn't load the pipeline jobs for ${fullName}`,
     runUrl: s.runUrl,
-    forgeName: FORGE_LABELS[s.forge] ?? s.forge,
+    forgeName: FORGE_LABELS[forge] ?? forge,
   };
 }

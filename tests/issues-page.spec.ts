@@ -76,7 +76,7 @@ async function mockDashboard(
 ) {
   // The real stream would push the server's own (empty) snapshot over the
   // mocked one. This only installs the routes; the caller loads the page.
-  await page.route('**/api/dashboard/stream', (route: Route) => route.abort());
+  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
   await page.route('**/api/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,

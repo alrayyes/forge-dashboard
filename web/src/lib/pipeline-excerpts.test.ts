@@ -10,9 +10,8 @@ import {
   pickExcerptJobs,
 } from './pipeline-excerpts';
 
-const FORGEJO =
-  '/api/pull-requests/checks?forge=forgejo&fullName=a%2Fb&number=4';
-const GITHUB = '/api/pull-requests/checks?forge=github&fullName=a%2Fb&number=4';
+const FORGEJO = { forge: 'forgejo', fullName: 'a/b' };
+const GITHUB = { forge: 'github', fullName: 'a/b' };
 
 const failed = (jobId: number, extra: Partial<Check> = {}): Check => ({
   name: `job ${jobId}`,
@@ -34,8 +33,8 @@ describe('excerptUrl', () => {
     expect(excerptUrl(GITHUB, 7)).toBeNull();
   });
 
-  test('is null when the checks url names no repository', () => {
-    expect(excerptUrl('/api/main-branches/checks', 7)).toBeNull();
+  test('is null when no repository is named', () => {
+    expect(excerptUrl(undefined, 7)).toBeNull();
   });
 });
 

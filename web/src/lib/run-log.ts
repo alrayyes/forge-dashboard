@@ -20,20 +20,16 @@ export type LogResult =
   | { ok: true; text: string; truncated: boolean }
   | { ok: false; message: string; signedOut?: boolean };
 
-// The query of a checks url, which is where it names its forge and repository.
-// The one place that reads it, so the forge rule can't drift between callers.
-function checksQuery(checksUrl: string | undefined): URLSearchParams {
-  return new URLSearchParams(checksUrl?.split('?')[1] ?? '');
-}
+// The repository a dialog's checks belong to: where a job's log is read from.
+export type RepoRef = { forge: string; fullName: string };
 
-// The log endpoint for one job, from the checks url the board gave the dialog:
-// it carries the forge and repository, so the boards need to say nothing more.
-// Null when the url names no repository.
-export function logUrl(checksUrl: string, jobId: number): string | null {
-  const query = checksQuery(checksUrl);
-  const forge = query.get('forge');
-  const fullName = query.get('fullName');
-  if (!forge || !fullName) return null;
+// The log endpoint for one job of repo. Null when no repository is named.
+export function logUrl(
+  repo: RepoRef | undefined,
+  jobId: number,
+): string | null {
+  if (!repo?.forge || !repo.fullName) return null;
+  const { forge, fullName } = repo;
 
   return `/api/checks/log?${new URLSearchParams({ forge, fullName, jobId: String(jobId) })}`;
 }
@@ -150,13 +146,13 @@ export async function copyLog(
 }
 
 // Where a check's full log is read from, and why there is no address when
-// there is none: no job to read, or a checks address that names no repository.
+// there is none: no job to read, or a dialog that names no repository.
 export function logSource(
-  checksUrl: string,
+  repo: RepoRef | undefined,
   jobId: number | undefined,
 ): { url: string | null; why?: string } {
   if (!jobId) return { url: null };
-  const url = logUrl(checksUrl, jobId);
+  const url = logUrl(repo, jobId);
 
   return url
     ? { url }
@@ -168,16 +164,16 @@ export function logSource(
 
 // Whether a check has a log worth a Copy log button: a failure or timeout
 // (a cancelled run is not a failure to debug) that carries an excerpt, or that
-// has a job whose log the checks url can name. A checks url that names no
+// has a job whose log the repository can name. No
 // repository gives no log address, so a job alone isn't enough.
 export function canCopyLog(
   check: { state: string; excerpt?: string; jobId?: number },
-  checksUrl: string | undefined,
+  repo: RepoRef | undefined,
 ): boolean {
   if (check.state !== 'failure' && check.state !== 'timed_out') return false;
   if (check.excerpt) return true;
 
-  return !!check.jobId && !!checksUrl && !!logUrl(checksUrl, check.jobId);
+  return !!check.jobId && !!logUrl(repo, check.jobId);
 }
 
 // What a check offers beside its name: nothing, the forge's own page, the
@@ -185,7 +181,7 @@ export function canCopyLog(
 // forge's page. So does a running GitHub job, whose log GitHub serves only
 // once the job finishes. A skipped job never ran; a job with no page has
 // nowhere to go. A held workflow's own page is where the forge's approve
-// button is. Only a job with an id, a page and a checks address can open the
+// button is. Only a job with an id, a page and a repository can open the
 // output panel.
 export type CheckControl = 'none' | 'open-on-forge' | 'output' | 'link';
 
@@ -196,30 +192,22 @@ export function checkLinkLabel(text: string, check: string): string {
   return `${text} (opens in a new tab): ${check}`;
 }
 
-// The forge a checks url names ("github", "forgejo"), or null.
-export function forgeOf(checksUrl: string | undefined): string | null {
-  return checksQuery(checksUrl).get('forge');
-}
-
 // Whether a running job's output can't be read yet: only Forgejo serves a
 // running job's log, and GitHub answers 404 until the job finishes. A checks
 // address that names no forge counts as not Forgejo.
-function runningWithoutLog(
-  state: string,
-  checksUrl: string | undefined,
-): boolean {
-  return state === 'running' && !!checksUrl && forgeOf(checksUrl) !== 'forgejo';
+function runningWithoutLog(state: string, repo: RepoRef | undefined): boolean {
+  return state === 'running' && !!repo && repo.forge !== 'forgejo';
 }
 
 export function checkControl(
   check: { state: string; url?: string; jobId?: number },
-  checksUrl: string | undefined,
+  repo: RepoRef | undefined,
 ): CheckControl {
   if (!check.url) return 'none';
   if (check.state === 'queued') return 'open-on-forge';
   if (check.state === 'skipped') return 'none';
-  if (runningWithoutLog(check.state, checksUrl)) return 'open-on-forge';
-  if (check.state !== 'awaiting_approval' && check.jobId && checksUrl) {
+  if (runningWithoutLog(check.state, repo)) return 'open-on-forge';
+  if (check.state !== 'awaiting_approval' && check.jobId && repo) {
     return 'output';
   }
 

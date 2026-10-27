@@ -30,16 +30,21 @@ The pipeline panel is one dialog on the pull request, bot and Main branches
 pages, so what follows holds on all three. It follows its row. While it is open,
 a check's pill changes where it stands, in the order the panel already shows,
 when the live stream says that pull request's or branch's CI changed. The
-panel makes one request for each such change and none while nothing changes, so
-a finished pipeline costs no more requests, and a rerun that starts reads it
-again once. It doesn't poll the forge on a timer of its own. A change to any
+panel tells the stream which row it shows, and the server sends that row's job
+list when the panel opens and again for each such change, and none while
+nothing changes, so a finished pipeline costs no more forge reads, and a rerun
+that starts sends it again once. The panel never polls the forge, and the list
+arrives as a named `checks` event that the plain snapshot readers don't see.
+If the stream is down, the panel says so with a Retry button. If the browser
+can't hold a stream open at all, the panel reads the list once when it opens
+and again on Retry, and doesn't follow changes. A change to any
 check's state is announced politely once
 ("Checks updated: test is now Passed.", or "Checks updated: 2 checks changed."
 when several moved), the same line again when the same thing happens twice, and
 the panel redraws nothing when no check differs. With **Pause live updates** on,
-the panel makes no request and says "Live updates are paused. These checks may
-be out of date."; turning updates back on reads once if the CI changed
-meanwhile. A redraw keeps keyboard focus on the same check's link or log, even
+the panel holds the newest list and says "Live updates are paused. These
+checks may be out of date."; turning updates back on draws the held list.
+A redraw keeps keyboard focus on the same check's link or log, even
 when checks above it came or went; if that check is gone, focus moves to the
 close button.
 

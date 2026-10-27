@@ -14,23 +14,15 @@ import {
 } from './run-log';
 
 describe('logUrl', () => {
-  test('takes the forge and repository from the checks url', () => {
-    expect(
-      logUrl(
-        '/api/pull-requests/checks?forge=github&fullName=a%2Fb&number=4',
-        31,
-      ),
-    ).toBe('/api/checks/log?forge=github&fullName=a%2Fb&jobId=31');
+  test('takes the forge and repository from the repo', () => {
+    expect(logUrl({ forge: 'github', fullName: 'a/b' }, 31)).toBe(
+      '/api/checks/log?forge=github&fullName=a%2Fb&jobId=31',
+    );
   });
 
-  test('works for a branch checks url', () => {
-    expect(
-      logUrl('/api/main-branches/checks?forge=forgejo&fullName=a%2Fb', 7),
-    ).toBe('/api/checks/log?forge=forgejo&fullName=a%2Fb&jobId=7');
-  });
-
-  test('is null when the checks url names no repository', () => {
-    expect(logUrl('/api/pull-requests/checks', 7)).toBeNull();
+  test('is null when no repository is named', () => {
+    expect(logUrl(undefined, 7)).toBeNull();
+    expect(logUrl({ forge: 'github', fullName: '' }, 7)).toBeNull();
   });
 });
 
@@ -355,8 +347,7 @@ describe('copyStatus for a cut log copied by hand', () => {
 });
 
 describe('logSource', () => {
-  const checks =
-    '/api/pull-requests/checks?forge=github&fullName=a%2Fb&number=4';
+  const checks = { forge: 'github', fullName: 'a/b' };
 
   test('gives the address of the job log', () => {
     expect(logSource(checks, 31).url).toBe(logUrl(checks, 31));
@@ -367,8 +358,8 @@ describe('logSource', () => {
     expect(logSource(checks, undefined)).toEqual({ url: null });
   });
 
-  test('a checks address naming no repository says so', () => {
-    const none = logSource('/api/pull-requests/checks?number=4', 31);
+  test('no repository says so', () => {
+    const none = logSource(undefined, 31);
 
     expect(none.url).toBeNull();
     expect(none.why).toContain('which repository');
@@ -493,23 +484,20 @@ describe('copyPending', () => {
 });
 
 describe('canCopyLog', () => {
-  const checks = '/api/main-branches/checks?forge=github&fullName=a%2Fb';
+  const checks = { forge: 'github', fullName: 'a/b' };
 
-  test('a failed job whose log the checks url can name', () => {
+  test('a failed job whose log the repository can name', () => {
     expect(canCopyLog({ state: 'failure', jobId: 5 }, checks)).toBe(true);
   });
 
-  test('not a job whose checks url names no repository', () => {
-    expect(
-      canCopyLog({ state: 'failure', jobId: 5 }, '/api/main-branches/checks'),
-    ).toBe(false);
-    expect(
-      canCopyLog({ state: 'failure', jobId: 5 }, '/api/x?forge=github'),
-    ).toBe(false);
+  test('not a job when no repository is named', () => {
+    expect(canCopyLog({ state: 'failure', jobId: 5 }, undefined)).toBe(false);
   });
 
   test('an excerpt is enough without a log address', () => {
-    expect(canCopyLog({ state: 'timed_out', excerpt: 'boom' }, '')).toBe(true);
+    expect(canCopyLog({ state: 'timed_out', excerpt: 'boom' }, undefined)).toBe(
+      true,
+    );
   });
 
   test('not a check that did not fail', () => {

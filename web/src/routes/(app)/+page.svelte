@@ -2,9 +2,9 @@
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
+  import { ciSignature } from "#lib/pipeline-live.js";
   import { splitStaleRows } from "#lib/forge-starting.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
-  import { ciSignature } from "#lib/pipeline-live.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
   import { createRedrawGuard } from "#lib/redraw-guard.js";
   import { forgeLockReason, rerunBlockedLock } from "#lib/forge-lock.js";
@@ -205,7 +205,6 @@
         forge: b.forge,
         fullName: b.fullName,
         branch: b.branch,
-        signature: branchSignature(b),
         runUrl: b.runUrl,
       }),
       // A branch has no allowed-actions list: Cancel run is offered for each
@@ -278,14 +277,6 @@
     // The pill in the header is the same tally as the chips below it.
     if (!firstRefreshPending(firstRefresh.done))
       setBranchNavCount(branchNavCount(countMainBranches(next.branches)));
-    // An open pipeline panel reads again if its own row's CI changed.
-    const row = openRow;
-    const now = row
-      ? next.branches.find(
-          (b) => b.forge === row.forge && b.fullName === row.fullName,
-        )
-      : undefined;
-    if (row) pipeline?.follow(now ? branchSignature(now) : null);
     redrawOpenControl();
   }
 

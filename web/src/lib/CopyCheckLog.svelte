@@ -10,12 +10,13 @@
     logSource,
     logToCopy,
     type Prepared,
+    type RepoRef,
   } from "#lib/run-log.js";
 
   let {
     name,
     jobId,
-    checksUrl,
+    repo,
     excerpt,
     forgeName,
     copyable,
@@ -23,7 +24,7 @@
   }: {
     name: string;
     jobId?: number;
-    checksUrl: string;
+    repo: RepoRef | undefined;
     excerpt: string;
     forgeName: string;
     // Only a failed check with something to copy shows the button.
@@ -67,7 +68,7 @@
     return flow.copy((guard) => {
       // The clipboard write starts here, inside the click, with the log still
       // being read.
-      const source = logSource(checksUrl, jobId);
+      const source = logSource(repo, jobId);
       const kept =
         cached && Date.now() - cached.at < COPIED_LOG_KEPT_MS
           ? cached.prepared

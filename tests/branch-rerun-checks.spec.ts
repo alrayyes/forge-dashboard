@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type CheckRow, pushChecks, serveChecks } from './checks-feed-helper';
 import { installFakeStream, pushStream } from './fake-stream-helper';
 import { test } from './server-fixture';
 
@@ -94,13 +95,9 @@ async function openPanel(
       body: JSON.stringify(snapshot(status, state)),
     }),
   );
-  await page.route('**/api/main-branches/checks*', async (route) => {
+  await serveChecks(page, async () => {
     await state.checksGate;
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ checks: state.checks }),
-    });
+    return state.checks;
   });
   await page.goto('/');
   await page
@@ -155,6 +152,11 @@ test.describe('main branches rerun failed checks', () => {
       { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
     ];
     await poll(page);
+    await pushChecks(
+      page,
+      { kind: 'main_branch', forge: 'github', fullName: 'acme/auth-service' },
+      state.checks as CheckRow[],
+    );
     await expect(dialog.getByRole('listitem').first()).toContainText('Passed');
     await expect(dialog.getByRole('status')).toContainText('Queuing the rerun');
     await expect(
