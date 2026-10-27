@@ -540,7 +540,8 @@
     void checks;
     void controlsTick;
     // Untracked: the control reads the page's snapshot (its lock, its row) and
-    // redraws itself when that changes, so a poll must not rebuild it.
+    // redraws itself when that changes, so a snapshot update from the stream
+    // must not rebuild it.
     // The target itself stays tracked, so pointing the dialog at another row
     // draws that row's control.
     const isFailed = failed;
