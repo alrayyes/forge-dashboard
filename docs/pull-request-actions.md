@@ -916,11 +916,11 @@ never queued for a rate-limit reset: by then the run may be a different one,
 started by a newer push, and a cancel can't be undone (`POST
 /api/checks/cancel-run` with `{forge, fullName, runId}`, listed as `cancel_run`
 in `allowedActions`).
-Every Actions job carries its run, so a finished job says which run it came
-from. On GitHub the run's id is in the job's page address and costs nothing. Its
-name and number come from the commit's runs, which the checks list reads
-extra. While some check is running or queued it reads the queued workflow runs,
-the running ones, and the jobs of each: three reads for a commit with one
+A job of a workflow run carries that run, so a finished job says which run it
+came from. On GitHub the run's id is in the job's page address and costs
+nothing. Its name and number come from the commit's runs, which the checks list
+reads extra. While some check is running or queued it reads the queued workflow
+runs, the running ones, and the jobs of each: three reads for a commit with one
 active run, and the same three again on every re-read after a cancel. When a
 finished job names a run those reads didn't list, it also reads the commit's
 completed runs, once however many jobs there are. So a finished GitHub pipeline
