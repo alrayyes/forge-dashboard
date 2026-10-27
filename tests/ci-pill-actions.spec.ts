@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 function makePR(overrides: Record<string, unknown> = {}) {
@@ -38,15 +39,9 @@ function mockDashboard(page: Page, pr: unknown) {
 }
 
 function mockChecks(page: Page) {
-  return page.route('**/api/pull-requests/checks*', (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        checks: [{ name: 'build', state: 'success', url: 'https://x.test/1' }],
-      }),
-    }),
-  );
+  return serveChecks(page, () => [
+    { name: 'build', state: 'success', url: 'https://x.test/1' },
+  ]);
 }
 
 test.describe('CI pill opens the pipeline (#1139)', () => {

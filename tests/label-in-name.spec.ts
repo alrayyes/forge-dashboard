@@ -185,7 +185,7 @@ test.describe('the check itself (#1315)', () => {
 test.describe('visible text is part of the accessible name (#1135)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.route('**/api/dashboard/stream', (route) =>
+    await page.route('**/api/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
     await page.route('**/api/dashboard*', (route) =>

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { ciSignature } from "#lib/pipeline-live.js";
   import { splitStaleRows } from "#lib/forge-starting.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
-  import { ciSignature } from "#lib/pipeline-live.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
   import { createRedrawGuard } from "#lib/redraw-guard.js";
   import { forgeLockReason, rerunBlockedLock } from "#lib/forge-lock.js";
@@ -201,8 +201,8 @@
     openRow = b;
     pipeline?.open({
       subtitle: `${b.fullName}${b.branch ? ` · ${b.branch}` : ""}`,
-      checksUrl: `/api/main-branches/checks?forge=${encodeURIComponent(b.forge)}&fullName=${encodeURIComponent(b.fullName)}`,
-      signature: branchSignature(b),
+      subject: { kind: "main_branch", forge: b.forge, fullName: b.fullName },
+      repo: { forge: b.forge, fullName: b.fullName },
       emptyText: "No jobs were found for this branch.",
       errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
       runUrl: b.runUrl,
@@ -277,14 +277,6 @@
     // The pill in the header is the same tally as the chips below it.
     if (!firstRefreshPending(firstRefresh.done))
       setBranchNavCount(branchNavCount(countMainBranches(next.branches)));
-    // An open pipeline panel reads again if its own row's CI changed.
-    const row = openRow;
-    const now = row
-      ? next.branches.find(
-          (b) => b.forge === row.forge && b.fullName === row.fullName,
-        )
-      : undefined;
-    if (row) pipeline?.follow(now ? branchSignature(now) : null);
     redrawOpenControl();
   }
 

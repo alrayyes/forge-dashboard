@@ -968,7 +968,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 // /api/dashboard keeps running unconditionally, connected or not: a
 // browser or proxy that can't hold this connection open just never
 // benefits from it, rather than the dashboard going stale silently.
-func handleDashboardStream(deps Deps) http.HandlerFunc {
+func handleDashboardStream(deps Deps, watches *checkWatches) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -995,6 +995,21 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		// opened with, and a client that changes its mind reconnects.
 		view := viewOf(r)
 
+		// A page that names itself (?sid=) can ask for the job lists of the
+		// pull requests and branches it has open; they ride this stream as
+		// "checks" events, which the default message handler never sees.
+		// Registered before the headers go out: the page may post its watch
+		// the moment it sees the stream open.
+		var feed *checkWatch
+		var checkEvents <-chan []byte
+		var onSnapshot func(dashboard.Snapshot)
+		if sid := r.URL.Query().Get("sid"); sid != "" {
+			if feed = watches.open(r.Context(), deps, sid); feed != nil {
+				defer watches.close(sid, feed)
+				checkEvents, onSnapshot = feed.out, feed.onSnapshot
+			}
+		}
+
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
@@ -1003,32 +1018,56 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 
 		streamSnapshots(r.Context(), deps.Drain.streamsStopped(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
 			return buildDashboardResponse(r.Context(), deps, snap, view)
-		})
+		}, checkEvents, onSnapshot)
 	}
 }
 
 // streamSnapshots writes one server-sent event for each snapshot that arrives
 // on ch, until the client goes away, stopped closes (the server is shutting
 // down), ch closes, or a write fails.
-func streamSnapshots(ctx context.Context, stopped <-chan struct{}, w http.ResponseWriter, flusher http.Flusher, ch <-chan dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse) {
+func streamSnapshots(ctx context.Context, stopped <-chan struct{}, w http.ResponseWriter, flusher http.Flusher, ch <-chan dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse, checkEvents <-chan []byte, onSnapshot func(dashboard.Snapshot)) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-stopped:
 			return
+		case data := <-checkEvents:
+			if !writeEvent(w, flusher, "event: checks\n", data) {
+				return
+			}
 		case snap, open := <-ch:
 			if !open {
 				return
 			}
-			data, err := json.Marshal(render(snap))
-			if err != nil {
+			if !writeSnapshot(w, flusher, snap, render, onSnapshot) {
 				return
 			}
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				return
-			}
-			flusher.Flush()
 		}
 	}
+}
+
+// writeSnapshot renders one snapshot and writes it as an event. It reports
+// whether the stream can go on.
+func writeSnapshot(w http.ResponseWriter, flusher http.Flusher, snap dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse, onSnapshot func(dashboard.Snapshot)) bool {
+	if onSnapshot != nil {
+		onSnapshot(snap)
+	}
+	data, err := json.Marshal(render(snap))
+	if err != nil {
+		return false
+	}
+
+	return writeEvent(w, flusher, "", data)
+}
+
+// writeEvent writes one server-sent event, named when prefix says so, and
+// reports whether the client is still there.
+func writeEvent(w http.ResponseWriter, flusher http.Flusher, prefix string, data []byte) bool {
+	if _, err := fmt.Fprintf(w, "%sdata: %s\n\n", prefix, data); err != nil {
+		return false
+	}
+	flusher.Flush()
+
+	return true
 }

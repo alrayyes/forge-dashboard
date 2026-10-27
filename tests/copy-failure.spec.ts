@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
+import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 // A failed action keeps its plain sentence on the row, and a Copy button
@@ -366,15 +367,9 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
   });
 
   async function openPanel(page: Page) {
-    await page.route('**/api/pull-requests/checks*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          checks: [{ name: 'test', state: 'failure', url: '', required: true }],
-        }),
-      }),
-    );
+    await serveChecks(page, () => [
+      { name: 'test', state: 'failure', url: '', required: true },
+    ]);
     const row = await open(
       page,
       makePR({

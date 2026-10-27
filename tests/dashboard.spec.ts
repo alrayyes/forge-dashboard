@@ -55,7 +55,7 @@ test.describe('dashboard page', () => {
     // background refresh running (see "a user with no background refresh
     // running yet" below) — this suite never saves real settings for
     // these per-test users, so the real endpoint would 404 anyway.
-    await page.route('**/api/dashboard/stream', (route) =>
+    await page.route('**/api/dashboard/stream*', (route) =>
       route.fulfill({
         status: 404,
         contentType: 'application/json',
@@ -988,7 +988,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.route('**/api/dashboard/stream', (route) => route.abort());
+      await page.route('**/api/dashboard/stream*', (route) => route.abort());
       await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
@@ -2589,7 +2589,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.route('**/api/dashboard/stream', (route) => route.abort());
+      await page.route('**/api/dashboard/stream*', (route) => route.abort());
       await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
       await page.goto('/issues.html');
@@ -3001,7 +3001,7 @@ test.describe('dashboard page', () => {
     test('on the issues page, clicking it also re-checks Hide Dependency Dashboard', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard/stream', (route) => route.abort());
+      await page.route('**/api/dashboard/stream*', (route) => route.abort());
       await page.goto('/issues.html');
       await page.locator('#issue-hide-dependency-dashboard').uncheck();
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
@@ -3218,7 +3218,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   const rowTitles = (page: Page) => page.locator('#pr-rows > .row');
 
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream', (route) =>
+    await page.route('**/api/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
     await page.route('**/api/dashboard*', (route) =>
@@ -3337,7 +3337,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   test('quick filters leave the issues page alone, forge pills do not', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream', (route) => route.abort());
+    await page.route('**/api/dashboard/stream*', (route) => route.abort());
     await pill(page, 'Failing CI').click();
     await page.goto('/issues.html');
     // The pull-request-only pill is not on the issues page, and All is what
@@ -3440,7 +3440,7 @@ test.describe('repo group headers: host and sync status (#679)', () => {
   ];
 
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream', (route) =>
+    await page.route('**/api/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
     await page.route('**/api/dashboard*', (route) =>
@@ -3559,7 +3559,7 @@ test.describe('time cells say what they are (#1109)', () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream', (route) =>
+    await page.route('**/api/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
     await page.route('**/api/dashboard*', (route) =>

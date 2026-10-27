@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { pushChecks, serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 // The pipeline checks dialog offers "Cancel run" for each queued or running
@@ -126,21 +127,18 @@ async function open(
     readStatus?: number;
   },
 ) {
+  // The job list comes down the stream; each ask counts as a read.
+  await serveChecks(page, () => {
+    state.reads = (state.reads ?? 0) + 1;
+    return state.readStatus
+      ? { error: 'forge unreachable' }
+      : (state.checks as unknown[]);
+  });
   await page.addInitScript(() => {
-    class StubEventSource {
-      onmessage: ((e: { data: string }) => void) | null = null;
-      constructor() {
-        (window as unknown as { __es: StubEventSource }).__es = this;
-      }
-      close() {}
-      addEventListener() {}
-    }
-    (window as unknown as { EventSource: unknown }).EventSource =
-      StubEventSource;
     window.__push = (data) =>
-      (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
-        data: JSON.stringify(data),
-      });
+      (
+        window as unknown as { __streamPush: (m: unknown) => void }
+      ).__streamPush(data);
   });
   await page.route('**/api/dashboard', (route: Route) =>
     route.fulfill({
@@ -154,14 +152,6 @@ async function open(
       }),
     }),
   );
-  await page.route('**/api/pull-requests/checks*', (route: Route) => {
-    state.reads = (state.reads ?? 0) + 1;
-    return route.fulfill({
-      status: state.readStatus ?? 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ checks: state.checks }),
-    });
-  });
   await page.route('**/api/checks/cancel-run', async (route: Route) => {
     state.posted.push(route.request().postDataJSON());
     await state.hold;
@@ -494,6 +484,16 @@ test.describe('cancel a running pipeline', () => {
         ci: 'success',
         checks: { passed: 3, running: 0, waiting: 0, failed: 0 },
       }),
+    );
+    await pushChecks(
+      page,
+      {
+        kind: 'pull_request',
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+      },
+      STOPPED,
     );
 
     await expect(
@@ -830,13 +830,7 @@ test.describe('cancel a running pipeline', () => {
         }),
       }),
     );
-    await page.route('**/api/main-branches/checks*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ checks: RUNNING.slice(1, 3) }),
-      }),
-    );
+    await serveChecks(page, () => RUNNING.slice(1, 3));
     await page.goto('/');
     await page
       .getByRole('button', { name: /open pipeline/i })

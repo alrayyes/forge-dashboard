@@ -123,7 +123,9 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/checks/cancel-run", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handleCancelRun(deps))))
 	mux.Handle("GET /api/checks/log", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleJobLog(deps))))
 	mux.Handle("GET /api/stats/forge-api", auth.RequireAuth(deps.AuthStore)(handleForgeAPIStats(deps)))
-	mux.Handle("GET /api/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps)))
+	watches := newCheckWatches()
+	mux.Handle("GET /api/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps, watches)))
+	mux.Handle("POST /api/dashboard/stream/watch", auth.RequireAuth(deps.AuthStore)(handleStreamWatch(watches)))
 	mux.Handle("POST /api/presence", auth.RequireSession(deps.AuthStore)(handleDashboardPresence(deps)))
 	mux.Handle("POST /api/dashboard/refresh", auth.RequireAuth(deps.AuthStore)(handleDashboardRefresh(deps)))
 	// The Streamable HTTP transport itself routes GET (a standalone SSE

@@ -1,13 +1,20 @@
 import type { Page } from '@playwright/test';
 
+const installed = new WeakSet<Page>();
+
 // A stand-in for the browser's EventSource on the dashboard stream, so a spec
 // can send the page a stream message when it wants one instead of waiting out
 // a poll. It opens at once, like a stream that connected, and stays open.
 //
 // The stream carries the whole dashboard payload; a spec sends only the part
-// it is about, and the page ignores what it has no use for.
+// it is about, and the page ignores what it has no use for. Named events (the
+// job lists of an open pipeline dialog) go through pushNamedStream.
 export async function installFakeStream(page: Page) {
+  // Once per page: a spec and a helper may both ask for it.
+  if (installed.has(page)) return;
+  installed.add(page);
   await page.addInitScript(() => {
+    type Event = { data?: string };
     type Handler = ((event: { data: string }) => void) | null;
     const open: FakeSource[] = [];
     class FakeSource {
@@ -18,12 +25,20 @@ export async function installFakeStream(page: Page) {
       onopen: (() => void) | null = null;
       onmessage: Handler = null;
       onerror: (() => void) | null = null;
+      listeners = new Map<string, ((event: Event) => void)[]>();
       constructor(public url: string) {
         open.push(this);
         queueMicrotask(() => {
           this.readyState = 1;
           this.onopen?.();
+          this.dispatch('open', {});
         });
+      }
+      addEventListener(type: string, fn: (event: Event) => void) {
+        this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+      }
+      dispatch(type: string, event: Event) {
+        for (const fn of this.listeners.get(type) ?? []) fn(event);
       }
       close() {
         this.readyState = 2;
@@ -36,11 +51,16 @@ export async function installFakeStream(page: Page) {
         for (const source of [...open]) {
           source.readyState = 2;
           source.onerror?.();
+          source.dispatch('error', {});
         }
       },
       __streamPush: (message: unknown) => {
         const data = JSON.stringify(message);
         for (const source of open) source.onmessage?.({ data });
+      },
+      __streamPushNamed: (name: string, message: unknown) => {
+        const data = JSON.stringify(message);
+        for (const source of open) source.dispatch(name, { data });
       },
     });
   });
@@ -54,6 +74,23 @@ export async function pushStream(page: Page, message: unknown) {
         window as unknown as { __streamPush: (m: unknown) => void }
       ).__streamPush(data),
     message,
+  );
+}
+
+// Sends the page one named stream event, such as "checks".
+export async function pushNamedStream(
+  page: Page,
+  name: string,
+  message: unknown,
+) {
+  await page.evaluate(
+    ([event, data]) =>
+      (
+        window as unknown as {
+          __streamPushNamed: (n: string, m: unknown) => void;
+        }
+      ).__streamPushNamed(event as string, data),
+    [name, message] as const,
   );
 }
 
