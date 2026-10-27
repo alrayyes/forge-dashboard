@@ -4747,6 +4747,9 @@ footer a[aria-current="page"] {
   gap: 8px 16px;
   margin: 0 0 12px;
 }
+.rebase-all[hidden] {
+  display: none;
+}
 .rebase-all-summary {
   margin: 0;
   font-size: 0.8125rem;

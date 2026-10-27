@@ -5,6 +5,7 @@ import {
   progressLabel,
   rebaseAllLabel,
   rebaseAllPlan,
+  showRebaseAll,
   summaryLine,
 } from './bot-rebase-all';
 
@@ -150,5 +151,35 @@ describe('labels', () => {
 
   test('progress counts the rows asked so far', () => {
     expect(progressLabel(3, 6)).toBe('Rebasing 3 of 6');
+  });
+});
+
+describe('showRebaseAll', () => {
+  test('hides when nothing listed is out of date', () => {
+    const plan = rebaseAllPlan([row({ number: 1, behind: false })], {
+      blockedReason: none,
+    });
+    expect(showRebaseAll(plan, false)).toBe(false);
+  });
+
+  test('hides when the only behind rows are empty', () => {
+    const plan = rebaseAllPlan([row({ number: 1, empty: true })], {
+      blockedReason: none,
+    });
+    expect(showRebaseAll(plan, false)).toBe(false);
+  });
+
+  test('shows when a listed row is out of date, even if none can be asked', () => {
+    const plan = rebaseAllPlan([row({ number: 1, allowedActions: [] })], {
+      blockedReason: none,
+    });
+    expect(showRebaseAll(plan, false)).toBe(true);
+  });
+
+  test('stays through a run even when no row is behind any more', () => {
+    const plan = rebaseAllPlan([row({ number: 1, behind: false })], {
+      blockedReason: none,
+    });
+    expect(showRebaseAll(plan, true)).toBe(true);
   });
 });
