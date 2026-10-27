@@ -144,9 +144,17 @@ export function createCheckFeed({
     },
 
     // Wants the subject's list. Returns the unsubscribe.
-    watch(subject: Subject, listener: Listener): () => void {
+    watch(subject: Subject, follower: Listener): () => void {
       const key = keyOf(subject);
       const set = listeners.get(key) ?? new Set<Listener>();
+      // A stream still connecting is not closed, so nothing says it won't
+      // answer. Say so after a bounded wait; a list that comes later still
+      // gets through.
+      const timer = setTimeout(() => follower({ error: SILENT }), timeoutMs);
+      const listener: Listener = (message) => {
+        clearTimeout(timer);
+        follower(message);
+      };
       set.add(listener);
       listeners.set(key, set);
       const fresh = !subjects.has(key);
@@ -156,6 +164,7 @@ export function createCheckFeed({
       if (unavailable())
         void Promise.resolve().then(() => listener({ error: DOWN }));
       return () => {
+        clearTimeout(timer);
         set.delete(listener);
         if (set.size > 0) return;
         listeners.delete(key);

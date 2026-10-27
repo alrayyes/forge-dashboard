@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import {
   type CheckFeedMessage,
   createCheckFeed,
@@ -324,5 +324,49 @@ describe('read', () => {
     const { feed, source } = harness(204, 0);
     source.open();
     expect(await feed.read(pr)).toEqual({ error: 'no answer from the server' });
+  });
+});
+
+describe('a stream that never answers', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  test('a watch with no list in time tells the listener', () => {
+    const { feed } = harness(204, 5000);
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    jest.advanceTimersByTime(4999);
+    expect(got).toEqual([]);
+    jest.advanceTimersByTime(1);
+    expect(got).toEqual([{ error: 'no answer from the server' }]);
+  });
+
+  test('a list in time cancels the wait', () => {
+    const { feed, source } = harness(204, 5000);
+    source.open();
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    source.emit('checks', { ...pr, checks: [] });
+    jest.advanceTimersByTime(60000);
+    expect(got).toEqual([{ checks: [] }]);
+  });
+
+  test('a stream that comes back still delivers the list', () => {
+    const { feed, source } = harness(204, 5000);
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    jest.advanceTimersByTime(5000);
+    source.open();
+    source.emit('checks', { ...pr, checks: [] });
+    expect(got.at(-1)).toEqual({ checks: [] });
+  });
+
+  test('stopping the watch cancels the wait', () => {
+    const { feed } = harness(204, 5000);
+    const got: CheckFeedMessage[] = [];
+    const stop = feed.watch(pr, (m) => got.push(m));
+    stop();
+    jest.advanceTimersByTime(60000);
+    expect(got).toEqual([]);
   });
 });
