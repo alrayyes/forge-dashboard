@@ -40,8 +40,12 @@ belongs to no run. A rerun is a new attempt, so it sends a new event, and a
 `gone` event retires the attempt it replaces. The last event of a list is
 marked `final`, and the panel redraws once it arrives.
 Each job in it carries a `status` (queued, in progress, completed or waiting)
-and, once it has finished, a `conclusion`. The panel works out the word and
-glyph it shows from those two, so a client of the stream does the same.
+and, once it has finished, a `conclusion`. The conclusion is the forge's own
+word, not a fixed set: GitHub's `neutral`, `stale` and `action_required` arrive
+as they are, next to `success`, `failure`, `cancelled`, `skipped` and
+`timed_out`. The panel works out the word and glyph it shows from those two, so
+a client of the stream does the same. The panel reads `neutral` as passed, and
+`stale`, `startup_failure` or a word it doesn't know as failed.
 If the stream is down, the panel says so with a Retry button. If the browser
 can't hold a stream open at all, the panel reads the list once when it opens
 and again on Retry, and doesn't follow changes. A change to any
