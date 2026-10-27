@@ -16,10 +16,10 @@ export function runSignature(checks: Check[]): string {
         c.runAttempt ?? '',
         c.status,
         c.conclusion ?? '',
-      ].join(':'),
+      ].join('\u0000'),
     )
     .sort()
-    .join('|');
+    .join('\u0001');
 }
 
 // The newest checks in the order the panel already shows them, so a check's

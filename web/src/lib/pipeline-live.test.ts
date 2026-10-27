@@ -130,6 +130,27 @@ describe('runSignature', () => {
     );
   });
 
+  test('changes when only the conclusion changes', () => {
+    expect(runSignature([c('build', 'failure', 7, 1)])).not.toBe(
+      runSignature([c('build', 'cancelled', 7, 1)]),
+    );
+  });
+
+  test('changes when only the url changes', () => {
+    const at = (url: string) => [{ ...c('build', 'failure', 7, 1), url }];
+
+    expect(runSignature(at('https://x/job/1'))).not.toBe(
+      runSignature(at('https://x/job/2')),
+    );
+  });
+
+  test('keeps two checks apart whose fields run together', () => {
+    const one = [{ ...c('a', 'failure', 7, 1), url: 'b:c' }];
+    const two = [{ ...c('a:b', 'failure', 7, 1), url: 'c' }];
+
+    expect(runSignature(one)).not.toBe(runSignature(two));
+  });
+
   test('is empty for no checks', () => {
     expect(runSignature([])).toBe('');
   });
