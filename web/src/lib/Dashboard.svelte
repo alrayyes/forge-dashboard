@@ -41,6 +41,7 @@
   } from "#lib/label-filter.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
   import {
@@ -6514,18 +6515,13 @@
       pipelineItem = item;
       pipelineRerunLock.reset();
       pipelineDialog.open({
-        subtitle: `${item.repo}#${item.number}`,
         // The job list is detail a row doesn't show until the dialog is opened
         // for it: the stream sends it for as long as the dialog follows it.
-        subject: {
-          kind: "pull_request",
+        ...pipelineTarget({
           forge: item.forge,
           fullName: item.repo,
           number: item.number,
-        },
-        repo: { forge: item.forge, fullName: item.repo },
-        emptyText: "No CI configured for this pull request.",
-        errorText: `Couldn't load pipeline checks for ${item.repo}#${item.number}`,
+        }),
         paused: updatesPaused,
         controls: (failed) =>
           failed && pipelineItem ? pipelineRerunControl(pipelineItem) : null,

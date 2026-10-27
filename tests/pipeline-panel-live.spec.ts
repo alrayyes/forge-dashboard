@@ -196,6 +196,36 @@ test.describe('pipeline panel updates live', () => {
     ).toHaveCount(1);
   });
 
+  test('a pull request dialog links to the newest run, as a branch does', async ({
+    page,
+  }) => {
+    await open(page, RUNNING_FORGEJO, [
+      {
+        name: 'build',
+        state: 'success',
+        url: 'https://forge.example/o/r/actions/runs/7/jobs/0',
+      },
+      {
+        name: 'test',
+        state: 'running',
+        url: 'https://forge.example/o/r/actions/runs/9/jobs/1',
+      },
+    ]);
+    const link = dialog(page).getByRole('link', {
+      name: 'Open run on Forgejo (opens in a new tab)',
+    });
+    await expect(link).toHaveAttribute(
+      'href',
+      'https://forge.example/o/r/actions/runs/9',
+    );
+    const box = await link.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('a check finishing changes its pill in place, announced once', async ({
     page,
   }) => {

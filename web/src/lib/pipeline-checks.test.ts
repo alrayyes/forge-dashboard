@@ -8,6 +8,7 @@ import {
   formatCheckDuration,
   groupChecks,
   isBlocking,
+  runPageUrl,
 } from './pipeline-checks';
 
 const check = (over: Partial<Check>): Check => ({
@@ -128,5 +129,36 @@ describe('checkRunKey', () => {
       checkRunKey(a),
     );
     expect(checkRunKey({ ...a })).toBe(checkRunKey(a));
+  });
+});
+
+describe('runPageUrl', () => {
+  test('trims a GitHub job page to its run page', () => {
+    const checks = [
+      check({ url: 'https://github.com/o/r/actions/runs/123/job/456' }),
+    ];
+    expect(runPageUrl(checks)).toBe('https://github.com/o/r/actions/runs/123');
+  });
+
+  test('trims a Forgejo job page to its run page', () => {
+    const checks = [
+      check({ url: 'https://f.example/o/r/actions/runs/7/jobs/2' }),
+    ];
+    expect(runPageUrl(checks)).toBe('https://f.example/o/r/actions/runs/7');
+  });
+
+  test('takes the newest run when jobs span several', () => {
+    const checks = [
+      check({ url: 'https://f.example/o/r/actions/runs/7/jobs/2' }),
+      check({ url: 'https://f.example/o/r/actions/runs/9/jobs/0' }),
+    ];
+    expect(runPageUrl(checks)).toBe('https://f.example/o/r/actions/runs/9');
+  });
+
+  test('is undefined for a third-party status or no checks', () => {
+    const third = [check({ url: 'https://ci.example/build/1' })];
+    expect(runPageUrl(third)).toBeUndefined();
+    expect(runPageUrl([check({ url: '' })])).toBeUndefined();
+    expect(runPageUrl([])).toBeUndefined();
   });
 });
