@@ -343,8 +343,8 @@ that read fails, the row keeps its earlier state.
 
 The jobs behind one row arrive on the dashboard stream. The pipeline panel
 watches the row and the stream sends a `checks` event with its jobs. They
-aren't part of the snapshot and the forge is called for each watch, so
-they spend rate-limit budget. An MCP client reads them with
+sit outside the snapshot. Each watch calls the forge, so they spend
+rate-limit budget. An MCP client reads them with
 `get_main_branch_checks`.
 The commit is
 the one the row describes, the newest on the default branch that a check ran
