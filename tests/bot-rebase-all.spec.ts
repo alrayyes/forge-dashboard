@@ -181,7 +181,7 @@ test('Rebase all is hidden from the moment it is rendered', async ({
       seen;
     new MutationObserver(() => {
       const block = document.querySelector<HTMLElement>('.rebase-all');
-      if (block && seen.length === 0) seen.push(block.hidden);
+      if (block && seen.length === 0) seen.push(block.hidden === true);
     }).observe(document, { childList: true, subtree: true });
   });
   await open(page, [pr(1, { behind: false })]);
