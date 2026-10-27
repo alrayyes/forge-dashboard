@@ -27,6 +27,8 @@ type checkFeedSource struct {
 
 	mu     sync.Mutex
 	checks []dashboard.Check
+	// byCall, when set, answers each job list from the number of the ask.
+	byCall func(call int64) []dashboard.Check
 }
 
 func (s *checkFeedSource) setChecks(checks []dashboard.Check) {
@@ -49,9 +51,12 @@ func (s *checkFeedSource) Fetch(_ context.Context) dashboard.Result {
 }
 
 func (s *checkFeedSource) ListChecks(_ context.Context, _, _ string, _ int) ([]dashboard.Check, error) {
-	s.lists.Add(1)
+	call := s.lists.Add(1)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.byCall != nil {
+		return s.byCall(call), s.checkErr
+	}
 
 	return s.checks, s.checkErr
 }
@@ -276,6 +281,59 @@ func TestCheckStream_RefreshSendsTheChecksAgain(t *testing.T) {
 	feed.nextListing(t)
 
 	assert.EqualValues(t, 2, source.lists.Load())
+}
+
+// Listings of one subject that overlap must still reach the page one after
+// another, or a run an older listing held can land after the newer listing
+// retired it. Each ask answers the same runs on its own attempt, so a page
+// that applies the events holds exactly one attempt of each whenever a listing
+// ends.
+func TestCheckStream_OverlappingListingsOfOneSubjectNeverInterleave(t *testing.T) {
+	t.Parallel()
+
+	const (
+		asks       = 4
+		runsPerAsk = 30
+	)
+	// Nobody reads the stream until every ask is made, and the payloads are big
+	// enough to fill the connection, so listings are stuck mid-send together.
+	bulk := strings.Repeat("x", 128<<10)
+	source := &checkFeedSource{byCall: func(call int64) []dashboard.Check {
+		checks := make([]dashboard.Check, 0, runsPerAsk)
+		for run := range int64(runsPerAsk) {
+			checks = append(checks, dashboard.Check{Name: "build", RunID: 100 + run, RunAttempt: call, URL: bulk})
+		}
+
+		return checks
+	}}
+	feed, _ := openCheckFeed(t, source)
+	refresh := strings.Replace(watchPR, `"subjects"`, `"refresh":true,"subjects"`, 1)
+	for range asks {
+		feed.watch(t, refresh)
+	}
+
+	held := map[string]bool{}
+	for {
+		var ev map[string]any
+		select {
+		case raw, ok := <-feed.events:
+			if !ok {
+				return
+			}
+			require.NoError(t, json.Unmarshal([]byte(raw.data), &ev))
+		case <-time.After(time.Second):
+			return
+		}
+		key, _ := ev["key"].(string)
+		if ev["gone"] == true {
+			delete(held, key)
+		} else {
+			held[key] = true
+		}
+		if ev["final"] == true {
+			require.Len(t, held, runsPerAsk, "a listing ended holding runs of another listing")
+		}
+	}
 }
 
 func TestCheckStream_ASnapshotWhereTheWatchedRowChangedSendsTheChecksAgain(t *testing.T) {

@@ -146,6 +146,10 @@ type watchedSubject struct {
 	// sent holds the keys of the runs the last listing sent, so the next one
 	// can say which are gone.
 	sent []string
+	// send is held from working out a listing's events until the last is
+	// handed over, so two listings of one subject reach the page one after the
+	// other, in the order their events were worked out.
+	send sync.Mutex
 }
 
 // retrySig never equals a row's signature, so the next snapshot lists again
@@ -212,6 +216,9 @@ func (w *checkWatch) listLocked(s checkSubject, held *watchedSubject) {
 func (w *checkWatch) list(s checkSubject, held *watchedSubject, gen int) {
 	checks, serr := w.fetch(w.ctx, s)
 
+	held.send.Lock()
+	defer held.send.Unlock()
+
 	w.mu.Lock()
 	current := w.watched[s] == held && held.gen == gen
 	var events []runEvent
@@ -228,13 +235,38 @@ func (w *checkWatch) list(s checkSubject, held *watchedSubject, gen int) {
 	for _, ev := range events {
 		data, err := json.Marshal(ev)
 		if err != nil {
+			// A listing with a hole in it is no use to the page, which would
+			// wait for a final event that never comes. Say it failed, and have
+			// the next snapshot list again.
+			w.mu.Lock()
+			held.sig = retrySig
+			w.mu.Unlock()
+			w.emit(runEvent{checkSubject: s, Error: "could not encode the checks"})
+
 			return
 		}
-		select {
-		case w.out <- data:
-		case <-w.ctx.Done():
+		if !w.deliver(data) {
 			return
 		}
+	}
+}
+
+// emit hands one event to the stream, answering false once it has closed.
+func (w *checkWatch) emit(ev runEvent) bool {
+	data, err := json.Marshal(ev)
+	if err != nil {
+		return false
+	}
+
+	return w.deliver(data)
+}
+
+func (w *checkWatch) deliver(data []byte) bool {
+	select {
+	case w.out <- data:
+		return true
+	case <-w.ctx.Done():
+		return false
 	}
 }
 
