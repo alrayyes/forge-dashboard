@@ -423,11 +423,18 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           state: 'failure',
           url: 'https://example.com/1',
-          durationSeconds: 125,
+          startedAt: '2026-10-03T10:00:00Z',
+          completedAt: '2026-10-03T10:02:05Z',
           failedStep: 'Run tests',
           excerpt: 'FAIL internal/api\n<img src=x onerror=alert(1)>',
         },
-        { name: 'build', state: 'success', url: '', durationSeconds: 42 },
+        {
+          name: 'build',
+          state: 'success',
+          url: '',
+          startedAt: '2026-10-03T10:00:00Z',
+          completedAt: '2026-10-03T10:00:42Z',
+        },
       ],
     });
     await page.goto('/pull-requests.html');

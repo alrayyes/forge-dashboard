@@ -272,7 +272,8 @@ const CHECKS = {
       state: 'failure',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/1',
       required: true,
-      durationSeconds: 94,
+      startedAt: '2026-10-03T10:00:00Z',
+      completedAt: '2026-10-03T10:01:34Z',
       failedStep: 'Run go test ./...',
       excerpt: [
         '--- FAIL: TestStore_ConcurrentWriters (0.41s)',
@@ -286,14 +287,16 @@ const CHECKS = {
       state: 'success',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/2',
       required: true,
-      durationSeconds: 41,
+      startedAt: '2026-10-03T10:00:00Z',
+      completedAt: '2026-10-03T10:00:41Z',
     },
     {
       name: 'build',
       state: 'success',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/3',
       required: true,
-      durationSeconds: 128,
+      startedAt: '2026-10-03T10:00:00Z',
+      completedAt: '2026-10-03T10:02:08Z',
     },
     {
       name: 'e2e (shard 1/4)',
@@ -312,7 +315,8 @@ const CHECKS = {
       state: 'cancelled',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/6',
       required: false,
-      durationSeconds: 12,
+      startedAt: '2026-10-03T10:00:00Z',
+      completedAt: '2026-10-03T10:00:12Z',
     },
     {
       name: 'auto-merge',
