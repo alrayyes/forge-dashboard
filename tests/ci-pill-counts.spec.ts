@@ -178,13 +178,31 @@ test.describe('Passed and Failed pill counts (#2074)', () => {
     await page.setViewportSize({ width: 390, height: 800 });
     await open(page);
 
+    await expect(pill(page, 'Clean run').locator('.ci-seg-label')).toBeHidden();
+    await expect(pill(page, 'Mixed run').locator('.ci-word')).toBeHidden();
     for (const title of ['Clean run', 'Mixed run']) {
-      await expect(pill(page, title).locator('.ci-seg-label')).toBeHidden();
       const box = await pill(page, title).boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
       expect(box?.width).toBeGreaterThanOrEqual(44);
     }
     await expect(segments(page, 'Mixed run')).toHaveText(['8', '1', '2', '3']);
+  });
+
+  test('on a phone a failed pill still going keeps its running marker, one that is done has none', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await open(page);
+    const live = (title: string) => pill(page, title).locator('.ci-live');
+
+    await expect(live('Mixed run')).toBeVisible();
+    await expect(live('Mixed run').locator('.check-glyph-arc')).toBeVisible();
+    await expect(live('Lone fail')).toHaveCount(0);
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    await expect(live('Mixed run').locator('.check-glyph-arc')).toBeHidden();
+    await expect(live('Mixed run').locator('.check-glyph-clock')).toBeVisible();
   });
 
   test('with reduced motion the running count of a failed pipeline is still', async ({

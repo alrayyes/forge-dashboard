@@ -1887,7 +1887,12 @@ a.ci-pill:hover {
   /* The word goes on a phone and the glyphs and counts stay, so the pill is as
      narrow as it can be and the title keeps its two lines; the link's name
      still says its word. */
-  .ci-seg-label {
+  .ci-seg-label:not(:has(.ci-live)) {
+    display: none;
+  }
+  /* A failed pill still going keeps its running marker, so a red row is not
+     read as the final answer (#2968). */
+  .ci-seg-label .ci-word {
     display: none;
   }
   .ci-seg-label + .ci-seg {
@@ -1923,7 +1928,8 @@ a.ci-pill:hover {
 /* The word stays on a phone, unlike on a row's own pill: the pill's name starts
    with the number and state, so a hidden word would leave the visible text
    out of the name (WCAG 2.5.3). */
-.linked-pr .ci-seg-label {
+.linked-pr .ci-seg-label,
+.linked-pr .ci-seg-label .ci-word {
   display: inline-flex;
 }
 .linked-pr .ci-seg-label + .ci-seg {

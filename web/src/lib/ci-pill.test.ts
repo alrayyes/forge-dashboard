@@ -294,6 +294,13 @@ describe('renderCiPill', () => {
     ]);
   });
 
+  test('the label wraps its word apart from the marker, so a phone can drop the word alone', () => {
+    const label = as(as(render(failed())).find('ci-seg-label'));
+
+    expect(as(label.find('ci-word')).textContent).toBe('Failed');
+    expect(as(label.find('ci-word')).find('ci-live')).toBeUndefined();
+  });
+
   test('a pill that is not live draws no marker', () => {
     const done = ciPillModel({
       cls: 'failure',

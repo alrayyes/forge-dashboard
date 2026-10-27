@@ -121,7 +121,9 @@ export function renderCiPill(
     else root.appendChild(span('dot'));
     root.appendChild(document.createTextNode(model.word));
   } else {
-    const label = span('ci-seg ci-seg-label', model.word);
+    // The word sits in its own span so a phone can hide it and keep the marker.
+    const label = span('ci-seg ci-seg-label');
+    label.appendChild(span('ci-word', model.word));
     if (model.live) {
       // The same arc and still clock a running count uses, so the marker
       // honours prefers-reduced-motion with no rule of its own. The name says
