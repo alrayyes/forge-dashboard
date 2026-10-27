@@ -95,9 +95,9 @@ export function createBranchRerun() {
     throw await readActionFailure(res);
   }
 
-  // The control to draw above the list. `signature` is the row's CI signature
-  // and `lock` is why the forge would refuse a rerun, both read again by the
-  // caller for each draw.
+  // The control to draw above the list. `signature` says what the open checks
+  // show (see runSignature) and `lock` is why the forge would refuse a rerun,
+  // both read again by the caller for each draw.
   function control(
     t: RerunTarget,
     signature: () => string,
