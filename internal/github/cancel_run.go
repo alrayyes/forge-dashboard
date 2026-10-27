@@ -54,10 +54,36 @@ type runRef struct {
 	name    string
 	number  int64
 	attempt int64
+	// facts is what the run itself reported; nil for a run only the job's
+	// address names.
+	facts *dashboard.RunFacts
 }
 
 func refOf(run *ghsdk.WorkflowRun) runRef {
-	return runRef{id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber()), attempt: int64(run.GetRunAttempt())}
+	return runRef{
+		id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber()), attempt: int64(run.GetRunAttempt()),
+		facts: runFacts(run),
+	}
+}
+
+// runFacts keeps the run's own status, conclusion and start as the forge gave
+// them. GitHub has no completion time for a run, so CompletedAt stays nil
+// rather than borrowing the last update. A status outside the four the page
+// knows (requested, pending) is a run that has not started, so it reads queued.
+func runFacts(run *ghsdk.WorkflowRun) *dashboard.RunFacts {
+	f := &dashboard.RunFacts{Conclusion: dashboard.CheckConclusion(run.GetConclusion())}
+	switch status := dashboard.CheckStatus(run.GetStatus()); status {
+	case dashboard.CheckStatusCompleted, dashboard.CheckStatusInProgress, dashboard.CheckStatusWaiting:
+		f.Status = status
+	default:
+		f.Status = dashboard.CheckStatusQueued
+	}
+	if t := run.RunStartedAt; t != nil && !t.IsZero() {
+		started := t.Time
+		f.StartedAt = &started
+	}
+
+	return f
 }
 
 // jobRunID matches an Actions job's page address,
@@ -127,6 +153,10 @@ func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks
 			ref = runRef{id: id}
 		}
 		if attempt != 0 {
+			if attempt != ref.attempt {
+				// The lists describe the run's latest attempt only.
+				ref.facts = nil
+			}
 			ref.attempt = attempt
 		}
 		setRun(&checks[i], ref)
@@ -157,6 +187,7 @@ func (c *Client) attachGoingRuns(ctx context.Context, owner, name, sha string, c
 
 func setRun(ch *dashboard.Check, ref runRef) {
 	ch.RunID, ch.RunName, ch.RunNumber, ch.RunAttempt = ref.id, ref.name, ref.number, ref.attempt
+	ch.Run = ref.facts
 }
 
 // runJobs maps the id of each job of run to the run.
