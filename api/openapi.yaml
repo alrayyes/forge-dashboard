@@ -5253,6 +5253,40 @@ components:
               description: |
                 Absent when the check has no run or the forge doesn't
                 number attempts.
+            status:
+              allOf:
+                - $ref: "#/components/schemas/CheckStatus"
+              description: |
+                How far the run attempt itself has got, as the forge reports
+                it. Forgejo's own status words fold onto the four values
+                (running is `in_progress`; waiting, blocked and unknown are
+                `queued`); a GitHub status other than these four (requested,
+                pending) is `queued`. Absent for a check with no run (a
+                legacy commit status, a third-party check run, a GitHub
+                check run whose run the forge's lists don't hold) and for a
+                run the forge gave no status.
+            conclusion:
+              allOf:
+                - $ref: "#/components/schemas/CheckConclusion"
+              description: |
+                How the run attempt ended, in the forge's own word, once its
+                `status` is "completed". It can differ from its jobs: a run
+                can fail while one of its jobs passed. Absent whenever
+                `status` is.
+            startedAt:
+              type: string
+              format: date-time
+              description: |
+                When the forge says the run attempt started. Absent until it
+                has, and when the forge doesn't say.
+            completedAt:
+              type: string
+              format: date-time
+              description: |
+                When the forge says the run attempt finished. Absent until it
+                has. GitHub gives no finish time for a run, so it is always
+                absent there; the page can take the latest job's
+                `completedAt`.
             checks:
               type: array
               items:

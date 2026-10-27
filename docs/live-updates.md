@@ -39,6 +39,15 @@ is one event for each workflow run attempt, and one for each check that
 belongs to no run. A rerun is a new attempt, so it sends a new event, and a
 `gone` event retires the attempt it replaces. The last event of a list is
 marked `final`, and the panel redraws once it arrives.
+A run event also carries what the forge reported about the run attempt itself:
+its `status`, its `conclusion` once it has ended, and when it started and
+finished. They are the forge's words, and a run's conclusion can differ from
+its jobs'. Each is left out where the forge gave none. A check that belongs to
+no run, such as a legacy commit status or a third-party check, has none of
+them, and neither does a GitHub check run whose workflow run the forge's lists
+don't hold. GitHub gives no finish time for a run, so that one is always
+missing there, and a run held back with no jobs yet may carry nothing but its
+status.
 Each job in it carries a `status` (queued, in progress, completed or waiting)
 and, once it has finished, a `conclusion`. The conclusion is the forge's own
 word, not a fixed set: GitHub's `neutral`, `stale` and `action_required` arrive
