@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { pipelineTarget } from "#lib/pipeline-target.js";
   import { ciSignature } from "#lib/pipeline-live.js";
   import { splitStaleRows } from "#lib/forge-starting.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
@@ -200,13 +201,12 @@
   function openPipeline(b: MainBranch, opener: HTMLElement) {
     openRow = b;
     pipeline?.open({
-      subtitle: `${b.fullName}${b.branch ? ` · ${b.branch}` : ""}`,
-      subject: { kind: "main_branch", forge: b.forge, fullName: b.fullName },
-      repo: { forge: b.forge, fullName: b.fullName },
-      emptyText: "No jobs were found for this branch.",
-      errorText: `Couldn't load the pipeline jobs for ${b.fullName}`,
-      runUrl: b.runUrl,
-      forgeName: FORGE_LABELS[b.forge] ?? b.forge,
+      ...pipelineTarget({
+        forge: b.forge,
+        fullName: b.fullName,
+        branch: b.branch,
+        runUrl: b.runUrl,
+      }),
       // A branch has no allowed-actions list: Cancel run is offered for each
       // run the checks name as going.
       cancel: { forge: b.forge, fullName: b.fullName },

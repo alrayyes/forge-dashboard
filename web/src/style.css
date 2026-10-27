@@ -3481,6 +3481,11 @@ footer a.mono:focus-visible {
   margin: 14px 0 0;
   font-size: 13px;
 }
+.pipeline-run a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 .pipeline-check-list {
   list-style: none;
   margin: 0;
