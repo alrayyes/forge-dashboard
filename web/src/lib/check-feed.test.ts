@@ -7,9 +7,10 @@ import {
   type Subject,
 } from './check-feed';
 
-// The job list of a pull request or branch rides the dashboard stream as a
-// named "checks" event. A page asks for the lists it shows by posting its
-// watch, and the server sends one back on every change.
+// The job list of a pull request or branch rides the dashboard stream as
+// named "run" events, one for each workflow run attempt. A page asks for the
+// lists it shows by posting its watch, and the server sends them again on
+// every change.
 
 class FakeSource implements FeedSource {
   handlers = new Map<string, ((event: { data?: string }) => void)[]>();
@@ -107,7 +108,7 @@ describe('watch', () => {
     expect(posts).toHaveLength(2);
   });
 
-  test('hands a checks event to the listener of its subject only', () => {
+  test('hands a run event to the listener of its subject only', () => {
     const { feed, source } = harness();
     const prGot: CheckFeedMessage[] = [];
     const branchGot: CheckFeedMessage[] = [];
@@ -119,16 +120,214 @@ describe('watch', () => {
       conclusion: 'success',
       url: '',
     };
-    source.emit('checks', { ...pr, checks: [build] });
+    source.emit('run', {
+      ...pr,
+      key: 'job/|build',
+      checks: [build],
+      final: true,
+    });
     expect(prGot).toEqual([{ checks: [build] }]);
     expect(branchGot).toEqual([]);
+  });
+
+  describe('assembling run events', () => {
+    const job = (name: string, status = 'completed', extra = {}) => ({
+      name,
+      status,
+      url: `u/${name}`,
+      ...extra,
+    });
+
+    test('tells the listener once, when the last event of a listing arrives', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('build')],
+      });
+      source.emit('run', {
+        ...pr,
+        key: 'run/12/1',
+        runId: 12,
+        checks: [job('lint')],
+        final: true,
+      });
+      expect(got).toEqual([{ checks: [job('build'), job('lint')] }]);
+    });
+
+    test('a rerun replaces its attempt and keeps its place', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        runAttempt: 1,
+        checks: [job('build', 'completed', { conclusion: 'failure' })],
+      });
+      source.emit('run', {
+        ...pr,
+        key: 'run/12/1',
+        runId: 12,
+        checks: [job('lint')],
+        final: true,
+      });
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/2',
+        runId: 11,
+        runAttempt: 2,
+        checks: [job('build', 'in_progress')],
+      });
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        gone: true,
+        final: true,
+      });
+      expect(got.at(-1)).toEqual({
+        checks: [job('lint'), job('build', 'in_progress')],
+      });
+    });
+
+    test('a gone run is dropped, and an empty listing clears the rest', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('build')],
+        final: true,
+      });
+      source.emit('run', { ...pr, final: true });
+      expect(got).toEqual([{ checks: [job('build')] }, { checks: [] }]);
+    });
+
+    test('a run missed during an outage does not outlive the reconnect', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('old')],
+        final: true,
+      });
+      source.emit('error');
+      // The server starts a new connection with nothing sent, so it never
+      // says that run/11/1 is gone.
+      source.open();
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/2',
+        runId: 11,
+        checks: [job('new')],
+        final: true,
+      });
+      expect(got.at(-1)).toEqual({ checks: [job('new')] });
+    });
+
+    test('a failed listing is not mixed into the next one', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('old')],
+        final: true,
+      });
+      source.emit('run', { ...pr, error: 'forge said no' });
+      source.emit('run', {
+        ...pr,
+        key: 'run/12/1',
+        runId: 12,
+        checks: [job('new')],
+        final: true,
+      });
+      expect(got.at(-1)).toEqual({ checks: [job('new')] });
+    });
+
+    test('a late event for a subject nobody watches is dropped', () => {
+      const { feed, source } = harness();
+      const unwatch = feed.watch(pr, () => {});
+      unwatch();
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('late')],
+      });
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/12/1',
+        runId: 12,
+        checks: [job('fresh')],
+        final: true,
+      });
+      expect(got).toEqual([{ checks: [job('fresh')] }]);
+    });
+
+    test('a run keeps its place when a rerun replaces its attempt in the list', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      for (const [id, name] of [
+        [11, 'build'],
+        [12, 'lint'],
+      ] as const)
+        source.emit('run', {
+          ...pr,
+          key: `run/${id}/1`,
+          runId: id,
+          checks: [job(name)],
+        });
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('build', 'in_progress')],
+        final: true,
+      });
+      // The same key is replaced where it stood. A new attempt has a new
+      // key, so it goes last, as in the rerun test above.
+      expect(got.at(-1)).toEqual({
+        checks: [job('build', 'in_progress'), job('lint')],
+      });
+    });
+
+    test('holds a listing back from a subject that is not the one it names', () => {
+      const { feed, source } = harness();
+      const prGot: CheckFeedMessage[] = [];
+      const branchGot: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => prGot.push(m));
+      feed.watch(branch, (m) => branchGot.push(m));
+      source.emit('run', {
+        ...branch,
+        key: 'run/1/1',
+        checks: [job('build')],
+        final: true,
+      });
+      expect(prGot).toEqual([]);
+      expect(branchGot).toEqual([{ checks: [job('build')] }]);
+    });
   });
 
   test('hands over the error of a failed list', () => {
     const { feed, source } = harness();
     const got: CheckFeedMessage[] = [];
     feed.watch(pr, (m) => got.push(m));
-    source.emit('checks', { ...pr, checks: null, error: 'forge said no' });
+    source.emit('run', { ...pr, error: 'forge said no' });
     expect(got).toEqual([{ error: 'forge said no' }]);
   });
 
@@ -136,7 +335,7 @@ describe('watch', () => {
     const { feed, source } = harness();
     const got: CheckFeedMessage[] = [];
     feed.watch(pr, (m) => got.push(m));
-    source.emitRaw('checks', '{nope');
+    source.emitRaw('run', '{nope');
     expect(got).toEqual([]);
   });
 
@@ -149,7 +348,7 @@ describe('watch', () => {
     await flush();
     stop();
     await flush();
-    source.emit('checks', { ...pr, checks: [] });
+    source.emit('run', { ...pr, final: true });
     expect(got).toEqual([]);
     expect(posts.at(-1)?.subjects).toEqual([branch]);
   });
@@ -201,7 +400,7 @@ describe('refresh', () => {
       subjects: [pr],
       refresh: true,
     });
-    source.emit('checks', { ...pr, checks: [] });
+    source.emit('run', { ...pr, final: true });
     expect(await done).toBe(true);
   });
 
@@ -211,7 +410,7 @@ describe('refresh', () => {
     feed.watch(pr, () => {});
     const done = feed.refresh(pr);
     await flush();
-    source.emit('checks', { ...pr, checks: null, error: 'x' });
+    source.emit('run', { ...pr, error: 'x' });
     expect(await done).toBe(false);
   });
 
@@ -287,7 +486,12 @@ describe('read', () => {
     const done = feed.read(pr);
     await flush();
     expect(posts.at(-1)?.subjects).toEqual([pr]);
-    source.emit('checks', { ...pr, checks: list });
+    source.emit('run', {
+      ...pr,
+      key: 'job/u|build',
+      checks: list,
+      final: true,
+    });
     expect(await done).toEqual({ checks: list });
     await flush();
     expect(posts.at(-1)?.subjects).toEqual([]);
@@ -305,7 +509,12 @@ describe('read', () => {
       subjects: [pr],
       refresh: true,
     });
-    source.emit('checks', { ...pr, checks: list });
+    source.emit('run', {
+      ...pr,
+      key: 'job/u|build',
+      checks: list,
+      final: true,
+    });
     expect(await done).toEqual({ checks: list });
     expect(posts.at(-1)?.subjects).toEqual([pr]);
   });
@@ -315,7 +524,7 @@ describe('read', () => {
     source.open();
     const done = feed.read(pr);
     await flush();
-    source.emit('checks', { ...pr, checks: null, error: 'forge unreachable' });
+    source.emit('run', { ...pr, error: 'forge unreachable' });
     expect(await done).toEqual({ error: 'forge unreachable' });
   });
 
@@ -349,7 +558,12 @@ describe('read', () => {
     source.open();
     await flush();
     expect(posts.at(-1)?.subjects).toEqual([pr]);
-    source.emit('checks', { ...pr, checks: list });
+    source.emit('run', {
+      ...pr,
+      key: 'job/u|build',
+      checks: list,
+      final: true,
+    });
     expect(await done).toEqual({ checks: list });
   });
 
@@ -378,7 +592,7 @@ describe('a stream that never answers', () => {
     source.open();
     const got: CheckFeedMessage[] = [];
     feed.watch(pr, (m) => got.push(m));
-    source.emit('checks', { ...pr, checks: [] });
+    source.emit('run', { ...pr, final: true });
     jest.advanceTimersByTime(60000);
     expect(got).toEqual([{ checks: [] }]);
   });
@@ -389,7 +603,7 @@ describe('a stream that never answers', () => {
     feed.watch(pr, (m) => got.push(m));
     jest.advanceTimersByTime(5000);
     source.open();
-    source.emit('checks', { ...pr, checks: [] });
+    source.emit('run', { ...pr, final: true });
     expect(got.at(-1)).toEqual({ checks: [] });
   });
 

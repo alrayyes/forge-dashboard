@@ -342,7 +342,7 @@ at once, so a rerun that passed turns its row green without the next poll. If
 that read fails, the row keeps its earlier state.
 
 The jobs behind one row arrive on the dashboard stream. The pipeline panel
-watches the row and the stream sends a `checks` event with its jobs. They
+watches the row and the stream sends `run` events with its jobs. They
 sit outside the snapshot. Each watch calls the forge, so they spend
 rate-limit budget. An MCP client reads them with
 `get_main_branch_checks`.

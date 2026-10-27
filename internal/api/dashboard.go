@@ -997,7 +997,7 @@ func handleDashboardStream(deps Deps, watches *checkWatches) http.HandlerFunc {
 
 		// A page that names itself (?sid=) can ask for the job lists of the
 		// pull requests and branches it has open; they ride this stream as
-		// "checks" events, which the default message handler never sees.
+		// "run" events, which the default message handler never sees.
 		// Registered before the headers go out: the page may post its watch
 		// the moment it sees the stream open.
 		var feed *checkWatch
@@ -1033,7 +1033,7 @@ func streamSnapshots(ctx context.Context, stopped <-chan struct{}, w http.Respon
 		case <-stopped:
 			return
 		case data := <-checkEvents:
-			if !writeEvent(w, flusher, "event: checks\n", data) {
+			if !writeEvent(w, flusher, "event: run\n", data) {
 				return
 			}
 		case snap, open := <-ch:

@@ -1,7 +1,8 @@
 // The job lists of the pull requests and branches a page has open ride the
-// dashboard stream as named "checks" events. A page says which lists it wants
-// by posting its watch, and the server sends one per subject on every change,
-// so no board polls them or decides when to ask.
+// dashboard stream as named "run" events, one for each workflow run attempt. A
+// page says which lists it wants by posting its watch, and the server sends
+// them again on every change, so no board polls them or decides when to ask.
+// The page keeps the latest event for each run attempt and puts them together.
 
 import type { Check } from './pipeline-checks';
 
@@ -20,7 +21,7 @@ type Listener = (message: CheckFeedMessage) => void;
 // The part of an EventSource this needs, so a test can stand in for it.
 export type FeedSource = {
   addEventListener(
-    type: 'open' | 'error' | 'checks',
+    type: 'open' | 'error' | 'run',
     listener: (event: { data?: string }) => void,
   ): void;
   readyState: number;
@@ -69,6 +70,9 @@ export function createCheckFeed({
   // Refreshes waiting on an answer, apart from the dialogs that watch: a
   // dialog closing must not look like a watcher still there.
   const waiters = new Map<string, Set<Listener>>();
+  // The latest event of each run attempt, by subject and then by the key the
+  // server gave the attempt. A rerun has a new key and the old one goes.
+  const runs = new Map<string, Map<string, Check[]>>();
   let open = false;
   let source: FeedSource | null = null;
   // Posts go one at a time, so a stale watch can't land after a newer one.
@@ -123,25 +127,50 @@ export function createCheckFeed({
       source = next;
       open = next.readyState === OPEN;
       if (open && subjects.size > 0) send(false);
+      // A new connection starts with the server remembering nothing it sent,
+      // so it can't retire a run this page still holds. Start from empty on
+      // both sides of a break.
       next.addEventListener('open', () => {
         open = true;
+        runs.clear();
         if (subjects.size > 0) send(false);
       });
       next.addEventListener('error', () => {
         if (next.readyState !== OPEN) open = false;
+        runs.clear();
         tellAll({ error: DOWN });
       });
-      next.addEventListener('checks', (event) => {
-        let body: Subject & { checks?: Check[] | null; error?: string };
+      next.addEventListener('run', (event) => {
+        let body: Subject & {
+          key?: string;
+          checks?: Check[] | null;
+          gone?: boolean;
+          final?: boolean;
+          error?: string;
+        };
         try {
           body = JSON.parse(event.data ?? '');
         } catch {
           return;
         }
-        const message: CheckFeedMessage = body.error
-          ? { error: body.error }
-          : { checks: body.checks ?? [] };
-        tell(keyOf(body), message);
+        const subject = keyOf(body);
+        // An event that outlived its watchers has nobody to tell, and must
+        // not leave an entry behind.
+        if (!listeners.has(subject) && !waiters.get(subject)?.size) return;
+        if (body.error) {
+          // The next listing starts from empty, since it names every run.
+          runs.delete(subject);
+          tell(subject, { error: body.error });
+          return;
+        }
+        const held = runs.get(subject) ?? new Map<string, Check[]>();
+        runs.set(subject, held);
+        if (!body.key) held.clear();
+        else if (body.gone) held.delete(body.key);
+        else held.set(body.key, body.checks ?? []);
+        // A listing is told once, at its last event, so a page is not
+        // redrawn for every run in it.
+        if (body.final) tell(subject, { checks: [...held.values()].flat() });
       });
     },
 
@@ -171,6 +200,7 @@ export function createCheckFeed({
         if (set.size > 0) return;
         listeners.delete(key);
         subjects.delete(key);
+        runs.delete(key);
         send(false);
       };
     },

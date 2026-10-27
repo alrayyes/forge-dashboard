@@ -3,7 +3,7 @@
 // DOM here.
 
 // Matches components.schemas.Check in api/openapi.yaml: one job/check run, as
-// sent in the `checks` events of GET /api/dashboard/stream.
+// sent in the `run` events of GET /api/dashboard/stream.
 // `required` is absent when the forge couldn't tell, which is not the same as
 // false.
 export type Check = {
