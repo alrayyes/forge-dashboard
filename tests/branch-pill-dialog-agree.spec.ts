@@ -47,7 +47,9 @@ const ROW = {
 
 async function open(
   page: Page,
-  row: Record<string, unknown> = ROW,
+  row: Omit<typeof ROW, 'checks'> & {
+    checks: Partial<typeof ROW.checks>;
+  } = ROW,
   jobs: unknown[] = JOBS,
 ) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
@@ -108,7 +110,7 @@ test.describe('the Branches pill and its dialog agree', () => {
 
 // A manual rerun of a failed run keeps the run and its job ids, and the jobs
 // start again on the next attempt. The row was read mid-rerun (the Go replay
-// of that is internal/forgejo/main_branch_rerun_recorded_test.go), so its
+// of that, a modelled sequence, is internal/forgejo/main_branch_rerun_sequence_test.go), so its
 // pill and the dialog show the new attempt's jobs, and not the failed one's.
 test.describe('the Branches pill and its dialog agree during a rerun', () => {
   const rerunRow = {
