@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { pipelineTarget } from './pipeline-target';
+import { checkControl } from './run-log';
 
 describe('pipelineTarget', () => {
   test('a pull request and a branch get the same shape', () => {
@@ -22,6 +23,36 @@ describe('pipelineTarget', () => {
       Object.keys(branch).sort(byName),
     );
     expect(pr.forgeName).toBe(branch.forgeName);
+  });
+
+  test('a check gets the same control from either target', () => {
+    const states = ['success', 'failure', 'running', 'queued', 'skipped'];
+    for (const forge of ['github', 'forgejo']) {
+      const pr = pipelineTarget({
+        forge,
+        fullName: 'o/r',
+        number: 1,
+        signature: 's',
+      });
+      const branch = pipelineTarget({
+        forge,
+        fullName: 'o/r',
+        branch: 'main',
+        signature: 's',
+      });
+      for (const state of states) {
+        const check = { state, url: 'https://f.example/r/1', jobId: 7 };
+        expect(checkControl(check, branch.checksUrl)).toBe(
+          checkControl(check, pr.checksUrl),
+        );
+      }
+      expect(
+        checkControl(
+          { state: 'success', url: 'https://f.example/r/1', jobId: 7 },
+          branch.checksUrl,
+        ),
+      ).not.toBe('none');
+    }
   });
 
   test('names the pull request endpoint and subtitle', () => {

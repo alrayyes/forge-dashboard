@@ -1,5 +1,5 @@
-import { FORGE_LABELS } from '#lib/forges.js';
-import type { PipelineTarget } from '#lib/PipelineDialog.svelte';
+import { FORGE_LABELS } from './forges';
+import type { PipelineTarget } from './PipelineDialog.svelte';
 
 // What both boards say when they open the pipeline dialog, so a pull request
 // and a branch give it the same fields. The board adds what only it knows
