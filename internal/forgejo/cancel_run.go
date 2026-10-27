@@ -43,6 +43,27 @@ func withRun(check dashboard.Check, runID int64, runName string, runNumber int64
 	return check
 }
 
+// withRunFacts keeps what Forgejo said about the run itself: its status, which
+// is also its conclusion once it has ended, and its start and end. An unset
+// time is the zero time and is left nil. A run that gave no status gives none.
+func withRunFacts(check dashboard.Check, status string, started, stopped time.Time) dashboard.Check {
+	if status == "" {
+		return check
+	}
+
+	facts := &dashboard.RunFacts{}
+	facts.Status, facts.Conclusion = dashboard.StatusFacts(checkStateFromWorkflowStatus(status), reportedConclusion(status))
+	if !started.IsZero() {
+		facts.StartedAt = &started
+	}
+	if !stopped.IsZero() {
+		facts.CompletedAt = &stopped
+	}
+	check.Run = facts
+
+	return check
+}
+
 // withJobTimes sets the start and end the forge gives job. Forgejo answers an
 // unset time as the zero time, which is left nil: a job that hasn't started or
 // finished says nothing about it.
