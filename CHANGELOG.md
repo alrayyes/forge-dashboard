@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/alrayyes/forge-dashboard/compare/v4.0.0...v4.0.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **web:** keep the running marker on a phone pill ([#2973](https://github.com/alrayyes/forge-dashboard/issues/2973)) ([7f3be53](https://github.com/alrayyes/forge-dashboard/commit/7f3be53faa3a795588191dd86250ea5921fa8ca1)), closes [#2968](https://github.com/alrayyes/forge-dashboard/issues/2968)
+
 ## [4.0.0](https://github.com/alrayyes/forge-dashboard/compare/v3.1.0...v4.0.0) (2026-10-27)
 
 
