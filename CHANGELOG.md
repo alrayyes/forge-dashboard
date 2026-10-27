@@ -1,5 +1,16 @@
 # Changelog
 
+## [8.0.0](https://github.com/alrayyes/forge-dashboard/compare/v7.0.0...v8.0.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* `conclusion` is no longer limited to `success`, `failure`, `cancelled`, `skipped` and `timed_out`. It can also be `neutral`, `stale`, `startup_failure` or `action_required`, and a finished `action_required` job is `status: completed` rather than `waiting`. A client that switches on the five words needs to handle the rest.
+
+### Features
+
+* send the conclusion the forge reported ([#2983](https://github.com/alrayyes/forge-dashboard/issues/2983)) ([659f327](https://github.com/alrayyes/forge-dashboard/commit/659f327b0c410b72b0a2e5214c3c399e8733aec8))
+
 ## [7.0.0](https://github.com/alrayyes/forge-dashboard/compare/v6.1.0...v7.0.0) (2026-10-27)
 
 
