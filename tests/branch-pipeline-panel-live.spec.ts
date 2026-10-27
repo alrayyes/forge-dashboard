@@ -63,12 +63,27 @@ const PASSED_FORGEJO = branch(
 );
 
 const RUN = [
-  { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-  { name: 'test', state: 'running', url: 'https://example.com/r/2' },
+  {
+    name: 'build',
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.com/r/1',
+  },
+  { name: 'test', status: 'in_progress', url: 'https://example.com/r/2' },
 ];
 const DONE = [
-  { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-  { name: 'test', state: 'success', url: 'https://example.com/r/2' },
+  {
+    name: 'build',
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.com/r/1',
+  },
+  {
+    name: 'test',
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.com/r/2',
+  },
 ];
 
 function snapshot(b: ReturnType<typeof branch>) {
@@ -161,9 +176,14 @@ test.describe('main branches pipeline panel updates live', () => {
     page,
   }) => {
     const three = [
-      { name: 'lint', state: 'running', url: 'https://example.com/r/0' },
-      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-      { name: 'test', state: 'running', url: 'https://example.com/r/2' },
+      { name: 'lint', status: 'in_progress', url: 'https://example.com/r/0' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/r/1',
+      },
+      { name: 'test', status: 'in_progress', url: 'https://example.com/r/2' },
     ];
     const state = await open(page, RUNNING_FORGEJO, three, 3);
     await panel(page)
@@ -192,7 +212,12 @@ test.describe('main branches pipeline panel updates live', () => {
 
     state.row = PASSED_FORGEJO;
     state.checks = [
-      { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'failure',
+        url: 'https://example.com/r/1',
+      },
     ];
     await update(page, state);
 
@@ -343,7 +368,7 @@ test.describe('main branches pipeline panel draws what a check carries', () => {
       [
         {
           name: 'deploy',
-          state: 'awaiting_approval',
+          status: 'waiting',
           url: 'https://example.com/r/9',
         },
       ],
@@ -366,13 +391,15 @@ test.describe('main branches pipeline panel draws what a check carries', () => {
       [
         {
           name: 'lint',
-          state: 'failure',
+          status: 'completed',
+          conclusion: 'failure',
           url: 'https://example.com/r/1',
           required: false,
         },
         {
           name: 'test',
-          state: 'failure',
+          status: 'completed',
+          conclusion: 'failure',
           url: 'https://example.com/r/2',
           required: true,
         },

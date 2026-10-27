@@ -15,7 +15,8 @@ const GITHUB = { forge: 'github', fullName: 'a/b' };
 
 const failed = (jobId: number, extra: Partial<Check> = {}): Check => ({
   name: `job ${jobId}`,
-  state: 'failure',
+  status: 'completed',
+  conclusion: 'failure',
   url: `https://x/${jobId}`,
   jobId,
   runAttempt: 1,
@@ -50,10 +51,10 @@ describe('pickExcerptJobs', () => {
 
   test('takes timed out jobs, and no passed, cancelled or job-less check', () => {
     const checks = [
-      failed(1, { state: 'timed_out' }),
-      failed(2, { state: 'success' }),
-      failed(3, { state: 'cancelled' }),
-      { name: 'status', state: 'failure', url: 'x' },
+      failed(1, { status: 'completed', conclusion: 'timed_out' }),
+      failed(2, { status: 'completed', conclusion: 'success' }),
+      failed(3, { status: 'completed', conclusion: 'cancelled' }),
+      { name: 'status', status: 'completed', conclusion: 'failure', url: 'x' },
     ];
 
     expect(

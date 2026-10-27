@@ -1,9 +1,15 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { factsOf } from './check-facts-fixture';
+import { checkState } from './pipeline-checks';
 import { announceChange, checkKeys, keepOrder } from './pipeline-live';
 
 describe('keepOrder', () => {
-  const c = (name: string, state: string) => ({ name, state, url: '' });
+  const c = (name: string, state: string) => ({
+    name,
+    ...factsOf(state),
+    url: '',
+  });
 
   test('keeps the order checks already have, whatever the new order says', () => {
     const prev = [c('lint', 'running'), c('test', 'running')];
@@ -27,7 +33,7 @@ describe('keepOrder', () => {
   test('keeps two checks with the same name apart', () => {
     const prev = [c('job', 'running'), c('job', 'success')];
     const next = [c('job', 'failure'), c('job', 'success')];
-    expect(keepOrder(prev, next).map((x) => x.state)).toEqual([
+    expect(keepOrder(prev, next).map(checkState)).toEqual([
       'failure',
       'success',
     ]);
@@ -35,7 +41,11 @@ describe('keepOrder', () => {
 });
 
 describe('announceChange', () => {
-  const c = (name: string, state: string) => ({ name, state, url: '' });
+  const c = (name: string, state: string) => ({
+    name,
+    ...factsOf(state),
+    url: '',
+  });
 
   test('says nothing when no check changed state', () => {
     expect(announceChange([c('a', 'running')], [c('a', 'running')])).toBe('');
@@ -58,7 +68,7 @@ describe('announceChange', () => {
 });
 
 describe('checkKeys', () => {
-  const c = (name: string) => ({ name, state: 'running', url: '' });
+  const c = (name: string) => ({ name, status: 'in_progress', url: '' });
 
   test('is the name for a name that stands alone', () => {
     expect(checkKeys([c('build'), c('test')])).toEqual(['build', 'test']);

@@ -3,7 +3,7 @@
 // the queued and running jobs under their run, and a cancel names the run and
 // the jobs that stop with it. No DOM here.
 
-import type { Check } from './pipeline-checks';
+import { type Check, checkState } from './pipeline-checks';
 
 export type ActiveRun = {
   runId: number;
@@ -34,7 +34,8 @@ export function activeRuns(checks: Check[]): ActiveRun[] {
   const runs = new Map<number, ActiveRun>();
   for (const check of checks) {
     if (!check.runId) continue;
-    if (check.state !== 'running' && check.state !== 'queued') continue;
+    const state = checkState(check);
+    if (state !== 'running' && state !== 'queued') continue;
     const run = runs.get(check.runId) ?? {
       runId: check.runId,
       runName: check.runName ?? '',
@@ -77,7 +78,11 @@ function labelFor(run: ActiveRun, all: ActiveRun[]): string {
     : `${base} (id ${run.runId})`;
 }
 
-const going = (c: Check) => c.state === 'running' || c.state === 'queued';
+const going = (c: Check) => {
+  const state = checkState(c);
+
+  return state === 'running' || state === 'queued';
+};
 
 // Whether a later read of the checks shows the run's own jobs finished. A run
 // missing from the active runs doesn't say so: GitHub's run lookup can fail and

@@ -1,11 +1,13 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { factsOf } from './check-facts-fixture';
 import {
   blockingFirst,
   CHECK_STATE_LABELS,
   type Check,
   checkDurationSeconds,
   checkRunKey,
+  checkState,
   formatCheckDuration,
   groupChecks,
   isBlocking,
@@ -14,7 +16,8 @@ import {
 
 const check = (over: Partial<Check>): Check => ({
   name: 'build',
-  state: 'success',
+  status: 'completed',
+  conclusion: 'success',
   url: '',
   ...over,
 });
@@ -51,25 +54,45 @@ describe('CHECK_STATE_LABELS', () => {
 describe('isBlocking', () => {
   test('a required check that failed, timed out or is held blocks', () => {
     for (const state of ['failure', 'timed_out', 'awaiting_approval']) {
-      expect(isBlocking(check({ required: true, state }))).toBe(true);
+      expect(isBlocking(check({ required: true, ...factsOf(state) }))).toBe(
+        true,
+      );
     }
   });
 
   test('an advisory, unknown or healthy check does not', () => {
-    expect(isBlocking(check({ required: false, state: 'failure' }))).toBe(
-      false,
-    );
-    expect(isBlocking(check({ state: 'failure' }))).toBe(false);
-    expect(isBlocking(check({ required: true, state: 'success' }))).toBe(false);
+    expect(
+      isBlocking(
+        check({ required: false, status: 'completed', conclusion: 'failure' }),
+      ),
+    ).toBe(false);
+    expect(
+      isBlocking(check({ status: 'completed', conclusion: 'failure' })),
+    ).toBe(false);
+    expect(
+      isBlocking(
+        check({ required: true, status: 'completed', conclusion: 'success' }),
+      ),
+    ).toBe(false);
   });
 });
 
 describe('blockingFirst', () => {
   test('moves blocking checks up and keeps the forge order otherwise', () => {
     const a = check({ name: 'a' });
-    const b = check({ name: 'b', required: true, state: 'failure' });
+    const b = check({
+      name: 'b',
+      required: true,
+      status: 'completed',
+      conclusion: 'failure',
+    });
     const c = check({ name: 'c' });
-    const d = check({ name: 'd', required: true, state: 'timed_out' });
+    const d = check({
+      name: 'd',
+      required: true,
+      status: 'completed',
+      conclusion: 'timed_out',
+    });
 
     expect(blockingFirst([a, b, c, d]).map((x) => x.name)).toEqual([
       'b',
@@ -217,5 +240,30 @@ describe('runPageUrl', () => {
     expect(runPageUrl(third)).toBeUndefined();
     expect(runPageUrl([check({ url: '' })])).toBeUndefined();
     expect(runPageUrl([])).toBeUndefined();
+  });
+});
+
+describe('checkState', () => {
+  const cases: [Partial<Check>, string][] = [
+    [{ status: 'queued', conclusion: undefined }, 'queued'],
+    [{ status: 'in_progress', conclusion: undefined }, 'running'],
+    [{ status: 'waiting', conclusion: undefined }, 'awaiting_approval'],
+    [{ status: 'completed', conclusion: 'success' }, 'success'],
+    [{ status: 'completed', conclusion: 'failure' }, 'failure'],
+    [{ status: 'completed', conclusion: 'cancelled' }, 'cancelled'],
+    [{ status: 'completed', conclusion: 'skipped' }, 'skipped'],
+    [{ status: 'completed', conclusion: 'timed_out' }, 'timed_out'],
+  ];
+
+  for (const [over, state] of cases) {
+    test(`${over.status} ${over.conclusion ?? ''} reads as ${state}`, () => {
+      expect(checkState(check(over))).toBe(state);
+    });
+  }
+
+  test('a conclusion before the status says completed is ignored', () => {
+    expect(
+      checkState(check({ status: 'in_progress', conclusion: 'failure' })),
+    ).toBe('running');
   });
 });

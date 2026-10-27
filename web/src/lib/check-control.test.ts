@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { factsOf } from './check-facts-fixture';
 import { checkControl, checkLinkLabel, checkLinkText } from './run-log';
 
 const repo = { forge: 'github', fullName: 'a/b' };
@@ -10,25 +11,29 @@ const url = 'https://example.test/run/1';
 // queued job has no log yet, so it never offers View run.
 describe('checkControl', () => {
   test('a queued job links to the forge, with or without a job id', () => {
-    expect(checkControl({ state: 'queued', url, jobId: 7 }, repo)).toBe(
+    expect(checkControl({ status: 'queued', url, jobId: 7 }, repo)).toBe(
       'open-on-forge',
     );
-    expect(checkControl({ state: 'queued', url }, repo)).toBe('open-on-forge');
+    expect(checkControl({ status: 'queued', url }, repo)).toBe('open-on-forge');
   });
 
   test('a running or finished job with an id opens its output', () => {
     for (const state of ['running', 'success', 'failure']) {
-      expect(checkControl({ state, url, jobId: 7 }, forgejo)).toBe('output');
+      expect(checkControl({ ...factsOf(state), url, jobId: 7 }, forgejo)).toBe(
+        'output',
+      );
     }
     for (const state of ['success', 'failure']) {
-      expect(checkControl({ state, url, jobId: 7 }, repo)).toBe('output');
+      expect(checkControl({ ...factsOf(state), url, jobId: 7 }, repo)).toBe(
+        'output',
+      );
     }
   });
 
   // GitHub serves a job's log only once the job has finished: the endpoint
   // answers 404 while it runs. Forgejo streams a running job's log.
   test('a running GitHub job links to the forge, which shows it live', () => {
-    expect(checkControl({ state: 'running', url, jobId: 7 }, repo)).toBe(
+    expect(checkControl({ status: 'in_progress', url, jobId: 7 }, repo)).toBe(
       'open-on-forge',
     );
   });
@@ -36,31 +41,38 @@ describe('checkControl', () => {
   test('a running job on a repository that is not on Forgejo links to the forge', () => {
     expect(
       checkControl(
-        { state: 'running', url, jobId: 7 },
+        { status: 'in_progress', url, jobId: 7 },
         { forge: '', fullName: 'a/b' },
       ),
     ).toBe('open-on-forge');
   });
 
   test('a job with no id, or no checks address, gets the plain link', () => {
-    expect(checkControl({ state: 'success', url }, repo)).toBe('link');
-    expect(checkControl({ state: 'running', url, jobId: 7 }, undefined)).toBe(
+    expect(
+      checkControl({ status: 'completed', conclusion: 'success', url }, repo),
+    ).toBe('link');
+    expect(
+      checkControl({ status: 'in_progress', url, jobId: 7 }, undefined),
+    ).toBe('link');
+  });
+
+  test('a held workflow links to its page, where the approve button is', () => {
+    expect(checkControl({ status: 'waiting', url, jobId: 7 }, repo)).toBe(
       'link',
     );
   });
 
-  test('a held workflow links to its page, where the approve button is', () => {
-    expect(
-      checkControl({ state: 'awaiting_approval', url, jobId: 7 }, repo),
-    ).toBe('link');
-  });
-
   test('a skipped job, or one with no page, offers nothing', () => {
-    expect(checkControl({ state: 'skipped', url, jobId: 7 }, repo)).toBe(
+    expect(
+      checkControl(
+        { status: 'completed', conclusion: 'skipped', url, jobId: 7 },
+        repo,
+      ),
+    ).toBe('none');
+    expect(checkControl({ status: 'queued', url: '' }, repo)).toBe('none');
+    expect(checkControl({ status: 'in_progress', jobId: 7 }, repo)).toBe(
       'none',
     );
-    expect(checkControl({ state: 'queued', url: '' }, repo)).toBe('none');
-    expect(checkControl({ state: 'running', jobId: 7 }, repo)).toBe('none');
   });
 });
 
@@ -98,8 +110,11 @@ describe('checkLinkText', () => {
   });
 
   test('a job going from queued to running changes its words', () => {
-    const queued = checkControl({ state: 'queued', url, jobId: 7 }, repo);
-    const running = checkControl({ state: 'running', url, jobId: 7 }, repo);
+    const queued = checkControl({ status: 'queued', url, jobId: 7 }, repo);
+    const running = checkControl(
+      { status: 'in_progress', url, jobId: 7 },
+      repo,
+    );
     expect(checkLinkText(queued, 'queued', 'GitHub')).toBe('Open on GitHub');
     expect(checkLinkText(running, 'running', 'GitHub')).toBe('Watch on GitHub');
   });

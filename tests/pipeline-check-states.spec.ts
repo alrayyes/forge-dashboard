@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { factsOf } from './check-facts';
 import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
@@ -50,7 +51,7 @@ async function open(page: Page) {
   await serveChecks(page, () =>
     STATES.map((s) => ({
       name: `check-${s.state}`,
-      state: s.state,
+      ...factsOf(s.state),
       url:
         s.state === 'awaiting_approval'
           ? 'https://github.com/alrayyes/forge-dashboard/actions/runs/9'

@@ -179,7 +179,14 @@ test.describe('WebMCP tools', () => {
   test('get_pull_request_checks returns the list the stream sends', async ({
     page,
   }) => {
-    const checks = [{ name: 'build', state: 'success', url: 'https://ci/1' }];
+    const checks = [
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://ci/1',
+      },
+    ];
     // The page opens its stream once a forge is configured.
     await page.route('**/api/dashboard', (route) =>
       route.fulfill({

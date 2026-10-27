@@ -113,7 +113,12 @@ describe('watch', () => {
     const branchGot: CheckFeedMessage[] = [];
     feed.watch(pr, (m) => prGot.push(m));
     feed.watch(branch, (m) => branchGot.push(m));
-    const build = { name: 'build', state: 'success', url: '' };
+    const build = {
+      name: 'build',
+      status: 'completed',
+      conclusion: 'success',
+      url: '',
+    };
     source.emit('checks', { ...pr, checks: [build] });
     expect(prGot).toEqual([{ checks: [build] }]);
     expect(branchGot).toEqual([]);
@@ -272,7 +277,9 @@ describe('without a stream', () => {
 });
 
 describe('read', () => {
-  const list = [{ name: 'build', state: 'success', url: 'u' }];
+  const list = [
+    { name: 'build', status: 'completed', conclusion: 'success', url: 'u' },
+  ];
 
   test('watches the subject, resolves with its list and lets go', async () => {
     const { feed, source, posts } = harness();

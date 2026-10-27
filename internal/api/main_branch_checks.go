@@ -39,7 +39,7 @@ func resolveMainBranchChecksFor(ctx context.Context, deps Deps, forge, fullName 
 		checks = []dashboard.Check{}
 	}
 
-	return checks, nil
+	return dashboard.WithFacts(checks), nil
 }
 
 // trackedMainBranch finds fullName's row among the ones the user's Main

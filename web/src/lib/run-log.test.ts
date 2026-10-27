@@ -487,23 +487,46 @@ describe('canCopyLog', () => {
   const checks = { forge: 'github', fullName: 'a/b' };
 
   test('a failed job whose log the repository can name', () => {
-    expect(canCopyLog({ state: 'failure', jobId: 5 }, checks)).toBe(true);
+    expect(
+      canCopyLog(
+        { status: 'completed', conclusion: 'failure', jobId: 5 },
+        checks,
+      ),
+    ).toBe(true);
   });
 
   test('not a job when no repository is named', () => {
-    expect(canCopyLog({ state: 'failure', jobId: 5 }, undefined)).toBe(false);
+    expect(
+      canCopyLog(
+        { status: 'completed', conclusion: 'failure', jobId: 5 },
+        undefined,
+      ),
+    ).toBe(false);
   });
 
   test('an excerpt is enough without a log address', () => {
-    expect(canCopyLog({ state: 'timed_out', excerpt: 'boom' }, undefined)).toBe(
-      true,
-    );
+    expect(
+      canCopyLog(
+        { status: 'completed', conclusion: 'timed_out', excerpt: 'boom' },
+        undefined,
+      ),
+    ).toBe(true);
   });
 
   test('not a check that did not fail', () => {
     expect(
-      canCopyLog({ state: 'cancelled', jobId: 5, excerpt: 'x' }, checks),
+      canCopyLog(
+        {
+          status: 'completed',
+          conclusion: 'cancelled',
+          jobId: 5,
+          excerpt: 'x',
+        },
+        checks,
+      ),
     ).toBe(false);
-    expect(canCopyLog({ state: 'failure' }, checks)).toBe(false);
+    expect(
+      canCopyLog({ status: 'completed', conclusion: 'failure' }, checks),
+    ).toBe(false);
   });
 });

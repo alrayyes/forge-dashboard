@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { factsOf } from './check-facts-fixture';
 import { pipelineTarget } from './pipeline-target';
 import { checkControl } from './run-log';
 
@@ -33,14 +34,23 @@ describe('pipelineTarget', () => {
         branch: 'main',
       });
       for (const state of states) {
-        const check = { state, url: 'https://f.example/r/1', jobId: 7 };
+        const check = {
+          ...factsOf(state),
+          url: 'https://f.example/r/1',
+          jobId: 7,
+        };
         expect(checkControl(check, branch.repo)).toBe(
           checkControl(check, pr.repo),
         );
       }
       expect(
         checkControl(
-          { state: 'success', url: 'https://f.example/r/1', jobId: 7 },
+          {
+            status: 'completed',
+            conclusion: 'success',
+            url: 'https://f.example/r/1',
+            jobId: 7,
+          },
           branch.repo,
         ),
       ).not.toBe('none');

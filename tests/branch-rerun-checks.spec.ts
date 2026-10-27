@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { factsOf } from './check-facts';
 import { type CheckRow, pushChecks, serveChecks } from './checks-feed-helper';
 import { installFakeStream, pushStream } from './fake-stream-helper';
 import { test } from './server-fixture';
@@ -80,7 +81,7 @@ async function openPanel(
     checks: [
       {
         name: 'test',
-        state: status === 'failed' ? 'failure' : 'success',
+        ...factsOf(status === 'failed' ? 'failure' : 'success'),
         url: 'https://example.com/r/2',
       },
     ],
@@ -135,8 +136,17 @@ test.describe('main branches rerun failed checks', () => {
     const state = {
       running: 1,
       checks: [
-        { name: 'build', state: 'running', url: 'https://example.com/r/1' },
-        { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+        {
+          name: 'build',
+          status: 'in_progress',
+          url: 'https://example.com/r/1',
+        },
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: 'https://example.com/r/2',
+        },
       ],
     };
     const dialog = await openPanel(page, 'failed', state);
@@ -148,8 +158,18 @@ test.describe('main branches rerun failed checks', () => {
     // again while the request is still out.
     state.running = 0;
     state.checks = [
-      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-      { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/r/1',
+      },
+      {
+        name: 'test',
+        status: 'completed',
+        conclusion: 'failure',
+        url: 'https://example.com/r/2',
+      },
     ];
     await poll(page);
     await pushChecks(
@@ -260,7 +280,12 @@ test.describe('main branches rerun failed checks', () => {
       checksGate?: Promise<void>;
     } = {
       checks: [
-        { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: 'https://example.com/r/2',
+        },
       ],
     };
     const dialog = await openPanel(page, 'failed', state);
@@ -294,7 +319,12 @@ test.describe('main branches rerun failed checks', () => {
   });
 
   const failedCheck = [
-    { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
+    {
+      name: 'test',
+      status: 'completed',
+      conclusion: 'failure',
+      url: 'https://example.com/r/2',
+    },
   ];
 
   test('an unreachable forge gets no Rerun button, only the reason', async ({

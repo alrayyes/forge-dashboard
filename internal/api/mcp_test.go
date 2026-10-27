@@ -469,7 +469,7 @@ func TestMCP_GetMainBranchChecks_ReturnsTheChecks(t *testing.T) {
 	require.False(t, result.IsError)
 
 	assert.Equal(t, map[string]any{"checks": []any{
-		map[string]any{"name": "build", "state": "success", "url": "https://github.com/alrayyes/tempus-fugit/runs/1"},
+		map[string]any{"name": "build", "status": "completed", "conclusion": "success", "url": "https://github.com/alrayyes/tempus-fugit/runs/1"},
 	}}, result.StructuredContent)
 }
 
@@ -578,8 +578,8 @@ func TestMCP_GetPullRequestChecks_ReturnsTheChecks(t *testing.T) {
 	require.False(t, result.IsError)
 
 	assert.Equal(t, map[string]any{"checks": []any{
-		map[string]any{"name": "build", "state": "success", "url": "https://github.com/alrayyes/tempus-fugit/runs/1"},
-		map[string]any{"name": "test", "state": "running", "url": "https://github.com/alrayyes/tempus-fugit/runs/2"},
+		map[string]any{"name": "build", "status": "completed", "conclusion": "success", "url": "https://github.com/alrayyes/tempus-fugit/runs/1"},
+		map[string]any{"name": "test", "status": "in_progress", "url": "https://github.com/alrayyes/tempus-fugit/runs/2"},
 	}}, result.StructuredContent)
 	assert.Equal(t, "tempus-fugit", source.lastName)
 	assert.Equal(t, 42, source.lastNumber)

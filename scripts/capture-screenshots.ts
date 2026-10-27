@@ -269,7 +269,8 @@ const CHECKS = {
   checks: [
     {
       name: 'test',
-      state: 'failure',
+      status: 'completed',
+      conclusion: 'failure',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/1',
       required: true,
       startedAt: '2026-10-03T10:00:00Z',
@@ -284,7 +285,8 @@ const CHECKS = {
     },
     {
       name: 'lint',
-      state: 'success',
+      status: 'completed',
+      conclusion: 'success',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/2',
       required: true,
       startedAt: '2026-10-03T10:00:00Z',
@@ -292,7 +294,8 @@ const CHECKS = {
     },
     {
       name: 'build',
-      state: 'success',
+      status: 'completed',
+      conclusion: 'success',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/3',
       required: true,
       startedAt: '2026-10-03T10:00:00Z',
@@ -300,19 +303,20 @@ const CHECKS = {
     },
     {
       name: 'e2e (shard 1/4)',
-      state: 'running',
+      status: 'in_progress',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/4',
       required: true,
     },
     {
       name: 'e2e (shard 2/4)',
-      state: 'queued',
+      status: 'queued',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/5',
       required: true,
     },
     {
       name: 'lighthouse',
-      state: 'cancelled',
+      status: 'completed',
+      conclusion: 'cancelled',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/6',
       required: false,
       startedAt: '2026-10-03T10:00:00Z',
@@ -320,7 +324,8 @@ const CHECKS = {
     },
     {
       name: 'auto-merge',
-      state: 'skipped',
+      status: 'completed',
+      conclusion: 'skipped',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/7',
       required: false,
     },

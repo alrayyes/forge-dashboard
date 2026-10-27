@@ -3,7 +3,7 @@
 // while it is built; the dialog asks for the newest few as it shows them. No
 // DOM here.
 
-import { type Check, checkRunKey } from './pipeline-checks';
+import { type Check, checkRunKey, checkState } from './pipeline-checks';
 import { logUrl, type RepoRef } from './run-log';
 
 // How many failed checks of one list are asked for an excerpt, the newest
@@ -56,7 +56,7 @@ export function pickExcerptJobs(checks: Check[], reads: ExcerptReads): Check[] {
   const picks = checks
     .filter(
       (c) =>
-        (c.state === 'failure' || c.state === 'timed_out') &&
+        (checkState(c) === 'failure' || checkState(c) === 'timed_out') &&
         !!c.jobId &&
         !c.excerpt &&
         !reads.asked.has(excerptKey(c)),

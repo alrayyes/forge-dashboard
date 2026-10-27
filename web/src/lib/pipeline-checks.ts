@@ -8,7 +8,10 @@
 // false.
 export type Check = {
   name: string;
-  state: string;
+  // How far the job got, and once it is completed how it ended. The page
+  // grades them into what it shows (checkState).
+  status: string;
+  conclusion?: string;
   url: string;
   required?: boolean;
   // When the forge says the job started and finished (RFC 3339); the page
@@ -21,9 +24,9 @@ export type Check = {
   excerpt?: string;
   // The forge's job id, which the output is read by; absent when it has none.
   jobId?: number;
-  // The Actions run a queued or running job belongs to, and its workflow's
-  // name; absent once the job finished and for a check that isn't an Actions
-  // job (external CI), which has nothing to cancel.
+  // The Actions run the job belongs to, and its workflow's name; absent for a
+  // check that isn't an Actions job (external CI), which has nothing to
+  // cancel.
   runId?: number;
   runName?: string;
   // The forge's number for that run, which tells two runs of a workflow apart.
@@ -48,7 +51,25 @@ export function checkRunKey(check: Check): string {
   ].join('|');
 }
 
-// The per-check status vocabulary of the CheckState enum.
+// The one word the page shows and decides on for a check, worked out from the
+// two facts the server sends: queued, running, awaiting_approval, or the
+// conclusion once it is completed.
+export function checkState(
+  check: Pick<Check, 'status' | 'conclusion'>,
+): string {
+  switch (check.status) {
+    case 'queued':
+      return 'queued';
+    case 'in_progress':
+      return 'running';
+    case 'waiting':
+      return 'awaiting_approval';
+    default:
+      return check.status === 'completed' ? (check.conclusion ?? '') : '';
+  }
+}
+
+// The per-check labels, keyed by checkState.
 // Distinct from the row-level CI labels, which describe a whole pipeline.
 export const CHECK_STATE_LABELS: Record<string, string> = {
   queued: 'Queued',
@@ -87,11 +108,13 @@ export function formatCheckDuration(seconds: number): string {
 // approval, is what actually blocks the merge. The dialog flags it in text, not
 // colour alone.
 export function isBlocking(check: Check): boolean {
+  const state = checkState(check);
+
   return (
     check.required === true &&
-    (check.state === 'failure' ||
-      check.state === 'timed_out' ||
-      check.state === 'awaiting_approval')
+    (state === 'failure' ||
+      state === 'timed_out' ||
+      state === 'awaiting_approval')
   );
 }
 

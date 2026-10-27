@@ -1,7 +1,7 @@
 // What an open pipeline panel does with a changed list of checks: keep the
 // order it shows, name what changed and key each check. No DOM here.
 import type { CheckCounts } from './check-counts';
-import { CHECK_STATE_LABELS, type Check } from './pipeline-checks';
+import { CHECK_STATE_LABELS, type Check, checkState } from './pipeline-checks';
 
 // What a row says about its CI. Equal signatures mean the row's pill reads the
 // same, so a control that waits for the pipeline to move has nothing new.
@@ -60,19 +60,20 @@ export function announceChange(prev: Check[], next: Check[]): string {
   const before = new Map<string, string[]>();
   for (const c of prev) {
     const list = before.get(c.name) ?? [];
-    list.push(c.state);
+    list.push(checkState(c));
     before.set(c.name, list);
   }
   const changed: Check[] = [];
   for (const c of next) {
     const old = before.get(c.name)?.shift();
-    if (old !== c.state) changed.push(c);
+    if (old !== checkState(c)) changed.push(c);
   }
   if (changed.length === 0) return '';
   if (changed.length === 1) {
     const [c] = changed;
+    const state = checkState(c);
 
-    return `Checks updated: ${c.name} is now ${CHECK_STATE_LABELS[c.state] || c.state}.`;
+    return `Checks updated: ${c.name} is now ${CHECK_STATE_LABELS[state] || state}.`;
   }
 
   return `Checks updated: ${changed.length} checks changed.`;

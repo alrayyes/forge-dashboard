@@ -12,7 +12,7 @@ import type { Check } from './pipeline-checks';
 const job = (over: Partial<Check>): Check => ({
   name: 'build',
   jobId: 1,
-  state: 'running',
+  status: 'in_progress',
   url: '',
   ...over,
 });
@@ -21,8 +21,8 @@ describe('activeRuns', () => {
   test('groups the running jobs under their run, in first-seen order', () => {
     const runs = activeRuns([
       job({ name: 'lint', runId: 7, runName: 'ci' }),
-      job({ name: 'e2e', runId: 9, runName: 'release', state: 'queued' }),
-      job({ name: 'test', runId: 7, runName: 'ci', state: 'queued' }),
+      job({ name: 'e2e', runId: 9, runName: 'release', status: 'queued' }),
+      job({ name: 'test', runId: 7, runName: 'ci', status: 'queued' }),
     ]);
 
     expect(runs).toEqual([
@@ -49,14 +49,28 @@ describe('activeRuns', () => {
 
   test('offers nothing for a job without a run (external CI, finished)', () => {
     expect(
-      activeRuns([job({}), job({ state: 'success', runId: 7, runName: 'ci' })]),
+      activeRuns([
+        job({}),
+        job({
+          status: 'completed',
+          conclusion: 'success',
+          runId: 7,
+          runName: 'ci',
+        }),
+      ]),
     ).toEqual([]);
   });
 
   test('names only the unfinished jobs, which are the ones that stop', () => {
     const runs = activeRuns([
       job({ name: 'lint', runId: 7, runName: 'ci' }),
-      job({ name: 'build', state: 'success', runId: 7, runName: 'ci' }),
+      job({
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        runId: 7,
+        runName: 'ci',
+      }),
     ]);
 
     expect(runs[0]?.jobs).toEqual(['lint']);
@@ -212,8 +226,8 @@ describe('runStopped', () => {
   test('is true once every job it had is listed and finished', () => {
     expect(
       runStopped(run, [
-        job({ jobId: 2, state: 'cancelled' }),
-        job({ jobId: 3, state: 'cancelled' }),
+        job({ jobId: 2, status: 'completed', conclusion: 'cancelled' }),
+        job({ jobId: 3, status: 'completed', conclusion: 'cancelled' }),
       ]),
     ).toBe(true);
   });
@@ -222,14 +236,16 @@ describe('runStopped', () => {
     // GitHub's run lookup failed: the jobs are listed running, nameless.
     expect(
       runStopped(run, [
-        job({ jobId: 2, state: 'running' }),
-        job({ jobId: 3, state: 'cancelled' }),
+        job({ jobId: 2, status: 'in_progress' }),
+        job({ jobId: 3, status: 'completed', conclusion: 'cancelled' }),
       ]),
     ).toBe(false);
   });
 
   test('is false while a listed job is going, though another is not listed', () => {
-    expect(runStopped(run, [job({ jobId: 2, state: 'running' })])).toBe(false);
+    expect(runStopped(run, [job({ jobId: 2, status: 'in_progress' })])).toBe(
+      false,
+    );
   });
 
   test('is false on an empty list, which says nothing about the run', () => {
@@ -238,13 +254,15 @@ describe('runStopped', () => {
   });
 
   test('is true when none of its jobs is listed any more, a new push replaced them', () => {
-    expect(runStopped(run, [job({ jobId: 99, state: 'running' })])).toBe(true);
+    expect(runStopped(run, [job({ jobId: 99, status: 'in_progress' })])).toBe(
+      true,
+    );
   });
 
   test('is false while any check still names the run as going', () => {
     expect(
       runStopped(run, [
-        job({ jobId: 99, runId: 7, runName: 'ci', state: 'running' }),
+        job({ jobId: 99, runId: 7, runName: 'ci', status: 'in_progress' }),
       ]),
     ).toBe(false);
   });
@@ -261,7 +279,7 @@ describe('runStopped', () => {
     };
     expect(
       runStopped(standIn, [
-        job({ jobId: 40, runId: 9, runName: 'ci', state: 'running' }),
+        job({ jobId: 40, runId: 9, runName: 'ci', status: 'in_progress' }),
       ]),
     ).toBe(false);
   });
@@ -278,12 +296,17 @@ describe('runStopped', () => {
     };
     expect(
       runStopped(standIn, [
-        job({ name: 'ci', jobId: undefined, state: 'cancelled' }),
+        job({
+          name: 'ci',
+          jobId: undefined,
+          status: 'completed',
+          conclusion: 'cancelled',
+        }),
       ]),
     ).toBe(true);
     expect(
       runStopped(standIn, [
-        job({ name: 'ci', jobId: undefined, state: 'running' }),
+        job({ name: 'ci', jobId: undefined, status: 'in_progress' }),
       ]),
     ).toBe(false);
   });

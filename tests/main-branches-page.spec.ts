@@ -142,7 +142,8 @@ async function mock(
 const JOBS = [
   {
     name: 'lint',
-    state: 'failure',
+    status: 'completed',
+    conclusion: 'failure',
     url: 'https://example.com/acme/ingress-controller/actions/runs/1/jobs/1',
     startedAt: '2026-01-01T00:00:00Z',
     completedAt: '2026-01-01T00:01:05Z',
@@ -151,12 +152,18 @@ const JOBS = [
   },
   {
     name: 'unit',
-    state: 'success',
+    status: 'completed',
+    conclusion: 'success',
     url: 'https://example.com/acme/ingress-controller/actions/runs/1/jobs/2',
     startedAt: '2026-01-01T00:00:00Z',
     completedAt: '2026-01-01T00:00:42Z',
   },
-  { name: 'e2e-playwright', state: 'skipped', url: '' },
+  {
+    name: 'e2e-playwright',
+    status: 'completed',
+    conclusion: 'skipped',
+    url: '',
+  },
 ];
 
 async function mockChecks(page: Page, answer: Reply = JOBS) {
@@ -601,8 +608,8 @@ test.describe('Main branches page (#1224, #1279)', () => {
   }) => {
     await mock(page, snapshot(MIXED));
     await mockChecks(page, [
-      { name: 'build', state: 'success', url: '' },
-      { name: 'build', state: 'failure', url: '' },
+      { name: 'build', status: 'completed', conclusion: 'success', url: '' },
+      { name: 'build', status: 'completed', conclusion: 'failure', url: '' },
     ]);
     await page.goto('/');
     await rows(page)
@@ -644,7 +651,8 @@ test.describe('Main branches page (#1224, #1279)', () => {
       return [
         {
           name: slow ? 'from-the-first-row' : 'from-the-second-row',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: '',
         },
       ];

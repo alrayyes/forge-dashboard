@@ -72,7 +72,8 @@ type Label struct {
 
 // CheckState is one job/check's own status — the per-job detail CIStatus
 // deliberately doesn't carry, since CIStatus is the combined result across
-// every one of them. Matches components.schemas.CheckState.
+// every one of them. It is the server's internal enum, never sent: WithFacts
+// turns it into the status and conclusion on the wire.
 type CheckState string
 
 // The states a single check/job can be in, coarse enough for both forges'
@@ -96,8 +97,15 @@ const (
 // eagerly for every PR on every refresh (see dashboard.PullRequestChecker).
 // Matches components.schemas.Check.
 type Check struct {
-	Name  string     `json:"name"`
-	State CheckState `json:"state"`
+	Name string `json:"name"`
+	// Status and Conclusion are the facts the stream sends: how far the job
+	// got and, once it is completed, how it ended. WithFacts sets them from
+	// State on the way out; the page works out what to show from them.
+	Status     CheckStatus     `json:"status"`
+	Conclusion CheckConclusion `json:"conclusion,omitempty"`
+	// State is the server's own one-word reading of the job, which decides
+	// rerun, cancel and the main branch counts. It is not on the wire.
+	State CheckState `json:"-"`
 	// URL is that job's own page on the forge that ran it — a GitHub
 	// Actions job page, a Forgejo Actions job page, or a third-party CI's
 	// own details page for the legacy commit-status case — never the
