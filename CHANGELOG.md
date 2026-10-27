@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.42.3](https://github.com/alrayyes/forge-dashboard/compare/v2.42.2...v2.42.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* hide rebase all before first paint ([#2949](https://github.com/alrayyes/forge-dashboard/issues/2949)) ([4b9d9e6](https://github.com/alrayyes/forge-dashboard/commit/4b9d9e69334a915629e04f934f598c47f2b59ef8))
+
 ## [2.42.2](https://github.com/alrayyes/forge-dashboard/compare/v2.42.1...v2.42.2) (2026-10-27)
 
 
