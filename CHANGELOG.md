@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/alrayyes/forge-dashboard/compare/v3.1.0...v4.0.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* `components.schemas.Check` loses `durationSeconds` and gains `startedAt` and `completedAt` (date-time). This reaches forge-dashboard-sdk-go, forge-dashboard-sdk-node, forge-dashboard-sdk-php, forge-dashboard-sdk-python and forge-board-cloud-api.
+
+### Features
+
+* send job start and end, not a duration ([#2969](https://github.com/alrayyes/forge-dashboard/issues/2969)) ([115ef6a](https://github.com/alrayyes/forge-dashboard/commit/115ef6ae200c3fc93fc511b02ea077d95dec3fa0))
+
 ## [3.1.0](https://github.com/alrayyes/forge-dashboard/compare/v3.0.0...v3.1.0) (2026-10-27)
 
 
