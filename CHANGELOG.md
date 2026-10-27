@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.1.0](https://github.com/alrayyes/forge-dashboard/compare/v8.0.0...v8.1.0) (2026-10-27)
+
+
+### Features
+
+* send run-level facts on the run event ([#2985](https://github.com/alrayyes/forge-dashboard/issues/2985)) ([5caf841](https://github.com/alrayyes/forge-dashboard/commit/5caf841a3bd2a635dfd51bfef42555fffa8beb53))
+
 ## [8.0.0](https://github.com/alrayyes/forge-dashboard/compare/v7.0.0...v8.0.0) (2026-10-27)
 
 
