@@ -4,6 +4,7 @@
 // asked for when the stream is down and again when it comes back, since the
 // server sends nothing on connect and a change in the gap would stay unseen.
 
+import { checkFeed, type FeedSource } from './check-feed';
 import type { MainBranches } from './main-branches';
 
 // The part of an EventSource this needs, so a test can stand in for it.
@@ -36,7 +37,10 @@ type Follow = {
 
 function openDashboardStream(): StreamSource {
   // An EventSource passes its handlers an event; these take none they use.
-  return new EventSource('/api/dashboard/stream') as unknown as StreamSource;
+  const source = new EventSource(checkFeed.streamUrl('/api/dashboard/stream'));
+  // The job lists of an open pipeline dialog ride this stream too.
+  checkFeed.attach(source as unknown as FeedSource);
+  return source as unknown as StreamSource;
 }
 
 function scheduleTimeout(fn: () => void, ms: number): () => void {

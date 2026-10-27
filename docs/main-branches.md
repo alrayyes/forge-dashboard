@@ -344,8 +344,10 @@ that read fails, the row keeps its earlier state.
 `GET /api/main-branches/checks?forge=&fullName=` answers the jobs behind one
 row, in the same `{checks: [...]}` shape as `GET /api/pull-requests/checks`.
 Unlike the list, it calls the forge on every request and is not part of the
-snapshot, so it spends rate-limit budget: the pipeline panel makes it when it
-opens and an MCP client makes it with `get_main_branch_checks`. The commit is
+snapshot, so it spends rate-limit budget: an MCP client makes it with
+`get_main_branch_checks`. The pipeline panel doesn't call it. It watches the
+row on the dashboard stream, which sends the same jobs as a `checks` event.
+The commit is
 the one the row describes, the newest on the default branch that a check ran
 on, so a bot's commit that skips CI does not hide the run. A branch with no
 job answers an empty list. `required` is never set, since only a pull request

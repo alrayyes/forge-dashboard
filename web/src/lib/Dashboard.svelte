@@ -27,7 +27,7 @@
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
-  import { ciSignature } from "#lib/pipeline-live.js";
+  import { checkFeed, type FeedSource } from "#lib/check-feed.js";
   import * as Filters from "#lib/filters.js";
   import { choicesChange, offerAction, shownList } from "#lib/shown-list.js";
   import {
@@ -6515,12 +6515,15 @@
       pipelineRerunLock.reset();
       pipelineDialog.open({
         subtitle: `${item.repo}#${item.number}`,
-        // Always fetched fresh, never cached and never part of applySnapshot's
-        // own eager pull: this is detail a row doesn't show until the dialog is
-        // opened for it.
-        checksUrl: `/api/pull-requests/checks?forge=${encodeURIComponent(item.forge)}&fullName=${encodeURIComponent(item.repo)}&number=${item.number}`,
+        // The job list is detail a row doesn't show until the dialog is opened
+        // for it: the stream sends it for as long as the dialog follows it.
+        subject: {
+          kind: "pull_request",
+          forge: item.forge,
+          fullName: item.repo,
+          number: item.number,
+        },
         repo: { forge: item.forge, fullName: item.repo },
-        signature: ciSignature(item),
         emptyText: "No CI configured for this pull request.",
         errorText: `Couldn't load pipeline checks for ${item.repo}#${item.number}`,
         paused: updatesPaused,
@@ -8971,13 +8974,12 @@
       }
     }
 
-    // The open pipeline panel follows its own pull request: when this snapshot
-    // shows that one's CI changed, the panel reads its checks again.
+    // The open pipeline panel gets its checks from the stream; this keeps its
+    // pull request and the controls that read the row current.
     function followOpenPipeline() {
       if (!pipelineDialogRowKey) return;
       const now = allPRs.find((p) => prKey(p) === pipelineDialogRowKey);
       if (now) pipelineItem = now;
-      pipelineDialog?.follow(now ? ciSignature(now) : null);
       if (now && pipelineRerunLock.changed(pipelineRerunLockKey(now)))
         pipelineDialog?.redrawControls();
     }
@@ -9298,8 +9300,11 @@
       if (!window.EventSource) return;
       eventSource?.close();
       streamDrafts = draftsOn();
-      const source = new EventSource(withDrafts("/api/dashboard/stream"));
+      const source = new EventSource(
+        checkFeed.streamUrl(withDrafts("/api/dashboard/stream")),
+      );
       eventSource = source;
+      checkFeed.attach(source as unknown as FeedSource);
       source.onopen = () => {
         streamRetryMs = 2000;
         streamFailures = 0;

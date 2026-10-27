@@ -1,12 +1,10 @@
-// When an open pipeline panel reads its checks again. The panel never polls:
-// it reads again only when a snapshot says its pull request's or branch's CI
-// changed, so nothing changing costs no forge request and a finished pipeline
-// is never read again. No DOM here.
+// What an open pipeline panel does with a changed list of checks: keep the
+// order it shows, name what changed and key each check. No DOM here.
 import type { CheckCounts } from './check-counts';
 import { CHECK_STATE_LABELS, type Check } from './pipeline-checks';
 
 // What a row says about its CI. Equal signatures mean the row's pill reads the
-// same, so the panel behind it has nothing new to show.
+// same, so a control that waits for the pipeline to move has nothing new.
 export function ciSignature(row: {
   ci: string;
   checks?: CheckCounts;
@@ -21,60 +19,6 @@ export function ciSignature(row: {
       : '',
     row.runUrl ?? '',
   ].join('|');
-}
-
-type LiveChecksOptions = {
-  // The row's signature when the panel read its checks.
-  signature: string;
-  // Pause live updates is on: no request, whatever changed.
-  paused: () => boolean;
-  reload: () => void;
-  // The panel may show old checks (true) or is current again (false).
-  onStale: (stale: boolean) => void;
-};
-
-export type LiveChecks = {
-  // The signature in the newest snapshot, or null when it no longer has the item.
-  seen: (signature: string | null) => void;
-  // Updates were turned back on.
-  resume: () => void;
-  // The panel read its checks by some other route, so it is current.
-  refreshed: () => void;
-  // A read made for a change failed: the next snapshot tries again.
-  failed: () => void;
-};
-
-export function createLiveChecks(options: LiveChecksOptions): LiveChecks {
-  let known = options.signature;
-  let missed = false;
-
-  return {
-    seen(signature) {
-      if (signature === null || signature === known) return;
-      known = signature;
-      if (options.paused()) {
-        missed = true;
-        options.onStale(true);
-
-        return;
-      }
-      options.reload();
-    },
-    resume() {
-      if (!missed) return;
-      missed = false;
-      options.onStale(false);
-      options.reload();
-    },
-    failed() {
-      known = '\u0000';
-    },
-    refreshed() {
-      if (!missed) return;
-      missed = false;
-      options.onStale(false);
-    },
-  };
 }
 
 // The newest checks in the order the panel already shows them, so a check's

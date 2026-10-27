@@ -6,14 +6,11 @@
   export type PipelineTarget = {
     // The line under the title: "owner/repo#12", or "owner/repo · main".
     subtitle: string;
-    // The GET endpoint that answers { checks }, read when the dialog opens and
-    // never as part of a snapshot.
-    checksUrl: string;
+    // The pull request or branch whose job list the dialog follows on the
+    // dashboard stream. The list is never part of a snapshot.
+    subject: Subject;
     // The repository the checks belong to: where a job's log is read from.
     repo: RepoRef;
-    // The row's ciSignature when the dialog opened, to tell later whether the
-    // pipeline behind it moved on.
-    signature: string;
     // What the dialog says when the list is empty, and how it starts a failed
     // read's message (the reason follows).
     emptyText: string;
@@ -21,7 +18,7 @@
     // Where the run is on the forge, when the forge named one.
     runUrl?: string;
     forgeName?: string;
-    // Live updates are paused: no request, whatever changed.
+    // Live updates are paused: a new list waits until they are back.
     paused?: () => boolean;
     // The control to give focus back to when the dialog closes.
     opener?: HTMLElement | null;
@@ -52,11 +49,15 @@
 
 <script lang="ts">
   // The pipeline dialog for every board: the pull request and bot boards and
-  // the Main branches page. The page calls open() from a row's pill, and
-  // follow() with the row's signature from each snapshot it reads: the dialog
-  // reads again only when its own row's CI changed, so a finished pipeline
-  // costs no more requests.
+  // the Main branches page. The page calls open() from a row's pill. The dialog
+  // watches its row's job list on the dashboard stream, and the server sends a
+  // new one whenever the row's CI changes.
   import { tick, untrack } from "svelte";
+  import {
+    checkFeed,
+    type CheckFeedMessage,
+    type Subject,
+  } from "#lib/check-feed.js";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
   import CopyCheckLog from "#lib/CopyCheckLog.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
@@ -93,22 +94,20 @@
     newExcerptReads,
     pickExcerptJobs,
   } from "#lib/pipeline-excerpts.js";
-  import {
-    announceChange,
-    checkKeys,
-    createLiveChecks,
-    keepOrder,
-    type LiveChecks,
-  } from "#lib/pipeline-live.js";
+  import { announceChange, checkKeys, keepOrder } from "#lib/pipeline-live.js";
 
   let dialog: HTMLDialogElement;
-  let target = $state<PipelineTarget | null>(null);
+  let target = $state.raw<PipelineTarget | null>(null);
   let phase = $state<"loading" | "ready" | "error">("loading");
   let checks = $state<Check[]>([]);
   let message = $state("");
-  // Only the newest request may draw: an older answer arriving late is dropped.
-  let request = 0;
-  let live: LiveChecks | null = null;
+  // Stops following the row's list.
+  let unwatch: (() => void) | null = null;
+  // The newest list that arrived while updates were paused, drawn on resume.
+  let pending: CheckFeedMessage | null = null;
+  // A list asked for on purpose (a retry, a cancel's re-read) is drawn even
+  // while updates are paused.
+  let asked = false;
   // Updates are paused, or a read made for a change failed: the checks on
   // screen may be old.
   let staleNote = $state("");
@@ -230,7 +229,7 @@
       speak(`Couldn't cancel ${runLabel(run)}. ${message}`);
       // A run that already finished is the commonest refusal: read again so
       // the list says so.
-      void load(row, true);
+      void reread(row);
       return;
     }
     if (!row || target !== row) return;
@@ -270,7 +269,7 @@
     }
     settleTimer = setTimeout(async () => {
       if (target !== row) return;
-      if (await load(row, true)) settleRead = true;
+      if (await reread(row)) settleRead = true;
       settle(row, left - 1);
     }, SETTLE_MS);
   }
@@ -381,30 +380,22 @@
     clearTimeout(lockTimer);
     if (next.cancel) armLockTimer(next.cancel);
     speak.clear();
-    live = createLiveChecks({
-      signature: next.signature,
-      paused: () => next.paused?.() ?? false,
-      reload: () => target && load(target, true),
-      onStale: (stale) => {
-        staleNote = stale
-          ? "Live updates are paused. These checks may be out of date."
-          : "";
-      },
-    });
-    load(next);
+    pending = null;
+    phase = "loading";
+    checks = [];
+    unwatch?.();
+    unwatch = checkFeed.watch(next.subject, (event) => onFeed(next, event));
     dialog.showModal();
   }
 
-  // The board hands over the open row's signature from each snapshot it reads,
-  // or null when the row is gone. A row whose CI moved on is what sends the
-  // dialog back to the forge.
-  export function follow(signature: string | null) {
-    live?.seen(signature);
-  }
-
-  // Live updates were turned back on.
+  // Live updates were turned back on: draw the list that came in meanwhile.
   export function resume() {
-    live?.resume();
+    const held = pending;
+    const row = target;
+    pending = null;
+    if (!held || !row) return;
+    staleNote = "";
+    void apply(row, held);
   }
 
   // Draws the board's control again: what it reads outside the checks (the
@@ -413,90 +404,97 @@
     controlsTick += 1;
   }
 
-  // Resolves true when the read came back, whether or not anything changed.
-  async function load(
-    row: PipelineTarget,
-    wantAgain = false,
-  ): Promise<boolean> {
-    // A change before the first read has drawn restarts that read.
-    const again = wantAgain && phase === "ready";
-    const mine = ++request;
-    if (!again) {
-      phase = "loading";
-      checks = [];
-      staleNote = "";
+  // A list, or the reason there is none, arrived for the row.
+  function onFeed(row: PipelineTarget, event: CheckFeedMessage) {
+    if (target !== row) return;
+    if (!asked && phase === "ready" && row.paused?.()) {
+      // Drawing it would move the list under the person's hands.
+      if ("error" in event) return;
+      pending = event;
+      staleNote = "Live updates are paused. These checks may be out of date.";
+      return;
     }
+    pending = null;
+    void apply(row, event);
+  }
+
+  // Asks the server for the list again and resolves true when it came back,
+  // whether or not anything changed.
+  async function reread(row: PipelineTarget): Promise<boolean> {
+    asked = true;
     try {
-      const res = await fetch(row.checksUrl, {
-        headers: { Accept: "application/json" },
-      });
-      // A read a newer one overtook still came back; only a failed one didn't.
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return false;
+      return await checkFeed.refresh(row.subject);
+    } finally {
+      asked = false;
+    }
+  }
+
+  function retry(row: PipelineTarget) {
+    phase = "loading";
+    void reread(row).then((ok) => {
+      if (!ok && target === row && phase === "loading") {
+        message = `${row.errorText}: no answer`;
+        phase = "error";
       }
-      if (mine !== request) return res.ok;
-      const body = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(body?.error || `backend answered ${res.status}`);
-      }
-      if (mine !== request) return true;
-      const next: Check[] = body?.checks ?? [];
+    });
+  }
+
+  async function apply(row: PipelineTarget, event: CheckFeedMessage) {
+    const again = phase === "ready";
+    if ("error" in event) {
       if (again) {
-        // Each check changes where it stands; nothing moves or redraws when no
-        // check changed.
-        const ordered = keepOrder(checks, next);
-        staleNote = "";
-        if (JSON.stringify(ordered) === JSON.stringify(checks)) return true;
-        const line = announceChange(checks, ordered);
-        const hadFocus = dialog
-          .querySelector(".pipeline-dialog-body")
-          ?.contains(document.activeElement);
-        checks = ordered;
-        const said = reconcileRuns(ordered);
-        askForExcerpts(ordered, row.repo);
-        // One message per read: the announcer holds one at a time.
-        const both = [said, line].filter(Boolean).join(" ");
-        if (both) speak(both);
-        // The control the keyboard was on is gone: its node went with it, so
-        // focus goes to the close button instead of the page behind.
-        if (hadFocus) {
-          await tick();
-          if (!dialog.contains(document.activeElement))
-            dialog
-              .querySelector<HTMLElement>(".pipeline-dialog-close")
-              ?.focus({ preventScroll: true });
-        }
-        return true;
+        staleNote = "Couldn't refresh these checks. They may be out of date.";
+        return;
       }
-      live?.refreshed();
+      message = `${row.errorText}: ${event.error}`;
+      phase = "error";
+      return;
+    }
+    const next = event.checks;
+    if (!again) {
       checks = blockingFirst(next);
       const said = reconcileRuns(checks);
+      staleNote = "";
       phase = "ready";
       if (said) speak(said);
       askForExcerpts(checks, row.repo);
-      return true;
-    } catch (err) {
-      if (mine !== request) return false;
-      if (again) {
-        live?.failed();
-        staleNote = "Couldn't refresh these checks. They may be out of date.";
-        return false;
-      }
-      message = `${row.errorText}: ${err instanceof Error ? err.message : String(err)}`;
-      phase = "error";
-      return false;
+      return;
+    }
+    // Each check changes where it stands; nothing moves or redraws when no
+    // check changed.
+    const ordered = keepOrder(checks, next);
+    staleNote = "";
+    if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
+    const line = announceChange(checks, ordered);
+    const hadFocus = dialog
+      .querySelector(".pipeline-dialog-body")
+      ?.contains(document.activeElement);
+    checks = ordered;
+    const said = reconcileRuns(ordered);
+    askForExcerpts(ordered, row.repo);
+    // One message per list: the announcer holds one at a time.
+    const both = [said, line].filter(Boolean).join(" ");
+    if (both) speak(both);
+    // The control the keyboard was on is gone: its node went with it, so
+    // focus goes to the close button instead of the page behind.
+    if (hadFocus) {
+      await tick();
+      if (!dialog.contains(document.activeElement))
+        dialog
+          .querySelector<HTMLElement>(".pipeline-dialog-close")
+          ?.focus({ preventScroll: true });
     }
   }
 
   // Fires for every way the dialog closes: Escape, the close button and a click
   // on the backdrop.
   function closed() {
-    request++;
+    unwatch?.();
+    unwatch = null;
+    pending = null;
     excerptRun++;
     clearTimeout(settleTimer);
     clearTimeout(lockTimer);
-    live = null;
     speak.clear();
     const done = target;
     target = null;
@@ -757,7 +755,7 @@
         <button
           type="button"
           class="row-action"
-          onclick={() => target && load(target)}>Retry</button
+          onclick={() => target && retry(target)}>Retry</button
         >
       </div>
     {:else if checks.length === 0}

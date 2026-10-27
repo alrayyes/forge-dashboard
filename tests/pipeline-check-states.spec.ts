@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -46,22 +47,16 @@ async function open(page: Page) {
       }),
     }),
   );
-  await page.route('**/api/pull-requests/checks*', (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        checks: STATES.map((s) => ({
-          name: `check-${s.state}`,
-          state: s.state,
-          url:
-            s.state === 'awaiting_approval'
-              ? 'https://github.com/alrayyes/forge-dashboard/actions/runs/9'
-              : '',
-          required: true,
-        })),
-      }),
-    }),
+  await serveChecks(page, () =>
+    STATES.map((s) => ({
+      name: `check-${s.state}`,
+      state: s.state,
+      url:
+        s.state === 'awaiting_approval'
+          ? 'https://github.com/alrayyes/forge-dashboard/actions/runs/9'
+          : '',
+      required: true,
+    })),
   );
   await page.goto('/pull-requests.html');
   await page

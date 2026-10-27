@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 // A Forgejo default branch's pill and its pipeline dialog describe one set of
@@ -65,13 +66,7 @@ async function open(page: Page) {
       }),
     }),
   );
-  await page.route('**/api/main-branches/checks*', (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ checks: JOBS }),
-    }),
-  );
+  await serveChecks(page, () => JOBS);
   await page.goto('/');
   const pill = page.getByRole('button', { name: /open pipeline/i }).first();
   await expect(pill).toBeVisible();
