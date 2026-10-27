@@ -5,8 +5,9 @@ import { installFakeStream, pushNamedStream } from './fake-stream-helper';
 // dashboard stream, one for each workflow run attempt, after the page posts
 // which subjects it watches. This stands in for the server's side of that: it
 // answers the watch and sends a list for each subject the page newly watches,
-// and again when the watch asks for a refresh. A spec changes what a subject answers by pushing a list itself
-// (pushChecks), as the server does when the row's CI moves.
+// and again when the watch asks for a refresh. A spec changes what a subject
+// answers by pushing a list itself (pushChecks), as the server does when the
+// row's CI moves.
 
 export type CheckRow = {
   name: string;

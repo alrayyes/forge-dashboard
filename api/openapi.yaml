@@ -2981,8 +2981,9 @@ paths:
         pull requests and default branches it has open, through
         `POST /api/dashboard/stream/watch`. Each list arrives as named
         `run` events on this stream, one for each workflow run attempt, so a
-        client that only listens for default messages never sees one. A reconnect reuses the same
-        `sid` with nothing watched, so the client sends its watch again.
+        client that only listens for default messages never sees one. A
+        reconnect reuses the same `sid` with nothing watched, so the client
+        sends its watch again.
       tags: [dashboard]
       parameters:
         - $ref: "#/components/parameters/QueryIncludeDrafts"

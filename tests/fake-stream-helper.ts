@@ -77,7 +77,7 @@ export async function pushStream(page: Page, message: unknown) {
   );
 }
 
-// Sends the page one named stream event, such as "checks".
+// Sends the page one named stream event, such as "run".
 export async function pushNamedStream(
   page: Page,
   name: string,
