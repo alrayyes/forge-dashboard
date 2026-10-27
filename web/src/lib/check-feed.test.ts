@@ -46,7 +46,17 @@ type Post = { streamId: string; subjects: Subject[]; refresh?: boolean };
 function harness(status = 204, timeoutMs = 60000) {
   const posts: Post[] = [];
   const redirects: string[] = [];
+  const reads: Subject[] = [];
+  const answers: CheckFeedMessage[] = [];
   const feed = createCheckFeed({
+    read: async (subject) => {
+      reads.push(subject);
+      return (
+        answers.shift() ?? {
+          checks: [{ name: 'read', state: 'success', url: 'u' }],
+        }
+      );
+    },
     newId: () => 'stream-0001',
     post: async (body) => {
       posts.push(JSON.parse(body));
@@ -57,7 +67,7 @@ function harness(status = 204, timeoutMs = 60000) {
   });
   const source = new FakeSource();
   feed.attach(source);
-  return { feed, source, posts, redirects };
+  return { feed, source, posts, redirects, reads, answers };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -157,15 +167,6 @@ describe('watch', () => {
     expect(got).toEqual([{ error: 'the live connection is down' }]);
   });
 
-  test('tells the listener at once when the stream is closed', async () => {
-    const { feed, source } = harness();
-    source.readyState = 2;
-    const got: CheckFeedMessage[] = [];
-    feed.watch(pr, (m) => got.push(m));
-    await flush();
-    expect(got).toEqual([{ error: 'the live connection is down' }]);
-  });
-
   test('waits for a stream that is still connecting', async () => {
     const { feed } = harness();
     const got: CheckFeedMessage[] = [];
@@ -224,5 +225,89 @@ describe('refresh', () => {
     source.open();
     feed.watch(pr, () => {});
     expect(await feed.refresh(pr)).toBe(false);
+  });
+});
+
+describe('watch while a refresh is out', () => {
+  test('a dialog closed during a refresh stops the watch, and reopening posts it again', async () => {
+    const { feed, source, posts } = harness();
+    source.open();
+    const stop = feed.watch(pr, () => {});
+    await flush();
+    void feed.refresh(pr);
+    stop();
+    await flush();
+    expect(posts.at(-1)?.subjects).toEqual([]);
+    feed.watch(pr, () => {});
+    await flush();
+    expect(posts.at(-1)?.subjects).toEqual([pr]);
+  });
+});
+
+describe('without a stream', () => {
+  const list = [{ name: 'read', state: 'success', url: 'u' }];
+
+  test('a closed stream is read once for the list', async () => {
+    const { feed, source, reads, posts } = harness();
+    source.readyState = 2;
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    await flush();
+    expect(reads).toEqual([pr]);
+    expect(got).toEqual([{ checks: list }]);
+    expect(posts).toEqual([]);
+  });
+
+  test('a page with no stream at all reads too', async () => {
+    const feed = createCheckFeed({
+      newId: () => 'x',
+      read: async () => ({ checks: [] }),
+    });
+    const got: CheckFeedMessage[] = [];
+    feed.watch(branch, (m) => got.push(m));
+    await flush();
+    expect(got).toEqual([{ checks: [] }]);
+  });
+
+  test('a stream that closes for good hands its watchers a read', async () => {
+    const { feed, source, reads } = harness();
+    source.open();
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    await flush();
+    source.readyState = 2;
+    source.emit('error');
+    await flush();
+    expect(reads).toEqual([pr]);
+    expect(got).toEqual([{ checks: list }]);
+  });
+
+  test('a failed read tells the listener why', async () => {
+    const { feed, source, answers } = harness();
+    source.readyState = 2;
+    answers.push({ error: 'forge unreachable' });
+    const got: CheckFeedMessage[] = [];
+    feed.watch(pr, (m) => got.push(m));
+    await flush();
+    expect(got).toEqual([{ error: 'forge unreachable' }]);
+  });
+
+  test('refresh reads again and resolves true on a list', async () => {
+    const { feed, source, reads } = harness();
+    source.readyState = 2;
+    feed.watch(pr, () => {});
+    await flush();
+    expect(await feed.refresh(pr)).toBe(true);
+    expect(reads).toEqual([pr, pr]);
+  });
+
+  test('refresh resolves false when the read failed, and the next one works', async () => {
+    const { feed, source, answers } = harness();
+    source.readyState = 2;
+    feed.watch(pr, () => {});
+    await flush();
+    answers.push({ error: 'x' });
+    expect(await feed.refresh(pr)).toBe(false);
+    expect(await feed.refresh(pr)).toBe(true);
   });
 });

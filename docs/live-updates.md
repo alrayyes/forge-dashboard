@@ -35,7 +35,9 @@ list when the panel opens and again for each such change, and none while
 nothing changes, so a finished pipeline costs no more forge reads, and a rerun
 that starts sends it again once. The panel never polls the forge, and the list
 arrives as a named `checks` event that the plain snapshot readers don't see.
-If the stream is down, the panel says so with a Retry button. A change to any
+If the stream is down, the panel says so with a Retry button. If the browser
+can't hold a stream open at all, the panel reads the list once when it opens
+and again on Retry, and doesn't follow changes. A change to any
 check's state is announced politely once
 ("Checks updated: test is now Passed.", or "Checks updated: 2 checks changed."
 when several moved), the same line again when the same thing happens twice, and

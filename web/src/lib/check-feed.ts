@@ -33,6 +33,9 @@ type Options = {
   unauthorized?: () => void;
   // How long refresh() waits for the list before giving up.
   timeoutMs?: number;
+  // Reads a subject's list straight from the backend, for a page whose stream
+  // can't be had.
+  read?: (subject: Subject) => Promise<CheckFeedMessage>;
 };
 
 const WATCH_URL = '/api/dashboard/stream/watch';
@@ -52,6 +55,35 @@ async function postWatch(body: string): Promise<number> {
   return response.status;
 }
 
+// The list of one subject from its endpoint. This is what a page falls back to
+// when it has no stream: one read, with nothing to follow it.
+async function readChecks(subject: Subject): Promise<CheckFeedMessage> {
+  const query = new URLSearchParams({
+    forge: subject.forge,
+    fullName: subject.fullName,
+  });
+  let path = '/api/main-branches/checks';
+  if (subject.kind === 'pull_request') {
+    path = '/api/pull-requests/checks';
+    query.set('number', String(subject.number ?? 0));
+  }
+  try {
+    const response = await fetch(`${path}?${query}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status === 401) {
+      toLogin();
+      return { error: 'signed out' };
+    }
+    const body = await response.json().catch(() => null);
+    if (!response.ok)
+      return { error: body?.error || `backend answered ${response.status}` };
+    return { checks: body?.checks ?? [] };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 function toLogin() {
   window.location.href = '/login.html';
 }
@@ -61,18 +93,39 @@ export function createCheckFeed({
   post = postWatch,
   unauthorized = toLogin,
   timeoutMs = 10000,
+  read = readChecks,
 }: Options = {}) {
   const streamId = newId();
   const subjects = new Map<string, Subject>();
   const listeners = new Map<string, Set<Listener>>();
+  // Refreshes waiting on an answer, apart from the dialogs that watch: a
+  // dialog closing must not look like a watcher still there.
+  const waiters = new Map<string, Set<Listener>>();
   let open = false;
   let source: FeedSource | null = null;
   // Posts go one at a time, so a stale watch can't land after a newer one.
   let queue: Promise<unknown> = Promise.resolve();
 
   function tellAll(message: CheckFeedMessage) {
-    for (const set of [...listeners.values()])
-      for (const listener of [...set]) listener(message);
+    for (const map of [listeners, waiters])
+      for (const set of [...map.values()])
+        for (const listener of [...set]) listener(message);
+  }
+
+  function tell(key: string, message: CheckFeedMessage) {
+    for (const map of [listeners, waiters])
+      for (const listener of [...(map.get(key) ?? [])]) listener(message);
+  }
+
+  // A stream that is gone, or never was, will not answer.
+  function unavailable() {
+    return !open && (!source || source.readyState === CLOSED);
+  }
+
+  async function readInto(subject: Subject): Promise<CheckFeedMessage> {
+    const message = await read(subject);
+    tell(keyOf(subject), message);
+    return message;
   }
 
   function send(refresh: boolean) {
@@ -112,6 +165,10 @@ export function createCheckFeed({
       });
       next.addEventListener('error', () => {
         if (next.readyState !== OPEN) open = false;
+        if (next.readyState === CLOSED) {
+          for (const subject of [...subjects.values()]) void readInto(subject);
+          return;
+        }
         tellAll({ error: DOWN });
       });
       next.addEventListener('checks', (event) => {
@@ -124,8 +181,7 @@ export function createCheckFeed({
         const message: CheckFeedMessage = body.error
           ? { error: body.error }
           : { checks: body.checks ?? [] };
-        for (const listener of [...(listeners.get(keyOf(body)) ?? [])])
-          listener(message);
+        tell(keyOf(body), message);
       });
     },
 
@@ -138,9 +194,8 @@ export function createCheckFeed({
       const fresh = !subjects.has(key);
       subjects.set(key, subject);
       if (fresh) send(false);
-      // A stream that is gone will never answer: say so rather than wait.
-      if (!open && (!source || source.readyState === CLOSED))
-        queueMicrotask(() => listener({ error: DOWN }));
+      // Without a stream, read the list instead of waiting for one.
+      if (unavailable()) void readInto(subject);
       return () => {
         set.delete(listener);
         if (set.size > 0) return;
@@ -153,18 +208,19 @@ export function createCheckFeed({
     // Asks the server to list the subject again, for when the page knows it
     // changed something. Resolves true once a fresh list arrives, false if it
     // failed or never came.
-    refresh(subject: Subject): Promise<boolean> {
+    async refresh(subject: Subject): Promise<boolean> {
+      if (unavailable()) return !('error' in (await readInto(subject)));
       const key = keyOf(subject);
       return new Promise((resolve) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
         const listener: Listener = (message) => {
           clearTimeout(timer);
-          listeners.get(key)?.delete(listener);
+          waiters.get(key)?.delete(listener);
           resolve(!('error' in message));
         };
-        const set = listeners.get(key) ?? new Set<Listener>();
+        const set = waiters.get(key) ?? new Set<Listener>();
         set.add(listener);
-        listeners.set(key, set);
+        waiters.set(key, set);
         timer = setTimeout(() => {
           set.delete(listener);
           resolve(false);
