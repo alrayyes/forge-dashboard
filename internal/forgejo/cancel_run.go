@@ -43,6 +43,22 @@ func withRun(check dashboard.Check, runID int64, runName string, runNumber int64
 	return check
 }
 
+// withJobTimes sets the start and end the forge gives job. Forgejo answers an
+// unset time as the zero time, which is left nil: a job that hasn't started or
+// finished says nothing about it.
+func withJobTimes(check dashboard.Check, job *gitea.ActionWorkflowJob) dashboard.Check {
+	if !job.StartedAt.IsZero() {
+		started := job.StartedAt
+		check.StartedAt = &started
+	}
+	if !job.CompletedAt.IsZero() {
+		completed := job.CompletedAt
+		check.CompletedAt = &completed
+	}
+
+	return check
+}
+
 // workflowName is the workflow of run for a person: its file without the
 // directory, the extension or the "@ref" suffix ("ci.yaml@refs/heads/main" is
 // "ci"), else the run's title.
