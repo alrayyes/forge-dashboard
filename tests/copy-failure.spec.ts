@@ -368,7 +368,13 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
 
   async function openPanel(page: Page) {
     await serveChecks(page, () => [
-      { name: 'test', state: 'failure', url: '', required: true },
+      {
+        name: 'test',
+        status: 'completed',
+        conclusion: 'failure',
+        url: '',
+        required: true,
+      },
     ]);
     const row = await open(
       page,

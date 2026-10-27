@@ -83,6 +83,7 @@
     blockingFirst,
     CHECK_STATE_LABELS,
     checkRunKey,
+    checkState,
     checkDurationSeconds,
     formatCheckDuration,
     groupChecks,
@@ -535,7 +536,11 @@
   // pull request links to its run as a branch does. None, no link.
   const runLink = $derived(target?.runUrl || runPageUrl(checks));
   const failed = $derived(
-    checks.some((c) => c.state === "failure" || c.state === "timed_out"),
+    checks.some((c) => {
+      const state = checkState(c);
+
+      return state === "failure" || state === "timed_out";
+    }),
   );
 
   // The board's own control, drawn again with each change of the checks. A
@@ -584,9 +589,10 @@
       {@const forge = target ? forgeLabel(target) : "the forge"}
       {@const control = checkControl(check, target?.repo)}
       {@const secs = checkDurationSeconds(check)}
+      {@const state = checkState(check)}
       <li class="pipeline-check">
-        <span class="pipeline-check-status {check.state}">
-          {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}
+        <span class="pipeline-check-status {state}">
+          {#each CHECK_GLYPHS[state] ?? [] as g (g.name)}
             <svg
               viewBox="0 0 16 16"
               class="check-glyph check-glyph-{g.name}"
@@ -600,7 +606,7 @@
           {:else}
             <span class="dot"></span>
           {/each}
-          {CHECK_STATE_LABELS[check.state] || check.state}
+          {CHECK_STATE_LABELS[state] || state}
         </span>
         <span class="pipeline-check-name">{check.name}</span>
         {#if secs !== undefined}
@@ -623,7 +629,7 @@
           <!-- Never an empty href, which would resolve to this page. A job with
                no log to read yet (queued, or running on GitHub) links to the
                forge's own page. -->
-          {@const linkText = checkLinkText(control, check.state, forge)}
+          {@const linkText = checkLinkText(control, state, forge)}
           <a
             class="pipeline-check-link"
             href={check.url}

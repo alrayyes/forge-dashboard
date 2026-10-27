@@ -1,6 +1,8 @@
 // Reading a check's output for the pipeline dialog, and copying it. No DOM here:
 // the dialog says how to select text and which fetch to use.
 
+import { type Check, checkState } from './pipeline-checks';
+
 // The kilobytes the server keeps of a long log. GET /api/checks/log cuts
 // the start of a log past this.
 const KEPT_KB = 256;
@@ -167,10 +169,11 @@ export function logSource(
 // has a job whose log the repository can name. No
 // repository gives no log address, so a job alone isn't enough.
 export function canCopyLog(
-  check: { state: string; excerpt?: string; jobId?: number },
+  check: Pick<Check, 'status' | 'conclusion' | 'excerpt' | 'jobId'>,
   repo: RepoRef | undefined,
 ): boolean {
-  if (check.state !== 'failure' && check.state !== 'timed_out') return false;
+  const state = checkState(check);
+  if (state !== 'failure' && state !== 'timed_out') return false;
   if (check.excerpt) return true;
 
   return !!check.jobId && !!logUrl(repo, check.jobId);
@@ -200,14 +203,15 @@ function runningWithoutLog(state: string, repo: RepoRef | undefined): boolean {
 }
 
 export function checkControl(
-  check: { state: string; url?: string; jobId?: number },
+  check: Pick<Check, 'status' | 'conclusion' | 'jobId'> & { url?: string },
   repo: RepoRef | undefined,
 ): CheckControl {
   if (!check.url) return 'none';
-  if (check.state === 'queued') return 'open-on-forge';
-  if (check.state === 'skipped') return 'none';
-  if (runningWithoutLog(check.state, repo)) return 'open-on-forge';
-  if (check.state !== 'awaiting_approval' && check.jobId && repo) {
+  const state = checkState(check);
+  if (state === 'queued') return 'open-on-forge';
+  if (state === 'skipped') return 'none';
+  if (runningWithoutLog(state, repo)) return 'open-on-forge';
+  if (state !== 'awaiting_approval' && check.jobId && repo) {
     return 'output';
   }
 

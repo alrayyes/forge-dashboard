@@ -104,7 +104,9 @@ describe('WebMCP read tools', () => {
 
   test('get_pull_request_checks reads the pull request off the stream', async () => {
     const { calls, reads, tool, answerWith } = setup();
-    const checks = [{ name: 'build', state: 'success', url: 'u' }];
+    const checks = [
+      { name: 'build', status: 'completed', conclusion: 'success', url: 'u' },
+    ];
     answerWith({ checks } as CheckFeedMessage);
     expect(await tool('get_pull_request_checks').execute(PR)).toEqual({
       checks,

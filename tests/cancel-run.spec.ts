@@ -35,7 +35,8 @@ function pr(allowed: { action: string }[]) {
 
 type CheckFixture = {
   name: string;
-  state: string;
+  status: string;
+  conclusion?: string;
   url: string;
   jobId?: number;
   runId?: number;
@@ -46,7 +47,8 @@ type CheckFixture = {
 const RUNNING: CheckFixture[] = [
   {
     name: 'build',
-    state: 'success',
+    status: 'completed',
+    conclusion: 'success',
     url: 'https://example.com/r/1',
     jobId: 1,
     runId: 77,
@@ -54,7 +56,7 @@ const RUNNING: CheckFixture[] = [
   },
   {
     name: 'lint',
-    state: 'running',
+    status: 'in_progress',
     url: 'https://example.com/r/2',
     jobId: 2,
     runId: 77,
@@ -62,13 +64,17 @@ const RUNNING: CheckFixture[] = [
   },
   {
     name: 'test',
-    state: 'queued',
+    status: 'queued',
     url: 'https://example.com/r/3',
     jobId: 3,
     runId: 77,
     runName: 'ci',
   },
-  { name: 'external-ci', state: 'running', url: 'https://example.com/r/4' },
+  {
+    name: 'external-ci',
+    status: 'in_progress',
+    url: 'https://example.com/r/4',
+  },
 ];
 
 // The same jobs read after GitHub's run lookup failed: still going, but with
@@ -81,7 +87,7 @@ const TWO_RUNS: CheckFixture[] = [
   ...RUNNING.slice(0, 3),
   {
     name: 'publish',
-    state: 'running',
+    status: 'in_progress',
     url: 'https://example.com/r/5',
     jobId: 5,
     runId: 78,
@@ -90,16 +96,23 @@ const TWO_RUNS: CheckFixture[] = [
 ];
 
 const STOPPED: CheckFixture[] = [
-  { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+  {
+    name: 'build',
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.com/r/1',
+  },
   {
     name: 'lint',
-    state: 'cancelled',
+    status: 'completed',
+    conclusion: 'cancelled',
     url: 'https://example.com/r/2',
     jobId: 2,
   },
   {
     name: 'test',
-    state: 'cancelled',
+    status: 'completed',
+    conclusion: 'cancelled',
     url: 'https://example.com/r/3',
     jobId: 3,
   },
@@ -232,7 +245,7 @@ test.describe('cancel a running pipeline', () => {
     await page.setViewportSize({ width: 375, height: 700 });
     const run = (n: number, id: number, name: string): CheckFixture => ({
       name: `job-${id}`,
-      state: 'running',
+      status: 'in_progress',
       url: `https://example.com/r/${id}`,
       jobId: id,
       runId: n,
@@ -266,7 +279,7 @@ test.describe('cancel a running pipeline', () => {
   }) => {
     const run = (n: number): CheckFixture => ({
       name: `job-${n}`,
-      state: 'running',
+      status: 'in_progress',
       url: `https://example.com/r/${n}`,
       jobId: 10 + n,
       runId: n,
@@ -518,7 +531,7 @@ test.describe('cancel a running pipeline', () => {
     const standIn = [
       {
         name: 'ci',
-        state: 'running',
+        status: 'in_progress',
         url: 'https://example.com/r/9',
         runId: 9,
         runName: 'ci',
@@ -746,7 +759,8 @@ test.describe('cancel a running pipeline', () => {
       ...STOPPED,
       {
         name: 'publish',
-        state: 'cancelled',
+        status: 'completed',
+        conclusion: 'cancelled',
         url: 'https://example.com/r/5',
         jobId: 5,
       },

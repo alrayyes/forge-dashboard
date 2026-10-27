@@ -119,12 +119,13 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'build',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: 'https://github.com/alrayyes/forge-dashboard/runs/1',
         },
         {
           name: 'test',
-          state: 'running',
+          status: 'in_progress',
           url: 'https://github.com/alrayyes/forge-dashboard/runs/2',
         },
       ],
@@ -173,12 +174,14 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'build',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: 'https://github.com/alrayyes/forge-dashboard/runs/1',
         },
         {
           name: 'deploy',
-          state: 'skipped',
+          status: 'completed',
+          conclusion: 'skipped',
           url: 'https://github.com/alrayyes/forge-dashboard/runs/2',
         },
       ],
@@ -214,12 +217,14 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'build',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: 'https://github.com/alrayyes/forge-dashboard/runs/1',
         },
         {
           name: 'legacy-ci',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: '',
         },
       ],
@@ -270,10 +275,34 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, {
       checks: [
-        { name: 'codecov', state: 'success', url: '', required: false },
-        { name: 'build', state: 'success', url: '', required: true },
-        { name: 'lint', state: 'failure', url: '', required: true },
-        { name: 'docs', state: 'failure', url: '', required: false },
+        {
+          name: 'codecov',
+          status: 'completed',
+          conclusion: 'success',
+          url: '',
+          required: false,
+        },
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'success',
+          url: '',
+          required: true,
+        },
+        {
+          name: 'lint',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+        {
+          name: 'docs',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: false,
+        },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -307,9 +336,27 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, {
       checks: [
-        { name: 'lint', state: 'failure', url: '', required: true },
-        { name: 'build', state: 'success', url: '', required: true },
-        { name: 'docs', state: 'failure', url: '', required: false },
+        {
+          name: 'lint',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'success',
+          url: '',
+          required: true,
+        },
+        {
+          name: 'docs',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: false,
+        },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -339,8 +386,14 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, {
       checks: [
-        { name: 'docs', state: 'success', url: '', required: false },
-        { name: 'ci', state: 'awaiting_approval', url: '', required: true },
+        {
+          name: 'docs',
+          status: 'completed',
+          conclusion: 'success',
+          url: '',
+          required: false,
+        },
+        { name: 'ci', status: 'waiting', url: '', required: true },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -368,8 +421,8 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, {
       checks: [
-        { name: 'build', state: 'success', url: '' },
-        { name: 'test', state: 'failure', url: '' },
+        { name: 'build', status: 'completed', conclusion: 'success', url: '' },
+        { name: 'test', status: 'completed', conclusion: 'failure', url: '' },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -392,8 +445,19 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, {
       checks: [
-        { name: 'build', state: 'success', url: '', required: true },
-        { name: 'mystery', state: 'success', url: '' },
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'success',
+          url: '',
+          required: true,
+        },
+        {
+          name: 'mystery',
+          status: 'completed',
+          conclusion: 'success',
+          url: '',
+        },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -421,7 +485,8 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'test',
-          state: 'failure',
+          status: 'completed',
+          conclusion: 'failure',
           url: 'https://example.com/1',
           startedAt: '2026-10-03T10:00:00Z',
           completedAt: '2026-10-03T10:02:05Z',
@@ -430,7 +495,8 @@ test.describe('pull request pipeline checks panel', () => {
         },
         {
           name: 'build',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: '',
           startedAt: '2026-10-03T10:00:00Z',
           completedAt: '2026-10-03T10:00:42Z',
@@ -476,12 +542,13 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'test',
-          state: 'failure',
+          status: 'completed',
+          conclusion: 'failure',
           url: 'https://example.com/7',
           jobId: 7,
           runAttempt: 1,
         },
-        { name: 'build', state: 'success', url: '' },
+        { name: 'build', status: 'completed', conclusion: 'success', url: '' },
       ],
     });
     let release: () => void = () => {};
@@ -543,7 +610,8 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'test',
-          state: 'failure',
+          status: 'completed',
+          conclusion: 'failure',
           url: 'https://example.com/7',
           jobId: 7,
           runAttempt: 1,
@@ -595,7 +663,13 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
     await mockChecks(page, {
       checks: [
-        { name: 'test', state: 'failure', url: 'https://x/1', jobId: 9 },
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: 'https://x/1',
+          jobId: 9,
+        },
       ],
     });
     let asked = 0;
@@ -622,7 +696,15 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     let posted: unknown = null;
     await page.route('**/api/pull-requests/rerun-checks', async (route) => {
@@ -669,7 +751,15 @@ test.describe('pull request pipeline checks panel', () => {
       },
     );
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     await page.goto('/pull-requests.html');
 
@@ -707,7 +797,15 @@ test.describe('pull request pipeline checks panel', () => {
       }),
     );
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     await page.clock.install();
     await page.goto('/pull-requests.html');
@@ -744,7 +842,15 @@ test.describe('pull request pipeline checks panel', () => {
       { reachable: false },
     );
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     await page.goto('/pull-requests.html');
     await page
@@ -765,7 +871,15 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     let posts = 0;
     await page.route('**/api/pull-requests/rerun-checks', async (route) => {
@@ -803,7 +917,15 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     let posts = 0;
     let release: () => void = () => {};
@@ -842,7 +964,15 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     await page.route('**/api/pull-requests/rerun-checks', (route) =>
       route.fulfill({
@@ -884,7 +1014,15 @@ test.describe('pull request pipeline checks panel', () => {
       makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles', ci: 'failure' }),
     );
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     let posted: unknown = null;
     let answer = 204;
@@ -943,7 +1081,15 @@ test.describe('pull request pipeline checks panel', () => {
         makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles', ci: 'failure' }),
       );
       await mockChecks(page, {
-        checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+        checks: [
+          {
+            name: 'test',
+            status: 'completed',
+            conclusion: 'failure',
+            url: '',
+            required: true,
+          },
+        ],
       });
       await page.route('**/api/pull-requests/rerun-checks', (route) =>
         route.fulfill({
@@ -981,7 +1127,9 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '' }],
+      checks: [
+        { name: 'test', status: 'completed', conclusion: 'failure', url: '' },
+      ],
     });
     await page.route('**/api/pull-requests/rerun-checks', (route) =>
       route.fulfill({
@@ -1021,7 +1169,9 @@ test.describe('pull request pipeline checks panel', () => {
       makePR({ forge: 'forgejo', ci: 'failure', allowedActions: [] }),
     );
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '' }],
+      checks: [
+        { name: 'test', status: 'completed', conclusion: 'failure', url: '' },
+      ],
     });
     await page.goto('/pull-requests.html');
 
@@ -1046,19 +1196,22 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'build',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: 'https://example.com/1',
           required: true,
         },
         {
           name: 'lint',
-          state: 'failure',
+          status: 'completed',
+          conclusion: 'failure',
           url: 'https://example.com/2',
           required: true,
         },
         {
           name: 'codecov',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: 'https://example.com/3',
           required: false,
         },
@@ -1094,13 +1247,15 @@ test.describe('pull request pipeline checks panel', () => {
       checks: [
         {
           name: 'build',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: 'https://example.com/1',
           required: true,
         },
         {
           name: 'codecov',
-          state: 'success',
+          status: 'completed',
+          conclusion: 'success',
           url: 'https://example.com/2',
           required: false,
         },
@@ -1152,7 +1307,14 @@ test.describe('pull request pipeline checks panel', () => {
     await serveChecks(page, (_, call) =>
       call === 1
         ? { error: 'github: unreachable' }
-        : [{ name: 'build', state: 'success', url: 'https://example.com/1' }],
+        : [
+            {
+              name: 'build',
+              status: 'completed',
+              conclusion: 'success',
+              url: 'https://example.com/1',
+            },
+          ],
     );
     await page.goto('/pull-requests.html');
 
@@ -1174,7 +1336,12 @@ test.describe('pull request pipeline checks panel', () => {
     await page.clock.install();
     await mockDashboard(page, 'github', makePR());
     await serveChecks(page, () => [
-      { name: 'build', state: 'success', url: 'https://example.com/1' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/1',
+      },
     ]);
     await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
@@ -1264,8 +1431,18 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR());
     await mockChecks(page, {
       checks: [
-        { name: 'build', state: 'success', url: 'https://example.com/1' },
-        { name: 'test', state: 'failure', url: 'https://example.com/2' },
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'success',
+          url: 'https://example.com/1',
+        },
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: 'https://example.com/2',
+        },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -1323,7 +1500,15 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
         }),
       );
     await mockChecks(page, {
-      checks: [{ name: 'test', state: 'failure', url: '', required: true }],
+      checks: [
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          required: true,
+        },
+      ],
     });
     await page.route('**/api/pull-requests/details*', (route) =>
       route.fulfill({

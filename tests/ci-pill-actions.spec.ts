@@ -40,7 +40,12 @@ function mockDashboard(page: Page, pr: unknown) {
 
 function mockChecks(page: Page) {
   return serveChecks(page, () => [
-    { name: 'build', state: 'success', url: 'https://x.test/1' },
+    {
+      name: 'build',
+      status: 'completed',
+      conclusion: 'success',
+      url: 'https://x.test/1',
+    },
   ]);
 }
 

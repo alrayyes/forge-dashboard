@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { factsOf } from './check-facts';
 import { checkLinkName } from './check-link-name-helper';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { pushStream } from './fake-stream-helper';
@@ -37,12 +38,18 @@ async function setup(
   checks: unknown[] = [
     {
       name: 'build',
-      state: 'failure',
+      status: 'completed',
+      conclusion: 'failure',
       url: runUrl,
       jobId: 9,
       excerpt: 'boom: exit 1',
     },
-    { name: 'lint', state: 'success', url: `${runUrl}0` },
+    {
+      name: 'lint',
+      status: 'completed',
+      conclusion: 'success',
+      url: `${runUrl}0`,
+    },
   ],
   forge = 'github',
 ): Promise<string[]> {
@@ -290,9 +297,20 @@ test.describe('a check run output in the pipeline dialog', () => {
     page,
   }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } }, [
-      { name: 'queued-job', state: 'queued', url: runUrl, jobId: 7 },
-      { name: 'running-job', state: 'running', url: `${runUrl}2`, jobId: 8 },
-      { name: 'done-job', state: 'success', url: `${runUrl}3`, jobId: 9 },
+      { name: 'queued-job', status: 'queued', url: runUrl, jobId: 7 },
+      {
+        name: 'running-job',
+        status: 'in_progress',
+        url: `${runUrl}2`,
+        jobId: 8,
+      },
+      {
+        name: 'done-job',
+        status: 'completed',
+        conclusion: 'success',
+        url: `${runUrl}3`,
+        jobId: 9,
+      },
     ]);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
@@ -318,7 +336,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(
       page,
       { status: 200, body: { text: '', truncated: false } },
-      [{ name: 'running-job', state: 'running', url: runUrl, jobId: 8 }],
+      [{ name: 'running-job', status: 'in_progress', url: runUrl, jobId: 8 }],
       'forgejo',
     );
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -333,7 +351,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(
       page,
       { status: 200, body: { text: '', truncated: false } },
-      [{ name: 'queued-job', state: 'queued', url: runUrl, jobId: 7 }],
+      [{ name: 'queued-job', status: 'queued', url: runUrl, jobId: 7 }],
       'forgejo',
     );
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -406,7 +424,15 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(
       page,
       { status: 200, body: { text: 'whole log\n', truncated: false } },
-      [{ name: 'build', state: 'failure', url: runUrl, jobId: 9 }],
+      [
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'failure',
+          url: runUrl,
+          jobId: 9,
+        },
+      ],
     );
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
@@ -427,7 +453,13 @@ test.describe('a check run output in the pipeline dialog', () => {
   }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await setup(page, { status: 404, body: {} }, [
-      { name: 'build', state: 'failure', url: runUrl, jobId: 9 },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'failure',
+        url: runUrl,
+        jobId: 9,
+      },
     ]);
     await page.evaluate(() => navigator.clipboard.writeText('keep me'));
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
@@ -449,7 +481,12 @@ test.describe('a check run output in the pipeline dialog', () => {
     page,
   }) => {
     await setup(page, { status: 200, body: {} }, [
-      { name: 'build', state: 'failure', url: runUrl },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'failure',
+        url: runUrl,
+      },
     ]);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
@@ -642,7 +679,7 @@ async function openBranchFailure(
   const list = () => [
     {
       name: 'build',
-      state: state.check,
+      ...factsOf(state.check),
       url: 'https://example.com/r/1',
       startedAt: state.seconds === undefined ? undefined : START,
       completedAt:

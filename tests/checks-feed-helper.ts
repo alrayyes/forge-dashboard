@@ -10,7 +10,8 @@ import { installFakeStream, pushNamedStream } from './fake-stream-helper';
 
 export type CheckRow = {
   name: string;
-  state: string;
+  status: string;
+  conclusion?: string;
   url: string;
   [key: string]: unknown;
 };

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { factsOf } from './check-facts';
 import { checkLinkName } from './check-link-name-helper';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { installFakeStream } from './fake-stream-helper';
@@ -70,12 +71,27 @@ const PASSED_FORGEJO = pr(
 );
 
 const RUN = [
-  { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-  { name: 'test', state: 'running', url: 'https://example.com/r/2' },
+  {
+    name: 'build',
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.com/r/1',
+  },
+  { name: 'test', status: 'in_progress', url: 'https://example.com/r/2' },
 ];
 const DONE = [
-  { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-  { name: 'test', state: 'success', url: 'https://example.com/r/2' },
+  {
+    name: 'build',
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.com/r/1',
+  },
+  {
+    name: 'test',
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.com/r/2',
+  },
 ];
 
 async function stubStream(page: Page) {
@@ -160,10 +176,15 @@ test.describe('pipeline panel updates live', () => {
       'forgejo',
     );
     const before = [
-      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/r/1',
+      },
       {
         name: 'test',
-        state: 'queued',
+        status: 'queued',
         url: 'https://example.com/r/2',
         jobId: 2,
       },
@@ -177,7 +198,7 @@ test.describe('pipeline panel updates live', () => {
       }),
     ).toBeVisible();
 
-    state.checks = [before[0], { ...before[1], state: 'running' }];
+    state.checks = [before[0], { ...before[1], status: 'in_progress' }];
     await update(
       page,
       state,
@@ -202,12 +223,13 @@ test.describe('pipeline panel updates live', () => {
     await open(page, RUNNING_FORGEJO, [
       {
         name: 'build',
-        state: 'success',
+        status: 'completed',
+        conclusion: 'success',
         url: 'https://forge.example/o/r/actions/runs/7/jobs/0',
       },
       {
         name: 'test',
-        state: 'running',
+        status: 'in_progress',
         url: 'https://forge.example/o/r/actions/runs/9/jobs/1',
       },
     ]);
@@ -272,8 +294,8 @@ test.describe('pipeline panel updates live', () => {
     page,
   }) => {
     const pair = (state: string) => [
-      { name: 'a', state, url: 'https://example.com/r/a' },
-      { name: 'b', state, url: 'https://example.com/r/b' },
+      { name: 'a', ...factsOf(state), url: 'https://example.com/r/a' },
+      { name: 'b', ...factsOf(state), url: 'https://example.com/r/b' },
     ];
     const state = await open(page, RUNNING, pair('running'));
     // A screen reader speaks a live region when its text changes, so an
@@ -306,9 +328,14 @@ test.describe('pipeline panel updates live', () => {
     page,
   }) => {
     const three = [
-      { name: 'lint', state: 'running', url: 'https://example.com/r/0' },
-      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-      { name: 'test', state: 'running', url: 'https://example.com/r/2' },
+      { name: 'lint', status: 'in_progress', url: 'https://example.com/r/0' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/r/1',
+      },
+      { name: 'test', status: 'in_progress', url: 'https://example.com/r/2' },
     ];
     const state = await open(page, RUNNING_FORGEJO, three, 3);
     const link = dialog(page).getByRole('link', {
@@ -317,8 +344,18 @@ test.describe('pipeline panel updates live', () => {
     await link.focus();
 
     state.checks = [
-      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
-      { name: 'test', state: 'success', url: 'https://example.com/r/2' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/r/1',
+      },
+      {
+        name: 'test',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/r/2',
+      },
     ];
     await update(page, state, PASSED_FORGEJO);
 
@@ -342,7 +379,12 @@ test.describe('pipeline panel updates live', () => {
       .focus();
 
     state.checks = [
-      { name: 'build', state: 'failure', url: 'https://example.com/r/1' },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'failure',
+        url: 'https://example.com/r/1',
+      },
     ];
     await update(
       page,
@@ -372,8 +414,18 @@ test.describe('pipeline panel updates live', () => {
   test('the order stays put when a check starts to fail', async ({ page }) => {
     const state = await open(page, RUNNING, RUN);
     state.checks = [
-      { name: 'test', state: 'failure', url: 'https://example.com/r/2' },
-      { name: 'build', state: 'success', url: 'https://example.com/r/1' },
+      {
+        name: 'test',
+        status: 'completed',
+        conclusion: 'failure',
+        url: 'https://example.com/r/2',
+      },
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/r/1',
+      },
     ];
     await update(
       page,
@@ -392,7 +444,7 @@ test.describe('pipeline panel updates live', () => {
   }) => {
     const req = (name: string, state: string) => ({
       name,
-      state,
+      ...factsOf(state),
       required: true,
       url: `https://example.com/r/${name}`,
     });
@@ -502,7 +554,8 @@ test.describe('pipeline panel rerun control through a live redraw', () => {
       [
         {
           name: 'test',
-          state: 'failure',
+          status: 'completed',
+          conclusion: 'failure',
           url: 'https://example.com/r/2',
           required: true,
         },
@@ -528,11 +581,17 @@ test.describe('pipeline panel rerun control through a live redraw', () => {
     state.checks = [
       {
         name: 'test',
-        state: 'failure',
+        status: 'completed',
+        conclusion: 'failure',
         url: 'https://example.com/r/2',
         required: true,
       },
-      { name: 'extra', state: 'failure', url: 'https://example.com/r/3' },
+      {
+        name: 'extra',
+        status: 'completed',
+        conclusion: 'failure',
+        url: 'https://example.com/r/3',
+      },
     ];
     await update(page, state, {
       ...failing,

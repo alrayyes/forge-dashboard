@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { factsOf } from './check-facts';
 import { type CheckRow, serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
@@ -23,7 +24,12 @@ const JOBS = [
   ['prose', 'success'],
   ['advisories', 'skipped'],
   ['commits', 'skipped'],
-].map(([name, state], i) => ({ name, state, jobId: 84350 - i, url: '' }));
+].map(([name, state], i) => ({
+  name,
+  ...factsOf(state),
+  jobId: 84350 - i,
+  url: '',
+}));
 
 const ROW = {
   forge: 'forgejo',
@@ -120,9 +126,22 @@ test.describe('the Branches pill and its dialog agree during a rerun', () => {
     checks: { passed: 1, running: 1, waiting: 1, failed: 0 },
   };
   const rerunJobs = [
-    { name: 'lint', state: 'success', jobId: 90010, runAttempt: 1, url: '' },
-    { name: 'build', state: 'running', jobId: 90001, runAttempt: 2, url: '' },
-    { name: 'deploy', state: 'queued', jobId: 90002, runAttempt: 2, url: '' },
+    {
+      name: 'lint',
+      status: 'completed',
+      conclusion: 'success',
+      jobId: 90010,
+      runAttempt: 1,
+      url: '',
+    },
+    {
+      name: 'build',
+      status: 'in_progress',
+      jobId: 90001,
+      runAttempt: 2,
+      url: '',
+    },
+    { name: 'deploy', status: 'queued', jobId: 90002, runAttempt: 2, url: '' },
   ];
 
   test('the pill and the dialog show the same running and queued jobs, with no axe violations', async ({
