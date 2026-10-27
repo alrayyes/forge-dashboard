@@ -68,7 +68,13 @@ export async function serveChecks(page: Page, serve: Serve) {
         const call = (calls.get(key) ?? 0) + 1;
         calls.set(key, call);
         asked.push(subject);
-        await pushChecks(page, subject, await serve(subject, call));
+        const reply = await serve(subject, call);
+        // A test can end with an answer still on its way; the page is gone,
+        // so there is nobody to tell.
+        if (page.isClosed()) return;
+        await pushChecks(page, subject, reply).catch((err: Error) => {
+          if (!page.isClosed()) throw err;
+        });
       }
     })();
     inflight.add(work);
