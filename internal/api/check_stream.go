@@ -1,0 +1,261 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"regexp"
+	"sync"
+
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+)
+
+// maxWatchedSubjects caps what one stream follows. The dialog shows one pull
+// request or branch at a time, so a client asking for more is broken.
+const maxWatchedSubjects = 8
+
+const (
+	subjectPullRequest = "pull_request"
+	subjectMainBranch  = "main_branch"
+)
+
+var streamIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]{8,64}$`)
+
+// checkSubject is a pull request or a default branch whose job list a page
+// follows on the dashboard stream.
+type checkSubject struct {
+	Kind     string `json:"kind"`
+	Forge    string `json:"forge"`
+	FullName string `json:"fullName"`
+	Number   int    `json:"number,omitempty"`
+}
+
+// checkListEvent is the payload of the stream's named "checks" event: the job list
+// of one subject, or why it could not be listed.
+type checkListEvent struct {
+	checkSubject
+
+	Checks []dashboard.Check `json:"checks"`
+	Error  string            `json:"error,omitempty"`
+}
+
+// checkWatches tracks which subjects each open stream follows. It is created
+// once in NewMux, since Deps is passed by value.
+type checkWatches struct {
+	mu      sync.Mutex
+	streams map[string]*checkWatch
+}
+
+func newCheckWatches() *checkWatches {
+	return &checkWatches{streams: map[string]*checkWatch{}}
+}
+
+// open registers a stream under id. A reconnecting EventSource reuses its URL,
+// so a second open for the same id replaces the first, which starts empty. It
+// returns nil for an id that is not well formed, and that stream watches
+// nothing.
+func (c *checkWatches) open(ctx context.Context, deps Deps, id string) *checkWatch {
+	if !streamIDPattern.MatchString(id) {
+		return nil
+	}
+	w := &checkWatch{
+		ctx:     apistats.WithKind(ctx, apistats.KindDetails),
+		deps:    deps,
+		out:     make(chan []byte, maxWatchedSubjects*2),
+		watched: map[checkSubject]*watchedSubject{},
+	}
+	c.mu.Lock()
+	c.streams[id] = w
+	c.mu.Unlock()
+
+	return w
+}
+
+func (c *checkWatches) close(id string, w *checkWatch) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.streams[id] == w {
+		delete(c.streams, id)
+	}
+}
+
+func (c *checkWatches) find(id string) *checkWatch {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.streams[id]
+}
+
+// watchedSubject remembers the snapshot row a job list was last fetched for, so
+// the next snapshot lists again only when that row moved. gen drops the result
+// of a fetch that a newer one overtook.
+type watchedSubject struct {
+	sig string
+	gen int
+}
+
+// retrySig never equals a row's signature, so the next snapshot lists again
+// after a failed fetch.
+const retrySig = "retry"
+
+// checkWatch is one stream's watched subjects. Fetches run in their own
+// goroutines and hand finished events to out, which the stream goroutine, the
+// only writer to the response, drains.
+type checkWatch struct {
+	ctx  context.Context
+	deps Deps
+	out  chan []byte
+
+	mu      sync.Mutex
+	watched map[checkSubject]*watchedSubject
+}
+
+// set replaces the watched subjects. A subject already watched is listed again
+// only when refresh is set; a new one is always listed.
+func (w *checkWatch) set(subjects []checkSubject, refresh bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	next := make(map[checkSubject]*watchedSubject, len(subjects))
+	for _, s := range subjects {
+		held, known := w.watched[s]
+		if !known {
+			held = &watchedSubject{}
+		}
+		next[s] = held
+		if !known || refresh {
+			w.listLocked(s, held)
+		}
+	}
+	w.watched = next
+}
+
+// onSnapshot lists again every watched subject whose row changed.
+func (w *checkWatch) onSnapshot(snap dashboard.Snapshot) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for s, held := range w.watched {
+		sig, found := rowSignature(snap, s)
+		if found && sig != held.sig {
+			w.listLocked(s, held)
+		}
+	}
+}
+
+func (w *checkWatch) listLocked(s checkSubject, held *watchedSubject) {
+	held.gen++
+	gen := held.gen
+	held.sig, _ = rowSignature(w.deps.Service.Get(), s)
+
+	go w.list(s, held, gen)
+}
+
+func (w *checkWatch) list(s checkSubject, held *watchedSubject, gen int) {
+	ev := checkListEvent{checkSubject: s}
+	var serr *statusError
+	if s.Kind == subjectPullRequest {
+		ev.Checks, serr = resolvePullRequestChecksFor(w.ctx, w.deps, s.Forge, s.FullName, s.Number)
+	} else {
+		ev.Checks, serr = resolveMainBranchChecksFor(w.ctx, w.deps, s.Forge, s.FullName)
+	}
+	if serr != nil {
+		ev.Checks, ev.Error = nil, serr.message
+	} else if ev.Checks == nil {
+		ev.Checks = []dashboard.Check{}
+	}
+
+	w.mu.Lock()
+	current := w.watched[s] == held && held.gen == gen
+	if current && serr != nil {
+		held.sig = retrySig
+	}
+	w.mu.Unlock()
+	if !current {
+		return
+	}
+
+	data, err := json.Marshal(ev)
+	if err != nil {
+		return
+	}
+	select {
+	case w.out <- data:
+	case <-w.ctx.Done():
+	}
+}
+
+// rowSignature says what about a subject's row in snap means its job list may
+// have changed. found is false when the snapshot has no such row.
+func rowSignature(snap dashboard.Snapshot, s checkSubject) (sig string, found bool) {
+	switch s.Kind {
+	case subjectPullRequest:
+		for _, pr := range snap.PullRequests {
+			if string(pr.Forge) == s.Forge && pr.Repo == s.FullName && pr.Number == s.Number {
+				return fmt.Sprintf("%s|%+v", pr.CI, pr.Checks), true
+			}
+		}
+	case subjectMainBranch:
+		for _, b := range snap.MainBranches {
+			if string(b.Forge) == s.Forge && b.FullName == s.FullName {
+				return fmt.Sprintf("%s|%+v|%s", b.Status, b.Checks, b.RunURL), true
+			}
+		}
+	}
+
+	return "", false
+}
+
+type watchRequest struct {
+	StreamID string         `json:"streamId"`
+	Subjects []checkSubject `json:"subjects"`
+	Refresh  bool           `json:"refresh"`
+}
+
+// handleStreamWatch sets which pull requests and branches a dashboard stream
+// sends job lists for. The lists come back as "checks" events on that stream.
+func handleStreamWatch(watches *checkWatches) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req watchRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("invalid JSON body"))
+
+			return
+		}
+		if msg := validateSubjects(req.Subjects); msg != "" {
+			writeJSON(w, http.StatusBadRequest, errorBody(msg))
+
+			return
+		}
+		watch := watches.find(req.StreamID)
+		if watch == nil {
+			writeJSON(w, http.StatusNotFound, errorBody("no such stream"))
+
+			return
+		}
+
+		watch.set(req.Subjects, req.Refresh)
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func validateSubjects(subjects []checkSubject) string {
+	if len(subjects) > maxWatchedSubjects {
+		return fmt.Sprintf("at most %d subjects", maxWatchedSubjects)
+	}
+	for _, s := range subjects {
+		if _, _, ok := splitFullName(s.FullName); !ok || s.Forge == "" {
+			return `each subject needs a forge and a fullName of the form "owner/repo"`
+		}
+		switch {
+		case s.Kind == subjectPullRequest && s.Number > 0:
+		case s.Kind == subjectMainBranch && s.Number == 0:
+		default:
+			return "each subject is a pull_request with a number or a main_branch"
+		}
+	}
+
+	return ""
+}

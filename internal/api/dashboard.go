@@ -968,7 +968,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 // /api/dashboard keeps running unconditionally, connected or not: a
 // browser or proxy that can't hold this connection open just never
 // benefits from it, rather than the dashboard going stale silently.
-func handleDashboardStream(deps Deps) http.HandlerFunc {
+func handleDashboardStream(deps Deps, watches *checkWatches) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -1001,25 +1001,46 @@ func handleDashboardStream(deps Deps) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
+		// A page that names itself (?sid=) can ask for the job lists of the
+		// pull requests and branches it has open; they ride this stream as
+		// "checks" events, which the default message handler never sees.
+		var feed *checkWatch
+		var checkEvents <-chan []byte
+		var onSnapshot func(dashboard.Snapshot)
+		if sid := r.URL.Query().Get("sid"); sid != "" {
+			if feed = watches.open(r.Context(), deps, sid); feed != nil {
+				defer watches.close(sid, feed)
+				checkEvents, onSnapshot = feed.out, feed.onSnapshot
+			}
+		}
+
 		streamSnapshots(r.Context(), deps.Drain.streamsStopped(), w, flusher, ch, func(snap dashboard.Snapshot) dashboardResponse {
 			return buildDashboardResponse(r.Context(), deps, snap, view)
-		})
+		}, checkEvents, onSnapshot)
 	}
 }
 
 // streamSnapshots writes one server-sent event for each snapshot that arrives
 // on ch, until the client goes away, stopped closes (the server is shutting
 // down), ch closes, or a write fails.
-func streamSnapshots(ctx context.Context, stopped <-chan struct{}, w http.ResponseWriter, flusher http.Flusher, ch <-chan dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse) {
+func streamSnapshots(ctx context.Context, stopped <-chan struct{}, w http.ResponseWriter, flusher http.Flusher, ch <-chan dashboard.Snapshot, render func(dashboard.Snapshot) dashboardResponse, checkEvents <-chan []byte, onSnapshot func(dashboard.Snapshot)) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-stopped:
 			return
+		case data := <-checkEvents:
+			if _, err := fmt.Fprintf(w, "event: checks\ndata: %s\n\n", data); err != nil {
+				return
+			}
+			flusher.Flush()
 		case snap, open := <-ch:
 			if !open {
 				return
+			}
+			if onSnapshot != nil {
+				onSnapshot(snap)
 			}
 			data, err := json.Marshal(render(snap))
 			if err != nil {
