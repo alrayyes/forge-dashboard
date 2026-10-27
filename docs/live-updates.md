@@ -32,7 +32,7 @@ a check's pill changes where it stands, in the order the panel already shows,
 when the live stream says that pull request's or branch's CI changed. The
 panel tells the stream which row it shows, and the server sends that row's job
 list when the panel opens and again for each such change, and none while
-nothing changes, so a finished pipeline costs no more forge reads, and a rerun
+nothing changes, so a finished pipeline is not read again, and a rerun
 that starts sends it again once. The panel never polls the forge, and the list
 arrives as a named `checks` event that the plain snapshot readers don't see.
 If the stream is down, the panel says so with a Retry button. If the browser
