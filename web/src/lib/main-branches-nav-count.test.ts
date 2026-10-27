@@ -1,6 +1,11 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { branchNavCount, type MainBranchCounts } from './main-branches';
+import {
+  branchNavCount,
+  countMainBranches,
+  type MainBranchCounts,
+  statusCount,
+} from './main-branches';
 
 // The Branches nav pill and the Main branches page chips are two readings of
 // one tally. The page reads /api/main-branches on its own timer and the pill
@@ -29,5 +34,29 @@ describe('branchNavCount', () => {
       none: 6,
       awaitingApproval: 0,
     });
+  });
+});
+
+describe('a row and the pills that count it', () => {
+  // A rerun leaves a row read mid-run: one failing row among passed ones. The
+  // nav pill, the page's Failed chip and the row's own status are one fact.
+  const rows = [
+    { status: 'failed' },
+    { status: 'passed' },
+    { status: 'running' },
+  ] as const;
+
+  test('the nav pill and the page chip count the failed row alike', () => {
+    const tally = countMainBranches(rows);
+
+    expect(branchNavCount(tally).failed).toBe(statusCount(tally, 'failed'));
+  });
+
+  test('both count exactly the rows whose status is failed', () => {
+    const tally = countMainBranches(rows);
+
+    expect(branchNavCount(tally).failed).toBe(
+      rows.filter((r) => r.status === 'failed').length,
+    );
   });
 });
