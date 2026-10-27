@@ -1,5 +1,16 @@
 # Changelog
 
+## [5.0.0](https://github.com/alrayyes/forge-dashboard/compare/v4.0.1...v5.0.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* a client that took a `runId` on a check to mean "can still be cancelled" must read the check's `state` instead. Affects forge-dashboard-sdk-go, forge-dashboard-sdk-node, forge-dashboard-sdk-php, forge-dashboard-sdk-python and forge-board-cloud-api.
+
+### Features
+
+* name the run on every job ([#2972](https://github.com/alrayyes/forge-dashboard/issues/2972)) ([7e1051e](https://github.com/alrayyes/forge-dashboard/commit/7e1051e9412a8c8198f440c12763aa82e16f513b))
+
 ## [4.0.1](https://github.com/alrayyes/forge-dashboard/compare/v4.0.0...v4.0.1) (2026-10-27)
 
 
