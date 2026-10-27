@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.42.2](https://github.com/alrayyes/forge-dashboard/compare/v2.42.1...v2.42.2) (2026-10-27)
+
+
+### Bug Fixes
+
+* hide Rebase all when nothing is out of date ([#2940](https://github.com/alrayyes/forge-dashboard/issues/2940)) ([448930e](https://github.com/alrayyes/forge-dashboard/commit/448930e37d82ba936736ed7ebbc2cee299930e20)), closes [#2939](https://github.com/alrayyes/forge-dashboard/issues/2939)
+
 ## [2.42.1](https://github.com/alrayyes/forge-dashboard/compare/v2.42.0...v2.42.1) (2026-10-27)
 
 
