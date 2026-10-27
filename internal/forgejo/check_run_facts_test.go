@@ -5,11 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestListDefaultBranchChecks_CarriesTheRunsOwnFacts(t *testing.T) {

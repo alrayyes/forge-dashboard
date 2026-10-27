@@ -4,10 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
 func runOf(t *testing.T, checkRuns []map[string]any, name string) *dashboard.RunFacts {
