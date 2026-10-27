@@ -1724,13 +1724,13 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			probes = append(probes, "")
 		}
 		for _, j := range jobs {
-			checks = append(checks, withRun(dashboard.Check{
+			checks = append(checks, withRun(withJobTimes(dashboard.Check{
 				Name:       j.Name,
 				State:      checkStateFromWorkflowStatus(j.Status),
 				URL:        j.HTMLURL,
 				JobID:      j.ID,
 				RunAttempt: j.RunAttempt,
-			}, run.ID, workflowName(run), run.RunNumber))
+			}, j), run.ID, workflowName(run), run.RunNumber))
 			probes = append(probes, workflowContext(run, j.Name))
 			excerptKeys[j.ID] = newExcerptKey(owner, name, j)
 		}

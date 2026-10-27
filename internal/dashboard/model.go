@@ -140,9 +140,9 @@ type Check struct {
 	StartedAt   *time.Time `json:"startedAt,omitempty"`
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 	// RunAttempt is which attempt of its workflow run the job belongs to,
-	// 0 and omitted when the forge doesn't number them. Forgejo keeps a
-	// job's id and page when it reruns, so the attempt is what tells the
-	// rerun's log from the first run's.
+	// 0 and omitted when the forge doesn't number them. Both forges keep the
+	// run's id when it reruns, and Forgejo keeps a job's id and page too, so
+	// the attempt is what tells the rerun's log from the first run's.
 	RunAttempt int64 `json:"runAttempt,omitempty"`
 	// FailedStep names the step of a failed job that broke, and Excerpt is
 	// the tail of its log as plain text, capped in length (#697). Both are

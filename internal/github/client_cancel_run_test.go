@@ -103,9 +103,9 @@ func (s *cancelServer) runsHandler(t *testing.T) http.HandlerFunc {
 			return
 		}
 		all := []map[string]any{
-			{"id": 800, "name": "Old", "run_number": 11, "status": "completed"},
+			{"id": 800, "name": "Old", "run_number": 11, "run_attempt": 3, "status": "completed"},
 			{"id": 801, "name": "Older", "run_number": 10, "status": "completed"},
-			{"id": 900, "name": "CI", "run_number": 12, "status": "in_progress"},
+			{"id": 900, "name": "CI", "run_number": 12, "run_attempt": 2, "status": "in_progress"},
 			{"id": 901, "name": "Release", "status": "queued"},
 		}
 		status := r.URL.Query().Get("status")

@@ -346,13 +346,13 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 	for _, r := range runs {
 		if list := jobs[r.ID]; len(list) > 0 {
 			for _, j := range list {
-				out = append(out, withRun(dashboard.Check{
+				out = append(out, withRun(withJobTimes(dashboard.Check{
 					Name:       j.Name,
 					State:      checkStateFromWorkflowStatus(j.Status),
 					URL:        j.HTMLURL,
 					JobID:      j.ID,
 					RunAttempt: j.RunAttempt,
-				}, r.ID, runName(r), r.Number))
+				}, j), r.ID, runName(r), r.Number))
 			}
 
 			continue
