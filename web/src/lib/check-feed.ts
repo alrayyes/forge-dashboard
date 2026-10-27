@@ -1,7 +1,7 @@
 // The job lists of the pull requests and branches a page has open ride the
 // dashboard stream as named "checks" events. A page says which lists it wants
 // by posting its watch, and the server sends one per subject on every change,
-// so no board polls them or compares signatures to decide when to ask.
+// so no board polls them or decides when to ask.
 
 import type { Check } from './pipeline-checks';
 

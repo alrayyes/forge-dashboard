@@ -29,7 +29,7 @@
     // check failed or timed out.
     // The call is untracked, so the control must redraw itself when anything
     // else it reads changes (the Main branches page does, per stream message).
-    controls?: (failed: boolean) => HTMLElement | null;
+    controls?: (failed: boolean, checks: Check[]) => HTMLElement | null;
     // Offers Cancel run for each queued or running Actions run among the
     // checks. `allowed` is the board's own rule, read each time the checks
     // change: the pull request board passes whether the server offers
@@ -554,8 +554,9 @@
     // The target itself stays tracked, so pointing the dialog at another row
     // draws that row's control.
     const isFailed = failed;
+    const shown = checks;
     const current = target;
-    const node = untrack(() => current?.controls?.(isFailed)) ?? null;
+    const node = untrack(() => current?.controls?.(isFailed, shown)) ?? null;
     // The button the keyboard was on, by its place among the control's buttons
     // (Rerun, then a failure's Copy), so it keeps focus when the control is drawn
     // again.

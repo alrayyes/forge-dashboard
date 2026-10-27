@@ -2,7 +2,12 @@
 import { describe, expect, test } from 'bun:test';
 import { factsOf } from './check-facts-fixture';
 import { checkState } from './pipeline-checks';
-import { announceChange, checkKeys, keepOrder } from './pipeline-live';
+import {
+  announceChange,
+  checkKeys,
+  keepOrder,
+  runSignature,
+} from './pipeline-live';
 
 describe('keepOrder', () => {
   const c = (name: string, state: string) => ({
@@ -84,5 +89,48 @@ describe('checkKeys', () => {
 
   test('does not depend on where in the list a check stands', () => {
     expect(checkKeys([c('x'), c('job')])[1]).toBe(checkKeys([c('job')])[0]);
+  });
+});
+
+describe('runSignature', () => {
+  const c = (
+    name: string,
+    state: string,
+    runId?: number,
+    runAttempt?: number,
+  ) => ({
+    name,
+    ...factsOf(state),
+    url: '',
+    runId,
+    runAttempt,
+  });
+
+  test('is the same for the same facts in any order', () => {
+    const a = [c('build', 'success', 7, 1), c('test', 'running', 7, 1)];
+
+    expect(runSignature([...a].reverse())).toBe(runSignature(a));
+  });
+
+  test('changes when a check changes state', () => {
+    expect(runSignature([c('build', 'running', 7, 1)])).not.toBe(
+      runSignature([c('build', 'failure', 7, 1)]),
+    );
+  });
+
+  test('changes when a rerun starts a new attempt of the same run', () => {
+    expect(runSignature([c('build', 'failure', 7, 1)])).not.toBe(
+      runSignature([c('build', 'failure', 7, 2)]),
+    );
+  });
+
+  test('changes when a new run replaces the old one', () => {
+    expect(runSignature([c('build', 'failure', 7)])).not.toBe(
+      runSignature([c('build', 'failure', 8)]),
+    );
+  });
+
+  test('is empty for no checks', () => {
+    expect(runSignature([])).toBe('');
   });
 });

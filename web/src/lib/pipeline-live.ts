@@ -1,24 +1,25 @@
 // What an open pipeline panel does with a changed list of checks: keep the
 // order it shows, name what changed and key each check. No DOM here.
-import type { CheckCounts } from './check-counts';
 import { CHECK_STATE_LABELS, type Check, checkState } from './pipeline-checks';
 
-// What a row says about its CI. Equal signatures mean the row's pill reads the
-// same, so a control that waits for the pipeline to move has nothing new.
-export function ciSignature(row: {
-  ci: string;
-  checks?: CheckCounts;
-  runUrl?: string;
-}): string {
-  const c = row.checks;
-
-  return [
-    row.ci,
-    c
-      ? `${c.passed}/${c.skipped ?? 0}/${c.running}/${c.waiting}/${c.failed}`
-      : '',
-    row.runUrl ?? '',
-  ].join('|');
+// What the open panel's checks say, from the facts the stream sends: each
+// check's run, attempt, status and conclusion. Equal signatures mean nothing
+// moved, so a control that waits for the pipeline to move has nothing new. A
+// rerun changes it: the run's attempt, or its run, is new.
+export function runSignature(checks: Check[]): string {
+  return checks
+    .map((c) =>
+      [
+        c.name,
+        c.url,
+        c.runId ?? '',
+        c.runAttempt ?? '',
+        c.status,
+        c.conclusion ?? '',
+      ].join(':'),
+    )
+    .sort()
+    .join('|');
 }
 
 // The newest checks in the order the panel already shows them, so a check's

@@ -2,7 +2,8 @@
   import { onDestroy, onMount, untrack } from "svelte";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
-  import { ciSignature } from "#lib/pipeline-live.js";
+  import { runSignature } from "#lib/pipeline-live.js";
+  import type { Check } from "#lib/pipeline-checks.js";
   import { splitStaleRows } from "#lib/forge-starting.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
@@ -189,14 +190,19 @@
     host.replaceChildren(fresh);
   }
 
-  const branchSignature = (b: MainBranch) =>
-    ciSignature({ ci: b.status, checks: b.checks, runUrl: b.runUrl });
+  // The open dialog's checks, as the stream last sent them.
+  let dialogChecks: Check[] = [];
 
   // The newest copy of a row, since the dialog outlives the polls.
   const latest = (b: MainBranch) =>
     data?.branches.find(
       (x) => x.forge === b.forge && x.fullName === b.fullName,
     ) ?? b;
+
+  // What a queued rerun waits to see move: the branch's commit or run, or any
+  // check's run, attempt or outcome.
+  const branchSignature = (b: MainBranch) =>
+    [b.commit?.sha ?? "", b.runUrl ?? "", runSignature(dialogChecks)].join("|");
 
   function openPipeline(b: MainBranch, opener: HTMLElement) {
     openRow = b;
@@ -210,7 +216,8 @@
       // A branch has no allowed-actions list: Cancel run is offered for each
       // run the checks name as going.
       cancel: { forge: b.forge, fullName: b.fullName },
-      controls: (failed) => {
+      controls: (failed, checks) => {
+        dialogChecks = checks;
         if (!failed || !openRow) return null;
         const wrap = document.createElement("div");
         const note = document.createElement("p");
