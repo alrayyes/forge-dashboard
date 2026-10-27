@@ -32,13 +32,55 @@ type checkSubject struct {
 	Number   int    `json:"number,omitempty"`
 }
 
-// checkListEvent is the payload of the stream's named "checks" event: the job list
-// of one subject, or why it could not be listed.
-type checkListEvent struct {
+// runEvent is the payload of the stream's named "run" event. A subject's job
+// list is sent as one event for each workflow run attempt it holds, and one for
+// each check that belongs to no run. Key names that unit, so a later event with
+// the same key replaces the earlier one; Gone says the unit is no longer
+// listed. The last event of a listing is marked Final, and an event with no
+// Key and no Checks says the subject has none. An Error stands in for the
+// whole listing.
+type runEvent struct {
 	checkSubject
 
-	Checks []dashboard.Check `json:"checks"`
-	Error  string            `json:"error,omitempty"`
+	Key        string            `json:"key,omitempty"`
+	RunID      int64             `json:"runId,omitempty"`
+	RunAttempt int64             `json:"runAttempt,omitempty"`
+	Checks     []dashboard.Check `json:"checks,omitempty"`
+	Gone       bool              `json:"gone,omitempty"`
+	Final      bool              `json:"final,omitempty"`
+	Error      string            `json:"error,omitempty"`
+}
+
+// runGroup is the jobs of one run attempt, or one check that has no run.
+type runGroup struct {
+	key        string
+	runID      int64
+	runAttempt int64
+	checks     []dashboard.Check
+}
+
+// groupRuns splits a job list by run and attempt, in the order each first
+// appears. A rerun keeps its run id and moves to a new attempt, so the pair is
+// what tells one from the other. A check without a run is a group of its own,
+// named by its address and name.
+func groupRuns(checks []dashboard.Check) []runGroup {
+	var groups []runGroup
+	at := map[string]int{}
+	for _, c := range checks {
+		key := fmt.Sprintf("job/%s|%s", c.URL, c.Name)
+		if c.RunID > 0 {
+			key = fmt.Sprintf("run/%d/%d", c.RunID, c.RunAttempt)
+		}
+		i, ok := at[key]
+		if !ok {
+			i = len(groups)
+			at[key] = i
+			groups = append(groups, runGroup{key: key, runID: c.RunID, runAttempt: c.RunAttempt})
+		}
+		groups[i].checks = append(groups[i].checks, c)
+	}
+
+	return groups
 }
 
 // checkWatches tracks which subjects each open stream follows. It is created
@@ -101,6 +143,9 @@ func (c *checkWatches) find(id string) *checkWatch {
 type watchedSubject struct {
 	sig string
 	gen int
+	// sent holds the keys of the runs the last listing sent, so the next one
+	// can say which are gone.
+	sent []string
 }
 
 // retrySig never equals a row's signature, so the next snapshot lists again
@@ -165,33 +210,62 @@ func (w *checkWatch) listLocked(s checkSubject, held *watchedSubject) {
 }
 
 func (w *checkWatch) list(s checkSubject, held *watchedSubject, gen int) {
-	ev := checkListEvent{checkSubject: s}
-	var serr *statusError
-	ev.Checks, serr = w.fetch(w.ctx, s)
-	if serr != nil {
-		ev.Checks, ev.Error = nil, serr.message
-	} else if ev.Checks == nil {
-		ev.Checks = []dashboard.Check{}
-	}
+	checks, serr := w.fetch(w.ctx, s)
 
 	w.mu.Lock()
 	current := w.watched[s] == held && held.gen == gen
-	if current && serr != nil {
-		held.sig = retrySig
+	var events []runEvent
+	if current {
+		if serr != nil {
+			held.sig = retrySig
+			events = []runEvent{{checkSubject: s, Error: serr.message}}
+		} else {
+			events = held.events(s, checks)
+		}
 	}
 	w.mu.Unlock()
-	if !current {
-		return
-	}
 
-	data, err := json.Marshal(ev)
-	if err != nil {
-		return
+	for _, ev := range events {
+		data, err := json.Marshal(ev)
+		if err != nil {
+			return
+		}
+		select {
+		case w.out <- data:
+		case <-w.ctx.Done():
+			return
+		}
 	}
-	select {
-	case w.out <- data:
-	case <-w.ctx.Done():
+}
+
+// events turns one job list into the run events that bring a page up to date:
+// every run, then each run the last listing sent and this one lacks. The caller
+// holds the watch's lock.
+func (held *watchedSubject) events(s checkSubject, checks []dashboard.Check) []runEvent {
+	groups := groupRuns(checks)
+	listed := make(map[string]bool, len(groups))
+	events := make([]runEvent, 0, len(groups)+len(held.sent))
+	for _, g := range groups {
+		listed[g.key] = true
+		events = append(events, runEvent{
+			checkSubject: s, Key: g.key, RunID: g.runID, RunAttempt: g.runAttempt, Checks: g.checks,
+		})
 	}
+	for _, key := range held.sent {
+		if !listed[key] {
+			events = append(events, runEvent{checkSubject: s, Key: key, Gone: true})
+		}
+	}
+	held.sent = held.sent[:0:0]
+	for _, g := range groups {
+		held.sent = append(held.sent, g.key)
+	}
+	if len(events) == 0 {
+		events = append(events, runEvent{checkSubject: s})
+	}
+	events[len(events)-1].Final = true
+
+	return events
 }
 
 // rowSignature says what about a subject's row in snap means its job list may
@@ -222,7 +296,7 @@ type watchRequest struct {
 }
 
 // handleStreamWatch sets which pull requests and branches a dashboard stream
-// sends job lists for. The lists come back as "checks" events on that stream.
+// sends job lists for. The lists come back as "run" events on that stream.
 func handleStreamWatch(watches *checkWatches) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req watchRequest

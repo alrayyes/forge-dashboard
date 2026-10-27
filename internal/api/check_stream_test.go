@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,8 +23,16 @@ const watchedStreamID = "0b1f4c6e-5d2a-4e7b-9c3d-2a6f8e1b7c40"
 type checkFeedSource struct {
 	ci       atomic.Value // dashboard.CIStatus
 	lists    atomic.Int64
-	checks   []dashboard.Check
 	checkErr error
+
+	mu     sync.Mutex
+	checks []dashboard.Check
+}
+
+func (s *checkFeedSource) setChecks(checks []dashboard.Check) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.checks = checks
 }
 
 func (s *checkFeedSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
@@ -41,6 +50,8 @@ func (s *checkFeedSource) Fetch(_ context.Context) dashboard.Result {
 
 func (s *checkFeedSource) ListChecks(_ context.Context, _, _ string, _ int) ([]dashboard.Check, error) {
 	s.lists.Add(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	return s.checks, s.checkErr
 }
@@ -117,13 +128,14 @@ func (f *checkFeed) watch(t *testing.T, body string) int {
 	return resp.StatusCode
 }
 
-func (f *checkFeed) nextChecks(t *testing.T) map[string]any {
+// nextRun answers the next "run" event on the stream.
+func (f *checkFeed) nextRun(t *testing.T) map[string]any {
 	t.Helper()
 	for {
 		select {
 		case ev, ok := <-f.events:
-			require.True(t, ok, "stream closed before a checks event arrived")
-			if ev.name != "checks" {
+			require.True(t, ok, "stream closed before a run event arrived")
+			if ev.name != "run" {
 				continue
 			}
 			var got map[string]any
@@ -131,30 +143,72 @@ func (f *checkFeed) nextChecks(t *testing.T) map[string]any {
 
 			return got
 		case <-time.After(pollBudget):
-			t.Fatal("no checks event arrived")
+			t.Fatal("no run event arrived")
+		}
+	}
+}
+
+// nextListing reads run events up to the one that ends a listing, which is
+// the one marked final or the one carrying an error.
+func (f *checkFeed) nextListing(t *testing.T) []map[string]any {
+	t.Helper()
+	var got []map[string]any
+	for {
+		ev := f.nextRun(t)
+		got = append(got, ev)
+		if ev["final"] == true || ev["error"] != nil {
+			return got
 		}
 	}
 }
 
 const watchPR = `{"streamId":"` + watchedStreamID + `","subjects":[{"kind":"pull_request","forge":"github","fullName":"alrayyes/tempus-fugit","number":7}]}`
 
-func TestCheckStream_WatchingAPullRequestSendsItsChecks(t *testing.T) {
+func TestCheckStream_WatchingAPullRequestSendsOneEventPerRun(t *testing.T) {
 	t.Parallel()
 
-	source := &checkFeedSource{checks: []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess}}}
+	source := &checkFeedSource{checks: []dashboard.Check{
+		{Name: "build", State: dashboard.CheckSuccess, RunID: 11, RunAttempt: 1},
+		{Name: "lint", State: dashboard.CheckSuccess, RunID: 11, RunAttempt: 1},
+		{Name: "e2e", State: dashboard.CheckRunning, RunID: 12, RunAttempt: 1},
+		{Name: "codecov", State: dashboard.CheckSuccess, URL: "https://codecov.io/x"},
+	}}
 	feed, _ := openCheckFeed(t, source)
 
 	require.Equal(t, http.StatusNoContent, feed.watch(t, watchPR))
 
-	got := feed.nextChecks(t)
-	assert.Equal(t, "pull_request", got["kind"])
-	assert.Equal(t, "github", got["forge"])
-	assert.Equal(t, "alrayyes/tempus-fugit", got["fullName"])
-	assert.InDelta(t, 7, got["number"], 0)
-	checks, ok := got["checks"].([]any)
-	require.True(t, ok)
-	require.Len(t, checks, 1)
-	assert.Equal(t, "build", checks[0].(map[string]any)["name"])
+	got := feed.nextListing(t)
+	require.Len(t, got, 3)
+	assert.Equal(t, "pull_request", got[0]["kind"])
+	assert.Equal(t, "github", got[0]["forge"])
+	assert.Equal(t, "alrayyes/tempus-fugit", got[0]["fullName"])
+	assert.InDelta(t, 7, got[0]["number"], 0)
+	assert.Equal(t, "run/11/1", got[0]["key"])
+	assert.InDelta(t, 11, got[0]["runId"], 0)
+	assert.InDelta(t, 1, got[0]["runAttempt"], 0)
+	assert.Len(t, got[0]["checks"], 2)
+	assert.Equal(t, "run/12/1", got[1]["key"])
+	assert.Len(t, got[1]["checks"], 1)
+	assert.Equal(t, "job/https://codecov.io/x|codecov", got[2]["key"])
+	assert.Nil(t, got[2]["runId"])
+	assert.Len(t, got[2]["checks"], 1)
+	assert.Nil(t, got[0]["final"])
+	assert.Nil(t, got[1]["final"])
+	assert.Equal(t, true, got[2]["final"])
+}
+
+func TestCheckStream_ASubjectWithoutChecksSendsOneEmptyEvent(t *testing.T) {
+	t.Parallel()
+
+	feed, _ := openCheckFeed(t, &checkFeedSource{})
+
+	feed.watch(t, watchPR)
+
+	got := feed.nextListing(t)
+	require.Len(t, got, 1)
+	assert.Nil(t, got[0]["key"])
+	assert.Empty(t, got[0]["checks"])
+	assert.Equal(t, true, got[0]["final"])
 }
 
 func TestCheckStream_EachCheckCarriesStatusAndConclusionNotState(t *testing.T) {
@@ -164,9 +218,37 @@ func TestCheckStream_EachCheckCarriesStatusAndConclusionNotState(t *testing.T) {
 	feed, _ := openCheckFeed(t, source)
 	feed.watch(t, watchPR)
 
-	check := feed.nextChecks(t)["checks"].([]any)[0].(map[string]any)
+	check := feed.nextRun(t)["checks"].([]any)[0].(map[string]any)
 
 	assert.Equal(t, map[string]any{"name": "build", "status": "completed", "conclusion": "timed_out", "url": ""}, check)
+}
+
+func TestCheckStream_ARerunReplacesItsAttemptAndTheOldOneIsGone(t *testing.T) {
+	t.Parallel()
+
+	source := &checkFeedSource{checks: []dashboard.Check{
+		{Name: "build", State: dashboard.CheckFailure, RunID: 11, RunAttempt: 1},
+		{Name: "lint", State: dashboard.CheckSuccess, RunID: 12, RunAttempt: 1},
+	}}
+	feed, _ := openCheckFeed(t, source)
+	feed.watch(t, watchPR)
+	feed.nextListing(t)
+
+	source.setChecks([]dashboard.Check{
+		{Name: "build", State: dashboard.CheckRunning, RunID: 11, RunAttempt: 2},
+		{Name: "lint", State: dashboard.CheckSuccess, RunID: 12, RunAttempt: 1},
+	})
+	feed.watch(t, strings.Replace(watchPR, `"subjects"`, `"refresh":true,"subjects"`, 1))
+	got := feed.nextListing(t)
+
+	require.Len(t, got, 3)
+	assert.Equal(t, "run/11/2", got[0]["key"])
+	assert.InDelta(t, 2, got[0]["runAttempt"], 0)
+	assert.Equal(t, "run/12/1", got[1]["key"])
+	assert.Equal(t, "run/11/1", got[2]["key"])
+	assert.Equal(t, true, got[2]["gone"])
+	assert.Empty(t, got[2]["checks"])
+	assert.Equal(t, true, got[2]["final"])
 }
 
 func TestCheckStream_AFailedListSendsTheErrorInsteadOfChecks(t *testing.T) {
@@ -177,7 +259,7 @@ func TestCheckStream_AFailedListSendsTheErrorInsteadOfChecks(t *testing.T) {
 
 	feed.watch(t, watchPR)
 
-	got := feed.nextChecks(t)
+	got := feed.nextRun(t)
 	assert.NotEmpty(t, got["error"])
 	assert.Nil(t, got["checks"])
 }
@@ -188,10 +270,10 @@ func TestCheckStream_RefreshSendsTheChecksAgain(t *testing.T) {
 	source := &checkFeedSource{checks: []dashboard.Check{}}
 	feed, _ := openCheckFeed(t, source)
 	feed.watch(t, watchPR)
-	feed.nextChecks(t)
+	feed.nextListing(t)
 
 	feed.watch(t, strings.Replace(watchPR, `"subjects"`, `"refresh":true,"subjects"`, 1))
-	feed.nextChecks(t)
+	feed.nextListing(t)
 
 	assert.EqualValues(t, 2, source.lists.Load())
 }
@@ -203,12 +285,12 @@ func TestCheckStream_ASnapshotWhereTheWatchedRowChangedSendsTheChecksAgain(t *te
 	source.ci.Store(dashboard.CIPending)
 	feed, hook := openCheckFeed(t, source)
 	feed.watch(t, watchPR)
-	feed.nextChecks(t)
+	feed.nextListing(t)
 
 	source.ci.Store(dashboard.CISuccess)
 	tokenSecret := strings.SplitN(hook, ":", 2)
 	triggerWebhook(t, feed.srvURL, tokenSecret[0], tokenSecret[1])
-	feed.nextChecks(t)
+	feed.nextListing(t)
 
 	assert.EqualValues(t, 2, source.lists.Load())
 }
