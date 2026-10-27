@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 interface WebMCPTool {
@@ -126,12 +127,6 @@ test.describe('WebMCP tools', () => {
   const readTools = [
     { tool: 'get_main_branches', input: {}, path: '/api/main-branches' },
     {
-      tool: 'get_main_branch_checks',
-      input: { forge: 'forgejo', fullName: 'acme/api' },
-      path: '/api/main-branches/checks',
-      query: 'forge=forgejo&fullName=acme%2Fapi',
-    },
-    {
       tool: 'get_check_log',
       input: { forge: 'forgejo', fullName: 'acme/api', jobId: 31 },
       path: '/api/checks/log',
@@ -142,12 +137,6 @@ test.describe('WebMCP tools', () => {
       input: { forge: 'github', fullName: 'acme/api' },
       path: '/api/main-branches/advisories',
       query: 'forge=github&fullName=acme%2Fapi',
-    },
-    {
-      tool: 'get_pull_request_checks',
-      input: PR,
-      path: '/api/pull-requests/checks',
-      query: PR_QUERY,
     },
     {
       tool: 'get_pull_request_details',
@@ -184,6 +173,30 @@ test.describe('WebMCP tools', () => {
       expect(seen).toEqual([query ?? '']);
     });
   }
+
+  // The two check tools have no HTTP twin: they read the job list off the
+  // dashboard stream, the way the pipeline dialog does.
+  test('get_pull_request_checks returns the list the stream sends', async ({
+    page,
+  }) => {
+    const checks = [{ name: 'build', state: 'success', url: 'https://ci/1' }];
+    const feed = await serveChecks(page, () => checks);
+    await stubModelContext(page);
+    await page.goto('/pull-requests.html');
+    await page.waitForFunction(() => window.__webmcpTools.length > 0);
+
+    const result = await page.evaluate((args) => {
+      const t = window.__webmcpTools.find(
+        (x) => x.name === 'get_pull_request_checks',
+      );
+      if (!t) throw new Error('get_pull_request_checks tool not registered');
+
+      return t.execute(args);
+    }, PR);
+
+    expect(result).toEqual({ checks });
+    expect(feed.asked).toEqual([{ kind: 'pull_request', ...PR }]);
+  });
 
   test('list_queued_actions calls /api/queued-actions and returns the array under queuedActions', async ({
     page,

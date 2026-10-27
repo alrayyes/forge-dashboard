@@ -428,7 +428,7 @@ func (s *GenericSource) DisableAutoMerge(ctx context.Context, owner, name string
 // use. #455: this forwarding was missing entirely — internal/forgejo.Client
 // already implements PullRequestChecker, but GenericSource (what
 // BuildSources actually registers for Forgejo) never exposed it, so the
-// type assertion in handlePullRequestChecks always failed for a real
+// type assertion in the check lookup always failed for a real
 // Forgejo pull request.
 func (s *GenericSource) ListChecks(ctx context.Context, owner, name string, number int) ([]Check, error) {
 	checker, ok := s.client.(PullRequestChecker)

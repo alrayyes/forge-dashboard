@@ -121,7 +121,18 @@ func TestMCPParity_TheToolTableMatchesTheServedTools(t *testing.T) {
 	for tool := range mcpToolOperations {
 		claimed = append(claimed, tool)
 	}
+	claimed = append(claimed, mcpStreamTools...)
 	slices.Sort(claimed)
 
 	assert.Equal(t, claimed, registeredMCPTools(t))
+}
+
+// A job list rides the dashboard stream and has no HTTP operation, so a tool
+// that reads one can't be in the operation table.
+func TestMCPParity_AStreamToolStandsForNoOperation(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range mcpStreamTools {
+		assert.NotContains(t, mcpToolOperations, tool)
+	}
 }

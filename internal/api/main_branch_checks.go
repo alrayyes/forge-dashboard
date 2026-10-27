@@ -12,7 +12,7 @@ import (
 // resolveMainBranchChecksFor lists every job/check of the newest pipeline on the
 // named repository's default branch. It is the branch twin of
 // resolvePullRequestChecksFor and shares its response shape, so the pipeline
-// panel that renders one renders the other. Shared by handleMainBranchChecks
+// panel that renders one renders the other. Shared by the check stream
 // and the MCP get_main_branch_checks tool so the two can't drift.
 func resolveMainBranchChecksFor(ctx context.Context, deps Deps, forge, fullName string) ([]dashboard.Check, *statusError) {
 	owner, name, ok := splitFullName(fullName)
@@ -40,22 +40,6 @@ func resolveMainBranchChecksFor(ctx context.Context, deps Deps, forge, fullName 
 	}
 
 	return checks, nil
-}
-
-// handleMainBranchChecks serves resolveMainBranchChecksFor over HTTP. A GET that
-// fetches on demand, like GET /api/pull-requests/checks: the job list is never
-// part of the dashboard snapshot.
-func handleMainBranchChecks(deps Deps) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		checks, serr := resolveMainBranchChecksFor(r.Context(), deps, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"))
-		if serr != nil {
-			serr.write(w)
-
-			return
-		}
-
-		writeJSON(w, http.StatusOK, pullRequestChecksResponse{Checks: checks})
-	}
 }
 
 // trackedMainBranch finds fullName's row among the ones the user's Main

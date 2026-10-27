@@ -84,12 +84,13 @@ and the cost are in
   (a pull request's description, comments and reactions). That one reads the
   forge on demand and spends budget: one GraphQL query on GitHub, up to 53
   requests on Forgejo. Another is
-  `get_pull_request_checks`, which mirrors `GET /api/pull-requests/checks`
-  (a pull request's individual CI checks). It spends budget too: 4 REST
+  `get_pull_request_checks`, which reads a pull request's individual CI
+  checks. It has no HTTP endpoint: the jobs travel on the dashboard stream,
+  and the WebMCP tool reads them there. It spends budget too: 4 REST
   requests on GitHub (more for failed jobs), 3 plus one per run on Forgejo
   (and one log read per failed job, five at most).
-  `get_main_branch_checks` mirrors `GET /api/main-branches/checks` (the jobs
-  of a default branch's newest pipeline, in the same shape). It spends
+  `get_main_branch_checks` does the same for the jobs of a default branch's
+  newest pipeline, in the same shape. It spends
   budget too: one request for the commits plus one per commit until one has
   checks on GitHub, 3 plus one per run on Forgejo (and one log read per
   failed job, five at most).

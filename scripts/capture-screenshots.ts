@@ -18,6 +18,7 @@
 
 import path from 'node:path';
 import { chromium } from '@playwright/test';
+import { serveChecks } from '../tests/checks-feed-helper';
 import { addVirtualAuthenticator } from '../tests/webauthn-helper';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
@@ -563,13 +564,9 @@ async function main() {
       body: JSON.stringify({ ...SNAPSHOT, repos: REPOS }),
     }),
   );
-  await page.route('**/api/pull-requests/checks*', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(CHECKS),
-    }),
-  );
+  // The pipeline panel reads its job list off the stream, so a stand-in
+  // stream answers the page's watch with the fixture.
+  await serveChecks(page, () => CHECKS.checks);
 
   await page.route('**/api/pull-requests/details*', (route) => {
     const number = Number(

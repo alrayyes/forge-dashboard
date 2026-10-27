@@ -137,8 +137,12 @@ const PENDING: Record<string, string> = Object.fromEntries(
 const tools = createWebMCPTools({
   getDashboard: async () => ({}),
 });
-const TOOL_OPERATIONS = Object.fromEntries(
-  tools.map((t) => [t.name, t.operationId]),
+// Tools that read the dashboard stream: a job list has no HTTP operation, so
+// these carry no operationId and nothing in the spec to cover.
+const STREAM_TOOLS = ['get_main_branch_checks', 'get_pull_request_checks'];
+
+const TOOL_OPERATIONS: Record<string, string> = Object.fromEntries(
+  tools.flatMap((t) => (t.operationId ? [[t.name, t.operationId]] : [])),
 );
 
 const realSpec = Bun.YAML.parse(
@@ -218,8 +222,14 @@ describe('api/openapi.yaml against the WebMCP tools', () => {
   test('every tool maps to an operation in the spec', () => {
     const { ids } = specOperations(realSpec);
     for (const tool of tools) {
-      expect(ids).toContain(tool.operationId);
+      if (tool.operationId) expect(ids).toContain(tool.operationId);
     }
+  });
+
+  test('only the stream-backed tools go without an operation', () => {
+    expect(tools.filter((t) => !t.operationId).map((t) => t.name)).toEqual(
+      STREAM_TOOLS,
+    );
   });
 
   test('every tool has a description, and an object input schema if any', () => {
