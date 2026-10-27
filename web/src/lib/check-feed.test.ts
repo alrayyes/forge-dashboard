@@ -209,6 +209,103 @@ describe('watch', () => {
       expect(got).toEqual([{ checks: [job('build')] }, { checks: [] }]);
     });
 
+    test('a run missed during an outage does not outlive the reconnect', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('old')],
+        final: true,
+      });
+      source.emit('error');
+      // The server starts a new connection with nothing sent, so it never
+      // says that run/11/1 is gone.
+      source.open();
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/2',
+        runId: 11,
+        checks: [job('new')],
+        final: true,
+      });
+      expect(got.at(-1)).toEqual({ checks: [job('new')] });
+    });
+
+    test('a failed listing is not mixed into the next one', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('old')],
+        final: true,
+      });
+      source.emit('run', { ...pr, error: 'forge said no' });
+      source.emit('run', {
+        ...pr,
+        key: 'run/12/1',
+        runId: 12,
+        checks: [job('new')],
+        final: true,
+      });
+      expect(got.at(-1)).toEqual({ checks: [job('new')] });
+    });
+
+    test('a late event for a subject nobody watches is dropped', () => {
+      const { feed, source } = harness();
+      const unwatch = feed.watch(pr, () => {});
+      unwatch();
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('late')],
+      });
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/12/1',
+        runId: 12,
+        checks: [job('fresh')],
+        final: true,
+      });
+      expect(got).toEqual([{ checks: [job('fresh')] }]);
+    });
+
+    test('a run keeps its place when a rerun replaces its attempt in the list', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      for (const [id, name] of [
+        [11, 'build'],
+        [12, 'lint'],
+      ] as const)
+        source.emit('run', {
+          ...pr,
+          key: `run/${id}/1`,
+          runId: id,
+          checks: [job(name)],
+        });
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        checks: [job('build', 'in_progress')],
+        final: true,
+      });
+      // The same key is replaced where it stood. A new attempt has a new
+      // key, so it goes last, as in the rerun test above.
+      expect(got.at(-1)).toEqual({
+        checks: [job('build', 'in_progress'), job('lint')],
+      });
+    });
+
     test('holds a listing back from a subject that is not the one it names', () => {
       const { feed, source } = harness();
       const prGot: CheckFeedMessage[] = [];

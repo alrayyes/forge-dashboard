@@ -127,12 +127,17 @@ export function createCheckFeed({
       source = next;
       open = next.readyState === OPEN;
       if (open && subjects.size > 0) send(false);
+      // A new connection starts with the server remembering nothing it sent,
+      // so it can't retire a run this page still holds. Start from empty on
+      // both sides of a break.
       next.addEventListener('open', () => {
         open = true;
+        runs.clear();
         if (subjects.size > 0) send(false);
       });
       next.addEventListener('error', () => {
         if (next.readyState !== OPEN) open = false;
+        runs.clear();
         tellAll({ error: DOWN });
       });
       next.addEventListener('run', (event) => {
@@ -149,7 +154,12 @@ export function createCheckFeed({
           return;
         }
         const subject = keyOf(body);
+        // An event that outlived its watchers has nobody to tell, and must
+        // not leave an entry behind.
+        if (!listeners.has(subject) && !waiters.get(subject)?.size) return;
         if (body.error) {
+          // The next listing starts from empty, since it names every run.
+          runs.delete(subject);
           tell(subject, { error: body.error });
           return;
         }
