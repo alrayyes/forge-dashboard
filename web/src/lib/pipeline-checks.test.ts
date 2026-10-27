@@ -253,6 +253,15 @@ describe('checkState', () => {
     [{ status: 'completed', conclusion: 'cancelled' }, 'cancelled'],
     [{ status: 'completed', conclusion: 'skipped' }, 'skipped'],
     [{ status: 'completed', conclusion: 'timed_out' }, 'timed_out'],
+    [{ status: 'completed', conclusion: 'neutral' }, 'success'],
+    [{ status: 'completed', conclusion: 'stale' }, 'failure'],
+    [{ status: 'completed', conclusion: 'startup_failure' }, 'failure'],
+    [
+      { status: 'completed', conclusion: 'action_required' },
+      'awaiting_approval',
+    ],
+    [{ status: 'completed', conclusion: 'something_new' }, 'failure'],
+    [{ status: 'completed', conclusion: undefined }, 'failure'],
   ];
 
   for (const [over, state] of cases) {
