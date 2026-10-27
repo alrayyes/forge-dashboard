@@ -46,8 +46,9 @@ its jobs'. Each is left out where the forge gave none. A check that belongs to
 no run, such as a legacy commit status or a third-party check, has none of
 them, and neither does a GitHub check run whose workflow run the forge's lists
 don't hold. GitHub gives no finish time for a run, so that one is always
-missing there, and a run held back with no jobs yet may carry nothing but its
-status.
+missing there. A Forgejo run held back with no jobs yet arrives with nothing
+but its status. A held GitHub run has no run event of its own, so it carries no
+run facts.
 Each job in it carries a `status` (queued, in progress, completed or waiting)
 and, once it has finished, a `conclusion`. The conclusion is the forge's own
 word, not a fixed set: GitHub's `neutral`, `stale` and `action_required` arrive
