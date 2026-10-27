@@ -50,31 +50,46 @@ func jobStillGoing(ch dashboard.Check) bool {
 
 // runRef is the workflow run a job belongs to.
 type runRef struct {
-	id     int64
-	name   string
-	number int64
+	id      int64
+	name    string
+	number  int64
+	attempt int64
 }
 
 func refOf(run *ghsdk.WorkflowRun) runRef {
-	return runRef{id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber())}
+	return runRef{id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber()), attempt: int64(run.GetRunAttempt())}
 }
 
-// jobRunID is the id of the workflow run in an Actions job's page address
-// ("/actions/runs/<run>/job/<job>", with an "/attempts/<n>" after the run
-// tolerated), 0 for any other address.
-var jobRunID = regexp.MustCompile(`/actions/runs/(\d+)(?:/attempts/\d+)?/job/\d+`)
+// jobRunID matches an Actions job's page address,
+// "/actions/runs/<run>/job/<job>", with an "/attempts/<n>" after the run when
+// the page is one attempt's. Group 1 is the run, group 2 the attempt.
+var jobRunID = regexp.MustCompile(`/actions/runs/(\d+)(?:/attempts/(\d+))?/job/\d+`)
 
+// runIDOf is the id of the workflow run in an Actions job's page address, 0
+// for any other address.
 func runIDOf(jobURL string) int64 {
-	m := jobRunID.FindStringSubmatch(jobURL)
-	if m == nil {
-		return 0
-	}
-	id, err := strconv.ParseInt(m[1], 10, 64)
-	if err != nil {
-		return 0
-	}
+	id, _ := runAndAttemptOf(jobURL)
 
 	return id
+}
+
+// runAndAttemptOf is the run and the attempt an Actions job's page address
+// names. The attempt is 0 when the address doesn't carry one, and both are 0
+// for any other address.
+func runAndAttemptOf(jobURL string) (run, attempt int64) {
+	m := jobRunID.FindStringSubmatch(jobURL)
+	if m == nil {
+		return 0, 0
+	}
+	run, err := strconv.ParseInt(m[1], 10, 64)
+	if err != nil {
+		return 0, 0
+	}
+	if m[2] != "" {
+		attempt, _ = strconv.ParseInt(m[2], 10, 64)
+	}
+
+	return run, attempt
 }
 
 // attachRuns names the workflow run behind each check: the unit a cancel acts
@@ -101,14 +116,18 @@ func (c *Client) attachRuns(ctx context.Context, owner, name, sha string, checks
 		}
 	}
 	for i := range checks {
-		id := runIDOf(checks[i].URL)
+		id, attempt := runAndAttemptOf(checks[i].URL)
 		if checks[i].RunID != 0 || id == 0 {
 			continue
 		}
-		// The id is a fact of the address; the name and number need the lookup.
+		// The id and the attempt are facts of the address; the name, number and
+		// the run's latest attempt need the lookup.
 		ref, ok := known[id]
 		if !ok {
 			ref = runRef{id: id}
+		}
+		if attempt != 0 {
+			ref.attempt = attempt
 		}
 		setRun(&checks[i], ref)
 	}
@@ -137,7 +156,7 @@ func (c *Client) attachGoingRuns(ctx context.Context, owner, name, sha string, c
 }
 
 func setRun(ch *dashboard.Check, ref runRef) {
-	ch.RunID, ch.RunName, ch.RunNumber = ref.id, ref.name, ref.number
+	ch.RunID, ch.RunName, ch.RunNumber, ch.RunAttempt = ref.id, ref.name, ref.number, ref.attempt
 }
 
 // runJobs maps the id of each job of run to the run.
