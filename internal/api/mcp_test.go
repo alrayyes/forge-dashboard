@@ -449,7 +449,7 @@ func TestMCP_GetMainBranchChecks_ListsTheTool(t *testing.T) {
 	}
 }
 
-func TestMCP_GetMainBranchChecks_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
+func TestMCP_GetMainBranchChecks_ReturnsTheChecks(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeBranchCheckerSource{
@@ -468,11 +468,9 @@ func TestMCP_GetMainBranchChecks_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
-	resp := getMainBranchChecks(t, srvURL, cookie, "github", "alrayyes/tempus-fugit")
-	defer func() { _ = resp.Body.Close() }()
-	var httpContent map[string]any
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&httpContent))
-	assert.Equal(t, httpContent, result.StructuredContent)
+	assert.Equal(t, map[string]any{"checks": []any{
+		map[string]any{"name": "build", "state": "success", "url": "https://github.com/alrayyes/tempus-fugit/runs/1"},
+	}}, result.StructuredContent)
 }
 
 func TestMCP_GetMainBranchChecks_RefusesBadInput(t *testing.T) {
@@ -559,7 +557,7 @@ func TestMCP_GetPullRequestChecks_ListsTheTool(t *testing.T) {
 	}
 }
 
-func TestMCP_GetPullRequestChecks_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
+func TestMCP_GetPullRequestChecks_ReturnsTheChecks(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeCheckerSource{
@@ -579,13 +577,68 @@ func TestMCP_GetPullRequestChecks_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
-	resp := getPullRequestChecks(t, srvURL, cookie, "github", "alrayyes/tempus-fugit", 42)
-	defer func() { _ = resp.Body.Close() }()
-	var httpContent map[string]any
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&httpContent))
-	assert.Equal(t, httpContent, result.StructuredContent)
+	assert.Equal(t, map[string]any{"checks": []any{
+		map[string]any{"name": "build", "state": "success", "url": "https://github.com/alrayyes/tempus-fugit/runs/1"},
+		map[string]any{"name": "test", "state": "running", "url": "https://github.com/alrayyes/tempus-fugit/runs/2"},
+	}}, result.StructuredContent)
 	assert.Equal(t, "tempus-fugit", source.lastName)
 	assert.Equal(t, 42, source.lastNumber)
+}
+
+// Forgejo's real shape is a ForgeClient behind GenericSource. A fake Source that
+// implements the checker itself never exercises that forwarding (#455).
+func TestMCP_GetPullRequestChecks_ForgejoViaGenericSource_ReturnsChecks(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClientWithChecker{
+		checks: []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess, URL: "https://git.example/runs/1"}},
+	}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "get_pull_request_checks",
+		Arguments: map[string]any{"forge": "forgejo", "fullName": "alrayyes/tempus-fugit", "number": 7},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Equal(t, "tempus-fugit", client.lastName)
+	assert.Equal(t, 7, client.lastNumber)
+}
+
+func TestMCP_GetMainBranchChecks_ForgejoViaGenericSource_ReturnsChecks(t *testing.T) {
+	t.Parallel()
+
+	client := &fakeForgeClientWithBranchChecker{}
+	client.checks = []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess, URL: "https://git.example/runs/1"}}
+	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "get_main_branch_checks",
+		Arguments: map[string]any{"forge": "forgejo", "fullName": "alrayyes/tempus-fugit"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Equal(t, "tempus-fugit", client.lastName)
+}
+
+func TestMCP_GetMainBranchChecks_NoChecks_ReturnsAnEmptyArray(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeBranchCheckerSource{forge: dashboard.ForgeGitHub}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
+		Name:      "get_main_branch_checks",
+		Arguments: map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit"},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	assert.Equal(t, map[string]any{"checks": []any{}}, result.StructuredContent)
 }
 
 func TestMCP_GetPullRequestChecks_RefusesBadInput(t *testing.T) {
@@ -611,22 +664,14 @@ func TestMCP_GetPullRequestChecks_RefusesBadInput(t *testing.T) {
 	assert.Zero(t, source.lastNumber, "nothing reached the forge")
 }
 
-// A forge failure comes back with the message the endpoint's error body carries.
-func TestMCP_GetPullRequestChecks_ForgeErrorCarriesTheEndpointsMessage(t *testing.T) {
+// A forge failure comes back with the forge's own message.
+func TestMCP_GetPullRequestChecks_ForgeErrorCarriesTheForgesMessage(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeCheckerSource{
-		forge:     dashboard.ForgeGitHub,
-		checksErr: &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: rate limit exceeded")},
-	}
+	forgeErr := &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: rate limit exceeded")}
+	source := &fakeCheckerSource{forge: dashboard.ForgeGitHub, checksErr: forgeErr}
 	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
-
-	resp := getPullRequestChecks(t, srvURL, cookie, "github", "alrayyes/tempus-fugit", 1)
-	defer func() { _ = resp.Body.Close() }()
-	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
-	var body map[string]string
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
 		Name:      "get_pull_request_checks",
@@ -637,7 +682,7 @@ func TestMCP_GetPullRequestChecks_ForgeErrorCarriesTheEndpointsMessage(t *testin
 	require.Len(t, result.Content, 1)
 	text, ok := result.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
-	assert.Equal(t, body["error"], text.Text)
+	assert.Equal(t, forgeErr.Error(), text.Text)
 }
 
 func TestMCP_GetRepositoryAdvisories_ListsTheTool(t *testing.T) {

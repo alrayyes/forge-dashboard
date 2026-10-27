@@ -33,7 +33,7 @@ describe('formatCheckDuration', () => {
 });
 
 describe('CHECK_STATE_LABELS', () => {
-  test('names every state the checks endpoint can answer', () => {
+  test('names every state a check can be in', () => {
     expect(Object.keys(CHECK_STATE_LABELS).sort()).toEqual([
       'awaiting_approval',
       'cancelled',

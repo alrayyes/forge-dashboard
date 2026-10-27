@@ -8,6 +8,7 @@ import {
 } from './actions-dialog-helper';
 import { checkLinkName } from './check-link-name-helper';
 import { serveChecks } from './checks-feed-helper';
+import { closeStream } from './fake-stream-helper';
 import { test } from './server-fixture';
 
 interface MockPR {
@@ -1158,6 +1159,63 @@ test.describe('pull request pipeline checks panel', () => {
 
     await dialog.getByRole('button', { name: 'Retry' }).click();
     await expect(dialog.locator('.pipeline-check')).toHaveCount(1);
+  });
+
+  test('a closed stream shows the error and a Retry, then the list once it is back', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await mockDashboard(page, 'github', makePR());
+    await serveChecks(page, () => [
+      { name: 'build', state: 'success', url: 'https://example.com/1' },
+    ]);
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+    const open = row.getByRole('button', { name: 'Open pipeline' });
+    // The stream opens with the first snapshot.
+    await expect(open).toBeVisible();
+    await page.clock.pauseAt(new Date(Date.now() + 60000));
+    await closeStream(page);
+    await open.click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.getByRole('alert')).toContainText(
+      /connection is down/i,
+    );
+    await expect(dialog.getByText('Loading checks')).toHaveCount(0);
+
+    // With nothing to ask, Retry says so rather than spinning.
+    await dialog.getByRole('button', { name: 'Retry' }).click();
+    await expect(dialog.getByRole('alert')).toContainText(/no answer/i);
+
+    // The page opens the stream again; the watch goes out with it.
+    await page.clock.runFor(3000);
+    await expect(dialog.locator('.pipeline-check')).toHaveCount(1);
+  });
+
+  test('a stream that never connects stops the spinner and offers a Retry', async ({
+    page,
+  }) => {
+    // The beforeEach aborts the real stream, so the browser keeps retrying it:
+    // connecting, never closed.
+    await page.clock.install();
+    await mockDashboard(page, 'github', makePR());
+    await page.goto('/pull-requests.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.getByText('Loading checks')).toBeVisible();
+    await page.clock.runFor(10000);
+    await expect(dialog.getByRole('alert')).toContainText(/no answer/i);
+    await expect(dialog.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(dialog.getByText('Loading checks')).toHaveCount(0);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('Escape closes the panel and returns focus to the row button', async ({

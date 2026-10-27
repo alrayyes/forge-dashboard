@@ -162,7 +162,7 @@ func resolveJobExcerptFor(ctx context.Context, deps Deps, forge, fullName string
 }
 
 // handleJobLog serves resolveJobLogFor (or, with excerpt=true, resolveJobExcerptFor) over HTTP: a GET that fetches on demand,
-// like GET /api/pull-requests/checks, since a log is never part of a snapshot.
+// like the check stream, since a log is never part of a snapshot.
 func handleJobLog(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()

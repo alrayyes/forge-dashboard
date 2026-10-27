@@ -341,12 +341,11 @@ delivery for a repo (a finished check, say) re-reads that repo's default branch
 at once, so a rerun that passed turns its row green without the next poll. If
 that read fails, the row keeps its earlier state.
 
-`GET /api/main-branches/checks?forge=&fullName=` answers the jobs behind one
-row, in the same `{checks: [...]}` shape as `GET /api/pull-requests/checks`.
-Unlike the list, it calls the forge on every request and is not part of the
-snapshot, so it spends rate-limit budget: an MCP client makes it with
-`get_main_branch_checks`. The pipeline panel doesn't call it. It watches the
-row on the dashboard stream, which sends the same jobs as a `checks` event.
+The jobs behind one row arrive on the dashboard stream. The pipeline panel
+watches the row and the stream sends a `checks` event with its jobs. They
+sit outside the snapshot. Each watch calls the forge, so they spend
+rate-limit budget. An MCP client reads them with
+`get_main_branch_checks`.
 The commit is
 the one the row describes, the newest on the default branch that a check ran
 on, so a bot's commit that skips CI does not hide the run. A branch with no

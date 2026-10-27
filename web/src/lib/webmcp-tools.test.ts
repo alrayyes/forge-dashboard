@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import type { CheckFeedMessage, Subject } from './check-feed';
 import { createWebMCPTools } from './webmcp-tools';
 
 // The WebMCP read tools, with no browser: each one calls the endpoint the
@@ -8,9 +9,16 @@ import { createWebMCPTools } from './webmcp-tools';
 
 function setup(response: { status?: number; body?: unknown } = {}) {
   const calls: { url: string; init?: RequestInit }[] = [];
+  const reads: Subject[] = [];
+  let answer: CheckFeedMessage = { checks: [] };
   let expired = 0;
   const tools = createWebMCPTools({
     getDashboard: async () => ({ pullRequests: [] }),
+    readChecks: async (subject) => {
+      reads.push(subject);
+
+      return answer;
+    },
     onSessionExpired: () => {
       expired++;
     },
@@ -29,7 +37,15 @@ function setup(response: { status?: number; body?: unknown } = {}) {
     return found;
   };
 
-  return { calls, tool, expired: () => expired };
+  return {
+    calls,
+    reads,
+    tool,
+    expired: () => expired,
+    answerWith: (message: CheckFeedMessage) => {
+      answer = message;
+    },
+  };
 }
 
 const PR = { forge: 'forgejo', fullName: 'acme/api', number: 7 };
@@ -86,13 +102,29 @@ describe('WebMCP read tools', () => {
     );
   });
 
-  test('get_pull_request_checks reads /api/pull-requests/checks with the pull request', async () => {
-    const { calls, tool } = setup({ body: { checks: [] } });
+  test('get_pull_request_checks reads the pull request off the stream', async () => {
+    const { calls, reads, tool, answerWith } = setup();
+    const checks = [{ name: 'build', state: 'success', url: 'u' }];
+    answerWith({ checks } as CheckFeedMessage);
     expect(await tool('get_pull_request_checks').execute(PR)).toEqual({
-      checks: [],
+      checks,
     });
-    expect(calls[0].url).toBe(
-      '/api/pull-requests/checks?forge=forgejo&fullName=acme%2Fapi&number=7',
+    expect(reads).toEqual([
+      {
+        kind: 'pull_request',
+        forge: 'forgejo',
+        fullName: 'acme/api',
+        number: 7,
+      },
+    ]);
+    expect(calls).toHaveLength(0);
+  });
+
+  test('a check tool throws why the stream had no list', async () => {
+    const { tool, answerWith } = setup();
+    answerWith({ error: 'the live connection is down' });
+    await expect(tool('get_pull_request_checks').execute(PR)).rejects.toThrow(
+      'the live connection is down',
     );
   });
 
@@ -123,21 +155,22 @@ describe('WebMCP read tools', () => {
     ]);
   });
 
-  test('get_main_branch_checks reads /api/main-branches/checks with the repository', async () => {
-    const { calls, tool } = setup({ body: { checks: [] } });
+  test('get_main_branch_checks reads the branch off the stream', async () => {
+    const { calls, reads, tool } = setup();
     expect(
       await tool('get_main_branch_checks').execute({
         forge: 'forgejo',
         fullName: 'acme/api',
       }),
     ).toEqual({ checks: [] });
-    expect(calls[0].url).toBe(
-      '/api/main-branches/checks?forge=forgejo&fullName=acme%2Fapi',
-    );
+    expect(reads).toEqual([
+      { kind: 'main_branch', forge: 'forgejo', fullName: 'acme/api' },
+    ]);
+    expect(calls).toHaveLength(0);
   });
 
-  test('get_main_branch_checks refuses input the endpoint would reject, without calling it', async () => {
-    const { calls, tool } = setup();
+  test('get_main_branch_checks refuses bad input without reading', async () => {
+    const { reads, tool } = setup();
     const t = tool('get_main_branch_checks');
     await expect(
       t.execute({ forge: 'gitlab', fullName: 'acme/api' }),
@@ -145,7 +178,7 @@ describe('WebMCP read tools', () => {
     await expect(
       t.execute({ forge: 'github', fullName: 'nope' }),
     ).rejects.toThrow('fullName');
-    expect(calls).toHaveLength(0);
+    expect(reads).toHaveLength(0);
   });
 
   test('get_repository_advisories reads /api/main-branches/advisories with the repository', async () => {
@@ -221,7 +254,7 @@ describe('WebMCP read tools', () => {
   });
 
   test('a pull request tool refuses input the endpoint would reject, without calling it', async () => {
-    const { calls, tool } = setup();
+    const { reads, tool } = setup();
     const t = tool('get_pull_request_checks');
     await expect(t.execute({ ...PR, forge: 'gitlab' })).rejects.toThrow(
       'forge',
@@ -231,7 +264,7 @@ describe('WebMCP read tools', () => {
     );
     await expect(t.execute({ ...PR, number: 1.5 })).rejects.toThrow('number');
     await expect(t.execute({})).rejects.toThrow('forge');
-    expect(calls).toHaveLength(0);
+    expect(reads).toHaveLength(0);
   });
 
   test('an error answer throws with the status, as the page does', async () => {
@@ -301,7 +334,7 @@ describe('WebMCP read tools', () => {
   });
 
   test('numbers and names are bounded in the schema and in the check', async () => {
-    const { tool, calls } = setup();
+    const { tool, reads } = setup();
     const t = tool('get_pull_request_checks');
     const props = (
       t.inputSchema as {
@@ -317,7 +350,7 @@ describe('WebMCP read tools', () => {
     await expect(
       t.execute({ ...PR, fullName: `o/${'r'.repeat(254)}` }),
     ).rejects.toThrow('fullName');
-    expect(calls).toHaveLength(0);
+    expect(reads).toHaveLength(0);
   });
 
   test('get_dashboard keeps the registration it always had: no input schema', () => {

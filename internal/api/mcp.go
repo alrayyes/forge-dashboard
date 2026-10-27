@@ -18,16 +18,16 @@ type getPullRequestDetailsInput struct {
 }
 
 // getPullRequestChecksInput is get_pull_request_checks's argument shape, the
-// same three query parameters GET /api/pull-requests/checks takes. Number is an
-// int, so the schema refuses the non-integer the handler answers 400 for.
+// forge, repository and pull request number. Number is an int, so the schema
+// refuses a non-integer.
 type getPullRequestChecksInput struct {
 	Forge    string `json:"forge" jsonschema:"the forge the pull request lives on: github or forgejo"`
 	FullName string `json:"fullName" jsonschema:"the repository as owner/repo"`
 	Number   int    `json:"number" jsonschema:"the pull request number"`
 }
 
-// getMainBranchChecksInput is get_main_branch_checks's argument shape, the same
-// two query parameters GET /api/main-branches/checks takes.
+// getMainBranchChecksInput is get_main_branch_checks's argument shape, forge
+// and repository.
 type getMainBranchChecksInput struct {
 	Forge    string `json:"forge" jsonschema:"the forge the repository lives on: github or forgejo"`
 	FullName string `json:"fullName" jsonschema:"the repository as owner/repo"`
