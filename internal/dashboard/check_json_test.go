@@ -2,9 +2,14 @@ package dashboard_test
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strconv"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,23 +58,56 @@ func TestWithFacts_SendsStatusAndConclusionNotState(t *testing.T) {
 	}
 }
 
+// checkStatesInModel reads every CheckState constant out of model.go, so a
+// state added later is covered without anyone remembering to list it here.
+func checkStatesInModel(t *testing.T) []dashboard.CheckState {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), "model.go", nil, 0)
+	require.NoError(t, err)
+
+	var states []dashboard.CheckState
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			v := spec.(*ast.ValueSpec)
+			if id, ok := v.Type.(*ast.Ident); !ok || id.Name != "CheckState" {
+				continue
+			}
+			lit := v.Values[0].(*ast.BasicLit)
+			value, err := strconv.Unquote(lit.Value)
+			require.NoError(t, err)
+			states = append(states, dashboard.CheckState(value))
+		}
+	}
+
+	return states
+}
+
+// enumOf reads a string enum from components.schemas in the OpenAPI spec.
+func enumOf(t *testing.T, doc *openapi3.T, schema string) []string {
+	t.Helper()
+
+	var out []string
+	for _, v := range doc.Components.Schemas[schema].Value.Enum {
+		out = append(out, v.(string))
+	}
+
+	return out
+}
+
 func TestWithFacts_EveryStateMapsToAnEnumValueTheSpecAllows(t *testing.T) {
 	t.Parallel()
 
-	statuses := []dashboard.CheckStatus{
-		dashboard.CheckStatusQueued, dashboard.CheckStatusInProgress,
-		dashboard.CheckStatusCompleted, dashboard.CheckStatusWaiting,
-	}
-	conclusions := []dashboard.CheckConclusion{
-		"", dashboard.CheckConclusionSuccess, dashboard.CheckConclusionFailure,
-		dashboard.CheckConclusionCancelled, dashboard.CheckConclusionSkipped,
-		dashboard.CheckConclusionTimedOut,
-	}
-	states := []dashboard.CheckState{
-		dashboard.CheckQueued, dashboard.CheckRunning, dashboard.CheckSuccess,
-		dashboard.CheckFailure, dashboard.CheckCancelled, dashboard.CheckSkipped,
-		dashboard.CheckTimedOut, dashboard.CheckAwaitingApproval,
-	}
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+	statuses := enumOf(t, doc, "CheckStatus")
+	conclusions := enumOf(t, doc, "CheckConclusion")
+	states := checkStatesInModel(t)
+	require.NotEmpty(t, states)
 
 	for _, s := range states {
 		t.Run(string(s), func(t *testing.T) {
@@ -77,8 +115,12 @@ func TestWithFacts_EveryStateMapsToAnEnumValueTheSpecAllows(t *testing.T) {
 
 			got := dashboard.WithFacts([]dashboard.Check{{State: s}})[0]
 
-			assert.Contains(t, statuses, got.Status)
-			assert.Contains(t, conclusions, got.Conclusion)
+			assert.Contains(t, statuses, string(got.Status))
+			if got.Status == dashboard.CheckStatusCompleted {
+				assert.Contains(t, conclusions, string(got.Conclusion))
+			} else {
+				assert.Empty(t, got.Conclusion)
+			}
 		})
 	}
 }
