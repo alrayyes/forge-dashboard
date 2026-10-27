@@ -114,6 +114,16 @@ test.describe('Main branches pill counts (#2074)', () => {
     );
   });
 
+  test('a failed branch with a job still running carries the live marker', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await expect(pill(page, 'acme/red').locator('.ci-live')).toBeVisible();
+    await expect(pill(page, 'acme/going').locator('.ci-live')).toHaveCount(0);
+    await expect(pill(page, 'acme/older').locator('.ci-live')).toHaveCount(0);
+  });
+
   test('a running and a passed branch draw theirs', async ({ page }) => {
     await open(page);
 
