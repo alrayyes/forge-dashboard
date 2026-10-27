@@ -171,6 +171,29 @@ test('Rebase all shows only while something is out of date', async ({
   await expect(button).toBeVisible();
 });
 
+test('Rebase all is hidden from the moment it is rendered', async ({
+  page,
+}) => {
+  // Watch the block land in the DOM, before the first snapshot decides.
+  await page.addInitScript(() => {
+    const seen: boolean[] = [];
+    (window as unknown as { rebaseAllHidden: boolean[] }).rebaseAllHidden =
+      seen;
+    new MutationObserver(() => {
+      const block = document.querySelector<HTMLElement>('.rebase-all');
+      if (block && seen.length === 0) seen.push(block.hidden === true);
+    }).observe(document, { childList: true, subtree: true });
+  });
+  await open(page, [pr(1, { behind: false })]);
+  await expect(page.locator('#rebase-all-button')).toBeAttached();
+  const seen = await page.evaluate(
+    () => (window as unknown as { rebaseAllHidden: boolean[] }).rebaseAllHidden,
+  );
+  expect(seen).toEqual([true]);
+  await expect(page.locator('#rebase-all-button')).toBeHidden();
+  await expectNoAxeViolations(page);
+});
+
 test('Rebase all shows its progress through a run, then goes', async ({
   page,
 }) => {

@@ -9815,7 +9815,7 @@
       </div>
 
       {#if view === "bots"}
-        <div class="rebase-all">
+        <div class="rebase-all" hidden>
           <p class="rebase-all-summary" id="rebase-all-summary"></p>
           <button
             type="button"
