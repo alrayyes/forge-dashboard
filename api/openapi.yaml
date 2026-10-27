@@ -3119,7 +3119,8 @@ paths:
         in a new snapshot changed (CI state, check counts, or a branch's
         run), and when `refresh` is true. Nothing else costs a forge
         request. A failed listing is sent as an event with `error` set,
-        and the next changed snapshot tries again.
+        and every snapshot after it tries again, changed or not, until a
+        listing works.
 
         The event is the JSON of the `CheckListEvent` schema.
       tags: [dashboard]
