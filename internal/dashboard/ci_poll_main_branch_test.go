@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -71,6 +72,45 @@ func TestAggregator_PollCI_RereadsARunningForgejoDefaultBranch(t *testing.T) {
 	agg.PollCI(t.Context())
 
 	assert.Equal(t, 13, agg.Get().MainBranches[0].Checks.Waiting)
+}
+
+// mainBranchStatus ranks a failed job above a running one, so a rerun that has
+// jobs going and jobs failed reads as failed. That row still has work in
+// flight, and is the one #2691 reported.
+func TestAggregator_PollCI_RereadsAFailedForgejoDefaultBranchWithJobsStillGoing(t *testing.T) {
+	t.Parallel()
+
+	src := newForgejoBranchSource(
+		dashboard.MainBranch{Status: dashboard.MainBranchFailed, Checks: dashboard.CheckCounts{Passed: 2, Failed: 6, Running: 4, Waiting: 1}},
+		dashboard.MainBranch{Status: dashboard.MainBranchFailed, Checks: dashboard.CheckCounts{Passed: 1, Failed: 1, Running: 2, Waiting: 13}},
+	)
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 13, agg.Get().MainBranches[0].Checks.Waiting)
+}
+
+// A row that reads the same after a poll waits longer before the next, as a
+// pending pull request does, so a long run is not hammered.
+func TestAggregator_PollCI_BacksOffARunningForgejoDefaultBranchThatDoesNotChange(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	same := dashboard.MainBranch{Status: dashboard.MainBranchRunning, Checks: dashboard.CheckCounts{Running: 2}}
+	src := newForgejoBranchSource(same, same)
+	agg := dashboard.NewAggregator([]dashboard.Source{src},
+		dashboard.WithCIPollInterval(time.Minute), dashboard.WithClock(func() time.Time { return now }))
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+	now = now.Add(time.Minute)
+	agg.PollCI(t.Context())
+	now = now.Add(time.Minute)
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 2, src.branchReads(), "reads at 0m and 1m, then waits two minutes")
 }
 
 // A default branch that is not running has nothing a poll could change.

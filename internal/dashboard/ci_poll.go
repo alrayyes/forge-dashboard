@@ -93,13 +93,14 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	a.pollBranches(ctx, snap, branches, now, base)
 }
 
-// runningForgejoBranches is the default branches a poll may re-read: those a
-// Forgejo run is still going on. Forgejo sends a webhook when a run ends, not
+// runningForgejoBranches is the default branches a poll may re-read: those with
+// a Forgejo job still running or queued. A failed job outranks a running one in
+// the status, so a rerun with both reads as failed and is found by its counts. Forgejo sends a webhook when a run ends, not
 // when one is rerun or its jobs move, so a row read mid-run keeps its counts
 // until the next full refresh. GitHub's check events cover its own rows.
 func runningForgejoBranches(snap Snapshot) []MainBranch {
 	return slices.DeleteFunc(slices.Clone(snap.MainBranches), func(b MainBranch) bool {
-		return b.Forge != ForgeForgejo || b.Status != MainBranchRunning || b.StaleSince != nil
+		return b.Forge != ForgeForgejo || b.StaleSince != nil || (b.Status != MainBranchRunning && b.Checks.Running+b.Checks.Waiting == 0)
 	})
 }
 
