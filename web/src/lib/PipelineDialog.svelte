@@ -83,6 +83,7 @@
     formatCheckDuration,
     groupChecks,
     isBlocking,
+    runPageUrl,
     type Check,
   } from "#lib/pipeline-checks.js";
   import {
@@ -530,6 +531,9 @@
     new Map(checkKeys(checks).map((key, i) => [checks[i], key])),
   );
   const groups = $derived(groupChecks(checks));
+  // The board's own run address, else the newest run the checks name, so a
+  // pull request links to its run as a branch does. None, no link.
+  const runLink = $derived(target?.runUrl || runPageUrl(checks));
   const failed = $derived(
     checks.some((c) => c.state === "failure" || c.state === "timed_out"),
   );
@@ -783,15 +787,15 @@
         {/if}
       {/each}
     {/if}
-    {#if target?.runUrl}
+    {#if target && runLink}
       <p class="pipeline-run">
         <a
           class="pipeline-check-link"
-          href={target.runUrl}
+          href={runLink}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Open run on {target.forgeName} (opens in a new tab)"
-          >Open run on {target.forgeName}</a
+          aria-label="Open run on {forgeLabel(target)} (opens in a new tab)"
+          >Open run on {forgeLabel(target)}</a
         >
       </p>
     {/if}
