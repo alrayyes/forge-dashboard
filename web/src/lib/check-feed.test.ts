@@ -46,17 +46,7 @@ type Post = { streamId: string; subjects: Subject[]; refresh?: boolean };
 function harness(status = 204, timeoutMs = 60000) {
   const posts: Post[] = [];
   const redirects: string[] = [];
-  const reads: Subject[] = [];
-  const answers: CheckFeedMessage[] = [];
   const feed = createCheckFeed({
-    read: async (subject) => {
-      reads.push(subject);
-      return (
-        answers.shift() ?? {
-          checks: [{ name: 'read', state: 'success', url: 'u' }],
-        }
-      );
-    },
     newId: () => 'stream-0001',
     post: async (body) => {
       posts.push(JSON.parse(body));
@@ -67,7 +57,7 @@ function harness(status = 204, timeoutMs = 60000) {
   });
   const source = new FakeSource();
   feed.attach(source);
-  return { feed, source, posts, redirects, reads, answers };
+  return { feed, source, posts, redirects };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -245,69 +235,94 @@ describe('watch while a refresh is out', () => {
 });
 
 describe('without a stream', () => {
-  const list = [{ name: 'read', state: 'success', url: 'u' }];
-
-  test('a closed stream is read once for the list', async () => {
-    const { feed, source, reads, posts } = harness();
+  test('a closed stream tells the listener the connection is down', async () => {
+    const { feed, source, posts } = harness();
     source.readyState = 2;
     const got: CheckFeedMessage[] = [];
     feed.watch(pr, (m) => got.push(m));
     await flush();
-    expect(reads).toEqual([pr]);
-    expect(got).toEqual([{ checks: list }]);
+    expect(got).toEqual([{ error: 'the live connection is down' }]);
     expect(posts).toEqual([]);
   });
 
-  test('a page with no stream at all reads too', async () => {
-    const feed = createCheckFeed({
-      newId: () => 'x',
-      read: async () => ({ checks: [] }),
-    });
+  test('a page with no stream at all says the same', async () => {
+    const feed = createCheckFeed({ newId: () => 'x' });
     const got: CheckFeedMessage[] = [];
     feed.watch(branch, (m) => got.push(m));
     await flush();
-    expect(got).toEqual([{ checks: [] }]);
+    expect(got).toEqual([{ error: 'the live connection is down' }]);
   });
 
-  test('a stream that closes for good hands its watchers a read', async () => {
-    const { feed, source, reads } = harness();
+  test('a stream that closes for good tells its watchers', async () => {
+    const { feed, source } = harness();
     source.open();
     const got: CheckFeedMessage[] = [];
     feed.watch(pr, (m) => got.push(m));
     await flush();
     source.readyState = 2;
     source.emit('error');
-    await flush();
-    expect(reads).toEqual([pr]);
-    expect(got).toEqual([{ checks: list }]);
+    expect(got).toEqual([{ error: 'the live connection is down' }]);
   });
 
-  test('a failed read tells the listener why', async () => {
-    const { feed, source, answers } = harness();
+  test('refresh resolves false', async () => {
+    const { feed, source } = harness();
     source.readyState = 2;
-    answers.push({ error: 'forge unreachable' });
-    const got: CheckFeedMessage[] = [];
-    feed.watch(pr, (m) => got.push(m));
-    await flush();
-    expect(got).toEqual([{ error: 'forge unreachable' }]);
-  });
-
-  test('refresh reads again and resolves true on a list', async () => {
-    const { feed, source, reads } = harness();
-    source.readyState = 2;
-    feed.watch(pr, () => {});
-    await flush();
-    expect(await feed.refresh(pr)).toBe(true);
-    expect(reads).toEqual([pr, pr]);
-  });
-
-  test('refresh resolves false when the read failed, and the next one works', async () => {
-    const { feed, source, answers } = harness();
-    source.readyState = 2;
-    feed.watch(pr, () => {});
-    await flush();
-    answers.push({ error: 'x' });
     expect(await feed.refresh(pr)).toBe(false);
-    expect(await feed.refresh(pr)).toBe(true);
+  });
+});
+
+describe('read', () => {
+  const list = [{ name: 'build', state: 'success', url: 'u' }];
+
+  test('watches the subject, resolves with its list and lets go', async () => {
+    const { feed, source, posts } = harness();
+    source.open();
+    const done = feed.read(pr);
+    await flush();
+    expect(posts.at(-1)?.subjects).toEqual([pr]);
+    source.emit('checks', { ...pr, checks: list });
+    expect(await done).toEqual({ checks: list });
+    await flush();
+    expect(posts.at(-1)?.subjects).toEqual([]);
+  });
+
+  test('asks for a fresh list of a subject that is already watched', async () => {
+    const { feed, source, posts } = harness();
+    source.open();
+    feed.watch(pr, () => {});
+    await flush();
+    const done = feed.read(pr);
+    await flush();
+    expect(posts.at(-1)).toEqual({
+      streamId: 'stream-0001',
+      subjects: [pr],
+      refresh: true,
+    });
+    source.emit('checks', { ...pr, checks: list });
+    expect(await done).toEqual({ checks: list });
+    expect(posts.at(-1)?.subjects).toEqual([pr]);
+  });
+
+  test('hands over why a list failed', async () => {
+    const { feed, source } = harness();
+    source.open();
+    const done = feed.read(pr);
+    await flush();
+    source.emit('checks', { ...pr, checks: null, error: 'forge unreachable' });
+    expect(await done).toEqual({ error: 'forge unreachable' });
+  });
+
+  test('says the connection is down without a stream', async () => {
+    const { feed, source } = harness();
+    source.readyState = 2;
+    expect(await feed.read(pr)).toEqual({
+      error: 'the live connection is down',
+    });
+  });
+
+  test('gives up when nothing comes back in time', async () => {
+    const { feed, source } = harness(204, 0);
+    source.open();
+    expect(await feed.read(pr)).toEqual({ error: 'no answer from the server' });
   });
 });

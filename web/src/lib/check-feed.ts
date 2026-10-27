@@ -33,13 +33,11 @@ type Options = {
   unauthorized?: () => void;
   // How long refresh() waits for the list before giving up.
   timeoutMs?: number;
-  // Reads a subject's list straight from the backend, for a page whose stream
-  // can't be had.
-  read?: (subject: Subject) => Promise<CheckFeedMessage>;
 };
 
 const WATCH_URL = '/api/dashboard/stream/watch';
 const DOWN = 'the live connection is down';
+const SILENT = 'no answer from the server';
 const OPEN = 1;
 const CLOSED = 2;
 
@@ -55,35 +53,6 @@ async function postWatch(body: string): Promise<number> {
   return response.status;
 }
 
-// The list of one subject from its endpoint. This is what a page falls back to
-// when it has no stream: one read, with nothing to follow it.
-async function readChecks(subject: Subject): Promise<CheckFeedMessage> {
-  const query = new URLSearchParams({
-    forge: subject.forge,
-    fullName: subject.fullName,
-  });
-  let path = '/api/main-branches/checks';
-  if (subject.kind === 'pull_request') {
-    path = '/api/pull-requests/checks';
-    query.set('number', String(subject.number ?? 0));
-  }
-  try {
-    const response = await fetch(`${path}?${query}`, {
-      headers: { Accept: 'application/json' },
-    });
-    if (response.status === 401) {
-      toLogin();
-      return { error: 'signed out' };
-    }
-    const body = await response.json().catch(() => null);
-    if (!response.ok)
-      return { error: body?.error || `backend answered ${response.status}` };
-    return { checks: body?.checks ?? [] };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
 function toLogin() {
   window.location.href = '/login.html';
 }
@@ -93,7 +62,6 @@ export function createCheckFeed({
   post = postWatch,
   unauthorized = toLogin,
   timeoutMs = 10000,
-  read = readChecks,
 }: Options = {}) {
   const streamId = newId();
   const subjects = new Map<string, Subject>();
@@ -120,12 +88,6 @@ export function createCheckFeed({
   // A stream that is gone, or never was, will not answer.
   function unavailable() {
     return !open && (!source || source.readyState === CLOSED);
-  }
-
-  async function readInto(subject: Subject): Promise<CheckFeedMessage> {
-    const message = await read(subject);
-    tell(keyOf(subject), message);
-    return message;
   }
 
   function send(refresh: boolean) {
@@ -165,10 +127,6 @@ export function createCheckFeed({
       });
       next.addEventListener('error', () => {
         if (next.readyState !== OPEN) open = false;
-        if (next.readyState === CLOSED) {
-          for (const subject of [...subjects.values()]) void readInto(subject);
-          return;
-        }
         tellAll({ error: DOWN });
       });
       next.addEventListener('checks', (event) => {
@@ -194,8 +152,9 @@ export function createCheckFeed({
       const fresh = !subjects.has(key);
       subjects.set(key, subject);
       if (fresh) send(false);
-      // Without a stream, read the list instead of waiting for one.
-      if (unavailable()) void readInto(subject);
+      // A list can't come without a stream, so say so rather than wait.
+      if (unavailable())
+        void Promise.resolve().then(() => listener({ error: DOWN }));
       return () => {
         set.delete(listener);
         if (set.size > 0) return;
@@ -209,7 +168,7 @@ export function createCheckFeed({
     // changed something. Resolves true once a fresh list arrives, false if it
     // failed or never came.
     async refresh(subject: Subject): Promise<boolean> {
-      if (unavailable()) return !('error' in (await readInto(subject)));
+      if (unavailable()) return false;
       const key = keyOf(subject);
       return new Promise((resolve) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -226,6 +185,25 @@ export function createCheckFeed({
           resolve(false);
         }, timeoutMs);
         send(true);
+      });
+    },
+
+    // The subject's list once, for a caller that wants the answer rather than
+    // to follow it. Watches the subject for as long as the answer takes.
+    read(subject: Subject): Promise<CheckFeedMessage> {
+      if (unavailable()) return Promise.resolve({ error: DOWN });
+      const watched = subjects.has(keyOf(subject));
+      return new Promise((resolve) => {
+        let stop = () => {};
+        const finish = (message: CheckFeedMessage) => {
+          clearTimeout(timer);
+          stop();
+          resolve(message);
+        };
+        const timer = setTimeout(() => finish({ error: SILENT }), timeoutMs);
+        stop = this.watch(subject, finish);
+        // Already watched, so nothing new is sent unless asked for.
+        if (watched) send(true);
       });
     },
   };
