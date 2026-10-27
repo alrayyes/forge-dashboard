@@ -1870,6 +1870,13 @@ a.ci-pill:hover {
 .ci-seg-running {
   color: var(--warning);
 }
+/* A failed pill whose pipeline is still going: the amber of a running count
+   beside the red word, so the failure stands and the run is seen as open. */
+.ci-live {
+  display: inline-flex;
+  align-items: center;
+  color: var(--warning);
+}
 .ci-seg-waiting {
   color: var(--queued);
 }

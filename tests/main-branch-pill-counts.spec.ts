@@ -110,7 +110,7 @@ test.describe('Main branches pill counts (#2074)', () => {
     await expect(segments(page, 'acme/red')).toHaveText(['8', '1', '2', '3']);
     await expect(pill(page, 'acme/red')).toHaveAttribute(
       'aria-label',
-      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed. Open pipeline',
+      'Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed, still running. Open pipeline',
     );
   });
 
