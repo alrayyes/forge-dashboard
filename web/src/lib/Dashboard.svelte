@@ -163,6 +163,7 @@
     progressLabel,
     rebaseAllLabel,
     rebaseAllPlan,
+    showRebaseAll,
     summaryLine,
   } from "#lib/bot-rebase-all.js";
   import {
@@ -5723,6 +5724,18 @@
       if (!(button instanceof HTMLButtonElement) || !summary) return;
       const plan = currentRebasePlan();
       const asking = plan.eligible.length;
+      const block = button.parentElement;
+      if (block) {
+        const show = showRebaseAll(plan, rebaseAllRun !== null);
+        // A button that vanishes under focus would drop it to the body.
+        if (!show && !block.hidden && block.contains(document.activeElement))
+          document
+            .querySelector<HTMLElement>(
+              '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
+            )
+            ?.focus();
+        block.hidden = !show;
+      }
       button.textContent = rebaseAllRun
         ? progressLabel(rebaseAllRun.done, rebaseAllRun.total)
         : rebaseAllLabel(asking);
@@ -9811,8 +9824,8 @@
             aria-haspopup="dialog"
             aria-describedby="rebase-all-summary">Rebase all</button
           >
-          <span class="sr-only" id="rebase-all-status" role="status"></span>
         </div>
+        <span class="sr-only" id="rebase-all-status" role="status"></span>
         <dialog
           id="rebase-all-dialog"
           class="rebase-all-dialog"

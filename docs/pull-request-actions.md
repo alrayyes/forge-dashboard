@@ -962,9 +962,13 @@ retry, and the others carry on.
 
 A pull request that is empty, already has a rebase requested, or has no rebase
 to offer isn't counted. When no pull request can be asked, the button is
-disabled. With nothing behind, the line reads `Nothing is out of date.` A
-Dependabot pull request on a GitHub App with no saved personal token is left
-out too, and the line gives the reason.
+disabled. A Dependabot pull request on a GitHub App with no saved personal
+token is left out too, and the line gives the reason.
+
+The button and its line show only while a listed pull request is out of date.
+When none is, because they're all current or a filter hides the ones that
+aren't, both go away, and focus moves to the `All` quick filter if the button
+had it. A run that's under way keeps the button until it ends.
 
 ## Merging every ready pull request
 

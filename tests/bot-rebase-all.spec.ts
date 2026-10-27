@@ -38,7 +38,7 @@ const renovate = (number: number) =>
 async function open(page: Page, pullRequests: unknown[], forges?: unknown[]) {
   const posts: { url: string; body: Record<string, unknown> }[] = [];
   await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -143,13 +143,67 @@ test('a refused request stays on its row and the others go through', async ({
   );
 });
 
-test('with nothing behind the button is disabled and says so', async ({
+test('Rebase all shows only while something is out of date', async ({
   page,
 }) => {
-  await open(page, [pr(1, { behind: false })]);
-  const button = page.getByRole('button', { name: 'Rebase all' });
-  await expect(button).toBeDisabled();
-  await expect(page.getByText('Nothing is out of date.')).toBeVisible();
+  await open(page, [pr(1, { behind: false }), renovate(4)]);
+  const button = page.locator('#rebase-all-button');
+  await expect(button).toBeVisible();
+  await expectNoAxeViolations(page);
+
+  // The filter hides the one row that is behind, while the button has focus.
+  await button.focus();
+  await page
+    .locator('.quick-pill.forge-pill[data-pill="github"]')
+    .evaluate((el) => {
+      (el as HTMLElement).click();
+    });
+  await expect(button).toBeHidden();
+  await expect(page.locator('#rebase-all-summary')).toBeHidden();
+  await expect(
+    page.locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]'),
+  ).toBeFocused();
+  await expectNoAxeViolations(page);
+
+  await page
+    .locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]')
+    .click();
+  await expect(button).toBeVisible();
+});
+
+test('Rebase all shows its progress through a run, then goes', async ({
+  page,
+}) => {
+  const rows = [pr(1), pr(2)];
+  await open(page, rows);
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/pull-requests/dependabot-action', async (route) => {
+    await held;
+    await route.fulfill({ status: 204 });
+  });
+  await page.getByRole('button', { name: 'Rebase all (2)' }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Rebase', exact: true })
+    .click();
+  await expect(page.locator('#rebase-all-button')).toHaveText(
+    'Rebasing 0 of 2',
+  );
+
+  await expectNoAxeViolations(page);
+
+  release();
+  await expect(page.locator('#rebase-all-status')).toHaveText(
+    'Rebase requested for 2.',
+  );
+
+  // The snapshot that follows finds nothing behind: no reload needed.
+  for (const row of rows) row.behind = false;
+  await page.locator('#force-refresh-button').click();
+  await expect(page.locator('#rebase-all-button')).toBeHidden();
 });
 
 test('Dependabot rows on a GitHub App with no token are not counted', async ({

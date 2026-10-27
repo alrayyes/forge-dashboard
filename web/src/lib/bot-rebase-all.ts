@@ -73,6 +73,15 @@ export function rebaseAllPlan<T extends RebaseRow>(
   return { eligible, total: items.length, behind, blockedReasons };
 }
 
+// The control only earns its place when something listed is out of date. A
+// run in progress keeps it, so the progress count doesn't vanish mid-run.
+export function showRebaseAll<T extends RebaseRow>(
+  plan: RebasePlan<T>,
+  running: boolean,
+): boolean {
+  return plan.behind > 0 || running;
+}
+
 export function rebaseAllLabel(count: number): string {
   return count > 0 ? `Rebase all (${count})` : 'Rebase all';
 }
