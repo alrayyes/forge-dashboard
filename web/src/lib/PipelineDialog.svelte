@@ -583,6 +583,7 @@
       {@const copyable = copyableLog(check)}
       {@const forge = target ? forgeLabel(target) : "the forge"}
       {@const control = checkControl(check, target?.repo)}
+      {@const secs = checkDurationSeconds(check)}
       <li class="pipeline-check">
         <span class="pipeline-check-status {check.state}">
           {#each CHECK_GLYPHS[check.state] ?? [] as g (g.name)}
@@ -602,9 +603,9 @@
           {CHECK_STATE_LABELS[check.state] || check.state}
         </span>
         <span class="pipeline-check-name">{check.name}</span>
-        {#if checkDurationSeconds(check) !== undefined}
+        {#if secs !== undefined}
           <span class="pipeline-check-duration"
-            >{formatCheckDuration(checkDurationSeconds(check) ?? 0)}</span
+            >{formatCheckDuration(secs)}</span
           >
         {/if}
         {#if isBlocking(check)}

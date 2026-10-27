@@ -5212,3 +5212,39 @@ func TestDeletePullRequestBranch_EscapesTheBranchNameInThePaths(t *testing.T) {
 		"/repos/alrayyes/a/git/refs/heads/feat/a%23b%3Fc%25d%20e",
 	}, srv.uris)
 }
+
+func TestListChecks_UnfinishedCheckHasNoEnd(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"check_runs": []map[string]any{
+			{"id": 1, "name": "running", "status": "in_progress", "html_url": "https://github.com/alrayyes/a/runs/1", "started_at": "2026-10-03T10:00:00Z", "completed_at": nil},
+			{"id": 2, "name": "queued", "status": "queued", "html_url": "https://github.com/alrayyes/a/runs/2", "started_at": nil, "completed_at": nil},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
+	require.NoError(t, err)
+
+	t.Run("a running check has a start and no end", func(t *testing.T) {
+		t.Parallel()
+		running := checkNamed(t, checks, "running")
+
+		assert.NotNil(t, running.StartedAt)
+		assert.Nil(t, running.CompletedAt)
+	})
+
+	t.Run("a queued check has neither", func(t *testing.T) {
+		t.Parallel()
+		queued := checkNamed(t, checks, "queued")
+
+		assert.Nil(t, queued.StartedAt)
+		assert.Nil(t, queued.CompletedAt)
+	})
+}

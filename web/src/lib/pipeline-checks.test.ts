@@ -119,6 +119,20 @@ describe('checkDurationSeconds', () => {
     ).toBe(90);
   });
 
+  test('a job that ends the moment it starts ran for zero seconds', () => {
+    expect(
+      checkDurationSeconds(at('2026-10-03T10:00:00Z', '2026-10-03T10:00:00Z')),
+    ).toBe(0);
+  });
+
+  test('counts the same span whatever the offset the dates carry', () => {
+    expect(
+      checkDurationSeconds(
+        at('2026-10-03T12:00:00+02:00', '2026-10-03T10:01:30Z'),
+      ),
+    ).toBe(90);
+  });
+
   test('says nothing while the job has no end', () => {
     expect(checkDurationSeconds(at('2026-10-03T10:00:00Z'))).toBeUndefined();
     expect(checkDurationSeconds(check({}))).toBeUndefined();
@@ -143,6 +157,18 @@ describe('checkRunKey', () => {
 
     expect(checkRunKey({ ...a, runAttempt: 2 })).not.toBe(checkRunKey(a));
     expect(checkRunKey({ ...a, completedAt: '2026-10-03T10:00:06Z' })).not.toBe(
+      checkRunKey(a),
+    );
+  });
+
+  test('a new end time on the same attempt is a new run', () => {
+    const a = check({
+      url: 'u',
+      runAttempt: 1,
+      completedAt: '2026-10-03T10:00:05Z',
+    });
+
+    expect(checkRunKey({ ...a, completedAt: '2026-10-03T10:00:09Z' })).not.toBe(
       checkRunKey(a),
     );
   });
