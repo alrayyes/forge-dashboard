@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.44.0](https://github.com/alrayyes/forge-dashboard/compare/v2.43.1...v2.44.0) (2026-10-27)
+
+
+### Features
+
+* link a pull request dialog to its run ([#2959](https://github.com/alrayyes/forge-dashboard/issues/2959)) ([4a61ea4](https://github.com/alrayyes/forge-dashboard/commit/4a61ea4a58186e33de44e0a52ea421efddb5c144))
+
 ## [2.43.1](https://github.com/alrayyes/forge-dashboard/compare/v2.43.0...v2.43.1) (2026-10-27)
 
 
