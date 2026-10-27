@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.2.0](https://github.com/alrayyes/forge-dashboard/compare/v8.1.0...v8.2.0) (2026-10-27)
+
+
+### Features
+
+* keep run facts in the check feed and tools ([#2988](https://github.com/alrayyes/forge-dashboard/issues/2988)) ([3980e3d](https://github.com/alrayyes/forge-dashboard/commit/3980e3d4389560fee97556a2f24c5bdd2fd18d7f))
+
 ## [8.1.0](https://github.com/alrayyes/forge-dashboard/compare/v8.0.0...v8.1.0) (2026-10-27)
 
 
