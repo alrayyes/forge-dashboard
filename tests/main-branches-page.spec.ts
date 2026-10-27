@@ -536,7 +536,11 @@ test.describe('Main branches page (#1224, #1279)', () => {
       page,
       snapshot([row('acme/failed-blank', 'failed', { runUrl: '' })]),
     );
-    await mockChecks(page);
+    // Jobs with no page of their own name no run either.
+    await mockChecks(
+      page,
+      JOBS.map((job) => ({ ...job, url: '' })),
+    );
     await page.goto('/');
     await expect(page.locator('a[href=""]')).toHaveCount(0);
     await rows(page)
@@ -547,6 +551,27 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(
       dialog(page).getByRole('link', { name: /open run on/i }),
     ).toHaveCount(0);
+  });
+
+  test('a row with no run URL links to the run its jobs name', async ({
+    page,
+  }) => {
+    await mock(
+      page,
+      snapshot([row('acme/failed-blank', 'failed', { runUrl: '' })]),
+    );
+    await mockChecks(page);
+    await page.goto('/');
+    await rows(page)
+      .first()
+      .getByRole('button', { name: /open pipeline/i })
+      .click();
+    await expect(
+      dialog(page).getByRole('link', { name: /open run on/i }),
+    ).toHaveAttribute(
+      'href',
+      'https://example.com/acme/ingress-controller/actions/runs/1',
+    );
   });
 
   test('a failed read of the jobs says so, offers Retry and recovers', async ({

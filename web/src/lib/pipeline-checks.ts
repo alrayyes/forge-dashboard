@@ -90,6 +90,23 @@ export function blockingFirst(checks: Check[]): Check[] {
   );
 }
 
+const RUN_PAGE = /^(.*\/actions\/runs\/(\d+))(?:\/|$)/;
+
+// The page of the newest Actions run the checks name, for a target that
+// carries no run address of its own (a pull request). A job's page is the
+// run's page plus a job path, so trimming it names the whole run. A
+// third-party status has no run page, and neither does an empty list.
+export function runPageUrl(checks: Check[]): string | undefined {
+  let newest: { url: string; id: number } | undefined;
+  for (const check of checks) {
+    const match = RUN_PAGE.exec(check.url);
+    if (!match) continue;
+    const id = Number(match[2]);
+    if (!newest || id > newest.id) newest = { url: match[1], id };
+  }
+  return newest?.url;
+}
+
 export type CheckGroup = { id: string; title: string; checks: Check[] };
 
 // The dialog's sections. Without a single known `required` the forge said
