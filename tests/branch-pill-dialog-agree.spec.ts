@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { serveChecks } from './checks-feed-helper';
+import { type CheckRow, serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 // A Forgejo default branch's pill and its pipeline dialog describe one set of
@@ -45,7 +45,7 @@ const ROW = {
   staleSince: null,
 };
 
-async function open(page: Page) {
+async function open(page: Page, row = ROW, jobs: unknown[] = JOBS) {
   await page.route('**/api/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/main-branches', (route: Route) =>
     route.fulfill({
@@ -62,11 +62,11 @@ async function open(page: Page) {
           none: 0,
           total: 1,
         },
-        branches: [ROW],
+        branches: [row],
       }),
     }),
   );
-  await serveChecks(page, () => JOBS);
+  await serveChecks(page, () => jobs as CheckRow[]);
   await page.goto('/');
   const pill = page.getByRole('button', { name: /open pipeline/i }).first();
   await expect(pill).toBeVisible();
@@ -100,4 +100,43 @@ test.describe('the Branches pill and its dialog agree', () => {
       expect(results.violations).toEqual([]);
     });
   }
+});
+
+// A manual rerun of a failed run keeps the run and its job ids, and the jobs
+// start again on the next attempt. The row was read mid-rerun (the Go replay
+// of that is internal/forgejo/main_branch_rerun_recorded_test.go), so its
+// pill and the dialog show the new attempt's jobs, and not the failed one's.
+test.describe('the Branches pill and its dialog agree during a rerun', () => {
+  const rerunRow = {
+    ...ROW,
+    status: 'running',
+    runUrl: 'https://example.com/scaffolding/scaffold-go-cli/actions/runs/401',
+    checks: { passed: 1, running: 1, waiting: 1, failed: 0 },
+  };
+  const rerunJobs = [
+    { name: 'lint', state: 'success', jobId: 90010, runAttempt: 1, url: '' },
+    { name: 'build', state: 'running', jobId: 90001, runAttempt: 2, url: '' },
+    { name: 'deploy', state: 'queued', jobId: 90002, runAttempt: 2, url: '' },
+  ];
+
+  test('the pill and the dialog show the same running and queued jobs, with no axe violations', async ({
+    page,
+  }) => {
+    await open(page, rerunRow, rerunJobs);
+    const items = panel(page).getByRole('listitem');
+    await expect(items).toHaveCount(3);
+    await expect(items.filter({ hasText: 'Running' })).toHaveCount(1);
+    await expect(items.filter({ hasText: 'Queued' })).toHaveCount(1);
+    await expect(panel(page).getByText(/failed/i)).toHaveCount(0);
+
+    const pill = page.getByRole('button', { name: /open pipeline/i }).first();
+    const label = (await pill.getAttribute('aria-label')) ?? '';
+    expect(label).toContain('1 passed, 1 running, 1 waiting');
+    expect(label).not.toMatch(/failed/i);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
 });
