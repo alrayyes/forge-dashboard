@@ -1,5 +1,12 @@
 # Changelog
 
+## [6.1.0](https://github.com/alrayyes/forge-dashboard/compare/v6.0.0...v6.1.0) (2026-10-27)
+
+
+### Features
+
+* send GitHub run attempt and Forgejo job times ([#2979](https://github.com/alrayyes/forge-dashboard/issues/2979)) ([ac5dc9e](https://github.com/alrayyes/forge-dashboard/commit/ac5dc9e8a336bf39e4a9171e839ba87b471065fd))
+
 ## [6.0.0](https://github.com/alrayyes/forge-dashboard/compare/v5.0.0...v6.0.0) (2026-10-27)
 
 
