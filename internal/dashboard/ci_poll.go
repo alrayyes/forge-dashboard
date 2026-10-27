@@ -35,6 +35,9 @@ func (it pendingItem) key() string {
 // "status" event from a hook's persisted list (#177), so without it a finished
 // check there waits out the whole Run interval.
 //
+// A Forgejo default branch whose pipeline is running is re-read too, since its
+// rerun and job changes send no webhook (runningForgejoBranches).
+//
 // A source that implements PendingCheckRefresher answers all of a forge's
 // pull requests in one request; any other is refreshed one repo at a time
 // through RefreshRepo, the same keyed coalescer a webhook delivery uses.
@@ -51,6 +54,10 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	live := make(map[string]struct{}, len(items))
 	for _, it := range items {
 		live[it.key()] = struct{}{}
+	}
+	branches := runningForgejoBranches(snap)
+	for _, b := range branches {
+		live[branchPollKey(b)] = struct{}{}
 	}
 	a.pendingSched.keepOnly(live)
 
@@ -81,6 +88,44 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 				a.pendingSched.polled(read.item.key(), now, base, read.changed)
 			}
 		}
+	}
+
+	a.pollBranches(ctx, snap, branches, now, base)
+}
+
+// runningForgejoBranches is the default branches a poll may re-read: those a
+// Forgejo run is still going on. Forgejo sends a webhook when a run ends, not
+// when one is rerun or its jobs move, so a row read mid-run keeps its counts
+// until the next full refresh. GitHub's check events cover its own rows.
+func runningForgejoBranches(snap Snapshot) []MainBranch {
+	return slices.DeleteFunc(slices.Clone(snap.MainBranches), func(b MainBranch) bool {
+		return b.Forge != ForgeForgejo || b.Status != MainBranchRunning || b.StaleSince != nil
+	})
+}
+
+func branchPollKey(b MainBranch) string {
+	return "branch/" + string(b.Forge) + "/" + b.FullName
+}
+
+// pollBranches re-reads each due running default branch through the scoped
+// refresh a webhook delivery uses, spaced like a pending pull request's poll.
+func (a *Aggregator) pollBranches(ctx context.Context, snap Snapshot, branches []MainBranch, now time.Time, base time.Duration) {
+	for _, b := range branches {
+		key := branchPollKey(b)
+		if _, spent := exhaustedHealth(snap, b.Forge, now); spent || a.budgetHold(snap, b.Forge, apistats.KindCIPoll) || !a.pendingSched.due(key, now, base) {
+			continue
+		}
+		owner, name, ok := strings.Cut(b.FullName, "/")
+		if !ok {
+			continue
+		}
+		since := a.fetchSeq.Add(1)
+		if !a.RefreshRepo(apistats.WithKind(ctx, apistats.KindCIPoll), b.Forge, owner, name, b.FullName) || !a.mergedSince(b.Forge, b.FullName, since) {
+			continue
+		}
+		after := slices.IndexFunc(a.Get().MainBranches, func(r MainBranch) bool { return r.Forge == b.Forge && r.FullName == b.FullName })
+		changed := after < 0 || a.Get().MainBranches[after].Status != b.Status || a.Get().MainBranches[after].Checks != b.Checks
+		a.pendingSched.polled(key, now, base, changed)
 	}
 }
 
