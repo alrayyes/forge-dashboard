@@ -122,6 +122,53 @@ describe('WebMCP read tools', () => {
     expect(calls).toHaveLength(0);
   });
 
+  test('get_pull_request_checks names the run beside its jobs', async () => {
+    const { tool, answerWith } = setup();
+    const message = {
+      checks: [
+        { name: 'build', status: 'completed', conclusion: 'success', url: 'u' },
+      ],
+      runs: [
+        {
+          runId: 11,
+          runAttempt: 1,
+          status: 'completed',
+          conclusion: 'failure',
+          startedAt: '2026-10-27T10:00:00Z',
+        },
+      ],
+    };
+    answerWith(message as CheckFeedMessage);
+    expect(await tool('get_pull_request_checks').execute(PR)).toEqual(message);
+  });
+
+  test('a check with no run gets no run facts from either tool', async () => {
+    const { tool, answerWith } = setup();
+    const checks = [{ name: 'ci/legacy', status: 'completed', url: 'u' }];
+    answerWith({ checks } as CheckFeedMessage);
+    for (const [name, input] of [
+      ['get_pull_request_checks', PR],
+      ['get_main_branch_checks', { forge: 'forgejo', fullName: 'acme/api' }],
+    ] as const) {
+      const result = (await tool(name).execute(input)) as Record<
+        string,
+        unknown
+      >;
+      expect(result).toEqual({ checks });
+      expect('runs' in result).toBe(false);
+    }
+  });
+
+  test('both check tools describe the run facts', () => {
+    const { tool } = setup();
+    for (const name of ['get_main_branch_checks', 'get_pull_request_checks']) {
+      const text = tool(name).description;
+      expect(text).toContain('runs');
+      expect(text).toContain('conclusion');
+      expect(text).toContain('startedAt');
+    }
+  });
+
   test('a check tool throws why the stream had no list', async () => {
     const { tool, answerWith } = setup();
     answerWith({ error: 'the live connection is down' });

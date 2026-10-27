@@ -13,8 +13,23 @@ export type Subject = {
   number?: number;
 };
 
-// What a listener is told: the subject's job list, or why it has none.
-export type CheckFeedMessage = { checks: Check[] } | { error: string };
+// What the forge reported about one run attempt itself, as the server sent it.
+// Each field is absent where the forge gave none. A check that belongs to no
+// run has no entry.
+export type RunFacts = {
+  runId?: number;
+  runAttempt?: number;
+  status?: string;
+  conclusion?: string;
+  startedAt?: string;
+  completedAt?: string;
+};
+
+// What a listener is told: the subject's job list and, beside it, the facts of
+// the runs that reported any, or why there is no list.
+export type CheckFeedMessage =
+  | { checks: Check[]; runs?: RunFacts[] }
+  | { error: string };
 
 type Listener = (message: CheckFeedMessage) => void;
 
@@ -41,6 +56,28 @@ const DOWN = 'the live connection is down';
 const SILENT = 'no answer from the server';
 const OPEN = 1;
 const CLOSED = 2;
+
+type Held = { checks: Check[]; facts?: RunFacts };
+
+const FACTS = ['status', 'conclusion', 'startedAt', 'completedAt'] as const;
+
+// The run's own facts off an event, kept as sent, with the ids that say which
+// run they belong to. None when the event carried no fact.
+function factsOf(body: RunFacts): RunFacts | undefined {
+  if (!FACTS.some((name) => body[name])) return undefined;
+  const facts: RunFacts = {};
+  if (body.runId) facts.runId = body.runId;
+  if (body.runAttempt) facts.runAttempt = body.runAttempt;
+  for (const name of FACTS) if (body[name]) facts[name] = body[name];
+  return facts;
+}
+
+function messageOf(held: Map<string, Held>): CheckFeedMessage {
+  const all = [...held.values()];
+  const facts = all.flatMap((h) => (h.facts ? [h.facts] : []));
+  const checks = all.flatMap((h) => h.checks);
+  return facts.length > 0 ? { checks, runs: facts } : { checks };
+}
 
 const keyOf = (s: Subject) =>
   `${s.kind}|${s.forge}|${s.fullName}|${s.number ?? 0}`;
@@ -72,7 +109,7 @@ export function createCheckFeed({
   const waiters = new Map<string, Set<Listener>>();
   // The latest event of each run attempt, by subject and then by the key the
   // server gave the attempt. A rerun has a new key and the old one goes.
-  const runs = new Map<string, Map<string, Check[]>>();
+  const runs = new Map<string, Map<string, Held>>();
   let open = false;
   let source: FeedSource | null = null;
   // Posts go one at a time, so a stale watch can't land after a newer one.
@@ -141,13 +178,14 @@ export function createCheckFeed({
         tellAll({ error: DOWN });
       });
       next.addEventListener('run', (event) => {
-        let body: Subject & {
-          key?: string;
-          checks?: Check[] | null;
-          gone?: boolean;
-          final?: boolean;
-          error?: string;
-        };
+        let body: Subject &
+          RunFacts & {
+            key?: string;
+            checks?: Check[] | null;
+            gone?: boolean;
+            final?: boolean;
+            error?: string;
+          };
         try {
           body = JSON.parse(event.data ?? '');
         } catch {
@@ -163,14 +201,18 @@ export function createCheckFeed({
           tell(subject, { error: body.error });
           return;
         }
-        const held = runs.get(subject) ?? new Map<string, Check[]>();
+        const held = runs.get(subject) ?? new Map<string, Held>();
         runs.set(subject, held);
         if (!body.key) held.clear();
         else if (body.gone) held.delete(body.key);
-        else held.set(body.key, body.checks ?? []);
+        else
+          held.set(body.key, {
+            checks: body.checks ?? [],
+            facts: factsOf(body),
+          });
         // A listing is told once, at its last event, so a page is not
         // redrawn for every run in it.
-        if (body.final) tell(subject, { checks: [...held.values()].flat() });
+        if (body.final) tell(subject, messageOf(held));
       });
     },
 

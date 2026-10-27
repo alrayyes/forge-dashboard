@@ -194,6 +194,97 @@ describe('watch', () => {
       });
     });
 
+    test('keeps the facts a run event carries, as the server sent them', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/2',
+        runId: 11,
+        runAttempt: 2,
+        status: 'completed',
+        conclusion: 'failure',
+        startedAt: '2026-10-27T10:00:00Z',
+        completedAt: '2026-10-27T10:05:00Z',
+        checks: [job('build', 'completed', { conclusion: 'success' })],
+      });
+      source.emit('run', {
+        ...pr,
+        key: 'job/u|lint',
+        checks: [job('lint')],
+        final: true,
+      });
+      expect(got).toEqual([
+        {
+          checks: [
+            job('build', 'completed', { conclusion: 'success' }),
+            job('lint'),
+          ],
+          runs: [
+            {
+              runId: 11,
+              runAttempt: 2,
+              status: 'completed',
+              conclusion: 'failure',
+              startedAt: '2026-10-27T10:00:00Z',
+              completedAt: '2026-10-27T10:05:00Z',
+            },
+          ],
+        },
+      ]);
+    });
+
+    test('a run event with no facts adds none', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        runAttempt: 1,
+        checks: [job('build')],
+        final: true,
+      });
+      expect(got).toEqual([{ checks: [job('build')] }]);
+      expect('runs' in got[0]).toBe(false);
+    });
+
+    test('a rerun replaces the facts of its attempt, and a gone run drops them', () => {
+      const { feed, source } = harness();
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        runId: 11,
+        runAttempt: 1,
+        status: 'completed',
+        conclusion: 'failure',
+        checks: [job('build')],
+        final: true,
+      });
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/2',
+        runId: 11,
+        runAttempt: 2,
+        status: 'in_progress',
+        checks: [job('build', 'in_progress')],
+      });
+      source.emit('run', {
+        ...pr,
+        key: 'run/11/1',
+        gone: true,
+        final: true,
+      });
+      expect(got.at(-1)).toEqual({
+        checks: [job('build', 'in_progress')],
+        runs: [{ runId: 11, runAttempt: 2, status: 'in_progress' }],
+      });
+    });
+
     test('a gone run is dropped, and an empty listing clears the rest', () => {
       const { feed, source } = harness();
       const got: CheckFeedMessage[] = [];
