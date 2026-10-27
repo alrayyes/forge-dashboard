@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -42,13 +43,20 @@ type checkSubject struct {
 type runEvent struct {
 	checkSubject
 
-	Key        string            `json:"key,omitempty"`
-	RunID      int64             `json:"runId,omitempty"`
-	RunAttempt int64             `json:"runAttempt,omitempty"`
-	Checks     []dashboard.Check `json:"checks,omitempty"`
-	Gone       bool              `json:"gone,omitempty"`
-	Final      bool              `json:"final,omitempty"`
-	Error      string            `json:"error,omitempty"`
+	Key        string `json:"key,omitempty"`
+	RunID      int64  `json:"runId,omitempty"`
+	RunAttempt int64  `json:"runAttempt,omitempty"`
+	// Status, Conclusion, StartedAt and CompletedAt are what the forge
+	// reported about the run attempt itself. Each is left out where the forge
+	// gave none, and always for a check that belongs to no run.
+	Status      dashboard.CheckStatus     `json:"status,omitempty"`
+	Conclusion  dashboard.CheckConclusion `json:"conclusion,omitempty"`
+	StartedAt   *time.Time                `json:"startedAt,omitempty"`
+	CompletedAt *time.Time                `json:"completedAt,omitempty"`
+	Checks      []dashboard.Check         `json:"checks,omitempty"`
+	Gone        bool                      `json:"gone,omitempty"`
+	Final       bool                      `json:"final,omitempty"`
+	Error       string                    `json:"error,omitempty"`
 }
 
 // runGroup is the jobs of one run attempt, or one check that has no run.
@@ -57,6 +65,9 @@ type runGroup struct {
 	runID      int64
 	runAttempt int64
 	checks     []dashboard.Check
+	// run is what the forge said about the run attempt, taken from its first
+	// job that carries it.
+	run *dashboard.RunFacts
 }
 
 // groupRuns splits a job list by run and attempt, in the order each first
@@ -78,6 +89,9 @@ func groupRuns(checks []dashboard.Check) []runGroup {
 			groups = append(groups, runGroup{key: key, runID: c.RunID, runAttempt: c.RunAttempt})
 		}
 		groups[i].checks = append(groups[i].checks, c)
+		if groups[i].run == nil && c.RunID > 0 {
+			groups[i].run = c.Run
+		}
 	}
 
 	return groups
@@ -279,9 +293,14 @@ func (held *watchedSubject) events(s checkSubject, checks []dashboard.Check) []r
 	events := make([]runEvent, 0, len(groups)+len(held.sent))
 	for _, g := range groups {
 		listed[g.key] = true
-		events = append(events, runEvent{
+		ev := runEvent{
 			checkSubject: s, Key: g.key, RunID: g.runID, RunAttempt: g.runAttempt, Checks: g.checks,
-		})
+		}
+		if g.run != nil {
+			ev.Status, ev.Conclusion = g.run.Status, g.run.Conclusion
+			ev.StartedAt, ev.CompletedAt = g.run.StartedAt, g.run.CompletedAt
+		}
+		events = append(events, ev)
 	}
 	for _, key := range held.sent {
 		if !listed[key] {

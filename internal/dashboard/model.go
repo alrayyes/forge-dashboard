@@ -151,6 +151,11 @@ type Check struct {
 	// run's id when it reruns, and Forgejo keeps a job's id and page too, so
 	// the attempt is what tells the rerun's log from the first run's.
 	RunAttempt int64 `json:"runAttempt,omitempty"`
+	// Run is what the forge reported about the workflow run attempt the job
+	// belongs to. It is nil where the forge gave none: a check with no run, a
+	// run the forge's lists omit. The stream sends it once on the run's event,
+	// not on each job, so it is not on the check's own JSON.
+	Run *RunFacts `json:"-"`
 	// FailedStep names the step of a failed job that broke, and Excerpt is
 	// the tail of its log as plain text, capped in length (#697). Both are
 	// empty when the forge can't provide them (permission, expired logs, a
@@ -609,3 +614,14 @@ const (
 	// scheduled merge, GitHub's auto-merge).
 	AutoMergeHeldByForge AutoMergeHolder = "forge"
 )
+
+// RunFacts is what a forge reported about one workflow run attempt, in the
+// same words a job's status and conclusion use. The server works nothing out
+// from them; the page decides what to show. CompletedAt is nil where the forge
+// has no such time (GitHub reports a run's start and last update only).
+type RunFacts struct {
+	Status      CheckStatus
+	Conclusion  CheckConclusion
+	StartedAt   *time.Time
+	CompletedAt *time.Time
+}
