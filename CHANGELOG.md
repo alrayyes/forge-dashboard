@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/alrayyes/forge-dashboard/compare/v3.0.0...v3.1.0) (2026-10-27)
+
+
+### Features
+
+* **web:** mark a failed pill that is still running ([#2967](https://github.com/alrayyes/forge-dashboard/issues/2967)) ([997c253](https://github.com/alrayyes/forge-dashboard/commit/997c2530cae3692be007deb87a701cc7691c1b37))
+
 ## [3.0.0](https://github.com/alrayyes/forge-dashboard/compare/v2.44.0...v3.0.0) (2026-10-27)
 
 
