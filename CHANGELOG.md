@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.11.4](https://github.com/alrayyes/forge-dashboard/compare/v8.11.3...v8.11.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* **web:** rows fall back when the check stream drops ([#3055](https://github.com/alrayyes/forge-dashboard/issues/3055)) ([7db481b](https://github.com/alrayyes/forge-dashboard/commit/7db481bea2ae550d22e398dbb185970f7295952f))
+
 ## [8.11.3](https://github.com/alrayyes/forge-dashboard/compare/v8.11.2...v8.11.3) (2026-10-28)
 
 
