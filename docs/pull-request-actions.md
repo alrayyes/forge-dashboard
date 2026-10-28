@@ -656,7 +656,14 @@ the five-minute wait, and a cut-off merge shows no failure, since the forge neve
 answered. The pull requests it hadn't reached are tried on the next refresh.
 Only one pass runs at a time. A refresh, or a webhook that brings a passed check,
 that finds one still going doesn't lose its writes: they run as soon as it ends,
-with a budget of their own.
+with a budget of their own. Only the newest waiting snapshot is kept, and the
+log says so once, as a warning that names how many it stood in for.
+
+Cancelling relies on the forge client giving up when its context does, as the
+HTTP client does. A client that ignores its context keeps the single slot past
+the budget, so the queued writes start late and from a snapshot that may by
+then be stale. The next refresh still publishes, since it doesn't wait for the
+slot.
 
 A repo can also rebase only its bot pull requests. Switch on rebase bots for
 it on the Webhooks page, beside Auto-update, and the background pass sends a
