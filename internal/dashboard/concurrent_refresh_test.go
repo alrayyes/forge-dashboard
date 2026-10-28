@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -74,8 +75,10 @@ func TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 
 	service.Ensure(t.Context(), []dashboard.Source{client})
 
-	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 5*time.Millisecond,
-		"Ensure's own initial refresh should have completed")
+	// The first refresh signals when it ends. The limit only bounds a hang;
+	// a passing run returns on the signal, however loaded the runner is.
+	service.WaitFirstRefresh(t.Context(), time.Minute)
+	require.True(t, service.FirstRefreshDone(), "Ensure's own initial refresh should have completed")
 	before := calls.Load()
 	burstGate.Store(true)
 
@@ -88,10 +91,19 @@ func TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 			service.RefreshNow(t.Context())
 		})
 	}
-	// Deterministic window for the burst to actually reach coalescer.do
-	// before the held fetch is allowed to complete — tens of
-	// milliseconds, not a race against runner scheduling speed.
-	time.Sleep(20 * time.Millisecond)
+	// Hold the fetch until it is in flight and every trigger has counted
+	// itself as a person's refresh, which Refresh does just before it queues
+	// on the coalescer. Yielding, not sleeping, so the wait follows the state
+	// however slowly the runner schedules the goroutines. The wall-time bound
+	// only ends a hang.
+	giveUp := time.Now().Add(30 * time.Second)
+	for !burstGateEntered.Load() || service.UserRefreshesForTest() < triggers {
+		if !time.Now().Before(giveUp) {
+			close(release)
+			require.Fail(t, "the burst never reached the coalescer")
+		}
+		runtime.Gosched()
+	}
 	close(release)
 	wg.Wait()
 
