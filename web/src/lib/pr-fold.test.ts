@@ -160,3 +160,73 @@ describe('foldPullRequest counts', () => {
     ).toEqual({ passed: 2, skipped: 1, running: 1, waiting: 1, failed: 1 });
   });
 });
+
+// Forgejo leaves a job whose needs failed blocked in the finished run and says
+// pending for it. The run's own facts say the run is over, so nothing will
+// start that job: it is no wait, and the pill is a plain failure.
+describe('foldPullRequest, blocked jobs of a failed run', () => {
+  const failedRun = {
+    runId: 455,
+    runAttempt: 1,
+    status: 'completed',
+    conclusion: 'failure',
+  };
+  const inRun = (check: Check, runId = 455, runAttempt = 1): Check => ({
+    ...check,
+    runId,
+    runAttempt,
+  });
+
+  test('queued jobs of a failed run are not waiting', () => {
+    const checks = [
+      inRun(jobs('failure')[0]),
+      inRun({ ...jobs('queued')[0], name: 'blocked' }),
+    ];
+    const fold = foldPullRequest('forgejo', checks, [failedRun]);
+
+    expect(fold?.ci).toBe('failure');
+    expect(fold?.counts.waiting).toBe(0);
+    expect(fold?.counts.failed).toBe(1);
+  });
+
+  test('a queued job of a run still going keeps waiting', () => {
+    const going = {
+      ...failedRun,
+      status: 'in_progress',
+      conclusion: undefined,
+    };
+    const checks = [
+      inRun(jobs('failure')[0]),
+      inRun({ ...jobs('queued')[0], name: 'next' }),
+    ];
+    const fold = foldPullRequest('forgejo', checks, [going]);
+
+    expect(fold?.counts.waiting).toBe(1);
+  });
+
+  test('a rerun of the run keeps its queued jobs waiting', () => {
+    const checks = [
+      inRun(jobs('failure')[0]),
+      inRun({ ...jobs('queued')[0], name: 'rerun' }, 455, 2),
+    ];
+    const fold = foldPullRequest('forgejo', checks, [failedRun]);
+
+    expect(fold?.counts.waiting).toBe(1);
+  });
+
+  test('a queued job of another run keeps waiting', () => {
+    const checks = [
+      inRun(jobs('failure')[0]),
+      inRun({ ...jobs('queued')[0], name: 'other' }, 456),
+    ];
+    const fold = foldPullRequest('forgejo', checks, [failedRun]);
+
+    expect(fold?.counts.waiting).toBe(1);
+  });
+
+  test('without run facts a queued job waits as before', () => {
+    const checks = [inRun(jobs('failure')[0]), inRun(jobs('queued')[0])];
+
+    expect(foldPullRequest('forgejo', checks)?.counts.waiting).toBe(1);
+  });
+});
