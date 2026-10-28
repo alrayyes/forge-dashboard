@@ -204,6 +204,43 @@ describe('WebMCP read tools', () => {
     ]);
   });
 
+  test('get_main_branches returns a row with non-zero check counts untouched', async () => {
+    const checks = {
+      passed: 13,
+      skipped: 10,
+      running: 1,
+      waiting: 3,
+      failed: 2,
+    };
+    const { tool } = setup({
+      body: {
+        branches: [
+          {
+            forge: 'github',
+            fullName: 'o/older',
+            commit: { committedAt: '2026-10-01T00:00:00Z' },
+            checks,
+          },
+          {
+            forge: 'github',
+            fullName: 'o/newer',
+            commit: { committedAt: '2026-10-02T00:00:00Z' },
+            checks,
+          },
+        ],
+      },
+    });
+
+    const got = (await tool('get_main_branches').execute({})) as {
+      branches: { fullName: string; checks: unknown }[];
+    };
+
+    expect(got.branches.map((b) => [b.fullName, b.checks])).toEqual([
+      ['o/newer', checks],
+      ['o/older', checks],
+    ]);
+  });
+
   test('get_main_branch_checks reads the branch off the stream', async () => {
     const { calls, reads, tool } = setup();
     expect(
@@ -379,6 +416,14 @@ describe('WebMCP read tools', () => {
     // Pinned word for word, as internal/api/mcp_test.go pins the MCP side.
     expect(description).toContain(
       "The advisories key is absent when no source reads the repository's forge. A state of unknown means the source could not say, never zero; a Forgejo repo is unknown unless the operator switched lockfile checking on (reason not_enabled). A partial: true answer left out some of the repository's packages (private ones), so its count is a floor and a zero does not mean the repository is clean.",
+    );
+  });
+
+  test('get_main_branches says what a row’s check counts describe', () => {
+    const { tool } = setup();
+    // A key phrase, as internal/api/mcp_test.go pins the MCP side.
+    expect(tool('get_main_branches').description).toContain(
+      'tally the jobs get_main_branch_checks lists',
     );
   });
 

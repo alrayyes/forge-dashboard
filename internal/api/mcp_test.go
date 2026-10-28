@@ -209,6 +209,30 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 	assert.Contains(t, found.Description, "advisories")
 	assert.Contains(t, found.Description, "unknown")
 	assert.Contains(t, found.Description, advisoriesWording)
+	assert.Contains(t, found.Description, checkCountsWording)
+}
+
+// checkCountsWording is the key phrase the MCP tool and the WebMCP tool use
+// for a row's checks. web/src/lib/webmcp-tools.test.ts pins the same phrase.
+const checkCountsWording = "tally the jobs get_main_branch_checks lists"
+
+func TestMCP_GetMainBranches_ReturnsCheckCountsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	busy := branchRow("acme/busy", dashboard.MainBranchRunning)
+	busy.Checks = dashboard.CheckCounts{Passed: 13, Skipped: 10, Running: 1, Waiting: 3, Failed: 2}
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{busy})
+
+	content := callMainBranchesTool(t, srvURL, cookie, 1)
+
+	row := content["branches"].([]any)[0].(map[string]any)
+	assert.Equal(t, map[string]any{
+		"passed":  float64(13),
+		"skipped": float64(10),
+		"running": float64(1),
+		"waiting": float64(3),
+		"failed":  float64(2),
+	}, row["checks"])
 }
 
 // advisoriesWording is the one sentence both the MCP and the WebMCP tool use
