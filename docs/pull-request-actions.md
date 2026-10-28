@@ -740,10 +740,10 @@ matched to the commit ignoring the case of its SHA.
 A pull request whose only trouble is a cancelled job reads Cancelled while its
 pipeline panel is open, the same word and grey pill a main branch uses and the
 word the panel gives the job. The servers don't agree on that run. GitHub's
-rollup calls it failed, and Forgejo leaves cancelled jobs out of the failed
-count, so the row reads No checks or Passed. The page folds the jobs the panel
-lists the way a branch does, and the row follows the panel: a cancelled job
-beside one still going is Running, beside a real failure it is Failed, and
+combined state calls it failed, and Forgejo leaves cancelled jobs out of the
+failed count, so the row reads No checks or Passed. The page folds the jobs the
+panel lists the way a branch does, and the row follows the panel: a cancelled
+job beside one still going is Running, beside a real failure it is Failed, and
 beside passed jobs alone it is Cancelled, with no counts. Close the panel and
 the row goes back to what the server sent.
 
