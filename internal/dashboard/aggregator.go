@@ -61,6 +61,10 @@ type Aggregator struct {
 	// fetching marks the sources whose last fetch has not returned yet, by
 	// place in sources (#3021).
 	fetching []atomic.Bool
+	// pass is the fetch pass in flight, so a person's click that joins a
+	// scheduled one can shorten its wait (#3021).
+	pass   *fetchPass
+	passMu sync.Mutex
 
 	// settled holds pull requests a merge or close just succeeded on (#835),
 	// keyed by settledKey. The forge can go on listing one as open for a
@@ -462,6 +466,7 @@ func (a *Aggregator) Refresh(ctx context.Context) {
 		// ends up waiting on still treats it as the person's refresh.
 		a.userRefreshes.Add(1)
 		defer a.userRefreshes.Add(-1)
+		a.joinPass()
 	}
 	a.refresh.do(func() { a.refreshOnce(apistats.WithKind(ctx, apistats.KindFull)) })
 }
@@ -759,13 +764,8 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 	pending := map[int]bool{}
 	fetched := false
 	// Started before any fetch, so a deadline cannot pass unseen.
-	timedOut := make(chan struct{})
-	deadline := a.userFetchDeadline
-	if background(ctx) {
-		deadline = a.fetchDeadline
-	}
-	stop := a.fetchAfter(deadline, func() { close(timedOut) })
-	defer stop()
+	timedOut, endPass := a.beginPass(ctx)
+	defer endPass()
 	for i, src := range a.sources {
 		if health, ok := exhaustedHealth(earlier, src.Forge(), a.now()); ok {
 			// No budget left until the reset: a call would only fail, and
@@ -787,25 +787,57 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 		if !a.fetching[i].CompareAndSwap(false, true) {
 			// The last fetch is still running. Asking again would only add
 			// load to a forge that is struggling (#3021).
-			results[i].Result = Result{Health: unreachableHealth(src.Forge())}
+			results[i].Result = Result{Health: a.unreachableFrom(earlier, i)}
+			slog.Warn("fetch skipped, the last one is still running", "forge", src.Forge())
 
 			continue
 		}
 		fetched = true
 		pending[i] = true
-		go func(i int, src Source) {
-			res := src.Fetch(fetchCtx)
-			// Cleared whether or not the refresh still listens: the answer
-			// then waits in the buffer and is dropped with it.
-			a.fetching[i].Store(false)
-			answers <- sourceAnswer{i, res}
-		}(i, src)
+		go a.fetchOne(fetchCtx, i, src, answers)
 	}
-	a.collectAnswers(results, pending, answers, timedOut)
+	a.collectAnswers(results, pending, answers, timedOut, earlier)
 	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
 	return results
+}
+
+// beginPass starts the wait that ends a pass over the sources and makes the
+// pass visible to joinPass. It returns the channel the wait closes, and the
+// function that ends the pass.
+func (a *Aggregator) beginPass(ctx context.Context) (<-chan struct{}, func()) {
+	fp := &fetchPass{timedOut: make(chan struct{}), started: a.now()}
+	a.passMu.Lock()
+	a.pass = fp
+	a.passMu.Unlock()
+	// Read after the pass is visible to joinPass, so a click is either seen
+	// here or finds the pass there.
+	deadline := a.userFetchDeadline
+	if background(ctx) && a.userRefreshes.Load() == 0 {
+		deadline = a.fetchDeadline
+	}
+	// Armed before any fetch, so a deadline cannot pass unseen.
+	fp.arm(a.fetchAfter, deadline)
+
+	return fp.timedOut, func() {
+		a.passMu.Lock()
+		a.pass = nil
+		a.passMu.Unlock()
+		fp.stopTimers()
+	}
+}
+
+// fetchOne asks source i and sends its answer. The in-flight mark clears
+// whether or not the refresh still listens, and even if Fetch exits its
+// goroutine: a late answer then waits in the buffer and is dropped with it.
+func (a *Aggregator) fetchOne(ctx context.Context, i int, src Source, answers chan<- sourceAnswer) {
+	var res Result
+	func() {
+		defer a.fetching[i].Store(false)
+		res = src.Fetch(ctx)
+	}()
+	answers <- sourceAnswer{i, res}
 }
 
 // sourceAnswer is one source's fetch result, by its place in a.sources.
@@ -817,7 +849,7 @@ type sourceAnswer struct {
 // collectAnswers fills results from answers until every source in pending has
 // answered or timedOut closes. A source still pending then gets an unreachable
 // result, so the aggregator shows the rows it last had, marked stale (#3019).
-func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool, answers <-chan sourceAnswer, timedOut <-chan struct{}) {
+func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool, answers <-chan sourceAnswer, timedOut <-chan struct{}, earlier Snapshot) {
 	for len(pending) > 0 {
 		select {
 		case ans := <-answers:
@@ -834,10 +866,9 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 					drained = true
 				}
 			}
-			kind := ForgeErrorUnreachable
 			for i := range pending {
 				results[i] = sourceResult{asked: true}
-				results[i].Health = ForgeHealth{Forge: a.sources[i].Forge(), Error: HumanizeForgeError(kind), ErrorKind: kind}
+				results[i].Health = a.unreachableFrom(earlier, i)
 			}
 
 			return
@@ -845,12 +876,83 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 	}
 }
 
-// unreachableHealth is the health of a forge that did not answer, so the
-// aggregator keeps the rows it last had, marked stale.
-func unreachableHealth(forge Forge) ForgeHealth {
-	kind := ForgeErrorUnreachable
+// unreachableFrom is source i's health from snap, marked unreachable, so its
+// rate limits still show.
+func (a *Aggregator) unreachableFrom(snap Snapshot, i int) ForgeHealth {
+	forge := a.sources[i].Forge()
+	h, _ := healthOf(snap, forge)
+	h.Forge = forge
 
-	return ForgeHealth{Forge: forge, Error: HumanizeForgeError(kind), ErrorKind: kind}
+	return markUnreachable(h)
+}
+
+// markUnreachable is h for a forge that did not answer, so the aggregator
+// keeps the rows it last had, marked stale. The rest of h, such as its rate
+// limits, is left as it was.
+func markUnreachable(h ForgeHealth) ForgeHealth {
+	kind := ForgeErrorUnreachable
+	h.Reachable = false
+	h.Error = HumanizeForgeError(kind)
+	h.ErrorKind = kind
+
+	return h
+}
+
+// fetchPass is one pass over the sources and the wait that ends it. Its timers
+// all close timedOut, so whichever comes first ends the wait.
+type fetchPass struct {
+	timedOut chan struct{}
+	started  time.Time
+	once     sync.Once
+
+	mu    sync.Mutex
+	stops []func() bool
+	user  bool
+	ended bool
+}
+
+func (p *fetchPass) fire() { p.once.Do(func() { close(p.timedOut) }) }
+
+func (p *fetchPass) arm(after AfterFunc, d time.Duration) {
+	stop := after(d, p.fire)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.ended {
+		stop()
+
+		return
+	}
+	p.stops = append(p.stops, stop)
+}
+
+func (p *fetchPass) stopTimers() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ended = true
+	for _, stop := range p.stops {
+		stop()
+	}
+}
+
+// joinPass is for a person's refresh that may land on a pass already waiting
+// out the schedule's longer deadline. It adds the user deadline, counted from
+// when the pass began, so the click does not wait out the rest of the three
+// minutes on a forge that is not answering (#3021).
+func (a *Aggregator) joinPass() {
+	a.passMu.Lock()
+	fp := a.pass
+	a.passMu.Unlock()
+	if fp == nil {
+		return
+	}
+	fp.mu.Lock()
+	first := !fp.user
+	fp.user = true
+	fp.mu.Unlock()
+	if !first {
+		return
+	}
+	fp.arm(a.fetchAfter, max(a.userFetchDeadline-a.now().Sub(fp.started), 0))
 }
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is

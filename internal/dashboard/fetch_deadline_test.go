@@ -20,6 +20,7 @@ type hangingSource struct {
 	mu      sync.Mutex
 	prs     []int
 	hang    bool
+	limit   *dashboard.RateLimit
 	entered chan struct{}
 	release chan struct{}
 	served  chan struct{}
@@ -51,7 +52,7 @@ func (s *hangingSource) Fetch(context.Context) dashboard.Result {
 		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: s.forge, Reachable: true}}
 	}
 	defer func() { s.served <- struct{}{} }()
-	res := dashboard.Result{Health: dashboard.ForgeHealth{Forge: s.forge, Reachable: true}}
+	res := dashboard.Result{Health: dashboard.ForgeHealth{Forge: s.forge, Reachable: true, RateLimitREST: s.limit}}
 	for _, n := range prs {
 		res.PullRequests = append(res.PullRequests, dashboard.PullRequest{Forge: s.forge, Repo: "o/r", Number: n})
 	}
@@ -233,23 +234,110 @@ func TestAggregator_AManualRefreshWaitsLessThanTheSchedule(t *testing.T) {
 	})
 }
 
+// A click that joins a scheduled run already in flight is still the person's
+// refresh: it waits the user deadline, counted from when the run began, not the
+// schedule's (#3021).
+func TestAggregator_AManualRefreshJoiningAScheduledRunWaitsLessThanTheSchedule(t *testing.T) {
+	t.Parallel()
+
+	const (
+		deadline     = 3 * time.Minute
+		userDeadline = time.Minute
+	)
+
+	// settle yields until cond holds, within a bound.
+	settle := func(cond func() bool) bool {
+		for range 10000 {
+			if cond() {
+				return true
+			}
+			runtime.Gosched()
+		}
+
+		return cond()
+	}
+	finished := func(done <-chan struct{}) func() bool {
+		return func() bool {
+			select {
+			case <-done:
+				return true
+			default:
+				return false
+			}
+		}
+	}
+
+	setup := func(t *testing.T) (*fakeTimers, *hangingSource, <-chan struct{}, <-chan struct{}) {
+		t.Helper()
+		timers := newFakeTimers()
+		slow := newHangingSource(dashboard.ForgeForgejo, 10)
+		agg := dashboard.NewAggregator(
+			[]dashboard.Source{slow},
+			dashboard.WithClock(timers.Now),
+			dashboard.WithFetchDeadline(deadline, timers.After),
+			dashboard.WithUserFetchDeadline(userDeadline),
+		)
+		agg.Refresh(t.Context())
+		<-slow.served
+		slow.setHang(true)
+
+		scheduled := make(chan struct{})
+		go func() {
+			defer close(scheduled)
+			agg.Refresh(dashboard.BackgroundForTest(t.Context()))
+		}()
+		<-slow.entered
+
+		// The click arrives a little into the run.
+		timers.AdvanceWithoutWaiting(10 * time.Second)
+		manual := make(chan struct{})
+		go func() {
+			defer close(manual)
+			agg.Refresh(t.Context())
+		}()
+		settle(func() bool { return timers.Pending() >= 2 })
+
+		return timers, slow, scheduled, manual
+	}
+
+	t.Run("the click publishes at the user deadline", func(t *testing.T) {
+		t.Parallel()
+		timers, slow, _, manual := setup(t)
+		timers.Advance(userDeadline - 10*time.Second)
+
+		assert.True(t, settle(finished(manual)))
+		close(slow.release)
+	})
+
+	t.Run("the run ends with it", func(t *testing.T) {
+		t.Parallel()
+		timers, slow, scheduled, _ := setup(t)
+		timers.Advance(userDeadline - 10*time.Second)
+
+		assert.True(t, settle(finished(scheduled)))
+		close(slow.release)
+	})
+}
+
 // A forge whose last fetch is still running is not asked again: a second
 // fetch on top of a stuck one only adds load to a forge that is struggling.
 // Its rows stay, marked stale, until the fetch ends (#3021).
 func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 	t.Parallel()
 
-	const deadline = 3 * time.Minute
+	const userDeadline = time.Minute
 
 	setup := func(t *testing.T) (*dashboard.Aggregator, *hangingSource, *hangingSource) {
 		t.Helper()
 		timers := newFakeTimers()
 		fast := newHangingSource(dashboard.ForgeGitHub, 1)
 		slow := newHangingSource(dashboard.ForgeForgejo, 10)
+		slow.limit = &dashboard.RateLimit{Limit: 5000, Remaining: 4000}
 		agg := dashboard.NewAggregator(
 			[]dashboard.Source{fast, slow},
 			dashboard.WithClock(timers.Now),
-			dashboard.WithFetchDeadline(deadline, timers.After),
+			dashboard.WithUserFetchDeadline(userDeadline),
+			dashboard.WithFetchDeadline(3*userDeadline, timers.After),
 		)
 		agg.Refresh(t.Context())
 		<-fast.served
@@ -267,7 +355,7 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 		for range 100 {
 			runtime.Gosched()
 		}
-		timers.Advance(deadline)
+		timers.Advance(userDeadline)
 		<-first
 
 		return agg, fast, slow
@@ -308,6 +396,16 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 		assert.False(t, h.Reachable)
 		assert.Equal(t, dashboard.ForgeErrorUnreachable, h.ErrorKind)
 		assert.NotNil(t, h.StaleSince)
+		close(slow.release)
+	})
+
+	t.Run("its rate limits stay", func(t *testing.T) {
+		t.Parallel()
+		agg, _, slow := setup(t)
+		second(t, agg, slow)
+
+		require.NotNil(t, health(agg.Get(), dashboard.ForgeForgejo).RateLimitREST)
+		assert.Equal(t, 4000, health(agg.Get(), dashboard.ForgeForgejo).RateLimitREST.Remaining)
 		close(slow.release)
 	})
 
