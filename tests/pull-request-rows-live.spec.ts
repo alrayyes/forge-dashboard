@@ -160,7 +160,11 @@ test.describe('pull request rows follow their jobs', () => {
 
     await page.getByRole('button', { name: 'Next' }).first().click();
     await expect(rows).toHaveCount(5);
-    await expect(rows.first()).toContainText('Passed');
+    // Every new row draws its answer only after it was asked, so waiting on
+    // all five means the asks are all in, whatever order the posts landed in.
+    for (let i = 0; i < 5; i++) {
+      await expect(rows.nth(i)).toContainText('Passed');
+    }
     await feed.idle();
 
     // Five new rows were listed, the seven that left were let go of first.
