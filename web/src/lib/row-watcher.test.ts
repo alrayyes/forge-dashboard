@@ -83,6 +83,34 @@ describe('createRowWatcher', () => {
     expect(told.has('github:a/one')).toBe(false);
   });
 
+  test('keys a row by the key function it is given', () => {
+    const told = new Map<string, unknown>();
+    const live = new Map<string, (message: CheckFeedMessage) => void>();
+    const watcher = createRowWatcher({
+      feed: {
+        watch(s, follower) {
+          live.set(String(s.number), follower);
+          return () => live.delete(String(s.number));
+        },
+      },
+      keyOf: (s) => `${s.forge}:${s.fullName}#${s.number}`,
+      onChecks: (key, checks) => told.set(key, checks),
+      onDrop: (key) => told.delete(key),
+    });
+    const pr = (number: number): Subject => ({
+      kind: 'pull_request',
+      forge: 'github',
+      fullName: 'a/one',
+      number,
+    });
+
+    watcher.set([pr(1), pr(2)]);
+    live.get('2')?.({ checks: [] });
+
+    expect(live.size).toBe(2);
+    expect([...told.keys()]).toEqual(['github:a/one#2']);
+  });
+
   test('stop lets go of every subject', () => {
     const { watcher, live } = harness();
 

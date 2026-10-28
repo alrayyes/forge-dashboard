@@ -9,6 +9,9 @@ type Options = {
       follower: (m: CheckFeedMessage) => void,
     ): () => void;
   };
+  // How a subject is named in onChecks and onDrop. A branch row is one per
+  // repo; a pull request row needs its number too.
+  keyOf?: (subject: Subject) => string;
   onChecks: (key: string, checks: Check[]) => void;
   onDrop: (key: string) => void;
 };
@@ -17,7 +20,12 @@ type Options = {
 // rows now wanted: the ones already followed stay as they are, so a filter
 // change posts a watch for what is new and lets go of what left, not of
 // everything. A row let go of is dropped, so its pill reads the refresh again.
-export function createRowWatcher({ feed, onChecks, onDrop }: Options) {
+export function createRowWatcher({
+  feed,
+  keyOf = branchKey,
+  onChecks,
+  onDrop,
+}: Options) {
   const stops = new Map<string, () => void>();
 
   function drop(key: string) {
@@ -28,10 +36,10 @@ export function createRowWatcher({ feed, onChecks, onDrop }: Options) {
 
   return {
     set(wanted: readonly Subject[]) {
-      const keys = new Set(wanted.map(branchKey));
+      const keys = new Set(wanted.map(keyOf));
 
       for (const subject of wanted) {
-        const key = branchKey(subject);
+        const key = keyOf(subject);
         if (stops.has(key)) continue;
 
         stops.set(
