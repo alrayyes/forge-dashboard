@@ -987,7 +987,7 @@ had it. A run that's under way keeps the button until it ends.
 
 ## Updating every out-of-date pull request
 
-The Pull requests page header has an `Update all` button, where the Bots page
+The Pull requests page header has the `Update all` button, where the Bots page
 has `Rebase all`. It counts the pull requests the filters leave whose `Update
 branch` action the server offers and doesn't block, so `Update all (4)` means
 four, and a filter that narrows the list narrows the count. A line beside it
