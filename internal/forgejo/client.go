@@ -1292,14 +1292,21 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	}
 	if haveRuns {
 		counts = c.splitWaiting(ctx, owner, name, runs, combined.Statuses, counts)
-		if state == dashboard.CIPending && counts.Failed == 0 && counts.Waiting == 0 && counts.Running == 0 {
-			// The waits were all blocked jobs of failed runs: nothing is left to
-			// run, so the state follows the counts, not the pending statuses.
-			state = stateWithoutFailures(counts, combined.Statuses)
-		}
+		state = settledState(state, counts, combined.Statuses)
 	}
 
 	return state, counts, nil
+}
+
+// settledState is state once the waits are split out. A pending state that
+// had only blocked jobs of failed runs behind it has nothing left to run, so
+// it follows the counts, not the pending statuses.
+func settledState(state dashboard.CIStatus, counts dashboard.CheckCounts, statuses []*gitea.Status) dashboard.CIStatus {
+	if state == dashboard.CIPending && counts.Failed == 0 && counts.Waiting == 0 && counts.Running == 0 {
+		return stateWithoutFailures(counts, statuses)
+	}
+
+	return state
 }
 
 // splitWaiting takes what the pending statuses don't wait on out of the
