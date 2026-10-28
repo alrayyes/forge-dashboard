@@ -170,14 +170,13 @@
     summaryLine,
   } from "#lib/bot-rebase-all.js";
   import {
-    branchNote,
     chosenRows,
-    mergeAllLabel,
-    mergeAllPlan,
-    progressLabel as mergeProgressLabel,
-    summaryLine as mergeSummaryLine,
-    type BranchDeletion,
-  } from "#lib/merge-all.js";
+    progressLabel as updateProgressLabel,
+    showUpdateAll,
+    summaryLine as updateSummaryLine,
+    updateAllLabel,
+    updateAllPlan,
+  } from "#lib/update-all.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -2987,19 +2986,11 @@
     // mergeActionCell's own click handler only ever flips into
     // "confirming", so a single accidental click can never merge
     // anything.
-    // Resolves true once the merge went through, false when it did not.
-    // `deleteBranch` asks the server to delete the source branch too; the
-    // row's own Merge never sets it.
     function doMerge(
       item: PullRequestItem,
       confirmButton: HTMLButtonElement,
-      {
-        deleteBranch = false,
-        onFailure,
-      }: { deleteBranch?: boolean; onFailure?: (reason: string) => void } = {},
-    ): Promise<boolean> {
+    ): void {
       const key = prKey(item);
-      let merged = false;
       mergeState[key] = { phase: "merging" };
       confirmButton.disabled = true;
       confirmButton.textContent = "Merging…";
@@ -3024,7 +3015,7 @@
         },
       });
 
-      return fetch("/api/pull-requests/merge", {
+      void fetch("/api/pull-requests/merge", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3034,37 +3025,26 @@
           forge: item.forge,
           fullName: item.repo,
           number: item.number,
-          ...(deleteBranch ? { deleteBranch: true } : {}),
         }),
       })
-        .then((res): Promise<BranchDeletion | undefined> | undefined => {
+        .then((res) => {
           if (res.status === 401) {
             window.location.href = "/login.html";
             throw new Error("session expired");
           }
-          if (res.status === 204) return undefined;
-          // Asked to delete the branch, the server answers 200 with what it
-          // did. A body that won't parse still means the merge went through.
-          if (res.status === 200 && deleteBranch)
-            return res
-              .json()
-              .then((body) => body?.branchDeletion as BranchDeletion)
-              .catch(() => undefined);
+          if (res.status === 204) return;
           return readActionFailure(res).then((err) => {
             throw err;
           });
         })
-        .then((deletion) => {
-          merged = true;
+        .then(() => {
           delete mergeState[key];
           closeDialogOf(key);
-          const note = branchNote(deletion);
-          const said = note ? `Merged. ${note}` : "Merged.";
           feedback.update(fkey, {
             phase: "done",
-            message: said,
+            message: "Merged.",
             toast: true,
-            announce: said,
+            announce: "Merged.",
           });
           // Pulls a fresh snapshot right away rather than waiting out
           // the rest of the background poll's own interval — the same
@@ -3102,7 +3082,6 @@
                   // went through despite the network error, so this
                   // reports as the same success the happy path does
                   // rather than a false failure.
-                  merged = true;
                   delete mergeState[key];
                   closeDialogOf(key);
                   applySnapshot(data, true);
@@ -3114,7 +3093,6 @@
                   });
                   return;
                 }
-                onFailure?.(NETWORK_FAILURE);
                 mergeState[key] = { phase: "idle" };
                 if (data) {
                   applySnapshot(data, true);
@@ -3131,7 +3109,6 @@
                 );
               })
               .catch(() => {
-                onFailure?.(NETWORK_FAILURE);
                 mergeState[key] = { phase: "idle" };
                 failAction(
                   fkey,
@@ -3145,12 +3122,10 @@
               });
           }
 
-          onFailure?.(err.message);
           renderActionRefusal(item, err, fkey, "merge", (next) => {
             mergeState[key] = next;
           });
-        })
-        .then(() => merged);
+        });
     }
 
     // The one place on a row that says what the pull request is waiting on or
@@ -4054,7 +4029,14 @@
 
     // No confirm step, unlike doMerge — bringing a branch up to date is
     // routine and reversible in a way completing the pull request isn't.
-    function doUpdateBranch(item: PullRequestItem, button: HTMLButtonElement) {
+    // Resolves true once the server took the request, false when it did not.
+    // `onFailure` gets the reason, for a caller (Update all) that shows it
+    // on its own row too.
+    function doUpdateBranch(
+      item: PullRequestItem,
+      button: HTMLButtonElement,
+      { onFailure }: { onFailure?: (reason: string) => void } = {},
+    ): Promise<boolean> {
       const key = prKey(item);
       updateBranchState[key] = {
         phase: "queued",
@@ -4074,7 +4056,8 @@
         retry: () => doUpdateBranch(item, buttonEl("row-action")),
       });
 
-      fetch("/api/pull-requests/update-branch", {
+      let requested = false;
+      return fetch("/api/pull-requests/update-branch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4100,6 +4083,7 @@
           });
         })
         .then(() => {
+          requested = true;
           // The server has the request now and puts it on the pull request
           // until a later fetch shows the branch caught up (#982). The row
           // stays "queued" until a snapshot says otherwise
@@ -4126,6 +4110,7 @@
                 ),
             );
             if (outcome.ran && outcome.data) {
+              requested = true;
               confirmRequest(updateBranchState, key);
               feedback.update(fkey, {
                 toast: true,
@@ -4135,10 +4120,12 @@
               return;
             }
           }
+          onFailure?.(err.status === undefined ? NETWORK_FAILURE : err.message);
           renderActionRefusal(item, err, fkey, "update the branch", (next) => {
             updateBranchState[key] = next;
           });
-        });
+        })
+        .then(() => requested);
     }
 
     // Only rendered when the forge reports this pull request as behind
@@ -5837,65 +5824,78 @@
         void runRebaseAll();
       });
 
-    // ---- merge all, on the Pull requests page (#2860) ----
-    // The rows the filters leave. Each chosen row goes through the same Merge
-    // a row has, so the server's own refusal shows on that row of the dialog.
+    // ---- update all, on the Pull requests page (#3011) ----
+    // The rows the filters leave. Each chosen row goes through the same Update
+    // branch a row has, so the server's own refusal shows on that row of the
+    // dialog. Nothing shows while no listed row can be updated.
     let visiblePullRows: PullRequestItem[] = [];
-    let mergeAllRun: { done: number; total: number } | null = null;
-    let mergeAllShown: {
+    let updateAllRun: { done: number; total: number } | null = null;
+    let updateAllShown: {
       item: PullRequestItem;
       box: HTMLInputElement;
       note: HTMLElement;
     }[] = [];
 
-    function currentMergePlan() {
-      return mergeAllPlan(visiblePullRows, {
-        merging: (item) => mergeState[prKey(item)]?.phase === "merging",
+    function currentUpdatePlan() {
+      return updateAllPlan(visiblePullRows, {
+        updating: (item) => updateBranchState[prKey(item)]?.phase === "queued",
       });
     }
 
-    function updateMergeAll() {
-      const button = document.getElementById("merge-all-button");
-      const summary = document.getElementById("merge-all-summary");
+    function updateUpdateAll() {
+      const button = document.getElementById("update-all-button");
+      const summary = document.getElementById("update-all-summary");
       if (!(button instanceof HTMLButtonElement) || !summary) return;
-      const plan = currentMergePlan();
+      const plan = currentUpdatePlan();
       const ready = plan.eligible.length;
-      button.textContent = mergeAllRun
-        ? mergeProgressLabel(mergeAllRun.done, mergeAllRun.total)
-        : mergeAllLabel(ready);
-      markPending(button, mergeAllRun !== null || ready === 0);
-      summary.textContent = mergeSummaryLine(ready, plan.total);
+      const block = button.parentElement;
+      if (block) {
+        const show = showUpdateAll(plan, updateAllRun !== null);
+        // A button that vanishes under focus would drop it to the body.
+        if (!show && !block.hidden && block.contains(document.activeElement))
+          document
+            .querySelector<HTMLElement>(
+              '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
+            )
+            ?.focus();
+        block.hidden = !show;
+      }
+      button.textContent = updateAllRun
+        ? updateProgressLabel(updateAllRun.done, updateAllRun.total)
+        : updateAllLabel(ready);
+      markPending(button, updateAllRun !== null);
+      summary.textContent = updateSummaryLine(ready, plan.total);
     }
 
-    function mergeAllDialog(): HTMLDialogElement | null {
-      const dialog = document.getElementById("merge-all-dialog");
+    function updateAllDialog(): HTMLDialogElement | null {
+      const dialog = document.getElementById("update-all-dialog");
       return dialog instanceof HTMLDialogElement ? dialog : null;
     }
 
-    function openMergeAll() {
-      const dialog = mergeAllDialog();
-      const plan = currentMergePlan();
-      if (!dialog || mergeAllRun || plan.eligible.length === 0) return;
+    function openUpdateAll() {
+      const dialog = updateAllDialog();
+      const plan = currentUpdatePlan();
+      if (!dialog || updateAllRun || plan.eligible.length === 0) return;
       const count = plan.eligible.length;
-      const title = document.getElementById("merge-all-title");
+      const title = document.getElementById("update-all-title");
       if (title)
-        title.textContent = `Merge ${count} pull request${count === 1 ? "" : "s"}?`;
-      const progress = document.getElementById("merge-all-progress");
+        title.textContent = `Update ${count} pull request${count === 1 ? "" : "s"}?`;
+      const progress = document.getElementById("update-all-progress");
       if (progress) progress.textContent = "";
-      const confirm = document.getElementById("merge-all-confirm");
+      const confirm = document.getElementById("update-all-confirm");
       if (confirm instanceof HTMLButtonElement) confirm.disabled = false;
-      mergeAllShown = plan.eligible.map((item) => {
+      updateAllShown = plan.eligible.map((item) => {
         const box = document.createElement("input");
         box.type = "checkbox";
         box.checked = true;
-        return { item, box, note: el("span", "merge-all-note") };
+        return { item, box, note: el("span", "update-all-note") };
       });
-      document.getElementById("merge-all-list")?.replaceChildren(
-        ...mergeAllShown.map(({ item, box, note }) => {
-          const li = el("li", "merge-all-item");
-          const label = el("label", "merge-all-label");
+      document.getElementById("update-all-list")?.replaceChildren(
+        ...updateAllShown.map(({ item, box, note }) => {
+          const li = el("li", "update-all-item");
+          const label = el("label", "update-all-label");
           label.appendChild(box);
-          const text = el("span", "merge-all-text");
+          const text = el("span", "update-all-text");
           const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
           badge.appendChild(el("span", "dot"));
           badge.appendChild(
@@ -5919,71 +5919,71 @@
     // One after another, so a forge sees a steady trickle and not a burst. The
     // plan is read again here, so a row the server stopped offering since the
     // dialog opened is left alone.
-    async function runMergeAll() {
-      if (mergeAllRun) return;
+    async function runUpdateAll() {
+      if (updateAllRun) return;
       const left = new Set(
-        mergeAllShown.filter((r) => !r.box.checked).map((r) => prKey(r.item)),
+        updateAllShown.filter((r) => !r.box.checked).map((r) => prKey(r.item)),
       );
       const chosen = chosenRows(
-        mergeAllShown.map((r) => r.item),
+        updateAllShown.map((r) => r.item),
         left,
         prKey,
-        currentMergePlan().eligible,
+        currentUpdatePlan().eligible,
       );
       if (chosen.length === 0) {
-        mergeAllDialog()?.close();
+        updateAllDialog()?.close();
         return;
       }
-      const confirm = document.getElementById("merge-all-confirm");
+      const confirm = document.getElementById("update-all-confirm");
       if (confirm instanceof HTMLButtonElement) confirm.disabled = true;
-      for (const r of mergeAllShown) r.box.disabled = true;
-      const progress = document.getElementById("merge-all-progress");
-      const status = document.getElementById("merge-all-status");
-      mergeAllRun = { done: 0, total: chosen.length };
+      for (const r of updateAllShown) r.box.disabled = true;
+      const progress = document.getElementById("update-all-progress");
+      const status = document.getElementById("update-all-status");
+      updateAllRun = { done: 0, total: chosen.length };
       let failed = 0;
-      updateMergeAll();
-      if (progress) progress.textContent = mergeProgressLabel(0, chosen.length);
+      updateUpdateAll();
+      if (progress)
+        progress.textContent = updateProgressLabel(0, chosen.length);
       for (const item of chosen) {
-        const row = mergeAllShown.find((r) => r.item === item);
-        const merged = await doMerge(item, buttonEl("row-action"), {
-          deleteBranch: true,
+        const row = updateAllShown.find((r) => r.item === item);
+        const requested = await doUpdateBranch(item, buttonEl("row-action"), {
           onFailure: (reason) => {
             if (row) row.note.textContent = reason;
           },
         });
-        if (!merged) failed++;
-        else if (row) row.note.textContent = "Merged.";
-        mergeAllRun.done++;
-        updateMergeAll();
+        if (!requested) failed++;
+        else if (row) row.note.textContent = "Update requested.";
+        updateAllRun.done++;
+        updateUpdateAll();
         if (progress)
-          progress.textContent = mergeProgressLabel(
-            mergeAllRun.done,
-            mergeAllRun.total,
+          progress.textContent = updateProgressLabel(
+            updateAllRun.done,
+            updateAllRun.total,
           );
       }
-      const total = mergeAllRun.total;
-      mergeAllRun = null;
-      updateMergeAll();
+      const total = updateAllRun.total;
+      updateAllRun = null;
+      updateUpdateAll();
       const summary =
         failed === 0
-          ? `Merged ${total}.`
-          : `Merged ${total - failed} of ${total}. ${failed} failed.`;
+          ? `Update requested for ${total}.`
+          : `Update requested for ${total - failed} of ${total}. ${failed} failed.`;
       if (progress) progress.textContent = summary;
       if (status) status.textContent = summary;
     }
 
     document
-      .getElementById("merge-all-button")
+      .getElementById("update-all-button")
       ?.addEventListener("click", (event) => {
         if (isPending(event.currentTarget as HTMLButtonElement)) return;
-        openMergeAll();
+        openUpdateAll();
       });
     document
-      .getElementById("merge-all-cancel")
-      ?.addEventListener("click", () => mergeAllDialog()?.close());
+      .getElementById("update-all-cancel")
+      ?.addEventListener("click", () => updateAllDialog()?.close());
     document
-      .getElementById("merge-all-confirm")
-      ?.addEventListener("click", () => void runMergeAll());
+      .getElementById("update-all-confirm")
+      ?.addEventListener("click", () => void runUpdateAll());
 
     // A button that stands in for another when the request turns into its
     // cancel names the place it holds, so focus can follow the swap.
@@ -7248,7 +7248,7 @@
           visibleBotRows = visible as PullRequestItem[];
           visiblePullRows = visibleBotRows;
           updateRebaseAll();
-          updateMergeAll();
+          updateUpdateAll();
         }
         const count = document.getElementById(`${idPrefix}-count`);
         if (count)
@@ -9875,33 +9875,30 @@
           <p class="rebase-all-hint">Esc closes this.</p>
         </dialog>
       {:else if view === "pulls"}
-        <div class="merge-all">
-          <p class="merge-all-summary" id="merge-all-summary"></p>
+        <div class="update-all" hidden>
+          <p class="update-all-summary" id="update-all-summary"></p>
           <button
             type="button"
-            class="merge-all-button"
-            id="merge-all-button"
+            class="update-all-button"
+            id="update-all-button"
             aria-haspopup="dialog"
-            aria-disabled="true"
-            aria-describedby="merge-all-summary">Merge all</button
+            aria-describedby="update-all-summary">Update all</button
           >
-          <span class="sr-only" id="merge-all-status" role="status"></span>
         </div>
+        <span class="sr-only" id="update-all-status" role="status"></span>
         <dialog
-          id="merge-all-dialog"
-          class="merge-all-dialog"
-          aria-labelledby="merge-all-title"
+          id="update-all-dialog"
+          class="update-all-dialog"
+          aria-labelledby="update-all-title"
         >
-          <h2 id="merge-all-title">Merge pull requests?</h2>
-          <ul class="merge-all-list" id="merge-all-list"></ul>
-          <p class="merge-all-progress" id="merge-all-progress"></p>
-          <div class="merge-all-actions">
-            <button type="button" id="merge-all-cancel">Close</button>
-            <button type="button" id="merge-all-confirm">Merge</button>
+          <h2 id="update-all-title">Update pull requests?</h2>
+          <ul class="update-all-list" id="update-all-list"></ul>
+          <p class="update-all-progress" id="update-all-progress"></p>
+          <div class="update-all-actions">
+            <button type="button" id="update-all-cancel">Close</button>
+            <button type="button" id="update-all-confirm">Update</button>
           </div>
-          <p class="merge-all-hint">
-            Source branches are deleted. Esc closes this.
-          </p>
+          <p class="update-all-hint">Esc closes this.</p>
         </dialog>
       {/if}
 

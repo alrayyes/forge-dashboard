@@ -985,27 +985,34 @@ When none is, because they're all current or a filter hides the ones that
 aren't, both go away, and focus moves to the `All` quick filter if the button
 had it. A run that's under way keeps the button until it ends.
 
-## Merging every ready pull request
+## Updating every out-of-date pull request
 
-The Pull requests page header has a `Merge all` button. It counts the pull
-requests the filters leave whose `merge` action the server offers and doesn't
-block, so `Merge all (4)` means four, and a filter that narrows the list
-narrows the count. A line beside it says how many are ready, for example
-`4 of 6 are ready to merge.` Bots have their own page and aren't listed here.
+The Pull requests page header has the `Update all` button, where the Bots page
+has `Rebase all`. It counts the pull requests the filters leave whose `Update
+branch` action the server offers and doesn't block, so `Update all (4)` means
+four, and a filter that narrows the list narrows the count. A line beside it
+says how many of the listed pull requests are out of date, for example `4 of 6
+are out of date.` Bots have their own page and aren't listed here.
+
+A pull request that the dashboard already updates by itself isn't counted,
+listed or updated: one in a repo with automatic branch updates switched on, or
+one switched on for itself. One switched off for itself, or one a draft or
+release-please pull request keeps out of the automatic update, still counts.
 
 Pressing it opens a confirm dialog with a tick box for each pull request, all
-ticked. Clear a box to leave that one out. The dialog says source branches are
-deleted. `Merge` then merges the ticked ones one after another, each with
-`deleteBranch` set and by the repo's own merge method, the same request the
-row's `Merge` sends. The dialog reads `Merging 2 of 4` as it goes. A merge the
-forge refuses shows its reason on its own row and the others carry on.
+ticked. Clear a box to leave that one out. `Update` then updates the ticked ones
+one after another, through the same request the row's `Update branch` sends. The
+button and the dialog read `Updating 2 of 4` as it goes. An update the forge
+refuses shows its reason on its own row and the others carry on. When the run
+ends the dialog reads `Update requested for 4.`, or `Update requested for 3 of
+4. 1 failed.`
 
-A branch that is kept, or can't be deleted, doesn't count as a failed merge.
-The note rides on the toast for that merge, such as `Merged. Branch kept: it is
-protected.` when the branch is protected.
+Escape, or `Close`, before `Update` updates nothing.
 
-Escape, or `Close`, before `Merge` merges nothing. When no pull request can
-merge, the button is disabled and the line reads `Nothing is ready to merge.`
+The button and its line show only while a listed pull request can be updated.
+When none can, because they're all current or a filter hides the ones that
+aren't, both go away, and focus moves to the `All` quick filter if the button
+had it. A run that's under way keeps the button until it ends.
 
 ## Deleting the source branch on merge
 
