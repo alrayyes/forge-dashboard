@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.11.3](https://github.com/alrayyes/forge-dashboard/compare/v8.11.2...v8.11.3) (2026-10-28)
+
+
+### Bug Fixes
+
+* **forgejo:** settle the state once blocked jobs drop ([#3049](https://github.com/alrayyes/forge-dashboard/issues/3049)) ([897bc9e](https://github.com/alrayyes/forge-dashboard/commit/897bc9e7d89edd8572c5720711e39dcaebd1b904))
+
 ## [8.11.2](https://github.com/alrayyes/forge-dashboard/compare/v8.11.1...v8.11.2) (2026-10-28)
 
 
