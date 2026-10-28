@@ -352,6 +352,15 @@ watches the row and the stream sends `run` events with its jobs. They
 sit outside the snapshot. Each watch calls the forge, so they spend
 rate-limit budget. An MCP client reads them with
 `get_main_branch_checks`.
+
+The page also watches the first seven rows it shows, in the order it shows
+them, so their pills fold from the live jobs without opening a dialog. The
+stream takes eight watched rows at once, and the pipeline panel keeps the
+eighth. The rows are chosen from the pills of the last refresh, so a row whose
+live pill leaves the status filter stays watched instead of flapping. A filter
+change watches the rows that came in and lets go of the ones that left. A row
+past the seventh keeps the pill from the refresh until a filter brings it into
+the first seven.
 The commit is
 the one the row describes, the newest on the default branch that a check ran
 on, so a bot's commit that skips CI does not hide the run. A branch with no

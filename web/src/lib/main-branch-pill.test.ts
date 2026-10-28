@@ -7,6 +7,8 @@ import {
   branchPill,
   countMainBranches,
   type MainBranch,
+  rowsToWatch,
+  STREAM_SUBJECT_CAP,
   withLiveJobs,
 } from './main-branches';
 import type { Check } from './pipeline-checks';
@@ -79,27 +81,38 @@ function row(fullName: string, status: MainBranch['status']): MainBranch {
 describe('withLiveJobs', () => {
   const rows = [row('a/one', 'failed'), row('a/two', 'failed')];
   const key = branchKey(rows[0]);
+  const lists = (...entries: [string, Check[]][]) => new Map(entries);
 
   test('with no job list the rows are the refresh', () => {
-    expect(withLiveJobs(rows, null)).toEqual(rows);
+    expect(withLiveJobs(rows, new Map())).toEqual(rows);
   });
 
   test('an empty job list is no answer', () => {
-    expect(withLiveJobs(rows, { key, checks: [] })).toEqual(rows);
+    expect(withLiveJobs(rows, lists([key, []]))).toEqual(rows);
   });
 
-  test('the open row takes the fold and the others stay as refreshed', () => {
-    const live = { key, checks: jobs('success', 'running') };
-    const out = withLiveJobs(rows, live);
+  test('a row with a list takes the fold and the others stay', () => {
+    const checks = jobs('success', 'running');
+    const out = withLiveJobs(rows, lists([key, checks]));
 
     expect(out[0].status).toBe('running');
-    expect(out[0].checks).toEqual(foldBranch(live.checks).counts);
+    expect(out[0].checks).toEqual(foldBranch(checks).counts);
     expect(out[1]).toBe(rows[1]);
   });
 
+  test('every row with a list is read from it', () => {
+    const other = branchKey(rows[1]);
+    const out = withLiveJobs(
+      rows,
+      lists([key, jobs('success', 'running')], [other, jobs('success')]),
+    );
+
+    expect(out.map((r) => r.status)).toEqual(['running', 'passed']);
+  });
+
   // The chips and the header pill count rows: they must agree with the pill.
-  test('the tally counts the open row by its live status', () => {
-    const live = { key, checks: jobs('success', 'success') };
+  test('the tally counts a live row by its live status', () => {
+    const live = lists([key, jobs('success', 'success')]);
 
     expect(countMainBranches(rows).failed).toBe(2);
     expect(countMainBranches(withLiveJobs(rows, live))).toMatchObject({
@@ -110,9 +123,9 @@ describe('withLiveJobs', () => {
 
   // The Failing: line names the jobs that failed. After a rerun the list says
   // none did, so the line must not keep naming last run's.
-  test('the open row names the jobs its live list failed', () => {
-    const rerun = { key, checks: jobs('success', 'running') };
-    const failed = { key, checks: jobs('success', 'failure') };
+  test('a live row names the jobs its list failed', () => {
+    const rerun = lists([key, jobs('success', 'running')]);
+    const failed = lists([key, jobs('success', 'failure')]);
 
     expect(rows[0].failingJobs).toEqual(['secrets']);
     expect(withLiveJobs(rows, rerun)[0].failingJobs).toEqual([]);
@@ -121,17 +134,41 @@ describe('withLiveJobs', () => {
   });
 
   test('an empty list leaves the names as refreshed', () => {
-    expect(withLiveJobs(rows, { key, checks: [] })[0].failingJobs).toEqual([
+    expect(withLiveJobs(rows, lists([key, []]))[0].failingJobs).toEqual([
       'secrets',
     ]);
   });
 
   test('a key that matches no row changes nothing', () => {
-    const live = {
-      key: branchKey(row('a/gone', 'failed')),
-      checks: jobs('success'),
-    };
+    const live = lists([branchKey(row('a/gone', 'failed')), jobs('success')]);
 
     expect(withLiveJobs(rows, live)).toEqual(rows);
+  });
+});
+
+describe('rowsToWatch', () => {
+  const many = Array.from({ length: 12 }, (_, i) => row(`a/r${i}`, 'passed'));
+
+  test('watches the rows shown, as branch subjects, in order', () => {
+    expect(rowsToWatch(many.slice(0, 2))).toEqual([
+      { kind: 'main_branch', forge: 'forgejo', fullName: 'a/r0' },
+      { kind: 'main_branch', forge: 'forgejo', fullName: 'a/r1' },
+    ]);
+  });
+
+  // The stream takes 8 subjects and the pipeline dialog needs one of them.
+  test('leaves the dialog a slot of the stream cap', () => {
+    expect(STREAM_SUBJECT_CAP).toBe(8);
+    expect(rowsToWatch(many)).toHaveLength(STREAM_SUBJECT_CAP - 1);
+    expect(rowsToWatch(many)[0].fullName).toBe('a/r0');
+  });
+
+  test('a limit lowers it, never raises it past the cap', () => {
+    expect(rowsToWatch(many, 3)).toHaveLength(3);
+    expect(rowsToWatch(many, 50)).toHaveLength(STREAM_SUBJECT_CAP - 1);
+  });
+
+  test('watches nothing when nothing is shown', () => {
+    expect(rowsToWatch([])).toEqual([]);
   });
 });

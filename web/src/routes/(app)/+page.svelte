@@ -73,10 +73,13 @@
     statusCount,
     type StatusPill,
     type ForgeFilter,
+    rowsToWatch,
     supersedes,
     withLiveJobs,
   } from "#lib/main-branches.js";
   import { followMainBranchPage } from "#lib/main-branch-stream.js";
+  import { checkFeed } from "#lib/check-feed.js";
+  import { createRowWatcher } from "#lib/row-watcher.js";
 
   let data = $state<MainBranches | null>(null);
   let failed = $state(false);
@@ -111,14 +114,46 @@
   // The same list, kept as state so the open row is read from it: the pill, the
   // chips and the nav pill then fold the one job list the dialog shows.
   let liveChecks = $state<{ key: string; checks: Check[] } | null>(null);
+  // The job lists of the rows watched on the stream, by row key (#2885). A new
+  // map on every change, since a Map in state does not notice a set.
+  let rowChecks = $state<Map<string, Check[]>>(new Map());
+  // The dialog's list wins for its row: it is the list the dialog shows.
+  const liveLists = $derived(
+    liveChecks
+      ? new Map(rowChecks).set(liveChecks.key, liveChecks.checks)
+      : rowChecks,
+  );
 
-  // Sorted by the refresh, then the open dialog's row is read from its jobs:
-  // the row keeps its place, and the pill, the chips, the filter and the nav
-  // pill all count it one way.
+  // Sorted by the refresh, then each watched row and the open dialog's row is
+  // read from its jobs: the row keeps its place, and the pill, the chips, the
+  // filter and the nav pill all count it one way.
   const branches = $derived(
-    withLiveJobs(sortMainBranches(data?.branches ?? []), liveChecks),
+    withLiveJobs(sortMainBranches(data?.branches ?? []), liveLists),
   );
   const visible = $derived(applyFilter(branches, filter));
+  // The rows to watch are chosen from the refresh's pills, not the live ones: a
+  // row whose live pill left the filter would be let go, read the refresh
+  // again, come back and flap. They are the first rows the page shows, up to
+  // the stream's cap less the dialog's slot; the rest keep the refresh's pill.
+  const watchedRows = $derived(
+    rowsToWatch(applyFilter(sortMainBranches(data?.branches ?? []), filter)),
+  );
+  const rowWatcher = createRowWatcher({
+    feed: checkFeed,
+    onChecks: (key, checks) => {
+      rowChecks = new Map(rowChecks).set(key, checks);
+    },
+    onDrop: (key) => {
+      if (!rowChecks.has(key)) return;
+      const next = new Map(rowChecks);
+      next.delete(key);
+      rowChecks = next;
+    },
+  });
+  $effect(() => {
+    const wanted = watchedRows;
+    untrack(() => rowWatcher.set(wanted));
+  });
   const perForge = $derived(forgeCounts(branches));
   // A status or forge pill is offered only when clicking it would show
   // something, and the active one stays (#1427).
@@ -346,6 +381,7 @@
   // free text, so it takes the debounced path the other pages' title boxes use.
   let page = -1;
   onDestroy(() => {
+    rowWatcher.stop();
     leavePage(page);
     setBranchNavCount(null);
   });
