@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.9.0](https://github.com/alrayyes/forge-dashboard/compare/v8.8.0...v8.9.0) (2026-10-28)
+
+
+### Features
+
+* **web:** replace merge all with update all ([#3012](https://github.com/alrayyes/forge-dashboard/issues/3012)) ([e73572e](https://github.com/alrayyes/forge-dashboard/commit/e73572ebfb026c15d13f53945639ce9792b4e6a0))
+
 ## [8.8.0](https://github.com/alrayyes/forge-dashboard/compare/v8.7.0...v8.8.0) (2026-10-28)
 
 
