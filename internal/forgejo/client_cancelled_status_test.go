@@ -54,6 +54,8 @@ type forge struct {
 	// ignorePaging makes the jobs endpoint answer its first page whatever page
 	// is asked for, as a forge that doesn't page does.
 	ignorePaging bool
+	// totalCount is the total_count of the combined status.
+	totalCount int
 }
 
 // jobsPageSize is how many jobs the fake forge serves a page when the request
@@ -126,7 +128,7 @@ func (f forge) serve(t *testing.T) served {
 		}})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{"state": "failure", "statuses": f.statuses})
+		writeJSON(t, w, map[string]any{"state": "failure", "statuses": f.statuses, "total_count": f.totalCount})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		s.runReads.Add(1)
