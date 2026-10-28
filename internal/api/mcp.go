@@ -101,7 +101,7 @@ func newMCPServer(deps Deps) *mcp.Server {
 			"never zero; a Forgejo repo is unknown unless the operator switched lockfile checking on (reason not_enabled). " +
 			"A partial: true answer left out some of the repository's packages (private ones), so its " +
 			"count is a floor and a zero does not mean the repository is clean. " +
-			"A row's checks counts describe the same jobs get_main_branch_checks lists for that repository. " +
+			"A row's checks counts tally the jobs get_main_branch_checks lists, apart from cancelled and held runs, which are in none of the four counts. On GitHub the two are read separately, so they can differ briefly. " +
 			"Read-only: this app never writes to either " +
 			"forge through this tool. Reads the snapshot the background refresh " +
 			"already holds, so it costs no forge budget however often you call it.",

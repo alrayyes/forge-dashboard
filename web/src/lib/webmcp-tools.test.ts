@@ -421,9 +421,9 @@ describe('WebMCP read tools', () => {
 
   test('get_main_branches says what a row’s check counts describe', () => {
     const { tool } = setup();
-    // Pinned word for word, as internal/api/mcp_test.go pins the MCP side.
+    // A key phrase, as internal/api/mcp_test.go pins the MCP side.
     expect(tool('get_main_branches').description).toContain(
-      "A row's checks counts describe the same jobs get_main_branch_checks lists for that repository.",
+      'tally the jobs get_main_branch_checks lists',
     );
   });
 

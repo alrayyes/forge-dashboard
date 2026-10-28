@@ -212,9 +212,9 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 	assert.Contains(t, found.Description, checkCountsWording)
 }
 
-// checkCountsWording is the sentence the MCP tool and the WebMCP tool use for
-// a row's checks. web/src/lib/webmcp-tools.test.ts pins the same text.
-const checkCountsWording = "A row's checks counts describe the same jobs get_main_branch_checks lists for that repository."
+// checkCountsWording is the key phrase the MCP tool and the WebMCP tool use
+// for a row's checks. web/src/lib/webmcp-tools.test.ts pins the same phrase.
+const checkCountsWording = "tally the jobs get_main_branch_checks lists"
 
 func TestMCP_GetMainBranches_ReturnsCheckCountsUnchanged(t *testing.T) {
 	t.Parallel()
