@@ -44,6 +44,8 @@
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
+  import type { Check } from "#lib/pipeline-checks.js";
+  import { foldPullRequest, type PullRequestFold } from "#lib/pr-fold.js";
   import {
     firstRefreshLoading,
     firstRefreshPending,
@@ -897,8 +899,13 @@
     // failed alike; the model draws nothing without the server's counts, which
     // leaves the plain pill.
     function ciModel(item: PullRequestItem) {
-      const status = item.ci;
-      const awaiting = item.awaitingWorkflowApproval === true;
+      // The open dialog's jobs, folded, stand in for the snapshot's pill: the
+      // row reads what the dialog lists. Null leaves the server's pill.
+      const live = pipelineLive?.key === prKey(item) ? pipelineLive.fold : null;
+      const status = live ? live.ci : item.ci;
+      const awaiting = live
+        ? live.awaiting
+        : item.awaitingWorkflowApproval === true;
       const model = ciPillModel({
         cls: status,
         glyph: awaiting ? "awaiting_approval" : (CI_SLOT_GLYPHS[status] ?? ""),
@@ -906,7 +913,9 @@
           ? "Waiting for workflow approval"
           : CI_LABELS[status] || status,
         awaiting,
-        counts: SEGMENTED_CI.has(status) ? item.checks : undefined,
+        counts: SEGMENTED_CI.has(status)
+          ? (live?.counts ?? item.checks)
+          : undefined,
       });
       return { status, awaiting, model };
     }
@@ -6396,6 +6405,8 @@
     let pipelineDialogRowKey: string | null = null;
     // The newest copy of the open dialog's pull request, for the reads it makes.
     let pipelineItem: PullRequestItem | null = null;
+    // What the open dialog's jobs fold to, for the row it was opened from.
+    let pipelineLive: { key: string; fold: PullRequestFold } | null = null;
     // What the open dialog's rerun control was drawn for. The dialog calls the
     // control once per change of its checks, so a forge that changes under it
     // (a version read landing, an outage) has to ask for a redraw.
@@ -6509,6 +6520,18 @@
       return wrap;
     }
 
+    // Draws the row's pill from the dialog's jobs once they say something
+    // other than the pill already shows. The rows are rebuilt, not patched, and
+    // only when the fold changed, so a dialog that re-lists the same jobs does
+    // not redraw the board.
+    function showLiveFold(item: PullRequestItem, checks: Check[]) {
+      const fold = foldPullRequest(item.forge, checks);
+      const next = fold ? { key: prKey(item), fold } : null;
+      if (JSON.stringify(next) === JSON.stringify(pipelineLive)) return;
+      pipelineLive = next;
+      renderPRBoard();
+    }
+
     function openPipelineDialog(item: PullRequestItem) {
       if (!pipelineDialog) return;
       pipelineDialogRowKey = prKey(item);
@@ -6523,8 +6546,12 @@
           number: item.number,
         }),
         paused: updatesPaused,
-        controls: (failed) =>
-          failed && pipelineItem ? pipelineRerunControl(pipelineItem) : null,
+        controls: (failed, checks) => {
+          showLiveFold(item, checks);
+          return failed && pipelineItem
+            ? pipelineRerunControl(pipelineItem)
+            : null;
+        },
         // Cancel run is offered while the server lists cancel_run for the row,
         // which it does for a pull request whose CI is running.
         cancel: {
@@ -6541,6 +6568,7 @@
           const rowKey = pipelineDialogRowKey;
           pipelineDialogRowKey = null;
           pipelineItem = null;
+          pipelineLive = null;
           pipelineRerunLock.reset();
           renderPRBoard();
           if (rowKey) {
