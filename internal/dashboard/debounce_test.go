@@ -58,6 +58,21 @@ func (f *fakeTimers) After(d time.Duration, fn func()) func() bool {
 	}
 }
 
+// Pending counts the timers that have neither fired nor been stopped.
+func (f *fakeTimers) Pending() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	n := 0
+	for _, t := range f.timers {
+		if !t.fired && !t.stopped {
+			n++
+		}
+	}
+
+	return n
+}
+
 // Advance moves the clock on by d, runs every timer that came due on the way
 // in time order, and waits for those callbacks to return.
 func (f *fakeTimers) Advance(d time.Duration) {
