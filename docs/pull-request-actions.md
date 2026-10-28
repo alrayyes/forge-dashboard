@@ -661,9 +661,9 @@ log says so once, as a warning that names how many it stood in for.
 
 Cancelling relies on the forge client giving up when its context does, as the
 HTTP client does. A client that ignores its context keeps the single slot past
-the budget, so the queued writes start late and from a snapshot that may by
-then be stale. The next refresh still publishes, since it doesn't wait for the
-slot.
+the budget, so the queued writes start late and from a snapshot that could
+already be stale. The next refresh still publishes, since it doesn't wait for
+the slot.
 
 A repo can also rebase only its bot pull requests. Switch on rebase bots for
 it on the Webhooks page, beside Auto-update, and the background pass sends a
