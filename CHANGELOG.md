@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.3.0](https://github.com/alrayyes/forge-dashboard/compare/v8.2.0...v8.3.0) (2026-10-28)
+
+
+### Features
+
+* **web:** fold job facts into a branch status ([#2992](https://github.com/alrayyes/forge-dashboard/issues/2992)) ([8d9903c](https://github.com/alrayyes/forge-dashboard/commit/8d9903c024e68af10a76fb7fedaf71e3c9d1745a))
+
 ## [8.2.0](https://github.com/alrayyes/forge-dashboard/compare/v8.1.0...v8.2.0) (2026-10-27)
 
 
