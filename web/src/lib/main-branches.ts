@@ -246,6 +246,28 @@ export function branchPill(
   return { status, counts };
 }
 
+// A row's identity on the page: the open dialog says which row its jobs are.
+export const branchKey = (b: Pick<MainBranch, 'forge' | 'fullName'>): string =>
+  `${b.forge}:${b.fullName}`;
+
+// The rows with the open dialog's row read from its job list, so the pill, the
+// chips, the filter and the nav count all fold the one list. Every other row is
+// the refresh, untouched.
+export function withLiveJobs(
+  rows: readonly MainBranch[],
+  live: { key: string; checks: readonly Check[] } | null,
+): MainBranch[] {
+  if (!live) return [...rows];
+
+  return rows.map((row) => {
+    if (branchKey(row) !== live.key) return row;
+
+    const { status, counts } = branchPill(row, live.checks);
+
+    return { ...row, status, checks: counts };
+  });
+}
+
 export function isFiltered(filter: MainBranchFilter): boolean {
   return (
     filter.status !== 'all' ||
