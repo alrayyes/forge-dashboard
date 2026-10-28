@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.10.1](https://github.com/alrayyes/forge-dashboard/compare/v8.10.0...v8.10.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **dashboard:** shorten manual refresh wait ([#3027](https://github.com/alrayyes/forge-dashboard/issues/3027)) ([3802d22](https://github.com/alrayyes/forge-dashboard/commit/3802d22dd42664db48f604bc4b5020c7bb56d3c7))
+
 ## [8.10.0](https://github.com/alrayyes/forge-dashboard/compare/v8.9.1...v8.10.0) (2026-10-28)
 
 
