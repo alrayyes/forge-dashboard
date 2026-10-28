@@ -17,5 +17,15 @@ func (a *Aggregator) BoxOverrideCount() int {
 	return len(a.boxOverrides)
 }
 
+// UserRefreshesForTest is how many refreshes a person is waiting on right now.
+func (s *Service) UserRefreshesForTest() int {
+	agg := s.aggregator()
+	if agg == nil {
+		return 0
+	}
+
+	return int(agg.userRefreshes.Load())
+}
+
 // EndSentenceForTest exposes endSentence.
 func EndSentenceForTest(msg string) string { return endSentence(msg) }
