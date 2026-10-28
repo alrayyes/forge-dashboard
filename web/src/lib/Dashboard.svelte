@@ -6525,7 +6525,7 @@
     // only when the fold changed, so a dialog that re-lists the same jobs does
     // not redraw the board.
     function showLiveFold(item: PullRequestItem, checks: Check[]) {
-      const fold = foldPullRequest(checks);
+      const fold = foldPullRequest(item.forge, checks);
       const next = fold ? { key: prKey(item), fold } : null;
       if (JSON.stringify(next) === JSON.stringify(pipelineLive)) return;
       pipelineLive = next;

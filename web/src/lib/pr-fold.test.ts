@@ -30,24 +30,95 @@ describe('foldPullRequest ci', () => {
 
   for (const [name, states, want] of cases) {
     test(name, () => {
-      expect(foldPullRequest(jobs(...states))?.ci).toBe(want);
+      expect(foldPullRequest('forgejo', jobs(...states))?.ci).toBe(want);
     });
   }
 });
 
-describe('foldPullRequest awaiting approval', () => {
-  test('a held job sets the flag', () => {
-    expect(foldPullRequest(jobs('awaiting_approval'))?.awaiting).toBe(true);
+// GitHub counts a run held as action_required as a failure in the rollup and
+// sets awaitingWorkflowApproval beside it, whatever else the commit has: the
+// flag survives a real failure, and a held run beside running jobs is still a
+// failure.
+describe('foldPullRequest on GitHub, held runs', () => {
+  const cases: [string, string[], string, boolean][] = [
+    ['held alone', ['awaiting_approval'], 'failure', true],
+    [
+      'held beside a success',
+      ['awaiting_approval', 'success'],
+      'failure',
+      true,
+    ],
+    [
+      'held beside a running job',
+      ['awaiting_approval', 'running'],
+      'failure',
+      true,
+    ],
+    [
+      'held beside a queued job',
+      ['awaiting_approval', 'queued'],
+      'failure',
+      true,
+    ],
+    [
+      'held beside a failure',
+      ['awaiting_approval', 'failure'],
+      'failure',
+      true,
+    ],
+    [
+      'held beside a cancelled job',
+      ['awaiting_approval', 'cancelled'],
+      'failure',
+      true,
+    ],
+    ['no held run', ['success'], 'success', false],
+    ['a failure with nothing held', ['failure'], 'failure', false],
+  ];
+
+  for (const [name, states, ci, awaiting] of cases) {
+    test(name, () => {
+      const fold = foldPullRequest('github', jobs(...states));
+
+      expect(fold?.ci).toBe(ci as PullRequestFold['ci']);
+      expect(fold?.awaiting).toBe(awaiting);
+    });
+  }
+});
+
+// Forgejo never sets awaitingWorkflowApproval: a job waiting to be approved is
+// a pending one, and the pill says so without the approval wording.
+describe('foldPullRequest on Forgejo, held runs', () => {
+  const cases: [string, string[], string][] = [
+    ['held alone', ['awaiting_approval'], 'pending'],
+    ['held beside a success', ['awaiting_approval', 'success'], 'pending'],
+    ['held beside a running job', ['awaiting_approval', 'running'], 'pending'],
+    ['held beside a failure', ['awaiting_approval', 'failure'], 'failure'],
+  ];
+
+  for (const [name, states, ci] of cases) {
+    test(name, () => {
+      const fold = foldPullRequest('forgejo', jobs(...states));
+
+      expect(fold?.ci).toBe(ci as PullRequestFold['ci']);
+      expect(fold?.awaiting).toBe(false);
+    });
+  }
+});
+
+describe('foldPullRequest other jobs', () => {
+  test('a failure beside a cancelled job is a failure', () => {
+    expect(foldPullRequest('github', jobs('failure', 'cancelled'))?.ci).toBe(
+      'failure',
+    );
   });
 
-  test('a failure outranks the held job and clears the flag', () => {
-    expect(
-      foldPullRequest(jobs('awaiting_approval', 'failure'))?.awaiting,
-    ).toBe(false);
-  });
+  test('a status the page does not know waits', () => {
+    const odd: Check = { name: 'odd', url: '', status: 'pending' };
+    const fold = foldPullRequest('forgejo', [odd]);
 
-  test('nothing held leaves it off', () => {
-    expect(foldPullRequest(jobs('success'))?.awaiting).toBe(false);
+    expect(fold?.ci).toBe('pending');
+    expect(fold?.counts.waiting).toBe(1);
   });
 });
 
@@ -56,15 +127,15 @@ describe('foldPullRequest awaiting approval', () => {
 // which the row wants, so it does not decide: the server's pill stands.
 describe('foldPullRequest leaves to the server', () => {
   test('no jobs', () => {
-    expect(foldPullRequest([])).toBeNull();
+    expect(foldPullRequest('github', [])).toBeNull();
   });
 
   test('cancelled alone', () => {
-    expect(foldPullRequest(jobs('cancelled'))).toBeNull();
+    expect(foldPullRequest('github', jobs('cancelled'))).toBeNull();
   });
 
   test('cancelled beside a success', () => {
-    expect(foldPullRequest(jobs('cancelled', 'success'))).toBeNull();
+    expect(foldPullRequest('github', jobs('cancelled', 'success'))).toBeNull();
   });
 });
 
@@ -72,6 +143,7 @@ describe('foldPullRequest counts', () => {
   test('are the branch fold counts', () => {
     expect(
       foldPullRequest(
+        'github',
         jobs('success', 'skipped', 'running', 'queued', 'failure'),
       )?.counts,
     ).toEqual({ passed: 2, skipped: 1, running: 1, waiting: 1, failed: 1 });
