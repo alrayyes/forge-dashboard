@@ -36,7 +36,9 @@ func (it pendingItem) key() string {
 // check there waits out the whole Run interval.
 //
 // A Forgejo default branch whose pipeline is running is re-read too, since its
-// rerun and job changes send no webhook (runningForgejoBranches).
+// rerun and job changes send no webhook, and so is one whose run finished
+// within settledPollWindow, since a rerun of it sends none either
+// (pollableForgejoBranches).
 //
 // A source that implements PendingCheckRefresher answers all of a forge's
 // pull requests in one request; any other is refreshed one repo at a time
@@ -55,7 +57,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	for _, it := range items {
 		live[it.key()] = struct{}{}
 	}
-	branches := runningForgejoBranches(snap)
+	branches := pollableForgejoBranches(snap, now)
 	for _, b := range branches {
 		live[branchPollKey(b)] = struct{}{}
 	}
@@ -93,14 +95,30 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	a.pollBranches(ctx, snap, branches, now, base)
 }
 
-// runningForgejoBranches is the default branches a poll may re-read: those with
-// a Forgejo job still running or queued. A failed job outranks a running one in
-// the status, so a rerun with both reads as failed and is found by its counts. Forgejo sends a webhook when a run ends, not
-// when one is rerun or its jobs move, so a row read mid-run keeps its counts
-// until the next full refresh. GitHub's check events cover its own rows.
-func runningForgejoBranches(snap Snapshot) []MainBranch {
+// settledPollWindow is how long after its run finished a Forgejo default branch
+// is still re-read. Forgejo sends no webhook when a finished run is rerun, so a
+// rerun started inside the window would otherwise stay hidden until the next
+// full refresh. Past it the row is left to that refresh and to the webhook of
+// the next run, so a quiet repo costs nothing.
+const settledPollWindow = 10 * time.Minute
+
+// pollableForgejoBranches is the default branches a poll may re-read: those with
+// a Forgejo job still running or queued, and those whose run finished within
+// settledPollWindow. A failed job outranks a running one in the status, so a
+// rerun with both reads as failed and is found by its counts. Forgejo sends a
+// webhook when a run ends, not when one is rerun or its jobs move, so a row read
+// mid-run or just after one keeps its counts until the next full refresh.
+// GitHub's check events cover its own rows.
+func pollableForgejoBranches(snap Snapshot, now time.Time) []MainBranch {
 	return slices.DeleteFunc(slices.Clone(snap.MainBranches), func(b MainBranch) bool {
-		return b.Forge != ForgeForgejo || b.StaleSince != nil || (b.Status != MainBranchRunning && b.Checks.Running+b.Checks.Waiting == 0)
+		if b.Forge != ForgeForgejo || b.StaleSince != nil {
+			return true
+		}
+		if b.Status == MainBranchRunning || b.Checks.Running+b.Checks.Waiting > 0 {
+			return false
+		}
+
+		return b.FinishedAt == nil || now.Sub(*b.FinishedAt) > settledPollWindow
 	})
 }
 
