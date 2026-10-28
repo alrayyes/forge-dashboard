@@ -1,5 +1,17 @@
 # Changelog
 
+## [8.5.0](https://github.com/alrayyes/forge-dashboard/compare/v8.4.0...v8.5.0) (2026-10-28)
+
+
+### Features
+
+* **web:** count the open row by its live jobs ([#2998](https://github.com/alrayyes/forge-dashboard/issues/2998)) ([ea27c49](https://github.com/alrayyes/forge-dashboard/commit/ea27c4916022d1c76c284a5cfad652ce3d58b3cd))
+
+
+### Bug Fixes
+
+* poll a forgejo branch after its run ends ([#2999](https://github.com/alrayyes/forge-dashboard/issues/2999)) ([455617b](https://github.com/alrayyes/forge-dashboard/commit/455617bceaf285bb98905699c88149f033cb92bf))
+
 ## [8.4.0](https://github.com/alrayyes/forge-dashboard/compare/v8.3.0...v8.4.0) (2026-10-28)
 
 
