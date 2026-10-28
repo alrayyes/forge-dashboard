@@ -81,6 +81,11 @@ function withoutBlocked(
   return checks.filter(
     (c) =>
       checkState(c) !== 'queued' ||
-      !failed.some((r) => r.runId === c.runId && r.runAttempt === c.runAttempt),
+      !failed.some(
+        (r) =>
+          r.runId !== undefined &&
+          r.runId === c.runId &&
+          r.runAttempt === c.runAttempt,
+      ),
   );
 }

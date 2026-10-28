@@ -229,4 +229,12 @@ describe('foldPullRequest, blocked jobs of a failed run', () => {
 
     expect(foldPullRequest('forgejo', checks)?.counts.waiting).toBe(1);
   });
+
+  test('a queued job with no run id is not matched by a run with none', () => {
+    const noRun = { status: 'completed', conclusion: 'failure' };
+    const checks = [jobs('failure')[0], jobs('queued')[0]];
+    const fold = foldPullRequest('forgejo', checks, [noRun]);
+
+    expect(fold?.counts.waiting).toBe(1);
+  });
 });
