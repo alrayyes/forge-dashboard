@@ -74,27 +74,59 @@ func (s *hangingSource) Fetch(context.Context) dashboard.Result {
 	return res
 }
 
-// answersDelivered blocks until every fetch that has returned has also handed
-// its answer to the collector. fetchOne sends the answer after Fetch returns,
-// so a source's own signal comes too early: a goroutine still between the two
-// is in fetchOne without being parked in a hung Fetch. Once none is left,
-// every answer is in the channel and the deadline can fire without racing it.
-func answersDelivered(t *testing.T) {
+// startRefresh runs agg.Refresh on a goroutine of its own and returns the
+// channel closed when it returns, with that goroutine's id. fetchSources
+// starts one goroutine per source from it, which is how answersDelivered finds
+// this refresh's fetches and no one else's.
+func startRefresh(t *testing.T, agg *dashboard.Aggregator) (<-chan struct{}, string) {
 	t.Helper()
 
+	done := make(chan struct{})
+	ids := make(chan string, 1)
+	go func() {
+		defer close(done)
+		head, _, _ := strings.Cut(string(stacks(false)), " [")
+		ids <- strings.TrimPrefix(head, "goroutine ")
+		agg.Refresh(t.Context())
+	}()
+
+	return done, <-ids
+}
+
+// stacks is the goroutine dump, grown until it fits so a long one is never cut
+// short.
+func stacks(all bool) []byte {
+	for size := 1 << 16; ; size *= 2 {
+		buf := make([]byte, size)
+		if n := runtime.Stack(buf, all); n < size {
+			return buf[:n]
+		}
+	}
+}
+
+// answersDelivered blocks until every fetch started by the refresh on
+// goroutine id has handed its answer to the collector. fetchOne sends the
+// answer after Fetch returns, so a source's own signal comes too early: a
+// fetch goroutine of that refresh that is in fetchOne without being parked in
+// a hung Fetch has not sent yet. Once none is left, every answer is in the
+// channel and the deadline can fire without racing it. Goroutines of other
+// tests are not looked at.
+func answersDelivered(t *testing.T, id string) {
+	t.Helper()
+
+	started := "fetchSources in goroutine " + id + "\n"
 	between := func() bool {
-		buf := make([]byte, 1<<20)
-		buf = buf[:runtime.Stack(buf, true)]
-		for g := range strings.SplitSeq(string(buf), "\n\n") {
+		for g := range strings.SplitSeq(string(stacks(true)), "\n\n") {
 			parked := strings.Contains(g, "(*hangingSource).Fetch") && strings.Contains(g, "[chan receive")
-			if strings.Contains(g, "(*Aggregator).fetchOne") && !parked {
+			if strings.Contains(g, started) && strings.Contains(g, "(*Aggregator).fetchOne") && !parked {
 				return true
 			}
 		}
 
 		return false
 	}
-	for range 100000 {
+	giveUp := time.Now().Add(10 * time.Second)
+	for time.Now().Before(giveUp) {
 		if !between() {
 			return
 		}
@@ -134,14 +166,10 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 	refreshHung := func(t *testing.T, agg *dashboard.Aggregator, fast, slow *hangingSource) <-chan struct{} {
 		t.Helper()
 		slow.setHang(true)
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			agg.Refresh(t.Context())
-		}()
+		done, id := startRefresh(t, agg)
 		<-slow.entered
 		<-fast.served
-		answersDelivered(t)
+		answersDelivered(t, id)
 
 		return done
 	}
@@ -336,7 +364,7 @@ func TestAggregator_AManualRefreshJoiningAScheduledRunWaitsLessThanTheSchedule(t
 			defer close(manual)
 			agg.Refresh(t.Context())
 		}()
-		settle(func() bool { return timers.Pending() >= 2 })
+		require.True(t, settle(func() bool { return timers.Pending() >= 2 }), "the click never armed its timer")
 
 		return timers, slow, scheduled, manual
 	}
@@ -385,14 +413,10 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 
 		// The first refresh hangs on slow and gives up at the deadline.
 		slow.setHang(true)
-		first := make(chan struct{})
-		go func() {
-			defer close(first)
-			agg.Refresh(t.Context())
-		}()
+		first, id := startRefresh(t, agg)
 		<-slow.entered
 		<-fast.served
-		answersDelivered(t)
+		answersDelivered(t, id)
 		timers.Advance(userDeadline)
 		<-first
 
