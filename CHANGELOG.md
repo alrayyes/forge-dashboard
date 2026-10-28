@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.11.1](https://github.com/alrayyes/forge-dashboard/compare/v8.11.0...v8.11.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **forgejo:** skip blocked jobs of a failed branch run ([#3042](https://github.com/alrayyes/forge-dashboard/issues/3042)) ([79b65db](https://github.com/alrayyes/forge-dashboard/commit/79b65db3f092d097c52c3543022c1eba7c667a73)), closes [#3036](https://github.com/alrayyes/forge-dashboard/issues/3036)
+
 ## [8.11.0](https://github.com/alrayyes/forge-dashboard/compare/v8.10.1...v8.11.0) (2026-10-28)
 
 
