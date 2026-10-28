@@ -358,6 +358,15 @@ on, so a bot's commit that skips CI does not hide the run. A branch with no
 job answers an empty list. `required` is never set, since only a pull request
 has a base branch whose protection could require a job.
 
+The page also watches the first seven rows it shows, in the order it shows
+them, so their pills fold from the live jobs without opening a dialog. The
+stream takes eight watched rows at once, and the pipeline panel keeps the
+eighth. The rows are chosen from the pills of the last refresh, so a row
+whose live pill leaves the status filter stays watched instead of flapping.
+A filter change watches the rows that came in and stops watching the ones
+that left. A row past the seventh keeps the pill from the refresh until a
+filter brings it into the first seven.
+
 `POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns the
 failed workflow runs on that same commit, only their failed jobs (on Forgejo,
 the jobs that need a failed job restart with it),

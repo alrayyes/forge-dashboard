@@ -3,6 +3,7 @@
 // the page component stays the one place that touches elements.
 
 import type { CheckCounts } from './check-counts';
+import type { Subject } from './check-feed';
 import { foldBranch } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
 import type { NavCount } from './nav-counts.svelte';
@@ -254,19 +255,36 @@ export function branchPill(
 export const branchKey = (b: Pick<MainBranch, 'forge' | 'fullName'>): string =>
   `${b.forge}:${b.fullName}`;
 
-// The rows with the open dialog's row read from its job list, so the pill, the
+// The dashboard stream takes this many watched subjects in one call; the server
+// answers 400 for more (api/openapi.yaml, StreamWatchRequest). The Go const
+// maxWatchedSubjects in internal/api/check_stream.go must change with it.
+export const STREAM_SUBJECT_CAP = 8;
+
+// The rows to watch for live jobs: the first rows shown, in the order the page
+// shows them. One slot of the cap stays free for the pipeline dialog, which
+// watches its own subject through the same stream. A row past the limit keeps
+// the refresh's pill.
+export function rowsToWatch(
+  shown: readonly Pick<MainBranch, 'forge' | 'fullName'>[],
+  limit: number = STREAM_SUBJECT_CAP - 1,
+): Subject[] {
+  return shown
+    .slice(0, Math.min(limit, STREAM_SUBJECT_CAP - 1))
+    .map(({ forge, fullName }) => ({ kind: 'main_branch', forge, fullName }));
+}
+
+// The rows read from their live job lists, keyed by branchKey, so the pill, the
 // chips, the filter, the nav count and the Failing: line all fold the one
-// list. Every other row is the refresh, untouched.
+// list. A row with no list is the refresh, untouched.
 export function withLiveJobs(
   rows: readonly MainBranch[],
-  live: { key: string; checks: readonly Check[] } | null,
+  live: ReadonlyMap<string, readonly Check[]>,
 ): MainBranch[] {
-  if (!live) return [...rows];
-
   return rows.map((row) => {
-    if (branchKey(row) !== live.key) return row;
+    const checks = live.get(branchKey(row));
+    if (!checks) return row;
 
-    const { status, counts, failing } = branchPill(row, live.checks);
+    const { status, counts, failing } = branchPill(row, checks);
 
     return { ...row, status, checks: counts, failingJobs: failing };
   });

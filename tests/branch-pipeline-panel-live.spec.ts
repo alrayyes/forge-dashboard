@@ -291,7 +291,14 @@ test.describe('main branches pipeline panel updates live', () => {
       waiting: 0,
       failed: 0,
     });
-    await poll(page, state);
+    // The row is watched on the stream, so a poll that moves its CI comes with
+    // the new list, as the server sends it.
+    state.checks = [
+      DONE[0],
+      { ...DONE[0], name: 'lint', url: 'https://example.com/r/3' },
+      RUN[1],
+    ];
+    await update(page, state);
     await expect(
       page.getByRole('button', { name: /open pipeline/i }).first(),
     ).toContainText('2');

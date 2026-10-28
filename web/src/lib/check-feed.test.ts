@@ -130,6 +130,107 @@ describe('watch', () => {
     expect(branchGot).toEqual([]);
   });
 
+  // The server lists a subject once, to the first watcher. A second one (a
+  // dialog opened on a row the page already watches) must not wait for the
+  // next change to see the list.
+  describe('a second listener on a subject already listed', () => {
+    const build = {
+      name: 'build',
+      status: 'completed',
+      conclusion: 'success',
+      url: '',
+    };
+    const listed = (source: FakeSource) =>
+      source.emit('run', {
+        ...pr,
+        key: 'job/|build',
+        checks: [build],
+        final: true,
+      });
+
+    test('is handed the list held, and no second watch is posted', async () => {
+      const { feed, source, posts } = harness();
+      source.open();
+      feed.watch(pr, () => {});
+      listed(source);
+      await flush();
+      const got: CheckFeedMessage[] = [];
+
+      feed.watch(pr, (m) => got.push(m));
+      await flush();
+
+      expect(got).toEqual([{ checks: [build] }]);
+      expect(posts).toHaveLength(1);
+    });
+
+    test('hears the next change too', async () => {
+      const { feed, source } = harness();
+      source.open();
+      feed.watch(pr, () => {});
+      listed(source);
+      const got: CheckFeedMessage[] = [];
+      feed.watch(pr, (m) => got.push(m));
+      await flush();
+
+      listed(source);
+
+      expect(got).toHaveLength(2);
+    });
+
+    test('is told why when the read failed', async () => {
+      const { feed, source } = harness();
+      source.open();
+      feed.watch(pr, () => {});
+      source.emit('run', { ...pr, error: 'token cannot read checks' });
+      const got: CheckFeedMessage[] = [];
+
+      feed.watch(pr, (m) => got.push(m));
+      await flush();
+
+      expect(got).toEqual([{ error: 'token cannot read checks' }]);
+    });
+
+    test('is not handed a mix of old and new runs while a listing is under way', async () => {
+      const { feed, source } = harness();
+      source.open();
+      feed.watch(pr, () => {});
+      listed(source);
+      source.emit('run', { ...pr, key: 'job/|lint', checks: [build] });
+      const got: CheckFeedMessage[] = [];
+
+      feed.watch(pr, (m) => got.push(m));
+      await flush();
+
+      expect(got).toEqual([]);
+    });
+
+    test('is not handed an error a new listing has begun to replace', async () => {
+      const { feed, source } = harness();
+      source.open();
+      feed.watch(pr, () => {});
+      source.emit('run', { ...pr, error: 'token cannot read checks' });
+      source.emit('run', { ...pr, key: 'job/|build', checks: [build] });
+      const got: CheckFeedMessage[] = [];
+
+      feed.watch(pr, (m) => got.push(m));
+      await flush();
+
+      expect(got).toEqual([]);
+    });
+
+    test('waits for the list when none has arrived yet', async () => {
+      const { feed, source } = harness();
+      source.open();
+      feed.watch(pr, () => {});
+      const got: CheckFeedMessage[] = [];
+
+      feed.watch(pr, (m) => got.push(m));
+      await flush();
+
+      expect(got).toEqual([]);
+    });
+  });
+
   describe('assembling run events', () => {
     const job = (name: string, status = 'completed', extra = {}) => ({
       name,
@@ -608,6 +709,34 @@ describe('read', () => {
     });
     expect(await done).toEqual({ checks: list });
     expect(posts.at(-1)?.subjects).toEqual([pr]);
+  });
+
+  test('waits for the refreshed list of a subject already listed, not the held one', async () => {
+    const { feed, source } = harness();
+    source.open();
+    feed.watch(pr, () => {});
+    source.emit('run', {
+      ...pr,
+      key: 'job/u|build',
+      checks: list,
+      final: true,
+    });
+    await flush();
+    const fresh = [{ ...list[0], conclusion: 'failure' }];
+    const got: CheckFeedMessage[] = [];
+    const done = feed.read(pr).then((m) => got.push(m));
+    await flush();
+    expect(got).toEqual([]);
+
+    source.emit('run', {
+      ...pr,
+      key: 'job/u|build',
+      checks: fresh,
+      final: true,
+    });
+    await done;
+
+    expect(got).toEqual([{ checks: fresh }]);
   });
 
   test('hands over why a list failed', async () => {

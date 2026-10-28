@@ -412,15 +412,21 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const asked = await mockChecks(page);
     await page.goto('/');
     const failed = rows(page).first();
-    const pill = failed.getByRole('button', { name: 'Failed. Open pipeline' });
-    await expect(pill).toHaveText('Failed');
+    const pill = failed.getByRole('button', {
+      name: /^Failed.* Open pipeline/,
+    });
+    // The row is watched live, so the pill carries the job counts beside it.
+    await expect(pill).toContainText('Failed');
     await expect(page.getByRole('button', { name: /re-run/i })).toHaveCount(0);
 
     await pill.click();
     const panel = dialog(page);
     await expect(panel).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
-    expect(asked).toEqual([
+    // Listed once, when the page loaded; opening the panel asks for nothing.
+    expect(
+      asked.filter((s) => s.fullName === 'acme/ingress-controller'),
+    ).toEqual([
       {
         kind: 'main_branch',
         forge: 'github',
@@ -462,7 +468,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
       failed.getByRole('button', { name: /failing jobs/i }),
     ).toHaveCount(0);
     await failed
-      .getByRole('button', { name: /^Failed\. Open pipeline/ })
+      .getByRole('button', { name: /^Failed.* Open pipeline/ })
       .click();
 
     const run = dialog(page).getByRole('link', { name: /open run on github/i });
@@ -600,7 +606,10 @@ test.describe('Main branches page (#1224, #1279)', () => {
 
     await alert.getByRole('button', { name: 'Retry' }).click();
     await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
-    expect(asked).toHaveLength(2);
+    // The row was listed when the page loaded, and Retry asks for it again.
+    expect(
+      asked.filter((s) => s.fullName === 'acme/ingress-controller'),
+    ).toHaveLength(2);
   });
 
   test('two jobs with the same name and no page both list', async ({

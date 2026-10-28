@@ -110,6 +110,11 @@ export function createCheckFeed({
   // The latest event of each run attempt, by subject and then by the key the
   // server gave the attempt. A rerun has a new key and the old one goes.
   const runs = new Map<string, Map<string, Held>>();
+  // The subjects whose listing has reached its last event, so the runs held
+  // for them are the whole list and a listener that joins late can be handed it.
+  const listed = new Set<string>();
+  // Why a subject has no list, for the same late listener.
+  const failed = new Map<string, string>();
   let open = false;
   let source: FeedSource | null = null;
   // Posts go one at a time, so a stale watch can't land after a newer one.
@@ -170,11 +175,15 @@ export function createCheckFeed({
       next.addEventListener('open', () => {
         open = true;
         runs.clear();
+        listed.clear();
+        failed.clear();
         if (subjects.size > 0) send(false);
       });
       next.addEventListener('error', () => {
         if (next.readyState !== OPEN) open = false;
         runs.clear();
+        listed.clear();
+        failed.clear();
         tellAll({ error: DOWN });
       });
       next.addEventListener('run', (event) => {
@@ -198,6 +207,8 @@ export function createCheckFeed({
         if (body.error) {
           // The next listing starts from empty, since it names every run.
           runs.delete(subject);
+          listed.delete(subject);
+          failed.set(subject, body.error);
           tell(subject, { error: body.error });
           return;
         }
@@ -212,12 +223,26 @@ export function createCheckFeed({
           });
         // A listing is told once, at its last event, so a page is not
         // redrawn for every run in it.
-        if (body.final) tell(subject, messageOf(held));
+        if (body.final) {
+          listed.add(subject);
+          failed.delete(subject);
+          tell(subject, messageOf(held));
+        } else {
+          // Under way, what is held is part old and part new, or an error the
+          // listing replaces: not an answer to hand a listener that joins now.
+          listed.delete(subject);
+          failed.delete(subject);
+        }
       });
     },
 
-    // Wants the subject's list. Returns the unsubscribe.
-    watch(subject: Subject, follower: Listener): () => void {
+    // Wants the subject's list. Returns the unsubscribe. A caller that is about
+    // to ask for a fresh list sets `fresh`, so it isn't handed the one held.
+    watch(
+      subject: Subject,
+      follower: Listener,
+      { fresh: wantsFresh = false }: { fresh?: boolean } = {},
+    ): () => void {
       const key = keyOf(subject);
       const set = listeners.get(key) ?? new Set<Listener>();
       // A stream still connecting is not closed, so nothing says it won't
@@ -233,6 +258,16 @@ export function createCheckFeed({
       const fresh = !subjects.has(key);
       subjects.set(key, subject);
       if (fresh) send(false);
+      // The server lists a subject to its first watcher, and again only when it
+      // changes. A listener joining one already answered is handed the answer.
+      else if (!wantsFresh && (listed.has(key) || failed.has(key)))
+        queueMicrotask(() => {
+          if (!set.has(listener)) return;
+          const held = runs.get(key);
+          const why = failed.get(key);
+          if (why !== undefined) listener({ error: why });
+          else if (held) listener(messageOf(held));
+        });
       // A list can't come without a stream, so say so rather than wait.
       if (unavailable())
         void Promise.resolve().then(() => listener({ error: DOWN }));
@@ -243,6 +278,8 @@ export function createCheckFeed({
         listeners.delete(key);
         subjects.delete(key);
         runs.delete(key);
+        listed.delete(key);
+        failed.delete(key);
         send(false);
       };
     },
@@ -284,7 +321,7 @@ export function createCheckFeed({
           resolve(message);
         };
         const timer = setTimeout(() => finish({ error: SILENT }), timeoutMs);
-        stop = this.watch(subject, finish);
+        stop = this.watch(subject, finish, { fresh: true });
         // Already watched, so nothing new is sent unless asked for.
         if (watched) send(true);
       });

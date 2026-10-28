@@ -86,14 +86,22 @@ export async function pushChecks(page: Page, subject: Subject, reply: Reply) {
 export async function serveChecks(page: Page, serve: Serve) {
   await installFakeStream(page);
   let watched = new Set<string>();
+  let stream = '';
   const asked: Subject[] = [];
   const calls = new Map<string, number>();
   const inflight = new Set<Promise<void>>();
   await page.route('**/api/dashboard/stream/watch', async (route: Route) => {
     const body = route.request().postDataJSON() as {
+      streamId: string;
       subjects: Subject[];
       refresh?: boolean;
     };
+    // The server forgets a watch with its stream, so a reloaded page, which
+    // opens a new one, is listed everything again.
+    if (body.streamId !== stream) {
+      stream = body.streamId;
+      watched = new Set();
+    }
     const before = watched;
     watched = new Set(body.subjects.map(keyOf));
     const due = body.subjects.filter(
