@@ -71,7 +71,7 @@ type Aggregator struct {
 	writeAfter   AfterFunc
 	writeMu      sync.Mutex
 	writing      bool
-	queuedWrites *Snapshot
+	queuedWrites *queuedWrite
 	// pass is the fetch pass in flight, so a person's click that joins a
 	// scheduled one can shorten its wait (#3021).
 	pass   *fetchPass
@@ -690,6 +690,16 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 	a.runWrites(ctx, merged)
 }
 
+// queuedWrite is the newest snapshot waiting for the running pass to end. It
+// keeps the context of the refresh that brought it, so the pass it gets runs
+// under that refresh's values and not the ones of the pass that was in the
+// way, and counts how many snapshots it stands in for.
+type queuedWrite struct {
+	snap Snapshot
+	ctx  context.Context //nolint:containedctx // carried to the pass this snapshot waits for
+	n    int
+}
+
 // runWrites runs the auto update-branch and auto-merge passes against snap and
 // waits for them at most writeBudget. A forge that hangs on a write would
 // otherwise hold the single-flight refresh, and with it every later one (#3034).
@@ -704,9 +714,13 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 func (a *Aggregator) runWrites(ctx context.Context, snap Snapshot) {
 	a.writeMu.Lock()
 	if a.writing {
-		a.queuedWrites = &snap
+		n := 1
+		if a.queuedWrites != nil {
+			n += a.queuedWrites.n
+		}
+		a.queuedWrites = &queuedWrite{snap: snap, ctx: ctx, n: n}
 		a.writeMu.Unlock()
-		slog.Warn("forge writes are still running, the next pass waits for them")
+		slog.Debug("forge writes are still running, the next pass waits for them")
 
 		return
 	}
@@ -742,7 +756,7 @@ func (a *Aggregator) startWrites(ctx context.Context, snap Snapshot) (done, expi
 		a.runAutoMerge(wctx, snap)
 		stop()
 		cancel()
-		a.finishWrites(ctx)
+		a.finishWrites()
 		close(d)
 	}()
 
@@ -750,8 +764,9 @@ func (a *Aggregator) startWrites(ctx context.Context, snap Snapshot) (done, expi
 }
 
 // finishWrites ends a pass: it starts the queued one, if a refresh left one,
-// and otherwise frees the slot.
-func (a *Aggregator) finishWrites(ctx context.Context) {
+// and otherwise frees the slot. Snapshots that waited are one warning, since
+// they only pile up when a pass ran long.
+func (a *Aggregator) finishWrites() {
 	a.writeMu.Lock()
 	queued := a.queuedWrites
 	a.queuedWrites = nil
@@ -761,7 +776,8 @@ func (a *Aggregator) finishWrites(ctx context.Context) {
 	a.writeMu.Unlock()
 
 	if queued != nil {
-		a.startWrites(ctx, *queued)
+		slog.Warn("forge writes queued behind a running pass now run", "snapshots", queued.n)
+		a.startWrites(queued.ctx, queued.snap)
 	}
 }
 

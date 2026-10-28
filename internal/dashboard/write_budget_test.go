@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,6 +23,7 @@ type writeSource struct {
 	prs        []int
 	calls      []int
 	merges     []int
+	tags       []string
 	honourCtx  bool
 	entered    chan int
 	returned   chan error
@@ -54,6 +56,29 @@ func (s *writeSource) callCount() int {
 	defer s.mu.Unlock()
 
 	return len(s.calls)
+}
+
+// callTags is the refresh tag each update call's context carried, in call
+// order.
+func (s *writeSource) callTags() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]string(nil), s.tags...)
+}
+
+// tagKey marks a context with the refresh that made it, the way a request id
+// or a logger would travel with it.
+type tagKey struct{}
+
+func tagged(ctx context.Context, tag string) context.Context {
+	return context.WithValue(ctx, tagKey{}, tag)
+}
+
+func tagFrom(ctx context.Context) string {
+	tag, _ := ctx.Value(tagKey{}).(string)
+
+	return tag
 }
 
 func (s *writeSource) mergedNumbers() []int {
@@ -94,6 +119,7 @@ func (s *writeSource) FetchRepo(context.Context, string, string, string) ([]dash
 func (s *writeSource) UpdateBranch(ctx context.Context, _, _ string, number int) (bool, error) {
 	s.mu.Lock()
 	s.calls = append(s.calls, number)
+	s.tags = append(s.tags, tagFrom(ctx))
 	s.mu.Unlock()
 
 	return false, s.hang(ctx, number)
@@ -332,4 +358,59 @@ func TestAggregator_AScopedRefreshWriteWaitsForTheRunningPass(t *testing.T) {
 	}
 
 	assert.Equal(t, []int{2}, f.src.mergedNumbers())
+}
+
+// The pass a scoped refresh queued runs under that refresh's context values,
+// so its log lines name the refresh that asked for it, not the pass that was
+// in the way.
+func TestAggregator_AQueuedPassCarriesTheRefreshThatQueuedIt(t *testing.T) {
+	t.Parallel()
+
+	f := newWriteFixture(t, false, true, nil, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f.agg.Refresh(tagged(t.Context(), "full"))
+	}()
+	<-f.src.entered
+	require.True(t, f.agg.RefreshRepo(tagged(t.Context(), "scoped"), dashboard.ForgeForgejo, "o", "r", "o/r"))
+	f.timers.Advance(writeBudget)
+	<-done
+
+	f.src.unblock()
+	<-f.src.entered
+
+	tags := f.src.callTags()
+	require.GreaterOrEqual(t, len(tags), 2)
+	assert.Equal(t, "full", tags[0])
+	assert.Equal(t, "scoped", tags[1])
+}
+
+// Snapshots that pile up behind a running pass are one event, not one warning
+// each: the per-snapshot lines are debug, and the pass that ends says once how
+// many it kept. Not t.Parallel(): it swaps the global logger.
+func TestAggregator_SnapshotsQueuedBehindAPassWarnOnce(t *testing.T) {
+	logs := withCapturedLogs(t)
+
+	f := newWriteFixture(t, false, true, nil, 1)
+	done := f.refreshAsync(t)
+	<-f.src.entered
+	for range 3 {
+		require.True(t, f.agg.RefreshRepo(t.Context(), dashboard.ForgeForgejo, "o", "r", "o/r"))
+	}
+	f.timers.Advance(writeBudget)
+	<-done
+	f.src.unblock()
+	<-f.src.entered
+
+	var queued []string
+	for line := range strings.SplitSeq(logs.String(), "\n") {
+		if strings.Contains(line, "forge writes") && !strings.Contains(line, "past their budget") {
+			queued = append(queued, line)
+		}
+	}
+	require.Len(t, queued, 1, "one warning for the whole queue")
+	assert.Contains(t, queued[0], "level=WARN")
+	assert.Contains(t, queued[0], "queued")
+	assert.Contains(t, queued[0], "snapshots=3")
 }
