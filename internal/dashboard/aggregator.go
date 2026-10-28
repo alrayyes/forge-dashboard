@@ -51,6 +51,12 @@ type Aggregator struct {
 	queued       *queuedActionsConfig
 	queuedBuffer time.Duration
 
+	// fetchDeadline is how long a refresh waits for the sources before it
+	// publishes without the ones still fetching (#3019). fetchAfter schedules
+	// it.
+	fetchDeadline time.Duration
+	fetchAfter    AfterFunc
+
 	// settled holds pull requests a merge or close just succeeded on (#835),
 	// keyed by settledKey. The forge can go on listing one as open for a
 	// few seconds, so refreshes keep it off the board until the forge
@@ -146,6 +152,13 @@ func WithCIPollInterval(d time.Duration) AggregatorOption {
 // and the user should see it.
 const defaultSettleWindow = 2 * time.Minute
 
+// defaultFetchDeadline is how long a refresh waits for every source. Each
+// forge call times out on its own after 30 seconds, but one fetch makes many
+// calls, so a hung forge could hold the whole snapshot back for far longer.
+// Three minutes is well past a slow healthy fetch of a large install; a source
+// still fetching then is shown as it last was, marked stale (#3019).
+const defaultFetchDeadline = 3 * time.Minute
+
 // AggregatorOption configures NewAggregator.
 type AggregatorOption func(*Aggregator)
 
@@ -153,6 +166,12 @@ type AggregatorOption func(*Aggregator)
 // board while the forge still lists it.
 func WithSettleWindow(d time.Duration) AggregatorOption {
 	return func(a *Aggregator) { a.settleWindow = d }
+}
+
+// WithFetchDeadline sets how long a refresh waits for its sources, and the
+// timer it waits with, for tests that drive time by hand.
+func WithFetchDeadline(d time.Duration, after AfterFunc) AggregatorOption {
+	return func(a *Aggregator) { a.fetchDeadline, a.fetchAfter = d, after }
 }
 
 // WithClock sets the clock bot request deadlines read, for tests.
@@ -207,6 +226,8 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		newRunTimer:      func(d time.Duration) RunTimer { return realRunTimer{time.NewTimer(d)} },
 		lastGood:         make(map[Forge]time.Time),
 		queuedBuffer:     backoffBuffer,
+		fetchDeadline:    defaultFetchDeadline,
+		fetchAfter:       realAfterFunc,
 		firstRefreshedCh: make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -709,8 +730,17 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 	earlier := a.snap
 	a.mu.RUnlock()
 
-	var wg sync.WaitGroup
+	// Buffered for every source, so a fetch that answers after the deadline
+	// finds room and its goroutine ends.
+	answers := make(chan sourceAnswer, len(a.sources))
+	fetchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	pending := map[int]bool{}
 	fetched := false
+	// Started before any fetch, so a deadline cannot pass unseen.
+	timedOut := make(chan struct{})
+	stop := a.fetchAfter(a.fetchDeadline, func() { close(timedOut) })
+	defer stop()
 	for i, src := range a.sources {
 		if health, ok := exhaustedHealth(earlier, src.Forge(), a.now()); ok {
 			// No budget left until the reset: a call would only fail, and
@@ -729,18 +759,54 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 				continue
 			}
 		}
-		wg.Add(1)
 		fetched = true
+		pending[i] = true
 		go func(i int, src Source) {
-			defer wg.Done()
-			results[i] = sourceResult{Result: src.Fetch(ctx), asked: true}
+			answers <- sourceAnswer{i, src.Fetch(fetchCtx)}
 		}(i, src)
 	}
-	wg.Wait()
+	a.collectAnswers(results, pending, answers, timedOut)
 	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
 	return results
+}
+
+// sourceAnswer is one source's fetch result, by its place in a.sources.
+type sourceAnswer struct {
+	i   int
+	res Result
+}
+
+// collectAnswers fills results from answers until every source in pending has
+// answered or timedOut closes. A source still pending then gets an unreachable
+// result, so the aggregator shows the rows it last had, marked stale (#3019).
+func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool, answers <-chan sourceAnswer, timedOut <-chan struct{}) {
+	for len(pending) > 0 {
+		select {
+		case ans := <-answers:
+			results[ans.i] = sourceResult{Result: ans.res, asked: true}
+			delete(pending, ans.i)
+		case <-timedOut:
+			// An answer that arrived with the deadline still counts.
+			for drained := false; !drained; {
+				select {
+				case ans := <-answers:
+					results[ans.i] = sourceResult{Result: ans.res, asked: true}
+					delete(pending, ans.i)
+				default:
+					drained = true
+				}
+			}
+			kind := ForgeErrorUnreachable
+			for i := range pending {
+				results[i] = sourceResult{asked: true}
+				results[i].Health = ForgeHealth{Forge: a.sources[i].Forge(), Error: HumanizeForgeError(kind), ErrorKind: kind}
+			}
+
+			return
+		}
+	}
 }
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is
