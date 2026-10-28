@@ -1290,14 +1290,25 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 			}
 		}
 	}
-	if haveRuns && counts.Waiting > 0 && counts.Failed > 0 {
-		counts.Waiting -= blockedInFinishedRuns(runs, combined.Statuses)
-	}
-	if haveRuns && counts.Waiting > 0 {
-		counts = c.splitRunning(ctx, owner, name, runs, counts)
+	if haveRuns {
+		counts = c.splitWaiting(ctx, owner, name, runs, combined.Statuses, counts)
 	}
 
 	return state, counts, nil
+}
+
+// splitWaiting takes what the pending statuses don't wait on out of the
+// waiting count: the jobs that are running, and, beside a failure that
+// stands, the ones blocked in a finished run.
+func (c *Client) splitWaiting(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, counts dashboard.CheckCounts) dashboard.CheckCounts {
+	if counts.Waiting > 0 && counts.Failed > 0 {
+		counts.Waiting -= blockedInFinishedRuns(runs, statuses)
+	}
+	if counts.Waiting > 0 {
+		counts = c.splitRunning(ctx, owner, name, runs, counts)
+	}
+
+	return counts
 }
 
 // blockedInFinishedRuns counts the pending statuses of Actions jobs that sit in
