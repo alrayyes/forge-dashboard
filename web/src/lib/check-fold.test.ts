@@ -142,3 +142,31 @@ describe('foldBranch counts', () => {
     });
   });
 });
+
+// The names the Failing: line lists: the jobs the counts call failed, in the
+// order the forge listed them, and none when nothing failed.
+describe('foldBranch failing jobs', () => {
+  test('names each failed job and no other', () => {
+    const list = jobs('success', 'failure', 'running', 'timed_out');
+
+    expect(foldBranch(list).failing).toEqual(['job 1', 'job 3']);
+  });
+
+  test('is empty when nothing failed', () => {
+    expect(foldBranch(jobs('success', 'running')).failing).toEqual([]);
+    expect(foldBranch([]).failing).toEqual([]);
+  });
+
+  test('a cancelled or held job is not failing', () => {
+    expect(foldBranch(jobs('cancelled', 'awaiting_approval')).failing).toEqual(
+      [],
+    );
+  });
+
+  test('agrees with the failed count', () => {
+    const list = jobs('failure', 'failure', 'success');
+    const { counts, failing } = foldBranch(list);
+
+    expect(failing).toHaveLength(counts.failed);
+  });
+});

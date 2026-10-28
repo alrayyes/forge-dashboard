@@ -234,16 +234,20 @@ export const SEGMENTED_STATUSES: ReadonlySet<MainBranchStatus> = new Set([
 // came yet) the snapshot's own status and counts stand.
 export type BranchPill = { status: MainBranchStatus; counts: CheckCounts };
 
+// What a row reads from one job list: the pill, and with it the names of the
+// failed jobs, so the Failing: line reads the same list.
+export type BranchRead = BranchPill & { failing: string[] };
+
 export function branchPill(
-  row: Pick<MainBranch, 'status' | 'checks'>,
+  row: Pick<MainBranch, 'status' | 'checks' | 'failingJobs'>,
   live: readonly Check[] | null,
-): BranchPill {
+): BranchRead {
   if (!live || live.length === 0)
-    return { status: row.status, counts: row.checks };
+    return { status: row.status, counts: row.checks, failing: row.failingJobs };
 
-  const { status, counts } = foldBranch(live);
+  const { status, counts, failing } = foldBranch(live);
 
-  return { status, counts };
+  return { status, counts, failing };
 }
 
 // A row's identity on the page: the open dialog says which row its jobs are.
@@ -251,8 +255,8 @@ export const branchKey = (b: Pick<MainBranch, 'forge' | 'fullName'>): string =>
   `${b.forge}:${b.fullName}`;
 
 // The rows with the open dialog's row read from its job list, so the pill, the
-// chips, the filter and the nav count all fold the one list. Every other row is
-// the refresh, untouched.
+// chips, the filter, the nav count and the Failing: line all fold the one
+// list. Every other row is the refresh, untouched.
 export function withLiveJobs(
   rows: readonly MainBranch[],
   live: { key: string; checks: readonly Check[] } | null,
@@ -262,9 +266,9 @@ export function withLiveJobs(
   return rows.map((row) => {
     if (branchKey(row) !== live.key) return row;
 
-    const { status, counts } = branchPill(row, live.checks);
+    const { status, counts, failing } = branchPill(row, live.checks);
 
-    return { ...row, status, checks: counts };
+    return { ...row, status, checks: counts, failingJobs: failing };
   });
 }
 
