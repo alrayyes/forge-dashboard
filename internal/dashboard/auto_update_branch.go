@@ -173,6 +173,11 @@ func (a *Aggregator) runAutoUpdateBranch(ctx context.Context, snap Snapshot) {
 	}
 
 	for _, pr := range snap.PullRequests {
+		// A cancelled pass (#3034) stops here: the pull requests it hasn't
+		// reached aren't attempted, so none takes a back-off for a call never made.
+		if ctx.Err() != nil {
+			return
+		}
 		// Nothing can be done with a draft (#791), and its branch is still
 		// being worked on.
 		if !pr.Behind || pr.Draft {

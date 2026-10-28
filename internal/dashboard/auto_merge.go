@@ -86,6 +86,11 @@ func (a *Aggregator) runAutoMerge(ctx context.Context, snap Snapshot) {
 		open[dependabotPRKey(pr)] = pr
 	}
 	for key := range armed {
+		// A cancelled pass (#3034) stops here: the pull requests it hasn't
+		// reached are neither attempted nor shown as failed.
+		if ctx.Err() != nil {
+			return
+		}
 		pr, listed := open[key]
 		if !listed {
 			a.dropIfFinished(ctx, snap, key)
@@ -119,6 +124,13 @@ func (a *Aggregator) autoMergeNow(ctx context.Context, pr PullRequest) {
 
 	slog.Info("auto-merge: merging", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number)
 	if err := merger.MergePullRequest(ctx, owner, name, pr.Number); err != nil {
+		if ctx.Err() != nil {
+			// Cut off, not refused: the outcome is unknown, so no failure is shown.
+			a.autoMerge.interrupted(pr)
+			slog.Warn("auto-merge: merge cut off, trying again later", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
+
+			return
+		}
 		a.autoMerge.failed(pr, err)
 		a.notify(a.Get())
 		slog.Warn("auto-merge: merge failed", "forge", pr.Forge, "repo", pr.Repo, "number", pr.Number, "error", err)
@@ -236,6 +248,14 @@ func (c *autoMergeConfig) failed(pr PullRequest, err error) {
 	if refusal.Code == ActionRateLimited || isUnreachable(err) {
 		c.attempts[key] = autoMergeAttempt{updatedAt: pr.UpdatedAt, until: time.Now().Add(transientAutoMergeWait)}
 	}
+}
+
+// interrupted lets a merge that was cut off be tried again after a wait, and
+// shows no failure: the forge never answered.
+func (c *autoMergeConfig) interrupted(pr PullRequest) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.attempts[dependabotPRKey(pr)] = autoMergeAttempt{updatedAt: pr.UpdatedAt, until: time.Now().Add(transientAutoMergeWait)}
 }
 
 // recordMerged keeps a merge for the report, newest first, dropping the ones
