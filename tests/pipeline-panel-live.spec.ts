@@ -217,6 +217,43 @@ test.describe('pipeline panel updates live', () => {
     ).toHaveCount(1);
   });
 
+  test('a run that fails while its jobs read the same stops the row waiting', async ({
+    page,
+  }) => {
+    const run = { runId: 455, runAttempt: 1 };
+    const jobs = [
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'failure',
+        url: 'https://example.com/r/1',
+        ...run,
+      },
+      {
+        name: 'deploy',
+        status: 'queued',
+        url: 'https://example.com/r/2',
+        ...run,
+      },
+    ];
+    const WAITING = pr(
+      'failure',
+      { passed: 0, running: 0, waiting: 1, failed: 1 },
+      'forgejo',
+    );
+    const state = await open(page, WAITING, jobs);
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row.locator('.ci-seg-waiting')).toHaveCount(1);
+
+    state.checks = jobs.map((c) => ({
+      ...c,
+      runFacts: { status: 'completed', conclusion: 'failure' },
+    }));
+    await update(page, state, WAITING);
+
+    await expect(row.locator('.ci-seg-waiting')).toHaveCount(0);
+  });
+
   test('a pull request dialog links to the newest run, as a branch does', async ({
     page,
   }) => {
