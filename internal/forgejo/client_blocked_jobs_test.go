@@ -107,6 +107,19 @@ func TestListOpenPullRequests_OnlyTheFailedRunsBlockedJobsAreNoWait(t *testing.T
 	assert.Equal(t, dashboard.CheckCounts{Passed: 2, Waiting: 1, Failed: 1}, got.Checks)
 }
 
+// A failure that is a cancelled job is excused, and the jobs blocked behind it
+// in a run that failed are no wait. With nothing failed and nothing waiting,
+// the row is done: it must not stay pending on a wait the counts dropped.
+func TestListOpenPullRequests_NothingLeftToWaitForSettlesTheRow(t *testing.T) {
+	t.Parallel()
+	f := blockedBehindFailures("failure")
+	f.jobs[18783] = []string{"cancelled", "blocked", "blocked"}
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CISuccess, got.CI)
+}
+
 // A status list the forge cut short is counted as nothing, blocked jobs too.
 func TestListOpenPullRequests_ACappedStatusListStaysUncounted(t *testing.T) {
 	t.Parallel()

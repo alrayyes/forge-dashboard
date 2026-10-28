@@ -1292,6 +1292,11 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	}
 	if haveRuns {
 		counts = c.splitWaiting(ctx, owner, name, runs, combined.Statuses, counts)
+		if state == dashboard.CIPending && counts.Failed == 0 && counts.Waiting == 0 && counts.Running == 0 {
+			// The waits were all blocked jobs of failed runs: nothing is left to
+			// run, so the state follows the counts, not the pending statuses.
+			state = stateWithoutFailures(counts, combined.Statuses)
+		}
 	}
 
 	return state, counts, nil
