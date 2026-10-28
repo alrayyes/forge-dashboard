@@ -61,7 +61,7 @@ const singleUserSpecs = [
   '**/behind-fix-button.spec.ts',
   '**/bot-row-rebase.spec.ts',
   '**/bot-rebase-all.spec.ts',
-  '**/merge-all.spec.ts',
+  '**/update-all.spec.ts',
   '**/ci-pill-counts.spec.ts',
   '**/running-pill-counts.spec.ts',
   '**/issue-author-avatar.spec.ts',

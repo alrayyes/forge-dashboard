@@ -478,23 +478,23 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     expectNone(problems);
   });
 
-  // The Merge all confirm: a tick box per row, Close and Merge.
-  test('pull requests: the Merge all dialog open', async ({ page }) => {
+  // The Update all confirm: a tick box per row, Close and Update.
+  test('pull requests: the Update all dialog open', async ({ page }) => {
     const problems: string[] = [];
     await mockDashboard(
       page,
       [1, 2].map((n) =>
-        makePR(n, { allowedActions: [{ action: 'merge', primary: true }] }),
+        makePR(n, { allowedActions: [{ action: 'update_branch' }] }),
       ),
     );
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
     await page.goto('/pull-requests.html');
     await ready(page, '#pr-rows .row');
-    await page.getByRole('button', { name: 'Merge all (2)' }).click();
+    await page.getByRole('button', { name: 'Update all (2)' }).click();
     await expect(
-      page.getByRole('dialog', { name: 'Merge 2 pull requests?' }),
+      page.getByRole('dialog', { name: 'Update 2 pull requests?' }),
     ).toBeVisible();
-    await sweepAll(page, 'merge all dialog', problems);
+    await sweepAll(page, 'update all dialog', problems);
     expectNone(problems);
   });
 
