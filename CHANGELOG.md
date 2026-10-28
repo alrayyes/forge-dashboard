@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.8.0](https://github.com/alrayyes/forge-dashboard/compare/v8.7.0...v8.8.0) (2026-10-28)
+
+
+### Features
+
+* **web:** read a cancelled-only pull request as cancelled ([#3008](https://github.com/alrayyes/forge-dashboard/issues/3008)) ([545652e](https://github.com/alrayyes/forge-dashboard/commit/545652e36a139eda2a9bd304914b0ed87969c4c2))
+
 ## [8.7.0](https://github.com/alrayyes/forge-dashboard/compare/v8.6.0...v8.7.0) (2026-10-28)
 
 
