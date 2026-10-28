@@ -452,6 +452,19 @@
     });
   }
 
+  // What the board's control reads off the runs: which run, and how it ended.
+  // A start or end time moving alone changes nothing it draws.
+  function outcomes(runs: readonly RunFacts[]): string {
+    return JSON.stringify(
+      runs.map(({ runId, runAttempt, status, conclusion }) => [
+        runId,
+        runAttempt,
+        status,
+        conclusion,
+      ]),
+    );
+  }
+
   async function apply(row: PipelineTarget, event: CheckFeedMessage) {
     const again = phase === "ready";
     if ("error" in event) {
@@ -482,7 +495,7 @@
     if (JSON.stringify(ordered) === JSON.stringify(checks)) {
       // A run can finish while its jobs read the same; the board's control
       // folds the runs too, so it is drawn again.
-      if (JSON.stringify(nextRuns) !== JSON.stringify(runFacts)) {
+      if (outcomes(nextRuns) !== outcomes(runFacts)) {
         runFacts = nextRuns;
         controlsTick += 1;
       }
