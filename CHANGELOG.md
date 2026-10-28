@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.10.0](https://github.com/alrayyes/forge-dashboard/compare/v8.9.1...v8.10.0) (2026-10-28)
+
+
+### Features
+
+* **web:** watch the visible branch rows live ([#3018](https://github.com/alrayyes/forge-dashboard/issues/3018)) ([b46434e](https://github.com/alrayyes/forge-dashboard/commit/b46434e8a2713cb4afe774cbcde2feb5fea6ce76))
+
 ## [8.9.1](https://github.com/alrayyes/forge-dashboard/compare/v8.9.0...v8.9.1) (2026-10-28)
 
 
