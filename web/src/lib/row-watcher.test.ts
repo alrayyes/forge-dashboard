@@ -168,3 +168,30 @@ describe('createRowWatcher', () => {
     expect(live.size).toBe(0);
   });
 });
+
+describe('createRowWatcher run facts', () => {
+  test('hands the run facts of a list to onChecks beside its jobs', () => {
+    const told: unknown[] = [];
+    let follow: (m: CheckFeedMessage) => void = () => {};
+    const watcher = createRowWatcher({
+      feed: {
+        watch(_s, follower) {
+          follow = follower;
+          return () => {};
+        },
+      },
+      onChecks: (key, checks, runs) => told.push([key, checks, runs]),
+      onDrop: () => {},
+    });
+    const runs = [{ runId: 1, status: 'completed', conclusion: 'failure' }];
+
+    watcher.set([subject('a/one')]);
+    follow({ checks: [], runs });
+    follow({ checks: [] });
+
+    expect(told).toEqual([
+      ['github:a/one', [], runs],
+      ['github:a/one', [], []],
+    ]);
+  });
+});

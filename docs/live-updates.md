@@ -34,7 +34,11 @@ drawn, and the page watches the ones that came in and stops watching the ones
 that left. A row past the seventh keeps the pill from the last refresh. The
 releases and bots pages share the pull request board but watch no rows, so
 their pills read the refresh. A cancelled
-run reads as cancelled on a watched row, as it does in the panel. The quick
+run reads as cancelled on a watched row, as it does in the panel. On Forgejo,
+jobs behind a failed one stay queued in a run that has finished, and nothing
+will start them. A watched row and the panel leave them out of the waiting
+count, so a failed run reads as Failed without a spinner. A rerun is a new
+attempt, so its queued jobs still wait. The quick
 filters and the auto-merge status still read the refresh.
 
 The pipeline panel is one dialog on the pull request, bot and Main branches

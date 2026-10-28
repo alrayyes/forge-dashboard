@@ -5,6 +5,7 @@
 // and a held job as a flag of its own. No DOM here.
 
 import type { CheckCounts } from './check-counts';
+import type { RunFacts } from './check-feed';
 import { foldBranch } from './check-fold';
 import { type Check, checkState } from './pipeline-checks';
 
@@ -31,13 +32,19 @@ export type PullRequestFold = {
 //   run, a real failure beside it included.
 // - Forgejo has no such flag. A held job is a pending one.
 //
+// A queued job of a run the forge says has failed is not waiting: Forgejo
+// leaves a job whose needs failed blocked in the finished run and reports it
+// as pending, and nothing will start it. `runs` are the run facts that came
+// with the jobs. A rerun is another attempt, so its queued jobs still wait.
+//
 // Left to the server: failingOnlyForApproval, which quick filters and
 // auto-merge status read from the snapshot while this pill is live.
 export function foldPullRequest(
   forge: string,
   checks: readonly Check[],
+  runs: readonly RunFacts[] = [],
 ): PullRequestFold | null {
-  const { status, counts } = foldBranch(checks);
+  const { status, counts } = foldBranch(withoutBlocked(checks, runs));
   const held = checks.some((c) => checkState(c) === 'awaiting_approval');
 
   if (forge === 'github' && held) {
@@ -57,4 +64,28 @@ export function foldPullRequest(
     default:
       return null;
   }
+}
+
+// The jobs that can still change, leaving out the queued ones of a failed run.
+function withoutBlocked(
+  checks: readonly Check[],
+  runs: readonly RunFacts[],
+): readonly Check[] {
+  const failed = runs.filter(
+    (r) =>
+      checkState({ status: r.status ?? '', conclusion: r.conclusion }) ===
+      'failure',
+  );
+  if (failed.length === 0) return checks;
+
+  return checks.filter(
+    (c) =>
+      checkState(c) !== 'queued' ||
+      !failed.some(
+        (r) =>
+          r.runId !== undefined &&
+          r.runId === c.runId &&
+          r.runAttempt === c.runAttempt,
+      ),
+  );
 }

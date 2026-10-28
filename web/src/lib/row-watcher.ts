@@ -1,4 +1,4 @@
-import type { CheckFeedMessage, Subject } from './check-feed';
+import type { CheckFeedMessage, RunFacts, Subject } from './check-feed';
 import { branchKey } from './main-branches';
 import type { Check } from './pipeline-checks';
 
@@ -12,7 +12,7 @@ type Options = {
   // How a subject is named in onChecks and onDrop. A branch row is one per
   // repo; a pull request row needs its number too.
   keyOf?: (subject: Subject) => string;
-  onChecks: (key: string, checks: Check[]) => void;
+  onChecks: (key: string, checks: Check[], runs: RunFacts[]) => void;
   onDrop: (key: string) => void;
 };
 
@@ -49,7 +49,8 @@ export function createRowWatcher({
         stops.set(
           key,
           feed.watch(subject, (message) => {
-            if ('checks' in message) onChecks(key, message.checks);
+            if ('checks' in message)
+              onChecks(key, message.checks, message.runs ?? []);
           }),
         );
       }

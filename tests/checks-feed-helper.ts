@@ -56,13 +56,20 @@ function events(page: Page, subject: Subject, reply: Reply) {
   }
   const before = sent.get(page) ?? new Map<string, string[]>();
   sent.set(page, before);
-  const out: Record<string, unknown>[] = [...groups].map(([key, checks]) => ({
-    ...subject,
-    key,
-    runId: checks[0].runId,
-    runAttempt: checks[0].runAttempt,
-    checks,
-  }));
+  const out: Record<string, unknown>[] = [...groups].map(([key, rows]) => {
+    // A row may carry `runFacts`, what the forge said about its run: the event
+    // sends it once, beside the run's ids, and not on each job.
+    const facts = rows.find((c) => c.runFacts)?.runFacts as object | undefined;
+    const checks = rows.map(({ runFacts: _, ...check }) => check);
+    return {
+      ...subject,
+      key,
+      runId: rows[0].runId,
+      runAttempt: rows[0].runAttempt,
+      ...facts,
+      checks,
+    };
+  });
   for (const key of before.get(keyOf(subject)) ?? []) {
     if (!groups.has(key)) out.push({ ...subject, key, gone: true });
   }
