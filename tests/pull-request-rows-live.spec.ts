@@ -206,4 +206,63 @@ test.describe('pull request rows follow their jobs', () => {
     await page.keyboard.press('Escape');
     await expect(row).toContainText('Failed');
   });
+
+  // Forgejo leaves the jobs behind a failed one blocked in the finished run and
+  // reports them pending. The run's own facts say it is over, so the row draws
+  // a plain failure: no waiting segment and no spinner (#3035).
+  test('queued jobs of a failed run do not make the row wait', async ({
+    page,
+  }) => {
+    const run = {
+      runId: 455,
+      runAttempt: 1,
+      runFacts: { status: 'completed', conclusion: 'failure' },
+    };
+    const blocked = (name: string) => ({
+      name,
+      status: 'queued',
+      url: `https://example.com/r/${name}`,
+      ...run,
+    });
+    await serveChecks(page, () => [
+      { ...FAILED[0], ...run },
+      blocked('deploy'),
+      blocked('notify'),
+    ]);
+    await serveBoard(page, 1);
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+
+    await expect(row).toContainText('Failed');
+    await expect(row.locator('.ci-seg-waiting')).toHaveCount(0);
+    await expect(row.locator('.check-glyph-arc')).toHaveCount(0);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('queued jobs of a rerun still count as waiting', async ({ page }) => {
+    const failed = { runId: 455, runAttempt: 1 };
+    const rerun = {
+      runId: 455,
+      runAttempt: 2,
+      runFacts: { status: 'in_progress' },
+    };
+    await serveChecks(page, () => [
+      { ...FAILED[0], ...failed },
+      {
+        name: 'build',
+        status: 'queued',
+        url: 'https://example.com/r/1',
+        ...rerun,
+      },
+    ]);
+    await serveBoard(page, 1);
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+
+    await expect(row.locator('.ci-seg-waiting')).toHaveCount(1);
+  });
 });
