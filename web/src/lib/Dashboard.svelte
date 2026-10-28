@@ -4041,12 +4041,9 @@
     // No confirm step, unlike doMerge — bringing a branch up to date is
     // routine and reversible in a way completing the pull request isn't.
     // Resolves true once the server took the request, false when it did not.
-    // `onFailure` gets the reason, for a caller (Update all) that shows it
-    // on its own row too.
     function doUpdateBranch(
       item: PullRequestItem,
       button: HTMLButtonElement,
-      { onFailure }: { onFailure?: (reason: string) => void } = {},
     ): Promise<boolean> {
       const key = prKey(item);
       updateBranchState[key] = {
@@ -4131,7 +4128,6 @@
               return;
             }
           }
-          onFailure?.(err.status === undefined ? NETWORK_FAILURE : err.message);
           renderActionRefusal(item, err, fkey, "update the branch", (next) => {
             updateBranchState[key] = next;
           });
