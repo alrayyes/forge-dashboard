@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.11.2](https://github.com/alrayyes/forge-dashboard/compare/v8.11.1...v8.11.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* **web:** queued jobs of a failed run do not wait ([#3044](https://github.com/alrayyes/forge-dashboard/issues/3044)) ([713b369](https://github.com/alrayyes/forge-dashboard/commit/713b3692215781213f928c0178ef6815f0b9ebb4))
+
 ## [8.11.1](https://github.com/alrayyes/forge-dashboard/compare/v8.11.0...v8.11.1) (2026-10-28)
 
 
