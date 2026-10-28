@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { pushChecks, serveChecks } from './checks-feed-helper';
+import { closeStream } from './fake-stream-helper';
 import { test } from './server-fixture';
 
 // The Pull requests page follows the jobs of the first rows it draws, so a row
@@ -209,6 +210,35 @@ test.describe('pull request rows follow their jobs', () => {
 
     await page.keyboard.press('Escape');
     await expect(row).toContainText('Failed');
+  });
+
+  // A row that read its live jobs must not keep a pill the stream can no longer
+  // vouch for. It reads the refresh again while the stream is down, and folds
+  // live once the stream lists it again. The fallback is unit-tested
+  // (row-watcher.test.ts); this proves the board redraws for it.
+  test('a row reads the refresh while the stream is down and folds live again after', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const feed = await serveChecks(page, () => PASSED);
+    await serveBoard(page, 1);
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row).toContainText('Passed');
+    await feed.idle();
+
+    await closeStream(page);
+    feed.forget();
+    await expect(row).toContainText('Running');
+
+    // The page opens the stream again and the watch goes out with it.
+    await page.clock.runFor(3000);
+    await expect(row).toContainText('Passed');
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   // Forgejo leaves the jobs behind a failed one blocked in the finished run and

@@ -31,7 +31,11 @@ it draws them, so their CI pills fold from the live jobs without a dialog open.
 The stream takes eight watched subjects at once, and the pipeline panel keeps
 the eighth. A filter, a page of the pager or a grouping changes which rows are
 drawn, and the page watches the ones that came in and stops watching the ones
-that left. A row past the seventh keeps the pill from the last refresh. The
+that left. A row past the seventh keeps the pill from the last refresh. When
+the live stream drops, a watched row reads the refresh again, so it doesn't
+show a pill the stream can no longer vouch for. The row stays watched, and it
+folds live again once the stream is back and lists it. The Main branches page
+does the same. The
 releases and bots pages share the pull request board but watch no rows, so
 their pills read the refresh. A cancelled
 run reads as cancelled on a watched row, as it does in the panel. On Forgejo,

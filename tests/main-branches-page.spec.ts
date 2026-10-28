@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { checkLinkName } from './check-link-name-helper';
 import { type Reply, serveChecks } from './checks-feed-helper';
+import { closeStream } from './fake-stream-helper';
 import { createFirstRefreshGate, twoFrames } from './first-refresh-gate-helper';
 import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
@@ -455,6 +456,34 @@ test.describe('Main branches page (#1224, #1279)', () => {
         exact: true,
       }),
     ).toHaveCount(0);
+  });
+
+  // The row's live pill is only as good as the stream behind it. While the
+  // stream is down the row reads the refresh again; it folds live once the
+  // stream lists it. (row-watcher.test.ts pins the fallback.)
+  test('a row reads the refresh while the stream is down and folds live again after', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await mock(page, snapshot([row('acme/ingress-controller', 'running')]));
+    const passed = [
+      { name: 'unit', status: 'completed', conclusion: 'success', url: '' },
+    ];
+    const feed = await serveChecks(page, () => passed);
+    await page.goto('/');
+    const first = rows(page).first();
+    await expect(first).toContainText('Passed');
+    await feed.idle();
+
+    await closeStream(page);
+    feed.forget();
+    await expect(first).toContainText('Running');
+
+    await page.clock.runFor(3000);
+    await expect(first).toContainText('Passed');
+
+    const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('the panel links to the run on the forge in a new tab, and the failing jobs list is gone', async ({
