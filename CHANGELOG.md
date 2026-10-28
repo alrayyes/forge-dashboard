@@ -1,5 +1,18 @@
 # Changelog
 
+## [8.11.0](https://github.com/alrayyes/forge-dashboard/compare/v8.10.1...v8.11.0) (2026-10-28)
+
+
+### Features
+
+* **web:** watch the visible pull request rows live ([#3032](https://github.com/alrayyes/forge-dashboard/issues/3032)) ([5d9ed03](https://github.com/alrayyes/forge-dashboard/commit/5d9ed032f78714ca0005b8301f6459b3750f5a11))
+
+
+### Bug Fixes
+
+* **dashboard:** bound the forge write pass ([#3037](https://github.com/alrayyes/forge-dashboard/issues/3037)) ([7ae8096](https://github.com/alrayyes/forge-dashboard/commit/7ae8096a6cb06f913758036e7dcbcff2482fa02d))
+* **forgejo:** blocked jobs in a finished run are no wait ([#3033](https://github.com/alrayyes/forge-dashboard/issues/3033)) ([fc29574](https://github.com/alrayyes/forge-dashboard/commit/fc295743953a5a464d04c84062daf95c12a317ee))
+
 ## [8.10.1](https://github.com/alrayyes/forge-dashboard/compare/v8.10.0...v8.10.1) (2026-10-28)
 
 
