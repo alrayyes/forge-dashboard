@@ -1019,10 +1019,11 @@ release-please pull request keeps out of the automatic update, still counts.
 Pressing it opens a confirm dialog with a tick box for each pull request, all
 ticked. Clear a box to leave that one out. `Update` then updates the ticked ones
 one after another, through the same request the row's `Update branch` sends. The
-button and the dialog read `Updating 2 of 4` as it goes. An update the forge
-refuses shows its reason on its own row and the others carry on. When the run
-ends the dialog reads `Update requested for 4.`, or `Update requested for 3 of
-4. 1 failed.`
+dialog closes as soon as you press `Update`, and focus returns to the button.
+The button reads `Updating 2 of 4` as it goes. An update the forge refuses shows
+its reason on its own row and the others carry on. A screen reader hears
+`Update requested for 4.` when the run ends, or `Update requested for 3 of 4. 1
+failed.`
 
 Escape, or `Close`, before `Update` updates nothing.
 

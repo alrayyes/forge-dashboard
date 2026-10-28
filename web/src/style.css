@@ -4937,15 +4937,6 @@ footer a[aria-current="page"] {
   height: 20px;
   margin: 0;
 }
-.update-all-note {
-  display: block;
-  padding: 0 0 4px 30px;
-  font-size: 0.75rem;
-  color: var(--ink-2);
-}
-.update-all-note:empty {
-  display: none;
-}
 .update-all-actions {
   display: flex;
   justify-content: flex-end;
