@@ -1290,11 +1290,49 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 			}
 		}
 	}
-	if haveRuns && counts.Waiting > 0 {
-		counts = c.splitRunning(ctx, owner, name, runs, counts)
+	if haveRuns {
+		counts = c.splitWaiting(ctx, owner, name, runs, combined.Statuses, counts)
 	}
 
 	return state, counts, nil
+}
+
+// splitWaiting takes what the pending statuses don't wait on out of the
+// waiting count: the jobs blocked in a run that failed, and the ones running.
+func (c *Client) splitWaiting(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, counts dashboard.CheckCounts) dashboard.CheckCounts {
+	if counts.Waiting > 0 {
+		counts.Waiting -= min(blockedInFailedRuns(runs, statuses), counts.Waiting)
+	}
+	if counts.Waiting > 0 {
+		counts = c.splitRunning(ctx, owner, name, runs, counts)
+	}
+
+	return counts
+}
+
+// blockedInFailedRuns counts the pending statuses of Actions jobs that sit in
+// a run that has failed. A job whose needs failed is never started, and
+// Forgejo leaves it blocked in the finished run and says pending for it, so it
+// is no wait: nothing will run it. It takes the run's own word that it failed,
+// not a failure among the counts, which cancelledFailures may already have
+// excused: the pending jobs of a run that was cancelled stay waiting, the safe
+// way round. A pending status that names no run, or a run the list doesn't
+// hold, or one that can still start jobs, stays a wait.
+func blockedInFailedRuns(runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) int {
+	failed := map[int64]bool{}
+	for _, r := range runs {
+		if checkStateFromWorkflowStatus(r.Status) == dashboard.CheckFailure {
+			failed[r.RunNumber] = true
+		}
+	}
+	n := 0
+	for _, s := range statuses {
+		if run, _, ok := jobTarget(s); ok && s.State == gitea.StatusPending && failed[run] {
+			n++
+		}
+	}
+
+	return n
 }
 
 // commitRuns lists the Actions runs of sha. ok is false when they can't be
