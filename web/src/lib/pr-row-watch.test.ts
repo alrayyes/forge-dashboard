@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { STREAM_SUBJECT_CAP } from './main-branches';
+import { STREAM_SUBJECT_CAP } from './check-feed';
 import { pullRequestKey, pullRequestsToWatch } from './pr-row-watch';
 
 const row = (number: number, repo = 'a/one') => ({

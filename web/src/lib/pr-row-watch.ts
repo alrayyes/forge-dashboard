@@ -1,5 +1,4 @@
-import type { Subject } from './check-feed';
-import { STREAM_SUBJECT_CAP } from './main-branches';
+import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 
 type Row = { forge: string; repo: string; number: number };
 

@@ -6,6 +6,11 @@
 
 import type { Check } from './pipeline-checks';
 
+// The dashboard stream takes this many watched subjects in one call; the server
+// answers 400 for more (api/openapi.yaml, StreamWatchRequest). The Go const
+// maxWatchedSubjects in internal/api/check_stream.go must change with it.
+export const STREAM_SUBJECT_CAP = 8;
+
 export type Subject = {
   kind: 'pull_request' | 'main_branch';
   forge: string;
