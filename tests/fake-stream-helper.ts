@@ -14,6 +14,11 @@ export async function installFakeStream(page: Page) {
   if (installed.has(page)) return;
   installed.add(page);
   await page.addInitScript(() => {
+    // tsx (esbuild keepNames) wraps the class below in a __name() call, and
+    // this function runs in the browser, where nothing defines it. Playwright's
+    // own transform doesn't, so only the screenshot script needs the stand-in.
+    const scope = window as unknown as Record<string, unknown>;
+    scope.__name ??= (fn: unknown) => fn;
     type Event = { data?: string };
     type Handler = ((event: { data: string }) => void) | null;
     const open: FakeSource[] = [];
