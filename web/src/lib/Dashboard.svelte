@@ -588,6 +588,7 @@
       success: "Passed",
       failure: "Failed",
       pending: "Running",
+      cancelled: "Cancelled",
       none: "No checks",
     };
     const FORGE_SHORT_LABELS: Record<string, string> = {
@@ -890,6 +891,7 @@
       pending: "running",
       failure: "failure",
       success: "success",
+      cancelled: "cancelled",
     };
     // The details header draws the same pill as a plain badge: it was a
     // snapshot at open, so it opens nothing (interactive = false).
