@@ -64,7 +64,7 @@
     type MainBranches,
     type MainBranchFilter,
     branchNavCount,
-    branchPill,
+    branchKey,
     type BranchPill,
     countMainBranches,
     CI_SLOT,
@@ -74,6 +74,7 @@
     type StatusPill,
     type ForgeFilter,
     supersedes,
+    withLiveJobs,
   } from "#lib/main-branches.js";
   import { followMainBranchPage } from "#lib/main-branch-stream.js";
 
@@ -107,7 +108,16 @@
   // The server's first refresh after a restart has not finished (#1672): the
   // list is empty because nothing is read yet, not because nothing is tracked.
   const pending = $derived(firstRefreshLoading(firstRefresh));
-  const branches = $derived(sortMainBranches(data?.branches ?? []));
+  // The same list, kept as state so the open row is read from it: the pill, the
+  // chips and the nav pill then fold the one job list the dialog shows.
+  let liveChecks = $state<{ key: string; checks: Check[] } | null>(null);
+
+  // Sorted by the refresh, then the open dialog's row is read from its jobs:
+  // the row keeps its place, and the pill, the chips, the filter and the nav
+  // pill all count it one way.
+  const branches = $derived(
+    withLiveJobs(sortMainBranches(data?.branches ?? []), liveChecks),
+  );
   const visible = $derived(applyFilter(branches, filter));
   const perForge = $derived(forgeCounts(branches));
   // A status or forge pill is offered only when clicking it would show
@@ -135,8 +145,16 @@
   );
   // The server sends rows and no tally: the chips below and the nav pill read
   // this one count of them.
-  const counts = $derived(countMainBranches(data?.branches ?? []));
+  const counts = $derived(countMainBranches(branches));
   const allGreen = $derived(counts.total > 0 && counts.passed === counts.total);
+  // The pill in the header is the same tally as the chips below it, and moves
+  // with them when the open dialog's jobs do. The write reads the pill's own
+  // state, so it is untracked: otherwise it would run again on its own write.
+  $effect(() => {
+    if (!data || firstRefreshPending(firstRefresh.done)) return;
+    const nav = branchNavCount(counts);
+    untrack(() => setBranchNavCount(nav));
+  });
 
   const STATUS_PILLS: { key: StatusPill; label: string }[] = [
     { key: "all", label: "All" },
@@ -148,7 +166,7 @@
     { key: "none", label: "No pipeline" },
   ];
 
-  const rowKey = (b: MainBranch) => `${b.forge}:${b.fullName}`;
+  const rowKey = branchKey;
 
   // The row each pill opens the panel for, read when it is clicked, so a pill
   // redrawn in place opens the row as the latest poll left it.
@@ -195,13 +213,6 @@
 
   // The open dialog's checks, as the stream last sent them.
   let dialogChecks: Check[] = [];
-
-  // The same list, kept as state so the open row's pill folds it: the pill and
-  // the dialog then read one job list.
-  let liveChecks = $state<{ key: string; checks: Check[] } | null>(null);
-
-  const pillOf = (b: MainBranch): BranchPill =>
-    branchPill(b, liveChecks?.key === rowKey(b) ? liveChecks.checks : null);
 
   // The newest copy of a row, since the dialog outlives the polls.
   const latest = (b: MainBranch) =>
@@ -293,9 +304,6 @@
     if (!supersedes(next, data)) return;
     data = next;
     failed = false;
-    // The pill in the header is the same tally as the chips below it.
-    if (!firstRefreshPending(firstRefresh.done))
-      setBranchNavCount(branchNavCount(countMainBranches(next.branches)));
     redrawOpenControl();
   }
 
@@ -1036,7 +1044,7 @@
         <ul class="mb-list" aria-label="Default branches">
           {#each visible as b (rowKey(b))}
             {@const adv = advisoryPill(b.advisories)}
-            {@const pill = pillOf(b)}
+            {@const pill = { status: b.status, counts: b.checks }}
             <li
               class="mb-row"
               data-testid="main-branch-row"

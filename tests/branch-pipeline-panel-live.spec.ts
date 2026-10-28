@@ -172,6 +172,33 @@ test.describe('main branches pipeline panel updates live', () => {
     ).toBeAttached();
   });
 
+  // A list that arrives before the poll that carries the row's new status: the
+  // row's pill and the status chips read the list the panel shows, not the last
+  // refresh.
+  test('the row and the chips follow the panel before the poll catches up', async ({
+    page,
+  }) => {
+    const state = await open(page, RUNNING, RUN);
+    const row = page.getByTestId('main-branch-row');
+    await expect(row).toHaveAttribute('data-status', 'running');
+
+    state.checks = DONE;
+    await pushChecks(
+      page,
+      {
+        kind: 'main_branch',
+        forge: state.row.forge,
+        fullName: state.row.fullName,
+      },
+      DONE as CheckRow[],
+    );
+
+    await expect(row).toHaveAttribute('data-status', 'passed');
+    await expect(
+      page.locator('.mb-pill', { hasText: 'Passing' }).locator('.mb-count'),
+    ).toHaveText('1');
+  });
+
   test('a redraw keeps focus on the same check when an earlier one is gone', async ({
     page,
   }) => {
