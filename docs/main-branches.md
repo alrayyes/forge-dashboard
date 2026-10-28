@@ -358,7 +358,7 @@ them, so their pills fold from the live jobs without opening a dialog. The
 stream takes eight watched rows at once, and the pipeline panel keeps the
 eighth. The rows are chosen from the pills of the last refresh, so a row whose
 live pill leaves the status filter stays watched instead of flapping. A filter
-change watches the rows that came in and lets go of the ones that left. A row
+change watches the rows that came in and stops watching the ones that left. A row
 past the seventh keeps the pill from the refresh until a filter brings it into
 the first seven.
 The commit is
