@@ -6424,6 +6424,14 @@
         // refresh again then.
         rowFolds.delete(key);
       },
+      onError(key) {
+        // The stream dropped, so the live fold is stale. The row stays watched
+        // and reads the refresh until a list comes again, and the board is
+        // redrawn for it since nothing else will.
+        if (rowFolds.delete(key)) {
+          redrawRowFolds();
+        }
+      },
     });
     function prItemFor(key: string): PullRequestItem | undefined {
       return prBoard.find(key) as PullRequestItem | undefined;
