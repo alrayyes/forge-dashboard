@@ -348,7 +348,7 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 			for _, j := range list {
 				job := withRun(withJobTimes(dashboard.Check{
 					Name:       j.Name,
-					State:      checkStateFromWorkflowStatus(j.Status),
+					State:      branchJobState(r, j),
 					URL:        j.HTMLURL,
 					JobID:      j.ID,
 					RunAttempt: j.RunAttempt,
@@ -368,6 +368,19 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 	}
 
 	return out
+}
+
+// branchJobState is the state a job counts in. A job whose needs failed is
+// never started: Forgejo leaves it blocked in a run that has failed, so it is
+// no wait and reads as cancelled, which the counts leave out as they do for a
+// pull request (blockedInFailedRuns). A queued job of the failed run, or a
+// blocked one in a run that can still go, stays a wait.
+func branchJobState(r *branchRun, j *gitea.ActionWorkflowJob) dashboard.CheckState {
+	if j.Status == "blocked" && checkStateFromWorkflowStatus(r.Status) == dashboard.CheckFailure {
+		return dashboard.CheckCancelled
+	}
+
+	return checkStateFromWorkflowStatus(j.Status)
 }
 
 // runName names a run for the one check that stands in for its unreadable jobs:

@@ -4732,9 +4732,10 @@ components:
         the commit's runs that are still going. When a check has failed, a
         pending status of a job in a run that has failed is no wait: its
         needs failed, so Forgejo leaves it blocked and nothing will start it,
-        and it is in none of the four. That holds for a pull request only. A
-        default branch counts the jobs of the workflow runs of the newest commit that has one, where a
-        running job is `running` and a queued or blocked one `waiting`. A run
+        and it is in none of the four. A default branch holds to the same: it
+        counts the jobs of the workflow runs of the newest commit that has one,
+        where a running job is `running`, a queued one `waiting`, and a blocked
+        one `waiting` unless its run has failed, when it is in none of the four. A run
         whose jobs can't be read counts as one check by its own status. Forgejo
         answers one page of those statuses, and when its total says there are
         more than the page holds a pull request's counts are all zero rather
