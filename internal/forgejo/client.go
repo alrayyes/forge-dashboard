@@ -1290,11 +1290,37 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 			}
 		}
 	}
+	if haveRuns && counts.Waiting > 0 && counts.Failed > 0 {
+		counts.Waiting -= blockedInFinishedRuns(runs, combined.Statuses)
+	}
 	if haveRuns && counts.Waiting > 0 {
 		counts = c.splitRunning(ctx, owner, name, runs, counts)
 	}
 
 	return state, counts, nil
+}
+
+// blockedInFinishedRuns counts the pending statuses of Actions jobs that sit in
+// a run that has finished. A job whose needs failed is never started, and
+// Forgejo leaves it blocked in the finished run and says pending for it, so it
+// is no wait: nothing will run it. A pending status that names no run, or a
+// run the list doesn't hold, or one that can still start jobs, stays a wait.
+func blockedInFinishedRuns(runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) int {
+	finished := map[int64]bool{}
+	for _, r := range runs {
+		switch checkStateFromWorkflowStatus(r.Status) {
+		case dashboard.CheckSuccess, dashboard.CheckFailure, dashboard.CheckCancelled, dashboard.CheckSkipped:
+			finished[r.RunNumber] = true
+		}
+	}
+	n := 0
+	for _, s := range statuses {
+		if run, _, ok := jobTarget(s); ok && s.State == gitea.StatusPending && finished[run] {
+			n++
+		}
+	}
+
+	return n
 }
 
 // commitRuns lists the Actions runs of sha. ok is false when they can't be
