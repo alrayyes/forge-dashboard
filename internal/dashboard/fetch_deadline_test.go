@@ -148,9 +148,186 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 		close(slow.release)
 
 		slow.setHang(false, 11)
-		agg.Refresh(t.Context())
+		refreshUntilServed(t, agg, slow)
 
 		assert.ElementsMatch(t, []int{1, 11}, numbers(agg.Get()))
 		assert.Nil(t, health(agg.Get(), dashboard.ForgeForgejo).StaleSince)
+	})
+}
+
+// refreshUntilServed refreshes until src has answered one. The fetch it hung
+// in ends on its own goroutine, so for a moment after its release the
+// aggregator still counts it as running and skips the source (#3021).
+func refreshUntilServed(t *testing.T, agg *dashboard.Aggregator, src *hangingSource) {
+	t.Helper()
+
+	for range 10000 {
+		agg.Refresh(t.Context())
+		select {
+		case <-src.served:
+			return
+		default:
+			runtime.Gosched()
+		}
+	}
+	require.Fail(t, "the source was never asked again")
+}
+
+// A refresh a person asked for gives up on a silent forge sooner than the
+// schedule does, since someone is waiting on it. The schedule keeps the longer
+// deadline (#3021).
+func TestAggregator_AManualRefreshWaitsLessThanTheSchedule(t *testing.T) {
+	t.Parallel()
+
+	const (
+		deadline     = 3 * time.Minute
+		userDeadline = time.Minute
+	)
+
+	// start returns an aggregator whose second forge hangs, with a refresh
+	// under ctx running against it.
+	start := func(t *testing.T, ctx func(context.Context) context.Context) (*fakeTimers, <-chan struct{}, *hangingSource) {
+		t.Helper()
+		timers := newFakeTimers()
+		slow := newHangingSource(dashboard.ForgeForgejo, 10)
+		agg := dashboard.NewAggregator(
+			[]dashboard.Source{slow},
+			dashboard.WithClock(timers.Now),
+			dashboard.WithFetchDeadline(deadline, timers.After),
+			dashboard.WithUserFetchDeadline(userDeadline),
+		)
+		agg.Refresh(t.Context())
+		<-slow.served
+		slow.setHang(true)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			agg.Refresh(ctx(t.Context()))
+		}()
+		<-slow.entered
+
+		return timers, done, slow
+	}
+
+	t.Run("a manual refresh publishes at the user deadline", func(t *testing.T) {
+		t.Parallel()
+		timers, done, slow := start(t, func(c context.Context) context.Context { return c })
+		timers.Advance(userDeadline)
+		<-done
+		close(slow.release)
+	})
+
+	t.Run("a scheduled refresh is still waiting at the user deadline", func(t *testing.T) {
+		t.Parallel()
+		timers, done, slow := start(t, dashboard.BackgroundForTest)
+		timers.Advance(userDeadline)
+
+		select {
+		case <-done:
+			require.Fail(t, "the scheduled refresh gave up at the user deadline")
+		default:
+		}
+		timers.Advance(deadline - userDeadline)
+		<-done
+		close(slow.release)
+	})
+}
+
+// A forge whose last fetch is still running is not asked again: a second
+// fetch on top of a stuck one only adds load to a forge that is struggling.
+// Its rows stay, marked stale, until the fetch ends (#3021).
+func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
+	t.Parallel()
+
+	const deadline = 3 * time.Minute
+
+	setup := func(t *testing.T) (*dashboard.Aggregator, *hangingSource, *hangingSource) {
+		t.Helper()
+		timers := newFakeTimers()
+		fast := newHangingSource(dashboard.ForgeGitHub, 1)
+		slow := newHangingSource(dashboard.ForgeForgejo, 10)
+		agg := dashboard.NewAggregator(
+			[]dashboard.Source{fast, slow},
+			dashboard.WithClock(timers.Now),
+			dashboard.WithFetchDeadline(deadline, timers.After),
+		)
+		agg.Refresh(t.Context())
+		<-fast.served
+		<-slow.served
+
+		// The first refresh hangs on slow and gives up at the deadline.
+		slow.setHang(true)
+		first := make(chan struct{})
+		go func() {
+			defer close(first)
+			agg.Refresh(t.Context())
+		}()
+		<-slow.entered
+		<-fast.served
+		for range 100 {
+			runtime.Gosched()
+		}
+		timers.Advance(deadline)
+		<-first
+
+		return agg, fast, slow
+	}
+
+	// second runs a refresh while slow's first fetch is still stuck, and
+	// reports whether it asked slow again.
+	second := func(t *testing.T, agg *dashboard.Aggregator, slow *hangingSource) (askedAgain bool) {
+		t.Helper()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			agg.Refresh(t.Context())
+		}()
+		select {
+		case <-done:
+			return false
+		case <-slow.entered:
+			return true
+		}
+	}
+
+	t.Run("the refresh does not call it again", func(t *testing.T) {
+		t.Parallel()
+		agg, _, slow := setup(t)
+
+		assert.False(t, second(t, agg, slow))
+		close(slow.release)
+	})
+
+	t.Run("its rows stay, marked stale", func(t *testing.T) {
+		t.Parallel()
+		agg, _, slow := setup(t)
+		second(t, agg, slow)
+
+		h := health(agg.Get(), dashboard.ForgeForgejo)
+		assert.Contains(t, numbers(agg.Get()), 10)
+		assert.False(t, h.Reachable)
+		assert.Equal(t, dashboard.ForgeErrorUnreachable, h.ErrorKind)
+		assert.NotNil(t, h.StaleSince)
+		close(slow.release)
+	})
+
+	t.Run("the others are still fetched", func(t *testing.T) {
+		t.Parallel()
+		agg, fast, slow := setup(t)
+		fast.setHang(false, 2)
+		second(t, agg, slow)
+
+		assert.ElementsMatch(t, []int{2, 10}, numbers(agg.Get()))
+		close(slow.release)
+	})
+
+	t.Run("it is asked again once the fetch has ended", func(t *testing.T) {
+		t.Parallel()
+		agg, _, slow := setup(t)
+		close(slow.release)
+		slow.setHang(false, 11)
+		refreshUntilServed(t, agg, slow)
+
+		assert.Contains(t, numbers(agg.Get()), 11)
 	})
 }

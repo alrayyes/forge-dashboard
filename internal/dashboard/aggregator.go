@@ -56,6 +56,11 @@ type Aggregator struct {
 	// it.
 	fetchDeadline time.Duration
 	fetchAfter    AfterFunc
+	// userFetchDeadline is the shorter wait of a refresh a person asked for.
+	userFetchDeadline time.Duration
+	// fetching marks the sources whose last fetch has not returned yet, by
+	// place in sources (#3021).
+	fetching []atomic.Bool
 
 	// settled holds pull requests a merge or close just succeeded on (#835),
 	// keyed by settledKey. The forge can go on listing one as open for a
@@ -159,6 +164,14 @@ const defaultSettleWindow = 2 * time.Minute
 // still fetching then is shown as it last was, marked stale (#3019).
 const defaultFetchDeadline = 3 * time.Minute
 
+// defaultUserFetchDeadline is how long a refresh a person asked for (the
+// Refresh button, a sign-in, a forced refresh) waits for its sources. Someone
+// is looking at the board, so it gives up on a silent forge sooner than the
+// schedule does. A minute is twice the per-call timeout, so one slow call is
+// not mistaken for a stuck forge, and short enough to still feel like the
+// refresh answered (#3021).
+const defaultUserFetchDeadline = time.Minute
+
 // AggregatorOption configures NewAggregator.
 type AggregatorOption func(*Aggregator)
 
@@ -172,6 +185,12 @@ func WithSettleWindow(d time.Duration) AggregatorOption {
 // timer it waits with, for tests that drive time by hand.
 func WithFetchDeadline(d time.Duration, after AfterFunc) AggregatorOption {
 	return func(a *Aggregator) { a.fetchDeadline, a.fetchAfter = d, after }
+}
+
+// WithUserFetchDeadline sets how long a refresh a person asked for waits for
+// its sources. WithFetchDeadline still sets the wait of a scheduled one.
+func WithUserFetchDeadline(d time.Duration) AggregatorOption {
+	return func(a *Aggregator) { a.userFetchDeadline = d }
 }
 
 // WithClock sets the clock bot request deadlines read, for tests.
@@ -210,29 +229,31 @@ func WithActivity(act *Activity) AggregatorOption {
 // until the first Refresh (or Run) completes.
 func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 	a := &Aggregator{
-		sources:          sources,
-		snap:             newEmptySnapshot(),
-		subs:             make(map[chan Snapshot]struct{}),
-		refresh:          newCoalescer(),
-		repoRefresh:      newKeyedCoalescer(),
-		scopedSeq:        make(map[repoKey]uint64),
-		settled:          make(map[string]time.Time),
-		settleWindow:     defaultSettleWindow,
-		botRequests:      make(map[string]*botEntry),
-		boxOverrides:     make(map[string]boxOverride),
-		updateRequests:   make(map[string]*updateEntry),
-		now:              time.Now,
-		after:            realAfterFunc,
-		newRunTimer:      func(d time.Duration) RunTimer { return realRunTimer{time.NewTimer(d)} },
-		lastGood:         make(map[Forge]time.Time),
-		queuedBuffer:     backoffBuffer,
-		fetchDeadline:    defaultFetchDeadline,
-		fetchAfter:       realAfterFunc,
-		firstRefreshedCh: make(chan struct{}),
+		sources:           sources,
+		snap:              newEmptySnapshot(),
+		subs:              make(map[chan Snapshot]struct{}),
+		refresh:           newCoalescer(),
+		repoRefresh:       newKeyedCoalescer(),
+		scopedSeq:         make(map[repoKey]uint64),
+		settled:           make(map[string]time.Time),
+		settleWindow:      defaultSettleWindow,
+		botRequests:       make(map[string]*botEntry),
+		boxOverrides:      make(map[string]boxOverride),
+		updateRequests:    make(map[string]*updateEntry),
+		now:               time.Now,
+		after:             realAfterFunc,
+		newRunTimer:       func(d time.Duration) RunTimer { return realRunTimer{time.NewTimer(d)} },
+		lastGood:          make(map[Forge]time.Time),
+		queuedBuffer:      backoffBuffer,
+		fetchDeadline:     defaultFetchDeadline,
+		userFetchDeadline: defaultUserFetchDeadline,
+		fetchAfter:        realAfterFunc,
+		firstRefreshedCh:  make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(a)
 	}
+	a.fetching = make([]atomic.Bool, len(a.sources))
 	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold)
 	if a.snapCache != nil {
 		a.restoreSnapshot(context.Background())
@@ -739,7 +760,11 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 	fetched := false
 	// Started before any fetch, so a deadline cannot pass unseen.
 	timedOut := make(chan struct{})
-	stop := a.fetchAfter(a.fetchDeadline, func() { close(timedOut) })
+	deadline := a.userFetchDeadline
+	if background(ctx) {
+		deadline = a.fetchDeadline
+	}
+	stop := a.fetchAfter(deadline, func() { close(timedOut) })
 	defer stop()
 	for i, src := range a.sources {
 		if health, ok := exhaustedHealth(earlier, src.Forge(), a.now()); ok {
@@ -759,10 +784,21 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 				continue
 			}
 		}
+		if !a.fetching[i].CompareAndSwap(false, true) {
+			// The last fetch is still running. Asking again would only add
+			// load to a forge that is struggling (#3021).
+			results[i].Result = Result{Health: unreachableHealth(src.Forge())}
+
+			continue
+		}
 		fetched = true
 		pending[i] = true
 		go func(i int, src Source) {
-			answers <- sourceAnswer{i, src.Fetch(fetchCtx)}
+			res := src.Fetch(fetchCtx)
+			// Cleared whether or not the refresh still listens: the answer
+			// then waits in the buffer and is dropped with it.
+			a.fetching[i].Store(false)
+			answers <- sourceAnswer{i, res}
 		}(i, src)
 	}
 	a.collectAnswers(results, pending, answers, timedOut)
@@ -807,6 +843,14 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 			return
 		}
 	}
+}
+
+// unreachableHealth is the health of a forge that did not answer, so the
+// aggregator keeps the rows it last had, marked stale.
+func unreachableHealth(forge Forge) ForgeHealth {
+	kind := ForgeErrorUnreachable
+
+	return ForgeHealth{Forge: forge, Error: HumanizeForgeError(kind), ErrorKind: kind}
 }
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is
