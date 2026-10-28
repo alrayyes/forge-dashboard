@@ -31,7 +31,9 @@ it draws them, so their CI pills fold from the live jobs without a dialog open.
 The stream takes eight watched subjects at once, and the pipeline panel keeps
 the eighth. A filter, a page of the pager or a grouping changes which rows are
 drawn, and the page watches the ones that came in and stops watching the ones
-that left. A row past the seventh keeps the pill from the last refresh. A cancelled
+that left. A row past the seventh keeps the pill from the last refresh. The
+releases and bots pages share the pull request board but watch no rows, so
+their pills read the refresh. A cancelled
 run reads as cancelled on a watched row, as it does in the panel. The quick
 filters and the auto-merge status still read the refresh.
 

@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Route } from '@playwright/test';
-import { serveChecks } from './checks-feed-helper';
+import { expect, type Page, type Route } from '@playwright/test';
+import { pushChecks, serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 // The Pull requests page follows the jobs of the first rows it draws, so a row
@@ -10,6 +10,38 @@ import { test } from './server-fixture';
 // pr-fold.test.ts); this proves the page wires them together.
 
 const ROWS = 9;
+const CAP = 8;
+
+const FAILED = [
+  {
+    name: 'build',
+    status: 'completed',
+    conclusion: 'failure',
+    url: 'https://example.com/r/1',
+  },
+];
+
+const subjectOf = (number: number) => ({
+  kind: 'pull_request' as const,
+  forge: 'github',
+  fullName: 'alrayyes/forge-dashboard',
+  number,
+});
+
+async function serveBoard(page: Page, count: number) {
+  await page.route('**/api/dashboard', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: Array.from({ length: count }, (_, i) => pr(i + 1)),
+        issues: [],
+      }),
+    }),
+  );
+}
 
 function pr(number: number) {
   return {
@@ -113,5 +145,65 @@ test.describe('pull request rows follow their jobs', () => {
       2,
     );
     expect(feed.asked).toHaveLength(1);
+  });
+
+  test('a page change watches the new rows and lets go of the departed', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await serveBoard(page, 30);
+    await page.goto('/pull-requests.html');
+    const rows = page.locator('#pr-rows .row');
+    await expect(rows.first()).toContainText('Passed');
+    await feed.idle();
+    expect(feed.asked).toHaveLength(7);
+
+    await page.getByRole('button', { name: 'Next' }).first().click();
+    await expect(rows).toHaveCount(5);
+    await expect(rows.first()).toContainText('Passed');
+    await feed.idle();
+
+    // Five new rows were listed, the seven that left were let go of first.
+    expect(feed.asked).toHaveLength(12);
+    expect(feed.posts.every((n) => n <= CAP)).toBe(true);
+    expect(feed.posts.at(-1)).toBe(5);
+  });
+
+  test('a fold that lands while updates are paused draws when they resume', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await serveBoard(page, 1);
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row).toContainText('Passed');
+    await feed.idle();
+
+    await page.locator('#pause-updates-button').click();
+    await pushChecks(page, subjectOf(1), FAILED);
+    await expect(row).toContainText('Passed');
+
+    await page.locator('#pause-updates-button').click();
+    await expect(row).toContainText('Failed');
+  });
+
+  test('the dialog and its row agree, and the row keeps it after close', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await serveBoard(page, 1);
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row).toContainText('Passed');
+    await feed.idle();
+
+    await row.getByRole('button', { name: 'Open pipeline' }).click();
+    await pushChecks(page, subjectOf(1), FAILED);
+    await expect(page.locator('#pipeline-dialog .pipeline-check')).toHaveCount(
+      1,
+    );
+
+    await page.keyboard.press('Escape');
+    await expect(row).toContainText('Failed');
   });
 });

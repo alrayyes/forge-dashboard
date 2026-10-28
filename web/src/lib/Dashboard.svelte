@@ -5484,6 +5484,7 @@
       const before = prShown.items;
       const wasLanded = prShown.landed;
       const rendered = settlePRs();
+      if (!rendered) drawRowFolds();
       if (before.length > 0 || wasLanded)
         offerWhatIsShown(choicesChange(before, prShown.items));
       return rendered;
@@ -6421,6 +6422,8 @@
     // (A function declaration reads it only once the page has mounted.)
     const rowFolds = new Map<string, PullRequestFold>();
     let rowFoldRedraw = false;
+    // A fold landed that the board has not drawn yet, because a hold kept it.
+    let rowFoldsDirty = false;
     const rowWatcher = createRowWatcher({
       feed: checkFeed,
       keyOf: pullRequestKey,
@@ -6454,15 +6457,19 @@
       rowFoldRedraw = true;
       queueMicrotask(() => {
         rowFoldRedraw = false;
-        if (destroyed || !pullsView) return;
-        if (
-          updatesPaused() ||
-          interactionFreezesBoard() ||
-          pointerRestsOnList()
-        )
-          return;
-        keepFocusAcross(renderPRBoard);
+        rowFoldsDirty = true;
+        drawRowFolds();
       });
+    }
+    // Draws the folds that wait for a board nobody is using. Called when a fold
+    // lands and again by reconcilePRs, which every end of a hold goes through
+    // (unpause, the pointer leaving, a row action finishing, a modal closing).
+    function drawRowFolds() {
+      if (!rowFoldsDirty || destroyed || view !== "pulls") return;
+      if (updatesPaused() || interactionFreezesBoard() || pointerRestsOnList())
+        return;
+      rowFoldsDirty = false;
+      keepFocusAcross(renderPRBoard);
     }
     // Watch the first rows the pull request page draws. The rows are read back
     // from the page, so a filter, a page of the pager or a group shows the rows
@@ -7317,7 +7324,8 @@
           visibleResultCount = visible.length;
           visibleBotRows = visible as PullRequestItem[];
           visiblePullRows = visibleBotRows;
-          if (isPR)
+          if (isPR) rowFoldsDirty = false;
+          if (isPR && view === "pulls")
             watchVisiblePullRequests(
               container,
               state.items as PullRequestItem[],
