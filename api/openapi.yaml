@@ -3215,6 +3215,9 @@ paths:
         counts always match what each pill lists. Rows come in no particular
         order: the client orders them.
 
+        A row's `checks` counts describe the same jobs the dialog lists for
+        that repository (the `get_main_branch_checks` tool reads them).
+
         Served from the snapshot the background refresh already holds, so it
         never calls a forge. On GitHub the branch's check status rides the
         repository query the refresh already makes (no extra request); on
