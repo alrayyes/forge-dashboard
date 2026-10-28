@@ -61,6 +61,13 @@ type Aggregator struct {
 	// fetching marks the sources whose last fetch has not returned yet, by
 	// place in sources (#3021).
 	fetching []atomic.Bool
+	// writeBudget is how long a refresh waits for the writes that follow it,
+	// the auto update-branch and auto-merge passes, before it moves on (#3034).
+	// writeAfter schedules it. writing marks a pass still running, so a later
+	// refresh never starts a second one on top of it.
+	writeBudget time.Duration
+	writeAfter  AfterFunc
+	writing     atomic.Bool
 	// pass is the fetch pass in flight, so a person's click that joins a
 	// scheduled one can shorten its wait (#3021).
 	pass   *fetchPass
@@ -176,8 +183,22 @@ const defaultFetchDeadline = 3 * time.Minute
 // refresh answered (#3021).
 const defaultUserFetchDeadline = time.Minute
 
+// defaultWriteBudget is how long a refresh waits for the forge writes that
+// follow it: the auto update-branch and auto-merge passes. Each call times out
+// on its own after 30 seconds, but a pass makes one call per pull request, so a
+// forge that hangs on them could hold every later refresh for minutes. A
+// healthy pass is a handful of quick calls; one still running at the budget is
+// cut off and the board moves on (#3034).
+const defaultWriteBudget = 30 * time.Second
+
 // AggregatorOption configures NewAggregator.
 type AggregatorOption func(*Aggregator)
+
+// WithWriteBudget sets how long a refresh waits for its forge writes, and the
+// timer it waits with, for tests that drive time by hand.
+func WithWriteBudget(d time.Duration, after AfterFunc) AggregatorOption {
+	return func(a *Aggregator) { a.writeBudget, a.writeAfter = d, after }
+}
 
 // WithSettleWindow sets how long MarkSettled keeps a pull request off the
 // board while the forge still lists it.
@@ -252,6 +273,8 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		fetchDeadline:     defaultFetchDeadline,
 		userFetchDeadline: defaultUserFetchDeadline,
 		fetchAfter:        realAfterFunc,
+		writeBudget:       defaultWriteBudget,
+		writeAfter:        realAfterFunc,
 		firstRefreshedCh:  make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -660,8 +683,46 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 	a.mu.Unlock()
 
 	a.notify(merged)
-	a.runAutoUpdateBranch(ctx, merged)
-	a.runAutoMerge(ctx, merged)
+	a.runWrites(ctx, merged)
+}
+
+// runWrites runs the auto update-branch and auto-merge passes against snap and
+// waits for them at most writeBudget. A forge that hangs on a write would
+// otherwise hold the single-flight refresh, and with it every later one (#3034).
+//
+// Past the budget the passes' context is cancelled, so a call in flight returns
+// and its pull request waits out the transient back-off, and the refresh moves
+// on. One pass runs at a time: a refresh that finds the last one still going
+// skips its own writes, and the next refresh after that one ends picks them up.
+func (a *Aggregator) runWrites(ctx context.Context, snap Snapshot) {
+	if !a.writing.CompareAndSwap(false, true) {
+		slog.Warn("skipping forge writes, the last pass is still running")
+
+		return
+	}
+
+	wctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	done := make(chan struct{})
+	expired := make(chan struct{})
+	stop := a.writeAfter(a.writeBudget, func() { close(expired) })
+	defer stop()
+
+	go func() {
+		defer close(done)
+		defer a.writing.Store(false)
+		defer cancel()
+		a.runAutoUpdateBranch(wctx, snap)
+		a.runAutoMerge(wctx, snap)
+	}()
+
+	select {
+	case <-done:
+	case <-expired:
+		slog.Warn("forge writes ran past their budget, moving on", slog.Duration("budget", a.writeBudget))
+		cancel()
+	case <-ctx.Done():
+		cancel()
+	}
 }
 
 // mergedRepo is current with forge/fullName's own entries replaced by prs and
@@ -1026,8 +1087,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 
 	a.publish(ctx, snap)
-	a.runAutoUpdateBranch(ctx, snap)
-	a.runAutoMerge(ctx, snap)
+	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
 }
 
