@@ -51,7 +51,55 @@ describe('createRowWatcher', () => {
     log.length = 0;
     watcher.set([subject('a/two'), subject('a/three')]);
 
-    expect(log).toEqual(['watch a/three', 'stop a/one']);
+    expect(log).toEqual(['stop a/one', 'watch a/three']);
+  });
+
+  test('lets go of the departed before it watches the new, so the stream never holds more than the cap', () => {
+    const { watcher, live, log } = harness();
+    const names = (from: number, to: number) =>
+      Array.from({ length: to - from }, (_, i) => subject(`a/r${from + i}`));
+    // The most the stream ever holds at once, counted after each call.
+    let most = 0;
+    const record = () => {
+      most = Math.max(most, live.size);
+    };
+
+    watcher.set(names(0, 7));
+    log.length = 0;
+    // A page swap: every row is replaced by another.
+    const before = live.size;
+    watcher.set(names(7, 14));
+    record();
+
+    expect(before).toBe(7);
+    expect(log.slice(0, 7).every((entry) => entry.startsWith('stop'))).toBe(
+      true,
+    );
+    expect(log.slice(7).every((entry) => entry.startsWith('watch'))).toBe(true);
+    expect(most).toBe(7);
+  });
+
+  test('never holds more subjects than the larger of the two sets', () => {
+    const counts: number[] = [];
+    let held = 0;
+    const watcher = createRowWatcher({
+      feed: {
+        watch() {
+          held++;
+          counts.push(held);
+          return () => {
+            held--;
+          };
+        },
+      },
+      onChecks: () => {},
+      onDrop: () => {},
+    });
+
+    watcher.set([subject('a/1'), subject('a/2'), subject('a/3')]);
+    watcher.set([subject('a/3'), subject('a/4'), subject('a/5')]);
+
+    expect(Math.max(...counts)).toBe(3);
   });
 
   test('hands a subject its job list under the row key', () => {

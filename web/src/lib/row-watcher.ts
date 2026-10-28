@@ -38,6 +38,10 @@ export function createRowWatcher({
     set(wanted: readonly Subject[]) {
       const keys = new Set(wanted.map(keyOf));
 
+      // Let go first. Each watch posts the whole watched set as it stands, so
+      // watching the new rows while the departed are still held would post more
+      // than the stream takes, and the server refuses a post over its cap.
+      for (const key of [...stops.keys()]) if (!keys.has(key)) drop(key);
       for (const subject of wanted) {
         const key = keyOf(subject);
         if (stops.has(key)) continue;
@@ -49,7 +53,6 @@ export function createRowWatcher({
           }),
         );
       }
-      for (const key of [...stops.keys()]) if (!keys.has(key)) drop(key);
     },
     stop() {
       for (const key of [...stops.keys()]) drop(key);
