@@ -122,20 +122,31 @@ describe('foldPullRequest other jobs', () => {
   });
 });
 
-// GitHub reads a cancelled-only run as failed, Forgejo's pull request path as
-// none or success, and the branch fold as cancelled. The page cannot tell
-// which the row wants, so it does not decide: the server's pill stands.
-describe('foldPullRequest leaves to the server', () => {
-  test('no jobs', () => {
-    expect(foldPullRequest('github', [])).toBeNull();
-  });
-
+// The servers disagree on a run that was only cancelled: GitHub's rollup reads
+// it as failed, Forgejo's pull request path as none or success. The branch fold
+// reads it as cancelled, and the dialog lists it as Cancelled, so the pill
+// follows them while the dialog is open.
+describe('foldPullRequest on a cancelled run', () => {
   test('cancelled alone', () => {
-    expect(foldPullRequest('github', jobs('cancelled'))).toBeNull();
+    for (const forge of ['github', 'forgejo']) {
+      expect(foldPullRequest(forge, jobs('cancelled'))).toEqual({
+        ci: 'cancelled',
+        awaiting: false,
+        counts: { passed: 0, skipped: 0, running: 0, waiting: 0, failed: 0 },
+      });
+    }
   });
 
   test('cancelled beside a success', () => {
-    expect(foldPullRequest('github', jobs('cancelled', 'success'))).toBeNull();
+    expect(foldPullRequest('forgejo', jobs('cancelled', 'success'))?.ci).toBe(
+      'cancelled',
+    );
+  });
+});
+
+describe('foldPullRequest leaves to the server', () => {
+  test('no jobs', () => {
+    expect(foldPullRequest('github', [])).toBeNull();
   });
 });
 
