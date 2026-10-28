@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.4.0](https://github.com/alrayyes/forge-dashboard/compare/v8.3.0...v8.4.0) (2026-10-28)
+
+
+### Features
+
+* **web:** draw a row's pill from the dialog's jobs ([#2995](https://github.com/alrayyes/forge-dashboard/issues/2995)) ([9d6b286](https://github.com/alrayyes/forge-dashboard/commit/9d6b286e363d6cb3cf2b104adbfd6f5584f3dd9e))
+
 ## [8.3.0](https://github.com/alrayyes/forge-dashboard/compare/v8.2.0...v8.3.0) (2026-10-28)
 
 
