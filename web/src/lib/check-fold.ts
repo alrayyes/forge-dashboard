@@ -24,6 +24,9 @@ export type BranchFold = {
   // Every kind is present, zero when nothing is in it. Skipped is inside
   // passed, as check-counts.ts has it.
   counts: Required<CheckCounts>;
+  // The names of the jobs counted as failed, in the order they were listed:
+  // what a row's Failing: line says. Empty when none failed.
+  failing: string[];
 };
 
 // A real failure wins over a job still going; jobs that were only cancelled,
@@ -47,6 +50,7 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
     waiting: 0,
     failed: 0,
   };
+  const failing: string[] = [];
   let cancelled = false;
   let held = false;
 
@@ -65,6 +69,7 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
       case 'failure':
       case 'timed_out':
         counts.failed++;
+        failing.push(check.name);
         break;
       case 'cancelled':
         cancelled = true;
@@ -81,6 +86,7 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
   return {
     status: statusOf(counts, { cancelled, held }, checks.length),
     counts,
+    failing,
   };
 }
 

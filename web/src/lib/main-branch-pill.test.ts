@@ -20,9 +20,10 @@ function jobs(...states: string[]): Check[] {
 }
 
 // What the last refresh said about the row: one job failed.
-const snapshot: Pick<MainBranch, 'status' | 'checks'> = {
+const snapshot: Pick<MainBranch, 'status' | 'checks' | 'failingJobs'> = {
   status: 'failed',
   checks: { passed: 2, running: 0, waiting: 0, failed: 1 },
+  failingJobs: ['secrets'],
 };
 
 describe('branchPill', () => {
@@ -30,6 +31,7 @@ describe('branchPill', () => {
     expect(branchPill(snapshot, null)).toEqual({
       status: 'failed',
       counts: { passed: 2, running: 0, waiting: 0, failed: 1 },
+      failing: ['secrets'],
     });
   });
 
@@ -45,6 +47,7 @@ describe('branchPill', () => {
     expect(branchPill(snapshot, list)).toEqual({
       status: 'running',
       counts: foldBranch(list).counts,
+      failing: [],
     });
     expect(branchPill(snapshot, list).counts.running).toBe(1);
   });
@@ -69,6 +72,7 @@ function row(fullName: string, status: MainBranch['status']): MainBranch {
     branch: 'main',
     status,
     checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
+    failingJobs: status === 'failed' ? ['secrets'] : [],
   } as MainBranch;
 }
 
@@ -102,6 +106,24 @@ describe('withLiveJobs', () => {
       failed: 1,
       passed: 1,
     });
+  });
+
+  // The Failing: line names the jobs that failed. After a rerun the list says
+  // none did, so the line must not keep naming last run's.
+  test('the open row names the jobs its live list failed', () => {
+    const rerun = { key, checks: jobs('success', 'running') };
+    const failed = { key, checks: jobs('success', 'failure') };
+
+    expect(rows[0].failingJobs).toEqual(['secrets']);
+    expect(withLiveJobs(rows, rerun)[0].failingJobs).toEqual([]);
+    expect(withLiveJobs(rows, failed)[0].failingJobs).toEqual(['job 1']);
+    expect(withLiveJobs(rows, failed)[1]).toBe(rows[1]);
+  });
+
+  test('an empty list leaves the names as refreshed', () => {
+    expect(withLiveJobs(rows, { key, checks: [] })[0].failingJobs).toEqual([
+      'secrets',
+    ]);
   });
 
   test('a key that matches no row changes nothing', () => {
