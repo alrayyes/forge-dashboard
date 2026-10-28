@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.6.0](https://github.com/alrayyes/forge-dashboard/compare/v8.5.0...v8.6.0) (2026-10-28)
+
+
+### Features
+
+* **web:** name the failing jobs from the open list ([#3001](https://github.com/alrayyes/forge-dashboard/issues/3001)) ([807dbb2](https://github.com/alrayyes/forge-dashboard/commit/807dbb2f06f63f099f356d8f8a79bfc4f2d795ad))
+
 ## [8.5.0](https://github.com/alrayyes/forge-dashboard/compare/v8.4.0...v8.5.0) (2026-10-28)
 
 
