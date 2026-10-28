@@ -29,7 +29,13 @@
     // check failed or timed out.
     // The call is untracked, so the control must redraw itself when anything
     // else it reads changes (the Main branches page does, per stream message).
-    controls?: (failed: boolean, checks: Check[]) => HTMLElement | null;
+    // `runs` are the run facts that came with the checks, for a control that
+    // folds them (the pull request board's pill).
+    controls?: (
+      failed: boolean,
+      checks: Check[],
+      runs: RunFacts[],
+    ) => HTMLElement | null;
     // Offers Cancel run for each queued or running Actions run among the
     // checks. `allowed` is the board's own rule, read each time the checks
     // change: the pull request board passes whether the server offers
@@ -56,6 +62,7 @@
   import {
     checkFeed,
     type CheckFeedMessage,
+    type RunFacts,
     type Subject,
   } from "#lib/check-feed.js";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
@@ -103,6 +110,8 @@
   let target = $state.raw<PipelineTarget | null>(null);
   let phase = $state<"loading" | "ready" | "error">("loading");
   let checks = $state<Check[]>([]);
+  // What the forge said about the runs the checks belong to, as last sent.
+  let runFacts = $state.raw<RunFacts[]>([]);
   let message = $state("");
   // Stops following the row's list.
   let unwatch: (() => void) | null = null;
@@ -386,6 +395,7 @@
     pending = null;
     phase = "loading";
     checks = [];
+    runFacts = [];
     unwatch?.();
     unwatch = checkFeed.watch(next.subject, (event) => onFeed(next, event));
     dialog.showModal();
@@ -454,7 +464,9 @@
       return;
     }
     const next = event.checks;
+    const nextRuns = event.runs ?? [];
     if (!again) {
+      runFacts = nextRuns;
       checks = blockingFirst(next);
       const said = reconcileRuns(checks);
       staleNote = "";
@@ -467,7 +479,16 @@
     // check changed.
     const ordered = keepOrder(checks, next);
     staleNote = "";
-    if (JSON.stringify(ordered) === JSON.stringify(checks)) return;
+    if (JSON.stringify(ordered) === JSON.stringify(checks)) {
+      // A run can finish while its jobs read the same; the board's control
+      // folds the runs too, so it is drawn again.
+      if (JSON.stringify(nextRuns) !== JSON.stringify(runFacts)) {
+        runFacts = nextRuns;
+        controlsTick += 1;
+      }
+      return;
+    }
+    runFacts = nextRuns;
     const line = announceChange(checks, ordered);
     const hadFocus = dialog
       .querySelector(".pipeline-dialog-body")
@@ -548,6 +569,7 @@
   function controls(host: HTMLElement) {
     void checks;
     void controlsTick;
+    void runFacts;
     // Untracked: the control reads the page's snapshot (its lock, its row) and
     // redraws itself when that changes, so a snapshot update must not rebuild
     // it.
@@ -555,8 +577,10 @@
     // draws that row's control.
     const isFailed = failed;
     const shown = checks;
+    const shownRuns = runFacts;
     const current = target;
-    const node = untrack(() => current?.controls?.(isFailed, shown)) ?? null;
+    const node =
+      untrack(() => current?.controls?.(isFailed, shown, shownRuns)) ?? null;
     // The button the keyboard was on, by its place among the control's buttons
     // (Rerun, then a failure's Copy), so it keeps focus when the control is drawn
     // again.

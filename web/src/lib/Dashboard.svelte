@@ -27,7 +27,11 @@
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
-  import { checkFeed, type FeedSource } from "#lib/check-feed.js";
+  import {
+    checkFeed,
+    type FeedSource,
+    type RunFacts,
+  } from "#lib/check-feed.js";
   import * as Filters from "#lib/filters.js";
   import { choicesChange, offerAction, shownList } from "#lib/shown-list.js";
   import {
@@ -6427,9 +6431,9 @@
     const rowWatcher = createRowWatcher({
       feed: checkFeed,
       keyOf: pullRequestKey,
-      onChecks(key, checks) {
+      onChecks(key, checks, runs) {
         const repo = prItemFor(key);
-        const fold = repo ? foldPullRequest(repo.forge, checks) : null;
+        const fold = repo ? foldPullRequest(repo.forge, checks, runs) : null;
         if (!fold) {
           rowFolds.delete(key);
         } else if (JSON.stringify(rowFolds.get(key)) === JSON.stringify(fold)) {
@@ -6603,8 +6607,12 @@
     // other than the pill already shows. The rows are rebuilt, not patched, and
     // only when the fold changed, so a dialog that re-lists the same jobs does
     // not redraw the board.
-    function showLiveFold(item: PullRequestItem, checks: Check[]) {
-      const fold = foldPullRequest(item.forge, checks);
+    function showLiveFold(
+      item: PullRequestItem,
+      checks: Check[],
+      runs: RunFacts[],
+    ) {
+      const fold = foldPullRequest(item.forge, checks, runs);
       const next = fold ? { key: prKey(item), fold } : null;
       if (JSON.stringify(next) === JSON.stringify(pipelineLive)) return;
       pipelineLive = next;
@@ -6625,8 +6633,8 @@
           number: item.number,
         }),
         paused: updatesPaused,
-        controls: (failed, checks) => {
-          showLiveFold(item, checks);
+        controls: (failed, checks, runs) => {
+          showLiveFold(item, checks, runs);
           return failed && pipelineItem
             ? pipelineRerunControl(pipelineItem)
             : null;
