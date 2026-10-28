@@ -64,6 +64,8 @@
     type MainBranches,
     type MainBranchFilter,
     branchNavCount,
+    branchPill,
+    type BranchPill,
     countMainBranches,
     CI_SLOT,
     SEGMENTED_STATUSES,
@@ -159,14 +161,15 @@
   function drawPill(
     host: HTMLElement,
     b: MainBranch,
+    pill: BranchPill,
     slot: { cls: string; glyphs: string },
   ) {
     const model = ciPillModel({
       cls: slot.cls,
       glyph: slot.glyphs,
-      word: STATUS_LABEL[b.status],
-      counts: b.checks,
-      segmented: SEGMENTED_STATUSES.has(b.status),
+      word: STATUS_LABEL[pill.status],
+      counts: pill.counts,
+      segmented: SEGMENTED_STATUSES.has(pill.status),
     });
     const fresh = renderCiPill(model, {
       onOpen: () => {
@@ -193,6 +196,13 @@
   // The open dialog's checks, as the stream last sent them.
   let dialogChecks: Check[] = [];
 
+  // The same list, kept as state so the open row's pill folds it: the pill and
+  // the dialog then read one job list.
+  let liveChecks = $state<{ key: string; checks: Check[] } | null>(null);
+
+  const pillOf = (b: MainBranch): BranchPill =>
+    branchPill(b, liveChecks?.key === rowKey(b) ? liveChecks.checks : null);
+
   // The newest copy of a row, since the dialog outlives the polls.
   const latest = (b: MainBranch) =>
     data?.branches.find(
@@ -218,6 +228,7 @@
       cancel: { forge: b.forge, fullName: b.fullName },
       controls: (failed, checks) => {
         dialogChecks = checks;
+        liveChecks = { key: rowKey(b), checks };
         if (!failed || !openRow) return null;
         const wrap = document.createElement("div");
         const note = document.createElement("p");
@@ -243,6 +254,7 @@
       onClose: () => {
         openRow = null;
         dialogNote = null;
+        liveChecks = null;
       },
     });
   }
@@ -1024,20 +1036,21 @@
         <ul class="mb-list" aria-label="Default branches">
           {#each visible as b (rowKey(b))}
             {@const adv = advisoryPill(b.advisories)}
+            {@const pill = pillOf(b)}
             <li
               class="mb-row"
               data-testid="main-branch-row"
-              data-status={b.status}
+              data-status={pill.status}
             >
-              <div class="ci-slot mb-status" data-status={b.status}>
-                {#if CI_SLOT[b.status]}
-                  {@const slot = CI_SLOT[b.status]!}
+              <div class="ci-slot mb-status" data-status={pill.status}>
+                {#if CI_SLOT[pill.status]}
+                  {@const slot = CI_SLOT[pill.status]!}
                   <!-- The pull request pages' own pill, drawn by the same code
                        (#lib/ci-pill): a native button that opens the pipeline
                        panel, the visible word leading the name (WCAG 2.5.3). -->
                   <span
                     class="ci-host"
-                    {@attach (host) => drawPill(host, b, slot)}
+                    {@attach (host) => drawPill(host, b, pill, slot)}
                   ></span>
                 {:else}
                   <span class="attr-chip mb-nopipe">
@@ -1052,7 +1065,7 @@
                         r="6.25"
                         stroke-dasharray="2 2"
                       /></svg
-                    >{STATUS_LABEL[b.status]}
+                    >{STATUS_LABEL[pill.status]}
                   </span>
                 {/if}
               </div>
