@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.9.1](https://github.com/alrayyes/forge-dashboard/compare/v8.9.0...v8.9.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **dashboard:** stop a hung forge holding back refresh ([#3020](https://github.com/alrayyes/forge-dashboard/issues/3020)) ([7cdf0fd](https://github.com/alrayyes/forge-dashboard/commit/7cdf0fdc821e781aa9e60b50e38ed3a7efb6af81))
+
 ## [8.9.0](https://github.com/alrayyes/forge-dashboard/compare/v8.8.0...v8.9.0) (2026-10-28)
 
 
