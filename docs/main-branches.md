@@ -341,6 +341,12 @@ delivery for a repo (a finished check, say) re-reads that repo's default branch
 at once, so a rerun that passed turns its row green without the next poll. If
 that read fails, the row keeps its earlier state.
 
+Forgejo sends no webhook when a finished run is rerun or when its jobs move.
+So the CI poll reads a Forgejo row again while a job on it is running or
+queued, and for ten minutes after its run finished. A row that reads the same
+waits longer before the next read, and once the ten minutes pass the row is
+left to the next full refresh. GitHub rows are left to its check events.
+
 The jobs behind one row arrive on the dashboard stream. The pipeline panel
 watches the row and the stream sends `run` events with its jobs. They
 sit outside the snapshot. Each watch calls the forge, so they spend

@@ -113,6 +113,72 @@ func TestAggregator_PollCI_BacksOffARunningForgejoDefaultBranchThatDoesNotChange
 	assert.Equal(t, 2, src.branchReads(), "reads at 0m and 1m, then waits two minutes")
 }
 
+// Forgejo sends no webhook when a finished run is rerun, so a row that settled
+// stays on its failed read while the dialog, read live, shows the rerun queued
+// (#2691, alrayyes/server-dotfiles). A poll reads a row again for a while after
+// its run finished.
+func TestAggregator_PollCI_RereadsASettledForgejoDefaultBranchSoonAfterItsRun(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	finished := now.Add(-2 * time.Minute)
+	src := newForgejoBranchSource(
+		dashboard.MainBranch{
+			Status: dashboard.MainBranchFailed, FinishedAt: &finished,
+			Checks: dashboard.CheckCounts{Passed: 2, Failed: 1, Skipped: 7},
+		},
+		dashboard.MainBranch{Status: dashboard.MainBranchRunning, Checks: dashboard.CheckCounts{Waiting: 11}},
+	)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(func() time.Time { return now }))
+	agg.Refresh(t.Context())
+	require.Equal(t, 0, agg.Get().MainBranches[0].Checks.Waiting)
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 11, agg.Get().MainBranches[0].Checks.Waiting)
+}
+
+// Reading every settled row for ever would spend a request per row per tick on
+// work that almost never changes, so the window closes.
+func TestAggregator_PollCI_LeavesASettledForgejoDefaultBranchAlonePastTheWindow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	finished := now.Add(-time.Hour)
+	src := newForgejoBranchSource(
+		dashboard.MainBranch{Status: dashboard.MainBranchFailed, FinishedAt: &finished},
+		dashboard.MainBranch{Status: dashboard.MainBranchRunning, Checks: dashboard.CheckCounts{Waiting: 11}},
+	)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(func() time.Time { return now }))
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 0, src.branchReads())
+}
+
+// A settled row that reads the same backs off like a running one, so the window
+// costs a few requests, not one per tick.
+func TestAggregator_PollCI_BacksOffASettledForgejoDefaultBranchThatDoesNotChange(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	finished := now.Add(-time.Minute)
+	same := dashboard.MainBranch{Status: dashboard.MainBranchFailed, FinishedAt: &finished, Checks: dashboard.CheckCounts{Failed: 1}}
+	src := newForgejoBranchSource(same, same)
+	agg := dashboard.NewAggregator([]dashboard.Source{src},
+		dashboard.WithCIPollInterval(time.Minute), dashboard.WithClock(func() time.Time { return now }))
+	agg.Refresh(t.Context())
+
+	agg.PollCI(t.Context())
+	now = now.Add(time.Minute)
+	agg.PollCI(t.Context())
+	now = now.Add(time.Minute)
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, 2, src.branchReads(), "reads at 0m and 1m, then waits two minutes")
+}
+
 // A default branch that is not running has nothing a poll could change.
 func TestAggregator_PollCI_LeavesAFinishedForgejoDefaultBranchAlone(t *testing.T) {
 	t.Parallel()
