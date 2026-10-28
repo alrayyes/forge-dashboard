@@ -16,6 +16,7 @@ export type BranchStatus =
   | 'failed'
   | 'running'
   | 'cancelled'
+  | 'awaiting_approval'
   | 'passed';
 
 export type BranchFold = {
@@ -31,8 +32,13 @@ export type BranchFold = {
 // the branch's fold alone.
 //
 // A cancelled job is in none of the four counts, and neither is one held for
-// approval, which has a state of its own. Held jobs are not folded into the
-// status yet.
+// approval, which has a state of its own. A held job outranks passed and
+// cancelled ones: the branch is not done until someone approves it. It does
+// not outrank a failure or a job going, which say more.
+//
+// A status the page cannot grade waits, as the server reads it as queued.
+// Left out of the port: GitHub counts ACTION_REQUIRED as a failure, while
+// checkState reads it as held, for both forges.
 export function foldBranch(checks: readonly Check[]): BranchFold {
   const counts: Required<CheckCounts> = {
     passed: 0,
@@ -42,6 +48,7 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
     failed: 0,
   };
   let cancelled = false;
+  let held = false;
 
   for (const check of checks) {
     switch (checkState(check)) {
@@ -55,9 +62,6 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
       case 'running':
         counts.running++;
         break;
-      case 'queued':
-        counts.waiting++;
-        break;
       case 'failure':
       case 'timed_out':
         counts.failed++;
@@ -65,20 +69,30 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
       case 'cancelled':
         cancelled = true;
         break;
+      case 'awaiting_approval':
+        held = true;
+        break;
+      default:
+        // queued, and any status checkState cannot grade
+        counts.waiting++;
     }
   }
 
-  return { status: statusOf(counts, cancelled, checks.length), counts };
+  return {
+    status: statusOf(counts, { cancelled, held }, checks.length),
+    counts,
+  };
 }
 
 function statusOf(
   counts: Required<CheckCounts>,
-  cancelled: boolean,
+  { cancelled, held }: { cancelled: boolean; held: boolean },
   total: number,
 ): BranchStatus {
   if (total === 0) return 'none';
   if (counts.failed > 0) return 'failed';
   if (counts.running > 0 || counts.waiting > 0) return 'running';
+  if (held) return 'awaiting_approval';
   if (cancelled) return 'cancelled';
 
   return 'passed';

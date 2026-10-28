@@ -3,8 +3,10 @@
 // the page component stays the one place that touches elements.
 
 import type { CheckCounts } from './check-counts';
+import { foldBranch } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
 import type { NavCount } from './nav-counts.svelte';
+import type { Check } from './pipeline-checks';
 
 export type MainBranchStatus =
   | 'failed'
@@ -225,6 +227,24 @@ export const SEGMENTED_STATUSES: ReadonlySet<MainBranchStatus> = new Set([
   'running',
   'passed',
 ]);
+
+// What a row's CI pill says. While the pipeline dialog holds a job list for the
+// row, the pill folds that same list, so the two cannot disagree about a rerun
+// the snapshot has not caught up with. With no list (no dialog open, or none
+// came yet) the snapshot's own status and counts stand.
+export type BranchPill = { status: MainBranchStatus; counts: CheckCounts };
+
+export function branchPill(
+  row: Pick<MainBranch, 'status' | 'checks'>,
+  live: readonly Check[] | null,
+): BranchPill {
+  if (!live || live.length === 0)
+    return { status: row.status, counts: row.checks };
+
+  const { status, counts } = foldBranch(live);
+
+  return { status, counts };
+}
 
 export function isFiltered(filter: MainBranchFilter): boolean {
   return (

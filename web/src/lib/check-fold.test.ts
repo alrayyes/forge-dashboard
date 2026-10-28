@@ -31,6 +31,19 @@ describe('foldBranch status', () => {
     ['failure beside a running job', ['failure', 'running'], 'failed'],
     ['timed out', ['timed_out'], 'failed'],
     ['skipped beside successes', ['success', 'skipped', 'success'], 'passed'],
+    ['held alone', ['awaiting_approval'], 'awaiting_approval'],
+    [
+      'held beside a success',
+      ['awaiting_approval', 'success'],
+      'awaiting_approval',
+    ],
+    [
+      'held beside a cancelled job',
+      ['awaiting_approval', 'cancelled'],
+      'awaiting_approval',
+    ],
+    ['held beside a failure', ['awaiting_approval', 'failure'], 'failed'],
+    ['held beside a running job', ['awaiting_approval', 'running'], 'running'],
   ];
 
   for (const [name, states, want] of cases) {
@@ -48,6 +61,15 @@ describe('foldBranch status', () => {
     };
 
     expect(foldBranch([odd]).status).toBe('failed');
+  });
+
+  // Go reads a status it does not know as queued, so a job the page cannot
+  // grade is neither passed nor silently dropped.
+  test('a status the page does not know reads as waiting', () => {
+    const odd: Check = { name: 'odd', url: '', status: 'pending' };
+
+    expect(foldBranch([odd]).status).toBe('running');
+    expect(foldBranch([odd]).counts.waiting).toBe(1);
   });
 
   test('no jobs is none, not passed', () => {
@@ -88,6 +110,16 @@ describe('foldBranch counts', () => {
 
   test('cancelled counts in none', () => {
     expect(foldBranch(jobs('success', 'cancelled')).counts).toEqual({
+      passed: 1,
+      skipped: 0,
+      running: 0,
+      waiting: 0,
+      failed: 0,
+    });
+  });
+
+  test('a held job is in none of the four', () => {
+    expect(foldBranch(jobs('success', 'awaiting_approval')).counts).toEqual({
       passed: 1,
       skipped: 0,
       running: 0,
