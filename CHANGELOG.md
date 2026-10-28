@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.7.0](https://github.com/alrayyes/forge-dashboard/compare/v8.6.0...v8.7.0) (2026-10-28)
+
+
+### Features
+
+* **web:** draw an open pull request's pill from its jobs ([#3005](https://github.com/alrayyes/forge-dashboard/issues/3005)) ([53eccd8](https://github.com/alrayyes/forge-dashboard/commit/53eccd8550e09e2fa92c4b5c733e162eb4fcde51))
+
 ## [8.6.0](https://github.com/alrayyes/forge-dashboard/compare/v8.5.0...v8.6.0) (2026-10-28)
 
 
