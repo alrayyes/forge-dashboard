@@ -788,6 +788,16 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 			results[ans.i] = sourceResult{Result: ans.res, asked: true}
 			delete(pending, ans.i)
 		case <-timedOut:
+			// An answer that arrived with the deadline still counts.
+			for drained := false; !drained; {
+				select {
+				case ans := <-answers:
+					results[ans.i] = sourceResult{Result: ans.res, asked: true}
+					delete(pending, ans.i)
+				default:
+					drained = true
+				}
+			}
 			kind := ForgeErrorUnreachable
 			for i := range pending {
 				results[i] = sourceResult{asked: true}

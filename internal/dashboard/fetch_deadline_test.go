@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -21,10 +22,11 @@ type hangingSource struct {
 	hang    bool
 	entered chan struct{}
 	release chan struct{}
+	served  chan struct{}
 }
 
 func newHangingSource(forge dashboard.Forge, prs ...int) *hangingSource {
-	return &hangingSource{forge: forge, prs: prs, entered: make(chan struct{}, 4), release: make(chan struct{})}
+	return &hangingSource{forge: forge, prs: prs, entered: make(chan struct{}, 4), release: make(chan struct{}), served: make(chan struct{}, 8)}
 }
 
 func (s *hangingSource) Forge() dashboard.Forge { return s.forge }
@@ -48,6 +50,7 @@ func (s *hangingSource) Fetch(context.Context) dashboard.Result {
 
 		return dashboard.Result{Health: dashboard.ForgeHealth{Forge: s.forge, Reachable: true}}
 	}
+	defer func() { s.served <- struct{}{} }()
 	res := dashboard.Result{Health: dashboard.ForgeHealth{Forge: s.forge, Reachable: true}}
 	for _, n := range prs {
 		res.PullRequests = append(res.PullRequests, dashboard.PullRequest{Forge: s.forge, Repo: "o/r", Number: n})
@@ -76,13 +79,15 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 			dashboard.WithFetchDeadline(deadline, timers.After),
 		)
 		agg.Refresh(t.Context())
+		<-fast.served
+		<-slow.served
 
 		return agg, fast, slow, timers
 	}
 
 	// refreshHung starts a refresh while slow hangs, waits until slow is
 	// stuck, and returns a channel closed when the refresh returns.
-	refreshHung := func(t *testing.T, agg *dashboard.Aggregator, slow *hangingSource) <-chan struct{} {
+	refreshHung := func(t *testing.T, agg *dashboard.Aggregator, fast, slow *hangingSource) <-chan struct{} {
 		t.Helper()
 		slow.setHang(true)
 		done := make(chan struct{})
@@ -91,6 +96,11 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 			agg.Refresh(t.Context())
 		}()
 		<-slow.entered
+		<-fast.served
+		// Let the fast forge's answer reach the refresh before the deadline.
+		for range 100 {
+			runtime.Gosched()
+		}
 
 		return done
 	}
@@ -99,7 +109,7 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 		t.Parallel()
 		agg, fast, slow, timers := setup(t)
 		fast.setHang(false, 2)
-		done := refreshHung(t, agg, slow)
+		done := refreshHung(t, agg, fast, slow)
 
 		select {
 		case <-done:
@@ -115,8 +125,8 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 
 	t.Run("the slow forge keeps its rows, marked stale and timed out", func(t *testing.T) {
 		t.Parallel()
-		agg, _, slow, timers := setup(t)
-		done := refreshHung(t, agg, slow)
+		agg, fast, slow, timers := setup(t)
+		done := refreshHung(t, agg, fast, slow)
 		timers.Advance(deadline)
 		<-done
 
@@ -131,8 +141,8 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 
 	t.Run("the slow forge's rows are replaced once it answers", func(t *testing.T) {
 		t.Parallel()
-		agg, _, slow, timers := setup(t)
-		done := refreshHung(t, agg, slow)
+		agg, fast, slow, timers := setup(t)
+		done := refreshHung(t, agg, fast, slow)
 		timers.Advance(deadline)
 		<-done
 		close(slow.release)
