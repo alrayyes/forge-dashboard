@@ -139,8 +139,12 @@ export async function serveChecks(page: Page, serve: Serve) {
     forget: () => {
       watched = new Set();
     },
+    // A post that lands while another is answered joins `inflight` after a
+    // snapshot is taken, so drain until none is left.
     idle: async () => {
-      await Promise.all([...inflight]);
+      while (inflight.size > 0) {
+        await Promise.all([...inflight]);
+      }
     },
   };
 }
