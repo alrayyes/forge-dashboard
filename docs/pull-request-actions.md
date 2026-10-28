@@ -648,6 +648,16 @@ conflict, isn't tried again until the pull request changes or an hour passes,
 and any other failure waits five minutes, so a stuck pull request costs one
 request, not one per refresh.
 
+The pass has a budget of its own. A refresh waits 30 seconds for the update and
+auto-merge calls that follow it, then moves on and cancels the call still in
+flight, so a forge that hangs on them can't hold the board at old rows. The
+cancelled pass stops there: only the pull request whose call was in flight takes
+the five-minute wait, and a cut-off merge shows no failure, since the forge never
+answered. The pull requests it hadn't reached are tried on the next refresh.
+Only one pass runs at a time. A refresh, or a webhook that brings a passed check,
+that finds one still going doesn't lose its writes: they run as soon as it ends,
+with a budget of their own.
+
 A repo can also rebase only its bot pull requests. Switch on rebase bots for
 it on the Webhooks page, beside Auto-update, and the background pass sends a
 behind Dependabot or Renovate pull request its own rebase, the same

@@ -61,6 +61,17 @@ type Aggregator struct {
 	// fetching marks the sources whose last fetch has not returned yet, by
 	// place in sources (#3021).
 	fetching []atomic.Bool
+	// writeBudget is how long a refresh waits for the writes that follow it,
+	// the auto update-branch and auto-merge passes, before it moves on, and how
+	// long a pass may run at all. writeAfter schedules it. writing marks a pass
+	// still running, and queuedWrites holds the newest snapshot a refresh
+	// brought while it was, for the pass to run when it ends. All three sit
+	// under writeMu.
+	writeBudget  time.Duration
+	writeAfter   AfterFunc
+	writeMu      sync.Mutex
+	writing      bool
+	queuedWrites *Snapshot
 	// pass is the fetch pass in flight, so a person's click that joins a
 	// scheduled one can shorten its wait (#3021).
 	pass   *fetchPass
@@ -176,8 +187,22 @@ const defaultFetchDeadline = 3 * time.Minute
 // refresh answered (#3021).
 const defaultUserFetchDeadline = time.Minute
 
+// defaultWriteBudget is how long a refresh waits for the forge writes that
+// follow it: the auto update-branch and auto-merge passes. Each call times out
+// on its own after 30 seconds, but a pass makes one call per pull request, so a
+// forge that hangs on them could hold every later refresh for minutes. A
+// healthy pass is a handful of quick calls; one still running at the budget is
+// cut off and the board moves on (#3034).
+const defaultWriteBudget = 30 * time.Second
+
 // AggregatorOption configures NewAggregator.
 type AggregatorOption func(*Aggregator)
+
+// WithWriteBudget sets how long a refresh waits for its forge writes, and the
+// timer it waits with, for tests that drive time by hand.
+func WithWriteBudget(d time.Duration, after AfterFunc) AggregatorOption {
+	return func(a *Aggregator) { a.writeBudget, a.writeAfter = d, after }
+}
 
 // WithSettleWindow sets how long MarkSettled keeps a pull request off the
 // board while the forge still lists it.
@@ -252,6 +277,8 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		fetchDeadline:     defaultFetchDeadline,
 		userFetchDeadline: defaultUserFetchDeadline,
 		fetchAfter:        realAfterFunc,
+		writeBudget:       defaultWriteBudget,
+		writeAfter:        realAfterFunc,
 		firstRefreshedCh:  make(chan struct{}),
 	}
 	for _, opt := range opts {
@@ -660,8 +687,82 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 	a.mu.Unlock()
 
 	a.notify(merged)
-	a.runAutoUpdateBranch(ctx, merged)
-	a.runAutoMerge(ctx, merged)
+	a.runWrites(ctx, merged)
+}
+
+// runWrites runs the auto update-branch and auto-merge passes against snap and
+// waits for them at most writeBudget. A forge that hangs on a write would
+// otherwise hold the single-flight refresh, and with it every later one (#3034).
+//
+// Past the budget the passes' context is cancelled, so the call in flight
+// returns and the refresh moves on; the passes stop there, and only the pull
+// request whose call was in flight keeps its back-off. One pass runs at a time.
+// A snapshot that arrives while one is running, a scoped refresh's "CI passed,
+// merge now" included, waits for it to end and then gets a pass of its own with
+// a budget of its own. Only the newest waiting snapshot is kept, since it holds
+// everything an older one did.
+func (a *Aggregator) runWrites(ctx context.Context, snap Snapshot) {
+	a.writeMu.Lock()
+	if a.writing {
+		a.queuedWrites = &snap
+		a.writeMu.Unlock()
+		slog.Warn("forge writes are still running, the next pass waits for them")
+
+		return
+	}
+	a.writing = true
+	a.writeMu.Unlock()
+
+	done, expired, cancel := a.startWrites(ctx, snap)
+	select {
+	case <-done:
+	case <-expired:
+		slog.Warn("forge writes ran past their budget, moving on", slog.Duration("budget", a.writeBudget))
+	case <-ctx.Done():
+		cancel()
+	}
+}
+
+// startWrites runs one pass in a goroutine of its own, on a context that
+// outlives ctx's cancellation so a pass queued behind it isn't born dead. The
+// budget timer cancels that context and closes expired; done closes once the
+// pass has ended and handed over to a queued one, if any. The goroutine ends
+// when the calls in flight return, which cancelling makes a real HTTP call do.
+func (a *Aggregator) startWrites(ctx context.Context, snap Snapshot) (done, expired <-chan struct{}, cancel context.CancelFunc) {
+	wctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	d := make(chan struct{})
+	e := make(chan struct{})
+	stop := a.writeAfter(a.writeBudget, func() {
+		cancel()
+		close(e)
+	})
+
+	go func() {
+		a.runAutoUpdateBranch(wctx, snap)
+		a.runAutoMerge(wctx, snap)
+		stop()
+		cancel()
+		a.finishWrites(ctx)
+		close(d)
+	}()
+
+	return d, e, cancel
+}
+
+// finishWrites ends a pass: it starts the queued one, if a refresh left one,
+// and otherwise frees the slot.
+func (a *Aggregator) finishWrites(ctx context.Context) {
+	a.writeMu.Lock()
+	queued := a.queuedWrites
+	a.queuedWrites = nil
+	if queued == nil {
+		a.writing = false
+	}
+	a.writeMu.Unlock()
+
+	if queued != nil {
+		a.startWrites(ctx, *queued)
+	}
 }
 
 // mergedRepo is current with forge/fullName's own entries replaced by prs and
@@ -1026,8 +1127,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	logRateLimitTransitions(previous.Forges, snap.Forges)
 
 	a.publish(ctx, snap)
-	a.runAutoUpdateBranch(ctx, snap)
-	a.runAutoMerge(ctx, snap)
+	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
 }
 
