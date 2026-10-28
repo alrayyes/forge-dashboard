@@ -14,6 +14,10 @@ type Options = {
   keyOf?: (subject: Subject) => string;
   onChecks: (key: string, checks: Check[], runs: RunFacts[]) => void;
   onDrop: (key: string) => void;
+  // The feed said there is no list for the row, a stream that dropped for one.
+  // The watch stays, so the list that comes when the stream recovers reaches
+  // onChecks. Defaults to onDrop, since a row without a list reads the refresh.
+  onError?: (key: string) => void;
 };
 
 // Follows the job lists of the rows a page shows. Each call to set names the
@@ -25,6 +29,7 @@ export function createRowWatcher({
   keyOf = branchKey,
   onChecks,
   onDrop,
+  onError = onDrop,
 }: Options) {
   const stops = new Map<string, () => void>();
 
@@ -51,6 +56,7 @@ export function createRowWatcher({
           feed.watch(subject, (message) => {
             if ('checks' in message)
               onChecks(key, message.checks, message.runs ?? []);
+            else onError(key);
           }),
         );
       }

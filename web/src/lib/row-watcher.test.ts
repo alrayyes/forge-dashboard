@@ -112,13 +112,48 @@ describe('createRowWatcher', () => {
     expect(told.get('github:a/one')).toBe(checks);
   });
 
-  test('an error is no job list', () => {
-    const { watcher, live, told } = harness();
+  test('an error drops the row back to the refresh and keeps the watch', () => {
+    const { watcher, live, told, log } = harness();
 
     watcher.set([subject('a/one')]);
-    live.get('a/one')?.({ error: 'no' });
+    live.get('a/one')?.({ checks: [] });
+    live.get('a/one')?.({ error: 'the live connection is down' });
 
-    expect(told.size).toBe(0);
+    expect(told.has('github:a/one')).toBe(false);
+    expect(log).toEqual(['watch a/one']);
+  });
+
+  test('a list after an error folds the row live again', () => {
+    const { watcher, live, told } = harness();
+    const checks = [{ name: 'build' }];
+
+    watcher.set([subject('a/one')]);
+    live.get('a/one')?.({ checks: [] });
+    live.get('a/one')?.({ error: 'the live connection is down' });
+    live.get('a/one')?.({ checks } as CheckFeedMessage);
+
+    expect(told.get('github:a/one')).toBe(checks);
+  });
+
+  test('tells onError, when given, instead of onDrop', () => {
+    const calls: string[] = [];
+    let follow: (m: CheckFeedMessage) => void = () => {};
+    const watcher = createRowWatcher({
+      feed: {
+        watch(_s, follower) {
+          follow = follower;
+          return () => {};
+        },
+      },
+      onChecks: () => {},
+      onDrop: (key) => calls.push(`drop ${key}`),
+      onError: (key) => calls.push(`error ${key}`),
+    });
+
+    watcher.set([subject('a/one')]);
+    follow({ error: 'no' });
+
+    expect(calls).toEqual(['error github:a/one']);
   });
 
   test('a row that leaves the watch drops its list', () => {
