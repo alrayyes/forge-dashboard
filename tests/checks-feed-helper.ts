@@ -130,6 +130,11 @@ export async function serveChecks(page: Page, serve: Serve) {
 
   return {
     asked,
+    // The server forgets a watch when its stream closes, so after a spec closes
+    // the stream the next watch is listed afresh.
+    forget: () => {
+      watched = new Set();
+    },
     idle: async () => {
       await Promise.all([...inflight]);
     },

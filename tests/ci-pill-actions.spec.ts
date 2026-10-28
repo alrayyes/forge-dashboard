@@ -38,12 +38,14 @@ function mockDashboard(page: Page, pr: unknown) {
   );
 }
 
+// The failing job the row's Failed pill is drawn from: the row reads the jobs
+// it watches, so a list that passed would turn the pill to Passed.
 function mockChecks(page: Page) {
   return serveChecks(page, () => [
     {
       name: 'build',
       status: 'completed',
-      conclusion: 'success',
+      conclusion: 'failure',
       url: 'https://x.test/1',
     },
   ]);
