@@ -1335,7 +1335,7 @@ test.describe('pull request pipeline checks panel', () => {
   }) => {
     await page.clock.install();
     await mockDashboard(page, 'github', makePR());
-    await serveChecks(page, () => [
+    const feed = await serveChecks(page, () => [
       {
         name: 'build',
         status: 'completed',
@@ -1350,6 +1350,7 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(open).toBeVisible();
     await page.clock.pauseAt(new Date(Date.now() + 60000));
     await closeStream(page);
+    feed.forget();
     await open.click();
 
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });

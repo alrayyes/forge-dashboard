@@ -46,6 +46,8 @@
   import type { MainBranch } from "#lib/main-branches.js";
   import type { Check } from "#lib/pipeline-checks.js";
   import { foldPullRequest, type PullRequestFold } from "#lib/pr-fold.js";
+  import { pullRequestKey, pullRequestsToWatch } from "#lib/pr-row-watch.js";
+  import { createRowWatcher } from "#lib/row-watcher.js";
   import {
     firstRefreshLoading,
     firstRefreshPending,
@@ -902,7 +904,12 @@
     function ciModel(item: PullRequestItem) {
       // The open dialog's jobs, folded, stand in for the snapshot's pill: the
       // row reads what the dialog lists. Null leaves the server's pill.
-      const live = pipelineLive?.key === prKey(item) ? pipelineLive.fold : null;
+      // A row the page watches reads its own jobs the same way; the open
+      // dialog's list wins for its row.
+      const live =
+        (pipelineLive?.key === prKey(item) ? pipelineLive.fold : null) ??
+        rowFolds.get(prKey(item)) ??
+        null;
       const status = live ? live.ci : item.ci;
       const awaiting = live
         ? live.awaiting
@@ -5477,6 +5484,7 @@
       const before = prShown.items;
       const wasLanded = prShown.landed;
       const rendered = settlePRs();
+      if (!rendered) drawRowFolds();
       if (before.length > 0 || wasLanded)
         offerWhatIsShown(choicesChange(before, prShown.items));
       return rendered;
@@ -6409,6 +6417,75 @@
     let pipelineItem: PullRequestItem | null = null;
     // What the open dialog's jobs fold to, for the row it was opened from.
     let pipelineLive: { key: string; fold: PullRequestFold } | null = null;
+    // What the jobs of each watched row fold to, by prKey. A row with no entry
+    // reads the refresh's pill. Read by ciModel, which is hoisted above this.
+    // (A function declaration reads it only once the page has mounted.)
+    const rowFolds = new Map<string, PullRequestFold>();
+    let rowFoldRedraw = false;
+    // A fold landed that the board has not drawn yet, because a hold kept it.
+    let rowFoldsDirty = false;
+    const rowWatcher = createRowWatcher({
+      feed: checkFeed,
+      keyOf: pullRequestKey,
+      onChecks(key, checks) {
+        const repo = prItemFor(key);
+        const fold = repo ? foldPullRequest(repo.forge, checks) : null;
+        if (!fold) {
+          rowFolds.delete(key);
+        } else if (JSON.stringify(rowFolds.get(key)) === JSON.stringify(fold)) {
+          return;
+        } else {
+          rowFolds.set(key, fold);
+        }
+        redrawRowFolds();
+      },
+      onDrop(key) {
+        // The board redraws on its own next render; a row let go of reads the
+        // refresh again then.
+        rowFolds.delete(key);
+      },
+    });
+    function prItemFor(key: string): PullRequestItem | undefined {
+      return prBoard.find(key) as PullRequestItem | undefined;
+    }
+    // One redraw for the rows that changed together. The feed can answer inside
+    // watch(), while the watcher is still being set up, so the draw waits a
+    // tick. A board someone is using keeps its rows until the next render picks
+    // the folds up.
+    function redrawRowFolds() {
+      if (rowFoldRedraw) return;
+      rowFoldRedraw = true;
+      queueMicrotask(() => {
+        rowFoldRedraw = false;
+        rowFoldsDirty = true;
+        drawRowFolds();
+      });
+    }
+    // Draws the folds that wait for a board nobody is using. Called when a fold
+    // lands and again by reconcilePRs, which every end of a hold goes through
+    // (unpause, the pointer leaving, a row action finishing, a modal closing).
+    function drawRowFolds() {
+      if (!rowFoldsDirty || destroyed || view !== "pulls") return;
+      if (updatesPaused() || interactionFreezesBoard() || pointerRestsOnList())
+        return;
+      rowFoldsDirty = false;
+      keepFocusAcross(renderPRBoard);
+    }
+    // Watch the first rows the pull request page draws. The rows are read back
+    // from the page, so a filter, a page of the pager or a group shows the rows
+    // the person sees.
+    function watchVisiblePullRequests(
+      container: HTMLElement,
+      items: readonly PullRequestItem[],
+    ) {
+      const keys = Array.from(
+        container.querySelectorAll<HTMLElement>(".row[data-pr-key]"),
+        (row) => row.dataset.prKey,
+      );
+      const byKey = new Map(items.map((i) => [prKey(i), i]));
+      const shown = keys.flatMap((key) => byKey.get(key ?? "") ?? []);
+      rowWatcher.set(pullRequestsToWatch(shown));
+    }
     // What the open dialog's rerun control was drawn for. The dialog calls the
     // control once per change of its checks, so a forge that changes under it
     // (a version read landing, an outage) has to ask for a redraw.
@@ -7247,6 +7324,13 @@
           visibleResultCount = visible.length;
           visibleBotRows = visible as PullRequestItem[];
           visiblePullRows = visibleBotRows;
+          if (isPR) rowFoldsDirty = false;
+          if (isPR && view === "pulls")
+            watchVisiblePullRequests(
+              container,
+              state.items as PullRequestItem[],
+            );
+          else rowWatcher.stop();
           updateRebaseAll();
           updateUpdateAll();
         }
@@ -9389,6 +9473,7 @@
       clearInterval(tickTimer);
       window.clearTimeout(rateLimitResetTimer);
       eventSource?.close();
+      rowWatcher.stop();
     };
   }
 </script>

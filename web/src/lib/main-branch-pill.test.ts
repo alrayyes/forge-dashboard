@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { factsOf } from './check-facts-fixture';
+import { STREAM_SUBJECT_CAP } from './check-feed';
 import { foldBranch } from './check-fold';
 import {
   branchKey,
@@ -8,7 +9,6 @@ import {
   countMainBranches,
   type MainBranch,
   rowsToWatch,
-  STREAM_SUBJECT_CAP,
   withLiveJobs,
 } from './main-branches';
 import type { Check } from './pipeline-checks';

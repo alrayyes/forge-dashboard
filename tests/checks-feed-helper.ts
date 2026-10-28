@@ -82,12 +82,13 @@ export async function pushChecks(page: Page, subject: Subject, reply: Reply) {
 // Answers the page's watch posts. `serve` is asked for each subject the page
 // starts watching, and for every subject again on a refresh; `call` counts
 // the asks for that subject from 1. `asked` lists the subjects asked for, in
-// order, and `idle` resolves once every answer has been sent.
+// order, `posts` counts the subjects in each post, and `idle` resolves once every answer has been sent.
 export async function serveChecks(page: Page, serve: Serve) {
   await installFakeStream(page);
   let watched = new Set<string>();
   let stream = '';
   const asked: Subject[] = [];
+  const posts: number[] = [];
   const calls = new Map<string, number>();
   const inflight = new Set<Promise<void>>();
   await page.route('**/api/dashboard/stream/watch', async (route: Route) => {
@@ -102,6 +103,7 @@ export async function serveChecks(page: Page, serve: Serve) {
       stream = body.streamId;
       watched = new Set();
     }
+    posts.push(body.subjects.length);
     const before = watched;
     watched = new Set(body.subjects.map(keyOf));
     const due = body.subjects.filter(
@@ -130,6 +132,13 @@ export async function serveChecks(page: Page, serve: Serve) {
 
   return {
     asked,
+    // How many subjects each watch post carried, in order.
+    posts,
+    // The server forgets a watch when its stream closes, so after a spec closes
+    // the stream the next watch is listed afresh.
+    forget: () => {
+      watched = new Set();
+    },
     idle: async () => {
       await Promise.all([...inflight]);
     },

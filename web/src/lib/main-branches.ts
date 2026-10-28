@@ -3,7 +3,7 @@
 // the page component stays the one place that touches elements.
 
 import type { CheckCounts } from './check-counts';
-import type { Subject } from './check-feed';
+import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 import { foldBranch } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
 import type { NavCount } from './nav-counts.svelte';
@@ -254,11 +254,6 @@ export function branchPill(
 // A row's identity on the page: the open dialog says which row its jobs are.
 export const branchKey = (b: Pick<MainBranch, 'forge' | 'fullName'>): string =>
   `${b.forge}:${b.fullName}`;
-
-// The dashboard stream takes this many watched subjects in one call; the server
-// answers 400 for more (api/openapi.yaml, StreamWatchRequest). The Go const
-// maxWatchedSubjects in internal/api/check_stream.go must change with it.
-export const STREAM_SUBJECT_CAP = 8;
 
 // The rows to watch for live jobs: the first rows shown, in the order the page
 // shows them. One slot of the cap stays free for the pipeline dialog, which
