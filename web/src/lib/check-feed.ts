@@ -227,12 +227,22 @@ export function createCheckFeed({
           listed.add(subject);
           failed.delete(subject);
           tell(subject, messageOf(held));
+        } else {
+          // Under way, what is held is part old and part new, or an error the
+          // listing replaces: not an answer to hand a listener that joins now.
+          listed.delete(subject);
+          failed.delete(subject);
         }
       });
     },
 
-    // Wants the subject's list. Returns the unsubscribe.
-    watch(subject: Subject, follower: Listener): () => void {
+    // Wants the subject's list. Returns the unsubscribe. A caller that is about
+    // to ask for a fresh list sets `fresh`, so it isn't handed the one held.
+    watch(
+      subject: Subject,
+      follower: Listener,
+      { fresh: wantsFresh = false }: { fresh?: boolean } = {},
+    ): () => void {
       const key = keyOf(subject);
       const set = listeners.get(key) ?? new Set<Listener>();
       // A stream still connecting is not closed, so nothing says it won't
@@ -250,7 +260,7 @@ export function createCheckFeed({
       if (fresh) send(false);
       // The server lists a subject to its first watcher, and again only when it
       // changes. A listener joining one already answered is handed the answer.
-      else if (listed.has(key) || failed.has(key))
+      else if (!wantsFresh && (listed.has(key) || failed.has(key)))
         queueMicrotask(() => {
           if (!set.has(listener)) return;
           const held = runs.get(key);
@@ -311,7 +321,7 @@ export function createCheckFeed({
           resolve(message);
         };
         const timer = setTimeout(() => finish({ error: SILENT }), timeoutMs);
-        stop = this.watch(subject, finish);
+        stop = this.watch(subject, finish, { fresh: true });
         // Already watched, so nothing new is sent unless asked for.
         if (watched) send(true);
       });
