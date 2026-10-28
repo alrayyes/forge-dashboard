@@ -256,7 +256,8 @@ export const branchKey = (b: Pick<MainBranch, 'forge' | 'fullName'>): string =>
   `${b.forge}:${b.fullName}`;
 
 // The dashboard stream takes this many watched subjects in one call; the server
-// answers 400 for more (api/openapi.yaml, StreamWatchRequest).
+// answers 400 for more (api/openapi.yaml, StreamWatchRequest). The Go const
+// maxWatchedSubjects in internal/api/check_stream.go must change with it.
 export const STREAM_SUBJECT_CAP = 8;
 
 // The rows to watch for live jobs: the first rows shown, in the order the page
