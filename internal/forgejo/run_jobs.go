@@ -23,6 +23,14 @@ import (
 // cancelled can leave a job queued for good, so once the forge has had
 // jobsCatchUp to settle, its list is final too.
 func (c *Client) readRunJobs(ctx context.Context, owner, name string, runID int64, status string, started, stopped time.Time) ([]*gitea.ActionWorkflowJob, error) {
+	jobs, _, err := c.readWholeRunJobs(ctx, owner, name, runID, status, started, stopped)
+
+	return jobs, err
+}
+
+// readWholeRunJobs is readRunJobs that also says whether the list is whole. A
+// kept list always is, since only a whole list is kept.
+func (c *Client) readWholeRunJobs(ctx context.Context, owner, name string, runID int64, status string, started, stopped time.Time) ([]*gitea.ActionWorkflowJob, bool, error) {
 	return c.keepJobs(status, jobsKey(owner, name, runID, started, stopped, 0), stopped, func() ([]*gitea.ActionWorkflowJob, bool, error) {
 		return c.walkActionRunJobs(ctx, owner, name, runID)
 	})
@@ -32,11 +40,13 @@ func (c *Client) readRunJobs(ctx context.Context, owner, name string, runID int6
 // 1, kept the same way. A status names its job's position, so the page holding
 // it is all that is read.
 func (c *Client) readRunJobsPage(ctx context.Context, owner, name string, runID int64, status string, started, stopped time.Time, page int) ([]*gitea.ActionWorkflowJob, error) {
-	return c.keepJobs(status, jobsKey(owner, name, runID, started, stopped, page), stopped, func() ([]*gitea.ActionWorkflowJob, bool, error) {
+	jobs, _, err := c.keepJobs(status, jobsKey(owner, name, runID, started, stopped, page), stopped, func() ([]*gitea.ActionWorkflowJob, bool, error) {
 		jobs, _, err := c.listActionRunJobsPage(ctx, owner, name, runID, page)
 
 		return jobs, true, err
 	})
+
+	return jobs, err
 }
 
 // jobsKey names the kept jobs of a run, or of one page of them when page is
@@ -53,18 +63,16 @@ func jobsKey(owner, name string, runID int64, started, stopped time.Time, page i
 // keepJobs reads jobs with read, and keeps them under key once they are final
 // (see readRunJobs). A list that read says is not whole is never kept: it is
 // what the forge showed, and a kept one would stand in for the rest for good.
-func (c *Client) keepJobs(status, key string, stopped time.Time, read func() ([]*gitea.ActionWorkflowJob, bool, error)) ([]*gitea.ActionWorkflowJob, error) {
+func (c *Client) keepJobs(status, key string, stopped time.Time, read func() ([]*gitea.ActionWorkflowJob, bool, error)) ([]*gitea.ActionWorkflowJob, bool, error) {
 	if stopped.IsZero() || !isFinished(status) {
-		jobs, _, err := read()
-
-		return jobs, err
+		return read()
 	}
 	if cached, ok := c.finishedJobs.get(key); ok {
-		return cached, nil
+		return cached, true, nil
 	}
 	jobs, whole, err := read()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	settled := time.Since(stopped) > jobsCatchUp
 	_, _, over := jobsOutcome(jobs)
@@ -73,5 +81,5 @@ func (c *Client) keepJobs(status, key string, stopped time.Time, read func() ([]
 		c.finishedJobs.put(key, jobs)
 	}
 
-	return jobs, nil
+	return jobs, whole, nil
 }

@@ -341,7 +341,10 @@ cheaply:
   The page folds a row's `runs` into its pill, its counts and its `Failing:`
   line, so a Forgejo row reads the same as the dialog without watching
   anything. A row with no `runs`, or an empty list, keeps the status the
-  refresh sent. A row the stream is watching reads its live jobs instead.
+  refresh sent. So does a row with a run marked `jobsTruncated`: the forge
+  has more jobs for that run than the list holds, so the server's own status
+  stands instead of a fold of part of them. A row the stream is watching
+  reads its live jobs instead.
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget

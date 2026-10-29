@@ -60,6 +60,8 @@ export type MainBranchRun = {
   conclusion?: string;
   startedAt?: string;
   completedAt?: string;
+  // The forge has more jobs for this attempt than checks lists.
+  jobsTruncated?: boolean;
   checks: Check[];
 };
 
@@ -258,7 +260,8 @@ export const SEGMENTED_STATUSES: ReadonlySet<MainBranchStatus> = new Set([
 // What a row's CI pill says. While the pipeline dialog holds a job list for the
 // row, the pill folds that same list, so the two cannot disagree about a rerun
 // the snapshot has not caught up with. With no list (no dialog open, or none
-// came yet) the snapshot's own status and counts stand.
+// came yet) the snapshot's own status and counts stand (the page has folded its
+// runs into them already, see withSnapshotRuns).
 export type BranchPill = { status: MainBranchStatus; counts: CheckCounts };
 
 // What a row reads from one job list: the pill, and with it the names of the
@@ -284,7 +287,7 @@ export const branchKey = (b: Pick<MainBranch, 'forge' | 'fullName'>): string =>
 // The rows to watch for live jobs: the first rows shown, in the order the page
 // shows them. One slot of the cap stays free for the pipeline dialog, which
 // watches its own subject through the same stream. A row past the limit keeps
-// the refresh's pill.
+// the pill its snapshot runs fold to, or the refresh's, for a row with none.
 export function rowsToWatch(
   shown: readonly Pick<MainBranch, 'forge' | 'fullName'>[],
   limit: number = STREAM_SUBJECT_CAP - 1,
@@ -298,9 +301,13 @@ export function rowsToWatch(
 // runs takes the pill, counts and Failing: names from folding the jobs of all
 // its runs, so no row waits for the stream (which watches only a few) to agree
 // with its pipeline. A row with no runs (GitHub, or no run yet) keeps the
-// refresh's own status and counts.
+// refresh's own status and counts. So does a row with a run whose job list was
+// cut short: folding a part of its jobs would read a failed or running run as
+// passed, where the server refused to call it over.
 export function withSnapshotRuns(rows: readonly MainBranch[]): MainBranch[] {
   return rows.map((row) => {
+    if (row.runs?.some((run) => run.jobsTruncated)) return row;
+
     const jobs = row.runs?.flatMap((run) => run.checks) ?? [];
     if (jobs.length === 0) return row;
 

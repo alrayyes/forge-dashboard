@@ -61,12 +61,15 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 		return row, nil
 	}
 
-	jobs := c.runJobs(ctx, repo, runs)
+	jobs, cut := c.runJobs(ctx, repo, runs)
 	runs = settledRuns(runs, jobs)
 	row.Status = mainBranchStatus(runs)
 	checks := branchChecks(runs, jobs)
 	row.Checks = countChecks(checks)
 	row.Runs = dashboard.MainBranchRuns(checks)
+	for i := range row.Runs {
+		row.Runs[i].JobsTruncated = cut[row.Runs[i].RunID]
+	}
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
 	case row.Status == dashboard.MainBranchFailed:
@@ -122,7 +125,7 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 	// The same runs and jobs the row counts (see ReadMainBranch), so the list
 	// and the pill can't describe different pipelines. branchRuns sorts newest
 	// first and keeps one commit's runs, so runs[0] is the commit the row reports.
-	jobs := c.runJobs(ctx, ref, runs)
+	jobs, _ := c.runJobs(ctx, ref, runs)
 	checks := branchChecks(runs, jobs)
 	c.rememberFailedJobs(owner, name, checks, jobExcerptKeys(ref, jobs))
 
@@ -293,20 +296,26 @@ const jobsPageSize = 30
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be
 // read is left out, and counts as one check (see branchChecks, countChecks).
-// Which lists are kept for a repeat poll is readRunJobs's rule.
-func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) map[int64][]*gitea.ActionWorkflowJob {
+// Which lists are kept for a repeat poll is readRunJobs's rule. The second
+// result holds the runs whose list is cut short: the forge has more jobs than
+// were read.
+func (c *Client) runJobs(ctx context.Context, repo dashboard.RepoRef, runs []*branchRun) (map[int64][]*gitea.ActionWorkflowJob, map[int64]bool) {
 	out := make(map[int64][]*gitea.ActionWorkflowJob, len(runs))
+	cut := map[int64]bool{}
 	for _, run := range runs {
-		jobs, err := c.readRunJobs(ctx, repo.Owner, repo.Name, run.ID, run.Status, run.StartedAt, run.StoppedAt)
+		jobs, whole, err := c.readWholeRunJobs(ctx, repo.Owner, repo.Name, run.ID, run.Status, run.StartedAt, run.StoppedAt)
 		if err != nil {
 			slog.Warn("list default-branch run jobs failed", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "run", run.ID, "error", err)
 
 			continue
 		}
 		out[run.ID] = jobs
+		if !whole {
+			cut[run.ID] = true
+		}
 	}
 
-	return out
+	return out, cut
 }
 
 // jobsCatchUp is how long after a run finishes the forge may still answer an
