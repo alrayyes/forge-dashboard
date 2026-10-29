@@ -4241,17 +4241,23 @@ func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, 
 // action_required, which reads as awaiting approval: the rollup counts it as held
 // (awaitingApproval), so the panel and the pill tell one story (#1933).
 func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
-	if r.GetStatus() != "completed" {
+	return checkStateOf(r.GetStatus(), r.GetConclusion())
+}
+
+// checkStateOf is checkStateFromRun for a status and conclusion in the REST
+// API's lower case words, whichever API they were read from.
+func checkStateOf(status, conclusion string) dashboard.CheckState {
+	if status != "completed" {
 		// Only in_progress has a log to read. Every other status (queued,
 		// waiting, pending, requested, or one GitHub adds later) has not
 		// started, and the rollup counts it as waiting.
-		if r.GetStatus() == "in_progress" {
+		if status == "in_progress" {
 			return dashboard.CheckRunning
 		}
 
 		return dashboard.CheckQueued
 	}
-	switch r.GetConclusion() {
+	switch conclusion {
 	case "success", "neutral":
 		return dashboard.CheckSuccess
 	case "skipped":
