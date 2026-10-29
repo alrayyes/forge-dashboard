@@ -89,8 +89,7 @@ type MainBranch struct {
 	Checks CheckCounts `json:"checks"`
 	// Runs is what each run attempt on the newest commit did: the facts the
 	// status and the counts above were worked out from, left for a page to fold
-	// itself. Nil where the refresh doesn't read runs (GitHub) or the repo has
-	// none.
+	// itself. Nil where the repo has no check.
 	Runs []MainBranchRun `json:"runs,omitempty"`
 	// LatestRelease is the repository's newest published release, nil when it
 	// has none or the forge's read of it costs a request the refresh doesn't

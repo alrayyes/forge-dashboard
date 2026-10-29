@@ -49,11 +49,23 @@ const defaultBranchSelection = `
                   nodes {
                     __typename
                     ... on CheckRun {
+                      databaseId
                       name
+                      status
                       conclusion
                       startedAt
                       completedAt
                       detailsUrl
+                      checkSuite {
+                        status
+                        conclusion
+                        workflowRun {
+                          databaseId
+                          runAttempt
+                          runNumber
+                          workflow { name }
+                        }
+                      }
                     }
                     ... on StatusContext {
                       context
@@ -111,14 +123,30 @@ type graphqlCommit struct {
 // branchContext is one check run or one legacy commit status.
 type branchContext struct {
 	Typename    string    `json:"__typename"`
+	DatabaseID  int64     `json:"databaseId"`
 	Name        string    `json:"name"`
+	Status      string    `json:"status"`
 	Conclusion  string    `json:"conclusion"`
 	StartedAt   time.Time `json:"startedAt"`
 	CompletedAt time.Time `json:"completedAt"`
 	DetailsURL  string    `json:"detailsUrl"`
-	Context     string    `json:"context"`
-	State       string    `json:"state"`
-	TargetURL   string    `json:"targetUrl"`
+	// CheckSuite is the suite a check run belongs to, whose workflow run is
+	// null for a check app that isn't Actions.
+	CheckSuite *struct {
+		Status      string `json:"status"`
+		Conclusion  string `json:"conclusion"`
+		WorkflowRun *struct {
+			DatabaseID int64 `json:"databaseId"`
+			RunAttempt int64 `json:"runAttempt"`
+			RunNumber  int64 `json:"runNumber"`
+			Workflow   struct {
+				Name string `json:"name"`
+			} `json:"workflow"`
+		} `json:"workflowRun"`
+	} `json:"checkSuite"`
+	Context   string `json:"context"`
+	State     string `json:"state"`
+	TargetURL string `json:"targetUrl"`
 }
 
 // mainBranchFrom maps a repo's defaultBranchRef onto its default-branch row.
@@ -164,6 +192,7 @@ func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *grap
 		return row
 	}
 	checks := rollup.Contexts.Nodes
+	row.Runs = branchRuns(rollup)
 	if row.Status == dashboard.MainBranchFailed {
 		row.FailingJobs = failingBranchChecks(checks)
 		if len(row.FailingJobs) == 0 && hasCancelledCheck(checks) {
@@ -180,6 +209,85 @@ func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *grap
 	}
 
 	return row
+}
+
+// branchRuns is the checks the query read, grouped by the workflow run each
+// belongs to, for a page to fold itself. The rollup counts every check of the
+// commit but the query reads only the first 50, so when the counts add up to
+// more, every run says its list is cut short.
+func branchRuns(rollup *statusCheckRollup) []dashboard.MainBranchRun {
+	nodes := rollup.Contexts.Nodes
+	checks := make([]dashboard.Check, 0, len(nodes))
+	for _, n := range nodes {
+		checks = append(checks, n.asCheck())
+	}
+	runs := dashboard.MainBranchRuns(checks)
+
+	total := 0
+	for _, c := range rollup.Contexts.CheckRunCountsByState {
+		total += c.Count
+	}
+	for _, c := range rollup.Contexts.StatusContextCountsByState {
+		total += c.Count
+	}
+	for i := range runs {
+		runs[i].JobsTruncated = total > len(nodes)
+	}
+
+	return runs
+}
+
+// asCheck is the check a node stands for: a job of a workflow run, a check of
+// another app, or a legacy commit status.
+func (c branchContext) asCheck() dashboard.Check {
+	if c.Typename == "StatusContext" {
+		return dashboard.Check{Name: c.Context, State: checkStateFromCombinedState(strings.ToLower(c.State)), URL: c.TargetURL}
+	}
+
+	check := dashboard.Check{
+		Name:               c.Name,
+		State:              checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)),
+		ReportedConclusion: reportedWord(c.Status, c.Conclusion),
+		URL:                c.DetailsURL,
+		JobID:              c.DatabaseID,
+		StartedAt:          timePtr(c.StartedAt),
+		CompletedAt:        timePtr(c.CompletedAt),
+	}
+	if c.CheckSuite == nil || c.CheckSuite.WorkflowRun == nil || c.CheckSuite.WorkflowRun.DatabaseID == 0 {
+		return check
+	}
+
+	run := c.CheckSuite.WorkflowRun
+	check.RunID, check.RunAttempt = run.DatabaseID, run.RunAttempt
+	check.RunNumber, check.RunName = run.RunNumber, run.Workflow.Name
+	suite := c.CheckSuite
+	facts := &dashboard.RunFacts{}
+	facts.Status, facts.Conclusion = dashboard.StatusFacts(
+		checkStateOf(strings.ToLower(suite.Status), strings.ToLower(suite.Conclusion)),
+		reportedWord(suite.Status, suite.Conclusion),
+	)
+	check.Run = facts
+
+	return check
+}
+
+// reportedWord is the conclusion GraphQL gave a finished check or suite, in the
+// lower case the REST API and the stream use, or "" while it is still going.
+func reportedWord(status, conclusion string) string {
+	if status != "COMPLETED" {
+		return ""
+	}
+
+	return strings.ToLower(conclusion)
+}
+
+// timePtr is t, or nil when GitHub gave none.
+func timePtr(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+
+	return &t
 }
 
 // branchCheckCounts is the rollup's counts for a branch in its final status. A
