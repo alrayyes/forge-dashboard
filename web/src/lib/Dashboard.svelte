@@ -50,7 +50,11 @@
   import type { MainBranch } from "#lib/main-branches.js";
   import type { Check } from "#lib/pipeline-checks.js";
   import { foldPullRequest, type PullRequestFold } from "#lib/pr-fold.js";
-  import { pullRequestKey, pullRequestsToWatch } from "#lib/pr-row-watch.js";
+  import {
+    linkedPullRequestsToWatch,
+    pullRequestKey,
+    pullRequestsToWatch,
+  } from "#lib/pr-row-watch.js";
   import { createRowWatcher } from "#lib/row-watcher.js";
   import {
     firstRefreshLoading,
@@ -6411,12 +6415,15 @@
     let rowFoldRedraw = false;
     // A fold landed that the board has not drawn yet, because a hold kept it.
     let rowFoldsDirty = false;
+    // The forge of each watched key. The pull request page finds it on its own
+    // board, but a pull request an issue row links may not be on that board.
+    const watchedForge = new Map<string, string>();
     const rowWatcher = createRowWatcher({
       feed: checkFeed,
       keyOf: pullRequestKey,
       onChecks(key, checks, runs) {
-        const repo = prItemFor(key);
-        const fold = repo ? foldPullRequest(repo.forge, checks, runs) : null;
+        const forge = watchedForge.get(key) ?? prItemFor(key)?.forge;
+        const fold = forge ? foldPullRequest(forge, checks, runs) : null;
         if (!fold) {
           rowFolds.delete(key);
         } else if (JSON.stringify(rowFolds.get(key)) === JSON.stringify(fold)) {
@@ -6460,11 +6467,21 @@
     // lands and again by reconcilePRs, which every end of a hold goes through
     // (unpause, the pointer leaving, a row action finishing, a modal closing).
     function drawRowFolds() {
-      if (!rowFoldsDirty || destroyed || view !== "pulls") return;
+      if (!rowFoldsDirty || destroyed) return;
+      if (view !== "pulls" && view !== "issues") return;
       if (updatesPaused() || interactionFreezesBoard() || pointerRestsOnList())
         return;
       rowFoldsDirty = false;
-      keepFocusAcross(renderPRBoard);
+      if (view === "issues") {
+        keepFocusAcross(() => issueBoard.setItems(issueShown.items, true));
+      } else {
+        keepFocusAcross(renderPRBoard);
+      }
+    }
+    function watchRows(subjects: ReturnType<typeof pullRequestsToWatch>) {
+      watchedForge.clear();
+      for (const s of subjects) watchedForge.set(pullRequestKey(s), s.forge);
+      rowWatcher.set(subjects);
     }
     // Watch the first rows the pull request page draws. The rows are read back
     // from the page, so a filter, a page of the pager or a group shows the rows
@@ -6479,7 +6496,20 @@
       );
       const byKey = new Map(items.map((i) => [prKey(i), i]));
       const shown = keys.flatMap((key) => byKey.get(key ?? "") ?? []);
-      rowWatcher.set(pullRequestsToWatch(shown));
+      watchRows(pullRequestsToWatch(shown));
+    }
+    // Watch the pull requests the issue rows on screen draw a pill for.
+    function watchVisibleIssueLinks(
+      container: HTMLElement,
+      items: readonly IssueItem[],
+    ) {
+      const keys = Array.from(
+        container.querySelectorAll<HTMLElement>(".row[data-issue-key]"),
+        (row) => row.dataset.issueKey,
+      );
+      const byKey = new Map(items.map((i) => [prKey(i), i]));
+      const shown = keys.flatMap((key) => byKey.get(key ?? "") ?? []);
+      watchRows(linkedPullRequestsToWatch(shown));
     }
     // What the open dialog's rerun control was drawn for. The dialog calls the
     // control once per change of its checks, so a forge that changes under it
@@ -7323,12 +7353,14 @@
           visibleResultCount = visible.length;
           visibleBotRows = visible as PullRequestItem[];
           visiblePullRows = visibleBotRows;
-          if (isPR) rowFoldsDirty = false;
+          rowFoldsDirty = false;
           if (isPR && view === "pulls")
             watchVisiblePullRequests(
               container,
               state.items as PullRequestItem[],
             );
+          else if (!isPR && view === "issues")
+            watchVisibleIssueLinks(container, state.items as IssueItem[]);
           else rowWatcher.stop();
           updateRebaseAll();
           updateUpdateAll();
