@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.15.0](https://github.com/alrayyes/forge-dashboard/compare/v8.14.2...v8.15.0) (2026-10-29)
+
+
+### Features
+
+* send run facts on GitHub default branches ([#3089](https://github.com/alrayyes/forge-dashboard/issues/3089)) ([4271a29](https://github.com/alrayyes/forge-dashboard/commit/4271a297eaa02afe2d030b38d9d8f6b92b083bae))
+
 ## [8.14.2](https://github.com/alrayyes/forge-dashboard/compare/v8.14.1...v8.14.2) (2026-10-29)
 
 
