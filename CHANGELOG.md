@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.14.2](https://github.com/alrayyes/forge-dashboard/compare/v8.14.1...v8.14.2) (2026-10-29)
+
+
+### Bug Fixes
+
+* settle a Forgejo run from the whole flag, not size ([#3086](https://github.com/alrayyes/forge-dashboard/issues/3086)) ([1ae3bba](https://github.com/alrayyes/forge-dashboard/commit/1ae3bba3a7df4e45a7f9211c3873da137c7f03cf))
+
 ## [8.14.1](https://github.com/alrayyes/forge-dashboard/compare/v8.14.0...v8.14.1) (2026-10-29)
 
 
