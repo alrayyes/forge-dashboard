@@ -68,11 +68,15 @@ What stays on the server, because a rule reads it:
 - `ci` and `checks` on a pull request: what it may do (`allowedActions`),
   auto-merge and its status, the quick filters, the navigation counts, the
   CI poll and the auto-update of a branch.
-- `status` and `checks` on a default branch: the CI poll and the MCP tools.
-- `failingOnlyForApproval`, a GitHub-only fact about the required checks.
+- `status` and `checks` on a default branch: the CI poll reads them. The MCP
+  tools only return the row. No server rule reads `failingJobs`, and the page
+  needs it for a row with no `runs` or a cut-short job list.
 
 The page draws those fields for a row it has no facts for: a branch with no
 `runs` or a cut-short job list, a pull request outside the rows in view.
+
+One more server-only fact never reaches the wire: on GitHub, whether held
+runs are the only reason CI reads as failing. The menu pill count reads it.
 
 A run that was only cancelled reads as cancelled in the fold, on a branch and
 on a pull request. The server's own pull request verdict differs (GitHub's
