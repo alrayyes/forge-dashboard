@@ -48,6 +48,37 @@ page only shows what it was told. The test is whether a second client, a client
 library or an agent, would need the same answer. The reasons, and what it
 costs, are in [ADR 0001](docs/adr/0001-business-rules-live-behind-the-api.md).
 
+### The one exception: the pill folds in the page
+
+A CI pill is drawn from the jobs, not from a verdict the server computed.
+The server sends the facts: each run (`runs` on a default branch, the runs on
+the check stream) with its jobs, their status and conclusion, and whether the
+job list was cut short. The page folds them once, in `web/src/lib/check-fold.ts`
+(a branch) and `web/src/lib/pr-fold.ts` (a pull request, built on the first).
+The same jobs fill the pipeline dialog, so a pill and the list under it cannot
+disagree, and a live stream changes the pill without a refresh.
+
+This departs from the preceding rule on purpose. The pill is a display of what
+the jobs did and decides nothing. A second client that wants its own pill
+folds the same facts. The cost is one fold kept in step with the server's
+(the cases in `check-fold.test.ts` and the server's own tests).
+
+What stays on the server, because a rule reads it:
+
+- `ci` and `checks` on a pull request: what it may do (`allowedActions`),
+  auto-merge and its status, the quick filters, the navigation counts, the
+  CI poll and the auto-update of a branch.
+- `status` and `checks` on a default branch: the CI poll and the MCP tools.
+- `failingOnlyForApproval`, a GitHub-only fact about the required checks.
+
+The page draws those fields for a row it has no facts for: a branch with no
+`runs` or a cut-short job list, a pull request outside the rows in view.
+
+A run that was only cancelled reads as cancelled in the fold, on a branch and
+on a pull request. The server's own pull request verdict differs (GitHub's
+rollup says failure, Forgejo's says none or success), which is why the pill of
+a watched row can differ from the field until the next refresh.
+
 ## One user per instance
 
 An instance has exactly one user, the owner. There are no invites, no admin
