@@ -338,6 +338,11 @@ cheaply:
   `get_main_branch_checks` lists the same jobs. The snapshot grows by those job
   lists for Forgejo repos.
 
+  The page folds a row's `runs` into its pill, its counts and its `Failing:`
+  line, so a Forgejo row reads the same as the dialog without watching
+  anything. A row with no `runs`, or an empty list, keeps the status the
+  refresh sent. A row the stream is watching reads its live jobs instead.
+
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget
 is spent (the refresh skips it until the reset; see
@@ -372,8 +377,9 @@ stream takes eight watched rows at once, and the pipeline panel keeps the
 eighth. The rows are chosen from the pills of the last refresh, so a row
 whose live pill leaves the status filter stays watched instead of flapping.
 A filter change watches the rows that came in and stops watching the ones
-that left. A row past the seventh keeps the pill from the refresh until a
-filter brings it into the first seven.
+that left. A row past the seventh keeps the pill its `runs` fold to (or the
+pill from the refresh, for a row with none) until a filter brings it into
+the first seven.
 
 `POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns the
 failed workflow runs on that same commit, only their failed jobs (on Forgejo,
