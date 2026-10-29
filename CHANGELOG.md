@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.11.6](https://github.com/alrayyes/forge-dashboard/compare/v8.11.5...v8.11.6) (2026-10-29)
+
+
+### Bug Fixes
+
+* **web:** stop update all waiting on a refresh ([#3064](https://github.com/alrayyes/forge-dashboard/issues/3064)) ([ec651df](https://github.com/alrayyes/forge-dashboard/commit/ec651dffabd66385879fe536c2e74757ce2ee117))
+
 ## [8.11.5](https://github.com/alrayyes/forge-dashboard/compare/v8.11.4...v8.11.5) (2026-10-29)
 
 
