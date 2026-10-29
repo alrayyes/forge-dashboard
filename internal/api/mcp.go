@@ -87,7 +87,10 @@ func newMCPServer(deps Deps) *mcp.Server {
 			"the same read-only data the web UI's own dashboard renders. Read-only: " +
 			"this app never writes to either forge through this tool.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, dashboardResponse, error) {
-		return nil, dashboardFor(ctx, deps, boardView{}), nil
+		res := dashboardFor(ctx, deps, boardView{})
+		res.MainBranchPage = withoutRunFacts(res.MainBranchPage)
+
+		return nil, res, nil
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
@@ -110,12 +113,8 @@ func newMCPServer(deps Deps) *mcp.Server {
 			"already holds, so it costs no forge budget however often you call it.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, mainBranchesResponse, error) {
 		// The page orders its own rows, so the tool does the same for its caller.
-		res := resolveMainBranchesFor(ctx, deps)
+		res := withoutRunFacts(resolveMainBranchesFor(ctx, deps))
 		dashboard.SortMainBranches(res.Branches)
-		// get_main_branch_checks lists the jobs, so the rows don't repeat them.
-		for i := range res.Branches {
-			res.Branches[i].Runs = nil
-		}
 
 		return nil, res, nil
 	})

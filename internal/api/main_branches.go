@@ -51,6 +51,18 @@ func buildMainBranchesResponse(generatedAt time.Time, forges []dashboard.ForgeHe
 	}
 }
 
+// withoutRunFacts is page with the runs left off every row, for the MCP tools:
+// get_main_branch_checks lists the same jobs, and an agent pays for every token
+// of a payload. It copies the rows, so the snapshot's own keep theirs.
+func withoutRunFacts(page mainBranchesResponse) mainBranchesResponse {
+	page.Branches = slices.Clone(page.Branches)
+	for i := range page.Branches {
+		page.Branches[i].Runs = nil
+	}
+
+	return page
+}
+
 // resolveMainBranchesFor answers the CI status of every tracked repo's default
 // branch (#1224) from the snapshot the background refresh already holds.
 // It never calls a forge, so it costs no rate-limit budget however often it's
