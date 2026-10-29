@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.13.0](https://github.com/alrayyes/forge-dashboard/compare/v8.12.0...v8.13.0) (2026-10-29)
+
+
+### Features
+
+* **forgejo:** send run facts on default branch rows ([#3074](https://github.com/alrayyes/forge-dashboard/issues/3074)) ([07b888f](https://github.com/alrayyes/forge-dashboard/commit/07b888f984dfcfea26dd550b92ba71116d264bda))
+
 ## [8.12.0](https://github.com/alrayyes/forge-dashboard/compare/v8.11.6...v8.12.0) (2026-10-29)
 
 
