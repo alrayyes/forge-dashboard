@@ -35,7 +35,7 @@ that left. A row past the seventh keeps the pill from the last refresh. When
 the live stream drops, a watched row reads the refresh again, so it doesn't
 show a pill the stream can no longer vouch for. The row stays watched, and it
 folds live again once the stream is back and lists it. The Main branches page
-does the same, except that a Forgejo row falls back to the pill its snapshot
+does the same, except that a row falls back to the pill its snapshot
 `runs` fold to. A run whose job list the forge cut short can't be folded, so
 a row holding one keeps the status the server sent. The Issues page watches
 the pull requests its rows draw a pill for, so those CI pills follow the live

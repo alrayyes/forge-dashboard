@@ -313,7 +313,12 @@ cheaply:
   they add no request, and neither does the latest release, which rides the same
   query. GitHub leaves drafts and pre-releases out of it, so a repository with
   only drafts or pre-releases has none. All of this covers a personal access
-  token and a GitHub App.
+  token and a GitHub App. The query reads the first 50 checks of the commit.
+  Each says which workflow run and attempt it belongs to, so the row's `runs`
+  group them the way Forgejo's do. A check of another app, or a legacy commit
+  status, belongs to no run. GitHub reports no start or end for a run, so a
+  GitHub run has none. A commit with more than 50 checks marks every run
+  `jobsTruncated`.
   A username with no token has no rows, because its hourly budget is too small
   to spend on this.
 - **Forgejo**: the refresh lists the Actions runs of each repo's default
@@ -331,20 +336,20 @@ cheaply:
   release would be one more read per repo, so a Forgejo row has none for now.
   The jobs it counted also ride on the row as `runs`, one entry for each run
   attempt with its status and its jobs, so a client can work out the pill from
-  the same facts. That costs no request. GitHub rows have no `runs` yet.
+  the same facts. That costs no request, and a GitHub row carries them too.
   The snapshot, `GET /api/dashboard` and `GET /api/main-branches` send them.
   The MCP tools `get_main_branches` and `get_dashboard`, and the in-page
   WebMCP tools of the same names, leave them out, since
   `get_main_branch_checks` lists the same jobs. The snapshot grows by those job
-  lists for Forgejo repos.
+  lists, up to 50 checks for each GitHub repo.
 
   The page folds a row's `runs` into its pill, its counts and its `Failing:`
-  line, so a Forgejo row reads the same as the dialog without watching
-  anything. A row with no `runs`, or an empty list, keeps the status the
-  refresh sent. So does a row with a run marked `jobsTruncated`: the forge
-  has more jobs for that run than the list holds, so the server's own status
-  stands instead of a fold of part of them. A row the stream is watching
-  reads its live jobs instead.
+  line, so a row reads the same as the dialog without watching anything. A
+  row with no `runs`, or an empty list, keeps the status the refresh sent.
+  So does a row with a run marked `jobsTruncated`: the forge has more jobs
+  for that run than the list holds, so the server's own status stands
+  instead of a fold of part of them. A row the stream is watching reads its
+  live jobs instead.
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget

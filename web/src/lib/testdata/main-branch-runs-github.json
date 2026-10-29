@@ -1,0 +1,77 @@
+{
+  "status": "failed",
+  "checks": {
+    "passed": 2,
+    "skipped": 0,
+    "running": 1,
+    "waiting": 0,
+    "failed": 1
+  },
+  "runs": [
+    {
+      "runId": 1,
+      "runAttempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "checks": [
+        {
+          "name": "lint",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://github.com/alrayyes/a/actions/runs/1/job/11",
+          "jobId": 11,
+          "runId": 1,
+          "runName": "ci",
+          "runNumber": 5,
+          "startedAt": "2026-10-10T09:01:00Z",
+          "completedAt": "2026-10-10T09:02:00Z",
+          "runAttempt": 1
+        },
+        {
+          "name": "unit",
+          "status": "completed",
+          "conclusion": "failure",
+          "url": "https://github.com/alrayyes/a/actions/runs/1/job/12",
+          "jobId": 12,
+          "runId": 1,
+          "runName": "ci",
+          "runNumber": 5,
+          "startedAt": "2026-10-10T09:01:00Z",
+          "completedAt": "2026-10-10T09:05:00Z",
+          "runAttempt": 1
+        }
+      ]
+    },
+    {
+      "runId": 2,
+      "runAttempt": 2,
+      "status": "in_progress",
+      "checks": [
+        {
+          "name": "e2e",
+          "status": "in_progress",
+          "url": "https://github.com/alrayyes/a/actions/runs/2/job/21",
+          "jobId": 21,
+          "runId": 2,
+          "runName": "deploy",
+          "runNumber": 6,
+          "startedAt": "2026-10-10T09:03:00Z",
+          "runAttempt": 2
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "name": "codecov",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://app.codecov.io/gh/alrayyes/a",
+          "jobId": 31,
+          "startedAt": "2026-10-10T09:04:00Z",
+          "completedAt": "2026-10-10T09:04:30Z"
+        }
+      ]
+    }
+  ]
+}
