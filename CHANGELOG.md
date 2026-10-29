@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.16.0](https://github.com/alrayyes/forge-dashboard/compare/v8.15.0...v8.16.0) (2026-10-29)
+
+
+### Features
+
+* **web:** watch the pull request rows in view ([#3093](https://github.com/alrayyes/forge-dashboard/issues/3093)) ([fde7830](https://github.com/alrayyes/forge-dashboard/commit/fde78305b6538b5232349ab52b0de3a888c6ca3c))
+
 ## [8.15.0](https://github.com/alrayyes/forge-dashboard/compare/v8.14.2...v8.15.0) (2026-10-29)
 
 
