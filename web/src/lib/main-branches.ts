@@ -176,6 +176,18 @@ export type MainBranches = {
   branches: MainBranch[];
 };
 
+// A main branch page without the run facts on its rows, for an agent that pays
+// for every token and reads the jobs from get_main_branch_checks. Returns a new
+// page and leaves the one it was given as it was.
+export function withoutRunFacts<T extends { branches: object[] }>(page: T): T {
+  return {
+    ...page,
+    branches: page.branches.map(
+      ({ runs: _runs, ...row }: { runs?: unknown }) => row,
+    ),
+  };
+}
+
 // Whether next may replace current. A read that was slow can answer after a
 // newer stream message; the older rows then stay out. A time that can't be
 // read counts for the newer page, so nothing is dropped over it.

@@ -204,6 +204,52 @@ describe('WebMCP read tools', () => {
     ]);
   });
 
+  // get_main_branch_checks lists the jobs, so a row does not repeat them as
+  // runs, as the server's MCP tools leave them out too.
+  test('get_main_branches leaves the run facts off every row', async () => {
+    const { tool } = setup({
+      body: {
+        branches: [
+          {
+            forge: 'forgejo',
+            fullName: 'o/a',
+            runs: [{ runId: 7, checks: [] }],
+          },
+        ],
+      },
+    });
+
+    const got = (await tool('get_main_branches').execute({})) as {
+      branches: object[];
+    };
+
+    expect(got.branches[0]).not.toHaveProperty('runs');
+  });
+
+  test('get_dashboard leaves the run facts off the main branch page', async () => {
+    const tools = createWebMCPTools({
+      getDashboard: async () => ({
+        pullRequests: [],
+        mainBranchPage: {
+          branches: [{ fullName: 'o/a', runs: [{ runId: 7, checks: [] }] }],
+        },
+      }),
+    });
+    const tool = tools.find((t) => t.name === 'get_dashboard');
+
+    expect(await tool?.execute({})).toEqual({
+      pullRequests: [],
+      mainBranchPage: { branches: [{ fullName: 'o/a' }] },
+    });
+  });
+
+  test('get_main_branches says a row does not repeat the jobs as runs', () => {
+    const { tool } = setup();
+    expect(tool('get_main_branches').description).toContain(
+      'does not repeat those jobs as runs',
+    );
+  });
+
   test('get_main_branches returns a row with non-zero check counts untouched', async () => {
     const checks = {
       passed: 13,
