@@ -4041,12 +4041,9 @@
     // No confirm step, unlike doMerge — bringing a branch up to date is
     // routine and reversible in a way completing the pull request isn't.
     // Resolves true once the server took the request, false when it did not.
-    // `onFailure` gets the reason, for a caller (Update all) that shows it
-    // on its own row too.
     function doUpdateBranch(
       item: PullRequestItem,
       button: HTMLButtonElement,
-      { onFailure }: { onFailure?: (reason: string) => void } = {},
     ): Promise<boolean> {
       const key = prKey(item);
       updateBranchState[key] = {
@@ -4131,7 +4128,6 @@
               return;
             }
           }
-          onFailure?.(err.status === undefined ? NETWORK_FAILURE : err.message);
           renderActionRefusal(item, err, fkey, "update the branch", (next) => {
             updateBranchState[key] = next;
           });
@@ -5839,13 +5835,12 @@
     // ---- update all, on the Pull requests page (#3011) ----
     // The rows the filters leave. Each chosen row goes through the same Update
     // branch a row has, so the server's own refusal shows on that row of the
-    // dialog. Nothing shows while no listed row can be updated.
+    // board. Nothing shows while no listed row can be updated.
     let visiblePullRows: PullRequestItem[] = [];
     let updateAllRun: { done: number; total: number } | null = null;
     let updateAllShown: {
       item: PullRequestItem;
       box: HTMLInputElement;
-      note: HTMLElement;
     }[] = [];
 
     function currentUpdatePlan() {
@@ -5892,18 +5887,14 @@
       const title = document.getElementById("update-all-title");
       if (title)
         title.textContent = `Update ${count} pull request${count === 1 ? "" : "s"}?`;
-      const progress = document.getElementById("update-all-progress");
-      if (progress) progress.textContent = "";
-      const confirm = document.getElementById("update-all-confirm");
-      if (confirm instanceof HTMLButtonElement) confirm.disabled = false;
       updateAllShown = plan.eligible.map((item) => {
         const box = document.createElement("input");
         box.type = "checkbox";
         box.checked = true;
-        return { item, box, note: el("span", "update-all-note") };
+        return { item, box };
       });
       document.getElementById("update-all-list")?.replaceChildren(
-        ...updateAllShown.map(({ item, box, note }) => {
+        ...updateAllShown.map(({ item, box }) => {
           const li = el("li", "update-all-item");
           const label = el("label", "update-all-label");
           label.appendChild(box);
@@ -5921,7 +5912,6 @@
           );
           label.appendChild(text);
           li.appendChild(label);
-          li.appendChild(note);
           return li;
         }),
       );
@@ -5946,32 +5936,19 @@
         updateAllDialog()?.close();
         return;
       }
-      const confirm = document.getElementById("update-all-confirm");
-      if (confirm instanceof HTMLButtonElement) confirm.disabled = true;
-      for (const r of updateAllShown) r.box.disabled = true;
-      const progress = document.getElementById("update-all-progress");
+      // The dialog's job is done once the person says yes. Progress lives on
+      // the header button and a refusal on its own board row, where
+      // doUpdateBranch puts it. Closing hands focus back to the button.
+      updateAllDialog()?.close();
       const status = document.getElementById("update-all-status");
       updateAllRun = { done: 0, total: chosen.length };
       let failed = 0;
       updateUpdateAll();
-      if (progress)
-        progress.textContent = updateProgressLabel(0, chosen.length);
       for (const item of chosen) {
-        const row = updateAllShown.find((r) => r.item === item);
-        const requested = await doUpdateBranch(item, buttonEl("row-action"), {
-          onFailure: (reason) => {
-            if (row) row.note.textContent = reason;
-          },
-        });
+        const requested = await doUpdateBranch(item, buttonEl("row-action"));
         if (!requested) failed++;
-        else if (row) row.note.textContent = "Update requested.";
         updateAllRun.done++;
         updateUpdateAll();
-        if (progress)
-          progress.textContent = updateProgressLabel(
-            updateAllRun.done,
-            updateAllRun.total,
-          );
       }
       const total = updateAllRun.total;
       updateAllRun = null;
@@ -5980,7 +5957,6 @@
         failed === 0
           ? `Update requested for ${total}.`
           : `Update requested for ${total - failed} of ${total}. ${failed} failed.`;
-      if (progress) progress.textContent = summary;
       if (status) status.textContent = summary;
     }
 
@@ -9994,7 +9970,6 @@
         >
           <h2 id="update-all-title">Update pull requests?</h2>
           <ul class="update-all-list" id="update-all-list"></ul>
-          <p class="update-all-progress" id="update-all-progress"></p>
           <div class="update-all-actions">
             <button type="button" id="update-all-cancel">Close</button>
             <button type="button" id="update-all-confirm">Update</button>

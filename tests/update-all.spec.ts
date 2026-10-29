@@ -89,10 +89,8 @@ test('Update all updates the ticked rows', async ({ page }) => {
   await dialog.getByRole('checkbox').nth(2).uncheck();
 
   await dialog.getByRole('button', { name: 'Update', exact: true }).click();
-  await expect(dialog.locator('#update-all-progress')).toHaveText(
-    'Update requested for 2.',
-  );
-  expect(posts.map((p) => p.number)).toEqual([1, 2]);
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => posts.map((p) => p.number)).toEqual([1, 2]);
   await expect(page.locator('#update-all-status')).toHaveText(
     'Update requested for 2.',
   );
@@ -103,13 +101,14 @@ test('a refused update shows its reason on its row', async ({ page }) => {
   await page.getByRole('button', { name: 'Update all (2)' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Update', exact: true }).click();
-  await expect(dialog.locator('#update-all-progress')).toHaveText(
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => posts.length).toBe(2);
+  await expect(
+    page.locator('#pr-rows .row', { hasText: 'Change number 3' }),
+  ).toContainText('The pull request has conflicts.');
+  await expect(page.locator('#update-all-status')).toHaveText(
     'Update requested for 1 of 2. 1 failed.',
   );
-  expect(posts).toHaveLength(2);
-  await expect(
-    dialog.getByRole('listitem').filter({ hasText: 'Change number 3' }),
-  ).toContainText('The pull request has conflicts.');
 });
 
 test('Escape on the confirm updates nothing', async ({ page }) => {
