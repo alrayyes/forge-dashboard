@@ -26,6 +26,25 @@ type osvServer struct {
 	queries atomic.Int32
 	fail    int
 	delay   time.Duration
+	// arrive and gate hold each advisory fetch: it announces itself on arrive,
+	// then waits for gate to close.
+	arrive chan struct{}
+	gate   chan struct{}
+}
+
+// hold parks a fetch while the gate is shut and reports false when the request
+// ended first.
+func (s *osvServer) hold(r *http.Request) bool {
+	if s.gate == nil {
+		return true
+	}
+	s.arrive <- struct{}{}
+	select {
+	case <-s.gate:
+		return true
+	case <-r.Context().Done():
+		return false
+	}
 }
 
 func (s *osvServer) start(t *testing.T) *osv.Client {
@@ -63,6 +82,9 @@ func (s *osvServer) start(t *testing.T) *osv.Client {
 	mux.HandleFunc("GET /v1/vulns/{id}", func(w http.ResponseWriter, r *http.Request) {
 		s.details.Add(1)
 		time.Sleep(s.delay)
+		if !s.hold(r) {
+			return
+		}
 		d, ok := s.detail[r.PathValue("id")]
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
@@ -331,41 +353,120 @@ func TestScan_StopsFetchingRecordsAfterTheFirstError(t *testing.T) {
 	assert.Less(t, s.details.Load(), int32(100), "a failing OSV doesn't cost a call per advisory")
 }
 
+// fakeClock is a clock the test winds by hand. stopped gets a value each time a
+// running timer is stopped.
+type fakeClock struct {
+	mu      sync.Mutex
+	now     time.Time
+	timers  []*fakeTimer
+	stopped chan struct{}
+}
+
+type fakeTimer struct {
+	at   time.Time
+	f    func()
+	live bool
+}
+
+func newFakeClock() *fakeClock {
+	return &fakeClock{now: time.Unix(0, 0), stopped: make(chan struct{}, 16)}
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.now
+}
+
+func (c *fakeClock) AfterFunc(d time.Duration, f func()) func() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	t := &fakeTimer{at: c.now.Add(d), f: f, live: true}
+	c.timers = append(c.timers, t)
+
+	return func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		was := t.live
+		t.live = false
+		if was {
+			select {
+			case c.stopped <- struct{}{}:
+			default:
+			}
+		}
+
+		return was
+	}
+}
+
+// Advance moves time on and fires the timers that fall due.
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	c.now = c.now.Add(d)
+	var due []func()
+	for _, t := range c.timers {
+		if t.live && !t.at.After(c.now) {
+			t.live = false
+			due = append(due, t.f)
+		}
+	}
+	c.mu.Unlock()
+	for _, f := range due {
+		f()
+	}
+}
+
 func TestScan_TimeQueuedBehindTheFetchLimitIsNotCountedAgainstABudget(t *testing.T) {
 	t.Parallel()
-	const scans, perScan = 6, 8
-	s := &osvServer{vulns: map[string][]string{}, detail: map[string]map[string]any{}, delay: 40 * time.Millisecond}
-	var all [][]osv.Package
-	for i := range scans {
-		var pkgs []osv.Package
-		for j := range perScan {
-			name := fmt.Sprintf("p%d-%d", i, j)
-			id := "GHSA-" + name
-			s.vulns[name+"@1.0.0"] = []string{id}
-			s.detail[id] = ghsa("LOW")
-			pkgs = append(pkgs, osv.Package{Ecosystem: "npm", Name: name, Version: "1.0.0"})
-		}
-		all = append(all, pkgs)
+	const budget = 100 * time.Millisecond
+	s := &osvServer{
+		vulns: map[string][]string{}, detail: map[string]map[string]any{},
+		arrive: make(chan struct{}, 2*osv.DetailConcurrency), gate: make(chan struct{}),
 	}
+	pkgs := func(prefix string) []osv.Package {
+		var out []osv.Package
+		for j := range osv.DetailConcurrency {
+			name := fmt.Sprintf("%s%d", prefix, j)
+			s.vulns[name+"@1.0.0"] = []string{"GHSA-" + name}
+			s.detail["GHSA-"+name] = ghsa("LOW")
+			out = append(out, osv.Package{Ecosystem: "npm", Name: name, Version: "1.0.0"})
+		}
+
+		return out
+	}
+	holder, waiter := pkgs("h"), pkgs("w")
 	client := s.start(t)
 
-	// Six scans of eight records each share eight fetch slots, so the last one
-	// waits about five fetches (200ms) before its own 40ms of work. A budget
-	// that ran during the wait would cut it off.
+	// The first scan takes every fetch slot and holds them.
 	var wg sync.WaitGroup
-	errs := make([]error, scans)
-	for i := range scans {
-		wg.Go(func() {
-			ctx, cancel := osv.WithBudget(t.Context(), 150*time.Millisecond)
-			defer cancel()
-			_, errs[i] = client.Scan(ctx, all[i])
-		})
+	wg.Go(func() {
+		_, err := client.Scan(t.Context(), holder)
+		assert.NoError(t, err)
+	})
+	for range osv.DetailConcurrency {
+		<-s.arrive
 	}
+
+	// The second has a budget and queues behind it: its clock stops.
+	clk := newFakeClock()
+	ctx, cancel := osv.WithBudgetClock(t.Context(), budget, clk)
+	defer cancel()
+	var err error
+	wg.Go(func() { _, err = client.Scan(ctx, waiter) })
+	select {
+	case <-clk.stopped:
+	case <-time.After(10 * time.Second): // only reached when the clock never stops
+		t.Fatal("the budget kept running while its scan was queued")
+	}
+
+	// Far longer than the budget goes by while it waits.
+	clk.Advance(10 * budget)
+	close(s.gate)
 	wg.Wait()
 
-	for i, err := range errs {
-		require.NoError(t, err, "scan %d", i)
-	}
+	require.NoError(t, err, "time spent queued must not count against the budget")
 }
 
 func TestWithBudget_StillEndsAScanThatIsSlowItself(t *testing.T) {
