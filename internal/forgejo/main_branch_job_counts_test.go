@@ -18,6 +18,15 @@ func jobsOf(statuses ...string) []map[string]any {
 	return out
 }
 
+// withIDs numbers jobs from 1: the walk of a run's jobs tells pages apart by id.
+func withIDs(jobs []map[string]any) []map[string]any {
+	for i, j := range jobs {
+		j["id"] = i + 1
+	}
+
+	return jobs
+}
+
 const (
 	started = "2026-10-10T09:01:00Z"
 	stopped = "2026-10-10T09:02:00Z"
@@ -293,18 +302,15 @@ func TestReadMainBranch_ASettledRunTakesItsFinishTimeFromItsJobs(t *testing.T) {
 	assert.Equal(t, 120, *row.DurationSeconds)
 }
 
-// A job list that fills the forge's default page may have more jobs on a page
-// nobody read, so it can't show that every job finished.
-func TestReadMainBranch_DoesNotSettleOnAJobListThatMayBeTruncated(t *testing.T) {
+// A list the forge says is cut short can't show that every job finished,
+// however few jobs it holds.
+func TestReadMainBranch_DoesNotSettleOnAJobListThatIsCutShort(t *testing.T) {
 	t.Parallel()
 
-	full := make([]string, 30)
-	for i := range full {
-		full[i] = "success"
-	}
 	s := &mainBranchServer{
-		runs: []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
-		jobs: map[string][]map[string]any{"1": jobsOf(full...)},
+		runs:      []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+		jobs:      map[string][]map[string]any{"1": withIDs(jobsOf("success", "success"))},
+		jobsTotal: map[string]int{"1": 40},
 	}
 	client := s.start(t)
 
@@ -312,6 +318,28 @@ func TestReadMainBranch_DoesNotSettleOnAJobListThatMayBeTruncated(t *testing.T) 
 
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.MainBranchRunning, row.Status)
+}
+
+// A whole list is whole however long it is: 30 finished jobs, the forge's
+// default page size, still settle the run.
+func TestReadMainBranch_SettlesOnAWholeJobListAsLongAsAPage(t *testing.T) {
+	t.Parallel()
+
+	full := make([]string, 30)
+	for i := range full {
+		full[i] = "success"
+	}
+	s := &mainBranchServer{
+		runs:      []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+		jobs:      map[string][]map[string]any{"1": withIDs(jobsOf(full...))},
+		jobsTotal: map[string]int{"1": 30},
+	}
+	client := s.start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.MainBranchPassed, row.Status)
 }
 
 func TestReadMainBranch_SettlingLeavesTheOtherCasesAlone(t *testing.T) {
