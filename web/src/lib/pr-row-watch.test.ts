@@ -1,7 +1,12 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { STREAM_SUBJECT_CAP } from './check-feed';
-import { pullRequestKey, pullRequestsToWatch } from './pr-row-watch';
+import { SHOWN_PILLS } from './linked-pull-requests';
+import {
+  linkedPullRequestsToWatch,
+  pullRequestKey,
+  pullRequestsToWatch,
+} from './pr-row-watch';
 
 const row = (number: number, repo = 'a/one') => ({
   forge: 'github',
@@ -32,6 +37,49 @@ describe('pullRequestsToWatch', () => {
 
   test('watches a row once however often it is listed', () => {
     expect(pullRequestsToWatch([row(1), row(1), row(2)])).toHaveLength(2);
+  });
+});
+
+describe('linkedPullRequestsToWatch', () => {
+  const issue = (...linked: ReturnType<typeof row>[]) => ({
+    linkedPullRequests: linked,
+  });
+
+  test('names the pull requests the rows link, in the order drawn', () => {
+    expect(
+      linkedPullRequestsToWatch([issue(row(3)), issue(row(1, 'b/two'))]),
+    ).toEqual([
+      { kind: 'pull_request', forge: 'github', fullName: 'a/one', number: 3 },
+      { kind: 'pull_request', forge: 'github', fullName: 'b/two', number: 1 },
+    ]);
+  });
+
+  test('skips the pills a row keeps behind its count', () => {
+    const many = Array.from({ length: SHOWN_PILLS + 2 }, (_, i) => row(i + 1));
+
+    expect(
+      linkedPullRequestsToWatch([issue(...many)]).map((s) => s.number),
+    ).toEqual(many.slice(0, SHOWN_PILLS).map((r) => r.number));
+  });
+
+  test('watches a pull request once however many issues link it', () => {
+    expect(
+      linkedPullRequestsToWatch([issue(row(1)), issue(row(1), row(2))]),
+    ).toHaveLength(2);
+  });
+
+  test('leaves a row with no links, or an unset list, out', () => {
+    expect(linkedPullRequestsToWatch([{}, issue(), issue(row(5))])).toEqual([
+      { kind: 'pull_request', forge: 'github', fullName: 'a/one', number: 5 },
+    ]);
+  });
+
+  test('leaves one slot of the cap for the pipeline dialog', () => {
+    const rows = Array.from({ length: 20 }, (_, i) => issue(row(i + 1)));
+
+    expect(linkedPullRequestsToWatch(rows)).toHaveLength(
+      STREAM_SUBJECT_CAP - 1,
+    );
   });
 });
 

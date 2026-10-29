@@ -1,4 +1,5 @@
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
+import { SHOWN_PILLS } from './linked-pull-requests';
 
 type Row = { forge: string; repo: string; number: number };
 
@@ -36,4 +37,18 @@ export function pullRequestsToWatch(
   }
 
   return wanted.slice(0, Math.min(limit, STREAM_SUBJECT_CAP - 1));
+}
+
+// The pull requests to watch for an issue page: the ones its rows draw a pill
+// for, in the order drawn. The pills a row keeps behind its count are not
+// drawn, so they are not watched. The same cap applies as for the pull request
+// page.
+export function linkedPullRequestsToWatch(
+  shown: readonly { linkedPullRequests?: readonly Row[] }[],
+): Subject[] {
+  return pullRequestsToWatch(
+    shown.flatMap(
+      (issue) => issue.linkedPullRequests?.slice(0, SHOWN_PILLS) ?? [],
+    ),
+  );
 }
