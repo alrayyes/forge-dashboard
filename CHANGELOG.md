@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.16.1](https://github.com/alrayyes/forge-dashboard/compare/v8.16.0...v8.16.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **web:** watch the first rows after a filter swap ([#3099](https://github.com/alrayyes/forge-dashboard/issues/3099)) ([0663451](https://github.com/alrayyes/forge-dashboard/commit/06634510a10032ffccb22e2f6e07aa5a0c99e02f))
+
 ## [8.16.0](https://github.com/alrayyes/forge-dashboard/compare/v8.15.0...v8.16.0) (2026-10-29)
 
 
