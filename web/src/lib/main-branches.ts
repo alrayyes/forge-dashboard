@@ -51,6 +51,18 @@ export type Advisories = {
   partial?: boolean;
 };
 
+// The jobs of one run attempt on a default branch, shaped like the stream's run
+// event without its subject. Matches api/openapi.yaml's MainBranchRun.
+export type MainBranchRun = {
+  runId?: number;
+  runAttempt?: number;
+  status?: string;
+  conclusion?: string;
+  startedAt?: string;
+  completedAt?: string;
+  checks: Check[];
+};
+
 // Matches api/openapi.yaml's MainBranch.
 export type MainBranch = {
   forge: string;
@@ -64,6 +76,8 @@ export type MainBranch = {
   durationSeconds: number | null;
   runUrl: string;
   checks: CheckCounts;
+  // What each run attempt did, for a Forgejo repo with runs. Absent otherwise.
+  runs?: MainBranchRun[];
   latestRelease: MainBranchRelease | null;
   advisories?: Advisories;
   // Set when the row is carried over from an earlier refresh.

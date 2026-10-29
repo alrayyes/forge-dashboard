@@ -322,13 +322,17 @@ cheaply:
   eleven jobs read as eleven checks. The pipeline dialog lists the same jobs
   from the same reading, so the pill and the dialog can't count different
   ones; a run whose jobs can't be read is one check in both, named after its
-  workflow. Commit statuses are not read: a default branch with only those
-  shows no checks, as its pill does. Forgejo sends no
-  ETag, so a finished run's jobs are kept in memory instead and read once; only
-  runs still going, or whose list still had a job going, are read again on each
-  poll (a failed or cancelled run's list is final five minutes after it ends).
-  Forgejo has no rate limit by default. Its latest
-  release would be one more read per repo, so a Forgejo row has none for now.
+  workflow. The row also carries those jobs as `runs`, one entry for each run
+  attempt with its own status and its jobs, so a client can work out the pill
+  from the same facts. It costs no request, since the jobs are already read to
+  count them. GitHub rows have no `runs` yet. Commit
+  statuses are not read: a default branch with only those shows no checks, as
+  its pill does. Forgejo sends no ETag, so a finished run's jobs are kept in
+  memory instead and read once; only runs still going, or whose list still had
+  a job going, are read again on each poll (a failed or cancelled run's list is
+  final five minutes after it ends). Forgejo has no rate limit by default. Its
+  latest release would be one more read per repo, so a Forgejo row has none for
+  now.
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget
