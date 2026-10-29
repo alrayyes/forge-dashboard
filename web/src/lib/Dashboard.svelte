@@ -6485,9 +6485,6 @@
       for (const s of subjects) watchedForge.set(pullRequestKey(s), s.forge);
       rowWatcher.set(subjects);
     }
-    // The pull request rows on screen, by row key, as the observer last told.
-    // Unset until it has reported, so the first rows are watched meanwhile.
-    let rowsInView: Set<string> | undefined;
     let rowObserver: IntersectionObserver | null = null;
     // Watch the pull request rows the person can see. The rows are read back
     // from the page, so a filter, a page of the pager or a group shows the rows
@@ -6506,21 +6503,21 @@
       );
       rowObserver?.disconnect();
       rowObserver = null;
-      rowsInView = undefined;
-      if (typeof IntersectionObserver === "undefined") {
-        watchRows(pullRequestsToWatch(shown));
-        return;
-      }
+      // Until the observer has told which rows are on screen the first rows
+      // are watched, so no row waits unwatched for its first report. Without
+      // an observer they stay watched.
+      watchRows(pullRequestsInView(shown, undefined));
+      if (typeof IntersectionObserver === "undefined") return;
       const seen = new Map<string, boolean>();
       rowObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
           const key = (entry.target as HTMLElement).dataset.prKey;
           if (key) seen.set(key, entry.isIntersecting);
         }
-        rowsInView = new Set(
+        const inView = new Set(
           [...seen].flatMap(([key, visible]) => (visible ? [key] : [])),
         );
-        watchRows(pullRequestsInView(shown, rowsInView));
+        watchRows(pullRequestsInView(shown, inView));
       });
       for (const row of rows) rowObserver.observe(row);
     }

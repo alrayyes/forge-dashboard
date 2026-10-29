@@ -131,7 +131,8 @@ test.describe('pull request rows follow their jobs', () => {
     const rows = page.locator('#pr-rows .row');
     await expect(rows.first()).toContainText('Passed');
     await feed.idle();
-    expect(feed.asked.every((s) => (s.number ?? 0) <= 7)).toBe(true);
+    // At the top, no row past the seventh was ever asked for.
+    expect(feed.asked.filter((s) => (s.number ?? 0) > 7)).toEqual([]);
 
     await rows.last().scrollIntoViewIfNeeded();
     await expect(rows.last()).toContainText('Passed');
@@ -146,6 +147,55 @@ test.describe('pull request rows follow their jobs', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  // Until the observer has told the page which rows are in view, the first
+  // rows are watched, so no row waits unwatched for its first report. With no
+  // observer at all the first rows stay watched. The choice itself is
+  // unit-tested (pr-row-watch.test.ts).
+  test('the first rows are watched before the view is reported', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      // An observer that never reports.
+      window.IntersectionObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+        takeRecords() {
+          return [];
+        }
+      } as unknown as typeof IntersectionObserver;
+    });
+    const feed = await serveChecks(page, () => PASSED);
+    await serveBoard(page, ROWS);
+    await page.goto('/pull-requests.html');
+    const rows = page.locator('#pr-rows .row');
+
+    await expect(rows.nth(0)).toContainText('Passed');
+    await expect(rows.nth(6)).toContainText('Passed');
+    await feed.idle();
+    expect(feed.asked).toHaveLength(7);
+  });
+
+  test('the first rows are watched where there is no observer', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'IntersectionObserver', {
+        value: undefined,
+        configurable: true,
+      });
+    });
+    const feed = await serveChecks(page, () => PASSED);
+    await serveBoard(page, ROWS);
+    await page.goto('/pull-requests.html');
+    const rows = page.locator('#pr-rows .row');
+
+    await expect(rows.nth(6)).toContainText('Passed');
+    await feed.idle();
+    expect(feed.asked).toHaveLength(7);
+    await expect(rows.nth(7)).toContainText('Running');
   });
 
   test('a dialog opened on a watched row lists its jobs without a new watch', async ({
