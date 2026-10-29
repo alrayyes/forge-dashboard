@@ -26,13 +26,15 @@ Last activity (the default, the server's order: most recently updated first,
 whether or not a pull request is ready to merge), Created and Repository. Pause
 and sort are saved with your other filters.
 
-The pull requests page also watches the first seven rows it draws, in the order
-it draws them, so their CI pills fold from the live jobs without a dialog open.
+The pull requests page also watches the rows you can see, in the order it
+draws them, so their CI pills fold from the live jobs without a dialog open.
 The stream takes eight watched subjects at once, and the pipeline panel keeps
-the eighth. A filter, a page of the pager or a grouping changes which rows are
-drawn, and the page watches the ones that came in and stops watching the ones
-that left. A row past the seventh keeps the pill from the last refresh. When
-the live stream drops, a watched row reads the refresh again, so it doesn't
+the eighth, so at most seven rows are watched. Before the page knows which rows
+are in view, it watches the first seven. A filter, a page of the pager or a
+grouping changes which rows are drawn, and scrolling changes which of them are
+in view. The page watches the rows that came into view and stops watching the
+ones that left. A row that isn't watched keeps the pill from the last refresh.
+When the live stream drops, a watched row reads the refresh again, so it doesn't
 show a pill the stream can no longer vouch for. The row stays watched, and it
 folds live again once the stream is back and lists it. The Main branches page
 does the same, except that a row falls back to the pill its snapshot
