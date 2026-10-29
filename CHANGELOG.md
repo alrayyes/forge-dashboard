@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.11.5](https://github.com/alrayyes/forge-dashboard/compare/v8.11.4...v8.11.5) (2026-10-29)
+
+
+### Bug Fixes
+
+* **web:** close the Update all dialog when Update is pressed ([#3060](https://github.com/alrayyes/forge-dashboard/issues/3060)) ([3928092](https://github.com/alrayyes/forge-dashboard/commit/3928092559ac3c73ff3d9db0c33900ba29e3015c))
+
 ## [8.11.4](https://github.com/alrayyes/forge-dashboard/compare/v8.11.3...v8.11.4) (2026-10-28)
 
 
