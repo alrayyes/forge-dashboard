@@ -15,6 +15,23 @@ type RunGroup struct {
 	Run *RunFacts
 }
 
+// MainBranchRuns is a job list as a default branch row sends it: one entry for
+// each run attempt, its jobs graded into the status and conclusion the stream
+// sends (WithFacts). Nil for no jobs.
+func MainBranchRuns(checks []Check) []MainBranchRun {
+	var runs []MainBranchRun
+	for _, g := range GroupRuns(WithFacts(checks)) {
+		run := MainBranchRun{RunID: g.RunID, RunAttempt: g.RunAttempt, Checks: g.Checks}
+		if g.Run != nil {
+			run.Status, run.Conclusion = g.Run.Status, g.Run.Conclusion
+			run.StartedAt, run.CompletedAt = g.Run.StartedAt, g.Run.CompletedAt
+		}
+		runs = append(runs, run)
+	}
+
+	return runs
+}
+
 // GroupRuns splits a job list by run and attempt, in the order each first
 // appears. A rerun keeps its run id and moves to a new attempt, so the pair is
 // what tells one from the other. A check without a run is a group of its own,

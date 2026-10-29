@@ -64,7 +64,9 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 	jobs := c.runJobs(ctx, repo, runs)
 	runs = settledRuns(runs, jobs)
 	row.Status = mainBranchStatus(runs)
-	row.Checks = countChecks(branchChecks(runs, jobs))
+	checks := branchChecks(runs, jobs)
+	row.Checks = countChecks(checks)
+	row.Runs = dashboard.MainBranchRuns(checks)
 	row.Commit = c.branchCommit(ctx, repo, runs[0])
 	switch {
 	case row.Status == dashboard.MainBranchFailed:
