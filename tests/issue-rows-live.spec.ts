@@ -74,6 +74,13 @@ async function serveBoard(page: Page, issues: unknown[]) {
   );
 }
 
+const subjectOf = (number: number) => ({
+  kind: 'pull_request' as const,
+  forge: 'github',
+  fullName: REPO,
+  number,
+});
+
 const pill = (page: Page, number: number) =>
   page
     .locator('#issue-rows .row', { hasText: `Issue ${number}` })
@@ -91,16 +98,29 @@ test.describe('issue rows follow the jobs of the pull requests they link', () =>
     await feed.idle();
     expect(feed.asked).toHaveLength(1);
 
-    await pushChecks(
-      page,
-      { kind: 'pull_request', forge: 'github', fullName: REPO, number: 12 },
-      FAILED,
-    );
+    await pushChecks(page, subjectOf(12), FAILED);
     await expect(pill(page, 1)).toContainText('Failed');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test('a fold that lands while updates are paused draws when they resume', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await serveBoard(page, [issue(1, 12)]);
+    await page.goto('/issues.html');
+    await expect(pill(page, 1)).toContainText('Passed');
+    await feed.idle();
+
+    await page.locator('#pause-updates-button').click();
+    await pushChecks(page, subjectOf(12), FAILED);
+    await expect(pill(page, 1)).toContainText('Passed');
+
+    await page.locator('#pause-updates-button').click();
+    await expect(pill(page, 1)).toContainText('Failed');
   });
 });

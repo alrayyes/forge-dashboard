@@ -5289,6 +5289,7 @@
       const before = issueShown.items;
       const wasLanded = issueShown.landed;
       const rendered = settleIssues();
+      if (!rendered) drawRowFolds();
       if (before.length > 0 || wasLanded)
         offerWhatIsShown(choicesChange(before, issueShown.items));
       return rendered;
