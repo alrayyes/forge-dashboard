@@ -53,6 +53,7 @@
   import {
     linkedPullRequestsToWatch,
     pullRequestKey,
+    pullRequestsInView,
     pullRequestsToWatch,
   } from "#lib/pr-row-watch.js";
   import { createRowWatcher } from "#lib/row-watcher.js";
@@ -6484,20 +6485,49 @@
       for (const s of subjects) watchedForge.set(pullRequestKey(s), s.forge);
       rowWatcher.set(subjects);
     }
-    // Watch the first rows the pull request page draws. The rows are read back
+    let rowObserver: IntersectionObserver | null = null;
+    // The pull request rows on screen, by row key, as the observer last told.
+    // Unset until it has reported once. A render keeps it, since the rows it
+    // rebuilds are mostly the ones the person is already looking at.
+    let lastInView: Set<string> | undefined;
+    // Watch the pull request rows the person can see. The rows are read back
     // from the page, so a filter, a page of the pager or a group shows the rows
-    // the person sees.
+    // the person sees, and scrolling moves the watch with the view. Rows are
+    // rebuilt on every render, so the observer is set up again for them.
     function watchVisiblePullRequests(
       container: HTMLElement,
       items: readonly PullRequestItem[],
     ) {
-      const keys = Array.from(
+      const rows = Array.from(
         container.querySelectorAll<HTMLElement>(".row[data-pr-key]"),
-        (row) => row.dataset.prKey,
       );
       const byKey = new Map(items.map((i) => [prKey(i), i]));
-      const shown = keys.flatMap((key) => byKey.get(key ?? "") ?? []);
-      watchRows(pullRequestsToWatch(shown));
+      const shown = rows.flatMap(
+        (row) => byKey.get(row.dataset.prKey ?? "") ?? [],
+      );
+      rowObserver?.disconnect();
+      rowObserver = null;
+      // Until the observer has told which rows are on screen the first rows
+      // are watched, so no row waits unwatched for its first report. After
+      // that a render starts from the last report, so an unchanged view
+      // changes nothing. Without an observer the first rows stay watched.
+      watchRows(pullRequestsInView(shown, lastInView));
+      if (typeof IntersectionObserver === "undefined") return;
+      const seen = new Map<string, boolean>();
+      rowObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          const key = (entry.target as HTMLElement).dataset.prKey;
+          if (key) seen.set(key, entry.isIntersecting);
+        }
+        lastInView = new Set(
+          [...seen].flatMap(([key, visible]) => (visible ? [key] : [])),
+        );
+        const folds = rowFolds.size;
+        watchRows(pullRequestsInView(shown, lastInView));
+        // A row let go of reads the refresh again, and nothing else draws it.
+        if (rowFolds.size < folds) redrawRowFolds();
+      });
+      for (const row of rows) rowObserver.observe(row);
     }
     // Watch the pull requests the issue rows on screen draw a pill for.
     function watchVisibleIssueLinks(
@@ -9505,6 +9535,7 @@
       clearInterval(tickTimer);
       window.clearTimeout(rateLimitResetTimer);
       eventSource?.close();
+      rowObserver?.disconnect();
       rowWatcher.stop();
     };
   }

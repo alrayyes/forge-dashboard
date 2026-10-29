@@ -78,7 +78,7 @@ export type MainBranch = {
   durationSeconds: number | null;
   runUrl: string;
   checks: CheckCounts;
-  // What each run attempt did, for a Forgejo repo with runs. Absent otherwise.
+  // What each run attempt did, for a repo with runs. Absent otherwise.
   runs?: MainBranchRun[];
   latestRelease: MainBranchRelease | null;
   advisories?: Advisories;
@@ -297,12 +297,12 @@ export function rowsToWatch(
     .map(({ forge, fullName }) => ({ kind: 'main_branch', forge, fullName }));
 }
 
-// The rows read from the run facts the snapshot carries: each Forgejo row with
-// runs takes the pill, counts and Failing: names from folding the jobs of all
-// its runs, so no row waits for the stream (which watches only a few) to agree
-// with its pipeline. A row with no runs (GitHub, or no run yet) keeps the
-// refresh's own status and counts. So does a row with a run whose job list was
-// cut short: folding a part of its jobs would read a failed or running run as
+// The rows read from the run facts the snapshot carries: each row with runs
+// takes the pill, counts and Failing: names from folding the jobs of all its
+// runs, so no row waits for the stream (which watches only a few) to agree
+// with its pipeline. A row with no runs (no run yet) keeps the refresh's own
+// status and counts. So does a row with a run whose job list was cut short:
+// folding a part of its jobs would read a failed or running run as
 // passed, where the server refused to call it over.
 export function withSnapshotRuns(rows: readonly MainBranch[]): MainBranch[] {
   return rows.map((row) => {
