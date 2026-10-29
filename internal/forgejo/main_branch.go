@@ -62,7 +62,7 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 	}
 
 	jobs, cut := c.runJobs(ctx, repo, runs)
-	runs = settledRuns(runs, jobs)
+	runs = settledRuns(runs, jobs, cut)
 	row.Status = mainBranchStatus(runs)
 	checks := branchChecks(runs, jobs)
 	row.Checks = countChecks(checks)
@@ -238,15 +238,15 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 // state its jobs give it: failed if any failed, else cancelled if any was, else
 // passed. A run with no readable jobs, or a job still going, is left as listed.
 // The settled run takes its stop time from the latest job to complete, so the
-// row keeps a finish time and duration. A job list as long as the forge's
-// default page (jobsPageSize) may have been cut short, and a run can't be
-// called over from a part of its jobs, so it is left as listed.
-func settledRuns(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) []*branchRun {
+// row keeps a finish time and duration. A run in cut is one whose job list the
+// forge says is cut short, and a run can't be called over from a part of its
+// jobs, so it is left as listed, however few jobs were read.
+func settledRuns(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob, cut map[int64]bool) []*branchRun {
 	out := make([]*branchRun, len(runs))
 	for i, r := range runs {
 		out[i] = r
 		list := jobs[r.ID]
-		if len(list) == 0 || len(list) >= jobsPageSize || checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning {
+		if len(list) == 0 || cut[r.ID] || checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning {
 			continue
 		}
 		status, stopped, over := jobsOutcome(list)
@@ -289,10 +289,6 @@ func jobsOutcome(list []*gitea.ActionWorkflowJob) (status string, stopped time.T
 
 	return "success", stopped, true
 }
-
-// jobsPageSize is how many jobs Forgejo answers with when no page size is asked
-// for, the most a job list can hold before it is cut short.
-const jobsPageSize = 30
 
 // runJobs reads the jobs of every run, by run id. A run whose jobs can't be
 // read is left out, and counts as one check (see branchChecks, countChecks).
