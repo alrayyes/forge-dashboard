@@ -35,7 +35,8 @@ that left. A row past the seventh keeps the pill from the last refresh. When
 the live stream drops, a watched row reads the refresh again, so it doesn't
 show a pill the stream can no longer vouch for. The row stays watched, and it
 folds live again once the stream is back and lists it. The Main branches page
-does the same. The
+does the same. The Issues page watches the pull requests its rows draw a pill
+for, so those CI pills follow the live jobs too. The
 releases and bots pages share the pull request board but watch no rows, so
 their pills read the refresh. A cancelled
 run reads as cancelled on a watched row, as it does in the panel. On Forgejo,

@@ -192,6 +192,7 @@ const singleUserSpecs = [
   '**/noindex.spec.ts',
   '**/closing-link-filter.spec.ts',
   '**/pull-request-rows-live.spec.ts',
+  '**/issue-rows-live.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the
