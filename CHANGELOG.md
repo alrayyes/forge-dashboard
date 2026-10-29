@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.14.1](https://github.com/alrayyes/forge-dashboard/compare/v8.14.0...v8.14.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* keep the server status for runs with a cut-short job list ([#3082](https://github.com/alrayyes/forge-dashboard/issues/3082)) ([2944d26](https://github.com/alrayyes/forge-dashboard/commit/2944d2656c9c67d82809b81eab46bfd21a9ca355))
+
 ## [8.14.0](https://github.com/alrayyes/forge-dashboard/compare/v8.13.0...v8.14.0) (2026-10-29)
 
 
