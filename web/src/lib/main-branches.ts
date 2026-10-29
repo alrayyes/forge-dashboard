@@ -294,6 +294,22 @@ export function rowsToWatch(
     .map(({ forge, fullName }) => ({ kind: 'main_branch', forge, fullName }));
 }
 
+// The rows read from the run facts the snapshot carries: each Forgejo row with
+// runs takes the pill, counts and Failing: names from folding the jobs of all
+// its runs, so no row waits for the stream (which watches only a few) to agree
+// with its pipeline. A row with no runs (GitHub, or no run yet) keeps the
+// refresh's own status and counts.
+export function withSnapshotRuns(rows: readonly MainBranch[]): MainBranch[] {
+  return rows.map((row) => {
+    const jobs = row.runs?.flatMap((run) => run.checks) ?? [];
+    if (jobs.length === 0) return row;
+
+    const { status, counts, failing } = foldBranch(jobs);
+
+    return { ...row, status, checks: counts, failingJobs: failing };
+  });
+}
+
 // The rows read from their live job lists, keyed by branchKey, so the pill, the
 // chips, the filter, the nav count and the Failing: line all fold the one
 // list. A row with no list is the refresh, untouched.

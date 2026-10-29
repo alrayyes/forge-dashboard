@@ -76,6 +76,7 @@
     rowsToWatch,
     supersedes,
     withLiveJobs,
+    withSnapshotRuns,
   } from "#lib/main-branches.js";
   import { followMainBranchPage } from "#lib/main-branch-stream.js";
   import { checkFeed } from "#lib/check-feed.js";
@@ -124,20 +125,20 @@
       : rowChecks,
   );
 
-  // Sorted by the refresh, then each watched row and the open dialog's row is
-  // read from its jobs: the row keeps its place, and the pill, the chips, the
-  // filter and the nav pill all count it one way.
-  const branches = $derived(
-    withLiveJobs(sortMainBranches(data?.branches ?? []), liveLists),
+  // Sorted by the refresh, then every row with runs is read from them, and each
+  // watched row and the open dialog's row from its live jobs: the row keeps its
+  // place, and the pill, the chips, the filter and the nav pill all count it
+  // one way.
+  const refreshed = $derived(
+    withSnapshotRuns(sortMainBranches(data?.branches ?? [])),
   );
+  const branches = $derived(withLiveJobs(refreshed, liveLists));
   const visible = $derived(applyFilter(branches, filter));
   // The rows to watch are chosen from the refresh's pills, not the live ones: a
   // row whose live pill left the filter would be let go, read the refresh
   // again, come back and flap. They are the first rows the page shows, up to
   // the stream's cap less the dialog's slot; the rest keep the refresh's pill.
-  const watchedRows = $derived(
-    rowsToWatch(applyFilter(sortMainBranches(data?.branches ?? []), filter)),
-  );
+  const watchedRows = $derived(rowsToWatch(applyFilter(refreshed, filter)));
   const rowWatcher = createRowWatcher({
     feed: checkFeed,
     onChecks: (key, checks) => {
