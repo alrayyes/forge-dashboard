@@ -103,7 +103,8 @@ func newMCPServer(deps Deps) *mcp.Server {
 			"count is a floor and a zero does not mean the repository is clean. " +
 			"A row's checks counts tally the jobs get_main_branch_checks lists; the " +
 			"CheckCounts schema says how cancelled and held runs count. On GitHub the " +
-			"two are read separately, so they can differ briefly. " +
+			"two are read separately, so they can differ briefly. A row does not " +
+			"repeat those jobs as runs: call get_main_branch_checks for them. " +
 			"Read-only: this app never writes to either " +
 			"forge through this tool. Reads the snapshot the background refresh " +
 			"already holds, so it costs no forge budget however often you call it.",
@@ -111,6 +112,10 @@ func newMCPServer(deps Deps) *mcp.Server {
 		// The page orders its own rows, so the tool does the same for its caller.
 		res := resolveMainBranchesFor(ctx, deps)
 		dashboard.SortMainBranches(res.Branches)
+		// get_main_branch_checks lists the jobs, so the rows don't repeat them.
+		for i := range res.Branches {
+			res.Branches[i].Runs = nil
+		}
 
 		return nil, res, nil
 	})
