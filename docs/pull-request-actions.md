@@ -1020,10 +1020,11 @@ Pressing it opens a confirm dialog with a tick box for each pull request, all
 ticked. Clear a box to leave that one out. `Update` then updates the ticked ones
 one after another, through the same request the row's `Update branch` sends. The
 dialog closes as soon as you press `Update`, and focus returns to the button.
-The button reads `Updating 2 of 4` as it goes. An update the forge refuses shows
-its reason on its own row and the others carry on. A screen reader hears
-`Update requested for 4.` when the run ends, or `Update requested for 3 of 4. 1
-failed.`
+The button reads `Updating 2 of 4` as it goes. No request waits on a board
+refresh. The board refreshes once, when the last one has been sent. An update
+the forge refuses shows its reason on its own row and the others carry on. A
+screen reader hears `Update requested for 4.` when the run ends, or `Update
+requested for 3 of 4. 1 failed.`
 
 Escape, or `Close`, before `Update` updates nothing.
 

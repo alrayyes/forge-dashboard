@@ -4041,9 +4041,12 @@
     // No confirm step, unlike doMerge — bringing a branch up to date is
     // routine and reversible in a way completing the pull request isn't.
     // Resolves true once the server took the request, false when it did not.
+    // A caller that sends several (Update all) passes `refresh: false` and
+    // refreshes the board once itself, so a slow forge holds up no later row.
     function doUpdateBranch(
       item: PullRequestItem,
       button: HTMLButtonElement,
+      { refresh = true }: { refresh?: boolean } = {},
     ): Promise<boolean> {
       const key = prKey(item);
       updateBranchState[key] = {
@@ -4104,7 +4107,7 @@
           });
           // The forge already took the action. A refresh that fails is not a
           // failed action: the next poll brings the board up to date.
-          return refreshBoard();
+          if (refresh) return refreshBoard();
         })
         .catch(async (err: ActionRequestError) => {
           // No status: the browser never saw an answer, and the update may
@@ -5945,7 +5948,9 @@
       let failed = 0;
       updateUpdateAll();
       for (const item of chosen) {
-        const requested = await doUpdateBranch(item, buttonEl("row-action"));
+        const requested = await doUpdateBranch(item, buttonEl("row-action"), {
+          refresh: false,
+        });
         if (!requested) failed++;
         updateAllRun.done++;
         updateUpdateAll();
@@ -5953,6 +5958,8 @@
       const total = updateAllRun.total;
       updateAllRun = null;
       updateUpdateAll();
+      // One catch-up for the whole run. The run is over, so nothing waits on it.
+      if (failed < total) void refreshBoard();
       const summary =
         failed === 0
           ? `Update requested for ${total}.`
