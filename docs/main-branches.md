@@ -329,6 +329,14 @@ cheaply:
   poll (a failed or cancelled run's list is final five minutes after it ends).
   Forgejo has no rate limit by default. Its latest
   release would be one more read per repo, so a Forgejo row has none for now.
+  The jobs it counted also ride on the row as `runs`, one entry for each run
+  attempt with its status and its jobs, so a client can work out the pill from
+  the same facts. That costs no request. GitHub rows have no `runs` yet.
+  The snapshot, `GET /api/dashboard` and `GET /api/main-branches` send them.
+  The MCP tools `get_main_branches` and `get_dashboard`, and the in-page
+  WebMCP tools of the same names, leave them out, since
+  `get_main_branch_checks` lists the same jobs. The snapshot grows by those job
+  lists for Forgejo repos.
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
 with the time it was last fetched, and so does a forge whose rate-limit budget

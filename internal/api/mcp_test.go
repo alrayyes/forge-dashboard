@@ -210,6 +210,7 @@ func TestMCP_GetMainBranches_ListsTheTool(t *testing.T) {
 	assert.Contains(t, found.Description, "unknown")
 	assert.Contains(t, found.Description, advisoriesWording)
 	assert.Contains(t, found.Description, checkCountsWording)
+	assert.Contains(t, found.Description, "does not repeat those jobs as runs")
 }
 
 // checkCountsWording is the key phrase the MCP tool and the WebMCP tool use
@@ -306,6 +307,75 @@ func TestMCP_GetMainBranches_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
 	byName(httpContent["branches"])
 	byName(toolContent["branches"])
 	assert.Equal(t, httpContent, toolContent)
+}
+
+// get_main_branch_checks already lists the jobs, so a row does not repeat them
+// as runs for a caller that pays for every token.
+func TestMCP_GetMainBranches_LeavesOutTheRunFacts(t *testing.T) {
+	t.Parallel()
+
+	row := branchRow("acme/busy", dashboard.MainBranchRunning)
+	row.Runs = []dashboard.MainBranchRun{{RunID: 7, RunAttempt: 1, Checks: []dashboard.Check{{Name: "unit"}}}}
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{row})
+
+	content := callMainBranchesTool(t, srvURL, cookie, 1)
+
+	assert.NotContains(t, content["branches"].([]any)[0], "runs")
+}
+
+// get_dashboard carries the main branch page too, so it leaves the runs out
+// for the same reason.
+func TestMCP_GetDashboard_LeavesOutTheRunFacts(t *testing.T) {
+	t.Parallel()
+
+	row := branchRow("acme/busy", dashboard.MainBranchRunning)
+	row.Runs = []dashboard.MainBranchRun{{RunID: 7, RunAttempt: 1, Checks: []dashboard.Check{{Name: "unit"}}}}
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{row})
+	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
+
+	var branches []any
+	require.Eventually(t, func() bool {
+		result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: "get_dashboard"})
+		if err != nil || result.IsError {
+			return false
+		}
+		content, _ := result.StructuredContent.(map[string]any)
+		page, _ := content["mainBranchPage"].(map[string]any)
+		branches, _ = page["branches"].([]any)
+
+		return len(branches) == 1
+	}, pollBudget, 10*time.Millisecond)
+
+	assert.NotContains(t, branches[0], "runs")
+}
+
+// The page reads the runs from the dashboard too, so GET /api/dashboard keeps
+// them.
+func TestDashboard_EndpointKeepsTheRunFacts(t *testing.T) {
+	t.Parallel()
+
+	row := branchRow("acme/busy", dashboard.MainBranchRunning)
+	row.Runs = []dashboard.MainBranchRun{{RunID: 7, RunAttempt: 1, Checks: []dashboard.Check{{Name: "unit"}}}}
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{row})
+	readMainBranchesFrom(t, srvURL, cookie, 1)
+
+	_, got := record(t, http.MethodGet, srvURL+"/api/dashboard", cookie)
+
+	assert.Contains(t, string(got.body), `"runs"`)
+}
+
+// The page folds the pill from the runs, so the endpoint keeps them.
+func TestMainBranches_EndpointKeepsTheRunFacts(t *testing.T) {
+	t.Parallel()
+
+	row := branchRow("acme/busy", dashboard.MainBranchRunning)
+	row.Runs = []dashboard.MainBranchRun{{RunID: 7, RunAttempt: 1, Checks: []dashboard.Check{{Name: "unit"}}}}
+	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{row})
+	readMainBranchesFrom(t, srvURL, cookie, 1)
+
+	_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
+
+	assert.Contains(t, string(got.body), `"runs"`)
 }
 
 func TestMCP_GetMainBranches_ListsNewestCommitFirstWhateverTheSnapshotOrder(t *testing.T) {

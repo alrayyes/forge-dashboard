@@ -59,44 +59,6 @@ type runEvent struct {
 	Error       string                    `json:"error,omitempty"`
 }
 
-// runGroup is the jobs of one run attempt, or one check that has no run.
-type runGroup struct {
-	key        string
-	runID      int64
-	runAttempt int64
-	checks     []dashboard.Check
-	// run is what the forge said about the run attempt, taken from its first
-	// job that carries it.
-	run *dashboard.RunFacts
-}
-
-// groupRuns splits a job list by run and attempt, in the order each first
-// appears. A rerun keeps its run id and moves to a new attempt, so the pair is
-// what tells one from the other. A check without a run is a group of its own,
-// named by its address and name.
-func groupRuns(checks []dashboard.Check) []runGroup {
-	var groups []runGroup
-	at := map[string]int{}
-	for _, c := range checks {
-		key := fmt.Sprintf("job/%s|%s", c.URL, c.Name)
-		if c.RunID > 0 {
-			key = fmt.Sprintf("run/%d/%d", c.RunID, c.RunAttempt)
-		}
-		i, ok := at[key]
-		if !ok {
-			i = len(groups)
-			at[key] = i
-			groups = append(groups, runGroup{key: key, runID: c.RunID, runAttempt: c.RunAttempt})
-		}
-		groups[i].checks = append(groups[i].checks, c)
-		if groups[i].run == nil && c.RunID > 0 {
-			groups[i].run = c.Run
-		}
-	}
-
-	return groups
-}
-
 // checkWatches tracks which subjects each open stream follows. It is created
 // once in NewMux, since Deps is passed by value.
 type checkWatches struct {
@@ -288,17 +250,17 @@ func (w *checkWatch) deliver(data []byte) bool {
 // every run, then each run the last listing sent and this one lacks. The caller
 // holds the watch's lock.
 func (held *watchedSubject) events(s checkSubject, checks []dashboard.Check) []runEvent {
-	groups := groupRuns(checks)
+	groups := dashboard.GroupRuns(checks)
 	listed := make(map[string]bool, len(groups))
 	events := make([]runEvent, 0, len(groups)+len(held.sent))
 	for _, g := range groups {
-		listed[g.key] = true
+		listed[g.Key] = true
 		ev := runEvent{
-			checkSubject: s, Key: g.key, RunID: g.runID, RunAttempt: g.runAttempt, Checks: g.checks,
+			checkSubject: s, Key: g.Key, RunID: g.RunID, RunAttempt: g.RunAttempt, Checks: g.Checks,
 		}
-		if g.run != nil {
-			ev.Status, ev.Conclusion = g.run.Status, g.run.Conclusion
-			ev.StartedAt, ev.CompletedAt = g.run.StartedAt, g.run.CompletedAt
+		if g.Run != nil {
+			ev.Status, ev.Conclusion = g.Run.Status, g.Run.Conclusion
+			ev.StartedAt, ev.CompletedAt = g.Run.StartedAt, g.Run.CompletedAt
 		}
 		events = append(events, ev)
 	}
@@ -309,7 +271,7 @@ func (held *watchedSubject) events(s checkSubject, checks []dashboard.Check) []r
 	}
 	held.sent = held.sent[:0:0]
 	for _, g := range groups {
-		held.sent = append(held.sent, g.key)
+		held.sent = append(held.sent, g.Key)
 	}
 	if len(events) == 0 {
 		events = append(events, runEvent{checkSubject: s})

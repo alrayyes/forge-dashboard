@@ -87,6 +87,11 @@ type MainBranch struct {
 	// are waiting and failed, tallied from what the status was worked out
 	// from, so it costs no request. Always present, all zero when unknown.
 	Checks CheckCounts `json:"checks"`
+	// Runs is what each run attempt on the newest commit did: the facts the
+	// status and the counts above were worked out from, left for a page to fold
+	// itself. Nil where the refresh doesn't read runs (GitHub) or the repo has
+	// none.
+	Runs []MainBranchRun `json:"runs,omitempty"`
 	// LatestRelease is the repository's newest published release, nil when it
 	// has none or the forge's read of it costs a request the refresh doesn't
 	// make. Drafts and pre-releases never count.
@@ -99,6 +104,21 @@ type MainBranch struct {
 	// source reads them for this forge; otherwise a known answer or an unknown
 	// one, and unknown is never shown as a zero count.
 	Advisories *Advisories `json:"advisories,omitempty"`
+}
+
+// MainBranchRun is the jobs of one run attempt on a default branch, shaped like
+// the stream's run event without its subject. Matches
+// components.schemas.MainBranchRun.
+type MainBranchRun struct {
+	RunID      int64 `json:"runId,omitempty"`
+	RunAttempt int64 `json:"runAttempt,omitempty"`
+	// Status, Conclusion, StartedAt and CompletedAt are what the forge reported
+	// about the run attempt itself, each left out where it gave none.
+	Status      CheckStatus     `json:"status,omitempty"`
+	Conclusion  CheckConclusion `json:"conclusion,omitempty"`
+	StartedAt   *time.Time      `json:"startedAt,omitempty"`
+	CompletedAt *time.Time      `json:"completedAt,omitempty"`
+	Checks      []Check         `json:"checks"`
 }
 
 // MainBranchRelease is a repository's latest release. Matches

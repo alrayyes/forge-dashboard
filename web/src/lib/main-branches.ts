@@ -51,6 +51,18 @@ export type Advisories = {
   partial?: boolean;
 };
 
+// The jobs of one run attempt on a default branch, shaped like the stream's run
+// event without its subject. Matches api/openapi.yaml's MainBranchRun.
+export type MainBranchRun = {
+  runId?: number;
+  runAttempt?: number;
+  status?: string;
+  conclusion?: string;
+  startedAt?: string;
+  completedAt?: string;
+  checks: Check[];
+};
+
 // Matches api/openapi.yaml's MainBranch.
 export type MainBranch = {
   forge: string;
@@ -64,6 +76,8 @@ export type MainBranch = {
   durationSeconds: number | null;
   runUrl: string;
   checks: CheckCounts;
+  // What each run attempt did, for a Forgejo repo with runs. Absent otherwise.
+  runs?: MainBranchRun[];
   latestRelease: MainBranchRelease | null;
   advisories?: Advisories;
   // Set when the row is carried over from an earlier refresh.
@@ -161,6 +175,18 @@ export type MainBranches = {
   forges: ForgeHealthEntry[];
   branches: MainBranch[];
 };
+
+// A main branch page without the run facts on its rows, for an agent that pays
+// for every token and reads the jobs from get_main_branch_checks. Returns a new
+// page and leaves the one it was given as it was.
+export function withoutRunFacts<T extends { branches: object[] }>(page: T): T {
+  return {
+    ...page,
+    branches: page.branches.map(
+      ({ runs: _runs, ...row }: { runs?: unknown }) => row,
+    ),
+  };
+}
 
 // Whether next may replace current. A read that was slow can answer after a
 // newer stream message; the older rows then stay out. A time that can't be

@@ -1,0 +1,83 @@
+{
+  "status": "failed",
+  "checks": {
+    "passed": 2,
+    "skipped": 1,
+    "running": 1,
+    "waiting": 1,
+    "failed": 1
+  },
+  "runs": [
+    {
+      "runId": 2,
+      "runAttempt": 2,
+      "status": "in_progress",
+      "startedAt": "2026-10-10T09:01:00Z",
+      "checks": [
+        {
+          "name": "e2e",
+          "status": "in_progress",
+          "url": "https://forge.example/alrayyes/a/actions/runs/1/jobs/e2e",
+          "jobId": 21,
+          "runId": 2,
+          "runName": "ci",
+          "startedAt": "2026-10-10T09:01:00Z",
+          "runAttempt": 2
+        },
+        {
+          "name": "deploy",
+          "status": "queued",
+          "url": "https://forge.example/alrayyes/a/actions/runs/1/jobs/deploy",
+          "jobId": 22,
+          "runId": 2,
+          "runName": "ci",
+          "startedAt": "2026-10-10T09:01:00Z",
+          "runAttempt": 2
+        }
+      ]
+    },
+    {
+      "runId": 1,
+      "runAttempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "startedAt": "2026-10-10T09:01:00Z",
+      "completedAt": "2026-10-10T09:02:00Z",
+      "checks": [
+        {
+          "name": "lint",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "https://forge.example/alrayyes/a/actions/runs/1/jobs/lint",
+          "jobId": 11,
+          "runId": 1,
+          "runName": "ci",
+          "startedAt": "2026-10-10T09:01:00Z",
+          "runAttempt": 1
+        },
+        {
+          "name": "unit",
+          "status": "completed",
+          "conclusion": "failure",
+          "url": "https://forge.example/alrayyes/a/actions/runs/1/jobs/unit",
+          "jobId": 12,
+          "runId": 1,
+          "runName": "ci",
+          "startedAt": "2026-10-10T09:01:00Z",
+          "runAttempt": 1
+        },
+        {
+          "name": "docs",
+          "status": "completed",
+          "conclusion": "skipped",
+          "url": "https://forge.example/alrayyes/a/actions/runs/1/jobs/docs",
+          "jobId": 13,
+          "runId": 1,
+          "runName": "ci",
+          "startedAt": "2026-10-10T09:01:00Z",
+          "runAttempt": 1
+        }
+      ]
+    }
+  ]
+}
