@@ -6514,7 +6514,10 @@
       watchRows(pullRequestsInView(shown, lastInView));
       if (typeof IntersectionObserver === "undefined") return;
       const seen = new Map<string, boolean>();
-      rowObserver = new IntersectionObserver((entries) => {
+      const observer = new IntersectionObserver((entries) => {
+        // An entry queued before a render replaced this observer is about rows
+        // the page no longer draws.
+        if (rowObserver !== observer) return;
         for (const entry of entries) {
           const key = (entry.target as HTMLElement).dataset.prKey;
           if (key) seen.set(key, entry.isIntersecting);
@@ -6527,7 +6530,8 @@
         // A row let go of reads the refresh again, and nothing else draws it.
         if (rowFolds.size < folds) redrawRowFolds();
       });
-      for (const row of rows) rowObserver.observe(row);
+      rowObserver = observer;
+      for (const row of rows) observer.observe(row);
     }
     // Watch the pull requests the issue rows on screen draw a pill for.
     function watchVisibleIssueLinks(
