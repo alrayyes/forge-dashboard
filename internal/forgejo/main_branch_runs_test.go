@@ -55,6 +55,35 @@ func TestReadMainBranch_CarriesTheRunFactsItCounted(t *testing.T) {
 	assert.JSONEq(t, string(want), string(raw))
 }
 
+// cutShortFixture is the row for a run whose job list the forge cut short,
+// which web/src/lib/main-branch-runs.test.ts folds too.
+const cutShortFixture = "../../web/src/lib/testdata/main-branch-runs-cut-short.json"
+
+// A run whose job list is cut short says so. The listed jobs are all green, but
+// the run is failed and the server won't call it over from a part of its jobs.
+func TestReadMainBranch_SaysWhenARunsJobsAreCutShort(t *testing.T) {
+	t.Parallel()
+
+	srv := runFactsServer()
+	srv.runs = srv.runs[1:]
+	srv.jobs = map[string][]map[string]any{"1": {
+		{"id": 11, "name": "lint", "status": "success", "run_attempt": 1, "started_at": started},
+		{"id": 12, "name": "unit", "status": "success", "run_attempt": 1, "started_at": started},
+	}}
+	srv.jobsTotal = map[string]int{"1": 40}
+	client := srv.start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+
+	got := map[string]any{"status": row.Status, "checks": row.Checks, "runs": row.Runs}
+	raw, err := json.Marshal(got)
+	require.NoError(t, err)
+	want, err := os.ReadFile(cutShortFixture)
+	require.NoError(t, err)
+	assert.JSONEq(t, string(want), string(raw))
+}
+
 // The facts are the lists the counts were worked out from, already in memory,
 // so a row costs the same requests with them. Every route is counted, not only
 // the runs and the jobs.

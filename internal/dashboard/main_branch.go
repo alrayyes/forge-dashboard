@@ -118,7 +118,10 @@ type MainBranchRun struct {
 	Conclusion  CheckConclusion `json:"conclusion,omitempty"`
 	StartedAt   *time.Time      `json:"startedAt,omitempty"`
 	CompletedAt *time.Time      `json:"completedAt,omitempty"`
-	Checks      []Check         `json:"checks"`
+	// JobsTruncated is set when the forge has more jobs for the run attempt than
+	// Checks lists.
+	JobsTruncated bool    `json:"jobsTruncated,omitempty"`
+	Checks        []Check `json:"checks"`
 }
 
 // MainBranchRelease is a repository's latest release. Matches

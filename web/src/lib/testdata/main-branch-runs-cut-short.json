@@ -1,0 +1,45 @@
+{
+  "status": "failed",
+  "checks": {
+    "passed": 2,
+    "skipped": 0,
+    "running": 0,
+    "waiting": 0,
+    "failed": 0
+  },
+  "runs": [
+    {
+      "runId": 1,
+      "runAttempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "startedAt": "2026-10-10T09:01:00Z",
+      "completedAt": "2026-10-10T09:02:00Z",
+      "jobsTruncated": true,
+      "checks": [
+        {
+          "name": "lint",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "",
+          "jobId": 11,
+          "runId": 1,
+          "runName": "ci",
+          "startedAt": "2026-10-10T09:01:00Z",
+          "runAttempt": 1
+        },
+        {
+          "name": "unit",
+          "status": "completed",
+          "conclusion": "success",
+          "url": "",
+          "jobId": 12,
+          "runId": 1,
+          "runName": "ci",
+          "startedAt": "2026-10-10T09:01:00Z",
+          "runAttempt": 1
+        }
+      ]
+    }
+  ]
+}

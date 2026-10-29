@@ -40,8 +40,11 @@ type mainBranchServer struct {
 	jobsCode int
 	// jobsFail makes the jobs route answer with that status for one run id.
 	jobsFail map[string]int
-	bareJobs bool // answer the jobs list as a bare array, as the live instance does
-	commit   map[string]any
+	// jobsTotal makes the jobs route claim that many jobs for one run id, more
+	// than it lists: a list the forge cut short.
+	jobsTotal map[string]int
+	bareJobs  bool // answer the jobs list as a bare array, as the live instance does
+	commit    map[string]any
 
 	mu    sync.Mutex
 	query map[string]string
@@ -128,7 +131,11 @@ func (s *mainBranchServer) serveJobs(t *testing.T, w http.ResponseWriter, r *htt
 
 		return
 	}
-	writeJSON(t, w, map[string]any{"total_count": 1, "jobs": s.jobs[r.PathValue("run")]})
+	total := 1
+	if n := s.jobsTotal[r.PathValue("run")]; n != 0 {
+		total = n
+	}
+	writeJSON(t, w, map[string]any{"total_count": total, "jobs": s.jobs[r.PathValue("run")]})
 }
 
 func (s *mainBranchServer) branchParam() string {
