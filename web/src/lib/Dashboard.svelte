@@ -53,6 +53,7 @@
   import {
     linkedPullRequestsToWatch,
     pullRequestKey,
+    pullRequestsInView,
     pullRequestsToWatch,
   } from "#lib/pr-row-watch.js";
   import { createRowWatcher } from "#lib/row-watcher.js";
@@ -6484,20 +6485,44 @@
       for (const s of subjects) watchedForge.set(pullRequestKey(s), s.forge);
       rowWatcher.set(subjects);
     }
-    // Watch the first rows the pull request page draws. The rows are read back
+    // The pull request rows on screen, by row key, as the observer last told.
+    // Unset until it has reported, so the first rows are watched meanwhile.
+    let rowsInView: Set<string> | undefined;
+    let rowObserver: IntersectionObserver | null = null;
+    // Watch the pull request rows the person can see. The rows are read back
     // from the page, so a filter, a page of the pager or a group shows the rows
-    // the person sees.
+    // the person sees, and scrolling moves the watch with the view. Rows are
+    // rebuilt on every render, so the observer is set up again for them.
     function watchVisiblePullRequests(
       container: HTMLElement,
       items: readonly PullRequestItem[],
     ) {
-      const keys = Array.from(
+      const rows = Array.from(
         container.querySelectorAll<HTMLElement>(".row[data-pr-key]"),
-        (row) => row.dataset.prKey,
       );
       const byKey = new Map(items.map((i) => [prKey(i), i]));
-      const shown = keys.flatMap((key) => byKey.get(key ?? "") ?? []);
-      watchRows(pullRequestsToWatch(shown));
+      const shown = rows.flatMap(
+        (row) => byKey.get(row.dataset.prKey ?? "") ?? [],
+      );
+      rowObserver?.disconnect();
+      rowObserver = null;
+      rowsInView = undefined;
+      if (typeof IntersectionObserver === "undefined") {
+        watchRows(pullRequestsToWatch(shown));
+        return;
+      }
+      const seen = new Map<string, boolean>();
+      rowObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          const key = (entry.target as HTMLElement).dataset.prKey;
+          if (key) seen.set(key, entry.isIntersecting);
+        }
+        rowsInView = new Set(
+          [...seen].flatMap(([key, visible]) => (visible ? [key] : [])),
+        );
+        watchRows(pullRequestsInView(shown, rowsInView));
+      });
+      for (const row of rows) rowObserver.observe(row);
     }
     // Watch the pull requests the issue rows on screen draw a pill for.
     function watchVisibleIssueLinks(
@@ -9505,6 +9530,7 @@
       clearInterval(tickTimer);
       window.clearTimeout(rateLimitResetTimer);
       eventSource?.close();
+      rowObserver?.disconnect();
       rowWatcher.stop();
     };
   }

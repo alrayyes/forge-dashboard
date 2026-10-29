@@ -86,6 +86,8 @@ test.describe('pull request rows follow their jobs', () => {
     page,
   }) => {
     const feed = await serveChecks(page, () => PASSED);
+    // Tall enough that every row is in view, so the cap is what limits them.
+    await page.setViewportSize({ width: 1280, height: 4000 });
     await page.route('**/api/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
@@ -109,6 +111,36 @@ test.describe('pull request rows follow their jobs', () => {
     expect(feed.asked).toHaveLength(7);
     await expect(rows.nth(7)).toContainText('Running');
     await expect(rows.nth(8)).toContainText('Running');
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  // Rows far down a long page are the ones a person is looking at after a
+  // scroll, so they are the ones watched. Which rows count as in view is
+  // unit-tested (pr-row-watch.test.ts); this proves the page follows the view.
+  test('scrolling watches the rows now in view and lets go of the rest', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await serveBoard(page, 25);
+    await page.goto('/pull-requests.html');
+    const rows = page.locator('#pr-rows .row');
+    await expect(rows.first()).toContainText('Passed');
+    await feed.idle();
+    expect(feed.asked.every((s) => (s.number ?? 0) <= 7)).toBe(true);
+
+    await rows.last().scrollIntoViewIfNeeded();
+    await expect(rows.last()).toContainText('Passed');
+    await feed.idle();
+
+    expect(feed.asked.some((s) => s.number === 25)).toBe(true);
+    expect(feed.posts.every((n) => n <= CAP)).toBe(true);
+    // The first row is out of view, so it reads the refresh again.
+    await expect(rows.first()).toContainText('Running');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -152,6 +184,7 @@ test.describe('pull request rows follow their jobs', () => {
     page,
   }) => {
     const feed = await serveChecks(page, () => PASSED);
+    await page.setViewportSize({ width: 1280, height: 4000 });
     await serveBoard(page, 30);
     await page.goto('/pull-requests.html');
     const rows = page.locator('#pr-rows .row');

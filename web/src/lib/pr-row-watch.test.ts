@@ -5,6 +5,7 @@ import { SHOWN_PILLS } from './linked-pull-requests';
 import {
   linkedPullRequestsToWatch,
   pullRequestKey,
+  pullRequestsInView,
   pullRequestsToWatch,
 } from './pr-row-watch';
 
@@ -37,6 +38,44 @@ describe('pullRequestsToWatch', () => {
 
   test('watches a row once however often it is listed', () => {
     expect(pullRequestsToWatch([row(1), row(1), row(2)])).toHaveLength(2);
+  });
+});
+
+describe('pullRequestsInView', () => {
+  const rows = Array.from({ length: 20 }, (_, i) => row(i + 1));
+  const inView = (...numbers: number[]) =>
+    new Set(numbers.map((n) => pullRequestKey(row(n))));
+
+  test('watches the rows in view, not the first ones', () => {
+    expect(
+      pullRequestsInView(rows, inView(12, 13, 14, 15, 16, 17, 18)).map(
+        (s) => s.number,
+      ),
+    ).toEqual([12, 13, 14, 15, 16, 17, 18]);
+  });
+
+  test('keeps the order the rows are drawn in', () => {
+    expect(
+      pullRequestsInView(rows, inView(9, 3, 6)).map((s) => s.number),
+    ).toEqual([3, 6, 9]);
+  });
+
+  test('takes the first rows in view once more than the cap show', () => {
+    const many = inView(...rows.map((r) => r.number));
+
+    expect(pullRequestsInView(rows, many).map((s) => s.number)).toEqual(
+      rows.slice(0, STREAM_SUBJECT_CAP - 1).map((r) => r.number),
+    );
+  });
+
+  test('watches nothing when no row is in view', () => {
+    expect(pullRequestsInView(rows, inView())).toEqual([]);
+  });
+
+  test('reads the first rows until the view has been reported', () => {
+    expect(pullRequestsInView(rows, undefined)).toEqual(
+      pullRequestsToWatch(rows),
+    );
   });
 });
 

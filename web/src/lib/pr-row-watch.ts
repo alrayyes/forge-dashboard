@@ -39,6 +39,24 @@ export function pullRequestsToWatch(
   return wanted.slice(0, Math.min(limit, STREAM_SUBJECT_CAP - 1));
 }
 
+// The pull requests to watch for the board: the rows the person can see, in
+// the order drawn, up to the same limit. Until the page has heard which rows
+// are in view (`inView` unset) it reads the first rows, as a page with no
+// observer would. A row that scrolls out of view is let go of and reads the
+// refresh's pill again.
+export function pullRequestsInView(
+  shown: readonly Row[],
+  inView: ReadonlySet<string> | undefined,
+  limit: number = STREAM_SUBJECT_CAP - 1,
+): Subject[] {
+  if (!inView) return pullRequestsToWatch(shown, limit);
+
+  return pullRequestsToWatch(
+    shown.filter((row) => inView.has(pullRequestKey(row))),
+    limit,
+  );
+}
+
 // The pull requests to watch for an issue page: the ones its rows draw a pill
 // for, in the order drawn. The pills a row keeps behind its count are not
 // drawn, so they are not watched. The same cap applies as for the pull request
