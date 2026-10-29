@@ -34,8 +34,10 @@ are in view, it watches the first seven. A filter, a page of the pager or a
 grouping changes which rows are drawn, and scrolling changes which of them are
 in view. The page watches the rows that came into view and stops watching the
 ones that left. A re-render keeps the watch on the rows that are in view, so it
-doesn't drop them and watch the first seven again. A row that isn't watched
-keeps the pill from the last refresh.
+doesn't drop them and watch the first seven again. When the rows are swapped
+for ones the last report didn't name, it watches the first seven until the new
+rows are reported. Without an observer the first seven stay watched. A row
+that isn't watched keeps the pill from the last refresh.
 When the live stream drops, a watched row reads the refresh again, so it doesn't
 show a pill the stream can no longer vouch for. The row stays watched, and it
 folds live again once the stream is back and lists it. The Main branches page

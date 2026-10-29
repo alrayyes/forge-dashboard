@@ -42,8 +42,9 @@ export function pullRequestsToWatch(
 // The pull requests to watch for the board: the rows the person can see, in
 // the order drawn, up to the same limit. Until the page has heard which rows
 // are in view (`inView` unset) it reads the first rows, as a page with no
-// observer would. A row that scrolls out of view is let go of and reads the
-// refresh's pill again.
+// observer would. So does a report that names none of the rows, since a filter
+// swapped them and the observer has not reported on the new ones yet. A row
+// that scrolls out of view is let go of and reads the refresh's pill again.
 export function pullRequestsInView(
   shown: readonly Row[],
   inView: ReadonlySet<string> | undefined,
@@ -51,10 +52,12 @@ export function pullRequestsInView(
 ): Subject[] {
   if (!inView) return pullRequestsToWatch(shown, limit);
 
-  return pullRequestsToWatch(
-    shown.filter((row) => inView.has(pullRequestKey(row))),
-    limit,
-  );
+  const visible = shown.filter((row) => inView.has(pullRequestKey(row)));
+  if (inView.size > 0 && visible.length === 0) {
+    return pullRequestsToWatch(shown, limit);
+  }
+
+  return pullRequestsToWatch(visible, limit);
 }
 
 // The pull requests to watch for an issue page: the ones its rows draw a pill

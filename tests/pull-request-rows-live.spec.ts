@@ -232,6 +232,48 @@ test.describe('pull request rows follow their jobs', () => {
     await expect(rows.last()).toContainText('Failed');
   });
 
+  // A filter swaps the rows for ones the last report never named. Until the
+  // observer reports on the new rows the first rows are watched, not none.
+  test('a filter that swaps the rows watches the first rows', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await serveBoard(page, 25);
+    await page.goto('/pull-requests.html');
+    const rows = page.locator('#pr-rows .row');
+    await expect(rows.first()).toContainText('Passed');
+    await feed.idle();
+    await rows.last().scrollIntoViewIfNeeded();
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+    await feed.idle();
+    // The scroll has come to rest, and the rows at the end are watched.
+    await expect(rows.last()).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => feed.posts.at(-1)).toBe(3);
+    await feed.idle();
+    const posts = feed.posts.length;
+
+    // Rows 1 and 10 to 19 match, and none of them was in view.
+    await page.locator('#title-filter').fill('Change 1');
+    await expect(rows).toHaveCount(11);
+    await expect(rows.first()).toContainText('Passed');
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+    await feed.idle();
+
+    expect(feed.posts.length).toBeGreaterThan(posts);
+    expect(Math.max(...feed.posts.slice(posts))).toBe(CAP - 1);
+  });
+
   // A row that leaves the view lets go of its live jobs and must read the
   // refresh's pill at once, not when some other render happens to come. The
   // rows that come into view here have no list, so nothing else redraws.

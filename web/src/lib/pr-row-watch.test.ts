@@ -72,6 +72,20 @@ describe('pullRequestsInView', () => {
     expect(pullRequestsInView(rows, inView())).toEqual([]);
   });
 
+  test('reads the first rows when none of them was in the last report', () => {
+    const swapped = Array.from({ length: 20 }, (_, i) => row(i + 1, 'b/two'));
+
+    expect(pullRequestsInView(swapped, inView(12, 13))).toEqual(
+      pullRequestsToWatch(swapped),
+    );
+  });
+
+  test('keeps a report that still names some of the rows', () => {
+    expect(
+      pullRequestsInView(rows, inView(12, 99)).map((s) => s.number),
+    ).toEqual([12]);
+  });
+
   test('reads the first rows until the view has been reported', () => {
     expect(pullRequestsInView(rows, undefined)).toEqual(
       pullRequestsToWatch(rows),
