@@ -93,9 +93,14 @@ func TestListDefaultBranchChecks_CarriesTheJobID(t *testing.T) {
 }
 
 // Not parallel: it reads the process-wide allocation counter, and a serial
-// test runs before the parallel ones resume.
-func TestJobLog_HundredsOfMiB_CostsABoundedAmountOfMemory(t *testing.T) {
-	const logBytes = 300 << 20
+// test runs before the parallel ones resume. The log is many times the read
+// window, not hundreds of MiB, so the test proves that memory follows the
+// window and not the log without depending on how fast the host streams it.
+func TestJobLog_ManyTimesTheWindow_CostsABoundedAmountOfMemory(t *testing.T) {
+	const (
+		logBytes = 8 << 20
+		window   = 64 << 10
+	)
 	line := []byte("a line of output that repeats until the log is huge............\n")
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/jobs/31/logs", func(w http.ResponseWriter, _ *http.Request) {
@@ -111,7 +116,7 @@ func TestJobLog_HundredsOfMiB_CostsABoundedAmountOfMemory(t *testing.T) {
 	var before, after runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	got, err := client.JobLog(t.Context(), "alrayyes", "a", 31)
+	got, err := forgejo.JobLogWindow(t.Context(), client, "alrayyes", "a", 31, window)
 	runtime.ReadMemStats(&after)
 
 	require.NoError(t, err)

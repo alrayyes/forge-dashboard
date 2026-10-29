@@ -100,3 +100,9 @@ func VersionReadOpen(c *Client) bool {
 func WrapTransport(c *Client, wrap func(next http.RoundTripper) http.RoundTripper) {
 	c.httpClient.Transport = wrap(c.httpClient.Transport)
 }
+
+// JobLogWindow reads a job log keeping only the last window bytes of it, as
+// JobLog does with its fixed window.
+func JobLogWindow(ctx context.Context, c *Client, owner, name string, id int64, window int) (dashboard.JobLog, error) {
+	return c.jobLog(ctx, owner, name, id, window, false)
+}
