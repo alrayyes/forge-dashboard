@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.12.0](https://github.com/alrayyes/forge-dashboard/compare/v8.11.6...v8.12.0) (2026-10-29)
+
+
+### Features
+
+* **web:** follow the jobs behind issue row pills ([#3068](https://github.com/alrayyes/forge-dashboard/issues/3068)) ([d5c1598](https://github.com/alrayyes/forge-dashboard/commit/d5c1598a7719439ab83a298a9899a5388acdbf0d))
+
 ## [8.11.6](https://github.com/alrayyes/forge-dashboard/compare/v8.11.5...v8.11.6) (2026-10-29)
 
 
