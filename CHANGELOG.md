@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.14.0](https://github.com/alrayyes/forge-dashboard/compare/v8.13.0...v8.14.0) (2026-10-29)
+
+
+### Features
+
+* **web:** fold branch rows from snapshot runs ([#3078](https://github.com/alrayyes/forge-dashboard/issues/3078)) ([f582b8f](https://github.com/alrayyes/forge-dashboard/commit/f582b8f13c6d4c9811b79d3fa98c1c765a0b3b11))
+
 ## [8.13.0](https://github.com/alrayyes/forge-dashboard/compare/v8.12.0...v8.13.0) (2026-10-29)
 
 
