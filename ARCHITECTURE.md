@@ -76,8 +76,8 @@ The page draws those fields for a row it has no facts for: a branch with no
 
 A run that was only cancelled reads as cancelled in the fold, on a branch and
 on a pull request. The server's own pull request verdict differs (GitHub's
-rollup says failure, Forgejo's says none or success), which is why the pill of
-a watched row can differ from the field until the next refresh.
+combined result says failure, Forgejo's says none or success), which is why
+the pill of a watched row can differ from the field until the next refresh.
 
 ## One user per instance
 
