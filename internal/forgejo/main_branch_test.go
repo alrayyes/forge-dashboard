@@ -46,6 +46,8 @@ type mainBranchServer struct {
 	mu    sync.Mutex
 	query map[string]string
 	paths []string
+	// every is each path any route saw, in arrival order.
+	every []string
 }
 
 func (s *mainBranchServer) start(t *testing.T) *forgejo.Client {
@@ -69,7 +71,12 @@ func (s *mainBranchServer) start(t *testing.T) *forgejo.Client {
 		}
 		writeJSON(t, w, s.commit)
 	})
-	srv := httptest.NewServer(mux)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		s.every = append(s.every, r.URL.Path)
+		s.mu.Unlock()
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(srv.Close)
 
 	return forgejo.NewClient(srv.URL, "test-token", "")
@@ -136,6 +143,15 @@ func (s *mainBranchServer) requests() []string {
 	defer s.mu.Unlock()
 
 	return append([]string(nil), s.paths...)
+}
+
+// everyRequest is each path the server saw on any route, repo and commit
+// included, where requests lists the runs and jobs routes only.
+func (s *mainBranchServer) everyRequest() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return append([]string(nil), s.every...)
 }
 
 var repoA = dashboard.RepoRef{FullName: "alrayyes/a", Owner: "alrayyes", Name: "a", URL: "https://forge.example/alrayyes/a", DefaultBranch: "main"}

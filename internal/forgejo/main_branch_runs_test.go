@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,6 +26,7 @@ func runFactsServer() *mainBranchServer {
 	}
 
 	return &mainBranchServer{
+		commit: goodCommit(),
 		runs: []map[string]any{
 			actionRun(2, "main", "cafef00d", "running", started, unset),
 			actionRun(1, "main", "cafef00d", "failure", started, stopped),
@@ -54,7 +56,8 @@ func TestReadMainBranch_CarriesTheRunFactsItCounted(t *testing.T) {
 }
 
 // The facts are the lists the counts were worked out from, already in memory,
-// so a row costs the same requests with them.
+// so a row costs the same requests with them. Every route is counted, not only
+// the runs and the jobs.
 func TestReadMainBranch_RunFactsCostNoRequest(t *testing.T) {
 	t.Parallel()
 
@@ -65,10 +68,11 @@ func TestReadMainBranch_RunFactsCostNoRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
+		"/api/v1/repos/alrayyes/a/git/commits/cafef00d",
 		"/api/v1/repos/alrayyes/a/actions/runs",
 		"/api/v1/repos/alrayyes/a/actions/runs/2/jobs",
 		"/api/v1/repos/alrayyes/a/actions/runs/1/jobs",
-	}, s.requests())
+	}, s.everyRequest())
 }
 
 // A repository with no run has none to send.
@@ -80,5 +84,50 @@ func TestReadMainBranch_NoRunSendsNoRunFacts(t *testing.T) {
 	row, err := client.ReadMainBranch(t.Context(), repoA)
 	require.NoError(t, err)
 
-	assert.Empty(t, row.Runs)
+	raw, err := json.Marshal(row)
+	require.NoError(t, err)
+	var wire map[string]any
+	require.NoError(t, json.Unmarshal(raw, &wire))
+	assert.NotContains(t, wire, "runs")
+}
+
+// A run that was only cancelled keeps its conclusion in the facts, so a page
+// can tell it from a failure.
+func TestReadMainBranch_CancelledOnlyRunSendsItsConclusion(t *testing.T) {
+	t.Parallel()
+
+	client := (&mainBranchServer{
+		commit: goodCommit(),
+		runs:   []map[string]any{actionRun(1, "main", "cafef00d", "cancelled", started, stopped)},
+		jobs: map[string][]map[string]any{
+			"1": {{"id": 11, "name": "unit", "status": "cancelled", "run_attempt": 1, "started_at": started}},
+		},
+	}).start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+
+	require.Len(t, row.Runs, 1)
+	assert.Equal(t, dashboard.CheckConclusion("cancelled"), row.Runs[0].Conclusion)
+}
+
+// A job Forgejo holds back in a run that can still go is a wait, and the
+// facts say queued, not running.
+func TestReadMainBranch_HeldJobSendsAsQueued(t *testing.T) {
+	t.Parallel()
+
+	client := (&mainBranchServer{
+		commit: goodCommit(),
+		runs:   []map[string]any{actionRun(1, "main", "cafef00d", "running", started, unset)},
+		jobs: map[string][]map[string]any{
+			"1": {{"id": 11, "name": "deploy", "status": "blocked", "run_attempt": 1, "started_at": started}},
+		},
+	}).start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+
+	require.Len(t, row.Runs, 1)
+	require.Len(t, row.Runs[0].Checks, 1)
+	assert.Equal(t, dashboard.CheckStatus("queued"), row.Runs[0].Checks[0].Status)
 }
