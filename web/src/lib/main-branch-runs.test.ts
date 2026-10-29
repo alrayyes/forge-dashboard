@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { foldBranch } from './check-fold';
-import type { MainBranch } from './main-branches';
+import { type MainBranch, withSnapshotRuns } from './main-branches';
 import fixture from './testdata/main-branch-runs.json';
+import cutShort from './testdata/main-branch-runs-cut-short.json';
 
 // The fixture is the row the server sends for a default branch with two runs
 // (internal/forgejo/main_branch_runs_test.go asserts the server produces it), so
@@ -18,5 +19,24 @@ describe('a default branch row with run facts', () => {
 
   test('folds to the counts the server sent', () => {
     expect(folded.counts).toEqual(row.checks as typeof folded.counts);
+  });
+});
+
+// The fixture is the row for a run the forge cut the job list of short
+// (internal/forgejo/main_branch_runs_test.go asserts the server produces it):
+// every listed job is green, yet the server calls the row failed.
+describe('a default branch row whose run has a cut-short job list', () => {
+  const cut = cutShort as MainBranch;
+  const folded = foldBranch((cut.runs ?? []).flatMap((run) => run.checks));
+
+  test('would fold to a pill the server did not send', () => {
+    expect(folded.status).not.toBe(cut.status);
+  });
+
+  test('keeps the status and counts the server sent', () => {
+    const [out] = withSnapshotRuns([cut]);
+
+    expect(out.status).toBe(cut.status);
+    expect(out.checks).toEqual(cut.checks);
   });
 });

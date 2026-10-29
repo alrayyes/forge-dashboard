@@ -134,10 +134,10 @@
   );
   const branches = $derived(withLiveJobs(refreshed, liveLists));
   const visible = $derived(applyFilter(branches, filter));
-  // The rows to watch are chosen from the refresh's pills, not the live ones: a
-  // row whose live pill left the filter would be let go, read the refresh
+  // The rows to watch are chosen from the snapshot's pills, not the live ones: a
+  // row whose live pill left the filter would be let go, read the snapshot
   // again, come back and flap. They are the first rows the page shows, up to
-  // the stream's cap less the dialog's slot; the rest keep the refresh's pill.
+  // the stream's cap less the dialog's slot; the rest keep the snapshot's pill.
   const watchedRows = $derived(rowsToWatch(applyFilter(refreshed, filter)));
   const rowWatcher = createRowWatcher({
     feed: checkFeed,

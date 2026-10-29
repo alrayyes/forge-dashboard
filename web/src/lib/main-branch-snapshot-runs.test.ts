@@ -40,6 +40,13 @@ function row(fullName: string, runs?: MainBranchRun[]): MainBranch {
 }
 
 describe('withSnapshotRuns', () => {
+  test('a row with a cut-short run is the refresh, untouched', () => {
+    const cut = { ...run(2, 'success'), jobsTruncated: true };
+    const rows = [row('a/one', [run(1, 'success'), cut])];
+
+    expect(withSnapshotRuns(rows)[0]).toBe(rows[0]);
+  });
+
   test('a row with no runs is the refresh, untouched', () => {
     const rows = [row('a/one')];
 
