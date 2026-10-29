@@ -198,6 +198,62 @@ test.describe('pull request rows follow their jobs', () => {
     await expect(rows.nth(7)).toContainText('Running');
   });
 
+  // A render while scrolled down must keep the watch on the rows in view: the
+  // first rows are only the guess for a page that has not been observed yet.
+  test('a re-render keeps the watch on the rows in view', async ({ page }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await serveBoard(page, 25);
+    await page.goto('/pull-requests.html');
+    const rows = page.locator('#pr-rows .row');
+    await expect(rows.first()).toContainText('Passed');
+    await feed.idle();
+
+    await rows.last().scrollIntoViewIfNeeded();
+    await expect(rows.last()).toContainText('Passed');
+    await feed.idle();
+    const asked = feed.asked.length;
+    const posts = feed.posts.length;
+
+    // A fold that changes redraws the board.
+    await pushChecks(page, subjectOf(25), FAILED);
+    await expect(rows.last()).toContainText('Failed');
+    // Let the observer report on the rebuilt rows.
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+    await feed.idle();
+
+    expect(feed.asked).toHaveLength(asked);
+    expect(feed.posts).toHaveLength(posts);
+    await expect(rows.last()).toContainText('Failed');
+  });
+
+  // A row that leaves the view lets go of its live jobs and must read the
+  // refresh's pill at once, not when some other render happens to come. The
+  // rows that come into view here have no list, so nothing else redraws.
+  test('a row scrolled out of view reads the refresh again', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, (subject) =>
+      (subject.number ?? 0) > 7 ? { error: 'no list' } : PASSED,
+    );
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await serveBoard(page, 25);
+    await page.goto('/pull-requests.html');
+    const rows = page.locator('#pr-rows .row');
+    await expect(rows.first()).toContainText('Passed');
+    await feed.idle();
+
+    await rows.last().scrollIntoViewIfNeeded();
+    await feed.idle();
+
+    await expect(rows.first()).toContainText('Running');
+  });
+
   test('a dialog opened on a watched row lists its jobs without a new watch', async ({
     page,
   }) => {
