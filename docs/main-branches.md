@@ -4,7 +4,7 @@ The CI status of every tracked repository's default branch is the first thing
 you see: it's the index page, `/`, reached from the **Branches** item, the first
 one in the navigation. The item always shows. The page reads
 `GET /api/v1/main-branches`, so a broken main shows up without opening each
-repo. A repo you ignore for pull requests is left out, here and in the badge.
+repo. A repo you ignore for pull requests is left out here and in the badge.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
@@ -32,7 +32,7 @@ severity is the word, so the tint (red for high and critical, amber for medium,
 grey for low) is never the only signal. A repo with none open shows nothing. A
 repo whose alerts could not be read, because they are switched off or the
 credential lacks the permission, is never shown as zero: unknown is no answer.
-When every GitHub repo is unknown, one notice above the list says so and links
+When every GitHub repo is unknown, one notice over the list says so and links
 to [When advisories can't be read](#when-advisories-cant-be-read), and no row
 repeats it. When only some are unknown, those rows carry a small grey dash
 (read aloud as "Advisories unknown") and no pill. A repo no source reads
@@ -51,7 +51,7 @@ nobody approves keeps the branch on Waiting for approval until the next push. A
 failed row names its first failing jobs. The status pill is a button, as on the
 pull request pages: it opens the pipeline panel, a side panel that lists every
 job of the branch's newest pipeline with its state and how long it took, a link
-to each job, and, for a failed job, the step that broke and the tail of its log.
+to each job, and for a failed job the step that broke and the tail of its log.
 On Forgejo the list reads no log: the tail of a failed job's log appears a moment
 after the panel opens, for the newest five failed jobs.
 The panel also links to the run on the forge, in a new tab. Escape, the close
@@ -71,7 +71,7 @@ board, and carry a count the page works out from the rows it lists. A pill, and
 each forge in the toggle, is offered only when a row would show under it, given
 the search and the other pill, so none leads to an empty list; the one that is
 active always stays, so it can be cleared. A forge toggle and a search box
-narrow the list further; search matches the repo, branch, commit, author and
+narrow the list further; search matches the repo, branch, commit, author, and
 failing job names. The filter is saved with the other pages' filters, in the
 shared filter cookie and in the copy on the server, so it is still set after a
 reload and in another browser.
@@ -99,7 +99,7 @@ Dependabot alerts. It lists them with the worst first (critical, high, medium,
 low, then the newest first). Each row shows the severity word, the title, the
 package and its ecosystem, whether it is a runtime or development dependency
 and a direct or transitive one, the file that pulled it in, and how long ago it
-opened. Severity chips above the list (All open, Critical, High, Medium, Low,
+opened. Severity chips over the list (All open, Critical, High, Medium, Low,
 each with its count) narrow it; a level with none open has no chip.
 
 Picking a row shows its detail: the GHSA and CVE ids, the package, the file,
@@ -150,7 +150,7 @@ shows the severity, the title, the package with its installed version and
 ecosystem, the lock files it was found in and when the advisory was published.
 The detail adds the advisory ids, the versions that fix it (OSV lists one per
 release branch, so this can include branches the repo is not on), the CVSS score
-and vector when the record states one, the weaknesses, the description and the
+and vector when the record states one, the weaknesses, the description, and the
 references, and **Open on OSV** goes to the OSV page for that advisory. What OSV
 does not state is left out rather than shown empty: the exploit probability
 (EPSS), whether a dependency is direct or transitive, whether it is for runtime
@@ -184,11 +184,11 @@ directories belong to other projects and are not read. The binary `bun.lockb` is
 not read. A repo with none of these files stays `unknown`.
 
 This is off by default, because **the package names and versions in those files
-are sent to `api.osv.dev`**, for private repos too. Only what the list above
+are sent to `api.osv.dev`**, for private repos too. Only what the preceding list
 keeps out stays home. A private Go module on another host, a private scoped
 package on the public npm registry, or any Composer package, is still sent by
 name, which is why this is off by default. Nothing else is sent: no repo name,
-URL or token. Set `OSV_ADVISORIES=on` to turn it on; a line in the log at
+URL, or token. Set `OSV_ADVISORIES=on` to turn it on; a line in the log at
 startup says so, and a value that is neither `on` nor `off` logs a warning and
 leaves it off. While it is off, every Forgejo row is `unknown` with the reason
 `not_enabled`: not checked, never zero.
@@ -220,7 +220,7 @@ repos have no lock file, and nothing is said while advisories are off. It does
 say when a read failed: a row that is `unknown` with the reason `failed` (OSV
 unreachable, or a lock file that can't be read or is too big) or `too_many` gets
 a grey dash when other Forgejo rows have an answer, and when none has, one
-notice above the list names the cause. That notice is about Forgejo only and
+notice over the list names the cause. That notice is about Forgejo only and
 sends nobody to a GitHub permission.
 
 Answers are cached for fifteen minutes. A failed read keeps the last answer for
@@ -242,19 +242,19 @@ GitHub answers 403 or 404 when the credential can't read a repo's Dependabot
 alerts, or alerts are off for it. The API and MCP tools still report that as
 `unknown`, never zero. To read them, the credential needs one of:
 
-- a fine-grained personal access token with **Dependabot alerts: Read-only**
+- a fine-grained personal access token with **`Dependabot alerts: Read-only`**
   (a repository permission);
 - a classic token with the `repo` scope (which includes `security_events`), or
   `security_events` alone; `public_repo` is enough if every tracked repo is
   public;
-- a GitHub App with **Dependabot alerts: Read-only**. On an App that is already
+- a GitHub App with **`Dependabot alerts: Read-only`**. On an App that is already
   installed, GitHub holds a new permission until the owner accepts it: open the
   installation's page and accept the request, or the App keeps its old
   permissions. A permission accepted later only counts once the dashboard
   holds a new installation token, which GitHub issues for up to an hour (see
   [Generating an installation access token for a GitHub App](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)),
   and a refusal read with the old token is remembered too. Allow up to an hour
-  and a quarter. To skip the wait, save Settings (any save will do) or restart
+  and a quarter. To skip the wait, save Settings (any save works) or restart
   the dashboard; either starts with a new token and no remembered answers.
   There is no separate refresh button.
 
@@ -266,8 +266,9 @@ missing permission. The API says which in `reason` on the unknown answer
 (`refused`, `switched_off`, `throttled`, `failed` or `too_many`; a Forgejo
 repo can also say `not_enabled`, which only the API reports), and the notice on
 the page names the cause when every unknown GitHub row shares one (a Forgejo
-notice does the same for its own rows). GitHub's reference:
-[List Dependabot alerts for a repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
+notice does the same for its own rows). GitHub's reference is [List Dependabot
+alerts for a
+repository](https://docs.github.com/en/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository).
 
 ## Main branches API
 
@@ -294,7 +295,7 @@ null) and its open dependency advisories (`advisories`: `state`, `count`, the
 `highest` severity and a `url` to the alerts). A Forgejo repo's
 `advisories` is `unknown` with the reason `not_enabled` until `OSV_ADVISORIES=on`.
 `state` is `unknown` when the
-forge could not say, for example alerts switched off or a token without the
+forge could not say, for example alerts switched off, or a token without the
 scope, and is never a count of zero; `reason` then says why when the dashboard
 can tell. The release's title and notes are a
 separate read, `GET /api/v1/releases/details`, made when the dialog opens. The
@@ -393,7 +394,7 @@ the first seven.
 failed workflow runs on that same commit, only their failed jobs (on Forgejo,
 the jobs that need a failed job restart with it),
 and answers 204 when the forge has queued them. The pipeline panel of a failed
-row offers it as `Rerun failed checks`, with the same permission needs and the
+row offers it as `Rerun failed checks`. It has the same permission needs and the
 same reasons on a refusal as the pull request button (see
 [Pull request actions](pull-request-actions.md)). The button reads "Rerun
 queued" until the row's CI changes or ten minutes pass. When the row's forge
@@ -414,7 +415,7 @@ rerun on this branch" with a 409.
 
 The pipeline panel of a running row offers `Cancel run: <workflow>` for each
 workflow run with a queued or running job, or a queued Forgejo run that has no
-job yet, behind the same confirm step, with the same permission needs and the
+job yet, behind the same confirm step. It has the same permission needs and the
 same reasons on a refusal as the pull request button (see
 [Pull request actions](pull-request-actions.md)). It sends
 `POST /api/v1/checks/cancel-run` with `{forge, fullName, runId}`, the run id
