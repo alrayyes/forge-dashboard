@@ -3,8 +3,8 @@
 The CI status of every tracked repository's default branch is the first thing
 you see: it's the index page, `/`, reached from the **Branches** item, the first
 one in the navigation. The item always shows. The page reads
-`GET /api/v1/main-branches`, so a broken main shows up without opening each repo.
-A repo you ignore for pull requests is left out, here and in the badge.
+`GET /api/v1/main-branches`, so a broken main shows up without opening each
+repo. A repo you ignore for pull requests is left out, here and in the badge.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
@@ -283,13 +283,13 @@ page stops retrying and shows what it last read until you reload.
 The stream's copy leaves out the repos ignored for pull requests, as the
 endpoint does.
 
-`GET /api/v1/main-branches` answers the CI status of every tracked repo's default
-branch, so a broken main shows up without opening each repo. One row per repo:
-its default branch, the status of the pipeline on the newest commit (`failed`,
-`passed`, `running`, `cancelled`, `awaiting_approval` or `none`), the commit
-(short SHA, subject, author), the names of the failed jobs, when the pipeline
-finished and how long it ran, a link to the run, and the repository's latest
-published release (`latestRelease`, its tag and the page of its notes, or
+`GET /api/v1/main-branches` answers the CI status of every tracked repo's
+default branch, so a broken main shows up without opening each repo. One row per
+repo: its default branch, the status of the pipeline on the newest commit
+(`failed`, `passed`, `running`, `cancelled`, `awaiting_approval` or `none`), the
+commit (short SHA, subject, author), the names of the failed jobs, when the
+pipeline finished and how long it ran, a link to the run, and the repository's
+latest published release (`latestRelease`, its tag and the page of its notes, or
 null) and its open dependency advisories (`advisories`: `state`, `count`, the
 `highest` severity and a `url` to the alerts). A Forgejo repo's
 `advisories` is `unknown` with the reason `not_enabled` until `OSV_ADVISORIES=on`.
@@ -337,8 +337,8 @@ cheaply:
   The jobs it counted also ride on the row as `runs`, one entry for each run
   attempt with its status and its jobs, so a client can work out the pill from
   the same facts. That costs no request, and a GitHub row carries them too.
-  The snapshot, `GET /api/v1/dashboard` and `GET /api/v1/main-branches` send them.
-  The MCP tools `get_main_branches` and `get_dashboard`, and the in-page
+  The snapshot, `GET /api/v1/dashboard` and `GET /api/v1/main-branches` send
+  them. The MCP tools `get_main_branches` and `get_dashboard`, and the in-page
   WebMCP tools of the same names, leave them out, since
   `get_main_branch_checks` lists the same jobs. The snapshot grows by those job
   lists, up to 50 checks for each GitHub repo.
@@ -417,5 +417,5 @@ workflow run with a queued or running job, or a queued Forgejo run that has no
 job yet, behind the same confirm step, with the same permission needs and the
 same reasons on a refusal as the pull request button (see
 [Pull request actions](pull-request-actions.md)). It sends
-`POST /api/v1/checks/cancel-run` with `{forge, fullName, runId}`, the run id coming
-from the checks the panel lists.
+`POST /api/v1/checks/cancel-run` with `{forge, fullName, runId}`, the run id
+coming from the checks the panel lists.

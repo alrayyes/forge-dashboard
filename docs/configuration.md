@@ -42,20 +42,21 @@ On Forgejo, a mirrored repository is excluded too — a pull mirror has no
 pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
 
-Each pull request also carries its review state (`review` in `/api/v1/dashboard`:
-decision, approvals, requested reviewers). The **Ready to Merge** and **Needs
-review** quick filters read the server's own answers, `readyToMerge` and
-`needsReview` on each pull request, so the page holds no definition of either.
-On GitHub that rides on fields of the same GraphQL query, so it costs no extra
-requests. On Forgejo the requested reviewers come with the pull request list,
-but approvals take one `GET /repos/{owner}/{repo}/pulls/{index}/reviews` call
-per open, non-draft pull request. Those results are cached until the pull
-request's `updated_at` changes, so after the first refresh a quiet dashboard
-spends none of them. A pull request that closed or merged drops out of that
-cache on the next refresh of its repo. A pull request whose review state
-couldn't be read has no `review` and never matches the filter. Needs review
-means a review is outstanding: the forge requires one, or a reviewer was asked
-and hasn't answered. A pull request nobody was asked to review doesn't count.
+Each pull request also carries its review state (`review` in
+`/api/v1/dashboard`: decision, approvals, requested reviewers). The **Ready to
+Merge** and **Needs review** quick filters read the server's own answers,
+`readyToMerge` and `needsReview` on each pull request, so the page holds no
+definition of either. On GitHub that rides on fields of the same GraphQL query,
+so it costs no extra requests. On Forgejo the requested reviewers come with the
+pull request list, but approvals take one `GET
+/repos/{owner}/{repo}/pulls/{index}/reviews` call per open, non-draft pull
+request. Those results are cached until the pull request's `updated_at` changes,
+so after the first refresh a quiet dashboard spends none of them. A pull request
+that closed or merged drops out of that cache on the next refresh of its repo. A
+pull request whose review state couldn't be read has no `review` and never
+matches the filter. Needs review means a review is outstanding: the forge
+requires one, or a reviewer was asked and hasn't answered. A pull request nobody
+was asked to review doesn't count.
 
 The **Review requested from me** quick filter keeps the pull requests that ask
 you in particular: `reviewRequestedFromMe` on each pull request, which the
@@ -107,9 +108,9 @@ moved on, so they can be updated in one pass. It reads the `behind` and `empty`
 fields of each pull request, the same ones behind the row's Out of date badge,
 and leaves out an empty pull request, which has nothing to update.
 
-Draft pull requests are left out of `/api/v1/dashboard` by default, since nothing
-can be merged or updated on one. The response says how many it left out in
-`hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
+Draft pull requests are left out of `/api/v1/dashboard` by default, since
+nothing can be merged or updated on one. The response says how many it left out
+in `hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
 its stream and the refresh endpoint alike. The auto-update-branch feature
 never touches a draft either.
 

@@ -7,16 +7,16 @@ default. The badge is set from each snapshot on the dashboard and issues
 pages, and loaded once on the other signed-in pages.
 
 An issue's title opens a pop-up with its description and comments, laid out
-like a pull request's. It loads when it opens, from `GET /api/v1/issues/details`,
-and nothing about it is part of the snapshot. The header shows whether the
-issue is open or closed, who filed it with their avatar, and its labels, and
-the footer links to the issue on its forge. The status follows the forge while
-the pop-up is open: when a refresh no longer lists the issue, lists it again,
-or shows it changed, the pop-up reads the forge again, so closing or reopening
-the issue there turns the badge to Closed or back to Open without reopening the
-pop-up. If the forge can't be read, the pop-up says why and offers **Try
-again** instead of showing an empty thread. Escape or **Close details**
-returns you to the issue's row.
+like a pull request's. It loads when it opens, from `GET
+/api/v1/issues/details`, and nothing about it is part of the snapshot. The
+header shows whether the issue is open or closed, who filed it with their
+avatar, and its labels, and the footer links to the issue on its forge. The
+status follows the forge while the pop-up is open: when a refresh no longer
+lists the issue, lists it again, or shows it changed, the pop-up reads the forge
+again, so closing or reopening the issue there turns the badge to Closed or back
+to Open without reopening the pop-up. If the forge can't be read, the pop-up
+says why and offers **Try again** instead of showing an empty thread. Escape or
+**Close details** returns you to the issue's row.
 
 ## Closing an issue from its pop-up
 

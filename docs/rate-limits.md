@@ -371,10 +371,10 @@ every time, so there is nothing to match.
 
 ## Reading the stats
 
-`GET /api/v1/stats/forge-api` says how many requests the dashboard has spent since
-the server started, so you can see what is using a budget before you change
-anything. It takes a session or an API token, like the rest of the API, and
-returns only the requests made with your own credentials.
+`GET /api/v1/stats/forge-api` says how many requests the dashboard has spent
+since the server started, so you can see what is using a budget before you
+change anything. It takes a session or an API token, like the rest of the API,
+and returns only the requests made with your own credentials.
 
 Each row is one forge, credential, kind and repo, with four counts:
 
@@ -442,9 +442,9 @@ open issues.
 Measured on 2026-10-21 against GitHub with a personal access token, on a
 freshly started server (version 0.254.0) with an empty database and default
 settings (`REFRESH_INTERVAL` 20 minutes, `CI_POLL_INTERVAL` 1 minute). The
-readings are `GET /api/v1/stats/forge-api` snapshots, taken in order, about three
-minutes apart from first to last. Each row is the difference between the two
-snapshots around it, summed over every repo.
+readings are `GET /api/v1/stats/forge-api` snapshots, taken in order, about
+three minutes apart from first to last. Each row is the difference between the
+two snapshots around it, summed over every repo.
 
 | Kind             | What was done                                | REST | GraphQL requests | GraphQL cost | Not modified |
 | ---------------- | -------------------------------------------- | ---: | ---------------: | -----------: | -----------: |

@@ -102,8 +102,8 @@ and the cost are in
 - **Credentials never reach the browser.** The Go backend holds the
   owner's tokens server-side, encrypted at rest, and only ever hands the
   frontend its own already-filtered JSON. Confirm this yourself: open the
-  browser's network tab and watch it call only this app's own routes (`/api/v1/...`
-  and the static `/changelog.json`), never a forge — and that
+  browser's network tab and watch it call only this app's own routes
+  (`/api/v1/...` and the static `/changelog.json`), never a forge — and that
   `/api/v1/settings` never echoes a forge token back, only whether one is set.
 - **An MCP endpoint for agents, `/api/v1/mcp`, read-only except for one
   setting (the web app itself can act on pull requests).**
@@ -218,12 +218,12 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   than a real dependency the page needs. Where it's present, it lets an
   in-browser AI agent fetch the same data the page itself renders.
   `get_dashboard` calls the page's own already-authenticated fetch layer
-  (`fetchDashboardData()`) directly, the same request `/api/v1/dashboard` already
-  answers; the others call their endpoint the same way (`list_queued_actions`
-  returns `GET /api/v1/queued-actions` under a `queuedActions` key, as the
-  server's tool of that name does; `get_settings` returns
-  `GET /api/v1/settings/summary`, the same body as the server's tool, with
-  `webhookConfigured` and no webhook token or secret). Like the server's
+  (`fetchDashboardData()`) directly, the same request `/api/v1/dashboard`
+  already answers; the others call their endpoint the same way
+  (`list_queued_actions` returns `GET /api/v1/queued-actions` under a
+  `queuedActions` key, as the server's tool of that name does; `get_settings`
+  returns `GET /api/v1/settings/summary`, the same body as the server's tool,
+  with `webhookConfigured` and no webhook token or secret). Like the server's
   tool, `get_settings` creates nothing: `webhookConfigured` is false until
   the user has opened Settings. `set_pull_request_auto_update` posts to
   `POST /api/v1/pull-requests/auto-update` like the server's tool of that name,
