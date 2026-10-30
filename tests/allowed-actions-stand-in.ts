@@ -196,7 +196,8 @@ export function installAllowedActionsStandIn(
         : input instanceof URL
           ? input.href
           : input.url;
-    if (!/\/api\/dashboard(\/refresh)?(\?|$)/.test(url) || !res.ok) return res;
+    if (!/\/api\/v1\/dashboard(\/refresh)?(\?|$)/.test(url) || !res.ok)
+      return res;
     if (!(res.headers.get('content-type') ?? '').includes('json')) return res;
     const data = enrich(await res.clone().json());
     return new Response(JSON.stringify(data), {

@@ -34,19 +34,21 @@ function mockDashboard(
   pullRequests: unknown[],
   openIssueCount: number,
 ) {
-  return page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests,
-        issues: [],
-        openIssueCount,
-        navCounts: navCountsFor(pullRequests, openIssueCount),
+  return page.route(
+    /\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/,
+    (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests,
+          issues: [],
+          openIssueCount,
+          navCounts: navCountsFor(pullRequests, openIssueCount),
+        }),
       }),
-    }),
   );
 }
 
@@ -99,7 +101,7 @@ test.describe('signed out', () => {
     page,
   }) => {
     let asked = false;
-    await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route) => {
+    await page.route(/\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/, (route) => {
       asked = true;
       return route.abort();
     });

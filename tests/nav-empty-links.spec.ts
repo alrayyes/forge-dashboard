@@ -47,7 +47,7 @@ function mockDashboard(
   options: { gate?: Promise<void> } = {},
 ) {
   return page.route(
-    /\/api\/dashboard(\/refresh)?(\?.*)?$/,
+    /\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/,
     async (route: Route) => {
       if (options.gate) await options.gate;
       return route.fulfill({

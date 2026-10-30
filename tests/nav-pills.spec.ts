@@ -284,14 +284,20 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     let reads = 0;
     await page.clock.install();
     await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
-    await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) => {
-      reads += 1;
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ...snapshot(MIXED), readIntervalSeconds: 600 }),
-      });
-    });
+    await page.route(
+      /\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/,
+      (route: Route) => {
+        reads += 1;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...snapshot(MIXED),
+            readIntervalSeconds: 600,
+          }),
+        });
+      },
+    );
     await page.goto('/pull-requests.html');
     await expect(header(page, '/').locator('.nav-failed')).toHaveText('3');
     const before = reads;

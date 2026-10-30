@@ -54,7 +54,7 @@ function mockDashboard(
   // The snapshot, and the forced refresh (a different path) the banner's Retry
   // sends.
   return page.route(
-    /\/api\/dashboard(\/refresh|\/stream)?(\?.*)?$/,
+    /\/api\/v1\/dashboard(\/refresh|\/stream)?(\?.*)?$/,
     (route: Route) => {
       // The stream isn't part of this journey.
       if (route.request().url().includes('/stream')) return route.abort();

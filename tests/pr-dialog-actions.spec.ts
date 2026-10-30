@@ -119,7 +119,7 @@ async function start(
       }),
     });
   });
-  await page.route(/\/api\/pull-requests\/[a-z-]+(\/cancel)?$/, (route) => {
+  await page.route(/\/api\/v1\/pull-requests\/[a-z-]+(\/cancel)?$/, (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() !== 'POST') return route.fallback();
     state.posted.push({

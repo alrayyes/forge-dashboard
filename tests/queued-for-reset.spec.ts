@@ -88,7 +88,7 @@ async function setup(
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
   );
-  await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
+  await page.route(/\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
