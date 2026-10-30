@@ -32,6 +32,43 @@ const checkRunFields = `
                         }
                       }`
 
+// commitChecks is the part of a commit selection that reads its CI: the newest
+// 50 check suites, for the workflow run each belongs to, and the rollup with its
+// first 100 checks. The head of the default branch and the older commit the row
+// walks back to ([skip ci] commits have no checks) read the same, so both name
+// the run of every check and both find a newer run the rollup left out.
+const commitChecks = `
+              checkSuites(last: 50) {
+                nodes {
+                  id
+                  status
+                  conclusion
+                  workflowRun {
+                    databaseId
+                    runAttempt
+                    runNumber
+                    workflow { name }
+                  }
+                }
+              }
+              statusCheckRollup {
+                state
+                contexts(first: 100) {
+                  checkRunCountsByState { state count }
+                  statusContextCountsByState { state count }
+                  nodes {
+                    __typename
+                    ... on CheckRun {` + checkRunFields + `
+                    }
+                    ... on StatusContext {
+                      context
+                      state
+                      targetUrl
+                    }
+                  }
+                }
+              }`
+
 // defaultBranchSelection is the part of a repository query that reads the CI
 // of the default branch's newest commit (#1224). It rides the query every
 // refresh already makes for a repo's pull requests, so it costs no request of
@@ -64,36 +101,7 @@ const defaultBranchSelection = `
                   login
                 }
               }
-              checkSuites(last: 50) {
-                nodes {
-                  id
-                  status
-                  conclusion
-                  workflowRun {
-                    databaseId
-                    runAttempt
-                    runNumber
-                    workflow { name }
-                  }
-                }
-              }
-              statusCheckRollup {
-                state
-                contexts(first: 100) {
-                  checkRunCountsByState { state count }
-                  statusContextCountsByState { state count }
-                  nodes {
-                    __typename
-                    ... on CheckRun {` + checkRunFields + `
-                    }
-                    ... on StatusContext {
-                      context
-                      state
-                      targetUrl
-                    }
-                  }
-                }
-              }
+` + commitChecks + `
             }
           }
         }
@@ -489,18 +497,7 @@ func checkedCommitsQuery(repos []branchRepo) (string, map[string]any) {
     defaultBranchRef { target { ... on Commit { history(first: 10) { nodes {
       oid abbreviatedOid messageHeadline url committedDate
       author { name user { login } }
-      statusCheckRollup {
-        state
-        contexts(first: 50) {
-          checkRunCountsByState { state count }
-          statusContextCountsByState { state count }
-          nodes {
-            __typename
-            ... on CheckRun { name conclusion startedAt completedAt detailsUrl }
-            ... on StatusContext { context state targetUrl }
-          }
-        }
-      }
+`+commitChecks+`
     } } } } }
   }
 `, i)
