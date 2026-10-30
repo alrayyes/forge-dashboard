@@ -100,8 +100,10 @@ func TestFetch_MainBranch_SaysWhenTheChecksAreCutShort(t *testing.T) {
 	}
 }
 
-// The extra facts ride nodes the query already reads, so they add no request
-// and no connection: the check suite is a single object.
+// The extra facts ride nodes the query already reads, so they add no request:
+// the check suite of a check run is a single object. The query reads the first
+// 100 checks and the newest 50 suites, which withNewestRuns reads the newest
+// runs from.
 func TestFetch_MainBranch_AsksForTheRunFactsOnTheNodesItReads(t *testing.T) {
 	t.Parallel()
 
@@ -109,5 +111,6 @@ func TestFetch_MainBranch_AsksForTheRunFactsOnTheNodesItReads(t *testing.T) {
 
 	assert.Contains(t, query, "checkSuite")
 	assert.Contains(t, query, "workflowRun")
-	assert.Equal(t, 1, strings.Count(query, "contexts(first: 50)"), "the same 50 nodes, no more")
+	assert.Equal(t, 1, strings.Count(query, "contexts(first: 100)"), "the first 100 checks, no more")
+	assert.Equal(t, 1, strings.Count(query, "checkSuites(last: 50)"), "the newest 50 suites")
 }

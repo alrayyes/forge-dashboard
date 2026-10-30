@@ -11,13 +11,73 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
+// checkRunFields is what the query reads of one check run, in the default
+// branch's rollup and in the follow-up read of a newer run's checks.
+const checkRunFields = `
+                      databaseId
+                      name
+                      status
+                      conclusion
+                      startedAt
+                      completedAt
+                      detailsUrl
+                      checkSuite {
+                        status
+                        conclusion
+                        workflowRun {
+                          databaseId
+                          runAttempt
+                          runNumber
+                          workflow { name }
+                        }
+                      }`
+
+// commitChecks is the part of a commit selection that reads its CI: the newest
+// 50 check suites, for the workflow run each belongs to, and the rollup with its
+// first 100 checks. The head of the default branch and the older commit the row
+// walks back to ([skip ci] commits have no checks) read the same, so both name
+// the run of every check and both find a newer run the rollup left out.
+const commitChecks = `
+              checkSuites(last: 50) {
+                nodes {
+                  id
+                  status
+                  conclusion
+                  workflowRun {
+                    databaseId
+                    runAttempt
+                    runNumber
+                    workflow { name }
+                  }
+                }
+              }
+              statusCheckRollup {
+                state
+                contexts(first: 100) {
+                  checkRunCountsByState { state count }
+                  statusContextCountsByState { state count }
+                  nodes {
+                    __typename
+                    ... on CheckRun {` + checkRunFields + `
+                    }
+                    ... on StatusContext {
+                      context
+                      state
+                      targetUrl
+                    }
+                  }
+                }
+              }`
+
 // defaultBranchSelection is the part of a repository query that reads the CI
 // of the default branch's newest commit (#1224). It rides the query every
 // refresh already makes for a repo's pull requests, so it costs no request of
-// its own, and a repo that is empty answers null. It reads the first 50 checks
-// of the commit for their names and times; the rollup's own state and counts
-// cover the rest, so a commit with more still gets the right status and only
-// the list of failing names can come up short.
+// its own, and a repo that is empty answers null. It reads the first 100 checks
+// of the commit for their names and times, and the newest 50 check suites for
+// the workflow run each belongs to. GitHub's rollup can lack the checks of a
+// newer run (a scheduled or dispatched one) and keeps a failed older one in its
+// state, so withNewestRuns reads the missing runs' checks and rebuilds the
+// rollup from the newest run of each workflow (newest_runs.go).
 //
 // It also reads the repository's latestRelease, a single node that GitHub
 // answers without drafts and pre-releases, so a row can link to it.
@@ -41,40 +101,7 @@ const defaultBranchSelection = `
                   login
                 }
               }
-              statusCheckRollup {
-                state
-                contexts(first: 50) {
-                  checkRunCountsByState { state count }
-                  statusContextCountsByState { state count }
-                  nodes {
-                    __typename
-                    ... on CheckRun {
-                      databaseId
-                      name
-                      status
-                      conclusion
-                      startedAt
-                      completedAt
-                      detailsUrl
-                      checkSuite {
-                        status
-                        conclusion
-                        workflowRun {
-                          databaseId
-                          runAttempt
-                          runNumber
-                          workflow { name }
-                        }
-                      }
-                    }
-                    ... on StatusContext {
-                      context
-                      state
-                      targetUrl
-                    }
-                  }
-                }
-              }
+` + commitChecks + `
             }
           }
         }
@@ -118,6 +145,11 @@ type graphqlCommit struct {
 		} `json:"user"`
 	} `json:"author"`
 	StatusCheckRollup *statusCheckRollup `json:"statusCheckRollup"`
+	// CheckSuites are the newest suites of the commit, one per workflow run,
+	// read so withNewestRuns can find a run the rollup leaves out.
+	CheckSuites *struct {
+		Nodes []branchSuite `json:"nodes"`
+	} `json:"checkSuites"`
 }
 
 // branchContext is one check run or one legacy commit status.
@@ -213,7 +245,7 @@ func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *grap
 
 // branchRuns is the checks the query read, grouped by the workflow run each
 // belongs to, for a page to fold itself. The rollup counts every check of the
-// commit but the query reads only the first 50, so when the counts add up to
+// commit but the query reads only the first 100, so when the counts add up to
 // more, every run says its list is cut short.
 func branchRuns(rollup *statusCheckRollup) []dashboard.MainBranchRun {
 	nodes := rollup.Contexts.Nodes
@@ -223,15 +255,9 @@ func branchRuns(rollup *statusCheckRollup) []dashboard.MainBranchRun {
 	}
 	runs := dashboard.MainBranchRuns(checks)
 
-	total := 0
-	for _, c := range rollup.Contexts.CheckRunCountsByState {
-		total += c.Count
-	}
-	for _, c := range rollup.Contexts.StatusContextCountsByState {
-		total += c.Count
-	}
+	cut := rollup.jobsCut || rollup.cutShort()
 	for i := range runs {
-		runs[i].JobsTruncated = total > len(nodes)
+		runs[i].JobsTruncated = cut
 	}
 
 	return runs
@@ -402,28 +428,54 @@ func (c branchContext) label() string {
 	return c.Name
 }
 
-// branchTimes is when the last check finished and how long the pipeline ran,
-// from its first start to that finish. Nil for either when no check ran with
-// times, which a legacy commit status never has.
+// runKey is the run attempt a check belongs to; the zero key for a check of no
+// run.
+func (c branchContext) runKey() runKey {
+	if c.CheckSuite == nil || c.CheckSuite.WorkflowRun == nil {
+		return runKey{}
+	}
+
+	return runKey{c.CheckSuite.WorkflowRun.DatabaseID, c.CheckSuite.WorkflowRun.RunAttempt}
+}
+
+type runKey struct{ id, attempt int64 }
+
+// branchTimes is when the last check finished and how long the run that
+// finished last took, from its own first start to that finish. A default
+// branch's workflows run on their own schedules (a push, then a nightly one), so
+// the span across all of them would count the days between two runs. Checks of
+// no run share one group. Nil for either when no check ran with times, which a
+// legacy commit status never has.
 func branchTimes(checks []branchContext) (finished *time.Time, seconds *int) {
-	var first, last time.Time
+	type span struct{ first, last time.Time }
+	spans := map[runKey]*span{}
+	var newest *span
 	for _, c := range checks {
 		if c.Typename != "CheckRun" || c.StartedAt.IsZero() || c.CompletedAt.IsZero() {
 			continue
 		}
-		if first.IsZero() || c.StartedAt.Before(first) {
-			first = c.StartedAt
+		run := c.runKey()
+		sp, ok := spans[run]
+		if !ok {
+			sp = &span{first: c.StartedAt}
+			spans[run] = sp
 		}
-		if c.CompletedAt.After(last) {
-			last = c.CompletedAt
+		if c.StartedAt.Before(sp.first) {
+			sp.first = c.StartedAt
+		}
+		if c.CompletedAt.After(sp.last) {
+			sp.last = c.CompletedAt
+		}
+		if newest == nil || sp.last.After(newest.last) {
+			newest = sp
 		}
 	}
-	if last.IsZero() {
+	if newest == nil {
 		return nil, nil
 	}
-	d := max(int(last.Sub(first).Seconds()), 0)
+	d := max(int(newest.last.Sub(newest.first).Seconds()), 0)
 
-	return &last, &d
+	return &newest.last, &d
 }
 
 // checkedCommitsQuery builds one query that reads, for each repo, its newest
@@ -445,18 +497,7 @@ func checkedCommitsQuery(repos []branchRepo) (string, map[string]any) {
     defaultBranchRef { target { ... on Commit { history(first: 10) { nodes {
       oid abbreviatedOid messageHeadline url committedDate
       author { name user { login } }
-      statusCheckRollup {
-        state
-        contexts(first: 50) {
-          checkRunCountsByState { state count }
-          statusContextCountsByState { state count }
-          nodes {
-            __typename
-            ... on CheckRun { name conclusion startedAt completedAt detailsUrl }
-            ... on StatusContext { context state targetUrl }
-          }
-        }
-      }
+`+commitChecks+`
     } } } } }
   }
 `, i)
@@ -584,6 +625,7 @@ func (c *Client) FetchMainBranch(ctx context.Context, owner, name, fullName stri
 	repo := graphqlRepo{Name: name, DefaultBranchRef: resp.Repository.DefaultBranchRef}
 	repo.Owner.Login = owner
 	c.withCheckedCommits(ctx, []graphqlRepo{repo})
+	c.withNewestRuns(ctx, []graphqlRepo{repo})
 
 	row := mainBranchFrom(fullName, resp.Repository.URL, resp.Repository.LatestRelease, repo.DefaultBranchRef)
 	row.Advisories = c.advisoriesFor(ctx, owner, name, resp.Repository.URL)

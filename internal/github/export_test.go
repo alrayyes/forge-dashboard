@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -122,4 +123,15 @@ func PullRequestSelections() map[string]string {
 		"batch":        appRepoFields,
 		"lookup":       pullRequestFields,
 	}
+}
+
+// ReadSuiteChecks reads the check runs of the given suites, and answers how
+// many each had and which had more than the first page.
+func (c *Client) ReadSuiteChecks(ctx context.Context, ids []string) (counts map[string]int, more map[string]bool) {
+	counts, more = map[string]int{}, map[string]bool{}
+	for id, read := range c.readSuiteChecks(ctx, ids) {
+		counts[id], more[id] = len(read.nodes), read.more
+	}
+
+	return counts, more
 }

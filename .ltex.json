@@ -3,6 +3,8 @@
   "ltex.dictionary": {
     "en-GB": [
       "Dependabot",
+      "rollup",
+      "rollup's",
       "GHSA",
       "EPSS",
       "ETag",
