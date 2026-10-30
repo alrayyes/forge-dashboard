@@ -20,7 +20,8 @@ import (
 // of repo's default branch, from the Actions runs Forgejo lists for it. The
 // newest commit with a run is the one that counts, and every workflow that ran
 // on it is folded into one status, since a commit with a green lint and a red
-// test is a broken main. The pill counts the commit's jobs, not its runs. Costs
+// test is a broken main. Only the newest run of each workflow counts
+// (newestBranchRuns). The pill counts the commit's jobs, not its runs. Costs
 // one list call, one more for the commit and one for the jobs of each run,
 // except a finished run's, which are read once and kept.
 //
@@ -62,7 +63,7 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 	}
 
 	jobs, cut := c.runJobs(ctx, repo, runs)
-	runs = settledRuns(runs, jobs, cut)
+	runs = newestBranchRuns(settledRuns(runs, jobs, cut))
 	row.Status = mainBranchStatus(runs)
 	checks := branchChecks(runs, jobs)
 	row.Checks = countChecks(checks)
@@ -125,7 +126,8 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 	// The same runs and jobs the row counts (see ReadMainBranch), so the list
 	// and the pill can't describe different pipelines. branchRuns sorts newest
 	// first and keeps one commit's runs, so runs[0] is the commit the row reports.
-	jobs, _ := c.runJobs(ctx, ref, runs)
+	jobs, cut := c.runJobs(ctx, ref, runs)
+	runs = newestBranchRuns(settledRuns(runs, jobs, cut))
 	checks := branchChecks(runs, jobs)
 	c.rememberFailedJobs(owner, name, checks, jobExcerptKeys(ref, jobs))
 
@@ -525,26 +527,25 @@ func unset(t time.Time) bool {
 	return t.IsZero() || t.Unix() <= 0
 }
 
-// runTimes is when the last run finished and how long the commit's pipeline
-// took, from the first start to that finish. The finish is nil when no run has
-// a real stop. The duration is nil when no run has a real start as well.
+// runTimes is when the last run finished and how long that run took, from its
+// own start to its finish, so a nightly run days after the push run doesn't
+// make the pipeline look days long. The finish is nil when no run has a real
+// stop. The duration is nil when the run that finished last has no real start.
 func runTimes(runs []*branchRun) (finished *time.Time, seconds *int) {
-	var first, last time.Time
+	var lastRun *branchRun
 	for _, r := range runs {
-		if !unset(r.StartedAt) && (first.IsZero() || r.StartedAt.Before(first)) {
-			first = r.StartedAt
-		}
-		if !unset(r.StoppedAt) && r.StoppedAt.After(last) {
-			last = r.StoppedAt
+		if !unset(r.StoppedAt) && (lastRun == nil || r.StoppedAt.After(lastRun.StoppedAt)) {
+			lastRun = r
 		}
 	}
-	if last.IsZero() {
+	if lastRun == nil {
 		return nil, nil
 	}
-	if first.IsZero() {
+	last := lastRun.StoppedAt
+	if unset(lastRun.StartedAt) {
 		return &last, nil
 	}
-	d := max(int(last.Sub(first).Seconds()), 0)
+	d := max(int(last.Sub(lastRun.StartedAt).Seconds()), 0)
 
 	return &last, &d
 }
