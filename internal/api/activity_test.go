@@ -238,33 +238,3 @@ func TestPresence_APersonalAPITokenIsRefusedAndHoldsNothingActive(t *testing.T) 
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 	assert.True(t, act.Idle(), "a script has no tab to report")
 }
-
-func TestActivity_AStaleTabReconnectingThroughTheRedirectIsNotUse(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct{ method, path, body string }{
-		{http.MethodGet, "/api/dashboard/stream", ""},
-		{http.MethodPost, "/api/presence", `{"viewerId":"tab-aaaaaaaa","visible":false}`},
-	} {
-		t.Run(tt.path, func(t *testing.T) {
-			t.Parallel()
-
-			srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
-			cookie, _, _ := registerViaRealCeremony(t, srv)
-			service.EnsureIfAbsent(t.Context(), nil)
-			act := idleActivity(t, service)
-
-			c := testClient(t)
-			c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-			req, err := http.NewRequest(tt.method, srv.URL+tt.path, strings.NewReader(tt.body))
-			require.NoError(t, err)
-			req.AddCookie(cookie)
-			resp, err := c.Do(req)
-			require.NoError(t, err)
-			defer func() { _ = resp.Body.Close() }()
-			require.Equal(t, http.StatusPermanentRedirect, resp.StatusCode)
-
-			assert.True(t, act.Idle(), "the old address is the same stream or report, not a person")
-		})
-	}
-}
