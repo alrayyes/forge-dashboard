@@ -1,5 +1,16 @@
 # Changelog
 
+## [9.0.0](https://github.com/alrayyes/forge-dashboard/compare/v8.16.1...v9.0.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** every client route moved from /api/<path> to /api/v1/<path>. The old paths redirect with 308 for one release only.
+
+### Features
+
+* **api:** serve the API under /api/v1 ([#3104](https://github.com/alrayyes/forge-dashboard/issues/3104)) ([575cb01](https://github.com/alrayyes/forge-dashboard/commit/575cb010196bc76c2aa03f643c14a094e6c58383)), closes [#3102](https://github.com/alrayyes/forge-dashboard/issues/3102)
+
 ## [8.16.1](https://github.com/alrayyes/forge-dashboard/compare/v8.16.0...v8.16.1) (2026-10-29)
 
 
