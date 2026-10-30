@@ -99,8 +99,14 @@ is the run that finished last, from its own first start to its last finish.
 
 Two workflow files with the same display name read as one workflow, because
 the rule keys on the name and run numbers count per workflow file. Their runs
-supersede each other. The Forgejo row still folds every run of the commit;
-the page's fold and the dialog already use the newest run.
+supersede each other.
+
+The Forgejo row and its dialog list apply the rule too, to the runs of the
+commit before they read their jobs. Forgejo's runs list gives a run's workflow
+file and its number in the repo, but no attempt: a rerun is the same run, so
+it is never listed twice and its jobs carry the attempt. A run without a
+number, from an older Forgejo, is never replaced. As on GitHub, the row's
+duration is the run that finished last, from its own start.
 
 One more server-only fact never reaches the wire: on GitHub, whether held
 runs are the only reason CI reads as failing. The menu pill count reads it.
