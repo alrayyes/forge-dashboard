@@ -75,6 +75,24 @@ What stays on the server, because a rule reads it:
 The page draws those fields for a row it has no facts for: a branch with no
 `runs` or a cut-short job list, a pull request outside the rows in view.
 
+A default branch's commit can carry many runs of one workflow: the push, then
+scheduled or dispatched ones. Only the newest run of a workflow says whether
+the code works now, so a higher run number, or a later attempt of the same
+run, replaces the older one. A run that was only cancelled replaces nothing.
+The rule is held twice, like the fold. The server applies it to the row's
+`status`, `checks`, `failingJobs`, times, link and `runs`, and to the
+list in the dialog (`dashboard.NewestRuns`), because the CI poll reads `status`.
+The page applies it to the jobs it folds (`newestRuns` in `check-fold.ts`),
+so jobs from the stream agree with the pill. It picks which facts count and
+decides nothing, so the wire carries no new field.
+
+GitHub's rollup stays failed while any run's check failed, and it can lack a
+newer run's checks. So the server also reads the newest check suites and
+fetches the checks of any newer run the rollup left out, then works the state
+and counts out from the newest runs. Checks of other apps past the rollup's
+first 100 are not read. The Forgejo row still folds every run of the commit;
+the page's fold and the dialog already use the newest run.
+
 One more server-only fact never reaches the wire: on GitHub, whether held
 runs are the only reason CI reads as failing. The menu pill count reads it.
 
