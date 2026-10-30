@@ -4,8 +4,8 @@ These screens come from the Stitch project "Forge Dashboard UI Audit"
 (id `564147752128938905`). They live here because Stitch image links
 are signed and expire.
 
-The design system is "Forge Engine Visual Language": Geist, Inter and
-JetBrains Mono, with indigo for GitHub and orange for Forgejo.
+The design system is "Forge Engine Visual Language", using Geist, Inter, and
+JetBrains Mono. Indigo marks GitHub and orange marks Forgejo.
 
 These screens predate removing the More actions menu. Where one draws a More
 actions button or an open menu, the dashboard now draws only the primary
@@ -13,8 +13,8 @@ action on the row and keeps every other action in the pop-up's footer.
 
 - `dashboard-before.png`: the baseline dashboard.
 - `dashboard-after.png`: the redesigned dashboard the tickets build.
-- `dashboard-merge-states.png`: Merge waiting on CI, blocked and ready,
-  with Close only in the overflow menu.
+- `dashboard-merge-states.png`: the Merge button waiting on CI, blocked and
+  ready, with Close only in the overflow menu.
 - `dashboard-bot-rebase.png`: a Dependabot update request from queued to
   picked up.
 - `dashboard-stable-feed.png`: rows that stay put, with an updates bar
@@ -28,12 +28,12 @@ action on the row and keeps every other action in the pop-up's footer.
 
 The design is dark only. The app keeps its light theme.
 
-- `dashboard-rate-limit.png`: a rate-limited forge with disabled actions and
+- `dashboard-rate-limit.png`: a rate-limited forge with greyed-out actions and
   no Retry, next to a transient error that does offer Try again.
-- `dashboard-rate-limit-readonly.png`: Stitch's answer to a request for a
+- `dashboard-rate-limit-readonly.png`: the Stitch answer to a request for a
   read-only rate-limit mode. It largely repeats the rate-limit screen and
   does not draw the banner, queue or paused refresh that were asked for.
-- `dashboard-inline-confirm.png`: an armed Merge with Confirm, Cancel and a
+- `dashboard-inline-confirm.png`: an armed Merge with Confirm, Cancel, and a
   hint to cancel by pressing the escape key or clicking away.
 - `screen-mobile-pr-cards.png`: two pull request cards at phone width, in four
   tiers: the repo, the title with labels and times, a strip of status pills
@@ -68,24 +68,24 @@ server log. The tickets' criteria win over those two details.
   "Worker Task" labels and stage numbers are review chrome and don't ship.
 
 - `screen-releases-light.png` and `screen-releases-dark.png`: a page for release
-  pull requests only, in light and dark. Rows are grouped by repo with the
+  pull requests only, in both themes. Rows are grouped by repo with the
   version large in a fixed-width face, a changelog summary, CI and merge pills,
-  a "What's in this release" list, and Merge, Update branch and a More menu. It
+  a "What's in this release" list, and Merge, Update branch, and a More menu. It
   also draws the empty, loading and rate-limited states.
   `crop-releases-behind-row.png` is the Behind row, with the plain-words reason
   next to Update branch. Stitch project "Forge Dashboard UI Audit"
   (`564147752128938905`), screens `9f255af3c7674e40af6cd00b3a6e3823` (light) and
   `164a64303e3046dea0eff04607122151` (dark). It's the design for the releases
   page. The "Trigger Manual Cut", "Pipeline Rules", "Force changelog scan" and
-  "Retry Endpoint" buttons, the hotkeys bar, the queue and latency figures and
+  "Retry Endpoint" buttons, the hotkeys bar, the queue, and latency figures and
   the "Component State" panels are Stitch's own additions: they aren't in the
   ticket and don't ship.
 
 - `screen-main-branches-light.png`, `screen-main-branches-dark.png` and
   `screen-main-branches-mobile.png`: a page with the CI status of every repo's
-  default branch, in light, dark and at 390px. Rows carry status, branch, latest
+  default branch, in light, dark, and at 390px. Rows carry status, branch, latest
   commit, failing workflow and age; filter pills with counts, a forge toggle and
-  search sit above them, and a failed row shows its failing job and last log
+  search sit over them, and a failed row shows its failing job and last log
   lines. `crop-main-branches-filter-bar.png` is the header and filter bar and
   `crop-main-branches-failing-row.png` a failed row. Stitch project "Forge
   Dashboard UI Audit" (`564147752128938905`), screens
@@ -106,7 +106,7 @@ server log. The tickets' criteria win over those two details.
   `f231531e0fa24a46a9eaacc36ba8dbfe` (light), `de83d97b0cac412d90be8021301a354c`
   (dark) and `2b083d7f858a4dd3b33d29ab0819079c` (phone). It's the design for the
   waiting chips. The progress percentage and estimate, the header chips,
-  "Highlight Pending", the "Timeout" CI pill, the worker names and the
+  "Highlight Pending", the "Timeout" CI pill, the worker names, and the
   "Ergonomic Rules" panel are Stitch's own additions: they aren't in the ticket
   and don't ship.
 
@@ -129,7 +129,7 @@ server log. The tickets' criteria win over those two details.
   on a phone. The bottom tab bar and the "Live" chip aren't in the ticket and
   don't ship.
 
-- `screen-error-pages.png`: Stitch's candidate for the 404 and 500 pages, a
+- `screen-error-pages.png`: the Stitch candidate for the 404 and 500 pages, a
   "Runtime Exception Simulator" with a status chip, headline, a sentence, Back
   to pull requests, three next-step cards and recovery notes.
   `crop-error-page-head.png` is the head block, the part to build. Stitch
@@ -140,7 +140,7 @@ server log. The tickets' criteria win over those two details.
   which an error page must not (rules/error-pages.md).
 
 - `1473-pipeline-states/`: state indicators for the pipeline checks panel, so
-  Queued, Skipped and Cancelled stop looking alike. `matrix.png` is
+  Queued, Skipped, and Cancelled stop looking alike. `matrix.png` is
   the six states, `variants.png` the two layouts, `pipeline-states-full.png`
   the whole screen. Stitch project "Forge Dashboard UI Audit"
   (`564147752128938905`), screen `53cfc94d10a04ad7bd2383f2e3de0614`. Variant A
@@ -159,7 +159,7 @@ server log. The tickets' criteria win over those two details.
   and `a52d240ecebb462caa1dc4e884a1234a`. Build the structure: avatar and
   login on each comment, reaction pills with who gave them in hover text, the
   grouped release notes, one column for a bot pull request with its notes
-  collapsed, and a sticky action bar on a phone. Don't build the invented
+  collapsed, and a sticky bar of actions on a phone. Don't build the invented
   parts: the Live chip, the bottom tab bar, "CI Logs", "GPG Signed Commits",
   "Maintainer", the "Bot Command Interface" box, the "Approve & Merge
   Dependency" button, the add-reaction button, the "Design Architecture Spec"
@@ -182,7 +182,7 @@ server log. The tickets' criteria win over those two details.
   and sync chips, the display-mode and colour-check toggles, and the contrast
   claims.
 
-- `settings-groups/`: Settings split into five groups, one visible at a
+- `settings-groups/`: the settings split into five groups, one visible at a
   time. `settings-behaviour-desktop.png`, `settings-connections-desktop.png`
   and `settings-integrations-security-desktop.png` are the desktop screens,
   with a group list on the left. `settings-display-mobile.png` and
@@ -202,8 +202,8 @@ server log. The tickets' criteria win over those two details.
   and red-outline destructive buttons, with every existing setting kept and
   none added.
 
-  Build the groups in this order: Display, Connections,
-  Behaviour, Integrations and security. Mark the current group by more than
+  Build the groups in this order (Display, Connections,
+  Behaviour, Integrations, and security). Mark the current group by more than
   colour, as the accent bar and bold label do here. Put the chip beside each
   ignored pattern, and say "hides no issues" for zero, not "hides 0 issues".
   Outline destructive buttons in red, and use pill tabs on a phone. Keep

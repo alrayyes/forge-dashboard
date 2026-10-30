@@ -35,7 +35,7 @@ copy is deleted, one rule per pull request.
 - The API carries more fields, and the spec changes whenever a rule does.
   Client libraries regenerate more often.
 - The page can't change a rule alone. A change that used to be one component is
-  now a spec edit, a Go change and a page change.
+  now a spec edit, a Go change, and a page change.
 - The browser tests mock the API, so they fill in the server's answers from a
   table the Go rules generate (`tests/generated/allowed-actions.json`). A Go
   test fails when a rule changes and the table isn't regenerated, so the mocks
