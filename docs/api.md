@@ -59,9 +59,3 @@ Three things stay outside the version because something else holds their
 address: `/healthz` and `/readyz`, the forges' webhook routes under
 `/api/webhooks/`, and `GET /api/version`, which reports the release and the
 current `apiVersion`.
-
-The old addresses without a version (`/api/dashboard`) answer `308 Permanent
-Redirect` to their `/api/v1` path for one release, with a `Deprecation` header
-([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745)). A 308 keeps the method and
-body, so a page opened before an upgrade keeps working. Move to the `/api/v1`
-paths: the redirects are then removed.
