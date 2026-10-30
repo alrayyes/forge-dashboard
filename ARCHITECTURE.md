@@ -91,7 +91,9 @@ newer run's checks. So the server also reads the newest check suites and
 fetches the checks of any newer run the rollup left out, then works the state
 and counts out from the newest runs. Checks of other apps past the rollup's
 first 100 are not read, and a run with more than 100 jobs lists the first 100
-and flags the job list as cut short. A run is cancelled by its own conclusion
+and flags the job list as cut short. The flag also holds when the rollup
+counts more checks than it lists, even if the suites it read make up the
+difference. A run is cancelled by its own conclusion
 where the page has it (the row's `runs`) and by every job being cancelled where
 it does not (jobs from the stream). Both sides read the cases in
 `internal/dashboard/testdata/newest_runs.json`. On GitHub the row's duration

@@ -230,9 +230,10 @@ func (c *Client) readSuiteChecks(ctx context.Context, ids []string) map[string]s
 //
 // The counts are rebuilt from the nodes kept, so they would hide a commit with
 // more checks than were read. jobsCut keeps that: set when the rollup counted
-// more checks than the nodes read, replaced runs included, or a suite had more.
+// more checks than it listed itself, or a suite had more. The checks read from
+// suites are not set against the rollup's count, or they would hide its shortfall.
 func (r *statusCheckRollup) keepNewestRuns(extra []branchContext, more bool) {
-	total := r.total()
+	cut := more || r.cutShort()
 	listed := map[int64]bool{}
 	for _, n := range r.Contexts.Nodes {
 		if n.DatabaseID != 0 {
@@ -256,7 +257,7 @@ func (r *statusCheckRollup) keepNewestRuns(extra []branchContext, more bool) {
 	if len(fresh) == 0 && !slices.Contains(superseded, true) {
 		return
 	}
-	r.jobsCut = more || total > len(nodes)
+	r.jobsCut = cut
 
 	kept := make([]branchContext, 0, len(nodes))
 	for i, n := range nodes {
