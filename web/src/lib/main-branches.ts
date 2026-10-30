@@ -269,13 +269,13 @@ export type BranchPill = { status: MainBranchStatus; counts: CheckCounts };
 export type BranchRead = BranchPill & { failing: string[] };
 
 export function branchPill(
-  row: Pick<MainBranch, 'status' | 'checks' | 'failingJobs'>,
+  row: Pick<MainBranch, 'status' | 'checks' | 'failingJobs' | 'runs'>,
   live: readonly Check[] | null,
 ): BranchRead {
   if (!live || live.length === 0)
     return { status: row.status, counts: row.checks, failing: row.failingJobs };
 
-  const { status, counts, failing } = foldNewestRuns(live);
+  const { status, counts, failing } = foldNewestRuns(live, row.runs);
 
   return { status, counts, failing };
 }
@@ -311,7 +311,7 @@ export function withSnapshotRuns(rows: readonly MainBranch[]): MainBranch[] {
     const jobs = row.runs?.flatMap((run) => run.checks) ?? [];
     if (jobs.length === 0) return row;
 
-    const { status, counts, failing } = foldNewestRuns(jobs);
+    const { status, counts, failing } = foldNewestRuns(jobs, row.runs);
 
     return { ...row, status, checks: counts, failingJobs: failing };
   });

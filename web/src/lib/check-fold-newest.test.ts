@@ -1,10 +1,52 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import fixture from '../../../internal/dashboard/testdata/newest_runs.json';
 import { foldNewestRuns, newestRuns } from './check-fold';
 import type { Check } from './pipeline-checks';
 
-// Ports TestNewestRuns_* (internal/dashboard/newest_runs_test.go): a newer run
-// of a workflow replaces the older one, and the pill reads only the newest.
+// The rule's cases live in one file the Go tests read too
+// (internal/dashboard/testdata/newest_runs.json), so the server and the page
+// cannot drift apart.
+type FixtureCheck = {
+  name: string;
+  runName?: string;
+  runNumber?: number;
+  runAttempt?: number;
+  runId?: number;
+  jobConclusion?: string;
+  runConclusion?: string;
+};
+
+const cases = fixture as {
+  name: string;
+  checks: FixtureCheck[];
+  keep: string[];
+}[];
+
+const toCheck = (f: FixtureCheck): Check => ({
+  name: f.name,
+  url: `https://github.com/a/b/actions/runs/${f.runId}/job/${f.name}`,
+  status: 'completed',
+  conclusion: f.jobConclusion ?? 'success',
+  runName: f.runName,
+  runNumber: f.runNumber,
+  runAttempt: f.runAttempt,
+  runId: f.runId,
+});
+
+// The run facts a snapshot row carries, one per run that has a conclusion.
+const runsOf = (checks: FixtureCheck[]) =>
+  checks
+    .filter((f) => f.runConclusion)
+    .map((f) => ({
+      runId: f.runId,
+      runAttempt: f.runAttempt,
+      conclusion: f.runConclusion,
+    }));
+
+const label = (c: Check) =>
+  `${c.name}@${c.runName ?? ''}#${c.runNumber ?? 0}.${c.runAttempt ?? 0}`;
+
 function job(
   name: string,
   conclusion: string,
@@ -20,34 +62,22 @@ function job(
     runName,
     runNumber,
     runAttempt,
+    runId: runNumber === undefined ? undefined : runNumber * 10,
   };
 }
 
 describe('newestRuns', () => {
-  test('a newer run of the same workflow replaces the older', () => {
-    const checks = [
-      job('reports', 'failure', 'ci', 1),
-      job('lint', 'success', 'ci', 1),
-      job('reports', 'success', 'ci', 2),
-      job('scan', 'success', 'gitleaks', 1),
-    ];
+  for (const tc of cases) {
+    test(tc.name, () => {
+      const got = newestRuns(tc.checks.map(toCheck), runsOf(tc.checks));
 
-    expect(newestRuns(checks).map((c) => `${c.name}@${c.runNumber}`)).toEqual([
-      'reports@2',
-      'scan@1',
-    ]);
-  });
+      expect(got.map(label)).toEqual(tc.keep);
+    });
+  }
 
-  test('a later attempt of the same run replaces the earlier', () => {
-    const checks = [
-      job('test', 'failure', 'ci', 1, 1),
-      job('test', 'success', 'ci', 1, 2),
-    ];
-
-    expect(newestRuns(checks).map((c) => c.runAttempt)).toEqual([2]);
-  });
-
-  test('a run that was only cancelled replaces nothing', () => {
+  // A live job carries no run conclusion. With none to read, a run counts as
+  // cancelled when every one of its jobs was.
+  test('without a run conclusion, a run of only cancelled jobs replaces nothing', () => {
     const checks = [
       job('test', 'failure', 'ci', 1),
       job('test', 'cancelled', 'ci', 2),
@@ -56,13 +86,14 @@ describe('newestRuns', () => {
     expect(newestRuns(checks)).toHaveLength(2);
   });
 
-  test('checks with no workflow or run number are kept', () => {
+  test('without a run conclusion, a run with one job that finished is newest', () => {
     const checks = [
-      job('codecov', 'success', undefined, undefined),
-      job('codecov', 'failure', undefined, undefined),
+      job('a', 'failure', 'ci', 1),
+      job('lint', 'success', 'ci', 2),
+      job('t', 'cancelled', 'ci', 2),
     ];
 
-    expect(newestRuns(checks)).toHaveLength(2);
+    expect(newestRuns(checks).map(label)).toEqual(['lint@ci#2.1', 't@ci#2.1']);
   });
 });
 

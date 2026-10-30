@@ -37,8 +37,15 @@ export type BranchFold = {
 // The server drops the same jobs from the row it sends
 // (SupersededRuns in internal/dashboard/newest_runs.go); the page does it again
 // for jobs that arrive over the stream, so a pill and the list under it agree.
-export function newestRuns(checks: readonly Check[]): Check[] {
-  const cancelled = cancelledRuns(checks);
+// Both read the same cases, internal/dashboard/testdata/newest_runs.json.
+//
+// `runs` are the run facts a snapshot row carries. Where a run's conclusion is
+// there, it says whether the run was cancelled, as it does on the server.
+export function newestRuns(
+  checks: readonly Check[],
+  runs: readonly RunConclusion[] = [],
+): Check[] {
+  const cancelled = cancelledRuns(checks, runs);
   const newest = new Map<string, Check>();
   for (const check of checks) {
     if (!check.runName || !check.runNumber || cancelled.has(runKey(check)))
@@ -59,17 +66,39 @@ export function newestRuns(checks: readonly Check[]): Check[] {
 const runKey = (check: Check): string =>
   `${check.runName}#${check.runNumber}.${check.runAttempt ?? 0}`;
 
-// The runs whose every job was cancelled: the page's reading of a run the
-// server's suite calls cancelled.
-function cancelledRuns(checks: readonly Check[]): Set<string> {
+// What a run concluded, as a snapshot row's runs carry it.
+export type RunConclusion = {
+  runId?: number;
+  runAttempt?: number;
+  conclusion?: string;
+};
+
+// The runs that were only cancelled. A run whose conclusion is known is
+// cancelled when that says so, as on the server; a job of it that finished
+// before the cancel does not change that. A run with no conclusion to read (a
+// job that arrived over the stream, with no run facts) is cancelled when every
+// one of its jobs was.
+function cancelledRuns(
+  checks: readonly Check[],
+  runs: readonly RunConclusion[],
+): Set<string> {
+  const known = new Map(
+    runs
+      .filter((run) => run.conclusion)
+      .map((run) => [`${run.runId}.${run.runAttempt ?? 0}`, run.conclusion]),
+  );
+  const decided = new Map<string, boolean>();
   const live = new Set<string>();
   const all = new Set<string>();
   for (const check of checks) {
-    all.add(runKey(check));
-    if (checkState(check) !== 'cancelled') live.add(runKey(check));
+    const key = runKey(check);
+    const conclusion = known.get(`${check.runId}.${check.runAttempt ?? 0}`);
+    all.add(key);
+    if (conclusion !== undefined) decided.set(key, conclusion === 'cancelled');
+    else if (checkState(check) !== 'cancelled') live.add(key);
   }
 
-  return new Set([...all].filter((key) => !live.has(key)));
+  return new Set([...all].filter((key) => decided.get(key) ?? !live.has(key)));
 }
 
 function isOlder(a: Check, b: Check): boolean {
@@ -80,8 +109,11 @@ function isOlder(a: Check, b: Check): boolean {
 
 // foldBranch over the newest run of each workflow, as a default branch's pill
 // reads its jobs.
-export function foldNewestRuns(checks: readonly Check[]): BranchFold {
-  return foldBranch(newestRuns(checks));
+export function foldNewestRuns(
+  checks: readonly Check[],
+  runs: readonly RunConclusion[] = [],
+): BranchFold {
+  return foldBranch(newestRuns(checks, runs));
 }
 
 // A real failure wins over a job still going; jobs that were only cancelled,

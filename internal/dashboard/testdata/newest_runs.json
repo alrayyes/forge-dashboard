@@ -1,0 +1,149 @@
+[
+  {
+    "name": "a newer run of the same workflow replaces the older",
+    "checks": [
+      {
+        "name": "reports",
+        "runName": "ci",
+        "runNumber": 1,
+        "runAttempt": 1,
+        "runId": 10,
+        "jobConclusion": "failure"
+      },
+      {
+        "name": "lint",
+        "runName": "ci",
+        "runNumber": 1,
+        "runAttempt": 1,
+        "runId": 10
+      },
+      {
+        "name": "reports",
+        "runName": "ci",
+        "runNumber": 2,
+        "runAttempt": 1,
+        "runId": 20
+      },
+      {
+        "name": "scan",
+        "runName": "gitleaks",
+        "runNumber": 1,
+        "runAttempt": 1,
+        "runId": 30
+      }
+    ],
+    "keep": ["reports@ci#2.1", "scan@gitleaks#1.1"]
+  },
+  {
+    "name": "a later attempt of the same run replaces the earlier",
+    "checks": [
+      {
+        "name": "test",
+        "runName": "ci",
+        "runNumber": 1,
+        "runAttempt": 1,
+        "runId": 10,
+        "jobConclusion": "failure"
+      },
+      {
+        "name": "test",
+        "runName": "ci",
+        "runNumber": 1,
+        "runAttempt": 2,
+        "runId": 10
+      }
+    ],
+    "keep": ["test@ci#1.2"]
+  },
+  {
+    "name": "a failure of another workflow stands",
+    "checks": [
+      {
+        "name": "reports",
+        "runName": "ci",
+        "runNumber": 1,
+        "runAttempt": 1,
+        "runId": 10,
+        "jobConclusion": "failure"
+      },
+      {
+        "name": "reports",
+        "runName": "ci",
+        "runNumber": 2,
+        "runAttempt": 1,
+        "runId": 20
+      },
+      {
+        "name": "ship",
+        "runName": "deploy",
+        "runNumber": 9,
+        "runAttempt": 1,
+        "runId": 40,
+        "jobConclusion": "failure"
+      }
+    ],
+    "keep": ["reports@ci#2.1", "ship@deploy#9.1"]
+  },
+  {
+    "name": "a run that was only cancelled replaces nothing",
+    "checks": [
+      {
+        "name": "test",
+        "runName": "ci",
+        "runNumber": 1,
+        "runAttempt": 1,
+        "runId": 10,
+        "jobConclusion": "failure"
+      },
+      {
+        "name": "test",
+        "runName": "ci",
+        "runNumber": 2,
+        "runAttempt": 1,
+        "runId": 20,
+        "jobConclusion": "cancelled",
+        "runConclusion": "cancelled"
+      }
+    ],
+    "keep": ["test@ci#1.1", "test@ci#2.1"]
+  },
+  {
+    "name": "a cancelled run with a job that finished first still replaces nothing",
+    "checks": [
+      {
+        "name": "a",
+        "runName": "ci",
+        "runNumber": 1,
+        "runAttempt": 1,
+        "runId": 10,
+        "jobConclusion": "failure"
+      },
+      {
+        "name": "lint",
+        "runName": "ci",
+        "runNumber": 2,
+        "runAttempt": 1,
+        "runId": 20,
+        "runConclusion": "cancelled"
+      },
+      {
+        "name": "t",
+        "runName": "ci",
+        "runNumber": 2,
+        "runAttempt": 1,
+        "runId": 20,
+        "jobConclusion": "cancelled",
+        "runConclusion": "cancelled"
+      }
+    ],
+    "keep": ["a@ci#1.1", "lint@ci#2.1", "t@ci#2.1"]
+  },
+  {
+    "name": "a check with no workflow is kept",
+    "checks": [
+      { "name": "codecov/patch" },
+      { "name": "codecov/project", "jobConclusion": "failure" }
+    ],
+    "keep": ["codecov/patch@#0.0", "codecov/project@#0.0"]
+  }
+]
