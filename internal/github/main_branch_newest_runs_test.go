@@ -203,3 +203,45 @@ func TestFetchMainBranch_ANewestRunReadWholeIsNotTruncated(t *testing.T) {
 	require.Len(t, row.Runs, 1)
 	assert.False(t, row.Runs[0].JobsTruncated)
 }
+
+// The rollup counts four checks and lists two; the follow-up read adds two. The
+// read jobs make up the shortfall, but they came from a suite, not from the
+// rollup, so the rollup is still cut short and the row says so.
+func TestFetchMainBranch_AShortfallMadeUpByTheFollowUpStillReadsAsTruncated(t *testing.T) {
+	t.Parallel()
+
+	run := workflowRun(2, 1, 6, "ci")
+	suite := suiteOf("COMPLETED", "SUCCESS", run)
+	job := func(id int, name string) map[string]any {
+		return runCheck(id, name, "COMPLETED", "SUCCESS", "2026-10-30T11:42:00Z", "2026-10-30T11:43:00Z", runsURL+"2/job/"+name, suite)
+	}
+	rollup := rollupOf("SUCCESS", map[string]int{"SUCCESS": 4}, job(21, "lint"), job(22, "test"))
+	suites := []map[string]any{suiteNode("S2", "COMPLETED", "SUCCESS", run)}
+	later := map[string][]map[string]any{"S2": {job(23, "build"), job(24, "deploy")}}
+
+	row := fetchNewest(t, rollup, suites, later)
+
+	require.Len(t, row.Runs, 1)
+	assert.Equal(t, 4, row.Checks.Passed)
+	assert.True(t, row.Runs[0].JobsTruncated, "the rollup listed two of its four checks")
+}
+
+// A newest run that was only cancelled replaces nothing: the older run's pass
+// stands and the row reads cancelled, not failed, as the page's fold does.
+func TestFetchMainBranch_ACancelledNewestRunLeavesTheRowCancelledNotFailed(t *testing.T) {
+	t.Parallel()
+
+	older := workflowRun(1, 1, 5, "ci")
+	newest := workflowRun(2, 1, 6, "ci")
+	rollup := rollupOf("FAILURE", map[string]int{"SUCCESS": 1, "CANCELLED": 1},
+		runCheck(11, "lint", "COMPLETED", "SUCCESS", "2026-10-26T08:00:00Z", "2026-10-26T08:01:00Z", runsURL+"1/job/11", suiteOf("COMPLETED", "SUCCESS", older)),
+		runCheck(21, "lint", "COMPLETED", "CANCELLED", "2026-10-30T11:42:00Z", "2026-10-30T11:43:00Z", runsURL+"2/job/21", suiteOf("COMPLETED", "CANCELLED", newest)),
+	)
+	suites := []map[string]any{suiteNode("S1", "COMPLETED", "SUCCESS", older), suiteNode("S2", "COMPLETED", "CANCELLED", newest)}
+
+	row := fetchNewest(t, rollup, suites, nil)
+
+	assert.Equal(t, dashboard.MainBranchCancelled, row.Status)
+	assert.Empty(t, row.FailingJobs)
+	assert.Equal(t, 0, row.Checks.Failed)
+}
