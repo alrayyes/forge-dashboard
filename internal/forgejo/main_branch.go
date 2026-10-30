@@ -126,8 +126,8 @@ func (c *Client) ListDefaultBranchChecks(ctx context.Context, owner, name string
 	// The same runs and jobs the row counts (see ReadMainBranch), so the list
 	// and the pill can't describe different pipelines. branchRuns sorts newest
 	// first and keeps one commit's runs, so runs[0] is the commit the row reports.
-	runs = newestBranchRuns(runs)
-	jobs, _ := c.runJobs(ctx, ref, runs)
+	jobs, cut := c.runJobs(ctx, ref, runs)
+	runs = newestBranchRuns(settledRuns(runs, jobs, cut))
 	checks := branchChecks(runs, jobs)
 	c.rememberFailedJobs(owner, name, checks, jobExcerptKeys(ref, jobs))
 

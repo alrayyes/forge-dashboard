@@ -8,7 +8,9 @@ import (
 // replaces (dashboard.SupersededRuns), in order. Forgejo's runs list names a
 // run's workflow file and its number in the repo, and has no attempt: a rerun
 // is the same run, so it never appears twice, and its attempt is read from the
-// jobs. A run without a number is never replaced.
+// jobs. A run without a number is never replaced. It reads each run's status as
+// settledRuns left it, so the row and the dialog list agree on which runs were
+// cancelled.
 func newestBranchRuns(runs []*branchRun) []*branchRun {
 	checks := make([]dashboard.Check, len(runs))
 	for i, r := range runs {

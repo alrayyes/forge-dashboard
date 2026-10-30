@@ -108,6 +108,43 @@ func TestReadMainBranch_RunWithoutANumberIsNeverReplaced(t *testing.T) {
 	assert.Equal(t, dashboard.MainBranchFailed, row.Status)
 }
 
+// A run listed as running whose jobs all ended cancelled is only cancelled, so
+// it replaces nothing: the older failure stands, in the row and in the list.
+func TestNewestRun_ListedRunningButAllCancelledReplacesNothing(t *testing.T) {
+	t.Parallel()
+
+	srv := newestServer(numbered(5, 5, "ci", "running"), numbered(1, 1, "ci", "failure"))
+	srv.jobs["5"] = []map[string]any{
+		{"id": 51, "name": "unit", "status": "cancelled", "run_attempt": 1, "started_at": started, "completed_at": stopped},
+	}
+	client := srv.start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+	checks, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+	require.NoError(t, err)
+
+	assert.Equal(t, dashboard.MainBranchFailed, row.Status)
+	runIDs := map[int64]bool{}
+	for _, c := range checks {
+		runIDs[c.RunID] = true
+	}
+	assert.Equal(t, map[int64]bool{1: true, 5: true}, runIDs, "the list keeps the older run too")
+}
+
+// Two runs of one workflow with the same number replace neither.
+func TestReadMainBranch_RunsWithTheSameNumberReplaceNeitherOther(t *testing.T) {
+	t.Parallel()
+
+	client := newestServer(numbered(2, 7, "ci", "success"), numbered(1, 7, "ci", "failure")).start(t)
+
+	row, err := client.ReadMainBranch(t.Context(), repoA)
+	require.NoError(t, err)
+
+	assert.Equal(t, dashboard.MainBranchFailed, row.Status)
+	assert.Len(t, row.Runs, 2)
+}
+
 // The dialog's list holds the newest run of each workflow, as the row counts.
 func TestListDefaultBranchChecks_KeepsTheNewestRunOfEachWorkflow(t *testing.T) {
 	t.Parallel()
