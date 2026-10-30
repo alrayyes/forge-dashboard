@@ -9,7 +9,7 @@ import (
 )
 
 // getPullRequestDetailsInput is get_pull_request_details's argument shape, the
-// same three query parameters GET /api/pull-requests/details takes. Number is
+// same three query parameters GET /api/v1/pull-requests/details takes. Number is
 // an int, so the schema refuses the non-integer the handler answers 400 for.
 type getPullRequestDetailsInput struct {
 	Forge    string `json:"forge" jsonschema:"the forge the pull request lives on: github or forgejo"`
@@ -34,14 +34,14 @@ type getMainBranchChecksInput struct {
 }
 
 // getRepositoryAdvisoriesInput is get_repository_advisories's argument shape,
-// the same two query parameters GET /api/main-branches/advisories takes.
+// the same two query parameters GET /api/v1/main-branches/advisories takes.
 type getRepositoryAdvisoriesInput struct {
 	Forge    string `json:"forge" jsonschema:"the forge the repository lives on: github or forgejo"`
 	FullName string `json:"fullName" jsonschema:"the repository as owner/repo"`
 }
 
 // getCheckLogInput is get_check_log's argument shape, the same three query
-// parameters GET /api/checks/log takes.
+// parameters GET /api/v1/checks/log takes.
 type getCheckLogInput struct {
 	Forge    string `json:"forge" jsonschema:"the forge the repository lives on: github or forgejo"`
 	FullName string `json:"fullName" jsonschema:"the repository as owner/repo"`
@@ -49,7 +49,7 @@ type getCheckLogInput struct {
 }
 
 // setPullRequestAutoUpdateInput is set_pull_request_auto_update's argument
-// shape, the same four fields as POST /api/pull-requests/auto-update's body.
+// shape, the same four fields as POST /api/v1/pull-requests/auto-update's body.
 // Enabled is a pointer, so null and absent both mean "follow the repo".
 type setPullRequestAutoUpdateInput struct {
 	Forge    string `json:"forge" jsonschema:"the forge the pull request lives on: github or forgejo"`
@@ -65,8 +65,8 @@ type setPullRequestAutoUpdateInput struct {
 // package does -- getServer below builds a fresh *mcp.Server per request, the
 // same "authenticated the same way the frontend already is" contract #561 asked for. No new auth mechanism:
 // an MCP client authenticates with this app's own personal API tokens
-// (Authorization: Bearer <token>, /api/tokens) exactly as a script hitting
-// /api/dashboard directly already would.
+// (Authorization: Bearer <token>, /api/v1/tokens) exactly as a script hitting
+// /api/v1/dashboard directly already would.
 func newMCPHandler(deps Deps) http.Handler {
 	getServer := func(*http.Request) *mcp.Server {
 		return newMCPServer(deps)
@@ -170,7 +170,7 @@ func addStoreTools(server *mcp.Server, deps Deps) {
 			"release tag its binary was built from (\"dev\" for a build outside the " +
 			"release pipeline). Read-only, and it costs no forge budget.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, Version, error) {
-		return nil, Version{Version: deps.Version}, nil
+		return nil, Version{Version: deps.Version, APIVersion: apiMajorVersion}, nil
 	})
 }
 

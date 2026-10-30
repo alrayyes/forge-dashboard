@@ -20,7 +20,7 @@ func TestRequestBody_OverTheCapIsRefusedWith413(t *testing.T) {
 
 	for name, call := range map[string]func() *http.Response{
 		"settings (session)": func() *http.Response {
-			return doJSON(t, http.MethodPut, srv.URL+"/api/settings", huge, cookie)
+			return doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", huge, cookie)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestRequestBody_AnOrdinaryBodyStillGoesThrough(t *testing.T) {
 	srv := newTestServer(t)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+strings.Repeat("a", 4096)+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+strings.Repeat("a", 4096)+`"}`, cookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.NotEqual(t, http.StatusRequestEntityTooLarge, resp.StatusCode)

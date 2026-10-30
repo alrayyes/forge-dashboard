@@ -89,7 +89,7 @@ func buildNavCountsFixture(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// The e2e specs mock /api/dashboard and fill each snapshot's navCounts from this
+// The e2e specs mock /api/v1/dashboard and fill each snapshot's navCounts from this
 // table, so they can't pass against a counting rule the server no longer has. A
 // change to the rule, or a renamed field, fails here until the table is
 // regenerated and committed (#1341).

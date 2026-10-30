@@ -30,7 +30,7 @@ func TestContract_PullRequestsCarryClosesIssues(t *testing.T) {
 		t.Parallel()
 
 		srv, cookie := populatedBoard(t)
-		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/dashboard?includeDrafts=true", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 

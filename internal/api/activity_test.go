@@ -58,7 +58,7 @@ func TestActivity_ASignedInRequestCountsAsUse(t *testing.T) {
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 	act := idleActivity(t, service)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/session", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	resp, err := testClient(t).Do(req)
@@ -75,7 +75,7 @@ func TestActivity_ARequestThatIsRejectedIsNotUse(t *testing.T) {
 	srv, service, _ := newTestServerWithSourcesAndService(t, noSources)
 	act := idleActivity(t, service)
 
-	resp, err := testClient(t).Get(srv.URL + "/api/auth/session")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/auth/session")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -105,7 +105,7 @@ func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 	service.EnsureIfAbsent(t.Context(), nil)
 	act := idleActivity(t, service)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard/stream", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	resp, err := testClient(t).Do(req)
@@ -120,7 +120,7 @@ func TestActivity_AnOpenLiveStreamAloneIsNotUse(t *testing.T) {
 func postPresence(t *testing.T, srvURL string, cookie *http.Cookie, body string) (int, []byte) {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/presence", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/presence", strings.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	if cookie != nil {
@@ -212,7 +212,7 @@ func TestActivity_ABackgroundReadIsNotUse(t *testing.T) {
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 	act := idleActivity(t, service)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("X-Background-Read", "true")
@@ -232,7 +232,7 @@ func TestPresence_APersonalAPITokenIsRefusedAndHoldsNothingActive(t *testing.T) 
 	token := createTestAPIToken(t, srv.URL, cookie)
 	act := idleActivity(t, service)
 
-	resp := doWithBearer(t, http.MethodPost, srv.URL+"/api/presence", `{"viewerId":"tab-aaaaaaaa","visible":true}`, token)
+	resp := doWithBearer(t, http.MethodPost, srv.URL+"/api/v1/presence", `{"viewerId":"tab-aaaaaaaa","visible":true}`, token)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)

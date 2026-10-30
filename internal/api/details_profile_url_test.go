@@ -89,7 +89,7 @@ func TestContract_DetailsPeople(t *testing.T) {
 		source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
 		srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
-		req, got := record(t, http.MethodGet, srvURL+"/api/pull-requests/details?forge=github&fullName=alrayyes/tempus-fugit&number=42", sessionCookie)
+		req, got := record(t, http.MethodGet, srvURL+"/api/v1/pull-requests/details?forge=github&fullName=alrayyes/tempus-fugit&number=42", sessionCookie)
 
 		require.Equal(t, http.StatusOK, got.status)
 		validateAgainstSpec(t, req, got)
@@ -100,7 +100,7 @@ func TestContract_DetailsPeople(t *testing.T) {
 		source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: sampleIssueDetails()}
 		srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
-		req, got := record(t, http.MethodGet, srvURL+"/api/issues/details?forge=github&fullName=alrayyes/tempus-fugit&number=3", sessionCookie)
+		req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?forge=github&fullName=alrayyes/tempus-fugit&number=3", sessionCookie)
 
 		require.Equal(t, http.StatusOK, got.status)
 		validateAgainstSpec(t, req, got)

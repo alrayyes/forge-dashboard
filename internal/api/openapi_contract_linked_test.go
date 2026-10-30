@@ -34,7 +34,7 @@ func TestContract_IssuesCarryLinkedPullRequests(t *testing.T) {
 		t.Parallel()
 
 		srv, cookie := linkedBoard(t)
-		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard", cookie)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/dashboard", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 
@@ -90,7 +90,7 @@ func linkedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

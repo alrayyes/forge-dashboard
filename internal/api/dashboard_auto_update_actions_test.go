@@ -52,9 +52,9 @@ func updateBranchServer(t *testing.T, autoUpdate bool) (srvURL string, sessionCo
 		require.Less(t, resp.StatusCode, 300)
 	}
 	if autoUpdate {
-		send(http.MethodPost, "/api/repos/auto-update-branch/enable", `{"forge":"github","fullName":"alrayyes/a"}`)
+		send(http.MethodPost, "/api/v1/repos/auto-update-branch/enable", `{"forge":"github","fullName":"alrayyes/a"}`)
 	}
-	send(http.MethodPut, "/api/settings", `{"githubToken":"`+secretToken+`"}`)
+	send(http.MethodPut, "/api/v1/settings", `{"githubToken":"`+secretToken+`"}`)
 
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, sessionCookie, "")["pullRequests"].([]any)

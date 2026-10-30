@@ -42,7 +42,7 @@ func TestDashboard_CarriesTheMainBranchRows(t *testing.T) {
 	assert.NotContains(t, section, "counts", "the page tallies the rows it holds")
 }
 
-// The rows follow the same ignore list as GET /api/main-branches.
+// The rows follow the same ignore list as GET /api/v1/main-branches.
 func TestDashboard_MainBranchRowsLeaveOutARepoIgnoredForPullRequests(t *testing.T) {
 	t.Parallel()
 

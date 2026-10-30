@@ -56,7 +56,7 @@ func cancelBoard(t *testing.T, cancelErr error) (*httptest.Server, *http.Cookie,
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -66,7 +66,7 @@ func cancelBoard(t *testing.T, cancelErr error) (*httptest.Server, *http.Cookie,
 func postCancelRun(t *testing.T, srvURL string, cookie *http.Cookie, body string) (int, map[string]any) {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/checks/cancel-run", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/checks/cancel-run", strings.NewReader(body))
 	require.NoError(t, err)
 	if cookie != nil {
 		req.AddCookie(cookie)

@@ -39,7 +39,7 @@ func draftsServer(t *testing.T) (srvURL string, sessionCookie *http.Cookie) {
 	srv := newTestServerWithSources(t, buildSources)
 	sessionCookie, _, _ = registerViaRealCeremony(t, srv)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -59,7 +59,7 @@ func draftsServer(t *testing.T) (srvURL string, sessionCookie *http.Cookie) {
 
 func fetchDashboardWith(t *testing.T, srvURL string, sessionCookie *http.Cookie, query string) map[string]any {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard"+query, nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard"+query, nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -110,7 +110,7 @@ func TestDashboard_Drafts(t *testing.T) {
 		t.Parallel()
 		srvURL, cookie := draftsServer(t)
 
-		req, err := http.NewRequest(http.MethodPost, srvURL+"/api/dashboard/refresh", nil)
+		req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/dashboard/refresh", nil)
 		require.NoError(t, err)
 		req.AddCookie(cookie)
 		resp, err := testClient(t).Do(req)
@@ -127,7 +127,7 @@ func TestDashboard_Drafts(t *testing.T) {
 		t.Parallel()
 		srvURL, cookie := draftsServer(t)
 
-		streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream?includeDrafts=true", nil)
+		streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard/stream?includeDrafts=true", nil)
 		require.NoError(t, err)
 		streamReq.AddCookie(cookie)
 		streamResp, err := testClient(t).Do(streamReq)
@@ -137,7 +137,7 @@ func TestDashboard_Drafts(t *testing.T) {
 		events := make(chan string, 4)
 		go streamSSEEvents(bufio.NewReader(streamResp.Body), events)
 
-		refreshReq, err := http.NewRequest(http.MethodPost, srvURL+"/api/dashboard/refresh", nil)
+		refreshReq, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/dashboard/refresh", nil)
 		require.NoError(t, err)
 		refreshReq.AddCookie(cookie)
 		refreshResp, err := testClient(t).Do(refreshReq)

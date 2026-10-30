@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mainBranchesBody is GET /api/main-branches as a client reads it.
+// mainBranchesBody is GET /api/v1/main-branches as a client reads it.
 type mainBranchesBody struct {
 	Forges   []dashboard.ForgeHealth `json:"forges"`
 	Branches []struct {
@@ -47,20 +47,20 @@ func newMainBranchesServerWithHealth(t *testing.T, health dashboard.ForgeHealth,
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	return srv.URL, cookie
 }
 
-// readMainBranchesFrom reads GET /api/main-branches until it lists want rows.
+// readMainBranchesFrom reads GET /api/v1/main-branches until it lists want rows.
 func readMainBranchesFrom(t *testing.T, srvURL string, cookie *http.Cookie, want int) mainBranchesBody {
 	t.Helper()
 
 	var body mainBranchesBody
 	require.Eventually(t, func() bool {
-		_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
+		_, got := record(t, http.MethodGet, srvURL+"/api/v1/main-branches", cookie)
 		body = mainBranchesBody{}
 
 		return got.status == http.StatusOK && json.Unmarshal(got.body, &body) == nil && len(body.Branches) == want
@@ -156,7 +156,7 @@ func TestMainBranches(t *testing.T) {
 
 		srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{branchRow("o/passing", dashboard.MainBranchPassed)})
 		readMainBranchesFrom(t, srvURL, cookie, 1)
-		_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
+		_, got := record(t, http.MethodGet, srvURL+"/api/v1/main-branches", cookie)
 
 		assert.NotContains(t, rawFields(t, got.body), "counts")
 	})
@@ -181,7 +181,7 @@ func TestMainBranches_NoRepos(t *testing.T) {
 	srv := newTestServer(t)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 
-	_, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+	_, got := record(t, http.MethodGet, srv.URL+"/api/v1/main-branches", cookie)
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	assert.JSONEq(t, `[]`, string(rawField(t, got.body, "branches")), "an array, never null")

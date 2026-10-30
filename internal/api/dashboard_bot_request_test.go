@@ -55,7 +55,7 @@ func botBoardAs(t *testing.T, author string, fail error) (*httptest.Server, *htt
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+token+`"}`))
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+token+`"}`))
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -106,7 +106,7 @@ func TestDashboard_BotRequest_RenovateRebase_ShowsOnThePullRequest(t *testing.T)
 
 	srv, cookie := botBoardAs(t, "renovate[bot]", nil)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/pull-requests/renovate-rebase",
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/pull-requests/renovate-rebase",
 		strings.NewReader(`{"forge":"github","fullName":"alrayyes/a","number":5}`))
 	require.NoError(t, err)
 	req.AddCookie(cookie)

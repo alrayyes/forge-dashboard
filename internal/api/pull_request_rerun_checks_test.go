@@ -70,7 +70,7 @@ func rerunBoardFor(t *testing.T, forge dashboard.Forge, rerunErr error, prs ...d
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", settingsBody, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", settingsBody, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -94,7 +94,7 @@ func postRerunChecksFor(t *testing.T, forge, srvURL string, cookie *http.Cookie)
 
 	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": "alrayyes/a", "number": 5})
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/rerun-checks", strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/pull-requests/rerun-checks", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -192,7 +192,7 @@ func TestPullRequestRerunChecks_Unauthenticated_Returns401(t *testing.T) {
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
 	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
-	resp, err := testClient(t).Post(srvURL+"/api/pull-requests/rerun-checks", "application/json", strings.NewReader(`{}`))
+	resp, err := testClient(t).Post(srvURL+"/api/v1/pull-requests/rerun-checks", "application/json", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

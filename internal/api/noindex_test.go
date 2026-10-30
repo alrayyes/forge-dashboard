@@ -19,15 +19,15 @@ func TestNoIndex_EveryResponseCarriesTheHeader(t *testing.T) {
 	}}
 
 	for _, path := range []string{
-		"/login.html",    // public page
-		"/style.css",     // static asset
-		"/healthz",       // plain handler
-		"/api/version",   // JSON
-		"/api/nope",      // JSON 404
-		"/api/dashboard", // JSON 401
-		"/settings.html", // auth-gated page, redirected
-		"/no-such-page",  // the 404 page
-		"/robots.txt",    // crawlers read this first
+		"/login.html",       // public page
+		"/style.css",        // static asset
+		"/healthz",          // plain handler
+		"/api/version",      // JSON
+		"/api/nope",         // JSON 404
+		"/api/v1/dashboard", // JSON 401
+		"/settings.html",    // auth-gated page, redirected
+		"/no-such-page",     // the 404 page
+		"/robots.txt",       // crawlers read this first
 	} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()

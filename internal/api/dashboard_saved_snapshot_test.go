@@ -91,7 +91,7 @@ func TestDashboard_AfterARestart_ShowsTheSavedSnapshotMarkedStaleNotALoadingStat
 		return []dashboard.Source{src}
 	}, false, 50*time.Millisecond, func(d *api.Deps) { d.Service.SetSnapshotCache(cache) })
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
+	put := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()
 	require.Equal(t, http.StatusOK, put.StatusCode)
 

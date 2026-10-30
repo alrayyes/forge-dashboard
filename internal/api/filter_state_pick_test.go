@@ -54,7 +54,7 @@ func runPickCases(t *testing.T, key string) {
 			sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 			body := `{"shared":{"` + key + `":"` + tc.pick + `"}}`
 
-			resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", body, sessionCookie)
+			resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", body, sessionCookie)
 			defer func() { _ = resp.Body.Close() }()
 
 			assert.Equal(t, tc.want, resp.StatusCode)

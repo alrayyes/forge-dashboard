@@ -20,10 +20,10 @@ import (
 )
 
 var ceremonyPaths = []string{
-	"/api/auth/register/begin",
-	"/api/auth/register/finish",
-	"/api/auth/login/begin",
-	"/api/auth/login/finish",
+	"/api/v1/auth/register/begin",
+	"/api/v1/auth/register/finish",
+	"/api/v1/auth/login/begin",
+	"/api/v1/auth/login/finish",
 }
 
 // testClock is a clock the test moves by hand.
@@ -131,10 +131,10 @@ func TestAuthRateLimit_TheFourEndpointsShareOneAllowance(t *testing.T) {
 func TestAuthRateLimit_RetryAfterRoundsUpToWholeSeconds(t *testing.T) {
 	t.Parallel()
 	srv, clock := limitedServer(t, 1, 6*time.Second)
-	postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1")
+	postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1")
 	clock.advance(2500 * time.Millisecond)
 
-	resp := postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1")
+	resp := postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1")
 
 	assert.Equal(t, http.StatusTooManyRequests, resp.status)
 	assert.Equal(t, "4", resp.retryAfter)
@@ -144,24 +144,24 @@ func TestAuthRateLimit_AfterTheWindow_TheAddressIsLetBackIn(t *testing.T) {
 	t.Parallel()
 	srv, clock := limitedServer(t, 2, 6*time.Second)
 	for range 2 {
-		postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1")
+		postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1")
 	}
-	require.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
+	require.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1").status)
 
 	clock.advance(6 * time.Second)
 
-	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
+	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1").status)
 }
 
 func TestAuthRateLimit_OneAddressBeingLimited_LeavesAnotherAlone(t *testing.T) {
 	t.Parallel()
 	srv, _ := limitedServer(t, 2, time.Minute)
 	for range 3 {
-		postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1")
+		postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1")
 	}
 
-	assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
-	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "203.0.113.7").status)
+	assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1").status)
+	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/v1/auth/login/begin", "203.0.113.7").status)
 }
 
 func TestAuthRateLimit_ForwardedHeaderFromAnUntrustedPeer_CannotShakeTheLimit(t *testing.T) {
@@ -169,10 +169,10 @@ func TestAuthRateLimit_ForwardedHeaderFromAnUntrustedPeer_CannotShakeTheLimit(t 
 	// No proxy is trusted, so the loopback peer is the client whatever it claims.
 	srv, _ := limitedServerTrusting(t, 2, time.Minute, nil)
 	for i := range 2 {
-		postFrom(t, srv, "/api/auth/login/begin", "198.51.100."+strconv.Itoa(i))
+		postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100."+strconv.Itoa(i))
 	}
 
-	resp := postFrom(t, srv, "/api/auth/login/begin", "198.51.100.99")
+	resp := postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.99")
 
 	assert.Equal(t, http.StatusTooManyRequests, resp.status)
 }
@@ -184,10 +184,10 @@ func TestAuthRateLimit_TrustedProxyForwardingNoClient_IsLimitedThroughTheSharedB
 	t.Parallel()
 	srv, _ := limitedServer(t, 2, 6*time.Second)
 	for range 4 {
-		assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "").status)
+		assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/v1/auth/login/begin", "").status)
 	}
 
-	resp := postFrom(t, srv, "/api/auth/login/begin", "")
+	resp := postFrom(t, srv, "/api/v1/auth/login/begin", "")
 
 	assert.Equal(t, http.StatusTooManyRequests, resp.status)
 	assert.Equal(t, "6", resp.retryAfter)
@@ -197,27 +197,27 @@ func TestAuthRateLimit_TrustedProxyForwardingNoClient_LeavesTheForwardedClientsA
 	t.Parallel()
 	srv, _ := limitedServer(t, 2, time.Hour)
 	for range 5 {
-		postFrom(t, srv, "/api/auth/login/begin", "")
+		postFrom(t, srv, "/api/v1/auth/login/begin", "")
 	}
 
-	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "198.51.100.1").status)
+	assert.NotEqual(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/v1/auth/login/begin", "198.51.100.1").status)
 }
 
 func TestAuthRateLimit_PeerOutsideTheTrustedProxies_StillCountsByItsOwnAddress(t *testing.T) {
 	t.Parallel()
 	srv, _ := limitedServerTrusting(t, 2, time.Hour, nil)
 	for range 2 {
-		postFrom(t, srv, "/api/auth/login/begin", "")
+		postFrom(t, srv, "/api/v1/auth/login/begin", "")
 	}
 
-	assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/auth/login/begin", "").status)
+	assert.Equal(t, http.StatusTooManyRequests, postFrom(t, srv, "/api/v1/auth/login/begin", "").status)
 }
 
 func TestAuthRateLimit_OtherEndpoints_AreNotCounted(t *testing.T) {
 	t.Parallel()
 	srv, _ := limitedServer(t, 1, time.Minute)
 	for range 5 {
-		resp, err := testClient(t).Get(srv.URL + "/api/auth/registration-status")
+		resp, err := testClient(t).Get(srv.URL + "/api/v1/auth/registration-status")
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -250,7 +250,7 @@ func TestAuthRateLimit_ScannerBeginningLogins_CannotEvictTheOwnersCeremony(t *te
 	owners := beginLogin(t, srv)
 
 	for range 300 {
-		postFrom(t, srv, "/api/auth/login/begin", "203.0.113.50")
+		postFrom(t, srv, "/api/v1/auth/login/begin", "203.0.113.50")
 	}
 
 	body := virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *owners)

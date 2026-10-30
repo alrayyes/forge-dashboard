@@ -92,7 +92,7 @@ func TestContract_PullRequestAutoUpdate(t *testing.T) {
 	t.Run("every pull request carries an autoUpdate object the spec accepts", func(t *testing.T) {
 		t.Parallel()
 
-		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/dashboard?includeDrafts=true", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		var body struct {
@@ -107,7 +107,7 @@ func TestContract_PullRequestAutoUpdate(t *testing.T) {
 	t.Run("a call without a body answers 400 as the spec says", func(t *testing.T) {
 		t.Parallel()
 
-		req, got := record(t, http.MethodPost, srv.URL+"/api/pull-requests/auto-update", cookie)
+		req, got := record(t, http.MethodPost, srv.URL+"/api/v1/pull-requests/auto-update", cookie)
 
 		require.Equal(t, http.StatusBadRequest, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
@@ -115,7 +115,7 @@ func TestContract_PullRequestAutoUpdate(t *testing.T) {
 	t.Run("a call without a session answers 401 as the spec says", func(t *testing.T) {
 		t.Parallel()
 
-		req, got := record(t, http.MethodPost, srv.URL+"/api/pull-requests/auto-update", nil)
+		req, got := record(t, http.MethodPost, srv.URL+"/api/v1/pull-requests/auto-update", nil)
 
 		require.Equal(t, http.StatusUnauthorized, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
@@ -203,7 +203,7 @@ func populatedBoard(t *testing.T) (*httptest.Server, *http.Cookie) {
 	// real window.
 	service.SetForceRefreshCooldown(time.Hour)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -253,14 +253,14 @@ func TestContract_MainBranches(t *testing.T) {
 
 	srv, cookie := populatedBoard(t)
 
-	req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+	req, got := record(t, http.MethodGet, srv.URL+"/api/v1/main-branches", cookie)
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)
 
 	t.Run("without a session", func(t *testing.T) {
 		t.Parallel()
 
-		req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", nil)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/main-branches", nil)
 		require.Equal(t, http.StatusUnauthorized, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 	})
@@ -271,25 +271,25 @@ func TestContract_DashboardAndRefresh(t *testing.T) {
 
 	srv, cookie := populatedBoard(t)
 
-	t.Run("GET /api/dashboard", func(t *testing.T) {
+	t.Run("GET /api/v1/dashboard", func(t *testing.T) {
 		t.Parallel()
 
-		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/dashboard?includeDrafts=true", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		require.Contains(t, string(got.body), `"firstRefreshDone":true`, "required by the spec (#1673)")
 		require.Contains(t, string(got.body), `"logoUrl":"https://repository-images.githubusercontent.com/123/abc"`, "a repository's own logo is on the wire")
 	})
-	t.Run("POST /api/dashboard/refresh", func(t *testing.T) {
+	t.Run("POST /api/v1/dashboard/refresh", func(t *testing.T) {
 		t.Parallel()
 
-		req, got := record(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", cookie)
+		req, got := record(t, http.MethodPost, srv.URL+"/api/v1/dashboard/refresh", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 
 		// The second call lands inside the cooldown: same 200, plus the
 		// Retry-After header the spec documents.
-		req, got = record(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", cookie)
+		req, got = record(t, http.MethodPost, srv.URL+"/api/v1/dashboard/refresh", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		require.NotEmpty(t, got.header.Get("Retry-After"))
 		validateAgainstSpec(t, req, got)
@@ -320,28 +320,28 @@ func TestContract_IssueSettings(t *testing.T) {
 		return req, recorded{status: resp.StatusCode, header: resp.Header, body: respBody}
 	}
 
-	t.Run("PUT /api/settings with both settings", func(t *testing.T) {
-		req, got := send(http.MethodPut, "/api/settings", `{"githubToken":"sekrit-token","hideDependencyDashboard":true,"ignoredTitles":["^Weekly report"]}`)
+	t.Run("PUT /api/v1/settings with both settings", func(t *testing.T) {
+		req, got := send(http.MethodPut, "/api/v1/settings", `{"githubToken":"sekrit-token","hideDependencyDashboard":true,"ignoredTitles":["^Weekly report"]}`)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		require.Contains(t, string(got.body), `"ignoredTitleCounts":[`, "one entry per pattern, null while unknown")
 	})
-	t.Run("GET /api/settings", func(t *testing.T) {
-		req, got := send(http.MethodGet, "/api/settings", "")
+	t.Run("GET /api/v1/settings", func(t *testing.T) {
+		req, got := send(http.MethodGet, "/api/v1/settings", "")
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		require.Contains(t, string(got.body), `"ignoredTitleCounts":[`)
 	})
-	t.Run("GET /api/dashboard with the settings applied", func(t *testing.T) {
-		req, got := send(http.MethodGet, "/api/dashboard", "")
+	t.Run("GET /api/v1/dashboard with the settings applied", func(t *testing.T) {
+		req, got := send(http.MethodGet, "/api/v1/dashboard", "")
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 		require.Contains(t, string(got.body), `"settingsHiddenIssueCount":1`)
 		require.Contains(t, string(got.body), `"hideDependencyDashboard":true`)
 		require.Contains(t, string(got.body), `"ignoredTitlesSet":true`)
 	})
-	t.Run("PUT /api/settings with a pattern that does not compile", func(t *testing.T) {
-		req, got := send(http.MethodPut, "/api/settings", `{"ignoredTitles":["("]}`)
+	t.Run("PUT /api/v1/settings with a pattern that does not compile", func(t *testing.T) {
+		req, got := send(http.MethodPut, "/api/v1/settings", `{"ignoredTitles":["("]}`)
 		require.Equal(t, http.StatusBadRequest, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 	})
@@ -354,7 +354,7 @@ func TestContract_DashboardCarriesAutoMergeHeldBy(t *testing.T) {
 	t.Parallel()
 
 	srv, cookie := populatedBoard(t)
-	req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+	req, got := record(t, http.MethodGet, srv.URL+"/api/v1/dashboard?includeDrafts=true", cookie)
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)
 

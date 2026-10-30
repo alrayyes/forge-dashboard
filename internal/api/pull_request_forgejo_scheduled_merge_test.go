@@ -53,7 +53,7 @@ func scheduledBoard(t *testing.T, src *scheduleCancelSource, prs ...dashboard.Pu
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"fj_secret"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"fj_secret"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Eventually(t, func() bool {
@@ -90,7 +90,7 @@ func TestForgejoScheduledMerge_Cancel_CancelsOnTheForge(t *testing.T) {
 	src := &scheduleCancelSource{}
 	srv, cookie := scheduledBoard(t, src, scheduledPR())
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge/cancel", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge/cancel", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -101,10 +101,10 @@ func TestForgejoScheduledMerge_Cancel_AlsoDropsTheAppIntent(t *testing.T) {
 	t.Parallel()
 	src := &scheduleCancelSource{}
 	srv, cookie := scheduledBoard(t, src, forgejoPR(nil))
-	armed := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	armed := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = armed.Body.Close()
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge/cancel", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge/cancel", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -116,10 +116,10 @@ func TestForgejoScheduledMerge_Cancel_ForgeFailureKeepsTheIntent(t *testing.T) {
 	t.Parallel()
 	src := &scheduleCancelSource{err: errors.New("forge down")}
 	srv, cookie := scheduledBoard(t, src, forgejoPR(nil))
-	armed := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	armed := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = armed.Body.Close()
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge/cancel", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge/cancel", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.GreaterOrEqual(t, resp.StatusCode, 400)
@@ -142,7 +142,7 @@ func TestForgejoAutoMerge_HeldBy(t *testing.T) {
 			t.Parallel()
 			srv, cookie := scheduledBoard(t, &scheduleCancelSource{}, tc.pr)
 			if tc.arm {
-				armed := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+				armed := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 				_ = armed.Body.Close()
 			}
 

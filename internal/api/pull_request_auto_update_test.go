@@ -11,7 +11,7 @@ import (
 // One pull request's own choice about automatic branch updates: what the
 // dashboard says about it, and the endpoint that changes it.
 
-const autoUpdatePath = "/api/pull-requests/auto-update"
+const autoUpdatePath = "/api/v1/pull-requests/auto-update"
 
 // autoUpdateStates maps each pull request number to its `autoUpdate` object.
 func autoUpdateStates(t *testing.T, srvURL string, cookie *http.Cookie) map[int]map[string]any {
@@ -143,7 +143,7 @@ func TestPullRequestAutoUpdate_RepoSwitchedToMatchTheChoice_PinsNothingAnyMore(t
 	first := setAutoUpdate(t, srvURL, cookie, 1, true)
 	_ = first.Body.Close()
 
-	enable := postHide(t, srvURL, cookie, "/api/repos/auto-update-branch/enable", map[string]any{"forge": "github", "fullName": "alrayyes/a"})
+	enable := postHide(t, srvURL, cookie, "/api/v1/repos/auto-update-branch/enable", map[string]any{"forge": "github", "fullName": "alrayyes/a"})
 	_ = enable.Body.Close()
 
 	got := autoUpdateStates(t, srvURL, cookie)

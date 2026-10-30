@@ -227,7 +227,7 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 
 	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv)
 
-	putReq, err := http.NewRequest(http.MethodPut, testSrv.URL+"/api/settings", strings.NewReader(`{"githubToken":"placeholder-token"}`))
+	putReq, err := http.NewRequest(http.MethodPut, testSrv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"placeholder-token"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -241,7 +241,7 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 
 func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie) (token, secret string) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/settings", nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/settings", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -275,7 +275,7 @@ func TestGitHubWebhook_ValidSignature_TriggersRefreshAndReturns204(t *testing.T)
 }
 
 // dashboardRepoStatus mirrors the API's per-repo shape on
-// GET /api/dashboard's own "repos" field — a local copy rather than an
+// GET /api/v1/dashboard's own "repos" field — a local copy rather than an
 // import from internal/api, since that field lives on a response DTO the
 // api package builds, not on dashboard.Snapshot itself.
 type dashboardRepoStatus struct {
@@ -286,7 +286,7 @@ type dashboardRepoStatus struct {
 
 func dashboardRepos(t *testing.T, srvURL string, sessionCookie *http.Cookie) []dashboardRepoStatus {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard", nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)

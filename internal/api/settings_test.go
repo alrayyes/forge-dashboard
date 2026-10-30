@@ -40,7 +40,7 @@ func TestSettingsGet_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Get(srv.URL + "/api/settings")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/settings")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -53,7 +53,7 @@ func TestSettingsGet_NothingSavedYet_ReturnsAllUnset(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -70,7 +70,7 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings",
 		`{"githubToken":"ghp_secret","githubUsername":"ryan","forgejoUrl":"https://git.example.com","forgejoToken":"fj_secret","forgejoUsername":"ryan"}`,
 		sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
@@ -81,7 +81,7 @@ func TestSettingsPut_ThenGet_RoundTripsNonSecretFieldsAndNeverReturnsTheToken(t 
 	assert.NotContains(t, string(body), "ghp_secret", "the response to a settings save must never echo the token back")
 	assert.NotContains(t, string(body), "fj_secret")
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -98,7 +98,7 @@ func TestThemeGet_NothingSavedYet_ReturnsEmptyMeaningSystem(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/theme", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -115,11 +115,11 @@ func TestThemeGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *t
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/theme", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	streamReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	streamReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard/stream", nil)
 	require.NoError(t, err)
 	streamReq.AddCookie(sessionCookie)
 	streamResp, err := testClient(t).Do(streamReq)
@@ -129,7 +129,7 @@ func TestThemeGet_DoesNotProvisionWebhookCredentialsOrAffectDashboardStream(t *t
 	assert.Equal(t, http.StatusNotFound, streamResp.StatusCode)
 }
 
-// Theme has its own dedicated PUT /api/settings/theme (handleThemePut) —
+// Theme has its own dedicated PUT /api/v1/settings/theme (handleThemePut) —
 // the main settings PUT doesn't accept it at all, so a plain settings
 // save can't reset it back to "" the way it would if Theme were just
 // another field in settingsPutRequest with no explicit carry-over.
@@ -139,9 +139,9 @@ func TestSettingsPut_DoesNotAcceptOrDisturbTheme(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan","theme":"light"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubUsername":"ryan","theme":"light"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
@@ -156,7 +156,7 @@ func TestThemePut_ThenGet_RoundTrips(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/theme", `{"theme":"dark"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
@@ -164,7 +164,7 @@ func TestThemePut_ThenGet_RoundTrips(t *testing.T) {
 	require.NoError(t, readJSON(putResp, &putBody))
 	assert.Equal(t, "dark", putBody.Theme)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/theme", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/theme", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 
 	var got api.ThemeResponse
@@ -178,9 +178,9 @@ func TestThemePut_EmptyString_MeansSystemAndIsAccepted(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":""}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/theme", `{"theme":""}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -195,7 +195,7 @@ func TestThemePut_InvalidValue_Rejected(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"purple"}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/theme", `{"theme":"purple"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -207,15 +207,15 @@ func TestThemePut_DoesNotDisturbOtherSettings(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings",
 		`{"githubUsername":"ryan","renovateRebaseLabel":"retry"}`,
 		sessionCookie).Body.Close()
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"light"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/theme", `{"theme":"light"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -231,13 +231,13 @@ func TestSettingsPut_ThenGet_RoundTripsRenovateRebaseLabel(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings",
 		`{"renovateRebaseLabel":"retry"}`,
 		sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -251,13 +251,13 @@ func TestSettingsPut_ThenGet_RoundTripsRenovateAuthors(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings",
 		`{"renovateAuthors":["mend-bot"," other "]}`,
 		sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -275,7 +275,7 @@ func TestSettingsPut_RejectsAMalformedRenovateAuthorList(t *testing.T) {
 		"a comma inside a login": `{"renovateAuthors":["a,b"]}`,
 		"too many logins":        `{"renovateAuthors":["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21"]}`,
 	} {
-		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", body, sessionCookie)
+		resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", body, sessionCookie)
 		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, name)
 	}
@@ -287,7 +287,7 @@ func TestSettingsGet_RenovateAuthorsDefaultToAnEmptyList(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -302,7 +302,7 @@ func TestSettingsGet_FirstVisit_GeneratesWebhookCredentials(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -319,12 +319,12 @@ func TestSettingsGet_SecondVisit_ReturnsTheSameWebhookCredentials(t *testing.T) 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	first := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	first := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	var firstGot api.SettingsResponse
 	require.NoError(t, readJSON(first, &firstGot))
 	_ = first.Body.Close()
 
-	second := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	second := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = second.Body.Close() }()
 	var secondGot api.SettingsResponse
 	require.NoError(t, readJSON(second, &secondGot))
@@ -339,12 +339,12 @@ func TestSettingsPut_DoesNotDisturbAlreadyGeneratedWebhookCredentials(t *testing
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	var before api.SettingsResponse
 	require.NoError(t, readJSON(getResp, &before))
 	_ = getResp.Body.Close()
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubUsername":"ryan"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
@@ -408,7 +408,7 @@ func TestSettingsGet_ReportsGitHubAppConfigured_WhenServerHasNoneConfigured(t *t
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -422,7 +422,7 @@ func TestSettingsGet_ReportsGitHubAppConfigured_WhenServerHasOneConfigured(t *te
 	srv := newTestServerWithGitHubAppConfigured(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -436,7 +436,7 @@ func TestSettingsPut_GitHubAppInstallationIdWithoutServerAppConfigured_Rejected(
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubAppInstallationId":42}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -448,7 +448,7 @@ func TestSettingsPut_GitHubAppInstallationIdWithServerAppConfigured_Accepted(t *
 	srv := newTestServerWithGitHubAppConfigured(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubAppInstallationId":42}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -460,11 +460,11 @@ func TestSettingsPut_GitHubAppInstallationIdWithServerAppConfigured_RoundTrips(t
 	srv := newTestServerWithGitHubAppConfigured(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":42}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubAppInstallationId":42}`, sessionCookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 
 	var got api.SettingsResponse
@@ -478,7 +478,7 @@ func TestSettingsPut_NegativeGitHubAppInstallationId_Rejected(t *testing.T) {
 	srv := newTestServerWithGitHubAppConfigured(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":-1}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubAppInstallationId":-1}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -490,7 +490,7 @@ func TestSettingsPut_ForgejoTokenWithoutURL_Rejected(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoToken":"fj_secret"}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"forgejoToken":"fj_secret"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -502,7 +502,7 @@ func TestSettingsPut_ForgejoUsernameWithoutURL_Rejected(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUsername":"ryan"}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"forgejoUsername":"ryan"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -514,7 +514,7 @@ func TestSettingsPut_ForgejoURLAlongsideTokenOrUsername_Accepted(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings",
 		`{"forgejoUrl":"https://git.example.com","forgejoUsername":"ryan"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -527,7 +527,7 @@ func TestSettingsPut_ClearingForgejoURLWhileATokenIsAlreadySaved_Rejected(t *tes
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	first := doJSON(t, http.MethodPut, srv.URL+"/api/settings",
+	first := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings",
 		`{"forgejoUrl":"https://git.example.com","forgejoToken":"fj_secret"}`, sessionCookie)
 	_ = first.Body.Close()
 	require.Equal(t, http.StatusOK, first.StatusCode)
@@ -536,7 +536,7 @@ func TestSettingsPut_ClearingForgejoURLWhileATokenIsAlreadySaved_Rejected(t *tes
 	// token" (see settingsPutRequest's doc comment) — so this still leaves
 	// a Forgejo token on file with no URL to use it against, and should be
 	// refused the same as never having set a URL at all.
-	second := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUrl":""}`, sessionCookie)
+	second := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"forgejoUrl":""}`, sessionCookie)
 	defer func() { _ = second.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, second.StatusCode)
@@ -548,14 +548,14 @@ func TestSettingsPut_BlankTokenField_KeepsThePreviouslySavedToken(t *testing.T) 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	first := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"ghp_original","githubUsername":"ryan"}`, sessionCookie)
+	first := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"ghp_original","githubUsername":"ryan"}`, sessionCookie)
 	_ = first.Body.Close()
 	require.Equal(t, http.StatusOK, first.StatusCode)
 
 	// A second save that only changes the username, with the token field
 	// left blank — the real Settings page never re-sends a token it
 	// can't show the user in the first place.
-	second := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan-renamed"}`, sessionCookie)
+	second := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubUsername":"ryan-renamed"}`, sessionCookie)
 	defer func() { _ = second.Body.Close() }()
 	require.Equal(t, http.StatusOK, second.StatusCode)
 
@@ -588,7 +588,7 @@ func TestSettingsPut_Rejections_NameTheField(t *testing.T) {
 			srv := newTestServer(t)
 			sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-			resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", tc.body, sessionCookie)
+			resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", tc.body, sessionCookie)
 			defer func() { _ = resp.Body.Close() }()
 
 			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -608,7 +608,7 @@ func TestSettingsPut_WrongTypeMessageIsPlainWords(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":"abc"}`, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubAppInstallationId":"abc"}`, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	var body map[string]string
@@ -616,12 +616,12 @@ func TestSettingsPut_WrongTypeMessageIsPlainWords(t *testing.T) {
 	assert.Equal(t, "githubAppInstallationId must be a whole number", body["error"])
 }
 
-// putSettings sends body to PUT /api/settings and answers the status and the
+// putSettings sends body to PUT /api/v1/settings and answers the status and the
 // decoded body.
 func putSettings(t *testing.T, srvURL, body string, cookie *http.Cookie) (int, map[string]any) {
 	t.Helper()
 
-	resp := doJSON(t, http.MethodPut, srvURL+"/api/settings", body, cookie)
+	resp := doJSON(t, http.MethodPut, srvURL+"/api/v1/settings", body, cookie)
 	defer func() { _ = resp.Body.Close() }()
 	var got map[string]any
 	require.NoError(t, readJSON(resp, &got))
@@ -632,7 +632,7 @@ func putSettings(t *testing.T, srvURL, body string, cookie *http.Cookie) (int, m
 func getSettings(t *testing.T, srvURL string, cookie *http.Cookie) api.SettingsResponse {
 	t.Helper()
 
-	resp := doJSON(t, http.MethodGet, srvURL+"/api/settings", "", cookie)
+	resp := doJSON(t, http.MethodGet, srvURL+"/api/v1/settings", "", cookie)
 	defer func() { _ = resp.Body.Close() }()
 	var got api.SettingsResponse
 	require.NoError(t, readJSON(resp, &got))

@@ -9,7 +9,7 @@ displays; nothing here writes back to GitHub or Forgejo except the
 dashboard's own pull-request actions (merge, close, update branch) that a
 signed-in user explicitly takes. Authenticate with
 `Authorization: Bearer <token>`, a personal API token issued from the
-Settings page in the running app, the same way every other `/api/*` route
+Settings page in the running app, the same way every other `/api/v1/*` route
 already does. This file is scoped to `/docs/api/` — the API surface — not
 the whole forge-dashboard site.
 
@@ -22,6 +22,6 @@ the whole forge-dashboard site.
 
 - [Repository](https://github.com/alrayyes/forge-dashboard): source, architecture, and the toolchain needed to build and run it.
 - [README](https://github.com/alrayyes/forge-dashboard/blob/main/README.md): what this app is and where each part is documented.
-- [Architecture](https://github.com/alrayyes/forge-dashboard/blob/main/ARCHITECTURE.md#design): the design decisions (passkey auth, forge tokens saved by the one owner, the read-only MCP endpoint at `/api/mcp` for agents).
+- [Architecture](https://github.com/alrayyes/forge-dashboard/blob/main/ARCHITECTURE.md#design): the design decisions (passkey auth, forge tokens saved by the one owner, the read-only MCP endpoint at `/api/v1/mcp` for agents).
 - [Configuration](https://github.com/alrayyes/forge-dashboard/blob/main/docs/configuration.md): every environment variable and how it's set.
 - [CONTRIBUTING](https://github.com/alrayyes/forge-dashboard/blob/main/CONTRIBUTING.md): how the pieces fit together and how to get a dev environment running.

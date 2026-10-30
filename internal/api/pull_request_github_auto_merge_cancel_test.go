@@ -13,7 +13,7 @@ import (
 func postCancelAutoMerge(t *testing.T, srvURL string, cookie *http.Cookie, fullName string, number int) *http.Response {
 	t.Helper()
 
-	return doJSON(t, http.MethodPost, srvURL+"/api/pull-requests/auto-merge/cancel",
+	return doJSON(t, http.MethodPost, srvURL+"/api/v1/pull-requests/auto-merge/cancel",
 		`{"forge":"github","fullName":"`+fullName+`","number":`+strconv.Itoa(number)+`}`, cookie)
 }
 

@@ -65,11 +65,11 @@ type actionEndpoint struct {
 }
 
 var refusableEndpoints = []actionEndpoint{
-	{"close", "/api/pull-requests/close", nil},
-	{"update-branch", "/api/pull-requests/update-branch", nil},
-	{"auto-merge", "/api/pull-requests/auto-merge", nil},
-	{"dependabot-action", "/api/pull-requests/dependabot-action", map[string]any{"action": "rebase"}},
-	{"renovate-rebase", "/api/pull-requests/renovate-rebase", nil},
+	{"close", "/api/v1/pull-requests/close", nil},
+	{"update-branch", "/api/v1/pull-requests/update-branch", nil},
+	{"auto-merge", "/api/v1/pull-requests/auto-merge", nil},
+	{"dependabot-action", "/api/v1/pull-requests/dependabot-action", map[string]any{"action": "rebase"}},
+	{"renovate-rebase", "/api/v1/pull-requests/renovate-rebase", nil},
 }
 
 func postAction(t *testing.T, srvURL string, cookie *http.Cookie, ep actionEndpoint, forge string) (int, actionErrorBody) {

@@ -371,7 +371,7 @@ every time, so there is nothing to match.
 
 ## Reading the stats
 
-`GET /api/stats/forge-api` says how many requests the dashboard has spent since
+`GET /api/v1/stats/forge-api` says how many requests the dashboard has spent since
 the server started, so you can see what is using a budget before you change
 anything. It takes a session or an API token, like the rest of the API, and
 returns only the requests made with your own credentials.
@@ -426,7 +426,7 @@ A few things to know when you read the numbers:
   headers carry no cost for GraphQL, only the remaining budget. They count in
   `graphql` with a cost of `0`, and their real cost is not in the figures.
 - `budgets` repeats the limits each forge last reported, the same figures as
-  `forges` on `GET /api/dashboard`.
+  `forges` on `GET /api/v1/dashboard`.
 
 ## Baseline: what each kind of refresh costs today
 
@@ -442,7 +442,7 @@ open issues.
 Measured on 2026-10-21 against GitHub with a personal access token, on a
 freshly started server (version 0.254.0) with an empty database and default
 settings (`REFRESH_INTERVAL` 20 minutes, `CI_POLL_INTERVAL` 1 minute). The
-readings are `GET /api/stats/forge-api` snapshots, taken in order, about three
+readings are `GET /api/v1/stats/forge-api` snapshots, taken in order, about three
 minutes apart from first to last. Each row is the difference between the two
 snapshots around it, summed over every repo.
 
@@ -490,7 +490,7 @@ How to read the table:
 4. Open one pull request and its checks, post one signed
    `pull_request` delivery to the webhook endpoint, and wait out two CI poll
    intervals.
-5. Read `GET /api/stats/forge-api` after each step.
+5. Read `GET /api/v1/stats/forge-api` after each step.
 
 This was a few minutes of use, not an hour, and one start, not several. The
 counters reset on a start, so the first-refresh row is also what a restart
@@ -573,7 +573,7 @@ client, with an empty in-memory cache and no database, checked whether a
 webhook exists on 3 repos of the same account (`forge-dashboard`,
 `forge-dashboard-e2e-fixture` and `dotfiles`) and then did the same again
 straight away, with nothing changed in between. The counters were read from
-`apistats`, the same ones `GET /api/stats/forge-api` serves, and the REST API
+`apistats`, the same ones `GET /api/v1/stats/forge-api` serves, and the REST API
 version was whatever the client library sends by default.
 
 To repeat it, with versions as of that run:

@@ -42,7 +42,7 @@ On Forgejo, a mirrored repository is excluded too — a pull mirror has no
 pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
 
-Each pull request also carries its review state (`review` in `/api/dashboard`:
+Each pull request also carries its review state (`review` in `/api/v1/dashboard`:
 decision, approvals, requested reviewers). The **Ready to Merge** and **Needs
 review** quick filters read the server's own answers, `readyToMerge` and
 `needsReview` on each pull request, so the page holds no definition of either.
@@ -65,7 +65,7 @@ forge's pull requests match. It adds no requests, since the requested
 reviewers' names come with the data already fetched.
 
 Each pull request also counts its review comments, `reviewComments` in
-`/api/dashboard`, and the review threads still open, `unresolvedThreads`.
+`/api/v1/dashboard`, and the review threads still open, `unresolvedThreads`.
 Ordinary conversation comments are counted apart, as `conversationComments`, and
 the row's comment pill shows the sum of the two. GitHub reads the review numbers
 from the review threads in the pull request query, so it costs no request. It
@@ -107,13 +107,13 @@ moved on, so they can be updated in one pass. It reads the `behind` and `empty`
 fields of each pull request, the same ones behind the row's Out of date badge,
 and leaves out an empty pull request, which has nothing to update.
 
-Draft pull requests are left out of `/api/dashboard` by default, since nothing
+Draft pull requests are left out of `/api/v1/dashboard` by default, since nothing
 can be merged or updated on one. The response says how many it left out in
 `hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
 its stream and the refresh endpoint alike. The auto-update-branch feature
 never touches a draft either.
 
-Stacked pull requests are marked in `/api/dashboard`. A pull request is
+Stacked pull requests are marked in `/api/v1/dashboard`. A pull request is
 stacked on another when its base branch is that one's head branch, in the same
 repository and neither comes from a fork. Each pull request carries `stack`
 (its position and the stack's size, or null), `stackedOn` (the parent) and

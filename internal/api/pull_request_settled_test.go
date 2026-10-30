@@ -32,7 +32,7 @@ func (f *stubbornForge) ClosePullRequest(context.Context, string, string, int) e
 
 func refreshedNumbers(t *testing.T, srvURL string, cookie *http.Cookie) []float64 {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/dashboard/refresh", nil)
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/dashboard/refresh", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	resp, err := testClient(t).Do(req)

@@ -208,7 +208,7 @@ TestAllowedActionsFixture`; commit the result. A mock whose raw fields the table
 has no value for fails loudly: widen the axis in
 `allowed_actions_fixture_test.go`.
 
-The nav badges work the same way. A mocked `/api/dashboard` takes its `navCounts`
+The nav badges work the same way. A mocked `/api/v1/dashboard` takes its `navCounts`
 from `navCountsFor` in `tests/nav-counts-helper.ts`, which adds up what
 `tests/generated/nav-counts.json` says each pull request contributes. The
 Branches badge isn't in it: the page counts the `mainBranchPage` rows, so a

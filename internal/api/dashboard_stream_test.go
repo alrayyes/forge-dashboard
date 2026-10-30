@@ -20,7 +20,7 @@ func TestDashboardStream_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Get(srv.URL + "/api/dashboard/stream")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/dashboard/stream")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -33,7 +33,7 @@ func TestDashboardStream_NoBackgroundRefreshYet_Returns404(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard/stream", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -78,7 +78,7 @@ func TestDashboardStream_PushesASnapshotWhenAWebhookTriggersARefresh(t *testing.
 	srvURL, _, sessionCookie := newTestServerWithCountingSource(t)
 	webhookToken, webhookSecret := webhookCredentials(t, srvURL, sessionCookie)
 
-	streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
+	streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard/stream", nil)
 	require.NoError(t, err)
 	streamReq.AddCookie(sessionCookie)
 	streamResp, err := testClient(t).Do(streamReq)
@@ -118,7 +118,7 @@ func TestDashboardStream_ClosesWhenTheClientDisconnects(t *testing.T) {
 
 	srvURL, _, sessionCookie := newTestServerWithCountingSource(t)
 
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard/stream", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -141,7 +141,7 @@ func TestDashboardStream_EndsWhenTheDrainStopsStreams(t *testing.T) {
 	srvURL, sessionCookie, _ := newTestServerWithDrain(t, &countingSource{calls: &atomic.Int64{}}, func(_ time.Duration, f func()) func() bool { return time.AfterFunc(time.Millisecond, f).Stop }, drain)
 	// open starts a stream and returns a channel that yields once it ends.
 	open := func() <-chan error {
-		req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
+		req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard/stream", nil)
 		require.NoError(t, err)
 		req.AddCookie(sessionCookie)
 		resp, err := testClient(t).Do(req) //nolint:bodyclose // closed by the goroutine below

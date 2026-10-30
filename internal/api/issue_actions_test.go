@@ -58,7 +58,7 @@ func postIssueAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, ac
 	t.Helper()
 	body, err := json.Marshal(payload)
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/issues/"+action, strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/issues/"+action, strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -244,7 +244,7 @@ func TestIssueActions_Unauthenticated_Returns401(t *testing.T) {
 	for _, action := range []string{"close", "reopen", "comment"} {
 		body, err := json.Marshal(issuePayload(map[string]any{"body": "hi"}))
 		require.NoError(t, err)
-		resp, err := testClient(t).Post(srvURL+"/api/issues/"+action, "application/json", strings.NewReader(string(body)))
+		resp, err := testClient(t).Post(srvURL+"/api/v1/issues/"+action, "application/json", strings.NewReader(string(body)))
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, action)
 		_ = resp.Body.Close()

@@ -93,7 +93,7 @@ func FuzzFilterStatePut(f *testing.F) {
 	f.Fuzz(func(t *testing.T, body []byte) {
 		const capBytes = 16 * 1024
 
-		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", string(body), cookie)
+		resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", string(body), cookie)
 		_ = resp.Body.Close()
 
 		want := http.StatusBadRequest

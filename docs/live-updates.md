@@ -152,10 +152,10 @@ then on, including after later refreshes and settings saves. It is not stored,
 so a restart resets it. The first refresh starts when the process does, from the
 saved credentials, so it is usually done before you sign in. An account with no
 saved settings has nothing to refresh, so it reads `true` at once. `GET
-/api/dashboard`, the stream and the `get_dashboard` MCP tool all carry it.
+/api/v1/dashboard`, the stream and the `get_dashboard` MCP tool all carry it.
 
 The page doesn't wait for that answer to say it is loading. The server can hold
-`GET /api/dashboard` for up to 15 seconds on a cold start, so if nothing has
+`GET /api/v1/dashboard` for up to 15 seconds on a cold start, so if nothing has
 answered after 200 ms the list pages show their placeholder rows, the polite
 "Loading your repositories…" line and a dash in the navigation, and a warm
 server that answers inside that time shows none of it. A failed first request
@@ -185,7 +185,7 @@ a phone the total sits on its own line above the counts, and with three-digit
 numbers each count takes a line, so the busy tabs grow to about 110px. Issues
 counts open issues, without Renovate's Dependency Dashboard or what your
 settings hide, and has no failed count. The server works the numbers out from
-the same lists the pages show (`navCounts` on `/api/dashboard`), so a page
+the same lists the pages show (`navCounts` on `/api/v1/dashboard`), so a page
 agrees with its icon, and a hidden pull request is in neither. The dashboard
 pages set them from each snapshot. The other signed-in pages (Branches,
 Insights, Settings and the rest) load them and ask again every 30 seconds
@@ -215,7 +215,7 @@ tab, which shows its numbers before its word.
 
 The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
 
-`GET /api/dashboard` and its stream carry `navCounts`, the numbers behind the
+`GET /api/v1/dashboard` and its stream carry `navCounts`, the numbers behind the
 navigation badges for Pull requests, Releases and Bots: a `total` and how many
 have CI `running`, `failed` and `passed`; and for Issues a `total` only. A pull
 request with no checks counts in the total alone, so the four numbers need not

@@ -34,7 +34,7 @@ func forgejoAutoMergeBoard(t *testing.T, prs ...dashboard.PullRequest) (*httptes
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"fj_secret"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"fj_secret"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -98,7 +98,7 @@ func TestForgejoAutoMerge_Arm_StoresTheIntentWithoutAskingTheForge(t *testing.T)
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -107,7 +107,7 @@ func TestForgejoAutoMerge_Arm_StoresTheIntentWithoutAskingTheForge(t *testing.T)
 func TestForgejoAutoMerge_Arm_BoardReportsItOn(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = resp.Body.Close()
 
 	pr := boardPR(t, srv, cookie)
@@ -118,7 +118,7 @@ func TestForgejoAutoMerge_Arm_BoardReportsItOn(t *testing.T) {
 func TestForgejoAutoMerge_Arm_BoardOffersCancelInsteadOfEnable(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = resp.Body.Close()
 
 	pr := boardPR(t, srv, cookie)
@@ -138,10 +138,10 @@ func TestForgejoAutoMerge_NotArmed_BoardOffersEnable(t *testing.T) {
 func TestForgejoAutoMerge_Arm_Twice_IsA204Again(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
-	first := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	first := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = first.Body.Close()
 
-	again := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	again := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = again.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, again.StatusCode)
@@ -151,7 +151,7 @@ func TestForgejoAutoMerge_Arm_AlreadyCleanPullRequest_IsRefusedAndNotStored(t *t
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CISuccess }))
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	defer func() { _ = resp.Body.Close() }()
 	var got map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
@@ -165,7 +165,7 @@ func TestForgejoAutoMerge_Arm_WithConflicts_IsRefused(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }))
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
@@ -174,10 +174,10 @@ func TestForgejoAutoMerge_Arm_WithConflicts_IsRefused(t *testing.T) {
 func TestForgejoAutoMerge_Cancel_RemovesTheIntent(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
-	armed := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	armed := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = armed.Body.Close()
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge/cancel", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge/cancel", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -188,7 +188,7 @@ func TestForgejoAutoMerge_Cancel_NothingArmed_IsA204(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge/cancel", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge/cancel", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -198,7 +198,7 @@ func TestForgejoAutoMerge_Cancel_OnGitHub_Returns400(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge/cancel", "github")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge/cancel", "github")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -208,7 +208,7 @@ func TestForgejoAutoMerge_Cancel_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 	srv, _ := forgejoAutoMergeBoard(t, forgejoPR(nil))
 
-	resp := postForgejoAction(t, srv, nil, "/api/pull-requests/auto-merge/cancel", "forgejo")
+	resp := postForgejoAction(t, srv, nil, "/api/v1/pull-requests/auto-merge/cancel", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -218,10 +218,10 @@ func TestForgejoAutoMerge_Arm_WithNoForgejoCredentials_Returns400(t *testing.T) 
 	t.Parallel()
 	srv := newTestServerWithSources(t, func(settingspkg.Credentials) []dashboard.Source { return nil })
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	saved := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"ghp_x"}`, cookie)
+	saved := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"ghp_x"}`, cookie)
 	_ = saved.Body.Close()
 
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -238,7 +238,7 @@ func autoMergeStatus(t *testing.T, pr map[string]any) map[string]any {
 func TestForgejoAutoMerge_Armed_BoardSaysItIsWaitingForChecks(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(nil))
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = resp.Body.Close()
 
 	status := autoMergeStatus(t, boardPR(t, srv, cookie))
@@ -250,7 +250,7 @@ func TestForgejoAutoMerge_Armed_BoardSaysItIsWaitingForChecks(t *testing.T) {
 func TestForgejoAutoMerge_Armed_FailingChecksStopIt(t *testing.T) {
 	t.Parallel()
 	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }))
-	resp := postForgejoAction(t, srv, cookie, "/api/pull-requests/auto-merge", "forgejo")
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
 	_ = resp.Body.Close()
 
 	status := autoMergeStatus(t, boardPR(t, srv, cookie))

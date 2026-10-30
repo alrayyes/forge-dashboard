@@ -38,7 +38,7 @@ func (f *fakeReleaseDetailerSource) GetReleaseDetails(_ context.Context, owner, 
 func getReleaseDetails(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName, tag string) *http.Response {
 	t.Helper()
 	q := url.Values{"forge": {forge}, "fullName": {fullName}, "tag": {tag}}
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/releases/details?"+q.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/releases/details?"+q.Encode(), nil)
 	require.NoError(t, err)
 	if sessionCookie != nil {
 		req.AddCookie(sessionCookie)
@@ -157,7 +157,7 @@ func TestContract_ReleaseDetails(t *testing.T) {
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "tag": {"v1.2.3"}}
-	req, got := record(t, http.MethodGet, srvURL+"/api/releases/details?"+q.Encode(), sessionCookie)
+	req, got := record(t, http.MethodGet, srvURL+"/api/v1/releases/details?"+q.Encode(), sessionCookie)
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)

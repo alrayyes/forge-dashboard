@@ -19,11 +19,11 @@ so the browser offers whichever one it has saved for the site, and every new
 passkey is registered as a discoverable one (a resident key) for that reason.
 A passkey from a password manager or a phone is already discoverable, and one
 registered back when a username was asked for keeps working. `POST
-/api/auth/register/begin` and `.../finish` run the WebAuthn registration
+/api/v1/auth/register/begin` and `.../finish` run the WebAuthn registration
 ceremony, `.../login/begin`/`.../finish` run the login ceremony, and a
 signed session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` whenever the
 request arrived over HTTPS) is what actually gates `/` and
-`/api/dashboard` afterward — see `internal/auth` and `api/openapi.yaml`'s
+`/api/v1/dashboard` afterward — see `internal/auth` and `api/openapi.yaml`'s
 `auth` tag.
 
 - **Registration closes for good once a passkey exists.** No environment
@@ -39,7 +39,7 @@ request arrived over HTTPS) is what actually gates `/` and
   given when adding a passkey or when renaming one, and is always shown as
   plain text. A passkey that never had a name is listed by the date it was
   added. For one with no stored record at all, from before names existed,
-  that date is the account's creation time. The API route is `PATCH /api/auth/credentials/{id}`.
+  that date is the account's creation time. The API route is `PATCH /api/v1/auth/credentials/{id}`.
 - **A security key may hold a passkey that sign-in can't use.** Registered
   before sign-in dropped the username, a key such as a YubiKey stored a
   credential that isn't discoverable, which the browser can't offer without
@@ -65,7 +65,7 @@ request arrived over HTTPS) is what actually gates `/` and
 
 The sign-in and registration endpoints take requests from anyone, and each
 `begin` call parks a ceremony on the server for five minutes. So they are
-limited per client address: `POST /api/auth/register/begin`, `.../finish`,
+limited per client address: `POST /api/v1/auth/register/begin`, `.../finish`,
 `login/begin` and `.../finish` share one allowance of 10 requests at once, then
 one more every 6 seconds. Past it the server answers `429` with a `Retry-After`
 header in seconds, and the login page says to wait that long. Signing in takes
@@ -112,13 +112,14 @@ from Settings' "API tokens" card, then send it as a Bearer credential —
 
 ```sh
 curl -H "Authorization: Bearer fdb_<the-generated-token>" \
-  http://localhost:8080/api/dashboard
+  http://localhost:8080/api/v1/dashboard
 ```
 
 against any endpoint the frontend itself calls, `RequireAuth` accepts
 either credential (session cookie or a live token) the same way. The one
-exception is the saved filters of the web UI (`/api/settings/filter-state`): that
-is the browser's own state, so it takes a session cookie only and answers a
+exception is the saved filters of the web UI
+(`/api/v1/settings/filter-state`): that is the browser's own state, so it
+takes a session cookie only and answers a
 token with 403. Each save is logged with the user agent, so a filter
 that changed by itself can be traced to the client that wrote it. The raw
 value is shown exactly once, right after generating it — only its hash

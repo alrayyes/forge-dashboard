@@ -45,7 +45,7 @@ func getIssueDetails(t *testing.T, srvURL string, sessionCookie *http.Cookie, fo
 		"fullName": {fullName},
 		"number":   {strconv.Itoa(number)},
 	}
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/issues/details?"+q.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), nil)
 	require.NoError(t, err)
 	if sessionCookie != nil {
 		req.AddCookie(sessionCookie)
@@ -122,7 +122,7 @@ func TestIssueDetails_MalformedInput_Returns400(t *testing.T) {
 
 	badName := getIssueDetails(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
 	defer func() { _ = badName.Body.Close() }()
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/issues/details?forge=github&fullName=alrayyes/a&number=abc", nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/issues/details?forge=github&fullName=alrayyes/a&number=abc", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	badNumber, err := testClient(t).Do(req)
@@ -195,7 +195,7 @@ func TestContract_IssueDetails(t *testing.T) {
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
-	req, got := record(t, http.MethodGet, srvURL+"/api/issues/details?"+q.Encode(), sessionCookie)
+	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)

@@ -35,7 +35,7 @@ func TestDashboard_StackedPullRequestsSaySoInTheResponse(t *testing.T) {
 	}
 	srv := newTestServerWithSources(t, buildSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, cookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+secretToken+`"}`, cookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 	require.Eventually(t, func() bool {

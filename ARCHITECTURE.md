@@ -102,20 +102,20 @@ and the cost are in
 - **Credentials never reach the browser.** The Go backend holds the
   owner's tokens server-side, encrypted at rest, and only ever hands the
   frontend its own already-filtered JSON. Confirm this yourself: open the
-  browser's network tab and watch it call only this app's own routes (`/api/...`
+  browser's network tab and watch it call only this app's own routes (`/api/v1/...`
   and the static `/changelog.json`), never a forge — and that
-  `/api/settings` never echoes a forge token back, only whether one is set.
-- **An MCP endpoint for agents, `/api/mcp`, read-only except for one
+  `/api/v1/settings` never echoes a forge token back, only whether one is set.
+- **An MCP endpoint for agents, `/api/v1/mcp`, read-only except for one
   setting (the web app itself can act on pull requests).**
-  Authenticated the same way any other `/api/*` route already
+  Authenticated the same way any other `/api/v1/*` route already
   is — a personal API token (Settings → API tokens),
   `Authorization: Bearer <token>` — not a separate credential system. Its
-  tools so far are `get_dashboard`, which mirrors `GET /api/dashboard`
+  tools so far are `get_dashboard`, which mirrors `GET /api/v1/dashboard`
   exactly (it takes no arguments, and the old `owner` argument is
   refused), and `get_main_branches`, which mirrors
-  `GET /api/main-branches` (default-branch CI status and open dependency
+  `GET /api/v1/main-branches` (default-branch CI status and open dependency
   advisories, no forge budget), and
-  `get_pull_request_details`, which mirrors `GET /api/pull-requests/details`
+  `get_pull_request_details`, which mirrors `GET /api/v1/pull-requests/details`
   (a pull request's description, comments and reactions). That one reads the
   forge on demand and spends budget: one GraphQL query on GitHub, up to 53
   requests on Forgejo. Another is
@@ -129,30 +129,30 @@ and the cost are in
   budget too: one request for the commits plus one per commit until one has
   checks on GitHub, 3 plus one per run on Forgejo (and one log read per
   failed job, five at most).
-  `get_repository_advisories` mirrors `GET /api/main-branches/advisories` (a
+  `get_repository_advisories` mirrors `GET /api/v1/main-branches/advisories` (a
   GitHub repository's open dependency advisories in full, the worst first). It
   spends budget too: one REST request per page of alerts. A list that cannot
   be read is state unknown with a reason, never an empty list.
-  `get_check_log` mirrors `GET /api/checks/log` (one CI job's output as plain
+  `get_check_log` mirrors `GET /api/v1/checks/log` (one CI job's output as plain
   text, the last 256 KiB at most, by the `jobId` a check carries). It spends
   one request on Forgejo and one plus a short-lived download on GitHub. It refuses
   a repository you don't track with a 404, before any forge call, and answers
   503 while your repositories haven't loaded yet.
-  `list_queued_actions` mirrors `GET /api/queued-actions` (your actions
+  `list_queued_actions` mirrors `GET /api/v1/queued-actions` (your actions
   waiting on a rate-limited forge, and the finished ones from the last 24
   hours, under a `queuedActions` key). It costs no forge budget.
   `get_version` mirrors `GET /api/version` (the running server's release
   tag, under a `version` key). It costs no forge budget.
-  `get_forge_api_stats` mirrors `GET /api/stats/forge-api` (the forge request
+  `get_forge_api_stats` mirrors `GET /api/v1/stats/forge-api` (the forge request
   counters and budgets). It costs no forge budget.
-  `get_settings` mirrors `GET /api/settings` without the webhook token and
+  `get_settings` mirrors `GET /api/v1/settings` without the webhook token and
   secret, which are never sent over MCP; it reports `webhookConfigured`
   instead, and unlike the HTTP read it never creates them. It carries
   `ignoredTitleCounts` too, null per entry until the first refresh ends.
-  Over HTTP the same body is `GET /api/settings/summary`, which also
+  Over HTTP the same body is `GET /api/v1/settings/summary`, which also
   creates and returns no webhook credentials.
   `set_pull_request_auto_update` is the one tool that writes: it mirrors
-  `POST /api/pull-requests/auto-update` and turns the automatic branch update
+  `POST /api/v1/pull-requests/auto-update` and turns the automatic branch update
   on or off for one pull request, or hands it back to its repo with `enabled`
   null or omitted. It changes only this app's own setting, sends nothing to a
   forge and costs no forge budget. It is the same function as the handler, so
@@ -188,7 +188,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   needs no cache or compression rules of its own. A path no page matches
   answers the app's own `404.html` with a real 404, a handler that panics
   answers `500.html` with a 500 (the stack goes to the log, never the page),
-  and an unknown `/api/` path stays a JSON error. Errors the proxy makes
+  and an unknown `/api/v1/` path stays a JSON error. Errors the proxy makes
   itself (502, 503, 504) need its own static pages.
 - **It writes to the forges only when you ask, and for the webhooks.** The
   board reads from GitHub and Forgejo, and every row links out to the real
@@ -203,7 +203,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   client's HTTP cache, so it sees the real answers, including a `304`. Each
   request is counted by forge, credential, why it was made (a full refresh, a
   webhook's scoped refresh, a CI poll, a detail view, webhook upkeep, a
-  button you pressed) and repo, and `GET /api/stats/forge-api` serves the
+  button you pressed) and repo, and `GET /api/v1/stats/forge-api` serves the
   rows for your own credentials. The counters are in memory and restart at
   zero. A key carries no user id, only a label for the account or App
   installation. [Rate limits](docs/rate-limits.md#reading-the-stats) says how
@@ -218,15 +218,15 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   than a real dependency the page needs. Where it's present, it lets an
   in-browser AI agent fetch the same data the page itself renders.
   `get_dashboard` calls the page's own already-authenticated fetch layer
-  (`fetchDashboardData()`) directly, the same request `/api/dashboard` already
+  (`fetchDashboardData()`) directly, the same request `/api/v1/dashboard` already
   answers; the others call their endpoint the same way (`list_queued_actions`
-  returns `GET /api/queued-actions` under a `queuedActions` key, as the
+  returns `GET /api/v1/queued-actions` under a `queuedActions` key, as the
   server's tool of that name does; `get_settings` returns
-  `GET /api/settings/summary`, the same body as the server's tool, with
+  `GET /api/v1/settings/summary`, the same body as the server's tool, with
   `webhookConfigured` and no webhook token or secret). Like the server's
   tool, `get_settings` creates nothing: `webhookConfigured` is false until
   the user has opened Settings. `set_pull_request_auto_update` posts to
-  `POST /api/pull-requests/auto-update` like the server's tool of that name,
+  `POST /api/v1/pull-requests/auto-update` like the server's tool of that name,
   then reads the board through the page so what the person sees matches. All
   ride on the browser's own session cookie exactly like the page's own poll
   does.

@@ -50,7 +50,7 @@ func firstRefreshServer(t *testing.T, src dashboard.Source) (url string, cookie 
 	}, false, 50*time.Millisecond)
 	cookie, _, _ = registerViaRealCeremony(t, srv)
 	apiToken = createAPIToken(t, srv.URL, cookie)
-	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
+	put := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()
 	require.Equal(t, http.StatusOK, put.StatusCode)
 
@@ -136,7 +136,7 @@ func TestDashboardStream_CarriesFirstRefreshDone(t *testing.T) {
 	srvURL, _, sessionCookie := newTestServerWithCountingSource(t)
 	webhookToken, webhookSecret := webhookCredentials(t, srvURL, sessionCookie)
 
-	streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream", nil)
+	streamReq, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard/stream", nil)
 	require.NoError(t, err)
 	streamReq.AddCookie(sessionCookie)
 	streamResp, err := testClient(t).Do(streamReq)
@@ -194,7 +194,7 @@ func TestDashboard_FirstRefreshDone_StaysTrueAcrossASettingsSaveRebuild(t *testi
 	}, false, 50*time.Millisecond)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 	save := func(token string) {
-		put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+		put := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 		_ = put.Body.Close()
 		require.Equal(t, http.StatusOK, put.StatusCode)
 	}
@@ -204,7 +204,7 @@ func TestDashboard_FirstRefreshDone_StaysTrueAcrossASettingsSaveRebuild(t *testi
 	// the mark itself, and the rebuild has to carry it on its own. Main branches
 	// waits for the first refresh and never touches the flag.
 	for range 3 {
-		resp := doJSON(t, http.MethodGet, srv.URL+"/api/main-branches", "", cookie)
+		resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/main-branches", "", cookie)
 		_ = resp.Body.Close()
 		time.Sleep(30 * time.Millisecond)
 	}
@@ -230,7 +230,7 @@ func TestDashboard_FirstRefreshDone_AfterARestart_FalseUntilTheWarmedUpRefreshEn
 	}, false, 50*time.Millisecond)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 	apiToken := createAPIToken(t, srv.URL, cookie)
-	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
+	put := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()
 	require.Equal(t, http.StatusOK, put.StatusCode)
 

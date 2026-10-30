@@ -46,7 +46,7 @@ func TestDashboard_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Get(srv.URL + "/api/dashboard")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/dashboard")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -59,7 +59,7 @@ func TestDashboard_WithASessionButNoSettingsSaved_SerializesEmptyArraysNotNull(t
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -108,7 +108,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 	srv := newTestServerWithSources(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -119,7 +119,7 @@ func TestSettingsPut_TriggersTheDashboardToReflectTheNewSources(t *testing.T) {
 
 	client := testClient(t)
 	require.Eventually(t, func() bool {
-		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard", nil)
 		if err != nil {
 			return false
 		}
@@ -155,7 +155,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 	srv, service, _ := newTestServerWithSourcesAndService(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -166,7 +166,7 @@ func TestDashboard_AfterAProcessRestart_LazilyRewarmsFromSavedSettings(t *testin
 
 	client := testClient(t)
 	dashboardReq := func() (dashboard.Snapshot, int) {
-		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard", nil)
 		require.NoError(t, err)
 		req.AddCookie(sessionCookie)
 		resp, err := client.Do(req)

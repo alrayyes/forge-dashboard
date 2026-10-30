@@ -95,7 +95,7 @@ func TestRecoverPanics_APanicOnAnAPIPath_AnswersJSON(t *testing.T) {
 		panic("boom")
 	}))
 
-	resp := get(h, "/api/dashboard", "")
+	resp := get(h, "/api/v1/dashboard", "")
 
 	assert.Equal(t, http.StatusInternalServerError, resp.Code)
 	assert.Contains(t, resp.Header().Get("Content-Type"), "application/json")

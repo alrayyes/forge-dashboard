@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDashboard_PullRequest_SerializesReviewState checks /api/dashboard
+// TestDashboard_PullRequest_SerializesReviewState checks /api/v1/dashboard
 // carries a PR's review object (#683) and omits it when unknown.
 func TestDashboard_PullRequest_SerializesReviewState(t *testing.T) {
 	t.Parallel()
@@ -38,7 +38,7 @@ func TestDashboard_PullRequest_SerializesReviewState(t *testing.T) {
 	srv := newTestServerWithSources(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")

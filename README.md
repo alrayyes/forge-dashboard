@@ -124,7 +124,7 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
   Releases and Bots pages and hiding one pull request.
 - [Issues](docs/issues.md): the issues page and the settings that hide issues.
 - [Main branches](docs/main-branches.md): the default-branch CI page and
-  `GET /api/main-branches`.
+  `GET /api/v1/main-branches`.
 - [Live updates and filters](docs/live-updates.md): how the board refreshes, when
   rows wait before they land, the first load after a restart, the
   navigation counts, and how filters are offered, remembered and folded on a
