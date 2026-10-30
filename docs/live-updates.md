@@ -13,7 +13,7 @@ waiting for its second click), a pop-up other than the
 pull request pop-up is open, the mouse rests on the list (until you move away,
 close a pop-up or leave the window), or a finger has just touched or scrolled
 the page (for about a second). A refresh you asked for (Refresh now, or the one
-after your own merge) lands at once. When rows land over what you are reading,
+after your own merge) lands at once. When rows land ahead of what you are reading,
 the page scrolls by the same amount so nothing you can see moves. The pull
 request pop-up itself doesn't hold the board: the list behind it keeps updating,
 and the pop-up follows its own pull request (including a merge result or a
@@ -129,7 +129,7 @@ behind one waiting for auto-update needs it
 A restarted server starts from the snapshot its last run saved, so the board
 shows those rows at once. Their forge reads as unreachable with a stale time
 until the first refresh succeeds, then the mark clears. The rest of this section
-covers a start with nothing saved (a first install or a new database).
+covers a start with nothing saved (for example a first install or a new database).
 There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
 Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one
 polite "Loading your repositories…" line, not their empty states, and the
@@ -181,7 +181,7 @@ up. A zero is never drawn, and the link's name says the same in words, in the
 same order, after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
 2 failing, 10 passing, 3 running", and "7 2 3 1 1, Branches, 7 total, 2 failing,
 3 passing, 1 running, 1 without a pipeline". On
-a phone the total sits on its own line over the counts, and with three-digit
+a phone the total sits on its own line before the counts, and with three-digit
 numbers each count takes a line, so the busy tabs grow to about 110px. Issues
 counts open issues, without Renovate's Dependency Dashboard or what your
 settings hide, and has no failed count. The server works the numbers out from
@@ -207,7 +207,8 @@ to failing pull requests, and All clears it. How many repositories are tracked
 is a quiet line under the Insights heading. A page with nothing open says so,
 even when its nav item is hidden.
 
-On a phone the numbers sit over each tab's icon. An item's accessible name says
+On a phone the numbers sit on top of each tab's icon. An item's accessible name
+says
 both in words, and opens with the numbers as drawn so the name contains the text
 on screen: "12 3 8 1, Branches, 12 total, 3 failing, 8 passing, 1 running" on
 the header icon, "12 3 8 1 Branches, 3 failing, 8 passing, 1 running" on the

@@ -32,7 +32,7 @@ severity is the word, so the tint (red for high and critical, amber for medium,
 grey for low) is never the only signal. A repo with none open shows nothing. A
 repo whose alerts could not be read, because they are switched off or the
 credential lacks the permission, is never shown as zero: unknown is no answer.
-When every GitHub repo is unknown, one notice over the list says so and links
+When every GitHub repo is unknown, one notice ahead of the list says so and links
 to [When advisories can't be read](#when-advisories-cant-be-read), and no row
 repeats it. When only some are unknown, those rows carry a small grey dash
 (read aloud as "Advisories unknown") and no pill. A repo no source reads
@@ -99,7 +99,7 @@ Dependabot alerts. It lists them with the worst first (critical, high, medium,
 low, then the newest first). Each row shows the severity word, the title, the
 package and its ecosystem, whether it is a runtime or development dependency
 and a direct or transitive one, the file that pulled it in, and how long ago it
-opened. Severity chips over the list (All open, Critical, High, Medium, Low,
+opened. Severity chips ahead of the list (All open, Critical, High, Medium, Low,
 each with its count) narrow it; a level with none open has no chip.
 
 Picking a row shows its detail: the GHSA and CVE ids, the package, the file,
@@ -220,7 +220,7 @@ repos have no lock file, and nothing is said while advisories are off. It does
 say when a read failed: a row that is `unknown` with the reason `failed` (OSV
 unreachable, or a lock file that can't be read or is too big) or `too_many` gets
 a grey dash when other Forgejo rows have an answer, and when none has, one
-notice over the list names the cause. That notice is about Forgejo only and
+notice ahead of the list names the cause. That notice is about Forgejo only and
 sends nobody to a GitHub permission.
 
 Answers are cached for fifteen minutes. A failed read keeps the last answer for

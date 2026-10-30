@@ -6,7 +6,8 @@ Clicking a pull request row, anywhere on it, opens a pop-up. The row's title is
 the button that does it, stretched over the row; the CI pill, the labels, and the
 row's own buttons stay clickable on top of it. On a phone the row's one button
 is the last tier of the card: after a divider (the full width and 44 pixels
-tall). A locked Merge stays there greyed; the status block just over it says
+tall). A locked Merge stays there greyed; the status block directly on top of it
+says
 why, and the button is described by it. The pop-up has the pull request's
 description, its comments and the thumbs up and thumbs down reactions on each,
 and an **Open on GitHub** (or Forgejo) link. On the Releases page the pop-up
@@ -24,8 +25,8 @@ dashboard, and the two-step confirm still guards it. The buttons have the same
 states on the row and in the footer: locked with the reason, queued, in flight
 and the two-step confirm for Merge and Close. A locked button stays on screen,
 greyed, with the reason printed as text beside it or in the status block under
-the header, and described to screen readers. A failure shows as a line over the
-footer, with room for several, and leaves the buttons usable. The footer
+the header, and described to screen readers. A failure shows as a line on top of
+the footer, with room for several, and leaves the buttons usable. The footer
 also holds Hide this pull request and Hide for 7 days, and **Rerun failed
 checks** when CI is failing and the server offers it. Results are spoken
 through a status region inside the pop-up, since the page's own is out of reach
@@ -111,7 +112,7 @@ show it. Inside a pull request's own pop-up the pill is a link to the
 [Issues page](issues.md#opening-an-issue-from-its-address), so a middle or
 modified click opens that page in a new tab. A plain click closes the pull
 request's pop-up and opens the issue's in its place without leaving the
-page, with the address, and your filters untouched. Screen readers hear
+page. The address and your filters stay untouched. Screen readers hear
 "Closes", the number and "opens the issue".
 
 The server works out which issues those are, and builds the address that opens
@@ -197,8 +198,8 @@ username-only listing carries no images, so it shows none.
 A repository name that is too long for its column is cut with an ellipsis. Hover
 it and the whole `owner/name` shows as hover text, the same as a cut pull
 request title. A name that fits has no hover text, since it would only repeat
-what the row already shows. A click in the name opens the pull request, like a click
-anywhere else on the row.
+what the row already shows. Clicking the name opens the pull request, like a
+click anywhere else on the row.
 
 ## Releases
 
@@ -217,7 +218,7 @@ a releasable change lands, and its row carries the Out of date badge like any
 other behind pull request. With no release pull requests open the page says
 nothing is waiting to ship.
 
-The quick filter pills over the list include **Failing CI**, **Running CI**,
+The quick filter pills ahead of the list include **Failing CI**, **Running CI**,
 **Passing CI** and **No checks**, each offered only when it would show
 something. They are the only CI filter: the board header has no separate CI
 status dropdown, on this page, Releases, and Bots. The **No checks** pill shows

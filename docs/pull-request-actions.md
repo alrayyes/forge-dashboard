@@ -37,7 +37,7 @@ draws its rebase beside it, or the cancel while a Renovate rebase is requested.
 A pull request that is behind the base branch is the one case where
 a locked Merge is not the row's button: the row draws no button of its own,
 because the cure (Update branch, or the bot's rebase) sits inside the status
-block over it, and the greyed Merge is in the pop-up. A behind bot pull
+block on top of it, and the greyed Merge is in the pop-up. A behind bot pull
 request whose Merge is held back by something else too (checks running, say)
 draws its rebase on the row. Every other action is in the pop-up's footer, one
 click away, and there is no "More actions" menu.
@@ -66,7 +66,7 @@ pull request, whose branch is already on the target, offers `close` and no
 `merge` or `auto_merge`, since nothing can unlock Merge; its `status` says there
 is nothing to merge.
 
-The row shows `status` in one place: a block with an icon and words over its
+The row shows `status` in one place: a block with an icon and words ahead of its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
@@ -151,7 +151,7 @@ and Cancel, and the step ends on Cancel, a click anywhere else (which still does
 what it would have done), Escape, or after 8 seconds, shown by a thin line that
 runs down and waits while the pointer or keyboard focus is in the pair. A line
 under the buttons reminds you that Escape or a click elsewhere cancels. Only one
-Merge or Close is armed at a time, and a double-click in Merge arms it without
+Merge or Close is armed at a time, and double-clicking Merge arms it without
 confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
 reason, which the row and a toast show: already merged or closed (the row
@@ -251,7 +251,7 @@ A row names its forge kind, not the host. With several hosts of one kind,
 the controls are held back only when every one of them is unreachable or out
 of budget, and the Dependabot commands only when every one of them can't
 send them. With one host down and another healthy the controls still draw,
-and a click in a row from the down host fails with the forge's own answer. The
+and clicking a row from the down host fails with the forge's own answer. The
 queue button is not offered while any host of the kind is unreachable.
 
 A forge that can't be reached gets the same treatment. Its controls are not
@@ -579,7 +579,7 @@ away, and rebasing during a pending Recreate is pointless since recreating
 rebuilds the whole pull request. Dependabot has no command to withdraw a
 request, so Recreate stays held back for the whole wait, on purpose, not only
 for a few seconds after the click. The command you just sent keeps its
-greyed-out `requested` button until the server lists the request, so the row
+`requested` button unavailable until the server lists the request, so the row
 never goes
 blank. If another tab already sent the same command, the server answers 409
 with the `already_requested` code and the page shows the command as requested,
@@ -867,8 +867,9 @@ failed job to rerun" (`POST /api/v1/pull-requests/rerun-checks`, listed as
 
 Forgejo added the rerun routes in version 17. Versions 7 to 16 have none,
 so on those the dashboard reads the instance's version in the background on its
-first refresh and draws no button: the button in the details dialog is greyed
-out and the panel prints "This Forgejo is older than version 17 and has no way
+first refresh and draws no button: the button in the details dialog is
+unavailable and the panel prints "This Forgejo is older than version 17 and has
+no way
 to
 rerun checks. Rerun them on the forge." No rerun request is sent to the forge,
 and the version is checked before the pull request or its runs are looked up,
@@ -910,7 +911,7 @@ because nothing restarted.
 Forgejo. The block shows in the forge's health as `rerunChecksBlocked`, and a
 click answers 409 with the same sentence. The block is per forge kind: with a
 Forgejo 16 and a Forgejo 17 configured side by side, the button stays until
-both lack the route, and the 409 answers a click in the older one.
+both lack the route, and the 409 answers clicking it on the older one.
 
 While a pull request has a check running or waiting, even beside one that
 already failed, the same panel offers `Cancel run: <workflow>` for each workflow
@@ -996,8 +997,8 @@ request the forge refuses shows its reason on its own row, with that row's
 retry, and the others carry on.
 
 A pull request that is empty, already has a rebase requested, or has no rebase
-to offer isn't counted. When no pull request can be asked, the button is greyed
-out. A Dependabot pull request on a GitHub App with no saved personal
+to offer isn't counted. When no pull request can be asked, the button is
+unavailable. A Dependabot pull request on a GitHub App with no saved personal
 token is left out too, and the line gives the reason.
 
 The button and its line show only while a listed pull request is out of date.

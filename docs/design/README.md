@@ -28,8 +28,8 @@ action on the row and keeps every other action in the pop-up's footer.
 
 The design is dark only. The app keeps its light theme.
 
-- `dashboard-rate-limit.png`: a rate-limited forge with greyed-out actions and
-  no Retry, next to a transient error that does offer Try again.
+- `dashboard-rate-limit.png`: a rate-limited forge with actions that can't be
+  used and no Retry, next to a transient error that does offer Try again.
 - `dashboard-rate-limit-readonly.png`: the Stitch answer to a request for a
   read-only rate-limit mode. It largely repeats the rate-limit screen and
   does not draw the banner, queue or paused refresh that were asked for.
@@ -85,7 +85,7 @@ server log. The tickets' criteria win over those two details.
   `screen-main-branches-mobile.png`: a page with the CI status of every repo's
   default branch, in light, dark, and at 390px. Rows carry status, branch, latest
   commit, failing workflow and age; filter pills with counts, a forge toggle and
-  search sit over them, and a failed row shows its failing job and last log
+  search sit ahead of them, and a failed row shows its failing job and last log
   lines. `crop-main-branches-filter-bar.png` is the header and filter bar and
   `crop-main-branches-failing-row.png` a failed row. Stitch project "Forge
   Dashboard UI Audit" (`564147752128938905`), screens
@@ -202,8 +202,8 @@ server log. The tickets' criteria win over those two details.
   and red-outline destructive buttons, with every existing setting kept and
   none added.
 
-  Build the groups in this order (Display, Connections,
-  Behaviour, Integrations, and security). Mark the current group by more than
+  Build the groups in this order (Display, Connections, Behaviour, and
+  Integrations and security). Mark the current group by more than
   colour, as the accent bar and bold label do here. Put the chip beside each
   ignored pattern, and say "hides no issues" for zero, not "hides 0 issues".
   Outline destructive buttons in red, and use pill tabs on a phone. Keep

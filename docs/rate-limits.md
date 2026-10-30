@@ -502,7 +502,7 @@ all in the REST column.
 
 A scheduled refresh no longer re-reads every repo. When a webhook is
 configured, it first asks GitHub one cheap question per 100 repos: when each
-repo was last pushed to or edited, how many open pull requests, and issues it
+repo was last pushed to or edited, how many open pull requests plus issues it
 has, and when the newest-touched one last changed. A repo whose answer matches
 the last refresh, and whose webhook is switched on and subscribed to check
 events, is skipped: its pull requests, issues and main-branch row stay as they

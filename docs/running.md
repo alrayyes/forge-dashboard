@@ -207,7 +207,7 @@ is overwritten.
 The earlier clean-up deleted a removed user's sessions and API tokens with the
 user. Once this version has rebuilt those tables they carry no user, so a later
 clean-up can no longer revoke them by user. This version has no second user to
-remove, so run the earlier release first, as described earlier.
+remove, so run the earlier release first, as the preceding steps describe.
 
 Delete the copy once you are satisfied; the server never does. A start that
 fails on its first step removes the copy it took, since the database is as it
