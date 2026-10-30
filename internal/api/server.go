@@ -232,10 +232,14 @@ func NewMux(deps Deps) http.Handler {
 		http.Redirect(w, r, "/", http.StatusMovedPermanently)
 	})
 	mux.Handle("GET /", publicFiles)
-	// An unknown API path is JSON, never the page for people (#1175).
-	mux.HandleFunc("GET /api/v1/", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusNotFound, errorBody("not found"))
-	})
+	// An unknown API path is JSON, never the page for people (#1175). It covers
+	// all of /api/, so a wrong-method webhook call and a bare /api/v1 answer
+	// JSON too.
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		mux.HandleFunc(method+" "+apiPrefix, func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusNotFound, errorBody("not found"))
+		})
+	}
 
 	return noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, deps.Version, limitRequestBody(legacyRoutes(mux)))))
 }

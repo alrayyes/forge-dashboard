@@ -33,17 +33,29 @@ func unversionedAPIPath(path string) bool {
 }
 
 // legacyRoutes answers 308 from an unversioned /api/... address to its
-// /api/v1/... one. A 308 keeps the method and body, so a page loaded before a
-// deploy keeps working through it.
-func legacyRoutes(next http.Handler) http.Handler {
+// /api/v1/... one, when the mux has a route there. A 308 keeps the method and
+// body, so a page loaded before a deploy keeps working through it. Anything
+// else under /api/ goes straight to the mux and its 404.
+func legacyRoutes(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, apiPrefix) || unversionedAPIPath(r.URL.Path) {
-			next.ServeHTTP(w, r)
+			mux.ServeHTTP(w, r)
 
 			return
 		}
 
 		target := apiVersionPrefix + strings.TrimPrefix(r.URL.Path, apiPrefix)
+
+		probe := r.Clone(r.Context())
+		probe.URL.Path = target
+		// The JSON 404 catch-all (NewMux) is registered per method on "/api/", so
+		// a match on it means no real route is there.
+		if _, pattern := mux.Handler(probe); pattern == "" || strings.HasSuffix(pattern, " "+apiPrefix) {
+			mux.ServeHTTP(w, r)
+
+			return
+		}
+
 		if r.URL.RawQuery != "" {
 			target += "?" + r.URL.RawQuery
 		}

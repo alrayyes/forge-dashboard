@@ -29,6 +29,7 @@ func TestLegacyRoutes_UnversionedClientRoute_Answers308ToV1(t *testing.T) {
 		{http.MethodPost, "/api/pull-requests/merge", "/api/v1/pull-requests/merge"},
 		{http.MethodDelete, "/api/tokens/7", "/api/v1/tokens/7"},
 		{http.MethodGet, "/api/dashboard/stream", "/api/v1/dashboard/stream"},
+		{http.MethodPost, "/api/mcp", "/api/v1/mcp"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
