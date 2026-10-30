@@ -420,28 +420,54 @@ func (c branchContext) label() string {
 	return c.Name
 }
 
-// branchTimes is when the last check finished and how long the pipeline ran,
-// from its first start to that finish. Nil for either when no check ran with
-// times, which a legacy commit status never has.
+// runKey is the run attempt a check belongs to; the zero key for a check of no
+// run.
+func (c branchContext) runKey() runKey {
+	if c.CheckSuite == nil || c.CheckSuite.WorkflowRun == nil {
+		return runKey{}
+	}
+
+	return runKey{c.CheckSuite.WorkflowRun.DatabaseID, c.CheckSuite.WorkflowRun.RunAttempt}
+}
+
+type runKey struct{ id, attempt int64 }
+
+// branchTimes is when the last check finished and how long the run that
+// finished last took, from its own first start to that finish. A default
+// branch's workflows run on their own schedules (a push, then a nightly one), so
+// the span across all of them would count the days between two runs. Checks of
+// no run share one group. Nil for either when no check ran with times, which a
+// legacy commit status never has.
 func branchTimes(checks []branchContext) (finished *time.Time, seconds *int) {
-	var first, last time.Time
+	type span struct{ first, last time.Time }
+	spans := map[runKey]*span{}
+	var newest *span
 	for _, c := range checks {
 		if c.Typename != "CheckRun" || c.StartedAt.IsZero() || c.CompletedAt.IsZero() {
 			continue
 		}
-		if first.IsZero() || c.StartedAt.Before(first) {
-			first = c.StartedAt
+		run := c.runKey()
+		sp, ok := spans[run]
+		if !ok {
+			sp = &span{first: c.StartedAt}
+			spans[run] = sp
 		}
-		if c.CompletedAt.After(last) {
-			last = c.CompletedAt
+		if c.StartedAt.Before(sp.first) {
+			sp.first = c.StartedAt
+		}
+		if c.CompletedAt.After(sp.last) {
+			sp.last = c.CompletedAt
+		}
+		if newest == nil || sp.last.After(newest.last) {
+			newest = sp
 		}
 	}
-	if last.IsZero() {
+	if newest == nil {
 		return nil, nil
 	}
-	d := max(int(last.Sub(first).Seconds()), 0)
+	d := max(int(newest.last.Sub(newest.first).Seconds()), 0)
 
-	return &last, &d
+	return &newest.last, &d
 }
 
 // checkedCommitsQuery builds one query that reads, for each repo, its newest

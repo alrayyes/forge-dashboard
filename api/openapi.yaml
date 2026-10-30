@@ -6818,7 +6818,10 @@ components:
           minimum: 0
           description: |
             How long the pipeline ran, from its first job starting to its last
-            finishing. Null while it runs, or when the forge didn't say.
+            finishing. On GitHub it is the run that finished last, alone, since
+            a commit's workflows run on their own schedules and days can pass
+            between two of them. Null while it runs, or when the forge didn't
+            say.
         runUrl:
           type: string
           description: |

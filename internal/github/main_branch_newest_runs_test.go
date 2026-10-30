@@ -143,6 +143,25 @@ func TestFetchMainBranch_ALaterAttemptOfTheSameRunStillReplacesTheEarlier(t *tes
 	assert.Equal(t, dashboard.MainBranchPassed, row.Status)
 }
 
+// Two workflows whose newest runs are days apart: the row says how long the run
+// that finished last took, not the span from the oldest start to that finish.
+func TestFetchMainBranch_TheDurationIsThatOfTheRunThatFinishedLast(t *testing.T) {
+	t.Parallel()
+
+	ci := workflowRun(2, 1, 6, "ci")
+	scan := workflowRun(3, 1, 9, "gitleaks")
+	rollup := rollupOf("SUCCESS", map[string]int{"SUCCESS": 3},
+		runCheck(31, "scan", "COMPLETED", "SUCCESS", "2026-10-26T08:00:00Z", "2026-10-26T08:01:00Z", runsURL+"3/job/31", suiteOf("COMPLETED", "SUCCESS", scan)),
+		runCheck(21, "lint", "COMPLETED", "SUCCESS", "2026-10-30T11:42:00Z", "2026-10-30T11:43:00Z", runsURL+"2/job/21", suiteOf("COMPLETED", "SUCCESS", ci)),
+		runCheck(22, "test", "COMPLETED", "SUCCESS", "2026-10-30T11:43:00Z", "2026-10-30T11:44:00Z", runsURL+"2/job/22", suiteOf("COMPLETED", "SUCCESS", ci)),
+	)
+
+	row := fetchNewest(t, rollup, nil, nil)
+
+	require.NotNil(t, row.DurationSeconds)
+	assert.Equal(t, 120, *row.DurationSeconds)
+}
+
 // A rollup cut short lists part of the newest run; the follow-up read lists the
 // whole run again. Each job counts once, and the row says what it still lacks.
 func TestFetchMainBranch_AJobTheRollupAndTheFollowUpBothListCountsOnce(t *testing.T) {
