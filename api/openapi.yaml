@@ -48,6 +48,8 @@ info:
     identifier: AGPL-3.0-only
 
 servers:
+  # The host only, with /api/v1 in each path: /healthz, /readyz, /api/version
+  # and the webhook routes are not versioned and share this URL.
   - url: "{scheme}://{host}"
     # For whoever runs their own copy: the audience is the API's consumers,
     # not this project's own staff.
@@ -3824,8 +3826,8 @@ components:
         apiVersion:
           type: string
           description: |
-            The API's current major version, the path segment under which
-            every operation lives.
+            The API's current major version, such as v1: the path segment
+            the versioned operations live under. It is one value, not a list.
           examples: [v1]
         version:
           type: string

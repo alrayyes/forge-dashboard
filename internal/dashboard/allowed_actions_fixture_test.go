@@ -143,7 +143,7 @@ func buildAllowedActionsFixture(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// The e2e specs mock /api/dashboard and fill each pull request's
+// The e2e specs mock /api/v1/dashboard and fill each pull request's
 // allowedActions, status and kind from this table, so they can't pass against
 // a rule the server no longer has. A change to the rules fails here until the
 // table is regenerated and committed (#1437).
