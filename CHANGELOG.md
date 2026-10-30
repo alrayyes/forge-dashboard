@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.0.3](https://github.com/alrayyes/forge-dashboard/compare/v9.0.2...v9.0.3) (2026-10-30)
+
+
+### Bug Fixes
+
+* **github:** flag a rollup cut short by its own count ([#3121](https://github.com/alrayyes/forge-dashboard/issues/3121)) ([11caeeb](https://github.com/alrayyes/forge-dashboard/commit/11caeeb5457d7546c8c42e805c342a8fd0c61e34)), closes [#3114](https://github.com/alrayyes/forge-dashboard/issues/3114)
+
 ## [9.0.2](https://github.com/alrayyes/forge-dashboard/compare/v9.0.1...v9.0.2) (2026-10-30)
 
 
