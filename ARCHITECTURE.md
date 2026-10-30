@@ -102,7 +102,8 @@ the rule keys on the name and run numbers count per workflow file. Their runs
 supersede each other.
 
 The Forgejo row and its dialog list apply the rule too, to the runs of the
-commit before they read their jobs. Forgejo's runs list gives a run's workflow
+commit once their jobs are read and a run the list calls running, whose jobs
+have all finished, is settled. Forgejo's runs list gives a run's workflow
 file and its number in the repo, but no attempt: a rerun is the same run, so
 it is never listed twice and its jobs carry the attempt. A run without a
 number, from an older Forgejo, is never replaced. As on GitHub, the row's
