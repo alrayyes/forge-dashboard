@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.0.2](https://github.com/alrayyes/forge-dashboard/compare/v9.0.1...v9.0.2) (2026-10-30)
+
+
+### Bug Fixes
+
+* **forgejo:** newest run per workflow decides the row ([#3116](https://github.com/alrayyes/forge-dashboard/issues/3116)) ([9e79d52](https://github.com/alrayyes/forge-dashboard/commit/9e79d52bf10eae5ad75e335af80f801d4420e1ab))
+
 ## [9.0.1](https://github.com/alrayyes/forge-dashboard/compare/v9.0.0...v9.0.1) (2026-10-30)
 
 
