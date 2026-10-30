@@ -52,14 +52,15 @@ it exposes and how it authenticates.
 
 The major version is in the path: every operation lives under `/api/v1`. A
 breaking change ships as `/api/v2` beside it, never in place. `info.version` in
-`api/openapi.yaml` is the contract's semver, and its major matches the path.
+`api/openapi.yaml` is the contract's own version number, and its major matches
+the path.
 
 Three things stay outside the version because something else holds their
 address: `/healthz` and `/readyz`, the forges' webhook routes under
 `/api/webhooks/`, and `GET /api/version`, which reports the release and the
 current `apiVersion`.
 
-The old unversioned addresses (`/api/dashboard`) answer `308 Permanent
+The old addresses without a version (`/api/dashboard`) answer `308 Permanent
 Redirect` to their `/api/v1` path for one release, with a `Deprecation` header
 ([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745)). A 308 keeps the method and
 body, so a page opened before an upgrade keeps working. Move to the `/api/v1`

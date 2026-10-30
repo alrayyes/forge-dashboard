@@ -50,6 +50,8 @@ func legacyRoutes(next http.Handler) http.Handler {
 
 		w.Header().Set("Deprecation", legacyDeprecatedAt)
 		w.Header().Set("Link", "<"+target+`>; rel="successor-version"`)
-		http.Redirect(w, r, target, http.StatusPermanentRedirect)
+		// target always starts with the fixed /api/v1/ prefix, so it can only
+		// point back into this server, never at another host.
+		http.Redirect(w, r, target, http.StatusPermanentRedirect) //nolint:gosec // G710: fixed prefix, same-origin
 	})
 }
