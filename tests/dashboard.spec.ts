@@ -2436,7 +2436,7 @@ test.describe('dashboard page', () => {
     }) => {
       const sharingRequests: string[] = [];
       page.on('request', (r) => {
-        if (new URL(r.url()).pathname.startsWith('/api/sharing'))
+        if (new URL(r.url()).pathname.startsWith('/api/v1/sharing'))
           sharingRequests.push(r.url());
       });
       const firstRead = page.waitForResponse(

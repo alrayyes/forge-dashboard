@@ -78,6 +78,7 @@ golangci-lint fmt          # the fixer; `run` stays the check
 
 ./tests/run-local.sh       # the Playwright suite in one command, see below
 bun run check:tests        # tsc over the tests; Playwright itself never type-checks
+bun run lint:specs         # specs name /api/v1 routes, so no mock silently stops matching
 bun run format:check       # bun run lint:md, lint:api, lint:prose, lint:mechanics too
 ```
 

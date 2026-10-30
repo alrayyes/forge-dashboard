@@ -664,6 +664,8 @@ jobs:
         run: bun run lint:js
       - name: package.json order
         run: bun run lint:pkg
+      - name: specs name versioned api routes
+        run: bun run lint:specs
       - name: unit tests
         run: bun run test:unit
 

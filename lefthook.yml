@@ -191,6 +191,22 @@ pre-push:
     - name: sort-package-json
       run: bun run lint:pkg
 
+    # A spec naming an unversioned /api/ route stops matching its mock and
+    # times out the e2e shards; the script's header has the rules. Its own
+    # test runs in the unit job below.
+    # The glob is the CI gate's: scripts/changed-areas.sh's web area.
+    - name: spec api routes
+      glob:
+        - "tests/**"
+        - "scripts/**"
+        - "web/**"
+        - ".semgrep/**"
+        - "playwright.config.ts"
+        - "biome.json"
+        - "tsconfig.json"
+        - "lighthouserc.json"
+      run: bun run lint:specs
+
     # The unit tests under web/src, which run in milliseconds and in the CI
     # js job. Plain bun test, no browser and no server.
     - name: unit
