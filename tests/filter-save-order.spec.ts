@@ -23,8 +23,10 @@ const ISSUES = [
 ];
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -53,11 +55,11 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
   page.on('requestfinished', (req) => {
     if (
       req.method() === 'PUT' &&
-      req.url().includes('/api/settings/filter-state')
+      req.url().includes('/api/v1/settings/filter-state')
     )
       landed++;
   });
-  await page.route('**/api/settings/filter-state', async (route) => {
+  await page.route('**/api/v1/settings/filter-state', async (route) => {
     if (route.request().method() !== 'PUT') return route.fallback();
     puts++;
     // The first save is slow, so an unordered client lets the second overtake it.
@@ -72,7 +74,7 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
   await expect
     .poll(
       async () => {
-        const res = await page.request.get('/api/settings/filter-state');
+        const res = await page.request.get('/api/v1/settings/filter-state');
         const body = await res.json();
         return `${body.shared?.author ?? ''}/${body.shared?.label ?? ''}`;
       },
@@ -81,7 +83,7 @@ test('a pick made right after another is the one the server keeps (#1637)', asyn
     .toBe('github:ryan/bug');
   // Wait for the slow request to have landed too: the answer must not revert.
   await expect.poll(() => landed, { timeout: 5000 }).toBe(puts);
-  const res = await page.request.get('/api/settings/filter-state');
+  const res = await page.request.get('/api/v1/settings/filter-state');
   const body = await res.json();
   expect(body.shared).toMatchObject({ author: 'github:ryan', label: 'bug' });
 });

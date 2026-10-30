@@ -213,7 +213,7 @@ import {
 } from './label-filter';
 
 export { FORGE_LABELS };
-// The slice of /api/dashboard's repos[] that a repo group header needs.
+// The slice of /api/v1/dashboard's repos[] that a repo group header needs.
 export interface RepoRef {
   forge: string;
   fullName: string;
@@ -871,7 +871,7 @@ function savedCopy(state: SharedFilterState): SharedFilterState {
   return copy;
 }
 
-const FILTER_STATE_ENDPOINT = '/api/settings/filter-state';
+const FILTER_STATE_ENDPOINT = '/api/v1/settings/filter-state';
 // Long enough that a fast typist's keystrokes coalesce into one write,
 // short enough that a real pause reads as "done typing," matching the
 // "debounce free text, not discrete controls" split #353 asks for —
@@ -1063,7 +1063,7 @@ export function saveState(
 // cookie read, called once at page load right after it so the first
 // paint isn't blocked on a round trip. Returns null on any failure or
 // for a user who's never saved anything server-side yet (the {}
-// GET /api/settings/filter-state answers with either way), the
+// GET /api/v1/settings/filter-state answers with either way), the
 // caller's own signal to leave the cookie-derived state as it is
 // rather than overwriting it with nothing.
 export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null> {

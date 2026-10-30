@@ -23,8 +23,10 @@ const REPOS = [
 const ENABLED = 'Enabled auto-update-branch for all 2 repos.';
 
 async function open(page: Page, hold?: Promise<void>) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -38,7 +40,7 @@ async function open(page: Page, hold?: Promise<void>) {
     }),
   );
   await page.route(
-    '**/api/repos/auto-update-branch/*',
+    '**/api/v1/repos/auto-update-branch/*',
     async (route: Route) => {
       if (hold && route.request().url().endsWith('/disable')) await hold;
       await route.fulfill({ status: 204 });

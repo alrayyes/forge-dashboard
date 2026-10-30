@@ -51,7 +51,7 @@ async function standInSettings(page: Page, options: Options) {
       : {}),
   });
   await page.route(
-    (url) => url.pathname === '/api/settings',
+    (url) => url.pathname === '/api/v1/settings',
     async (route: Route) => {
       const request = route.request();
       if (request.method() === 'PUT') {

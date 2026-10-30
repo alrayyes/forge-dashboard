@@ -66,10 +66,10 @@ test.describe('a behind release-please pull request (#1104)', () => {
   test('offers Update branch, and Merge says why it is waiting', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -77,10 +77,13 @@ test.describe('a behind release-please pull request (#1104)', () => {
       }),
     );
     let requestBody: unknown;
-    await page.route('**/api/pull-requests/update-branch', (route: Route) => {
-      requestBody = route.request().postDataJSON();
-      return route.fulfill({ status: 204 });
-    });
+    await page.route(
+      '**/api/v1/pull-requests/update-branch',
+      (route: Route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      },
+    );
     // Release pull requests live on the Releases page.
     await page.goto('/releases.html');
 

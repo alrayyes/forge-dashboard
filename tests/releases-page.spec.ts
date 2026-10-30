@@ -35,7 +35,7 @@ function release(number: number, version: string, overrides = {}) {
 }
 
 function mockDashboard(page: Page, pullRequests: unknown[]) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -55,7 +55,7 @@ test.describe('Releases page (#1107)', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('lists release pull requests only, each with its version, repo and CI status', async ({

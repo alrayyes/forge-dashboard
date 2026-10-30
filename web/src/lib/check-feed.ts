@@ -56,7 +56,7 @@ type Options = {
   timeoutMs?: number;
 };
 
-const WATCH_URL = '/api/dashboard/stream/watch';
+const WATCH_URL = '/api/v1/dashboard/stream/watch';
 const DOWN = 'the live connection is down';
 const SILENT = 'no answer from the server';
 const OPEN = 1;

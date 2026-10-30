@@ -11,7 +11,7 @@ import { test } from './server-fixture';
 // The filters are saved on the server now, and these tests share one: keep what one
 // picks from becoming the next test's starting point.
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/settings/filter-state', (route: Route) =>
+  await page.route('**/api/v1/settings/filter-state', (route: Route) =>
     route.request().method() === 'GET'
       ? route.fulfill({
           status: 200,
@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 function mockDashboard(page: Page, repos: Record<string, unknown>[]) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

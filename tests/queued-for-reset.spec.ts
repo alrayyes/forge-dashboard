@@ -10,7 +10,7 @@ import { test } from './server-fixture';
 
 // #756: while a forge is rate limited (read-only, #755), a behind pull
 // request can queue Update branch (or a bot rebase) to run at the reset. The
-// server keeps the queue (api/openapi.yaml, /api/queued-actions); the page
+// server keeps the queue (api/openapi.yaml, /api/v1/queued-actions); the page
 // offers the control, shows the queued line with Cancel, lists the item in
 // Activity, and says when it ran or why it didn't. Merge and Close are never
 // queueable.
@@ -85,7 +85,9 @@ async function setup(
       issues: [],
       queuedActions: state.queuedActions,
     });
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
   await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
     route.fulfill({
       status: 200,
@@ -93,7 +95,7 @@ async function setup(
       body: snapshot(),
     }),
   );
-  await page.route('**/api/queued-actions', (route: Route) => {
+  await page.route('**/api/v1/queued-actions', (route: Route) => {
     if (route.request().method() !== 'POST') return route.fallback();
     const body = route.request().postDataJSON();
     state.posts.push(body);
@@ -114,7 +116,7 @@ async function setup(
       body: JSON.stringify(item),
     });
   });
-  await page.route('**/api/queued-actions/*', (route: Route) => {
+  await page.route('**/api/v1/queued-actions/*', (route: Route) => {
     if (route.request().method() !== 'DELETE') return route.fallback();
     state.deletes.push(route.request().url().split('/').pop() ?? '');
     state.queuedActions = [];

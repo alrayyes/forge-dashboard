@@ -110,8 +110,10 @@ async function mock(
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
   );
   await page.route(BROKEN, (route: Route) => route.abort());
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -314,7 +316,7 @@ test.describe('Repo and Author: saved picks', () => {
     await expect
       .poll(async () => {
         const saved = await (
-          await page.request.get('/api/settings/filter-state')
+          await page.request.get('/api/v1/settings/filter-state')
         ).json();
         return saved.shared?.author;
       })
@@ -416,7 +418,7 @@ test.describe('Repo and Author: logos and avatars', () => {
   test('a plain http repo logo is not loaded', async ({ page }) => {
     await mock(page, [pr(1, 'dave', 'acme/api')]);
     // Registered last, so it answers first.
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

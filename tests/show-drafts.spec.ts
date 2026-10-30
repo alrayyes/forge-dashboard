@@ -81,12 +81,14 @@ async function setup(page: Page) {
   // The stream's URL is recorded when the connection is constructed, so it
   // needn't answer. Left alone, the real one pushes the server's own empty
   // snapshot over the mocked one after a reload (#837).
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) => {
     seen.push(route.request().url());
     return answer(route);
   });
-  await page.route('**/api/dashboard/refresh*', (route: Route) => {
+  await page.route('**/api/v1/dashboard/refresh*', (route: Route) => {
     seen.push(`POST ${route.request().url()}`);
     return answer(route);
   });
@@ -133,7 +135,7 @@ test.describe('show drafts (#791)', () => {
 
     const seen: string[] = [];
     page.on('request', (r) => {
-      if (r.url().includes('/api/dashboard')) seen.push(r.url());
+      if (r.url().includes('/api/v1/dashboard')) seen.push(r.url());
     });
     await page.reload();
     await expect(rows(page)).toHaveCount(8);

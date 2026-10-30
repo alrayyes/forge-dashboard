@@ -64,7 +64,7 @@
   // A read-only dialog for one pull request (#943) or one issue: its
   // description, the conversation and the thumbs reactions on both, and, for a
   // release pull request, the release notes. The data comes from
-  // GET /api/pull-requests/details or GET /api/issues/details, fetched when
+  // GET /api/v1/pull-requests/details or GET /api/v1/issues/details, fetched when
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
   import { tick } from "svelte";
@@ -300,8 +300,8 @@
       const where = `forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}`;
       const res = await fetch(
         isReleaseTarget(current)
-          ? `/api/releases/details?${where}&tag=${encodeURIComponent(current.tag)}`
-          : `/api/${current.subject === "issue" ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
+          ? `/api/v1/releases/details?${where}&tag=${encodeURIComponent(current.tag)}`
+          : `/api/v1/${current.subject === "issue" ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
         { headers: { Accept: "application/json" } },
       );
       if (res.status === 401) {

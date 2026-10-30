@@ -8,7 +8,7 @@
 // (playwright.config.js only looks in tests/), so the main e2e suite never
 // picks this up.
 //
-// Every page's /api/dashboard fetch is mocked with fixture data,
+// Every page's /api/v1/dashboard fetch is mocked with fixture data,
 // the same way tests/dashboard.spec.ts's own route mocks work: this runs
 // in CI with no live GitHub/Forgejo credentials, and a screenshot only
 // needs to look like the real product, not show a real account's actual
@@ -174,7 +174,7 @@ const SNAPSHOT = {
   ],
 };
 
-// The Branches page reads its own endpoint, GET /api/main-branches.
+// The Branches page reads its own endpoint, GET /api/v1/main-branches.
 function mainBranch(
   forge: 'github' | 'forgejo',
   fullName: string,
@@ -222,7 +222,7 @@ const MAIN_BRANCHES = {
   branches: MAIN_BRANCH_ROWS,
 };
 
-// Fixture repos for the webhooks page (/api/dashboard's `repos` list).
+// Fixture repos for the webhooks page (/api/v1/dashboard's `repos` list).
 const REPOS = [
   {
     forge: 'github',
@@ -382,7 +382,7 @@ function body(text: string, react = reactions([], [])) {
   };
 }
 
-// GET /api/pull-requests/details payloads, keyed by pull request number.
+// GET /api/v1/pull-requests/details payloads, keyed by pull request number.
 // Fictional text throughout (#251).
 const DETAILS: Record<number, unknown> = {
   142: {
@@ -558,15 +558,15 @@ async function main() {
 
   // The live stream is aborted so nothing replaces the fixture after the
   // page loads.
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches', (route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/main-branches', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(MAIN_BRANCHES),
     }),
   );
-  await page.route('**/api/dashboard*', (route) =>
+  await page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -577,7 +577,7 @@ async function main() {
   // stream answers the page's watch with the fixture.
   await serveChecks(page, () => CHECKS.checks);
 
-  await page.route('**/api/pull-requests/details*', (route) => {
+  await page.route('**/api/v1/pull-requests/details*', (route) => {
     const number = Number(
       new URL(route.request().url()).searchParams.get('number'),
     );
@@ -604,7 +604,7 @@ async function main() {
     // same real PUT tests/theme-helper.ts's setTheme uses.
     await page.evaluate(
       (t) =>
-        fetch('/api/settings/theme', {
+        fetch('/api/v1/settings/theme', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',

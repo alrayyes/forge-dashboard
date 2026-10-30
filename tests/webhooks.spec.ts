@@ -93,7 +93,7 @@ test.describe('webhook-triggered live updates', () => {
     // to finish during the navigation itself. Racing the two together
     // instead means the listener is attached before the fetch can happen.
     await Promise.all([
-      page.waitForResponse((res) => res.url().includes('/api/settings')),
+      page.waitForResponse((res) => res.url().includes('/api/v1/settings')),
       page.goto('/settings.html#connections'),
     ]);
     await page.fill('#forgejo-url', 'https://forgejo.example.invalid');
@@ -113,7 +113,7 @@ test.describe('webhook-triggered live updates', () => {
     // the regular poll interval.
     await page.evaluate(() => {
       window.__testSSEMessages = [];
-      window.__testES = new EventSource('/api/dashboard/stream');
+      window.__testES = new EventSource('/api/v1/dashboard/stream');
       window.__testES.onmessage = (e: MessageEvent<string>) =>
         window.__testSSEMessages.push(e.data);
     });
@@ -177,7 +177,7 @@ test.describe('webhook-triggered live updates', () => {
       // to finish during the navigation itself. Racing the two together
       // instead means the listener is attached before the fetch can happen.
       await Promise.all([
-        page.waitForResponse((res) => res.url().includes('/api/settings')),
+        page.waitForResponse((res) => res.url().includes('/api/v1/settings')),
         page.goto('/settings.html#connections'),
       ]);
       await page.fill('#forgejo-url', forgejoURL);
@@ -194,7 +194,7 @@ test.describe('webhook-triggered live updates', () => {
       // headers come once the server has subscribed it, so the webhook below
       // can't fire before the stream is there to hear it.
       const streamUp = page.waitForResponse((res) =>
-        res.url().includes('/api/dashboard/stream'),
+        res.url().includes('/api/v1/dashboard/stream'),
       );
       await page.goto('/issues.html');
       await expect(page.locator('#issue-rows')).toContainText('existing issue');

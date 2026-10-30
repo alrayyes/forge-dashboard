@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // The pill on a pull request row that closes an issue, and the pill on an
 // issue row that a pull request will close, open that item's dialog where the
-// reader is. They do not load the other page first. Mocks /api/dashboard and
+// reader is. They do not load the other page first. Mocks /api/v1/dashboard and
 // the details endpoints only and writes no saved state.
 // https://github.com/alrayyes/forge-dashboard/issues/2146
 
@@ -86,8 +86,8 @@ const details = (text: string) => ({
 type Board = { shown?: unknown[]; everything?: unknown[]; issues?: unknown[] };
 
 async function mockBoard(page: Page, board: Board, issueStatus = 200) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) => {
     const all = route.request().url().includes('includeHidden=true');
     return route.fulfill({
       status: 200,
@@ -102,14 +102,14 @@ async function mockBoard(page: Page, board: Board, issueStatus = 200) {
       }),
     });
   });
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(details('The **pull request** text.')),
     }),
   );
-  await page.route('**/api/issues/details*', (route: Route) =>
+  await page.route('**/api/v1/issues/details*', (route: Route) =>
     issueStatus === 200
       ? route.fulfill({
           status: 200,

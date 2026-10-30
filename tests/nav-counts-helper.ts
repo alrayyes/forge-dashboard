@@ -1,4 +1,4 @@
-// The `navCounts` a mocked /api/dashboard answers with (#1315). A spec that
+// The `navCounts` a mocked /api/v1/dashboard answers with (#1315). A spec that
 // mocks the pull request list builds the numbers here so the nav has something
 // to show.
 //

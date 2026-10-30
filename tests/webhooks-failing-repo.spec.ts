@@ -6,8 +6,10 @@ import { test } from './server-fixture';
 // the time it began, so a long outage is not silent.
 
 function mockDashboard(page: Page, repos: Record<string, unknown>[]) {
-  void page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  return page.route('**/api/dashboard*', (route: Route) =>
+  void page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

@@ -4,7 +4,7 @@ import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './server-fixture';
 
 // Hide one pull request, with Undo and a Hidden list (#841). The server owns
-// the hiding (POST /api/pull-requests/hide, /unhide, and `hiddenPullRequests`
+// the hiding (POST /api/v1/pull-requests/hide, /unhide, and `hiddenPullRequests`
 // plus `includeHidden` on the dashboard), so the page is a stand-in server
 // here: it keeps the hidden set and answers the way the real one does.
 // https://github.com/alrayyes/forge-dashboard/issues/841
@@ -78,10 +78,10 @@ function standIn(page: Page, initial: Record<number, Hidden> = {}) {
     posts,
     hidden,
     async install() {
-      await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-      await page.route('**/api/dashboard*', answer);
-      await page.route('**/api/dashboard/refresh*', answer);
-      await page.route('**/api/pull-requests/hide', (route: Route) => {
+      await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+      await page.route('**/api/v1/dashboard*', answer);
+      await page.route('**/api/v1/dashboard/refresh*', answer);
+      await page.route('**/api/v1/pull-requests/hide', (route: Route) => {
         const body = route.request().postDataJSON();
         posts.push({ path: 'hide', body });
         const until = body.days
@@ -90,7 +90,7 @@ function standIn(page: Page, initial: Record<number, Hidden> = {}) {
         hidden.set(body.number, { until });
         return route.fulfill({ status: 204 });
       });
-      await page.route('**/api/pull-requests/unhide', (route: Route) => {
+      await page.route('**/api/v1/pull-requests/unhide', (route: Route) => {
         const body = route.request().postDataJSON();
         posts.push({ path: 'unhide', body });
         hidden.delete(body.number);

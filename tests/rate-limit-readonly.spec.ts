@@ -38,7 +38,7 @@ function mockDashboard(
   forges: Record<string, unknown>[],
   pullRequests: Record<string, unknown>[],
 ) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -74,7 +74,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('its rows draw no mutating control at all, and keep the read-only ones', async ({

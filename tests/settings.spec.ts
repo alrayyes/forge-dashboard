@@ -15,7 +15,7 @@ test.describe('settings page', () => {
   test('no visible text on the page is under 12px', async ({ page }) => {
     // With counts on the nav, so the pills (11px, on a phone 10px) are in the
     // page the check reads, and the exemption below is what lets them pass.
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -114,7 +114,7 @@ test.describe('settings page', () => {
       await Promise.all([
         page.waitForResponse(
           (res) =>
-            res.url().includes('/api/settings/theme') &&
+            res.url().includes('/api/v1/settings/theme') &&
             res.request().method() === 'PUT',
         ),
         page.click('.theme-segmented label:has-text("Dark")'),
@@ -149,7 +149,7 @@ test.describe('settings page', () => {
         releasePut = resolve;
       });
       let firstPutIntercepted = false;
-      await page.route('**/api/settings/theme', async (route) => {
+      await page.route('**/api/v1/settings/theme', async (route) => {
         if (route.request().method() === 'PUT' && !firstPutIntercepted) {
           firstPutIntercepted = true;
           await putHeld;
@@ -178,7 +178,7 @@ test.describe('settings page', () => {
       // actually land server-side too, or the very next real reload
       // would revert it right back.
       await expect(async () => {
-        const res = await page.request.get('/api/settings/theme');
+        const res = await page.request.get('/api/v1/settings/theme');
         expect((await res.json()).theme).toBe('dark');
       }).toPass();
     });
@@ -290,7 +290,7 @@ test.describe('settings page', () => {
     await page.fill('#forgejo-username', 'octocat-forgejo');
     const [saveRequest] = await Promise.all([
       page.waitForRequest(
-        (r) => r.url().endsWith('/api/settings') && r.method() === 'PUT',
+        (r) => r.url().endsWith('/api/v1/settings') && r.method() === 'PUT',
       ),
       page.click('#save-connections-button'),
     ]);
@@ -484,7 +484,7 @@ test.describe('settings page', () => {
   test('webhook coverage summary shows the count and links to the webhooks page', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -571,7 +571,7 @@ test.describe('settings page', () => {
       page,
     }) => {
       let ceremonyStarted = false;
-      await page.route('**/api/auth/credentials/begin', (route) => {
+      await page.route('**/api/v1/auth/credentials/begin', (route) => {
         ceremonyStarted = true;
         return route.continue();
       });
@@ -602,7 +602,7 @@ test.describe('settings page', () => {
     test('a refusal of the name from the server shows next to the field', async ({
       page,
     }) => {
-      await page.route('**/api/auth/credentials/finish*', (route) =>
+      await page.route('**/api/v1/auth/credentials/finish*', (route) =>
         route.fulfill({
           status: 400,
           contentType: 'application/json',
@@ -763,7 +763,7 @@ test.describe('settings page', () => {
       page,
     }) => {
       let patched = false;
-      await page.route('**/api/auth/credentials/*', (route) => {
+      await page.route('**/api/v1/auth/credentials/*', (route) => {
         if (route.request().method() !== 'PATCH') return route.continue();
         patched = true;
         return route.continue();
@@ -804,7 +804,7 @@ test.describe('settings page', () => {
       const input = page.getByLabel('New name for Initial passkey');
       await input.fill('Proton Pass');
 
-      await page.route('**/api/auth/credentials/*', (route) =>
+      await page.route('**/api/v1/auth/credentials/*', (route) =>
         route.request().method() === 'PATCH'
           ? route.fulfill({
               status: 400,
@@ -836,7 +836,7 @@ test.describe('settings page', () => {
     test('a passkey with no name is listed by when it was added', async ({
       page,
     }) => {
-      await page.route('**/api/auth/credentials', async (route) => {
+      await page.route('**/api/v1/auth/credentials', async (route) => {
         if (route.request().method() !== 'GET') return route.continue();
         const res = await route.fetch();
         const list = await res.json();
@@ -1046,7 +1046,7 @@ test.describe('settings page', () => {
   test('has no axe-core violations on Integrations with every section populated', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

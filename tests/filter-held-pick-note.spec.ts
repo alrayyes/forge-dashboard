@@ -60,8 +60,10 @@ const ISSUES = [
 ];
 
 async function open(page: Page, url: string) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -91,13 +93,13 @@ async function seed(
   shared: Record<string, string>,
   pr: Record<string, string> = {},
 ) {
-  await page.request.put('/api/settings/filter-state', {
+  await page.request.put('/api/v1/settings/filter-state', {
     data: { shared, pr, issue: {}, view: {} },
   });
   await expect
     .poll(async () => {
       const got = await (
-        await page.request.get('/api/settings/filter-state')
+        await page.request.get('/api/v1/settings/filter-state')
       ).json();
       return JSON.stringify([got?.shared ?? {}, got?.pr ?? {}]);
     })
@@ -123,7 +125,7 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
       .getByText('Saved author "ryan" is not on this page.');
   // An emptied copy may have no "shared" at all, so a missing one reads as ''.
   const savedAuthor = async (page: Page) =>
-    (await (await page.request.get('/api/settings/filter-state')).json())
+    (await (await page.request.get('/api/v1/settings/filter-state')).json())
       ?.shared?.author ?? '';
 
   test('says the pick is waiting and offers Clear filters', async ({
@@ -266,7 +268,8 @@ test.describe('seeded saved picks (#1620)', () => {
     return c ? JSON.parse(decodeURIComponent(c.value)) : {};
   };
   const serverCopy = async (page: Page) =>
-    (await (await page.request.get('/api/settings/filter-state')).json()) ?? {};
+    (await (await page.request.get('/api/v1/settings/filter-state')).json()) ??
+    {};
 
   for (const [name, change, group, key, value] of [
     [

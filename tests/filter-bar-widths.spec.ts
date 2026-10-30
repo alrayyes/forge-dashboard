@@ -9,8 +9,10 @@ import { test } from './server-fixture';
 // https://github.com/alrayyes/forge-dashboard/issues/2937
 
 async function open(page: Page, path: string) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

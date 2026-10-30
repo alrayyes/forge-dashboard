@@ -44,8 +44,10 @@ const PRS = [
 let current: unknown[] = PRS;
 
 async function serve(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -150,7 +152,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     await open(page);
     const saved = page.waitForResponse(
       (r) =>
-        r.url().includes('/api/settings/filter-state') &&
+        r.url().includes('/api/v1/settings/filter-state') &&
         r.request().method() !== 'GET',
     );
     await am(page, 'on').click();
@@ -219,20 +221,20 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     await open(page);
     const saved = page.waitForResponse(
       (r) =>
-        r.url().includes('/api/settings/filter-state') &&
+        r.url().includes('/api/v1/settings/filter-state') &&
         r.request().method() !== 'GET',
     );
     await am(page, 'on').click();
     await saved;
     await page.evaluate(async () => {
       const got = await (
-        await fetch('/api/settings/filter-state', {
+        await fetch('/api/v1/settings/filter-state', {
           headers: { Accept: 'application/json' },
         })
       ).json();
       got.pr.autoMerge = 'bogus';
       document.cookie = 'forge-board-filters=; Max-Age=0; path=/';
-      await fetch('/api/settings/filter-state', {
+      await fetch('/api/v1/settings/filter-state', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(got),
@@ -242,7 +244,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     // frame to apply it before asserting that nothing shows.
     const restored = page.waitForResponse(
       (r) =>
-        r.url().includes('/api/settings/filter-state') &&
+        r.url().includes('/api/v1/settings/filter-state') &&
         r.request().method() === 'GET',
     );
     await page.reload();

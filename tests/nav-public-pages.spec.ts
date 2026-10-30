@@ -3,7 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
-// Every signed-in test mocks /api/dashboard. The signed-out one clears the
+// Every signed-in test mocks /api/v1/dashboard. The signed-out one clears the
 // session cookie the server fixture sets.
 
 // #1261: the changelog, disclaimer and privacy pages are open to visitors, so

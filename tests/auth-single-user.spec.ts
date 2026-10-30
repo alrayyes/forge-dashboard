@@ -129,10 +129,10 @@ test.describe('passkey login, one owner', () => {
     // The state reset-passkeys leaves: registration open, no passkey to sign in
     // with. The server's answers are stood in for so the real owner stays put;
     // which status each case gets is proved in the API tests.
-    await page.route('**/api/auth/registration-status', (route) =>
+    await page.route('**/api/v1/auth/registration-status', (route) =>
       route.fulfill({ json: { open: true } }),
     );
-    await page.route('**/api/auth/login/begin', (route) =>
+    await page.route('**/api/v1/auth/login/begin', (route) =>
       route.fulfill({
         status: 404,
         json: { error: 'no passkey is registered yet' },
@@ -156,10 +156,10 @@ test.describe('passkey login, one owner', () => {
     // The check made when the page loads fails; the one made when sign-in
     // answers 404 gets through.
     let asked = 0;
-    await page.route('**/api/auth/registration-status', (route) =>
+    await page.route('**/api/v1/auth/registration-status', (route) =>
       asked++ === 0 ? route.abort() : route.fulfill({ json: { open: true } }),
     );
-    await page.route('**/api/auth/login/begin', (route) =>
+    await page.route('**/api/v1/auth/login/begin', (route) =>
       route.fulfill({
         status: 404,
         json: { error: 'no passkey is registered yet' },
@@ -179,7 +179,7 @@ test.describe('passkey login, one owner', () => {
     await context.clearCookies();
     // The limit itself is proved in the API tests; the e2e server runs
     // without it, so its answer is stood in for.
-    await page.route('**/api/auth/login/begin', (route) =>
+    await page.route('**/api/v1/auth/login/begin', (route) =>
       route.fulfill({
         status: 429,
         headers: { 'Retry-After': '6' },

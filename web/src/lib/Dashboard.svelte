@@ -1706,7 +1706,7 @@
       });
       refreshDialogChrome();
 
-      fetch("/api/pull-requests/reopen", {
+      fetch("/api/v1/pull-requests/reopen", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2085,7 +2085,7 @@
       repo: string;
       number: number;
     }): Promise<PullRequestLookup> {
-      const url = "/api/dashboard?includeDrafts=true&includeHidden=true";
+      const url = "/api/v1/dashboard?includeDrafts=true&includeHidden=true";
       const res = await fetch(url, {
         headers: { Accept: "application/json" },
       }).catch(() => null);
@@ -3031,7 +3031,7 @@
         },
       });
 
-      void fetch("/api/pull-requests/merge", {
+      void fetch("/api/v1/pull-requests/merge", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3084,7 +3084,7 @@
           // value — the same resilience doUpdateBranch's own fix
           // (#447) already applies to its own ambiguous-outcome case.
           if (err.status === undefined) {
-            return fetch(withDrafts("/api/dashboard/refresh"), {
+            return fetch(withDrafts("/api/v1/dashboard/refresh"), {
               method: "POST",
               headers: { Accept: "application/json" },
             })
@@ -3396,7 +3396,7 @@
         retry: () => doEnableAutoMerge(item, buttonEl("row-action")),
       });
 
-      fetch("/api/pull-requests/auto-merge", {
+      fetch("/api/v1/pull-requests/auto-merge", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3544,7 +3544,7 @@
         retry: () => doCancelAutoMerge(item),
       });
 
-      fetch("/api/pull-requests/auto-merge/cancel", {
+      fetch("/api/v1/pull-requests/auto-merge/cancel", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3898,7 +3898,7 @@
         },
       });
 
-      fetch("/api/pull-requests/close", {
+      fetch("/api/v1/pull-requests/close", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4073,7 +4073,7 @@
       });
 
       let requested = false;
-      return fetch("/api/pull-requests/update-branch", {
+      return fetch("/api/v1/pull-requests/update-branch", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4275,7 +4275,7 @@
 
       // Stays "queued" — Dependabot acts on its own schedule, so the button
       // holds until the next snapshot lands (applySnapshot clears it) rather
-      // than inviting a second comment. No immediate /api/dashboard/refresh,
+      // than inviting a second comment. No immediate /api/v1/dashboard/refresh,
       // unlike doMerge/doUpdateBranch: posting the comment doesn't change
       // anything about this pull request itself.
       const requested = (alreadyAsked = false) => {
@@ -4293,7 +4293,7 @@
         keepFocusAcross(renderPRBoard);
       };
 
-      return fetch("/api/pull-requests/dependabot-action", {
+      return fetch("/api/v1/pull-requests/dependabot-action", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4852,7 +4852,7 @@
       path: "hide" | "unhide",
       body: HideRef & { days?: number },
     ): Promise<boolean> {
-      return fetch(`/api/pull-requests/${path}`, {
+      return fetch(`/api/v1/pull-requests/${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4871,7 +4871,7 @@
     }
 
     function refreshSnapshot(): Promise<DashboardSnapshot | null> {
-      return fetch(withDrafts("/api/dashboard/refresh"), {
+      return fetch(withDrafts("/api/v1/dashboard/refresh"), {
         method: "POST",
         headers: { Accept: "application/json" },
       }).then((res) => (res.ok ? res.json() : null));
@@ -5016,7 +5016,7 @@
       item: PullRequestItem,
       enabled: boolean | null,
     ): Promise<boolean> {
-      return fetch("/api/pull-requests/auto-update", {
+      return fetch("/api/v1/pull-requests/auto-update", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -5164,7 +5164,7 @@
     async function loadHiddenList() {
       if (!hiddenList) return;
       const data: DashboardSnapshot | null = await fetch(
-        "/api/dashboard?includeHidden=true",
+        "/api/v1/dashboard?includeHidden=true",
         { headers: { Accept: "application/json" } },
       )
         .then((res) => (res.ok ? res.json() : null))
@@ -5664,7 +5664,7 @@
         keepFocusAcross(renderPRBoard);
       };
 
-      return fetch("/api/pull-requests/renovate-rebase", {
+      return fetch("/api/v1/pull-requests/renovate-rebase", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -6064,7 +6064,7 @@
         retry: () => doCancelRenovateRebase(item),
       });
 
-      fetch("/api/pull-requests/renovate-rebase/cancel", {
+      fetch("/api/v1/pull-requests/renovate-rebase/cancel", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -6285,7 +6285,7 @@
       button: HTMLButtonElement,
     ) {
       button.disabled = true;
-      fetch("/api/queued-actions", {
+      fetch("/api/v1/queued-actions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -6323,7 +6323,7 @@
     }
 
     function cancelQueued(q: QueuedActionItem) {
-      fetch(`/api/queued-actions/${encodeURIComponent(q.id)}`, {
+      fetch(`/api/v1/queued-actions/${encodeURIComponent(q.id)}`, {
         method: "DELETE",
         headers: { Accept: "application/json" },
       })
@@ -6560,7 +6560,7 @@
     // The one request behind every "Rerun failed checks" button: the pipeline
     // dialog's and the details dialog's footer. The forge queues the jobs.
     function postRerunChecks(item: PullRequestItem): Promise<void> {
-      return fetch("/api/pull-requests/rerun-checks", {
+      return fetch("/api/v1/pull-requests/rerun-checks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -9065,7 +9065,7 @@
     // fetch. undefined when the server did fetch.
     function refreshDashboardNow(): Promise<number | undefined> {
       const seq = ++requestSeq;
-      return fetch(withDrafts("/api/dashboard/refresh"), {
+      return fetch(withDrafts("/api/v1/dashboard/refresh"), {
         method: "POST",
         headers: { Accept: "application/json" },
       }).then((res) => {
@@ -9310,12 +9310,12 @@
     }
 
     // Reused by refresh() below and by the WebMCP tool further down --
-    // one fetch layer for /api/dashboard, not two.
+    // one fetch layer for /api/v1/dashboard, not two.
     function fetchDashboardData(
       signal?: AbortSignal,
       fromPoll = false,
     ): Promise<DashboardSnapshot> {
-      const url = withDrafts("/api/dashboard");
+      const url = withDrafts("/api/v1/dashboard");
 
       return fetch(url, {
         // The poll's own timed read says nothing about a person being here.
@@ -9477,7 +9477,7 @@
       eventSource?.close();
       streamDrafts = draftsOn();
       const source = new EventSource(
-        checkFeed.streamUrl(withDrafts("/api/dashboard/stream")),
+        checkFeed.streamUrl(withDrafts("/api/v1/dashboard/stream")),
       );
       eventSource = source;
       checkFeed.attach(source as unknown as FeedSource);

@@ -88,7 +88,7 @@ const bots = [
     bot: 'Dependabot',
     id: 'dependabot',
     pr: makePR(),
-    endpoint: '**/api/pull-requests/dependabot-action',
+    endpoint: '**/api/v1/pull-requests/dependabot-action',
     button: 'Dependabot: Rebase',
     tip: 'Dependabot acts on its own schedule, usually within a few minutes. No need to ask again.',
   },
@@ -96,7 +96,7 @@ const bots = [
     bot: 'Renovate',
     id: 'renovate',
     pr: makePR({ author: 'renovate[bot]' }),
-    endpoint: '**/api/pull-requests/renovate-rebase',
+    endpoint: '**/api/v1/pull-requests/renovate-rebase',
     button: 'Renovate: Rebase',
     tip: 'Renovate acts on its own schedule, usually within a few minutes. The rebase label is set. No need to ask again.',
   },
@@ -137,7 +137,7 @@ for (const b of bots) {
           }
         };
       });
-      await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+      await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -150,8 +150,8 @@ for (const b of bots) {
           contentType: 'application/json',
           body: JSON.stringify(snapshot(current)),
         });
-      await page.route('**/api/dashboard*', answer);
-      await page.route('**/api/dashboard/refresh', answer);
+      await page.route('**/api/v1/dashboard*', answer);
+      await page.route('**/api/v1/dashboard/refresh', answer);
       // The server records the request before it answers 204, so every
       // snapshot after that carries it.
       await page.route(b.endpoint, (route: Route) => {
@@ -358,7 +358,7 @@ for (const b of bots) {
           new Date(staleAt).toISOString(),
         ),
       );
-      await page.route('**/api/dashboard/refresh', async (route: Route) => {
+      await page.route('**/api/v1/dashboard/refresh', async (route: Route) => {
         if (held) {
           held = false;
           await gate;
@@ -385,7 +385,7 @@ for (const b of bots) {
         row(page).getByRole('button', { name: 'Rebase requested' }),
       ).toBeDisabled();
 
-      const answered = page.waitForResponse('**/api/dashboard/refresh');
+      const answered = page.waitForResponse('**/api/v1/dashboard/refresh');
       release();
       await answered;
       await settle(page);
@@ -516,7 +516,7 @@ test.describe('bot rebase pickup with another row still queued', () => {
         }
       };
     });
-    await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+    await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -533,15 +533,16 @@ test.describe('bot rebase pickup with another row still queued', () => {
       ...snapshot(prs[0]),
       pullRequests: prs,
     });
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(both([first, second])),
       }),
     );
-    await page.route('**/api/pull-requests/dependabot-action', (route: Route) =>
-      route.fulfill({ status: 204 }),
+    await page.route(
+      '**/api/v1/pull-requests/dependabot-action',
+      (route: Route) => route.fulfill({ status: 204 }),
     );
     // Bot pull requests are on the Bots page, not the main list (#1192).
     await page.goto('/bots.html');

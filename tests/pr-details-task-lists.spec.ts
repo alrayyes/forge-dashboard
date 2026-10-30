@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // Task list items in the details pop-up show as read-only checkboxes.
 // https://github.com/alrayyes/forge-dashboard/issues/1655
-// Mocks /api/dashboard and /api/pull-requests/details only.
+// Mocks /api/v1/dashboard and /api/v1/pull-requests/details only.
 
 const reactions = {
   thumbsUp: { count: 0, logins: [] },
@@ -24,8 +24,8 @@ const DESCRIPTION = [
 ].join('\n');
 
 async function openDialog(page: Page, description = DESCRIPTION) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -54,7 +54,7 @@ async function openDialog(page: Page, description = DESCRIPTION) {
       }),
     }),
   );
-  await page.route('**/api/pull-requests/details*', (route) =>
+  await page.route('**/api/v1/pull-requests/details*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

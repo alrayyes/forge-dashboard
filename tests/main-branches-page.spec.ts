@@ -8,7 +8,7 @@ import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
 // #1224: one page with the CI status of every tracked repo's default branch,
-// read from GET /api/main-branches (api/openapi.yaml: MainBranches).
+// read from GET /api/v1/main-branches (api/openapi.yaml: MainBranches).
 
 const minutesAgo = (n: number) =>
   new Date(Date.now() - n * 60_000).toISOString();
@@ -91,7 +91,7 @@ async function mock(
   // Answers the list with a 500 for as long as this says so.
   failing: () => boolean = () => false,
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   // The list answer waits for the dashboard read of its document, so the page
   // never draws rows, swaps them for the first-refresh skeleton and draws
   // them again under a click (tests/first-refresh-gate-helper.ts).
@@ -101,7 +101,7 @@ async function mock(
       gate.newDocument();
   });
   // `*` so a query string still matches; the stream has its own route above.
-  await page.route('**/api/dashboard*', async (route: Route) => {
+  await page.route('**/api/v1/dashboard*', async (route: Route) => {
     await gate.trackDashboard(() =>
       route.fulfill({
         status: 200,
@@ -119,7 +119,7 @@ async function mock(
       }),
     );
   });
-  await page.route('**/api/main-branches', async (route: Route) => {
+  await page.route('**/api/v1/main-branches', async (route: Route) => {
     await gate.wait();
     await twoFrames(page);
     if (failing()) {
@@ -392,7 +392,9 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect
       .poll(async () =>
         JSON.stringify(
-          await (await page.request.get('/api/settings/filter-state')).json(),
+          await (
+            await page.request.get('/api/v1/settings/filter-state')
+          ).json(),
         ),
       )
       .toContain('billing');
@@ -547,7 +549,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await mock(page, snapshot(MIXED));
     await mockChecks(page, [{ ...JOBS[0], jobId: 11 }, JOBS[1]]);
-    await page.route('**/api/checks/log*', (route: Route) =>
+    await page.route('**/api/v1/checks/log*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

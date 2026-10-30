@@ -38,11 +38,13 @@ const ISSUES = [
   issue(3, { author: 'dana', labels: [] }),
 ];
 
-const ENDPOINT = '/api/settings/filter-state';
+const ENDPOINT = '/api/v1/settings/filter-state';
 
 async function stub(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -283,10 +285,10 @@ test.describe('an edit made while the saved copy loads wins on Webhooks', () => 
   test('a changed status stays and is saved, the repo search still takes the copy', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

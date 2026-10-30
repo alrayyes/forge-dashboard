@@ -107,7 +107,7 @@ function snapshot(pr: MockPR) {
 }
 
 function mockDashboard(page: Page, pr: MockPR) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -161,7 +161,7 @@ const scenarios: Scenario[] = [
   {
     name: 'Update branch',
     pr: makePR({ behind: true }),
-    endpoint: '**/api/pull-requests/update-branch',
+    endpoint: '**/api/v1/pull-requests/update-branch',
     inDialog: false,
     button: 'Update branch',
     queuedLabel: 'Queued…',
@@ -175,7 +175,7 @@ const scenarios: Scenario[] = [
   {
     name: 'Dependabot rebase',
     pr: makePR({ author: 'dependabot' }),
-    endpoint: '**/api/pull-requests/dependabot-action',
+    endpoint: '**/api/v1/pull-requests/dependabot-action',
     inDialog: true,
     button: 'Dependabot: Rebase',
     queuedLabel: 'Rebase requested',
@@ -189,7 +189,7 @@ const scenarios: Scenario[] = [
   {
     name: 'Renovate rebase',
     pr: makePR({ author: 'renovate[bot]' }),
-    endpoint: '**/api/pull-requests/renovate-rebase',
+    endpoint: '**/api/v1/pull-requests/renovate-rebase',
     inDialog: true,
     button: 'Renovate: Rebase',
     queuedLabel: 'Rebase requested',
@@ -205,7 +205,7 @@ const scenarios: Scenario[] = [
 for (const s of scenarios) {
   test.describe(`queued state: ${s.name}`, () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+      await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -230,7 +230,7 @@ for (const s of scenarios) {
       let accepted = false;
       const served = () =>
         accepted && s.awaitsRefresh ? withUpdateRequest(s.pr) : s.pr;
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -258,7 +258,7 @@ for (const s of scenarios) {
       });
       // The Update branch handler force-refreshes; keep the PR behind so
       // the queued state has to hold across that refresh.
-      await page.route('**/api/dashboard/refresh', async (route: Route) => {
+      await page.route('**/api/v1/dashboard/refresh', async (route: Route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -590,7 +590,7 @@ for (const s of scenarios) {
 
 test.describe('queued state: bot rebases move on once a snapshot shows pickup', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+    await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -607,13 +607,13 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
     let rebased = 0;
     let refreshes = 0;
     await page.route(
-      '**/api/pull-requests/renovate-rebase',
+      '**/api/v1/pull-requests/renovate-rebase',
       async (route: Route) => {
         await route.fulfill({ status: 204 });
         rebased += 1;
       },
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) => {
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) => {
       refreshes += 1;
       return route.fulfill({
         status: 200,
@@ -668,10 +668,11 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
   }) => {
     const pr = makePR({ author: 'renovate[bot]', behind: true });
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
-      route.fulfill({ status: 204 }),
+    await page.route(
+      '**/api/v1/pull-requests/renovate-rebase',
+      (route: Route) => route.fulfill({ status: 204 }),
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

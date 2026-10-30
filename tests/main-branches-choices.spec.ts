@@ -62,8 +62,10 @@ async function open(branches: ReturnType<typeof row>[]) {
 }
 
 async function serve(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

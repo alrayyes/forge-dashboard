@@ -32,8 +32,10 @@ async function open(
   pullRequest: unknown,
   path = '/pull-requests.html',
 ) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -123,7 +125,7 @@ test('the button in the warning acts once and shows it is queued', async ({
   page,
 }) => {
   let calls = 0;
-  await page.route('**/api/pull-requests/update-branch', async (route) => {
+  await page.route('**/api/v1/pull-requests/update-branch', async (route) => {
     calls += 1;
     await route.fulfill({ status: 202 });
   });

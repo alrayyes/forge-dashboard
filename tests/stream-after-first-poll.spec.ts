@@ -17,7 +17,7 @@ function snapshot(forge: Record<string, unknown> = {}) {
   };
 }
 
-const isStream = (url: string) => url.includes('/api/dashboard/stream');
+const isStream = (url: string) => url.includes('/api/v1/dashboard/stream');
 
 // A macrotask round trip that a fake clock does not fake: the page has run
 // what the last response queued.
@@ -40,17 +40,17 @@ test.describe('live stream start (#1569)', () => {
     const held = new Promise<void>((resolve) => {
       releasePoll = resolve;
     });
-    await page.route('**/api/dashboard/stream*', (route: Route) => {
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) => {
       streamRequests++;
       return route.abort();
     });
-    await page.route('**/api/dashboard*', async (route: Route) => {
+    await page.route('**/api/v1/dashboard*', async (route: Route) => {
       if (isStream(route.request().url())) return route.fallback();
       await held;
       return route.fulfill({ json: snapshot() });
     });
     const polled = page.waitForRequest(
-      (req) => !isStream(req.url()) && req.url().includes('/api/dashboard'),
+      (req) => !isStream(req.url()) && req.url().includes('/api/v1/dashboard'),
     );
     await page.goto('/pull-requests.html');
     await polled;
@@ -69,7 +69,7 @@ test.describe('live stream start (#1569)', () => {
       if (msg.type() === 'error') errors.push(msg.text());
     });
     let streamRequests = 0;
-    await page.route('**/api/dashboard/stream*', (route: Route) => {
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) => {
       streamRequests++;
       if (streamRequests === 1) {
         return route.fulfill({
@@ -90,7 +90,7 @@ test.describe('live stream start (#1569)', () => {
         body: `data: ${JSON.stringify(pushed)}\n\n`,
       });
     });
-    await page.route('**/api/dashboard*', (route: Route) => {
+    await page.route('**/api/v1/dashboard*', (route: Route) => {
       if (isStream(route.request().url())) return route.fallback();
       return route.fulfill({ json: snapshot() });
     });
@@ -113,11 +113,11 @@ test.describe('live stream start (#1569)', () => {
   }) => {
     let streamRequests = 0;
     let polls = 0;
-    await page.route('**/api/dashboard/stream*', (route: Route) => {
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) => {
       streamRequests++;
       return route.abort();
     });
-    await page.route('**/api/dashboard*', (route: Route) => {
+    await page.route('**/api/v1/dashboard*', (route: Route) => {
       if (isStream(route.request().url())) return route.fallback();
       polls++;
       return route.fulfill({
@@ -144,12 +144,12 @@ test.describe('live stream start (#1569)', () => {
     page,
   }) => {
     let streamRequests = 0;
-    await page.route('**/api/dashboard/stream*', (route: Route) => {
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) => {
       streamRequests++;
       return route.fulfill({ status: 404, json: { error: 'none yet' } });
     });
     // The next poll is an hour away, so only the backoff can reopen it.
-    await page.route('**/api/dashboard*', (route: Route) => {
+    await page.route('**/api/v1/dashboard*', (route: Route) => {
       if (isStream(route.request().url())) return route.fallback();
       return route.fulfill({
         json: { ...snapshot(), readIntervalSeconds: 3600 },

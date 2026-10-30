@@ -65,7 +65,7 @@ async function serve(
     refreshes?: number;
   },
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   // The read and the refresh the page asks for after a change both get the
   // current state.
   const snapshot = (route: Route) =>
@@ -79,8 +79,8 @@ async function serve(
         issues: [],
       }),
     });
-  await page.route('**/api/dashboard*', snapshot);
-  await page.route('**/api/dashboard/refresh*', async (route) => {
+  await page.route('**/api/v1/dashboard*', snapshot);
+  await page.route('**/api/v1/dashboard/refresh*', async (route) => {
     const index = state.refreshes ?? 0;
     state.refreshes = index + 1;
     const body = JSON.stringify({
@@ -96,7 +96,7 @@ async function serve(
       body,
     });
   });
-  await page.route('**/api/pull-requests/auto-update', async (route) => {
+  await page.route('**/api/v1/pull-requests/auto-update', async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     const index = state.posts.length;
     state.posts.push(body);
@@ -187,8 +187,8 @@ test.describe('A pull request can have its own automatic branch update', () => {
     await page.goto('/pull-requests.html');
     await expect(row(page).getByText('Auto-update off')).toBeVisible();
 
-    await page.unroute('**/api/dashboard*');
-    await page.unroute('**/api/dashboard/refresh*');
+    await page.unroute('**/api/v1/dashboard*');
+    await page.unroute('**/api/v1/dashboard/refresh*');
     await serve(page, { pr: makePR(FOLLOWS_REPO_ON), posts: [] });
     await page.goto('/pull-requests.html');
     await expect(row(page)).toBeVisible();
@@ -387,7 +387,7 @@ test.describe('A pull request can have its own automatic branch update', () => {
     await expect.poll(() => state.posts.length).toBe(2);
     await expect(dialog.getByText('Saving…')).toHaveCount(0);
     const stale = page.waitForResponse(
-      (res) => res.url().includes('/api/dashboard/refresh') && res.ok(),
+      (res) => res.url().includes('/api/v1/dashboard/refresh') && res.ok(),
     );
     releases[0]();
     await stale;
@@ -533,8 +533,8 @@ test.describe('A pull request can have its own automatic branch update', () => {
           },
         ];
         for (const autoUpdate of states) {
-          await page.unroute('**/api/dashboard*').catch(() => {});
-          await page.unroute('**/api/dashboard/refresh*').catch(() => {});
+          await page.unroute('**/api/v1/dashboard*').catch(() => {});
+          await page.unroute('**/api/v1/dashboard/refresh*').catch(() => {});
           await serve(page, { pr: makePR(autoUpdate), posts: [] });
           await page.goto('/pull-requests.html');
           const dialog = await openActionsDialog(row(page));

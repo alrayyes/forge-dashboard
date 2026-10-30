@@ -81,8 +81,8 @@ function details(overrides: Record<string, unknown> = {}) {
 }
 
 async function mockDashboard(page: Page, pullRequests: unknown[]) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -98,7 +98,7 @@ async function mockDashboard(page: Page, pullRequests: unknown[]) {
 
 async function mockDetails(page: Page, payload: unknown, status = 200) {
   const urls: string[] = [];
-  await page.route('**/api/pull-requests/details*', (route: Route) => {
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) => {
     urls.push(route.request().url());
     return route.fulfill({
       status,
@@ -331,7 +331,7 @@ test.describe('pull request details dialog', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/pull-requests/details*', async (route) => {
+    await page.route('**/api/v1/pull-requests/details*', async (route) => {
       await gate;
       await route.fulfill({
         status: 200,
@@ -604,7 +604,7 @@ test.describe('pull request details dialog', () => {
   test('an error says why and Try again fetches again', async ({ page }) => {
     await mockDashboard(page, [makePR()]);
     let calls = 0;
-    await page.route('**/api/pull-requests/details*', (route) => {
+    await page.route('**/api/v1/pull-requests/details*', (route) => {
       calls++;
       if (calls === 1) {
         return route.fulfill({
@@ -644,7 +644,7 @@ test.describe('pull request details dialog', () => {
     const gate = new Promise<void>((resolve) => {
       releaseFirst = resolve;
     });
-    await page.route('**/api/pull-requests/details*', async (route) => {
+    await page.route('**/api/v1/pull-requests/details*', async (route) => {
       const number = new URL(route.request().url()).searchParams.get('number');
       if (number === '42') await gate;
       await route.fulfill({
@@ -810,7 +810,9 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
-    await page.route('**/api/pull-requests/details*', (route) => route.abort());
+    await page.route('**/api/v1/pull-requests/details*', (route) =>
+      route.abort(),
+    );
     await page.goto('/pull-requests.html');
     await trigger(page).click();
     await expect(dialog(page).getByRole('alert')).toContainText(
@@ -865,7 +867,7 @@ test.describe('pull request details dialog', () => {
       page,
       details({
         description: body(
-          '[rel](/api/dashboard) [proto](//evil.example/x) [frag](#top) [ok](https://example.org/x) [mail](mailto:a@example.org)',
+          '[rel](/api/v1/dashboard) [proto](//evil.example/x) [frag](#top) [ok](https://example.org/x) [mail](mailto:a@example.org)',
         ),
       }),
     );

@@ -46,7 +46,7 @@ function snapshot(prs: unknown[]) {
 }
 
 function mockDashboard(page: Page, prs: unknown[]) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -81,7 +81,7 @@ async function openClose(row: Locator) {
 async function trackRequests(page: Page) {
   const calls: string[] = [];
   for (const action of ['merge', 'close']) {
-    await page.route(`**/api/pull-requests/${action}`, (route: Route) => {
+    await page.route(`**/api/v1/pull-requests/${action}`, (route: Route) => {
       calls.push(action);
       return route.fulfill({ status: 204 });
     });
@@ -94,7 +94,7 @@ test.describe('confirm step: leaving it', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
   });
 
@@ -261,7 +261,7 @@ test.describe('confirm step: timeout', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
   });
 
@@ -337,7 +337,7 @@ test.describe('confirm step: timeout', () => {
   }) => {
     await page.clock.install({ time: new Date() });
     let prs = [makePR(2)];
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -367,7 +367,7 @@ test.describe('confirm step: one at a time and the double-click guard', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
   });
 
@@ -471,7 +471,7 @@ test.describe('confirm step: state outside the DOM', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
   });
 
@@ -480,7 +480,7 @@ test.describe('confirm step: state outside the DOM', () => {
   }) => {
     await page.clock.install({ time: new Date() });
     let prs = [makePR(2)];
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -555,7 +555,7 @@ test.describe('confirm step: screen readers', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
   });
 

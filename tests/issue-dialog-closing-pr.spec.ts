@@ -3,7 +3,7 @@ import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // The issue dialog lists the pull requests that will close the issue, drawn
-// by the same code as the pill on the issue row. Mocks /api/dashboard and the
+// by the same code as the pill on the issue row. Mocks /api/v1/dashboard and the
 // issue details endpoint only and writes no saved state.
 
 const NOW = new Date();
@@ -60,7 +60,7 @@ async function mockBoard(
   issues: () => unknown[],
   pullRequests: unknown[] = [],
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   const snapshot = (route: Route) =>
     route.fulfill({
       status: 200,
@@ -72,9 +72,9 @@ async function mockBoard(
         issues: issues(),
       }),
     });
-  await page.route('**/api/dashboard/refresh', snapshot);
-  await page.route('**/api/dashboard*', snapshot);
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/refresh', snapshot);
+  await page.route('**/api/v1/dashboard*', snapshot);
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -96,7 +96,7 @@ async function mockBoard(
       }),
     }),
   );
-  await page.route('**/api/issues/details*', (route: Route) =>
+  await page.route('**/api/v1/issues/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

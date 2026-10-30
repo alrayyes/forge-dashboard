@@ -46,7 +46,7 @@ function makePR(overrides?: Partial<MockPR>): MockPR {
 }
 
 function mockDashboard(page: Page, pr: MockPR) {
-  return page.route('**/api/dashboard*', (route) =>
+  return page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -66,7 +66,7 @@ test.describe('Merge states on a pull request row', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     // Each test installs its dashboard mock, then loads the page once.
   });
 
@@ -95,7 +95,7 @@ test.describe('Merge states on a pull request row', () => {
   }) => {
     await mockDashboard(page, makePR({ ci: 'pending' }));
     let mergeCalled = false;
-    await page.route('**/api/pull-requests/merge', (route) => {
+    await page.route('**/api/v1/pull-requests/merge', (route) => {
       mergeCalled = true;
       return route.fulfill({ status: 204 });
     });

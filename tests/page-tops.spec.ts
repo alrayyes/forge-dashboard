@@ -63,9 +63,9 @@ async function serve(
         navCounts: navCountsFor(pullRequests, issues.length),
       }),
     });
-  await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-  await page.route('**/api/dashboard*', answer);
-  await page.route('**/api/dashboard/refresh*', answer);
+  await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+  await page.route('**/api/v1/dashboard*', answer);
+  await page.route('**/api/v1/dashboard/refresh*', answer);
 }
 
 const TILES = [
@@ -130,9 +130,9 @@ test.describe('the banners sit above the filter bar (#1325)', () => {
           navCounts: navCountsFor([makePR(1)], 0),
         }),
       });
-    await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-    await page.route('**/api/dashboard*', answer);
-    await page.route('**/api/dashboard/refresh*', answer);
+    await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+    await page.route('**/api/v1/dashboard*', answer);
+    await page.route('**/api/v1/dashboard/refresh*', answer);
     await page.goto('/pull-requests.html');
     await expect(page.locator('#unreachable-banner')).toBeVisible();
 
@@ -242,8 +242,8 @@ test.describe('the Branches page drops its summary line (#1325)', () => {
       staleSince: null,
     });
     const branches = [row('a/one', 'failed'), row('a/two', 'passed')];
-    await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-    await page.route('**/api/main-branches', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+    await page.route('**/api/v1/main-branches', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

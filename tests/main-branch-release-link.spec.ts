@@ -4,9 +4,9 @@ import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
 // A row on the Branches page shows the repository's latest release when the
-// server names one (`latestRelease` on each row of GET /api/main-branches).
+// server names one (`latestRelease` on each row of GET /api/v1/main-branches).
 // Clicking it opens the details dialog with that release's title and notes
-// (GET /api/releases/details), read only when the dialog opens.
+// (GET /api/v1/releases/details), read only when the dialog opens.
 // https://github.com/alrayyes/forge-dashboard/issues/2083
 // https://github.com/alrayyes/forge-dashboard/issues/2268
 
@@ -85,9 +85,9 @@ async function open(
       body: releaseBody(notes),
     }),
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/releases/details*', details);
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/releases/details*', details);
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

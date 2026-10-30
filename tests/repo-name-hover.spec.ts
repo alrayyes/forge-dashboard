@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // A repo name cut with an ellipsis carries its whole owner/name as hover text
 // on the pull request pages, as a pull request title does. Mocks
-// /api/dashboard and its stream only.
+// /api/v1/dashboard and its stream only.
 // https://github.com/alrayyes/forge-dashboard/issues/2627
 
 const NOW = new Date();
@@ -55,7 +55,7 @@ async function mockDashboard(page: Page, pullRequests: unknown[]) {
       }
     };
   });
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -65,7 +65,7 @@ async function mockDashboard(page: Page, pullRequests: unknown[]) {
 }
 
 async function mockDetails(page: Page) {
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

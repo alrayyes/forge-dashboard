@@ -43,8 +43,10 @@ const ISSUES = [
 ];
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -119,7 +121,7 @@ test.describe('hide titles matching a pattern (#1593)', () => {
         issue(200 + i, { title: `Weekly report ${i}` }),
       ),
     ];
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -216,7 +218,7 @@ test.describe('hide titles matching a pattern (#1593)', () => {
   }) => {
     const saved = page.waitForRequest(
       (r) =>
-        r.url().includes('/api/settings/filter-state') &&
+        r.url().includes('/api/v1/settings/filter-state') &&
         r.method() === 'PUT' &&
         (r.postData() ?? '').includes('hideTitleRegex'),
     );

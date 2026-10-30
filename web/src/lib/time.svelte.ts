@@ -36,7 +36,7 @@ export function setTimezoneSetting(zone: string): void {
 export function loadTimezone(): Promise<void> {
   loading ??= (async () => {
     try {
-      const res = await fetch('/api/settings/timezone', {
+      const res = await fetch('/api/v1/settings/timezone', {
         headers: { Accept: 'application/json' },
       });
       if (!res.ok) return;

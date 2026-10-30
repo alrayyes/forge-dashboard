@@ -35,8 +35,10 @@ const ISSUES = [
 ];
 
 async function open(page: Page, url: string) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -68,8 +70,8 @@ const nav = (page: Page, name: string) =>
   page.locator(`.app-nav a[href="/${name}.html"]`);
 
 const savedValue = async (page: Page) =>
-  (await (await page.request.get('/api/settings/filter-state')).json())?.issue
-    ?.hideDependencyDashboard;
+  (await (await page.request.get('/api/v1/settings/filter-state')).json())
+    ?.issue?.hideDependencyDashboard;
 
 // A browser that has never been here: the session stays, the cookie goes.
 async function dropFilterCookie(page: Page) {

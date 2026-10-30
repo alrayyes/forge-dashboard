@@ -18,7 +18,7 @@ async function setTheme(page: Page, theme: string) {
   await page.evaluate(async (value: string) => {
     // biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API isn't in Safari yet, and this repo targets more than just Chromium (browser-compat.md).
     document.cookie = `forge-board-theme=${value}; path=/; max-age=31536000; SameSite=Lax`;
-    await fetch('/api/settings/theme', {
+    await fetch('/api/v1/settings/theme', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',

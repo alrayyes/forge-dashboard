@@ -1,4 +1,4 @@
-// What the Main branches page (#1224) knows about GET /api/main-branches:
+// What the Main branches page (#1224) knows about GET /api/v1/main-branches:
 // the row shape, the local filter, and the small formatters. No DOM here, so
 // the page component stays the one place that touches elements.
 

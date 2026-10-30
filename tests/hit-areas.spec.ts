@@ -307,8 +307,8 @@ async function mockDashboard(
   pullRequests = PULL_REQUESTS,
   repos: Record<string, unknown>[] = [],
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -353,7 +353,7 @@ async function mockBranches(page: Page) {
     branchRow('alrayyes/one', 'failed'),
     branchRow('alrayyes/two', 'passed'),
   ];
-  await page.route('**/api/main-branches*', (route: Route) =>
+  await page.route('**/api/v1/main-branches*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -373,7 +373,7 @@ const noReactions = {
 };
 
 async function mockDetails(page: Page, descriptionText?: string) {
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -530,7 +530,7 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
   }) => {
     const problems: string[] = [];
     await mockDashboard(page);
-    await page.route('**/api/pull-requests/details*', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
       route.fulfill({ status: 500, body: 'boom' }),
     );
     await page.setViewportSize({ width: NARROW.width, height: NARROW.height });
@@ -566,8 +566,8 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     page,
   }) => {
     const problems: string[] = [];
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({ status: 500, body: 'boom' }),
     );
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
@@ -659,7 +659,7 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
       ...extra,
     });
     // A filter that keeps every repo, so Clear filters is enabled and swept.
-    await page.route('**/api/settings/filter-state', (route) =>
+    await page.route('**/api/v1/settings/filter-state', (route) =>
       route.request().method() === 'GET'
         ? route.fulfill({
             status: 200,
@@ -689,7 +689,7 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     page,
   }) => {
     const problems: string[] = [];
-    await page.route('**/api/settings/filter-state', (route) =>
+    await page.route('**/api/v1/settings/filter-state', (route) =>
       route.request().method() === 'GET'
         ? route.fulfill({
             status: 200,
@@ -698,8 +698,8 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
           })
         : route.fulfill({ status: 204 }),
     );
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

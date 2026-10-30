@@ -79,7 +79,7 @@ export function createBranchRerun() {
   }
 
   async function post(t: RerunTarget): Promise<void> {
-    const res = await fetch('/api/main-branches/rerun-checks', {
+    const res = await fetch('/api/v1/main-branches/rerun-checks', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

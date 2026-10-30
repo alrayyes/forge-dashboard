@@ -66,8 +66,10 @@ const ISSUES = [
 ];
 
 async function open(page: Page, url: string) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -166,7 +168,7 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
     await expect(prRows(page)).toHaveCount(2);
 
     const saved = await (
-      await page.request.get('/api/settings/filter-state')
+      await page.request.get('/api/v1/settings/filter-state')
     ).json();
     expect(saved.shared.author).toBe('github:ryan');
   });

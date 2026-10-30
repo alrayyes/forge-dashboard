@@ -10,7 +10,7 @@ import { test } from './server-fixture';
 // After a Close from the details dialog the dialog stays open on the pull
 // request, says it is closed and offers Reopen as the undo, with no timer. The
 // forge decides whether a reopen is possible, so a refusal is shown in words
-// with no Reopen left. Mocks /api/dashboard, the details endpoint and the
+// with no Reopen left. Mocks /api/v1/dashboard, the details endpoint and the
 // close and reopen endpoints only, so it needs no second user.
 //
 // Undo over a confirm step, and a status line over a toast:
@@ -53,8 +53,10 @@ async function start(
   { refreshFails = false }: { refreshFails?: boolean } = {},
 ) {
   const state = { onBoard: true, posted: [] as string[] };
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  for (const glob of ['**/api/dashboard*', '**/api/dashboard/refresh*'])
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  for (const glob of ['**/api/v1/dashboard*', '**/api/v1/dashboard/refresh*'])
     await page.route(glob, (route: Route) => {
       if (refreshFails && glob.includes('refresh')) return route.abort();
       return route.fulfill({
@@ -70,7 +72,7 @@ async function start(
         }),
       });
     });
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -89,12 +91,12 @@ async function start(
       }),
     }),
   );
-  await page.route('**/api/pull-requests/close', (route: Route) => {
+  await page.route('**/api/v1/pull-requests/close', (route: Route) => {
     state.posted.push('close');
     state.onBoard = false;
     return route.fulfill({ status: 204 });
   });
-  await page.route('**/api/pull-requests/reopen', (route: Route) => {
+  await page.route('**/api/v1/pull-requests/reopen', (route: Route) => {
     state.posted.push('reopen');
     if (reopen.status === 204) state.onBoard = true;
     return route.fulfill({

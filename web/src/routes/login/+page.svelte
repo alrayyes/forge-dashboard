@@ -62,14 +62,14 @@
     statusKind = "";
 
     try {
-      const options = await postJSON("/api/auth/login/begin", {});
+      const options = await postJSON("/api/v1/auth/login/begin", {});
       const publicKey = prepareRequestOptions(options);
       const assertion = (await navigator.credentials.get({
         publicKey,
       })) as PublicKeyCredential;
       const credentialJSON = assertionCredentialToJSON(assertion);
 
-      const res = await fetch("/api/auth/login/finish", {
+      const res = await fetch("/api/v1/auth/login/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -111,14 +111,14 @@
     statusKind = "";
 
     try {
-      const options = await postJSON("/api/auth/register/begin", {});
+      const options = await postJSON("/api/v1/auth/register/begin", {});
       const publicKey = prepareCreationOptions(options);
       const credential = (await navigator.credentials.create({
         publicKey,
       })) as PublicKeyCredential;
       const credentialJSON = creationCredentialToJSON(credential);
 
-      const res = await fetch("/api/auth/register/finish", {
+      const res = await fetch("/api/v1/auth/register/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",

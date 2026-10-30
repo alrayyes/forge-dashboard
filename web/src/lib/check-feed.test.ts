@@ -66,15 +66,15 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 describe('streamUrl', () => {
   test('names the connection after the feed', () => {
     const { feed } = harness();
-    expect(feed.streamUrl('/api/dashboard/stream')).toBe(
-      '/api/dashboard/stream?sid=stream-0001',
+    expect(feed.streamUrl('/api/v1/dashboard/stream')).toBe(
+      '/api/v1/dashboard/stream?sid=stream-0001',
     );
   });
 
   test('appends to a url that already has a query', () => {
     const { feed } = harness();
-    expect(feed.streamUrl('/api/dashboard/stream?drafts=1')).toBe(
-      '/api/dashboard/stream?drafts=1&sid=stream-0001',
+    expect(feed.streamUrl('/api/v1/dashboard/stream?drafts=1')).toBe(
+      '/api/v1/dashboard/stream?drafts=1&sid=stream-0001',
     );
   });
 });

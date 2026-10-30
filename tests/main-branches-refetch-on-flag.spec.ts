@@ -48,12 +48,12 @@ type Server = {
   branchRequests: number;
 };
 
-// /api/dashboard answers the flag from `server.done`; /api/main-branches
+// /api/v1/dashboard answers the flag from `server.done`; /api/v1/main-branches
 // answers `server.branches` and counts its requests. The layout asks again
 // every 3 s while the flag is false, so a flip shows up without a reload.
 async function serve(page: Page, server: Server) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -70,7 +70,7 @@ async function serve(page: Page, server: Server) {
       }),
     }),
   );
-  await page.route('**/api/main-branches', (route: Route) => {
+  await page.route('**/api/v1/main-branches', (route: Route) => {
     server.branchRequests++;
     if (server.failNext) {
       server.failNext = false;
@@ -129,12 +129,12 @@ test.describe('Branches refetches when the first refresh finishes (#1729)', () =
       branchRequests: 0,
     };
     await serve(page, server);
-    const settled = page.waitForResponse('**/api/dashboard');
+    const settled = page.waitForResponse('**/api/v1/dashboard');
     await page.goto('/');
     await settled;
     await expect(rows(page)).toHaveCount(1);
     await askForFlag(page);
-    await page.waitForResponse('**/api/dashboard');
+    await page.waitForResponse('**/api/v1/dashboard');
     expect(server.branchRequests).toBe(1);
   });
 

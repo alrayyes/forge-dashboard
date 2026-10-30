@@ -95,7 +95,7 @@ export function isThemeSavePending(): boolean {
 // the inline theme script already applied from the cookie alone.
 export async function syncThemeFromServer(): Promise<void> {
   try {
-    const res = await fetch('/api/settings/theme', {
+    const res = await fetch('/api/v1/settings/theme', {
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return;
@@ -114,7 +114,7 @@ export async function syncThemeFromServer(): Promise<void> {
       // is exactly what let the Settings page's own concurrent load
       // (isThemeSavePending, +page.svelte) read a still-stale GET as
       // final and show the wrong control checked.
-      void fetch('/api/settings/theme', {
+      void fetch('/api/v1/settings/theme', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',

@@ -38,8 +38,8 @@ const BRANCHES = [
 ];
 
 async function mock(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -59,7 +59,7 @@ const status = (page: Page, name: string) =>
   });
 const serverCopy = async (page: Page) =>
   JSON.stringify(
-    await (await page.request.get('/api/settings/filter-state')).json(),
+    await (await page.request.get('/api/v1/settings/filter-state')).json(),
   );
 
 test.describe('the Branches filter follows the account (#1620)', () => {
@@ -179,7 +179,7 @@ test.describe('the Branches filter follows the account (#1620)', () => {
     page,
     context,
   }) => {
-    const put = await page.request.put('/api/settings/filter-state', {
+    const put = await page.request.put('/api/v1/settings/filter-state', {
       data: { shared: {}, pr: { title: 'keepme' }, issue: {}, view: {} },
     });
     expect(put.ok()).toBe(true);
@@ -193,7 +193,7 @@ test.describe('the Branches filter follows the account (#1620)', () => {
     const requested = new Promise<void>((resolve) => {
       asked = resolve;
     });
-    await page.route('**/api/settings/filter-state', async (route) => {
+    await page.route('**/api/v1/settings/filter-state', async (route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       asked();
       const response = await route.fetch();

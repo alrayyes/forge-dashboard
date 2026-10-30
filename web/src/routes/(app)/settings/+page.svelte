@@ -152,7 +152,7 @@
   let renovateRebaseLabel = $state("");
 
   // ---- Issues (#1630): the server keeps both and applies them to what it
-  // sends, so this form only edits them. PUT /api/settings replaces, so
+  // sends, so this form only edits them. PUT /api/v1/settings replaces, so
   // every save sends both, even when the save was for something else.
   let hideDependencyDashboard = $state(false);
   let ignoredTitles = $state<string[]>([]);
@@ -200,7 +200,7 @@
       }
       countingTimer = setTimeout(() => {
         done++;
-        fetch("/api/settings", {
+        fetch("/api/v1/settings", {
           headers: { Accept: "application/json" },
           credentials: "same-origin",
         })
@@ -265,7 +265,7 @@
   // ---- theme (#352) ----
   // Seeded from the cookie, not "", so a reload right after picking one
   // (#548) shows the right control checked immediately rather than
-  // "System" until the /api/settings load below (maybe) corrects it.
+  // "System" until the /api/v1/settings load below (maybe) corrects it.
   let theme = $state<ThemePreference>(getThemeCookie());
   let themeStatus = $state("");
   let themeStatusKind = $state<"" | "error">("");
@@ -283,7 +283,7 @@
     themeStatus = "";
     themeStatusKind = "";
 
-    fetch("/api/settings/theme", {
+    fetch("/api/v1/settings/theme", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
@@ -342,7 +342,7 @@
     timezoneStatus = "";
     timezoneStatusKind = "";
 
-    fetch("/api/settings/timezone", {
+    fetch("/api/v1/settings/timezone", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
@@ -435,7 +435,7 @@
     ignoredError = "";
     stopCounting();
 
-    fetch("/api/settings", {
+    fetch("/api/v1/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
@@ -552,7 +552,7 @@
   let passkeyStatusKind = $state<"" | "error" | "ok">("");
 
   function loadPasskeys(): Promise<void> {
-    return fetch("/api/auth/credentials", {
+    return fetch("/api/v1/auth/credentials", {
       headers: { Accept: "application/json" },
     })
       .then((res) => {
@@ -594,7 +594,7 @@
     passkeyStatus = "Follow your browser or device prompt to create a passkey…";
     passkeyStatusKind = "";
     try {
-      const beginRes = await fetch("/api/auth/credentials/begin", {
+      const beginRes = await fetch("/api/v1/auth/credentials/begin", {
         method: "POST",
         headers: { Accept: "application/json" },
       });
@@ -614,7 +614,7 @@
       const credentialJSON = creationCredentialToJSON(credential);
 
       const finishRes = await fetch(
-        `/api/auth/credentials/finish?label=${encodeURIComponent(label)}`,
+        `/api/v1/auth/credentials/finish?label=${encodeURIComponent(label)}`,
         {
           method: "POST",
           headers: {
@@ -711,7 +711,7 @@
     renameError = "";
     try {
       const res = await fetch(
-        `/api/auth/credentials/${encodeURIComponent(id)}`,
+        `/api/v1/auth/credentials/${encodeURIComponent(id)}`,
         {
           method: "PATCH",
           headers: {
@@ -751,7 +751,7 @@
     passkeyStatusKind = "";
     try {
       const res = await fetch(
-        `/api/auth/credentials/${encodeURIComponent(id)}`,
+        `/api/v1/auth/credentials/${encodeURIComponent(id)}`,
         {
           method: "DELETE",
           headers: { Accept: "application/json" },
@@ -820,7 +820,7 @@
   }
 
   function loadTokens(): Promise<void> {
-    return fetch("/api/tokens", { headers: { Accept: "application/json" } })
+    return fetch("/api/v1/tokens", { headers: { Accept: "application/json" } })
       .then((res) => {
         if (res.status === 401) {
           window.location.href = "/login.html";
@@ -852,7 +852,7 @@
     tokenStatus = "Generating…";
     tokenStatusKind = "";
     try {
-      const res = await fetch("/api/tokens", {
+      const res = await fetch("/api/v1/tokens", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -885,7 +885,7 @@
     tokenStatus = "Revoking…";
     tokenStatusKind = "";
     try {
-      const res = await fetch(`/api/tokens/${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/v1/tokens/${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
       if (res.status === 401) {
@@ -981,7 +981,7 @@
       previewNow = new Date().toISOString();
     }, 15000);
 
-    fetch("/api/settings", { headers: { Accept: "application/json" } })
+    fetch("/api/v1/settings", { headers: { Accept: "application/json" } })
       .then((res) => {
         if (res.status === 401) {
           window.location.href = "/login.html";
@@ -1056,7 +1056,7 @@
   });
 
   // The webhook coverage summary: the summary-only view of the layout's one
-  // /api/dashboard read (#1801), following its answers until one is done.
+  // /api/v1/dashboard read (#1801), following its answers until one is done.
   // /webhooks.html has the per-repo detail. A final failure leaves the summary
   // hidden; this page's own settings form is where a real error banner belongs.
   $effect(() => {

@@ -60,7 +60,7 @@ const issue = (number: number, prNumber: number) => ({
 });
 
 async function serveBoard(page: Page, issues: unknown[]) {
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

@@ -55,22 +55,24 @@ async function open(page: Page, prs: Record<string, unknown>[]) {
       }
     };
   });
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ allowBotPrUpdates: false }),
     }),
   );
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(snapshot(prs)),
     }),
   );
-  await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
     route.fulfill({
       status: 403,
       contentType: 'application/json',

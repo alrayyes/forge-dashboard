@@ -42,7 +42,7 @@ function snapshot(
 }
 
 function mockDashboard(page: Page, body: unknown) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -69,7 +69,9 @@ function armed(
 
 // Aborted, so a real snapshot can't be pushed over the mock.
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
 });
 
 test.describe('Forgejo auto-merge on a pull request row', () => {
@@ -78,11 +80,11 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
   }) => {
     await mockDashboard(page, snapshot(makePR()));
     let posted: unknown = null;
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) => {
+    await page.route('**/api/v1/pull-requests/auto-merge', (route: Route) => {
       posted = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -179,13 +181,13 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     );
     let posted: unknown = null;
     await page.route(
-      '**/api/pull-requests/auto-merge/cancel',
+      '**/api/v1/pull-requests/auto-merge/cancel',
       (route: Route) => {
         posted = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       },
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -220,7 +222,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
       ],
     };
     await mockDashboard(page, snapshot(makePR(), done));
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -236,7 +238,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     );
 
     // The same snapshot again, asked for by hand, must not toast it twice.
-    const refreshed = page.waitForResponse('**/api/dashboard/refresh*');
+    const refreshed = page.waitForResponse('**/api/v1/dashboard/refresh*');
     await page.click('#force-refresh-button');
     await refreshed;
     await expect(toasts).not.toHaveCount(2);
@@ -300,10 +302,11 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
         armed({ state: 'waiting', code: '', message: 'Ready.' }, 'forge'),
       ),
     );
-    await page.route('**/api/pull-requests/auto-merge/cancel', (route: Route) =>
-      route.fulfill({ status: 204 }),
+    await page.route(
+      '**/api/v1/pull-requests/auto-merge/cancel',
+      (route: Route) => route.fulfill({ status: 204 }),
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

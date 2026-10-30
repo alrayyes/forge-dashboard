@@ -132,7 +132,7 @@ const OLD_TEXT =
 
 async function bots(page: Page, pr: MockPR, current: () => MockPR) {
   await installHooks(page);
-  await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -145,8 +145,8 @@ async function bots(page: Page, pr: MockPR, current: () => MockPR) {
       contentType: 'application/json',
       body: JSON.stringify(snapshot(current())),
     });
-  await page.route('**/api/dashboard*', answer);
-  await page.route('**/api/dashboard/refresh', answer);
+  await page.route('**/api/v1/dashboard*', answer);
+  await page.route('**/api/v1/dashboard/refresh', answer);
   void pr;
 }
 
@@ -159,7 +159,7 @@ test.describe('the waiting chip on a bot rebase', () => {
     await page.clock.install();
     await bots(page, current, () => current);
     await page.route(
-      '**/api/pull-requests/dependabot-action',
+      '**/api/v1/pull-requests/dependabot-action',
       (route: Route) => {
         current = { ...current, botRequest: botRequest('queued') };
         return route.fulfill({ status: 204 });
@@ -253,7 +253,7 @@ test.describe('the waiting chip on a bot rebase', () => {
     const live = page.locator('#feedback-live');
 
     let refreshes = 0;
-    await page.route('**/api/dashboard/refresh', (route: Route) => {
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) => {
       refreshes += 1;
       return route.fulfill({
         status: 200,
@@ -385,12 +385,15 @@ test.describe('the waiting chip on Update branch', () => {
         contentType: 'application/json',
         body: JSON.stringify(snapshot(served())),
       });
-    await page.route('**/api/dashboard*', answer);
-    await page.route('**/api/dashboard/refresh', answer);
-    await page.route('**/api/pull-requests/update-branch', (route: Route) => {
-      accepted = true;
-      return route.fulfill({ status: 202 });
-    });
+    await page.route('**/api/v1/dashboard*', answer);
+    await page.route('**/api/v1/dashboard/refresh', answer);
+    await page.route(
+      '**/api/v1/pull-requests/update-branch',
+      (route: Route) => {
+        accepted = true;
+        return route.fulfill({ status: 202 });
+      },
+    );
     await page.goto('/pull-requests.html');
 
     const before = await layout(page);
@@ -456,16 +459,19 @@ test.describe('the waiting chip on a merge and a close', () => {
           contentType: 'application/json',
           body: JSON.stringify(snapshot(makePR())),
         });
-      await page.route('**/api/dashboard*', answer);
-      await page.route('**/api/dashboard/refresh', answer);
+      await page.route('**/api/v1/dashboard*', answer);
+      await page.route('**/api/v1/dashboard/refresh', answer);
       let release: () => void = () => {};
       const gate = new Promise<void>((resolve) => {
         release = resolve;
       });
-      await page.route(`**/api/pull-requests/${s.endpoint}`, async (route) => {
-        await gate;
-        return route.fulfill({ status: 204 });
-      });
+      await page.route(
+        `**/api/v1/pull-requests/${s.endpoint}`,
+        async (route) => {
+          await gate;
+          return route.fulfill({ status: 204 });
+        },
+      );
       await page.goto('/pull-requests.html');
 
       const row = firstRow(page);
@@ -521,7 +527,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     });
 
   async function open(page: Page, pr: MockPR) {
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -554,7 +560,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     await open(page, makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles' }));
     await expect(slotOf(page)).toBeVisible();
     const plain = await size(slotOf(page));
-    await page.unroute('**/api/dashboard*');
+    await page.unroute('**/api/v1/dashboard*');
     await open(page, armed());
     await expect(chipOf(page)).toBeVisible();
     expect(await size(slotOf(page))).toEqual(plain);
@@ -563,13 +569,13 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
   test('Disarm posts for that pull request', async ({ page }) => {
     let posted: unknown = null;
     await page.route(
-      '**/api/pull-requests/auto-merge/cancel',
+      '**/api/v1/pull-requests/auto-merge/cancel',
       (route: Route) => {
         posted = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       },
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -642,7 +648,7 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
   }) => {
     const pr = makePR({ behind: true, mergeStatus: 'blocked' });
     let queued: ReturnType<typeof queuedItem> | null = null;
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -653,7 +659,7 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
       }),
     );
     const deletes: string[] = [];
-    await page.route('**/api/queued-actions/*', (route: Route) => {
+    await page.route('**/api/v1/queued-actions/*', (route: Route) => {
       deletes.push(route.request().url().split('/').pop() ?? '');
       return route.fulfill({ status: 204 });
     });
@@ -707,7 +713,7 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     });
 
   async function open(page: Page, pr: MockPR) {
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -735,13 +741,13 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
   test('Disarm posts for that GitHub pull request', async ({ page }) => {
     let posted: unknown = null;
     await page.route(
-      '**/api/pull-requests/auto-merge/cancel',
+      '**/api/v1/pull-requests/auto-merge/cancel',
       (route: Route) => {
         posted = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       },
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

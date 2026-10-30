@@ -32,7 +32,7 @@
 
   let { children } = $props();
 
-  // Matches GET /api/auth/session's JSON body — see nav.js's own comment
+  // Matches GET /api/v1/auth/session's JSON body — see nav.js's own comment
   // (now retired for every page under this layout) for the shape this
   // was always fetching.
   type Session = { displayName: string };
@@ -120,7 +120,7 @@
   );
 
   function signOut() {
-    fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+    fetch("/api/v1/auth/logout", { method: "POST" }).finally(() => {
       window.location.href = "/login.html";
     });
   }
@@ -208,7 +208,7 @@
         navReadInFlight = false;
         scheduleNavRead();
       };
-      fetch("/api/dashboard", {
+      fetch("/api/v1/dashboard", {
         headers: { Accept: "application/json", ...BACKGROUND_READ_HEADER },
         signal: abort.signal,
         // This is the only read of the URL on these pages now (#1801), but the
@@ -272,7 +272,7 @@
     // (see isPublicRoute above), which stay put on a 401 instead of
     // redirecting, same as nav.js's own pageRequiresAuth === "false" skip
     // used to for those three pages.
-    fetch("/api/auth/session", { headers: { Accept: "application/json" } })
+    fetch("/api/v1/auth/session", { headers: { Accept: "application/json" } })
       .then((res) => {
         if (res.status === 401) {
           if (!isPublicRoute()) {

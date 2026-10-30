@@ -31,11 +31,13 @@ async function open(page: Page, state: State) {
   await page.clock.install();
   state.answered = 0;
   page.on('requestfinished', (req) => {
-    if (new URL(req.url()).pathname === '/api/dashboard')
+    if (new URL(req.url()).pathname === '/api/v1/dashboard')
       state.answered = (state.answered ?? 0) + 1;
   });
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) => {
     state.requests++;
     return route.fulfill({
       status: 200,
@@ -106,7 +108,7 @@ test.describe('the forge health live region (WCAG 4.1.3)', () => {
   test('is in the document with a polite role before any text', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard*', (route: Route) => route.abort());
+    await page.route('**/api/v1/dashboard*', (route: Route) => route.abort());
     await page.goto('/pull-requests.html');
     const region = page.locator(LIVE);
     await expect(region).toHaveCount(1);

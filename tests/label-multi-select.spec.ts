@@ -70,8 +70,10 @@ function issue(number: number, ...labels: string[]) {
 const ISSUES = [issue(1, 'bug'), issue(2, 'question'), issue(3, 'enhancement')];
 
 async function mock(page: Page, prs: Record<string, unknown>[] = PRS) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -210,7 +212,7 @@ test.describe('Label filter: several labels, matching any', () => {
     await toggleLabels(page, 'bug');
     await expect
       .poll(async () => {
-        const res = await page.request.get('/api/settings/filter-state');
+        const res = await page.request.get('/api/v1/settings/filter-state');
         return (await res.json()).shared?.label;
       })
       .toBe('bug');
@@ -218,7 +220,7 @@ test.describe('Label filter: several labels, matching any', () => {
     await toggleLabels(page, 'security');
     await expect
       .poll(async () => {
-        const res = await page.request.get('/api/settings/filter-state');
+        const res = await page.request.get('/api/v1/settings/filter-state');
         return (await res.json()).shared?.label;
       })
       .toBe('bug\nsecurity');

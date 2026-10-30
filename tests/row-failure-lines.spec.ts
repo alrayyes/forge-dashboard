@@ -64,21 +64,21 @@ async function prepare(
   prs: MockPR[] = [makePR()],
 ) {
   let current = prs;
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(snapshot(current)),
     }),
   );
-  await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
     route.fulfill({
       status: failure.status,
       contentType: 'application/json',
       body: JSON.stringify(failure.body),
     }),
   );
-  await page.route('**/api/dashboard/refresh', (route: Route) =>
+  await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -98,7 +98,7 @@ async function fail(page: Page) {
 
 test.describe('row failure lines (#752)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+    await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -186,7 +186,7 @@ test.describe('row failure lines (#752)', () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/pull-requests/close', async (route: Route) => {
+    await page.route('**/api/v1/pull-requests/close', async (route: Route) => {
       await held;
       return route.fulfill({ status: 204 });
     });
@@ -220,8 +220,8 @@ test.describe('row failure lines (#752)', () => {
       line(page).getByRole('button', { name: /^Retry/ }),
     ).toBeVisible();
 
-    await page.unroute('**/api/pull-requests/update-branch');
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.unroute('**/api/v1/pull-requests/update-branch');
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',

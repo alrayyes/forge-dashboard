@@ -92,7 +92,7 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
         }
       };
     });
-    await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+    await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -105,9 +105,9 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
         contentType: 'application/json',
         body: JSON.stringify(snapshot(current)),
       });
-    await page.route('**/api/dashboard*', answer);
-    await page.route('**/api/dashboard/refresh', answer);
-    await page.route('**/api/pull-requests/dependabot-action', (route) => {
+    await page.route('**/api/v1/dashboard*', answer);
+    await page.route('**/api/v1/dashboard/refresh', answer);
+    await page.route('**/api/v1/pull-requests/dependabot-action', (route) => {
       posts++;
       current = { ...current, botRequest: dependabotRequest('queued') };
       return route.fulfill({ status: 204 });

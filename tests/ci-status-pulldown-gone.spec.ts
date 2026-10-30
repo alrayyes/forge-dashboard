@@ -45,8 +45,10 @@ const MIXED = [
 ];
 
 async function open(page: Page, url: string, pullRequests = MIXED) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -77,13 +79,13 @@ async function seed(
   shared: Record<string, string>,
   prState: Record<string, string>,
 ) {
-  await page.request.put('/api/settings/filter-state', {
+  await page.request.put('/api/v1/settings/filter-state', {
     data: { shared, pr: prState, issue: {}, view: {} },
   });
   await expect
     .poll(async () => {
       const got = await (
-        await page.request.get('/api/settings/filter-state')
+        await page.request.get('/api/v1/settings/filter-state')
       ).json();
       return JSON.stringify([got?.shared ?? {}, got?.pr ?? {}]);
     })
@@ -191,7 +193,7 @@ test.describe('the CI status pulldown is gone (2084)', () => {
     await expect
       .poll(async () => {
         const got = await (
-          await page.request.get('/api/settings/filter-state')
+          await page.request.get('/api/v1/settings/filter-state')
         ).json();
         return JSON.stringify([got?.pr?.status ?? null, got?.pr?.quick]);
       })

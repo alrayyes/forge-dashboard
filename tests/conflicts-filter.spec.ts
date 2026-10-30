@@ -38,7 +38,7 @@ const MIXED = [
 ];
 
 function mockDashboard(page: Page, pullRequests: unknown[]) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -60,7 +60,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('lists only the conflicting pull requests, a draft that conflicts included', async ({
@@ -118,7 +118,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
     // the older copy (#900).
     await expect
       .poll(async () => {
-        const resp = await page.request.get('/api/settings/filter-state');
+        const resp = await page.request.get('/api/v1/settings/filter-state');
         return (await resp.json())?.pr?.quick;
       })
       .toBe('conflicting');
@@ -141,14 +141,14 @@ test.describe('Conflicts quick filter (#1215)', () => {
     // The click saves in the background; wait for it before the data changes.
     await expect
       .poll(async () => {
-        const resp = await page.request.get('/api/settings/filter-state');
+        const resp = await page.request.get('/api/v1/settings/filter-state');
         return (await resp.json())?.pr?.quick;
       })
       .toBe('conflicting');
 
     // Nothing conflicts any more. The pill isn't offered to pick, but the
     // active one stays (#1427), so it can be seen and cleared.
-    await page.unroute('**/api/dashboard*');
+    await page.unroute('**/api/v1/dashboard*');
     await mockDashboard(page, [
       makePR(2),
       makePR(3, { mergeStatus: 'unknown' }),

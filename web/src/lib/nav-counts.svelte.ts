@@ -6,7 +6,7 @@ import {
 
 // The numbers each nav item shows (#1315): how many items its page lists and
 // how many of them are failing. The server counts all but Branches
-// (`navCounts` on /api/dashboard, from the same filtered lists the pages show);
+// (`navCounts` on /api/v1/dashboard, from the same filtered lists the pages show);
 // Branches is counted here from the main branch rows the snapshot carries, by
 // the function the Main branches page uses. This holds the latest answer. The
 // dashboard views set it from each snapshot, and the layout asks once on pages

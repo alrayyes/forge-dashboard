@@ -137,7 +137,7 @@ describe('readAdvisoryList', () => {
       return new Response(JSON.stringify(body), { status: 200 });
     });
     expect(asked).toBe(
-      '/api/main-branches/advisories?forge=github&fullName=acme%2Fx',
+      '/api/v1/main-branches/advisories?forge=github&fullName=acme%2Fx',
     );
     expect(result).toEqual({ kind: 'ready', list: body });
   });

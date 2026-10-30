@@ -200,7 +200,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     state.current = { forges: [up()] };
     const refresh = page.waitForRequest(
       (r) =>
-        r.url().includes('/api/dashboard/refresh') && r.method() === 'POST',
+        r.url().includes('/api/v1/dashboard/refresh') && r.method() === 'POST',
     );
     await page
       .locator('#unreachable-banner')

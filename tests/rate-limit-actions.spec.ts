@@ -50,7 +50,7 @@ async function mockDashboard(
       pullRequests: prs,
       issues: [],
     });
-  await page.route('**/api/dashboard*', (route) =>
+  await page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -77,7 +77,7 @@ test.describe('rate-limited actions (#732)', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('grouped by repo, the reset time is stated once in the banner, not under each group', async ({
@@ -100,7 +100,7 @@ test.describe('rate-limited actions (#732)', () => {
     page,
   }) => {
     await mockDashboard(page, { ...exhausted(), remaining: 3 });
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -127,7 +127,7 @@ test.describe('rate-limited actions (#732)', () => {
   test('a 502 on merge still offers Retry, and it works', async ({ page }) => {
     await mockDashboard(page);
     let calls = 0;
-    await page.route('**/api/pull-requests/merge', (route) => {
+    await page.route('**/api/v1/pull-requests/merge', (route) => {
       calls += 1;
       return route.fulfill({
         status: 502,

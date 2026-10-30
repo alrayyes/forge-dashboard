@@ -18,7 +18,7 @@ const TOMORROW_RESET = '2026-10-06T12:00:00Z';
 
 // The server's saved zone, stood in for so a test can say what it was.
 function mockSavedZone(page: Page, timezone: string) {
-  return page.route('**/api/settings/timezone', (route: Route) =>
+  return page.route('**/api/v1/settings/timezone', (route: Route) =>
     route.request().method() === 'GET'
       ? route.fulfill({
           status: 200,
@@ -30,7 +30,7 @@ function mockSavedZone(page: Page, timezone: string) {
 }
 
 function mockExhausted(page: Page, resetsAt: string) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -89,7 +89,7 @@ test.describe('times in the viewer zone (#996)', () => {
     const gate = new Promise<void>((resolve) => {
       answer = resolve;
     });
-    await page.route('**/api/settings/timezone', async (route: Route) => {
+    await page.route('**/api/v1/settings/timezone', async (route: Route) => {
       await gate;
       await route.fulfill({
         status: 200,
@@ -106,7 +106,7 @@ test.describe('times in the viewer zone (#996)', () => {
   test('an answer that fails falls back to the browser zone', async ({
     page,
   }) => {
-    await page.route('**/api/settings/timezone', (route) =>
+    await page.route('**/api/v1/settings/timezone', (route) =>
       route.fulfill({ status: 500, body: 'nope' }),
     );
     await showResetOnDashboard(page, TODAY_RESET);
@@ -116,7 +116,7 @@ test.describe('times in the viewer zone (#996)', () => {
   test('the webhooks page names the zone too', async ({ page }) => {
     await mockSavedZone(page, 'UTC');
     await page.clock.setFixedTime(NOW);
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -190,7 +190,8 @@ test.describe('the time zone control on Settings (#996)', () => {
 
     const saved = page.waitForRequest(
       (req) =>
-        req.url().includes('/api/settings/timezone') && req.method() === 'PUT',
+        req.url().includes('/api/v1/settings/timezone') &&
+        req.method() === 'PUT',
     );
     await page.getByLabel('Time zone').selectOption('UTC');
     expect((await saved).postDataJSON()).toEqual({ timezone: 'UTC' });
@@ -215,7 +216,8 @@ test.describe('the time zone control on Settings (#996)', () => {
 
     const saved = page.waitForRequest(
       (req) =>
-        req.url().includes('/api/settings/timezone') && req.method() === 'PUT',
+        req.url().includes('/api/v1/settings/timezone') &&
+        req.method() === 'PUT',
     );
     await page.getByLabel('Time zone').selectOption('');
     expect((await saved).postDataJSON()).toEqual({ timezone: '' });
@@ -225,7 +227,7 @@ test.describe('the time zone control on Settings (#996)', () => {
   test('a refused name shows a failure line and keeps the old zone', async ({
     page,
   }) => {
-    await page.route('**/api/settings/timezone', (route: Route) =>
+    await page.route('**/api/v1/settings/timezone', (route: Route) =>
       route.request().method() === 'PUT'
         ? route.fulfill({
             status: 400,

@@ -62,21 +62,21 @@ function snapshot(prs: MockPR[]) {
 }
 
 async function mockBoard(page: Page, prs: MockPR[]) {
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: snapshot(prs),
     }),
   );
-  await page.route('**/api/dashboard/refresh', (route: Route) =>
+  await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: snapshot(prs),
     }),
   );
-  await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -116,7 +116,7 @@ type Driver = {
 const drivers: Driver[] = [
   {
     name: 'Close',
-    endpoint: '**/api/pull-requests/close',
+    endpoint: '**/api/v1/pull-requests/close',
     pr: {},
     button: 'Close pull request',
     act: (row) =>
@@ -136,7 +136,7 @@ const drivers: Driver[] = [
   },
   {
     name: 'Update branch',
-    endpoint: '**/api/pull-requests/update-branch',
+    endpoint: '**/api/v1/pull-requests/update-branch',
     pr: { behind: true, ci: 'success', mergeStatus: 'mergeable' },
     button: 'Update branch',
     act: (row) =>
@@ -154,7 +154,7 @@ const drivers: Driver[] = [
   },
   {
     name: 'Enable auto-merge',
-    endpoint: '**/api/pull-requests/auto-merge',
+    endpoint: '**/api/v1/pull-requests/auto-merge',
     pr: {},
     button: 'Enable auto-merge',
     act: (row) =>
@@ -172,7 +172,7 @@ const drivers: Driver[] = [
   },
   {
     name: 'Dependabot: Rebase',
-    endpoint: '**/api/pull-requests/dependabot-action',
+    endpoint: '**/api/v1/pull-requests/dependabot-action',
     pr: { author: 'dependabot' },
     button: 'Dependabot: Rebase',
     act: (row) =>
@@ -184,7 +184,7 @@ const drivers: Driver[] = [
   },
   {
     name: 'Renovate: Rebase',
-    endpoint: '**/api/pull-requests/renovate-rebase',
+    endpoint: '**/api/v1/pull-requests/renovate-rebase',
     pr: { author: 'renovate[bot]' },
     button: 'Renovate: Rebase',
     act: (row) =>
@@ -482,7 +482,7 @@ test.describe('Enable auto-merge with a transient refusal', () => {
     page,
   }) => {
     await mockBoard(page, [makePR()]);
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -518,7 +518,7 @@ test.describe('Enable auto-merge with a transient refusal', () => {
 
   test('ready_to_merge points to Merge and locks', async ({ page }) => {
     await mockBoard(page, [makePR()]);
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',

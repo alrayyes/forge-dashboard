@@ -67,11 +67,11 @@ describe('WebMCP read tools', () => {
     ]);
   });
 
-  test('get_main_branches reads /api/main-branches with the session cookie', async () => {
+  test('get_main_branches reads /api/v1/main-branches with the session cookie', async () => {
     const { calls, tool } = setup({ body: { rows: [] } });
     expect(await tool('get_main_branches').execute({})).toEqual({ rows: [] });
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe('/api/main-branches');
+    expect(calls[0].url).toBe('/api/v1/main-branches');
     expect(calls[0].init?.credentials).toBe('same-origin');
     expect(calls[0].init?.method ?? 'GET').toBe('GET');
   });
@@ -83,7 +83,7 @@ describe('WebMCP read tools', () => {
       queuedActions: items,
     });
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe('/api/queued-actions');
+    expect(calls[0].url).toBe('/api/v1/queued-actions');
     expect(calls[0].init?.credentials).toBe('same-origin');
     expect(calls[0].init?.method ?? 'GET').toBe('GET');
   });
@@ -313,7 +313,7 @@ describe('WebMCP read tools', () => {
     expect(reads).toHaveLength(0);
   });
 
-  test('get_repository_advisories reads /api/main-branches/advisories with the repository', async () => {
+  test('get_repository_advisories reads /api/v1/main-branches/advisories with the repository', async () => {
     const { calls, tool } = setup({
       body: { state: 'known', advisories: [] },
     });
@@ -324,7 +324,7 @@ describe('WebMCP read tools', () => {
       }),
     ).toEqual({ state: 'known', advisories: [] });
     expect(calls[0].url).toBe(
-      '/api/main-branches/advisories?forge=github&fullName=acme%2Fapi',
+      '/api/v1/main-branches/advisories?forge=github&fullName=acme%2Fapi',
     );
   });
 
@@ -348,7 +348,7 @@ describe('WebMCP read tools', () => {
     expect(description).toContain('Read-only');
   });
 
-  test('get_check_log reads /api/checks/log with the repository and the job', async () => {
+  test('get_check_log reads /api/v1/checks/log with the repository and the job', async () => {
     const { calls, tool } = setup({ body: { text: 'ok\n', truncated: false } });
     expect(
       await tool('get_check_log').execute({
@@ -358,7 +358,7 @@ describe('WebMCP read tools', () => {
       }),
     ).toEqual({ text: 'ok\n', truncated: false });
     expect(calls[0].url).toBe(
-      '/api/checks/log?forge=forgejo&fullName=acme%2Fapi&jobId=31',
+      '/api/v1/checks/log?forge=forgejo&fullName=acme%2Fapi&jobId=31',
     );
   });
 
@@ -377,11 +377,11 @@ describe('WebMCP read tools', () => {
     expect(calls).toHaveLength(0);
   });
 
-  test('get_pull_request_details reads /api/pull-requests/details', async () => {
+  test('get_pull_request_details reads /api/v1/pull-requests/details', async () => {
     const { calls, tool } = setup({ body: { description: 'x' } });
     await tool('get_pull_request_details').execute(PR);
     expect(calls[0].url).toBe(
-      '/api/pull-requests/details?forge=forgejo&fullName=acme%2Fapi&number=7',
+      '/api/v1/pull-requests/details?forge=forgejo&fullName=acme%2Fapi&number=7',
     );
   });
 
@@ -576,11 +576,11 @@ const SETTINGS = {
 describe('WebMCP get_settings', () => {
   const SUMMARY = { ...SETTINGS, webhookConfigured: true };
 
-  test('reads /api/settings/summary with the session cookie', async () => {
+  test('reads /api/v1/settings/summary with the session cookie', async () => {
     const { calls, tool } = setup({ body: SUMMARY });
     await tool('get_settings').execute({});
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe('/api/settings/summary');
+    expect(calls[0].url).toBe('/api/v1/settings/summary');
     expect(calls[0].init?.credentials).toBe('same-origin');
     expect(calls[0].init?.method ?? 'GET').toBe('GET');
   });
@@ -689,7 +689,7 @@ describe('WebMCP set_pull_request_auto_update', () => {
     const { calls, tool, reads } = writeSetup();
     await tool.execute({ ...PR, enabled: false });
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toBe('/api/pull-requests/auto-update');
+    expect(calls[0].url).toBe('/api/v1/pull-requests/auto-update');
     expect(calls[0].init?.method).toBe('POST');
     expect(calls[0].init?.credentials).toBe('same-origin');
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({

@@ -24,8 +24,10 @@ function mockDashboard(
   repos: Record<string, unknown>[],
   forges: Record<string, unknown>[] = [],
 ) {
-  void page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  return page.route('**/api/dashboard*', (route: Route) =>
+  void page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -53,7 +55,7 @@ test.describe('rebase bots setting on the webhooks page', () => {
   }) => {
     await mockDashboard(page, [repo('a')]);
     const bodies: unknown[] = [];
-    await page.route('**/api/repos/rebase-bots/*', (route) => {
+    await page.route('**/api/v1/repos/rebase-bots/*', (route) => {
       bodies.push({
         path: new URL(route.request().url()).pathname,
         body: route.request().postDataJSON(),
@@ -79,11 +81,11 @@ test.describe('rebase bots setting on the webhooks page', () => {
     ).toBeVisible();
     expect(bodies).toEqual([
       {
-        path: '/api/repos/rebase-bots/enable',
+        path: '/api/v1/repos/rebase-bots/enable',
         body: { forge: 'github', fullName: 'alrayyes/a' },
       },
       {
-        path: '/api/repos/rebase-bots/disable',
+        path: '/api/v1/repos/rebase-bots/disable',
         body: { forge: 'github', fullName: 'alrayyes/a' },
       },
     ]);
@@ -97,7 +99,7 @@ test.describe('rebase bots setting on the webhooks page', () => {
       repo('b'),
       repo('c', { rebaseBots: true }),
     ]);
-    await page.route('**/api/repos/rebase-bots/*', (route) =>
+    await page.route('**/api/v1/repos/rebase-bots/*', (route) =>
       route.fulfill({ status: 204 }),
     );
     page.on('dialog', (dialog) => void dialog.accept());
@@ -130,7 +132,7 @@ test.describe('rebase bots setting on the webhooks page', () => {
       ],
     );
     const calls: unknown[] = [];
-    await page.route('**/api/repos/rebase-bots/*', (route) => {
+    await page.route('**/api/v1/repos/rebase-bots/*', (route) => {
       calls.push(route.request().postDataJSON());
       return route.fulfill({ status: 204 });
     });

@@ -327,7 +327,7 @@
     });
   });
 
-  // The layout makes the one /api/dashboard read; this page follows its
+  // The layout makes the one /api/v1/dashboard read; this page follows its
   // answers until one is done (#1801). A final failure leaves the empty states
   // showing; the dashboard page itself is where a real error banner belongs.
   $effect(() => {

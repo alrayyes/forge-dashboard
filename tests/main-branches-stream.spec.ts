@@ -7,7 +7,7 @@ import {
 import { test } from './server-fixture';
 
 // The Main branches page takes its rows from the dashboard stream. The one
-// read of /api/main-branches draws the page first and stands in when the
+// read of /api/v1/main-branches draws the page first and stands in when the
 // stream closes.
 
 function page(subject: string, status: 'failed' | 'passed') {
@@ -56,7 +56,7 @@ async function open(
   let body = first;
   let gate: Promise<void> | null = null;
   await installFakeStream(pageUnderTest);
-  await pageUnderTest.route('**/api/main-branches', async (route) => {
+  await pageUnderTest.route('**/api/v1/main-branches', async (route) => {
     reads.push(route.request().url());
     await gate;
     return route.fulfill({

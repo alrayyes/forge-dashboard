@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 // The pill on an issue row carries the pipeline of the pull request that will
 // close it, drawn by the same code as the pull request's own row: the word,
 // then a count per state. A pull request with no checks keeps the plain pill.
-// Mocks /api/dashboard only.
+// Mocks /api/v1/dashboard only.
 
 const NOW = new Date();
 const ago = (minutes: number) =>
@@ -40,8 +40,8 @@ const issue = (number: number, linkedPullRequests: unknown[]) => ({
 });
 
 async function mockBoard(page: Page, issues: unknown[]) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

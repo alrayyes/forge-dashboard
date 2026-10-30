@@ -33,8 +33,10 @@ function rowsFor(c: Counts) {
 const MIXED: Counts = { total: 7, failed: 2, running: 1, passed: 3, none: 1 };
 
 async function open(page: Page, branches: Counts) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

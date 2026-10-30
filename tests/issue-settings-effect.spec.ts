@@ -7,7 +7,7 @@ import { test } from './server-fixture';
 // The server removes the matching issues and says how many in
 // settingsHiddenIssueCount; the pages only stop drawing the fields the
 // settings replace and say how many are hidden. The server half is a separate
-// pull request, so /api/dashboard is a stand-in shaped
+// pull request, so /api/v1/dashboard is a stand-in shaped
 // like api/openapi.yaml. Filter state is saved on the server: the spec has its own.
 // https://github.com/alrayyes/forge-dashboard/issues/1630
 
@@ -40,8 +40,10 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
     pullRequests: [],
     ...init,
   };
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) => {
     const issues = [issue(1, 'Fix the login page'), issue(2, 'Add dark mode')];
     return route.fulfill({
       status: 200,
@@ -84,12 +86,13 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect(note(page)).toHaveCount(0);
   });
 
-  test('reads the flags from the snapshot and asks /api/settings for nothing', async ({
+  test('reads the flags from the snapshot and asks /api/v1/settings for nothing', async ({
     page,
   }) => {
     const asked: string[] = [];
     page.on('request', (r) => {
-      if (new URL(r.url()).pathname === '/api/settings') asked.push(r.method());
+      if (new URL(r.url()).pathname === '/api/v1/settings')
+        asked.push(r.method());
     });
     await standIn(page, { hideDependencyDashboard: true });
     await page.goto('/issues.html');
@@ -103,10 +106,10 @@ test.describe('Issues page follows the settings (#1630)', () => {
   test('a snapshot without the flags reads as nothing set', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -172,14 +175,14 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await page.goto('/issues.html');
     const saved = page.waitForResponse(
       (r) =>
-        r.url().endsWith('/api/settings/filter-state') &&
+        r.url().endsWith('/api/v1/settings/filter-state') &&
         r.request().method() === 'PUT',
     );
     await patternBox(page).fill('^Add');
     await saved;
     const savedAgain = page.waitForResponse(
       (r) =>
-        r.url().endsWith('/api/settings/filter-state') &&
+        r.url().endsWith('/api/v1/settings/filter-state') &&
         r.request().method() === 'PUT',
     );
     await dependencyBox(page).uncheck();
@@ -246,7 +249,7 @@ test.describe('Issues page follows the settings (#1630)', () => {
     const savedFilters = () =>
       page.waitForResponse(
         (r) =>
-          r.url().endsWith('/api/settings/filter-state') &&
+          r.url().endsWith('/api/v1/settings/filter-state') &&
           r.request().method() === 'PUT',
       );
     const nav = (name: string) =>
@@ -289,7 +292,7 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     // What the account keeps, which another browser would read.
     const keptFilters = await (
-      await page.request.get('/api/settings/filter-state')
+      await page.request.get('/api/v1/settings/filter-state')
     ).json();
     expect(keptFilters.shared.author ?? '').toBe('');
     expect(keptFilters.issue).toMatchObject({
@@ -307,7 +310,7 @@ test.describe('Issues page follows the settings (#1630)', () => {
     await page.goto('/issues.html');
     const saved = page.waitForResponse(
       (r) =>
-        r.url().endsWith('/api/settings/filter-state') &&
+        r.url().endsWith('/api/v1/settings/filter-state') &&
         r.request().method() === 'PUT',
     );
     await dependencyBox(page).uncheck();

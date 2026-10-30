@@ -1,5 +1,5 @@
 // What the server says a pull request offers (#805), as carried on every
-// pull request by GET /api/dashboard, the stream and the refresh response
+// pull request by GET /api/v1/dashboard, the stream and the refresh response
 // (components.schemas.AllowedAction). A row renders only what is listed and
 // holds no copy of the rules that decided it. Live state stays here, in the
 // page: a rate-limited or unreachable forge, a missing token, an action

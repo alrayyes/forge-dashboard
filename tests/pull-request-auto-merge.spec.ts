@@ -45,7 +45,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 }
 
 function mockDashboard(page: Page, pr?: MockPR) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -94,7 +94,7 @@ test.describe('pull request Enable auto-merge action', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     // Each test installs its mocks, then loads the page once. A goto here would
     // load it before they exist.
   });
@@ -125,11 +125,11 @@ test.describe('pull request Enable auto-merge action', () => {
   }) => {
     await mockDashboard(page, makePR());
     let requestBody: unknown;
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) => {
+    await page.route('**/api/v1/pull-requests/auto-merge', (route: Route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -161,10 +161,10 @@ test.describe('pull request Enable auto-merge action', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/auto-merge', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/auto-merge', (route: Route) =>
       route.fulfill({ status: 204 }),
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -193,7 +193,7 @@ test.describe('pull request Enable auto-merge action', () => {
   }) => {
     await mockDashboard(page, makePR());
     await page.route(
-      '**/api/pull-requests/auto-merge',
+      '**/api/v1/pull-requests/auto-merge',
       async (route: Route) => {
         // Long enough that the Arming chip is still up when the assertion polls
         // for it, with the load of a server per worker.
@@ -201,7 +201,7 @@ test.describe('pull request Enable auto-merge action', () => {
         return route.fulfill({ status: 204 });
       },
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

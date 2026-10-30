@@ -38,7 +38,7 @@ const SNAPSHOT = [
 test('the pull request page stays free of release pull requests after leaving Releases', async ({
   page,
 }) => {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   let polls = 0;
   await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) => {
     polls += 1;

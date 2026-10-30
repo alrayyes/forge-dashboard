@@ -50,7 +50,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 }
 
 function mockDashboard(page: Page, forge: string, pr?: MockPR) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -65,7 +65,7 @@ function mockDashboard(page: Page, forge: string, pr?: MockPR) {
 }
 
 function mockSettings(page: Page, allowBotPrUpdates?: boolean) {
-  return page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  return page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -94,7 +94,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     // The live stream isn't part of these tests. Aborted, so a page never
     // holds a real stream open against the server, and a real snapshot can't
     // be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await mockSettings(page);
     // Each test installs its dashboard mock, then loads the Bots page once:
     // bot pull requests live there, not on the main list (#1192).
@@ -174,7 +174,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await mockDashboard(page, 'github', makePR());
     let requestBody: unknown;
     await page.route(
-      '**/api/pull-requests/dependabot-action',
+      '**/api/v1/pull-requests/dependabot-action',
       (route: Route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -202,7 +202,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await mockDashboard(page, 'github', makePR());
     let requestBody: unknown;
     await page.route(
-      '**/api/pull-requests/dependabot-action',
+      '**/api/v1/pull-requests/dependabot-action',
       (route: Route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
@@ -224,7 +224,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   }) => {
     await mockDashboard(page, 'github', makePR());
     await page.route(
-      '**/api/pull-requests/dependabot-action',
+      '**/api/v1/pull-requests/dependabot-action',
       async (route: Route) => {
         await new Promise((resolve) => setTimeout(resolve, 200));
         return route.fulfill({ status: 204 });
@@ -265,7 +265,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         release = resolve;
       });
       await page.route(
-        '**/api/pull-requests/dependabot-action',
+        '**/api/v1/pull-requests/dependabot-action',
         async (route: Route) => {
           await held;
           await route.fulfill({ status: 204 });
@@ -379,7 +379,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       page,
     }) => {
       await mockDashboard(page, 'github', makePR());
-      await page.route('**/api/pull-requests/dependabot-action', (route) =>
+      await page.route('**/api/v1/pull-requests/dependabot-action', (route) =>
         route.fulfill({
           status: 409,
           contentType: 'application/json',
@@ -413,7 +413,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       const message =
         "A Dependabot rebase is already pending on this pull request, so this command can't go out until it finishes.";
       await mockDashboard(page, 'github', makePR());
-      await page.route('**/api/pull-requests/dependabot-action', (route) =>
+      await page.route('**/api/v1/pull-requests/dependabot-action', (route) =>
         route.fulfill({
           status: 409,
           contentType: 'application/json',
@@ -459,7 +459,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         };
       });
       let current = makePR({ behind: true });
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -472,7 +472,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         }),
       );
       await page.route(
-        '**/api/pull-requests/dependabot-action',
+        '**/api/v1/pull-requests/dependabot-action',
         (route: Route) => route.fulfill({ status: 204 }),
       );
       await page.goto('/bots.html');
@@ -531,7 +531,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   }) => {
     await mockDashboard(page, 'github', makePR());
     await page.route(
-      '**/api/pull-requests/dependabot-action',
+      '**/api/v1/pull-requests/dependabot-action',
       (route: Route) => {
         const body = route.request().postDataJSON();
         if (body.action === 'rebase') {
@@ -599,7 +599,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
       await mockDashboard(page, 'github', makePR({ behind: true }));
       let requestBody: unknown;
       await page.route(
-        '**/api/pull-requests/dependabot-action',
+        '**/api/v1/pull-requests/dependabot-action',
         (route: Route) => {
           requestBody = route.request().postDataJSON();
           return route.fulfill({ status: 204 });
@@ -651,17 +651,19 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/dependabot-action', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
+    await page.route(
+      '**/api/v1/pull-requests/dependabot-action',
+      (route: Route) =>
+        route.fulfill({
+          status: 429,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'github: rate limit exceeded',
+            code: 'rate_limited',
+            message:
+              "The forge's API rate limit is reached. Try again once it resets.",
+          }),
         }),
-      }),
     );
     await page.goto('/bots.html');
 
@@ -684,7 +686,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   }) => {
     const reason =
       'Dependabot ignores commands from GitHub Apps. Save a personal access token in Settings to send them as you.';
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -705,7 +707,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     );
     let posted = false;
     await page.route(
-      '**/api/pull-requests/dependabot-action',
+      '**/api/v1/pull-requests/dependabot-action',
       (route: Route) => {
         posted = true;
         return route.fulfill({ status: 204 });

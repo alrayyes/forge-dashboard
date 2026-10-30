@@ -24,8 +24,10 @@ const ISSUES = [1, 2].map((number) => ({
 }));
 
 async function stub(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -42,7 +44,7 @@ async function stub(page: Page) {
   );
 }
 
-const ENDPOINT = '/api/settings/filter-state';
+const ENDPOINT = '/api/v1/settings/filter-state';
 const title = (page: Page) => page.locator('input[data-col="title"]');
 const serverCopy = async (page: Page) =>
   JSON.stringify(await (await page.request.get(ENDPOINT)).json());

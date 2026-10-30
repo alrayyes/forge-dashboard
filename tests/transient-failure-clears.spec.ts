@@ -41,8 +41,10 @@ const snapshot = () =>
 // Counts the forced refreshes, which is how a row is read again.
 async function setup(page: Page) {
   const refreshes = { count: 0 };
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard/refresh', (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard/refresh', (route: Route) => {
     refreshes.count++;
     return route.fulfill({
       status: 200,
@@ -50,7 +52,7 @@ async function setup(page: Page) {
       body: snapshot(),
     });
   });
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -105,7 +107,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     page,
   }) => {
     const refreshes = await setup(page);
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
@@ -129,7 +131,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     page,
   }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
@@ -147,7 +149,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
 
   test('a forge that answered 502 is transient too', async ({ page }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -165,7 +167,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     page,
   }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -190,7 +192,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     page,
   }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
@@ -209,7 +211,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
 
   test('focus inside the line holds the timer too', async ({ page }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
@@ -228,7 +230,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     page,
   }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
@@ -245,7 +247,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     page,
   }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
@@ -258,7 +260,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     const dialog = await openActionsDialog(row(page));
     // The dropped request is read against a fresh snapshot before it is
     // called a failure, so the words come after that answer.
-    const reread = page.waitForResponse('**/api/dashboard/refresh');
+    const reread = page.waitForResponse('**/api/v1/dashboard/refresh');
     await actionsFooter(dialog)
       .getByRole('button', { name: 'Update branch' })
       .click();
@@ -290,7 +292,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     page,
   }) => {
     await setup(page);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');

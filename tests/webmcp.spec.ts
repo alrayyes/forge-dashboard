@@ -28,7 +28,7 @@ declare global {
 // the right tool with the right shape when document.modelContext exists at
 // all, and that calling its execute() callback (standing in for what the
 // browser would do on an agent's behalf) does the right thing -- fetches
-// real data through the same /api/dashboard endpoint the page's own poll
+// real data through the same /api/v1/dashboard endpoint the page's own poll
 // already uses, not a parallel path.
 async function stubModelContext(page: Page) {
   await page.addInitScript(() => {
@@ -90,7 +90,7 @@ test.describe('WebMCP tools', () => {
     ).toEqual([]);
   });
 
-  test("get_dashboard's execute() fetches real data through the same /api/dashboard endpoint the page's own poll uses", async ({
+  test("get_dashboard's execute() fetches real data through the same /api/v1/dashboard endpoint the page's own poll uses", async ({
     page,
   }) => {
     await stubModelContext(page);
@@ -100,7 +100,7 @@ test.describe('WebMCP tools', () => {
     const [response, result] = await Promise.all([
       page.waitForResponse(
         (res) =>
-          new URL(res.url()).pathname === '/api/dashboard' &&
+          new URL(res.url()).pathname === '/api/v1/dashboard' &&
           res.request().method() === 'GET',
       ),
       page.evaluate(() => {
@@ -125,23 +125,23 @@ test.describe('WebMCP tools', () => {
   const PR = { forge: 'forgejo', fullName: 'acme/api', number: 7 };
   const PR_QUERY = 'forge=forgejo&fullName=acme%2Fapi&number=7';
   const readTools = [
-    { tool: 'get_main_branches', input: {}, path: '/api/main-branches' },
+    { tool: 'get_main_branches', input: {}, path: '/api/v1/main-branches' },
     {
       tool: 'get_check_log',
       input: { forge: 'forgejo', fullName: 'acme/api', jobId: 31 },
-      path: '/api/checks/log',
+      path: '/api/v1/checks/log',
       query: 'forge=forgejo&fullName=acme%2Fapi&jobId=31',
     },
     {
       tool: 'get_repository_advisories',
       input: { forge: 'github', fullName: 'acme/api' },
-      path: '/api/main-branches/advisories',
+      path: '/api/v1/main-branches/advisories',
       query: 'forge=github&fullName=acme%2Fapi',
     },
     {
       tool: 'get_pull_request_details',
       input: PR,
-      path: '/api/pull-requests/details',
+      path: '/api/v1/pull-requests/details',
       query: PR_QUERY,
     },
   ];
@@ -188,7 +188,7 @@ test.describe('WebMCP tools', () => {
       },
     ];
     // The page opens its stream once a forge is configured.
-    await page.route('**/api/dashboard', (route) =>
+    await page.route('**/api/v1/dashboard', (route) =>
       route.fulfill({
         json: {
           generatedAt: new Date().toISOString(),
@@ -216,12 +216,12 @@ test.describe('WebMCP tools', () => {
     expect(feed.asked).toEqual([{ kind: 'pull_request', ...PR }]);
   });
 
-  test('list_queued_actions calls /api/queued-actions and returns the array under queuedActions', async ({
+  test('list_queued_actions calls /api/v1/queued-actions and returns the array under queuedActions', async ({
     page,
   }) => {
     const queue: unknown[] = [];
     let seen = 0;
-    await page.route('**/api/queued-actions', (route) => {
+    await page.route('**/api/v1/queued-actions', (route) => {
       seen++;
 
       return route.fulfill({ json: queue });
@@ -244,7 +244,7 @@ test.describe('WebMCP tools', () => {
     expect(seen).toBe(before + 1);
   });
 
-  test('get_settings calls /api/settings/summary and returns the redacted shape', async ({
+  test('get_settings calls /api/v1/settings/summary and returns the redacted shape', async ({
     page,
   }) => {
     const settings = {
@@ -259,7 +259,7 @@ test.describe('WebMCP tools', () => {
       webhookSecret: 'whk_secret_value_456',
     };
     let seen = 0;
-    await page.route('**/api/settings/summary', (route) => {
+    await page.route('**/api/v1/settings/summary', (route) => {
       seen++;
 
       return route.fulfill({

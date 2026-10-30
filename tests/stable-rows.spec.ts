@@ -111,7 +111,7 @@ async function stubStream(page: Page) {
 }
 
 async function openInitial(page: Page, initial: MockPR[]) {
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -352,7 +352,7 @@ test.describe('stable rows', () => {
   test('a refresh the user asked for lands at once, even with the pointer on the list', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -387,7 +387,7 @@ test.describe('stable rows: a long list', () => {
 
   async function openMany(page: Page, count = 24) {
     const many = Array.from({ length: count }, (_, i) => makePR(i + 1));
-    await page.route('**/api/dashboard', (route: Route) =>
+    await page.route('**/api/v1/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -433,7 +433,7 @@ test.describe('stable rows: a long list', () => {
     page,
   }) => {
     const many = await openMany(page);
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

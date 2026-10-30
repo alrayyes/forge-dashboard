@@ -14,7 +14,7 @@ const REPOS = [
 ];
 
 function mockDashboard(page: Page) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

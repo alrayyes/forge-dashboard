@@ -84,9 +84,9 @@ const LIST = {
 };
 
 async function open(page: Page, answer: (route: Route) => Promise<void>) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches/advisories*', answer);
-  await page.route('**/api/main-branches', (route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/main-branches/advisories*', answer);
+  await page.route('**/api/v1/main-branches', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -230,8 +230,8 @@ test.describe('Branches page advisories dialog', () => {
     await page.keyboard.press('Escape');
 
     let calls = 0;
-    await page.unroute('**/api/main-branches/advisories*');
-    await page.route('**/api/main-branches/advisories*', (route) => {
+    await page.unroute('**/api/v1/main-branches/advisories*');
+    await page.route('**/api/v1/main-branches/advisories*', (route) => {
       calls += 1;
       return calls === 1
         ? json({ error: 'boom' }, 502)(route)

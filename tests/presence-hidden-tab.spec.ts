@@ -26,7 +26,7 @@ test('a tab reports visible, then hidden, then visible again', async ({
 }) => {
   const reports: Report[] = [];
   page.on('request', (req: Request) => {
-    if (req.url().endsWith('/api/presence') && req.method() === 'POST')
+    if (req.url().endsWith('/api/v1/presence') && req.method() === 'POST')
       reports.push(req.postDataJSON() as Report);
   });
 
@@ -48,7 +48,7 @@ test('the nav read the page makes on its own timer is marked as a background rea
   page,
 }) => {
   const read = page.waitForRequest(
-    (req) => new URL(req.url()).pathname === '/api/dashboard',
+    (req) => new URL(req.url()).pathname === '/api/v1/dashboard',
   );
   await page.goto('/settings.html');
   expect((await read).headers()['x-background-read']).toBe('true');

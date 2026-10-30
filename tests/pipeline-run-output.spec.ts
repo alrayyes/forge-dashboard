@@ -54,8 +54,8 @@ async function setup(
   forge = 'github',
 ): Promise<string[]> {
   const asked: string[] = [];
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -68,7 +68,7 @@ async function setup(
     }),
   );
   await serveChecks(page, () => checks);
-  await page.route('**/api/checks/log*', (route: Route) => {
+  await page.route('**/api/v1/checks/log*', (route: Route) => {
     asked.push(route.request().url());
     return route.fulfill({
       status: log.status,
@@ -97,7 +97,7 @@ async function watchLogReads(page: Page): Promise<void> {
     const original = w.fetch.bind(window);
     w.fetch = async (...args: Parameters<typeof fetch>) => {
       const res = await original(...args);
-      if (String(args[0]).includes('/api/checks/log')) {
+      if (String(args[0]).includes('/api/v1/checks/log')) {
         void res
           .clone()
           .text()
@@ -131,7 +131,7 @@ async function holdLog(
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/api/checks/log*', async (route: Route) => {
+  await page.route('**/api/v1/checks/log*', async (route: Route) => {
     await held;
     await route.fulfill({
       status: log.status,
@@ -714,14 +714,14 @@ async function openBranchFailure(
       list(),
     );
   };
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(body()),
     }),
   );
-  await page.route('**/api/checks/log*', async (route: Route) => {
+  await page.route('**/api/v1/checks/log*', async (route: Route) => {
     await log?.(state.jobId);
     await route.fulfill({
       status: 200,

@@ -63,7 +63,7 @@ const BOTS = [
 ];
 
 function mockDashboard(page: Page, pullRequests: unknown[]) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -86,7 +86,7 @@ test.describe('Out of date badge and quick filter', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('the overview badges every behind pull request, not only a bot one', async ({
@@ -186,7 +186,7 @@ test.describe('Out of date badge and quick filter', () => {
     await pill(page, 'Out of date').click();
     await expect
       .poll(async () => {
-        const resp = await page.request.get('/api/settings/filter-state');
+        const resp = await page.request.get('/api/v1/settings/filter-state');
         return (await resp.json())?.pr?.quick;
       })
       .toBe('out-of-date');

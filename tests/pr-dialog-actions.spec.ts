@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 
 // The details dialog's footer carries every action its row offers: the
 // primary one first, Close last, a locked one drawn greyed with its reason as
-// text. Mocks /api/dashboard, the details endpoint and the action endpoints
+// text. Mocks /api/v1/dashboard, the details endpoint and the action endpoints
 // only.
 
 type Entry = {
@@ -88,8 +88,10 @@ async function start(
       }
     };
   });
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  for (const glob of ['**/api/dashboard*', '**/api/dashboard/refresh*'])
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  for (const glob of ['**/api/v1/dashboard*', '**/api/v1/dashboard/refresh*'])
     await page.route(glob, (route: Route) =>
       route.fulfill({
         status: 200,
@@ -97,7 +99,7 @@ async function start(
         body: JSON.stringify(snapshot(state.current, forges)),
       }),
     );
-  await page.route('**/api/pull-requests/details*', (route: Route) => {
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) => {
     state.detailsCalls++;
     return route.fulfill({
       status: 200,
@@ -131,7 +133,7 @@ async function start(
     // second time, whenever the refresh lands more than 30 ms after the
     // first line.
     if (
-      url.pathname === '/api/pull-requests/update-branch' &&
+      url.pathname === '/api/v1/pull-requests/update-branch' &&
       answer.status < 300
     ) {
       const body = route.request().postDataJSON();
@@ -193,53 +195,53 @@ test.describe('the dialog footer offers every action of the row (every type)', (
     {
       action: 'merge',
       button: 'Merge',
-      path: '/api/pull-requests/merge',
+      path: '/api/v1/pull-requests/merge',
       confirm: 'Confirm merge?',
     },
     {
       action: 'close',
       button: 'Close pull request',
-      path: '/api/pull-requests/close',
+      path: '/api/v1/pull-requests/close',
       confirm: 'Confirm close pull request?',
     },
     {
       action: 'update_branch',
       button: 'Update branch',
-      path: '/api/pull-requests/update-branch',
+      path: '/api/v1/pull-requests/update-branch',
       pr: { behind: true },
     },
     {
       action: 'auto_merge',
       button: 'Enable auto-merge',
-      path: '/api/pull-requests/auto-merge',
+      path: '/api/v1/pull-requests/auto-merge',
     },
     {
       action: 'cancel_auto_merge',
       button: 'Cancel auto-merge',
-      path: '/api/pull-requests/auto-merge/cancel',
+      path: '/api/v1/pull-requests/auto-merge/cancel',
     },
     {
       action: 'dependabot_rebase',
       button: 'Dependabot: Rebase',
-      path: '/api/pull-requests/dependabot-action',
+      path: '/api/v1/pull-requests/dependabot-action',
       body: { action: 'rebase' },
     },
     {
       action: 'dependabot_recreate',
       button: 'Dependabot: Recreate',
-      path: '/api/pull-requests/dependabot-action',
+      path: '/api/v1/pull-requests/dependabot-action',
       body: { action: 'recreate' },
       confirm: 'Confirm recreate?',
     },
     {
       action: 'renovate_rebase',
       button: 'Renovate: Rebase',
-      path: '/api/pull-requests/renovate-rebase',
+      path: '/api/v1/pull-requests/renovate-rebase',
     },
     {
       action: 'rerun_checks',
       button: 'Rerun failed checks',
-      path: '/api/pull-requests/rerun-checks',
+      path: '/api/v1/pull-requests/rerun-checks',
       pr: { ci: 'failure' },
     },
   ];
@@ -501,7 +503,7 @@ test.describe('a failure in the dialog', () => {
         }),
       ],
       {
-        '/api/pull-requests/update-branch': {
+        '/api/v1/pull-requests/update-branch': {
           status: 500,
           body: {
             error: 'dashboard: update pull request: POST /repos/x/y: 500',
@@ -929,7 +931,7 @@ test.describe('what is said to a screen reader inside the dialog', () => {
         }),
       ],
       {
-        '/api/pull-requests/update-branch': {
+        '/api/v1/pull-requests/update-branch': {
           status: 500,
           body: { error: 'raw' },
         },
@@ -967,7 +969,7 @@ test.describe('what is said to a screen reader inside the dialog', () => {
     page,
   }) => {
     await start(page, [makePR()], {
-      '/api/pull-requests/hide': { status: 500, body: { error: 'raw' } },
+      '/api/v1/pull-requests/hide': { status: 500, body: { error: 'raw' } },
     });
     const dialog = await openActionsDialog(row(page));
     await listen(page);
@@ -1087,7 +1089,7 @@ for (const scheme of ['light', 'dark'] as const) {
           }),
         ],
         {
-          '/api/pull-requests/update-branch': {
+          '/api/v1/pull-requests/update-branch': {
             status: 500,
             body: { error: 'raw' },
           },

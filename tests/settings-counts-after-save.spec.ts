@@ -35,7 +35,7 @@ async function standIn(page: Page, titles: string[]) {
     ignoredTitleCounts: counts,
   });
   await page.route(
-    (url) => url.pathname === '/api/settings',
+    (url) => url.pathname === '/api/v1/settings',
     (route: Route) => {
       const request = route.request();
       if (request.method() === 'PUT') {

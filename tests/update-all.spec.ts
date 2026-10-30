@@ -47,8 +47,10 @@ async function open(
       repos: [],
       hiddenDrafts: 0,
     });
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard/refresh*', async (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard/refresh*', async (route: Route) => {
     reads.count++;
     if (reads.gate) await reads.gate;
     await route.fulfill({
@@ -57,21 +59,21 @@ async function open(
       body: snapshot(),
     });
   });
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: snapshot(),
     }),
   );
-  await page.route('**/api/dashboard?*', (route: Route) =>
+  await page.route('**/api/v1/dashboard?*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: snapshot(),
     }),
   );
-  await page.route('**/api/pull-requests/update-branch', (route: Route) => {
+  await page.route('**/api/v1/pull-requests/update-branch', (route: Route) => {
     const body = route.request().postDataJSON();
     posts.push(body);
     if (body.number === 3) {
@@ -170,7 +172,7 @@ test('the header counts the run while a request is open', async ({ page }) => {
     answer = resolve;
   });
   // Registered last, so it wins over the open() route for row 2.
-  await page.route('**/api/pull-requests/update-branch', async (route) => {
+  await page.route('**/api/v1/pull-requests/update-branch', async (route) => {
     if (route.request().postDataJSON().number === 2) await open2;
     await route.fulfill({ status: 204 });
   });

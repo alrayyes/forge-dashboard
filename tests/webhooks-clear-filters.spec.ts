@@ -20,8 +20,10 @@ const REPOS = [
 }));
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -42,7 +44,7 @@ const clear = (page: Page) =>
   page.getByRole('button', { name: 'Clear filters' });
 const serverCopy = async (page: Page) => {
   const body = await (
-    await page.request.get('/api/settings/filter-state')
+    await page.request.get('/api/v1/settings/filter-state')
   ).json();
   return (body?.webhooks ?? {}) as Record<string, string>;
 };

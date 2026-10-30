@@ -31,8 +31,10 @@ function pr(number: number, overrides: Record<string, unknown> = {}) {
 }
 
 async function open(page: Page, path: string, pullRequests: unknown[]) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -140,7 +142,7 @@ test.describe('forge buttons on Insights (#1427)', () => {
     // The saved pick has to reach the server before the page reloads.
     const saved = page.waitForResponse(
       (r) =>
-        r.url().includes('/api/settings/filter-state') &&
+        r.url().includes('/api/v1/settings/filter-state') &&
         r.request().method() !== 'GET',
     );
     await forgeLabel(page, 'forgejo').click();
@@ -148,8 +150,8 @@ test.describe('forge buttons on Insights (#1427)', () => {
       page.locator('.filter-bar input[value="forgejo"]'),
     ).toBeChecked();
     await saved;
-    await page.unroute('**/api/dashboard*');
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.unroute('**/api/v1/dashboard*');
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

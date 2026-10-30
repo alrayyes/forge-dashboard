@@ -3,7 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // The Branches nav pill and the Main branches page chips are one tally. The
-// page reads /api/main-branches on its own timer and the pill reads the
+// page reads /api/v1/main-branches on its own timer and the pill reads the
 // dashboard snapshot on another, so a default branch whose run had only just
 // failed (a job red, the pipeline still going a moment before) showed Failed on
 // the page while the pill still counted it as running.
@@ -55,8 +55,10 @@ const OLDER_NAV = {
 };
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -78,7 +80,7 @@ async function open(page: Page) {
       }),
     }),
   );
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

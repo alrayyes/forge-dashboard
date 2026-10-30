@@ -30,7 +30,7 @@ const subjectOf = (number: number) => ({
 });
 
 async function serveBoard(page: Page, count: number) {
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -88,7 +88,7 @@ test.describe('pull request rows follow their jobs', () => {
     const feed = await serveChecks(page, () => PASSED);
     // Tall enough that every row is in view, so the cap is what limits them.
     await page.setViewportSize({ width: 1280, height: 4000 });
-    await page.route('**/api/dashboard', (route: Route) =>
+    await page.route('**/api/v1/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -300,7 +300,7 @@ test.describe('pull request rows follow their jobs', () => {
     page,
   }) => {
     const feed = await serveChecks(page, () => PASSED);
-    await page.route('**/api/dashboard', (route: Route) =>
+    await page.route('**/api/v1/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

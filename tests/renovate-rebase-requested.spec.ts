@@ -72,9 +72,9 @@ async function serve(
         issues: [],
       }),
     });
-  await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-  await page.route('**/api/dashboard*', answer);
-  await page.route('**/api/dashboard/refresh*', answer);
+  await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+  await page.route('**/api/v1/dashboard*', answer);
+  await page.route('**/api/v1/dashboard/refresh*', answer);
 }
 
 const rowOf = (page: Page) => page.locator('#pr-rows .row').first();
@@ -128,7 +128,7 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     let posted: unknown = null;
     const state: State = { rebase: CANCEL };
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       (route: Route) => {
         posted = route.request().postDataJSON();
         // The box is clear, so the next snapshot offers the request again.
@@ -162,13 +162,13 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
   }) => {
     let cancelled = false;
     await serve(page, { rebase: CANCEL, extra: { botRequest: BOT_REQUEST } });
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
       cancelled
         ? route.fulfill({ status: 500, body: 'down' })
         : route.fallback(),
     );
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       (route: Route) => {
         cancelled = true;
         return route.fulfill({ status: 204 });
@@ -188,13 +188,13 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
   }) => {
     let cancelled = false;
     await serve(page, { rebase: CANCEL, extra: { botRequest: BOT_REQUEST } });
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
       cancelled
         ? route.fulfill({ status: 500, body: 'down' })
         : route.fallback(),
     );
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       (route: Route) => {
         cancelled = true;
         return route.fulfill({ status: 204 });
@@ -220,7 +220,7 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
       extra: { botRequest: BOT_REQUEST },
     });
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       (route: Route) => route.fulfill({ status: 204 }),
     );
     const row = await openRow(page);
@@ -243,11 +243,11 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     };
     let down = false;
     await serve(page, state);
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
       down ? route.fulfill({ status: 500, body: 'down' }) : route.fallback(),
     );
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       (route: Route) => {
         down = true;
         return route.fulfill({ status: 204 });
@@ -280,7 +280,7 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
 
   test('a refused cancel says why and keeps the cancel', async ({ page }) => {
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       (route: Route) =>
         route.fulfill({
           status: 409,
@@ -367,10 +367,13 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     page,
   }) => {
     let posted: unknown = null;
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) => {
-      posted = route.request().postDataJSON();
-      return route.fulfill({ status: 204 });
-    });
+    await page.route(
+      '**/api/v1/pull-requests/renovate-rebase',
+      (route: Route) => {
+        posted = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      },
+    );
     await serve(page, { rebase: REQUEST });
     const dialog = await open(page);
 
@@ -391,7 +394,7 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     page,
   }) => {
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       (route: Route) =>
         route.fulfill({
           status: 403,
@@ -447,8 +450,9 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
         }
       };
     });
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
-      route.fulfill({ status: 204 }),
+    await page.route(
+      '**/api/v1/pull-requests/renovate-rebase',
+      (route: Route) => route.fulfill({ status: 204 }),
     );
     // Merge is the primary action of a behind, mergeable pull request, so the
     // rebase sits beside it on the row.
@@ -462,7 +466,7 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
       extra: { behind: true, allowedActions: withMerge(REQUEST) },
     };
     await serve(page, state);
-    await page.route('**/api/dashboard/stream*', (r: Route) => r.continue());
+    await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.continue());
     const row = await openRow(page);
 
     await row.getByRole('button', { name: REQUEST_NAME }).focus();
@@ -514,7 +518,7 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
       },
     };
     await page.route(
-      '**/api/pull-requests/renovate-rebase/cancel',
+      '**/api/v1/pull-requests/renovate-rebase/cancel',
       async (route: Route) => {
         await new Promise((resolve) => setTimeout(resolve, 300));
         state.rebase = REQUEST;
