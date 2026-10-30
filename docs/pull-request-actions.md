@@ -14,7 +14,7 @@ empty pull request has Close. When being behind the base branch is what holds
 Merge back, Update branch is primary, or the Renovate or Dependabot rebase for a
 bot pull request. A behind bot pull request has its rebase as primary whatever
 else holds Merge back (checks running or failing, auto-merge armed), so a stale
-bot branch can be fixed from the row. A conflict, a draft or a stacked pull
+bot branch can be fixed from the row. A conflict, a draft, or a stacked pull
 request never qualifies, and neither does one whose checks are held for workflow
 approval, which a rebase can't release. Update branch is offered while checks run
 too, but never as the primary action, since the reason Merge is waiting is the status
@@ -37,7 +37,7 @@ draws its rebase beside it, or the cancel while a Renovate rebase is requested.
 A pull request that is behind the base branch is the one case where
 a locked Merge is not the row's button: the row draws no button of its own,
 because the cure (Update branch, or the bot's rebase) sits inside the status
-block above, and the greyed Merge is in the pop-up. A behind bot pull
+block over it, and the greyed Merge is in the pop-up. A behind bot pull
 request whose Merge is held back by something else too (checks running, say)
 draws its rebase on the row. Every other action is in the pop-up's footer, one
 click away, and there is no "More actions" menu.
@@ -66,12 +66,12 @@ pull request, whose branch is already on the target, offers `close` and no
 `merge` or `auto_merge`, since nothing can unlock Merge; its `status` says there
 is nothing to merge.
 
-The row shows `status` in one place, a block with an icon and words above its
+The row shows `status` in one place: a block with an icon and words over its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
 When the status is "Behind the base branch", it also carries `action`: the
-action that clears it, Update branch or the Dependabot or Renovate rebase.
+action that clears it (Update branch or the Dependabot or Renovate rebase).
 It is the same action the server marks `primary`. The page draws that button
 inside the row's status block and leaves out the row's own copy, so the
 warning and its cure are one control. The pop-up's footer still lists every
@@ -151,7 +151,7 @@ and Cancel, and the step ends on Cancel, a click anywhere else (which still does
 what it would have done), Escape, or after 8 seconds, shown by a thin line that
 runs down and waits while the pointer or keyboard focus is in the pair. A line
 under the buttons reminds you that Escape or a click elsewhere cancels. Only one
-Merge or Close is armed at a time, and a double-click on Merge arms it without
+Merge or Close is armed at a time, and a double-click in Merge arms it without
 confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
 reason, which the row and a toast show: already merged or closed (the row
@@ -185,13 +185,13 @@ until you dismiss the failure line, and a rate-limit lock clears on the next
 refresh.
 A Close from the pop-up doesn't shut it. The pop-up stays on the pull request,
 the header says "Closed", and the footer offers "Reopen pull request" with focus
-on it, so a slip is one press from undone. There is no timer: Reopen stays until
+on it, so a slip is one press from undone. There is no timer; Reopen stays until
 you close the pop-up, and a screen reader hears "Closed. Reopen it if that was a
 mistake." once. The confirm step before Close stays, because a closed pull
 request can leave a branch behind that a reopen can't bring back. Reopen puts
 the pull request back on the board with a refresh and returns the pop-up to its
 normal footer. Closing the pop-up without reopening leaves it off the board, as
-before. The dashboard can't know in advance whether the forge will reopen a pull
+before. The dashboard can't know in advance whether the forge reopens a pull
 request, so it asks and reads the refusal: one that was merged says "It was
 merged in the meantime, so it can't be reopened.", and one the forge won't
 reopen, usually because its branch was deleted or rewritten, says so in words
@@ -251,7 +251,7 @@ A row names its forge kind, not the host. With several hosts of one kind,
 the controls are held back only when every one of them is unreachable or out
 of budget, and the Dependabot commands only when every one of them can't
 send them. With one host down and another healthy the controls still draw,
-and a click on a row from the down host fails with the forge's own answer. The
+and a click in a row from the down host fails with the forge's own answer. The
 queue button is not offered while any host of the kind is unreachable.
 
 A forge that can't be reached gets the same treatment. Its controls are not
@@ -299,7 +299,7 @@ stays in Activity, and an error toast waits for you as before. A 429 on a click
 the snapshot hadn't foreseen still greys that one action out with its reason
 until the next snapshot. The header shows each forge's remaining budget and
 reset time as text, one line per budget and labelled ("GH GraphQL", "GH REST"),
-since GitHub keeps the two apart. A remaining count above its limit shows how
+since GitHub keeps the two apart. A remaining count over its limit shows how
 many are left and no ratio. Which locks offer Retry follows the refusal's `code`
 (`rate_limited` and `permission` don't), not the words in its message. The
 banner at the top of the page follows how much of each budget is left (see
@@ -316,7 +316,7 @@ once you cancel), and the dashboard's `queuedActions` list holds the items and,
 once they ran, their outcomes for 24 hours.
 
 It only works while the forge really is limited (a spent budget whose reset is
-still ahead), for a pull request that is on your board, behind its base branch
+still ahead), for a pull request that is on your board, behind its base branch,
 and offering that action. At the reset, plus a 30-second pad, the server reads
 the board fresh and looks at the pull request again before it does anything. It
 runs the action only if it still applies. Otherwise it records why it did
@@ -361,7 +361,7 @@ commit message can't become the subject and the changelog entry.
 Available whenever the pull request isn't a genuine conflict — unlike
 Merge, a pending or not-yet-required check doesn't hide it, since
 arming auto-merge ahead of CI finishing is the whole point. It only
-shows when GitHub itself will accept the request (`viewerCanEnableAutoMerge`):
+shows when GitHub itself accepts the request (`viewerCanEnableAutoMerge`):
 a stacked pull request whose base branch has no protection rule has
 nothing to wait for, so GitHub refuses it and the action stays hidden.
 When GitHub's answer isn't known, the action shows as usual.
@@ -417,7 +417,7 @@ auto-merge" card in Settings, which explains it in plain words.
 Merge, close, auto-merge, Update branch, and the Dependabot and Renovate actions
 all report on the row you acted on, not in a banner at the top of the page. A
 wait shows as one chip in the row's action area (below), and a failure gets a
-status line under the actions: "Failed" with the reason, a Retry button and a
+status line under the actions: "Failed" with the reason, a Retry button, and a
 Dismiss button. Each pull request in flight has its own. A failure says one
 plain sentence: the server's own reason when it gave one, or "The forge refused
 this action and gave no reason." The raw error text stays in the server log, and
@@ -477,7 +477,7 @@ to merge." for ten minutes. A pull request that is not empty, or not armed, is
 never touched. When a request ends well the chip reads `Settled`
 for four seconds and goes. A wait with no change for two minutes reads `Still
 waiting` with `Check again`, which reads the row from the server now. Each
-change is announced once through the polite live region, the ticking age and the
+change is announced once through the polite live region, the ticking age, and the
 refresh countdown are kept out of it, and nothing is announced when the chip
 clears. With reduced motion on, the spinner is a still icon. Icon and words
 carry every state, not colour. On a phone the chip fills the card's width
@@ -578,8 +578,9 @@ button for the other one. Recreating over a pending rebase would throw its work
 away, and rebasing during a pending Recreate is pointless since recreating
 rebuilds the whole pull request. Dependabot has no command to withdraw a
 request, so Recreate stays held back for the whole wait, on purpose, not only
-for a few seconds after the click. The command you just sent keeps its disabled
-`requested` button until the server lists the request, so the row never goes
+for a few seconds after the click. The command you just sent keeps its
+greyed-out `requested` button until the server lists the request, so the row
+never goes
 blank. If another tab already sent the same command, the server answers 409
 with the `already_requested` code and the page shows the command as requested,
 not as a failure. Both commands come back once the bot has acted or the request
@@ -629,7 +630,7 @@ posting comments Dependabot would only refuse.
 
 A repo with a behind pull request can also be brought up to date without a
 click at all, by enabling auto-update-branch for it in Settings. The Update branch
-button then stays off that repo's rows, except to flag a conflict and on a
+button then stays off that repo's rows, except to flag a conflict, and on a
 release-please pull request (the pass skips those). The "behind" reason on Merge
 says whether the app or you update the branch. For a
 Dependabot pull request specifically, that background pass drives the same `@dependabot
@@ -668,7 +669,7 @@ the slot.
 A repo can also rebase only its bot pull requests. Switch on rebase bots for
 it on the Webhooks page, beside Auto-update, and the background pass sends a
 behind Dependabot or Renovate pull request its own rebase, the same
-`@dependabot rebase` comment or Renovate rebase label as above, never a generic
+`@dependabot rebase` comment or Renovate rebase label as before, never a generic
 branch update. Human, draft and release-please pull requests are left alone.
 With both switches on, the rebase-bots switch decides a behind bot pull
 request. With only Auto-update on, nothing changes. A choice made on a single
@@ -807,7 +808,7 @@ failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
 to three extra requests per failed job (at most five jobs), made only when the
 panel opens. A check that isn't an Actions job, or a log the token can't read
-or that has expired, shows without them and keeps its link.
+or that has expired, shows without them, and keeps its link.
 
 On Forgejo, a failed job carries the same kind of excerpt, but no steps and no
 timing, since its API doesn't serve them. The checks list reads no log, so it
@@ -842,14 +843,14 @@ records that as an error rather than as a pruned log, so the gap stays visible
 there. The API stats page counts requests only and doesn't show outcomes.
 
 A pull request whose CI is failing also offers `Rerun failed checks` at the top
-of that panel, on GitHub and on Forgejo. It reruns only the failed jobs of each
+of that panel on both GitHub and Forgejo. It reruns only the failed jobs of each
 workflow run on the head commit, and a job that passed isn't started again. On
 Forgejo 17 and later that takes one extra read per failed run to list its jobs,
 then one request per failed job. Forgejo restarts the jobs that need a rerun
 job along with it, so a job that passed but waits on a failed one goes again
 too. It answers when the forge has queued them: the panel says "Rerun queued"
 and the new results show after the next refresh. The button stays pending and
-reads "Rerun queued", in the panel and in
+reads "Rerun queued" in the panel and in
 the pull request's detail view, until the pull request stops reading failed, is
 updated, or ten minutes pass, so the same rerun can't be queued twice. A
 refused rerun isn't held and leaves its failure line in the detail view. It
@@ -866,8 +867,9 @@ failed job to rerun" (`POST /api/v1/pull-requests/rerun-checks`, listed as
 
 Forgejo added the rerun routes in version 17. Versions 7 to 16 have none,
 so on those the dashboard reads the instance's version in the background on its
-first refresh and draws no button: the button in the details dialog is disabled
-and the panel prints "This Forgejo is older than version 17 and has no way to
+first refresh and draws no button: the button in the details dialog is greyed
+out and the panel prints "This Forgejo is older than version 17 and has no way
+to
 rerun checks. Rerun them on the forge." No rerun request is sent to the forge,
 and the version is checked before the pull request or its runs are looked up,
 so a missing route is the reason you see and not "no failed job to rerun". An
@@ -878,7 +880,7 @@ half a minute, the button is drawn and the forge decides. A version below 7 is
 left to the forge too, because a Gitea numbers itself that way. Where the forge
 decides, a 404 can mean the route doesn't exist there or that the run is gone
 or the token can't see the repository, so the panel names neither a forge nor
-a version: "The forge couldn't find that run, job or pull request. It may not
+a version: "The forge couldn't find that run, job, or pull request. It may not
 support rerunning checks from here, or the token can't see this repository." On
 a default branch, where no pull request is looked up, the sentence reads "run or
 job". A block that has gone stale is lifted if the read fails, not kept.
@@ -908,11 +910,11 @@ because nothing restarted.
 Forgejo. The block shows in the forge's health as `rerunChecksBlocked`, and a
 click answers 409 with the same sentence. The block is per forge kind: with a
 Forgejo 16 and a Forgejo 17 configured side by side, the button stays until
-both lack the route, and the 409 answers a click on the older one.
+both lack the route, and the 409 answers a click in the older one.
 
 While a pull request has a check running or waiting, even beside one that
 already failed, the same panel offers `Cancel run: <workflow>` for each workflow
-run that still has a queued or running job, on GitHub and on Forgejo. With
+run that still has a queued or running job on both GitHub and Forgejo. With
 more than one such run, each button names its run: the workflow, plus the
 forge's run number (`Cancel run: ci #614`) when two runs share a workflow or a
 run has no name. A lone run whose forge gave no name reads plain `Cancel run`.
@@ -965,7 +967,8 @@ status checks and its rulesets are both read, and Forgejo's
 permission than listing checks (admin on GitHub's classic rules and on
 Forgejo), so with a token that can't, or for a check the dashboard can't
 match to a protection entry, the check lands under `Status unknown`
-rather than being guessed advisory (the pill has its own fallback, above). A
+rather than being guessed advisory (the pill has its own fallback, described
+earlier). A
 Forgejo Actions job is only marked required when a pattern matches its job
 name or its workflow-file context; it is never marked advisory. If nothing is
 known for any check, the panel stays the flat list.
@@ -993,8 +996,8 @@ request the forge refuses shows its reason on its own row, with that row's
 retry, and the others carry on.
 
 A pull request that is empty, already has a rebase requested, or has no rebase
-to offer isn't counted. When no pull request can be asked, the button is
-disabled. A Dependabot pull request on a GitHub App with no saved personal
+to offer isn't counted. When no pull request can be asked, the button is greyed
+out. A Dependabot pull request on a GitHub App with no saved personal
 token is left out too, and the line gives the reason.
 
 The button and its line show only while a listed pull request is out of date.
