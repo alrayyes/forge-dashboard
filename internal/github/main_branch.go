@@ -11,13 +11,36 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
+// checkRunFields is what the query reads of one check run, in the default
+// branch's rollup and in the follow-up read of a newer run's checks.
+const checkRunFields = `
+                      databaseId
+                      name
+                      status
+                      conclusion
+                      startedAt
+                      completedAt
+                      detailsUrl
+                      checkSuite {
+                        status
+                        conclusion
+                        workflowRun {
+                          databaseId
+                          runAttempt
+                          runNumber
+                          workflow { name }
+                        }
+                      }`
+
 // defaultBranchSelection is the part of a repository query that reads the CI
 // of the default branch's newest commit (#1224). It rides the query every
 // refresh already makes for a repo's pull requests, so it costs no request of
-// its own, and a repo that is empty answers null. It reads the first 50 checks
-// of the commit for their names and times; the rollup's own state and counts
-// cover the rest, so a commit with more still gets the right status and only
-// the list of failing names can come up short.
+// its own, and a repo that is empty answers null. It reads the first 100 checks
+// of the commit for their names and times, and the newest 50 check suites for
+// the workflow run each belongs to. GitHub's rollup can lack the checks of a
+// newer run (a scheduled or dispatched one) and keeps a failed older one in its
+// state, so withNewestRuns reads the missing runs' checks and rebuilds the
+// rollup from the newest run of each workflow (newest_runs.go).
 //
 // It also reads the repository's latestRelease, a single node that GitHub
 // answers without drafts and pre-releases, so a row can link to it.
@@ -41,31 +64,27 @@ const defaultBranchSelection = `
                   login
                 }
               }
+              checkSuites(last: 50) {
+                nodes {
+                  id
+                  status
+                  conclusion
+                  workflowRun {
+                    databaseId
+                    runAttempt
+                    runNumber
+                    workflow { name }
+                  }
+                }
+              }
               statusCheckRollup {
                 state
-                contexts(first: 50) {
+                contexts(first: 100) {
                   checkRunCountsByState { state count }
                   statusContextCountsByState { state count }
                   nodes {
                     __typename
-                    ... on CheckRun {
-                      databaseId
-                      name
-                      status
-                      conclusion
-                      startedAt
-                      completedAt
-                      detailsUrl
-                      checkSuite {
-                        status
-                        conclusion
-                        workflowRun {
-                          databaseId
-                          runAttempt
-                          runNumber
-                          workflow { name }
-                        }
-                      }
+                    ... on CheckRun {` + checkRunFields + `
                     }
                     ... on StatusContext {
                       context
@@ -118,6 +137,11 @@ type graphqlCommit struct {
 		} `json:"user"`
 	} `json:"author"`
 	StatusCheckRollup *statusCheckRollup `json:"statusCheckRollup"`
+	// CheckSuites are the newest suites of the commit, one per workflow run,
+	// read so withNewestRuns can find a run the rollup leaves out.
+	CheckSuites *struct {
+		Nodes []branchSuite `json:"nodes"`
+	} `json:"checkSuites"`
 }
 
 // branchContext is one check run or one legacy commit status.
@@ -584,6 +608,7 @@ func (c *Client) FetchMainBranch(ctx context.Context, owner, name, fullName stri
 	repo := graphqlRepo{Name: name, DefaultBranchRef: resp.Repository.DefaultBranchRef}
 	repo.Owner.Login = owner
 	c.withCheckedCommits(ctx, []graphqlRepo{repo})
+	c.withNewestRuns(ctx, []graphqlRepo{repo})
 
 	row := mainBranchFrom(fullName, resp.Repository.URL, resp.Repository.LatestRelease, repo.DefaultBranchRef)
 	row.Advisories = c.advisoriesFor(ctx, owner, name, resp.Repository.URL)

@@ -2878,6 +2878,7 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 		result.FailedRepos = plan.missingFrom(fetched)
 	}
 	c.withCheckedCommits(ctx, fetched)
+	c.withNewestRuns(ctx, fetched)
 	advisories := <-advisoriesDone
 	for _, r := range tracked {
 		fullName := r.Owner.Login + "/" + r.Name
