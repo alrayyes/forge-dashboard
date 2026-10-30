@@ -32,11 +32,11 @@ One Go binary serves all of it. `web/` builds to static files that
 - **The aggregator** refreshes the instance's one snapshot in the
   background, so a request reads the last good snapshot and never blocks on a
   forge. A webhook from a forge refreshes one repo early.
-- **The API** is `api/openapi.yaml`, written first and reviewed as the design.
+- **The API** is `api/openapi.yaml`, written first, and reviewed as the design.
   Go tests validate the handlers against it, and the client libraries are
   generated from it.
 - **Auth and settings** (`internal/auth`, `internal/settings`) keep the one
-  user, its passkeys and its encrypted credentials in SQLite. A credential
+  user, its passkeys, and its encrypted credentials in SQLite. A credential
   never reaches the browser.
 
 ## Where logic lives
@@ -105,7 +105,7 @@ the page's fold and the dialog already use the newest run.
 One more server-only fact never reaches the wire: on GitHub, whether held
 runs are the only reason CI reads as failing. The menu pill count reads it.
 
-A run that was only cancelled reads as cancelled in the fold, on a branch and
+A run that was only cancelled reads as cancelled in the fold, on a branch as
 on a pull request. The server's own pull request verdict differs (GitHub's
 combined result says failure, Forgejo's says none or success), which is why
 the pill of a watched row can differ from the field until the next refresh.
@@ -211,7 +211,7 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   session get `private, no-cache`. Text responses (HTML, JS, CSS, JSON, SVG,
   plain text) over 1 KiB are sent compressed with brotli or gzip when the client
   accepts it, with `Vary: Accept-Encoding`. Compression covers the static
-  files only, not the API and not its event streams. A reverse proxy in front
+  files only, not the API, and not its event streams. A reverse proxy in front
   needs no cache or compression rules of its own. A path no page matches
   answers the app's own `404.html` with a real 404, a handler that panics
   answers `500.html` with a 500 (the stack goes to the log, never the page),
@@ -285,7 +285,7 @@ answers the log itself). It lives in `logBlobClient` and `logTransport` in
 - With a proxy configured, the proxy does the resolving. A request whose host
   is exactly `localhost` or a literal non-public address is refused before it
   is sent. The environment's proxy settings skip localhost, local addresses and
-  `NO_PROXY` hosts, so those take the direct path above.
+  `NO_PROXY` hosts, so those take the direct path described earlier.
 - The proxy's own host and port is dialled without the address check, and so
   is any later direct dial to that same host and port from the same client. A
   proxy URL without a port isn't recognised, so a proxy on a private network

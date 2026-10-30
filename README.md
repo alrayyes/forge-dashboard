@@ -41,14 +41,14 @@ see [Configuration](docs/configuration.md).
 | **Pull request details**. A pull request's description, comments, and thumbs reactions.                                                                                                                                                                                  | ![Pull request details, light mode](docs/screenshots/pull-request-dialog-light.png) | ![Pull request details, dark mode](docs/screenshots/pull-request-dialog-dark.png) |
 | **Phone sheet**. The same details on a 360px screen.                                                                                                                                                                                                                     | ![Phone sheet, light mode](docs/screenshots/pull-request-sheet-light.png)           | ![Phone sheet, dark mode](docs/screenshots/pull-request-sheet-dark.png)           |
 | **Pipeline checks**. A pull request's checks with state, time, failure excerpt, a Copy log button for the whole log of a failed or timed-out check, each run's output with a Copy button, and Rerun failed checks or Cancel run behind a confirm step, from its CI pill. | ![Pipeline checks, light mode](docs/screenshots/pipeline-checks-light.png)          | ![Pipeline checks, dark mode](docs/screenshots/pipeline-checks-dark.png)          |
-| **Issues**. Open issues across both forges. Close one from its dialog, with or without a comment.                                                                                                                                                                        | ![Issues, light mode](docs/screenshots/issues-light.png)                            | ![Issues, dark mode](docs/screenshots/issues-dark.png)                            |
+| **Issues**. Open issues across both forges. Close one from its dialog, commenting if you like.                                                                                                                                                                           | ![Issues, light mode](docs/screenshots/issues-light.png)                            | ![Issues, dark mode](docs/screenshots/issues-dark.png)                            |
 | **Releases**. Release pull requests waiting to ship.                                                                                                                                                                                                                     | ![Releases, light mode](docs/screenshots/releases-light.png)                        | ![Releases, dark mode](docs/screenshots/releases-dark.png)                        |
 | **Release details**. The release notes a release pull request publishes.                                                                                                                                                                                                 | ![Release details, light mode](docs/screenshots/release-dialog-light.png)           | ![Release details, dark mode](docs/screenshots/release-dialog-dark.png)           |
 | **Bots**. Dependabot and Renovate pull requests, with a rebase-all action.                                                                                                                                                                                               | ![Bots, light mode](docs/screenshots/bots-light.png)                                | ![Bots, dark mode](docs/screenshots/bots-dark.png)                                |
 | **Bot details**. A bot pull request, its generated text collapsed.                                                                                                                                                                                                       | ![Bot details, light mode](docs/screenshots/bot-dialog-light.png)                   | ![Bot details, dark mode](docs/screenshots/bot-dialog-dark.png)                   |
 | **Insights**. Charts of CI state and the busiest repos.                                                                                                                                                                                                                  | ![Insights, light mode](docs/screenshots/insights-light.png)                        | ![Insights, dark mode](docs/screenshots/insights-dark.png)                        |
 | **Webhooks**. Which tracked repos have a confirmed webhook, and a way to add one.                                                                                                                                                                                        | ![Webhooks, light mode](docs/screenshots/webhooks-light.png)                        | ![Webhooks, dark mode](docs/screenshots/webhooks-dark.png)                        |
-| **Settings**. Four groups, one at a time: display, connections, behaviour, integrations and security.                                                                                                                                                                    | ![Settings, light mode](docs/screenshots/settings-light.png)                        | ![Settings, dark mode](docs/screenshots/settings-dark.png)                        |
+| **Settings**. Four groups, one at a time: display, connections, behaviour, integrations, and security.                                                                                                                                                                   | ![Settings, light mode](docs/screenshots/settings-light.png)                        | ![Settings, dark mode](docs/screenshots/settings-dark.png)                        |
 | **Login**. Passkey sign-in.                                                                                                                                                                                                                                              | ![Login, light mode](docs/screenshots/login-light.png)                              | ![Login, dark mode](docs/screenshots/login-dark.png)                              |
 
 Fixture data, not a real account's actual repositories. The release
@@ -81,7 +81,7 @@ stale.
   grant. Nothing forge-related needs setting before
   the process starts.
 - **Optional: advisories.** Read-only access is enough. A GitHub credential
-  reads Dependabot alerts with **Dependabot alerts: Read-only** (or the classic
+  reads Dependabot alerts with **`Dependabot alerts: Read-only`** (or the classic
   `security_events` scope), and so does a GitHub App with the same permission.
   Alerts must also be switched on for the repo. Without access the page shows
   advisories as unknown, not zero; a rate limit or a GitHub error does the same.
@@ -104,13 +104,14 @@ That is off by default. Set `OSV_ADVISORIES=on` to turn it on.
 When it is on, **the package names and versions in each Forgejo repo's lock
 files, in the root or any subdirectory (`package-lock.json`, `bun.lock`,
 `composer.lock`, `poetry.lock`, `uv.lock`, `Cargo.lock` and `go.mod`) are sent
-to `api.osv.dev`**, private repos included. Only some things are kept out: Go
+to `api.osv.dev`**, private repos included. Only some things are kept out,
+namely Go
 modules on the Forgejo host itself, and packages that a lock file shows don't
 come from the public registry of their ecosystem (Composer's doesn't say, so its
 packages are all sent). A private Go module on another host, or a private scoped
 package on the public npm registry, is still sent by name, which is why this is
 off by default, so think before enabling it on a server that holds private
-repos. Nothing else is sent: no repo name, URL or token. The dashboard logs a
+repos. Nothing else is sent: no repo name, URL, or token. The dashboard logs a
 line at startup when it is on, and a warning when the value is neither `on` nor
 `off`, which leaves it off. While it is off, Forgejo rows say the repo was not
 checked. GitHub repos are not affected: they read Dependabot alerts from GitHub.
@@ -129,7 +130,7 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
   rows wait before they land, the first load after a restart, the
   navigation counts, and how filters are offered, remembered and folded on a
   phone.
-- [API](docs/api.md): the HTTP endpoints, the OpenAPI contract and the MCP
+- [API](docs/api.md): the HTTP endpoints, the OpenAPI contract, and the MCP
   endpoint.
 - [Rate limits](docs/rate-limits.md): why a forge is rate limited, what the
   dashboard does meanwhile, and what to change.
@@ -146,7 +147,7 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
   dashboard runs on its own.
 - [Error pages](docs/error-pages.md): the app's own 404 and 500 pages and what they
   show.
-- [Reports](docs/reports.md): the test, coverage and Lighthouse reports published
+- [Reports](docs/reports.md): the test, coverage, and Lighthouse reports published
   after every green push to `main`.
 - [Architecture](ARCHITECTURE.md#design): the design choices behind the app, from
   passkey login to the MCP endpoint and the single binary.
