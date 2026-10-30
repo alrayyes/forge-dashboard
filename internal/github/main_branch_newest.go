@@ -50,6 +50,7 @@ const newestRunsQuery = `query($ids: [ID!]!) {
     ... on CheckSuite {
       id
       checkRuns(first: 100) {
+        pageInfo { hasNextPage }
         nodes {
           __typename
           databaseId
@@ -101,7 +102,7 @@ func (c *Client) withNewestRuns(ctx context.Context, tracked []graphqlRepo) {
 		}
 	}
 
-	read := map[string][]branchContext{}
+	read := map[string]suiteChecks{}
 	if len(ids) > 0 {
 		read = c.readSuiteChecks(ctx, ids)
 	}
@@ -111,10 +112,12 @@ func (c *Client) withNewestRuns(ctx context.Context, tracked []graphqlRepo) {
 			continue
 		}
 		var extra []branchContext
+		more := false
 		for _, s := range wanted[&tracked[i]] {
-			extra = append(extra, read[s.ID]...)
+			extra = append(extra, read[s.ID].nodes...)
+			more = more || read[s.ID].more
 		}
-		ref.Target.StatusCheckRollup.keepNewestRuns(extra)
+		ref.Target.StatusCheckRollup.keepNewestRuns(extra, more)
 	}
 }
 
@@ -160,8 +163,8 @@ func (r *statusCheckRollup) heldRuns() map[int64]bool {
 	return held
 }
 
-// cutShort reports that the commit has more checks than the rollup listed.
-func (r *statusCheckRollup) cutShort() bool {
+// total is how many checks the commit has, as the rollup counts them.
+func (r *statusCheckRollup) total() int {
 	total := 0
 	for _, c := range r.Contexts.CheckRunCountsByState {
 		total += c.Count
@@ -170,29 +173,50 @@ func (r *statusCheckRollup) cutShort() bool {
 		total += c.Count
 	}
 
-	return total > len(r.Contexts.Nodes)
+	return total
 }
 
-// readSuiteChecks is the check runs of each suite id, one request for all. A
-// failed read is logged and answers none.
-func (c *Client) readSuiteChecks(ctx context.Context, ids []string) map[string][]branchContext {
-	var resp struct {
-		Nodes []struct {
-			ID        string `json:"id"`
-			CheckRuns struct {
-				Nodes []branchContext `json:"nodes"`
-			} `json:"checkRuns"`
-		} `json:"nodes"`
-	}
-	if err := c.graphqlDo(ctx, newestRunsQuery, map[string]any{"ids": ids}, &resp); err != nil {
-		slog.Warn("github newest-run lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+// cutShort reports that the commit has more checks than the rollup listed.
+func (r *statusCheckRollup) cutShort() bool {
+	return r.total() > len(r.Contexts.Nodes)
+}
 
-		return nil
-	}
+// suiteChunkSize is how many suites one nodes(ids:) query asks about: GitHub
+// refuses more than 100 ids in one.
+const suiteChunkSize = 100
 
-	out := make(map[string][]branchContext, len(resp.Nodes))
-	for _, n := range resp.Nodes {
-		out[n.ID] = n.CheckRuns.Nodes
+// suiteChecks is the check runs read for one suite, and whether the suite has
+// more than the first 100.
+type suiteChecks struct {
+	nodes []branchContext
+	more  bool
+}
+
+// readSuiteChecks is the check runs of each suite id, suiteChunkSize suites to
+// a request. A failed read is logged and leaves its suites out.
+func (c *Client) readSuiteChecks(ctx context.Context, ids []string) map[string]suiteChecks {
+	out := make(map[string]suiteChecks, len(ids))
+	for start := 0; start < len(ids); start += suiteChunkSize {
+		chunk := ids[start:min(start+suiteChunkSize, len(ids))]
+		var resp struct {
+			Nodes []struct {
+				ID        string `json:"id"`
+				CheckRuns struct {
+					PageInfo struct {
+						HasNextPage bool `json:"hasNextPage"`
+					} `json:"pageInfo"`
+					Nodes []branchContext `json:"nodes"`
+				} `json:"checkRuns"`
+			} `json:"nodes"`
+		}
+		if err := c.graphqlDo(ctx, newestRunsQuery, map[string]any{"ids": chunk}, &resp); err != nil {
+			slog.Warn("github newest-run lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+
+			continue
+		}
+		for _, n := range resp.Nodes {
+			out[n.ID] = suiteChecks{nodes: n.CheckRuns.Nodes, more: n.CheckRuns.PageInfo.HasNextPage}
+		}
 	}
 
 	return out
@@ -200,18 +224,39 @@ func (c *Client) readSuiteChecks(ctx context.Context, ids []string) map[string][
 
 // keepNewestRuns adds extra (the checks of runs the rollup left out) to the
 // rollup's checks, drops those a newer run of the same workflow replaces, and
-// works the state and counts out from what is left. With nothing added or
-// dropped it leaves the rollup as GitHub gave it.
-func (r *statusCheckRollup) keepNewestRuns(extra []branchContext) {
-	nodes := slices.Concat(r.Contexts.Nodes, extra)
+// works the state and counts out from what is left. A check the rollup already
+// lists is not added again. more says a suite has checks past the ones read.
+// With nothing added or dropped it leaves the rollup as GitHub gave it.
+//
+// The counts are rebuilt from the nodes kept, so they would hide a commit with
+// more checks than were read. jobsCut keeps that: set when the rollup counted
+// more checks than the nodes read, replaced runs included, or a suite had more.
+func (r *statusCheckRollup) keepNewestRuns(extra []branchContext, more bool) {
+	total := r.total()
+	listed := map[int64]bool{}
+	for _, n := range r.Contexts.Nodes {
+		if n.DatabaseID != 0 {
+			listed[n.DatabaseID] = true
+		}
+	}
+	fresh := make([]branchContext, 0, len(extra))
+	for _, n := range extra {
+		if n.DatabaseID == 0 || !listed[n.DatabaseID] {
+			listed[n.DatabaseID] = true
+			fresh = append(fresh, n)
+		}
+	}
+
+	nodes := slices.Concat(r.Contexts.Nodes, fresh)
 	checks := make([]dashboard.Check, len(nodes))
 	for i, n := range nodes {
 		checks[i] = n.asCheck()
 	}
 	superseded := dashboard.SupersededRuns(checks)
-	if len(extra) == 0 && !slices.Contains(superseded, true) {
+	if len(fresh) == 0 && !slices.Contains(superseded, true) {
 		return
 	}
+	r.jobsCut = more || total > len(nodes)
 
 	kept := make([]branchContext, 0, len(nodes))
 	for i, n := range nodes {

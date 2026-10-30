@@ -1502,6 +1502,10 @@ type statusCheckRollup struct {
 		// (#1224) asks for them; a pull request's rollup leaves them out.
 		Nodes []branchContext `json:"nodes"`
 	} `json:"contexts"`
+	// jobsCut is set by keepNewestRuns when the commit has more checks than it
+	// could read, so the counts rebuilt from the nodes don't hide it. Not part
+	// of the response.
+	jobsCut bool
 }
 
 // settleFailedRollup applies #722's rule to a FAILURE/ERROR rollup. GitHub

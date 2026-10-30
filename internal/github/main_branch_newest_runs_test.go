@@ -142,3 +142,45 @@ func TestFetchMainBranch_ALaterAttemptOfTheSameRunStillReplacesTheEarlier(t *tes
 
 	assert.Equal(t, dashboard.MainBranchPassed, row.Status)
 }
+
+// A rollup cut short lists part of the newest run; the follow-up read lists the
+// whole run again. Each job counts once, and the row says what it still lacks.
+func TestFetchMainBranch_AJobTheRollupAndTheFollowUpBothListCountsOnce(t *testing.T) {
+	t.Parallel()
+
+	run := workflowRun(2, 1, 6, "ci")
+	suite := suiteOf("COMPLETED", "SUCCESS", run)
+	job := func(id int, name string) map[string]any {
+		return runCheck(id, name, "COMPLETED", "SUCCESS", "2026-10-30T11:42:00Z", "2026-10-30T11:43:00Z", runsURL+"2/job/"+name, suite)
+	}
+	rollup := rollupOf("SUCCESS", map[string]int{"SUCCESS": 5}, job(21, "lint"), job(22, "test"))
+	suites := []map[string]any{suiteNode("S2", "COMPLETED", "SUCCESS", run)}
+	later := map[string][]map[string]any{"S2": {job(21, "lint"), job(22, "test"), job(23, "build")}}
+
+	row := fetchNewest(t, rollup, suites, later)
+
+	require.Len(t, row.Runs, 1)
+	assert.Len(t, row.Runs[0].Checks, 3, "a job is listed once")
+	assert.Equal(t, 3, row.Checks.Passed, "a job is counted once")
+	assert.True(t, row.Runs[0].JobsTruncated, "the commit has two more checks than were read")
+}
+
+// A commit whose newest run was read whole is not cut short.
+func TestFetchMainBranch_ANewestRunReadWholeIsNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	push := workflowRun(1, 1, 5, "ci")
+	dispatched := workflowRun(2, 1, 6, "ci")
+	rollup := rollupOf("FAILURE", map[string]int{"FAILURE": 1},
+		runCheck(12, "reports", "COMPLETED", "FAILURE", "2026-10-26T08:00:00Z", "2026-10-26T08:02:00Z", runsURL+"1/job/12", suiteOf("COMPLETED", "FAILURE", push)),
+	)
+	suites := []map[string]any{suiteNode("S1", "COMPLETED", "FAILURE", push), suiteNode("S2", "COMPLETED", "SUCCESS", dispatched)}
+	later := map[string][]map[string]any{"S2": {
+		runCheck(22, "reports", "COMPLETED", "SUCCESS", "2026-10-30T11:43:00Z", "2026-10-30T11:44:00Z", runsURL+"2/job/22", suiteOf("COMPLETED", "SUCCESS", dispatched)),
+	}}
+
+	row := fetchNewest(t, rollup, suites, later)
+
+	require.Len(t, row.Runs, 1)
+	assert.False(t, row.Runs[0].JobsTruncated)
+}

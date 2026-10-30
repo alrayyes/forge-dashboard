@@ -237,7 +237,7 @@ func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *grap
 
 // branchRuns is the checks the query read, grouped by the workflow run each
 // belongs to, for a page to fold itself. The rollup counts every check of the
-// commit but the query reads only the first 50, so when the counts add up to
+// commit but the query reads only the first 100, so when the counts add up to
 // more, every run says its list is cut short.
 func branchRuns(rollup *statusCheckRollup) []dashboard.MainBranchRun {
 	nodes := rollup.Contexts.Nodes
@@ -247,15 +247,9 @@ func branchRuns(rollup *statusCheckRollup) []dashboard.MainBranchRun {
 	}
 	runs := dashboard.MainBranchRuns(checks)
 
-	total := 0
-	for _, c := range rollup.Contexts.CheckRunCountsByState {
-		total += c.Count
-	}
-	for _, c := range rollup.Contexts.StatusContextCountsByState {
-		total += c.Count
-	}
+	cut := rollup.jobsCut || rollup.cutShort()
 	for i := range runs {
-		runs[i].JobsTruncated = total > len(nodes)
+		runs[i].JobsTruncated = cut
 	}
 
 	return runs
