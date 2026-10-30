@@ -39,7 +39,9 @@ func resolveMainBranchChecksFor(ctx context.Context, deps Deps, forge, fullName 
 		checks = []dashboard.Check{}
 	}
 
-	return dashboard.WithFacts(checks), nil
+	// Only the newest run of each workflow, as the row counts them; an older
+	// run stays reachable by its link.
+	return dashboard.WithFacts(dashboard.NewestRuns(checks)), nil
 }
 
 // trackedMainBranch finds fullName's row among the ones the user's Main
