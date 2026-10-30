@@ -17,7 +17,7 @@ func TestDashboardRefresh_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Post(srv.URL+"/api/dashboard/refresh", "", nil)
+	resp, err := testClient(t).Post(srv.URL+"/api/v1/dashboard/refresh", "", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -30,7 +30,7 @@ func TestDashboardRefresh_NoBackgroundRefreshYet_Returns404(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/dashboard/refresh", nil)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/dashboard/refresh", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -66,7 +66,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	srv, service, _ := newTestServerWithSourcesAndService(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -77,7 +77,7 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 
 	waitForFirstRefresh(t, service)
 
-	refreshReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/dashboard/refresh", nil)
+	refreshReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/dashboard/refresh", nil)
 	require.NoError(t, err)
 	refreshReq.AddCookie(sessionCookie)
 	refreshResp, err := testClient(t).Do(refreshReq)
@@ -108,13 +108,13 @@ func TestDashboardRefresh_InsideTheCooldown_AnswersWithRetryAfter(t *testing.T) 
 	const cooldown = time.Minute
 	service.SetForceRefreshCooldown(cooldown)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 	waitForFirstRefresh(t, service)
 
 	refresh := func() (status int, retryAfter string) {
-		resp := doJSON(t, http.MethodPost, srv.URL+"/api/dashboard/refresh", "", sessionCookie)
+		resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/dashboard/refresh", "", sessionCookie)
 		defer func() { _ = resp.Body.Close() }()
 
 		return resp.StatusCode, resp.Header.Get("Retry-After")

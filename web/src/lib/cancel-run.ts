@@ -125,7 +125,7 @@ export async function cancelRun(
   target: CancelTarget,
   runId: number,
 ): Promise<void> {
-  const res = await fetch('/api/checks/cancel-run', {
+  const res = await fetch('/api/v1/checks/cancel-run', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

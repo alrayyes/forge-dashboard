@@ -60,7 +60,7 @@ func statsServer(t *testing.T) (*httptest.Server, *http.Cookie, *apistats.Counte
 		return []dashboard.Source{src}
 	}, false, 0, func(d *api.Deps) { d.APIStats = counters })
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+statsToken+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+statsToken+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -72,7 +72,7 @@ func TestContract_ForgeAPIStats(t *testing.T) {
 
 	srv, cookie, counters := statsServer(t)
 
-	req, got := record(t, http.MethodGet, srv.URL+"/api/stats/forge-api", cookie)
+	req, got := record(t, http.MethodGet, srv.URL+"/api/v1/stats/forge-api", cookie)
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)
 
@@ -116,7 +116,7 @@ func TestContract_ForgeAPIStats(t *testing.T) {
 	t.Run("without a session", func(t *testing.T) {
 		t.Parallel()
 
-		req, got := record(t, http.MethodGet, srv.URL+"/api/stats/forge-api", nil)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/stats/forge-api", nil)
 		require.Equal(t, http.StatusUnauthorized, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 	})
@@ -127,7 +127,7 @@ func TestForgeAPIStats_RightAfterAStartEveryCounterIsZero(t *testing.T) {
 
 	srv, cookie, _ := statsServerWithoutCounts(t)
 
-	req, got := record(t, http.MethodGet, srv.URL+"/api/stats/forge-api", cookie)
+	req, got := record(t, http.MethodGet, srv.URL+"/api/v1/stats/forge-api", cookie)
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)
 
@@ -147,7 +147,7 @@ func TestMCP_GetForgeAPIStats_ReturnsTheSamePayloadAsTheHTTPEndpoint(t *testing.
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
-	_, got := record(t, http.MethodGet, srv.URL+"/api/stats/forge-api", cookie)
+	_, got := record(t, http.MethodGet, srv.URL+"/api/v1/stats/forge-api", cookie)
 	var httpBody map[string]any
 	require.NoError(t, json.Unmarshal(got.body, &httpBody))
 	assert.Equal(t, httpBody, result.StructuredContent)

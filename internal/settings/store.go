@@ -57,13 +57,13 @@ type Credentials struct {
 	// Theme is "light", "dark", or "" (system — the default, matching
 	// the pre-paint theme script's cookie-unset behavior). Set only from Settings
 	// (#352: no header toggle anywhere else) and read on every page load
-	// via the lightweight GET /api/settings/theme, which doesn't
+	// via the lightweight GET /api/v1/settings/theme, which doesn't
 	// provision webhook credentials just to check one field.
 	Theme string
 	// Timezone is an IANA name such as "Europe/Amsterdam", or "" for the
 	// browser's own zone (the default). It exists for browsers that report UTC
 	// to every page, such as Firefox with fingerprint resistance (#996). Set
-	// from Settings and read on every page load via GET /api/settings/timezone.
+	// from Settings and read on every page load via GET /api/v1/settings/timezone.
 	Timezone  string
 	UpdatedAt time.Time
 	// GitHubAppInstallationID identifies which installation of the

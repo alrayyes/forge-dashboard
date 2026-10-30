@@ -101,14 +101,17 @@ test.describe('update branch request from the server', () => {
         contentType: 'application/json',
         body: JSON.stringify(snapshot(current)),
       });
-    await page.route('**/api/dashboard*', answer);
-    await page.route('**/api/dashboard/refresh', answer);
+    await page.route('**/api/v1/dashboard*', answer);
+    await page.route('**/api/v1/dashboard/refresh', answer);
     // The server records the request before it answers 202, so every
     // snapshot after that carries it.
-    await page.route('**/api/pull-requests/update-branch', (route: Route) => {
-      current = { ...current, updateRequest: updateRequest('queued') };
-      return route.fulfill({ status: 202 });
-    });
+    await page.route(
+      '**/api/v1/pull-requests/update-branch',
+      (route: Route) => {
+        current = { ...current, updateRequest: updateRequest('queued') };
+        return route.fulfill({ status: 202 });
+      },
+    );
   });
 
   async function click(page: Page) {
@@ -270,7 +273,7 @@ test.describe('update branch request from the server', () => {
       release = resolve;
     });
     let staleBody = '';
-    await page.route('**/api/dashboard/refresh', async (route: Route) => {
+    await page.route('**/api/v1/dashboard/refresh', async (route: Route) => {
       staleBody = JSON.stringify(snapshot(current));
       await gate;
       return route.fulfill({
@@ -294,7 +297,7 @@ test.describe('update branch request from the server', () => {
     await push(page, current);
     await expect(line(page)).toContainText('Timed out');
 
-    const answered = page.waitForResponse('**/api/dashboard/refresh');
+    const answered = page.waitForResponse('**/api/v1/dashboard/refresh');
     release();
     await answered;
     await settle(page);
@@ -336,7 +339,7 @@ test.describe('update branch request from the server', () => {
     });
     let held = true;
     const stale = JSON.stringify(snapshot({ ...current, behind: false }));
-    await page.route('**/api/dashboard/refresh', async (route: Route) => {
+    await page.route('**/api/v1/dashboard/refresh', async (route: Route) => {
       if (held) {
         held = false;
         await gate;
@@ -361,7 +364,7 @@ test.describe('update branch request from the server', () => {
       row(page).getByRole('button', { name: 'Queued…' }),
     ).toBeDisabled();
 
-    const answered = page.waitForResponse('**/api/dashboard/refresh');
+    const answered = page.waitForResponse('**/api/v1/dashboard/refresh');
     release();
     await answered;
     await settle(page);

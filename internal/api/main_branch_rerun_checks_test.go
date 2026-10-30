@@ -31,7 +31,7 @@ func (f *fakeBranchRerunSource) RerunFailedDefaultBranchChecks(_ context.Context
 
 func postMainBranchRerun(t *testing.T, srvURL string, cookie *http.Cookie, body string) (int, map[string]any) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/main-branches/rerun-checks", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/main-branches/rerun-checks", strings.NewReader(body))
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")

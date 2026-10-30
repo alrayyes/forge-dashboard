@@ -7,9 +7,9 @@ import { test } from './server-fixture';
 // https://github.com/alrayyes/forge-dashboard/issues/1770
 
 async function hold(page: Page) {
-  await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
-    new URL(route.request().url()).pathname === '/api/dashboard'
+  await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    new URL(route.request().url()).pathname === '/api/v1/dashboard'
       ? new Promise(() => {})
       : route.fallback(),
   );

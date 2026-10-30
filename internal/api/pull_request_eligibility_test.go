@@ -54,7 +54,7 @@ func eligibilityBoard(t *testing.T, pr dashboard.PullRequest) (*httptest.Server,
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+token+`"}`))
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+token+`"}`))
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")

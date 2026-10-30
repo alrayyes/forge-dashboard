@@ -53,7 +53,7 @@ function mockDashboard(
   pr?: MockPR,
   health: Record<string, unknown> = {},
 ) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -81,7 +81,7 @@ test.describe('pull request pipeline checks panel', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   // #636: inline on the row itself, not tucked away — a read-only
@@ -556,7 +556,7 @@ test.describe('pull request pipeline checks panel', () => {
       release = resolve;
     });
     const asked: string[] = [];
-    await page.route('**/api/checks/log*', async (route) => {
+    await page.route('**/api/v1/checks/log*', async (route) => {
       asked.push(route.request().url());
       await held;
       await route.fulfill({
@@ -619,7 +619,7 @@ test.describe('pull request pipeline checks panel', () => {
       ],
     });
     const asked: string[] = [];
-    await page.route('**/api/checks/log*', async (route) => {
+    await page.route('**/api/v1/checks/log*', async (route) => {
       asked.push(route.request().url());
       await route.fulfill({
         status: 200,
@@ -673,7 +673,7 @@ test.describe('pull request pipeline checks panel', () => {
       ],
     });
     let asked = 0;
-    await page.route('**/api/checks/log*', async (route) => {
+    await page.route('**/api/v1/checks/log*', async (route) => {
       asked++;
       await route.fulfill({ status: 404, body: '{}' });
     });
@@ -707,7 +707,7 @@ test.describe('pull request pipeline checks panel', () => {
       ],
     });
     let posted: unknown = null;
-    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+    await page.route('**/api/v1/pull-requests/rerun-checks', async (route) => {
       posted = route.request().postDataJSON();
       await route.fulfill({ status: 204 });
     });
@@ -782,7 +782,7 @@ test.describe('pull request pipeline checks panel', () => {
     const reason =
       'This Forgejo is older than version 17 and has no way to rerun checks. Rerun them on the forge.';
     const health: Record<string, unknown> = {};
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -882,7 +882,7 @@ test.describe('pull request pipeline checks panel', () => {
       ],
     });
     let posts = 0;
-    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+    await page.route('**/api/v1/pull-requests/rerun-checks', async (route) => {
       posts += 1;
       await route.fulfill({ status: 204 });
     });
@@ -932,7 +932,7 @@ test.describe('pull request pipeline checks panel', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+    await page.route('**/api/v1/pull-requests/rerun-checks', async (route) => {
       posts += 1;
       await gate;
       await route.fulfill({ status: 204 });
@@ -974,7 +974,7 @@ test.describe('pull request pipeline checks panel', () => {
         },
       ],
     });
-    await page.route('**/api/pull-requests/rerun-checks', (route) =>
+    await page.route('**/api/v1/pull-requests/rerun-checks', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -1026,7 +1026,7 @@ test.describe('pull request pipeline checks panel', () => {
     });
     let posted: unknown = null;
     let answer = 204;
-    await page.route('**/api/pull-requests/rerun-checks', async (route) => {
+    await page.route('**/api/v1/pull-requests/rerun-checks', async (route) => {
       posted = route.request().postDataJSON();
       await route.fulfill(
         answer === 204
@@ -1091,7 +1091,7 @@ test.describe('pull request pipeline checks panel', () => {
           },
         ],
       });
-      await page.route('**/api/pull-requests/rerun-checks', (route) =>
+      await page.route('**/api/v1/pull-requests/rerun-checks', (route) =>
         route.fulfill({
           status: 409,
           contentType: 'application/json',
@@ -1131,7 +1131,7 @@ test.describe('pull request pipeline checks panel', () => {
         { name: 'test', status: 'completed', conclusion: 'failure', url: '' },
       ],
     });
-    await page.route('**/api/pull-requests/rerun-checks', (route) =>
+    await page.route('**/api/v1/pull-requests/rerun-checks', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -1484,7 +1484,7 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
   ) {
     const served = { pr: withRerun() };
     const posts = { count: 0 };
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     const snapshot = () =>
       JSON.stringify({
         generatedAt: new Date().toISOString(),
@@ -1492,7 +1492,7 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
         pullRequests: [served.pr],
         issues: [],
       });
-    for (const glob of ['**/api/dashboard*', '**/api/dashboard/refresh*'])
+    for (const glob of ['**/api/v1/dashboard*', '**/api/v1/dashboard/refresh*'])
       await page.route(glob, (route: Route) =>
         route.fulfill({
           status: 200,
@@ -1511,14 +1511,14 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
         },
       ],
     });
-    await page.route('**/api/pull-requests/details*', (route) =>
+    await page.route('**/api/v1/pull-requests/details*', (route) =>
       route.fulfill({
         status: 404,
         contentType: 'application/json',
         body: '{}',
       }),
     );
-    await page.route('**/api/pull-requests/rerun-checks', (route) => {
+    await page.route('**/api/v1/pull-requests/rerun-checks', (route) => {
       posts.count += 1;
       return opts.refuse
         ? route.fulfill({

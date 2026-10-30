@@ -115,7 +115,7 @@ async function open(
   const state = { checks, status: 200 };
   await stubStream(page);
   await serveChecks(page, () => state.checks);
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -534,7 +534,7 @@ test.describe('pipeline panel with live updates paused', () => {
     await stubStream(page);
     const state = { status: 200, checks: RUN as unknown[] };
     await serveChecks(page, () => state.checks);
-    await page.route('**/api/dashboard', (route: Route) =>
+    await page.route('**/api/v1/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -599,7 +599,7 @@ test.describe('pipeline panel rerun control through a live redraw', () => {
       ],
       1,
     );
-    await page.route('**/api/pull-requests/rerun-checks', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/rerun-checks', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',

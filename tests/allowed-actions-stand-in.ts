@@ -4,7 +4,7 @@
 // The real server works out which actions each pull request offers
 // (internal/dashboard/allowed_actions.go), why it is held back
 // (pull_request_status.go) and what kind it is (bot_pr.go) and puts them on
-// every pull request. Most specs here mock /api/dashboard with hand-written
+// every pull request. Most specs here mock /api/v1/dashboard with hand-written
 // pull requests that carry only raw fields, so this fills them in on any
 // mocked pull request that doesn't state its own. A mock that sets
 // `allowedActions` itself (tests/allowed-actions.spec.ts) is left alone, which
@@ -196,7 +196,8 @@ export function installAllowedActionsStandIn(
         : input instanceof URL
           ? input.href
           : input.url;
-    if (!/\/api\/dashboard(\/refresh)?(\?|$)/.test(url) || !res.ok) return res;
+    if (!/\/api\/v1\/dashboard(\/refresh)?(\?|$)/.test(url) || !res.ok)
+      return res;
     if (!(res.headers.get('content-type') ?? '').includes('json')) return res;
     const data = enrich(await res.clone().json());
     return new Response(JSON.stringify(data), {

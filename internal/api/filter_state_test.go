@@ -15,7 +15,7 @@ func TestFilterStateGet_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Get(srv.URL + "/api/settings/filter-state")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/settings/filter-state")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -28,7 +28,7 @@ func TestFilterStateGet_NeverSaved_ReturnsEmptyObject(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/filter-state", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -39,7 +39,7 @@ func TestFilterStatePut_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Post(srv.URL+"/api/settings/filter-state", "application/json", strings.NewReader(`{}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/v1/settings/filter-state", "application/json", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -56,11 +56,11 @@ func TestFilterStatePut_ThenGet_RoundTrips(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	body := `{"shared":{"forge":"github","title":"alarm"},"issue":{"hideDependencyDashboard":"1"}}`
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", body, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", body, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, putResp.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/filter-state", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, getResp.StatusCode)
 	assert.JSONEq(t, body, readAll(t, getResp))
@@ -72,7 +72,7 @@ func TestFilterStatePut_InvalidJSON_Returns400(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", "not json", sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", "not json", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -85,7 +85,7 @@ func TestFilterStatePut_TooLarge_Returns400(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	huge := `{"shared":{"title":"` + strings.Repeat("a", 20*1024) + `"}}`
 
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", huge, sessionCookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", huge, sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -96,15 +96,15 @@ func TestFilterStatePut_DoesNotDisturbAlreadySavedSettings(t *testing.T) {
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
-	putSettings := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"octocat"}`, sessionCookie)
+	putSettings := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubUsername":"octocat"}`, sessionCookie)
 	_ = putSettings.Body.Close()
 	require.Equal(t, http.StatusOK, putSettings.StatusCode)
 
-	putFilters := doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", `{"shared":{"forge":"github"}}`, sessionCookie)
+	putFilters := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", `{"shared":{"forge":"github"}}`, sessionCookie)
 	_ = putFilters.Body.Close()
 	require.Equal(t, http.StatusNoContent, putFilters.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 	body := readAll(t, getResp)
 	assert.Contains(t, body, "octocat")
@@ -115,7 +115,7 @@ func TestFilterStatePut_DoesNotDisturbAlreadySavedSettings(t *testing.T) {
 func createTestAPIToken(t *testing.T, srvURL string, sessionCookie *http.Cookie) string {
 	t.Helper()
 
-	resp := doJSON(t, http.MethodPost, srvURL+"/api/tokens", tokenCreateBody("an agent"), sessionCookie)
+	resp := doJSON(t, http.MethodPost, srvURL+"/api/v1/tokens", tokenCreateBody("an agent"), sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	var created struct {
 		Token string `json:"token"`
@@ -148,7 +148,7 @@ func TestFilterStateGet_WithAnAPIToken_Returns403(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createTestAPIToken(t, srv.URL, sessionCookie)
 
-	resp := doWithBearer(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", token)
+	resp := doWithBearer(t, http.MethodGet, srv.URL+"/api/v1/settings/filter-state", "", token)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -161,13 +161,13 @@ func TestFilterStatePut_WithAnAPIToken_Returns403AndStoresNothing(t *testing.T) 
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createTestAPIToken(t, srv.URL, sessionCookie)
 	mine := `{"shared":{"forge":"forgejo"}}`
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/filter-state", mine, sessionCookie).Body.Close()
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", mine, sessionCookie).Body.Close()
 
-	resp := doWithBearer(t, http.MethodPut, srv.URL+"/api/settings/filter-state", `{"shared":{"forge":"github"}}`, token)
+	resp := doWithBearer(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", `{"shared":{"forge":"github"}}`, token)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusForbidden, resp.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/filter-state", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/filter-state", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 	assert.JSONEq(t, mine, readAll(t, getResp), "the token's write must not land")
 }
@@ -178,7 +178,7 @@ func TestFilterStatePut_LogsHowTheCallerAuthenticatedAndTheUserAgent(t *testing.
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
-	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings/filter-state", strings.NewReader(`{}`))
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings/filter-state", strings.NewReader(`{}`))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")

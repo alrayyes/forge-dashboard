@@ -4,7 +4,7 @@ import { followMainBranchPage, type StreamSource } from './main-branch-stream';
 import type { MainBranches } from './main-branches';
 
 // The Main branches page takes its rows from the dashboard stream, like the
-// other pages, and reads GET /api/main-branches only when the stream is down.
+// other pages, and reads GET /api/v1/main-branches only when the stream is down.
 
 class FakeSource implements StreamSource {
   onopen: (() => void) | null = null;

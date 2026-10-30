@@ -53,7 +53,7 @@ func readHiddenTarget(w http.ResponseWriter, r *http.Request) (pullRequestHideRe
 	return req, true
 }
 
-// handlePullRequestHide implements POST /api/pull-requests/hide (#841): a pure
+// handlePullRequestHide implements POST /api/v1/pull-requests/hide (#841): a pure
 // local write to settings.Store, like ignoring a repo. A repeat call with a new
 // choice replaces the old one.
 func handlePullRequestHide(deps Deps) http.HandlerFunc {
@@ -81,7 +81,7 @@ func handlePullRequestHide(deps Deps) http.HandlerFunc {
 	}
 }
 
-// handlePullRequestUnhide implements POST /api/pull-requests/unhide, the
+// handlePullRequestUnhide implements POST /api/v1/pull-requests/unhide, the
 // reverse of handlePullRequestHide. Idempotent.
 func handlePullRequestUnhide(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

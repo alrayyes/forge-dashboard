@@ -104,7 +104,7 @@ func TestMCP_GetSettings_HasTheHTTPFieldsMinusTheWebhookSecrets(t *testing.T) {
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", cookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", cookie)
 	defer func() { _ = resp.Body.Close() }()
 	var want map[string]any
 	require.NoError(t, readJSON(resp, &want))

@@ -65,7 +65,7 @@ export async function checkRegistrationOpen(
   fetchFn: typeof fetch = fetch,
 ): Promise<boolean> {
   try {
-    const res = await fetchFn('/api/auth/registration-status', {
+    const res = await fetchFn('/api/v1/auth/registration-status', {
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return false;

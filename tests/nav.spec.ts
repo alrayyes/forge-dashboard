@@ -90,8 +90,8 @@ test.describe('persistent top nav', () => {
       mergeStatus: 'mergeable',
       kind,
     });
-    await page.route('**/api/dashboard/stream*', (r) => r.abort());
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

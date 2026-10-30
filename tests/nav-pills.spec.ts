@@ -6,7 +6,7 @@ import { test } from './server-fixture';
 // Every nav item shows how many items its page lists and how many of them are
 // failing: a neutral total, then a red failed count with a warning glyph,
 // shown only above zero. Design: docs/design/1315-nav-counts. The counts come
-// from `navCounts` on /api/dashboard; the page only draws them.
+// from `navCounts` on /api/v1/dashboard; the page only draws them.
 // https://github.com/alrayyes/forge-dashboard/issues/1315
 
 type Pair = { total: number; failed: number };
@@ -56,9 +56,9 @@ async function serve(page: Page, state: { counts: Counts }) {
       contentType: 'application/json',
       body: JSON.stringify(snapshot(state.counts)),
     });
-  await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-  await page.route('**/api/dashboard*', answer);
-  await page.route('**/api/dashboard/refresh*', answer);
+  await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+  await page.route('**/api/v1/dashboard*', answer);
+  await page.route('**/api/v1/dashboard/refresh*', answer);
 }
 
 const header = (page: Page, href: string) =>
@@ -213,7 +213,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     const state = { counts: MIXED };
     await page.clock.install();
     await serve(page, state);
-    await page.route('**/api/main-branches', (route: Route) =>
+    await page.route('**/api/v1/main-branches', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -244,8 +244,8 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     const state = { counts: MIXED };
     let reads = 0;
     await page.clock.install();
-    await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-    await page.route('**/api/dashboard*', (route: Route) => {
+    await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+    await page.route('**/api/v1/dashboard*', (route: Route) => {
       reads += 1;
       return route.fulfill({
         status: 200,
@@ -283,15 +283,21 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
   }) => {
     let reads = 0;
     await page.clock.install();
-    await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-    await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) => {
-      reads += 1;
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ ...snapshot(MIXED), readIntervalSeconds: 600 }),
-      });
-    });
+    await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+    await page.route(
+      /\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/,
+      (route: Route) => {
+        reads += 1;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...snapshot(MIXED),
+            readIntervalSeconds: 600,
+          }),
+        });
+      },
+    );
     await page.goto('/pull-requests.html');
     await expect(header(page, '/').locator('.nav-failed')).toHaveText('3');
     const before = reads;
@@ -336,13 +342,13 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
   });
 });
 
-// Every other test here mocks /api/dashboard. This one asks the real server,
+// Every other test here mocks /api/v1/dashboard. This one asks the real server,
 // so the shape the nav reads is checked against the shape the server sends.
 test.describe('the real server serves what the nav reads (#1315)', () => {
-  test('/api/dashboard carries navCounts in the shape the page reads', async ({
+  test('/api/v1/dashboard carries navCounts in the shape the page reads', async ({
     page,
   }) => {
-    const res = await page.request.get('/api/dashboard');
+    const res = await page.request.get('/api/v1/dashboard');
     const body = await res.json();
 
     expect(res.ok()).toBe(true);

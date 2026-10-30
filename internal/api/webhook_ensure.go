@@ -62,7 +62,7 @@ func clientErrorStatus(err error) int {
 // the signed-in user's own webhook URL and secret, or brings an
 // existing forge-dashboard one back to active with the right config —
 // dashboard.WebhookManager's own EnsureWebhook decides which, per
-// forge. Unlike the passive coverage GET /api/dashboard reports, this
+// forge. Unlike the passive coverage GET /api/v1/dashboard reports, this
 // is the one place forge-dashboard actually writes to a forge.
 func handleWebhookEnsure(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

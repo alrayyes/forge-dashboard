@@ -98,7 +98,7 @@ export async function serveChecks(page: Page, serve: Serve) {
   const posts: number[] = [];
   const calls = new Map<string, number>();
   const inflight = new Set<Promise<void>>();
-  await page.route('**/api/dashboard/stream/watch', async (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream/watch', async (route: Route) => {
     const body = route.request().postDataJSON() as {
       streamId: string;
       subjects: Subject[];

@@ -42,15 +42,17 @@ async function setup(
   afterAction: () => object[] | null,
   initial: object = PR,
 ) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: snapshot([initial]),
     }),
   );
-  await page.route('**/api/dashboard/refresh', (route: Route) => {
+  await page.route('**/api/v1/dashboard/refresh', (route: Route) => {
     const prs = afterAction();
     if (prs === null) return route.abort('failed');
     return route.fulfill({
@@ -81,11 +83,11 @@ test.describe('an action request that got no answer', () => {
     page,
   }) => {
     await setup(page, () => null);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.fulfill({ status: 204 }),
     );
     await page.goto('/pull-requests.html');
-    const refreshed = page.waitForRequest('**/api/dashboard/refresh');
+    const refreshed = page.waitForRequest('**/api/v1/dashboard/refresh');
     await clickUpdate(page);
     await refreshed;
     await expect(page.locator('body')).not.toContainText(
@@ -98,11 +100,11 @@ test.describe('an action request that got no answer', () => {
     page,
   }) => {
     await setup(page, () => [{ ...PR, behind: false }]);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
-    const refreshed = page.waitForRequest('**/api/dashboard/refresh');
+    const refreshed = page.waitForRequest('**/api/v1/dashboard/refresh');
     await clickUpdate(page);
     await refreshed;
     await expect(
@@ -121,7 +123,7 @@ test.describe('an action request that got no answer', () => {
     page,
   }) => {
     await setup(page, () => [PR]);
-    await page.route('**/api/pull-requests/update-branch', (route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
@@ -137,11 +139,11 @@ test.describe('an action request that got no answer', () => {
     page,
   }) => {
     await setup(page, () => []);
-    await page.route('**/api/pull-requests/close', (route) =>
+    await page.route('**/api/v1/pull-requests/close', (route) =>
       route.abort('failed'),
     );
     await page.goto('/pull-requests.html');
-    const refreshed = page.waitForRequest('**/api/dashboard/refresh');
+    const refreshed = page.waitForRequest('**/api/v1/dashboard/refresh');
     await viaActionsDialog(row(page), async (footer) => {
       await footer.getByRole('button', { name: 'Close pull request' }).click();
       await footer
@@ -159,8 +161,8 @@ test.describe('an action request that got no answer', () => {
     ['cancel auto-merge', 'Cancel auto-merge', true],
   ] as const) {
     const route = armed
-      ? '**/api/pull-requests/auto-merge/cancel'
-      : '**/api/pull-requests/auto-merge';
+      ? '**/api/v1/pull-requests/auto-merge/cancel'
+      : '**/api/v1/pull-requests/auto-merge';
 
     test(`${name}: a dropped request the server ran shows no error`, async ({
       page,
@@ -171,7 +173,7 @@ test.describe('an action request that got no answer', () => {
       });
       await page.route(route, (r) => r.abort('failed'));
       await page.goto('/pull-requests.html');
-      const refreshed = page.waitForRequest('**/api/dashboard/refresh');
+      const refreshed = page.waitForRequest('**/api/v1/dashboard/refresh');
       await clickAction(page, button);
       await refreshed;
       await expect(page.locator('body')).not.toContainText(
@@ -208,7 +210,7 @@ test.describe('an action request that got no answer', () => {
   }) => {
     const armed = { ...WAITING, autoMergeEnabled: true };
     await setup(page, () => [{ ...WAITING, autoMergeEnabled: null }], armed);
-    await page.route('**/api/pull-requests/auto-merge/cancel', (r) =>
+    await page.route('**/api/v1/pull-requests/auto-merge/cancel', (r) =>
       r.abort('failed'),
     );
     await page.goto('/pull-requests.html');

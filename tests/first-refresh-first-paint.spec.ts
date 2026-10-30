@@ -4,7 +4,7 @@ import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // The skeleton shows from the first paint, not once the first answer lands.
-// The server holds GET /api/dashboard for up to 15 s on a cold start, and
+// The server holds GET /api/v1/dashboard for up to 15 s on a cold start, and
 // until then the page used to be blank.
 // https://github.com/alrayyes/forge-dashboard/issues/1672
 
@@ -50,16 +50,18 @@ function snapshot(a: Answer) {
   return JSON.stringify(body);
 }
 
-// Holds every /api/dashboard answer until `release()` is called, then
+// Holds every /api/v1/dashboard answer until `release()` is called, then
 // answers `after`.
 async function holdFirstAnswer(page: Page, after: Answer) {
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', async (route: Route) => {
-    if (new URL(route.request().url()).pathname !== '/api/dashboard')
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', async (route: Route) => {
+    if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
       return route.fallback();
     await gate;
     return route.fulfill({
@@ -211,11 +213,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   test('a failed first request settles to the real state and does not hang', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) =>
-      new URL(route.request().url()).pathname === '/api/dashboard'
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      new URL(route.request().url()).pathname === '/api/v1/dashboard'
         ? route.abort()
         : route.fallback(),
     );
@@ -237,11 +239,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
       generatedAt: zero,
       readIntervalSeconds: 1,
     };
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) =>
-      new URL(route.request().url()).pathname === '/api/dashboard'
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      new URL(route.request().url()).pathname === '/api/v1/dashboard'
         ? route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -301,11 +303,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) => {
-      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+    await page.route('**/api/v1/dashboard*', (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
         return route.fallback();
       reads++;
       const body =
@@ -331,7 +333,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
   });
 
-  test('only one /api/dashboard request is in flight while the first answer is held', async ({
+  test('only one /api/v1/dashboard request is in flight while the first answer is held', async ({
     page,
   }) => {
     await page.clock.install();
@@ -340,11 +342,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', async (route: Route) => {
-      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+    await page.route('**/api/v1/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
         return route.fallback();
       reads++;
       await gate;
@@ -381,11 +383,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', async (route: Route) => {
-      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+    await page.route('**/api/v1/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
         return route.fallback();
       reads++;
       inFlight++;
@@ -422,11 +424,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', async (route: Route) => {
-      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+    await page.route('**/api/v1/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
         return route.fallback();
       reads++;
       // The second read hangs for good, like a half-open connection.
@@ -455,11 +457,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', async (route: Route) => {
-      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+    await page.route('**/api/v1/dashboard*', async (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
         return route.fallback();
       reads++;
       if (reads === 1) return new Promise<void>(() => {});
@@ -482,11 +484,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
   }) => {
     await page.clock.install();
     let reads = 0;
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) => {
-      if (new URL(route.request().url()).pathname !== '/api/dashboard')
+    await page.route('**/api/v1/dashboard*', (route: Route) => {
+      if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
         return route.fallback();
       reads++;
       if (reads === 1) return route.abort();
@@ -509,11 +511,11 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     }) => {
       await page.clock.install();
       let reads = 0;
-      await page.route('**/api/dashboard/stream*', (route: Route) =>
+      await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
         route.abort(),
       );
-      await page.route('**/api/dashboard*', (route: Route) => {
-        if (new URL(route.request().url()).pathname !== '/api/dashboard')
+      await page.route('**/api/v1/dashboard*', (route: Route) => {
+        if (new URL(route.request().url()).pathname !== '/api/v1/dashboard')
           return route.fallback();
         reads++;
         return route.fulfill({

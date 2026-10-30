@@ -52,16 +52,16 @@ async function open(page: Page, pr = makePR()) {
         issues: [],
       }),
     });
-  await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-  await page.route('**/api/dashboard*', answer);
-  await page.route('**/api/dashboard/refresh*', answer);
+  await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+  await page.route('**/api/v1/dashboard*', answer);
+  await page.route('**/api/v1/dashboard/refresh*', answer);
   await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows .row').first()).toBeVisible();
   return page.locator('#pr-rows .row').first();
 }
 
 const refuse = (page: Page, endpoint: string, status: number, body: object) =>
-  page.route(`**/api/pull-requests/${endpoint}`, (route: Route) =>
+  page.route(`**/api/v1/pull-requests/${endpoint}`, (route: Route) =>
     route.fulfill({
       status,
       contentType: 'application/json',
@@ -164,7 +164,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
   for (const verb of ['Rebase', 'Recreate'] as const) {
     test(`Dependabot ${verb} copies which command it was`, async ({ page }) => {
       await page.route(
-        '**/api/pull-requests/dependabot-action',
+        '**/api/v1/pull-requests/dependabot-action',
         (route: Route) =>
           route.fulfill({
             status: 403,
@@ -281,8 +281,9 @@ test.describe('Copy error details on a failed action (#1323)', () => {
   test('a failure with only the network has Copy too, holding the action and the browser’s error', async ({
     page,
   }) => {
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
-      route.abort(),
+    await page.route(
+      '**/api/v1/pull-requests/renovate-rebase',
+      (route: Route) => route.abort(),
     );
     const row = await open(page);
     await ACTIONS[4].start(row);
@@ -301,7 +302,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
   test('a body that is not JSON is copied as the text it was', async ({
     page,
   }) => {
-    await page.route('**/api/pull-requests/merge', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route: Route) =>
       route.fulfill({
         status: 502,
         contentType: 'text/html',
@@ -419,7 +420,7 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
   });
 
   test('a rerun that goes through has no Copy', async ({ page }) => {
-    await page.route('**/api/pull-requests/rerun-checks', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/rerun-checks', (route: Route) =>
       route.fulfill({ status: 204 }),
     );
     const dialog = await openPanel(page);
@@ -431,7 +432,7 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
 
   test('trying again clears the earlier Copy', async ({ page }) => {
     const answer: { fail: boolean } = { fail: true };
-    await page.route('**/api/pull-requests/rerun-checks', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/rerun-checks', (route: Route) =>
       answer.fail
         ? route.fulfill({
             status: 403,

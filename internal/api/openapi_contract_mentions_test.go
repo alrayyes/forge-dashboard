@@ -40,7 +40,7 @@ func TestContract_MentionsAreInTheSpecAndTheResponse(t *testing.T) {
 		t.Parallel()
 
 		srvURL, cookie := mentionsServer(t)
-		req, got := record(t, http.MethodGet, srvURL+"/api/dashboard", cookie)
+		req, got := record(t, http.MethodGet, srvURL+"/api/v1/dashboard", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 

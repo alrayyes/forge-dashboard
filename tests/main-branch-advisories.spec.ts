@@ -69,8 +69,8 @@ const BRANCHES = [
 ];
 
 async function open(page: Page, branches: object[] = BRANCHES) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

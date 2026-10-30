@@ -1,6 +1,6 @@
 // The Main branches page follows the dashboard stream like the other pages:
 // each message carries the page's rows as `mainBranchPage`, and the page keeps
-// no poll of its own (#2884). GET /api/main-branches is the one fallback read,
+// no poll of its own (#2884). GET /api/v1/main-branches is the one fallback read,
 // asked for when the stream is down and again when it comes back, since the
 // server sends nothing on connect and a change in the gap would stay unseen.
 
@@ -37,7 +37,9 @@ type Follow = {
 
 function openDashboardStream(): StreamSource {
   // An EventSource passes its handlers an event; these take none they use.
-  const source = new EventSource(checkFeed.streamUrl('/api/dashboard/stream'));
+  const source = new EventSource(
+    checkFeed.streamUrl('/api/v1/dashboard/stream'),
+  );
   // The job lists of an open pipeline dialog ride this stream too.
   checkFeed.attach(source as unknown as FeedSource);
   return source as unknown as StreamSource;

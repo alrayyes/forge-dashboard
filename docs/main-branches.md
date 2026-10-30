@@ -3,8 +3,8 @@
 The CI status of every tracked repository's default branch is the first thing
 you see: it's the index page, `/`, reached from the **Branches** item, the first
 one in the navigation. The item always shows. The page reads
-`GET /api/main-branches`, so a broken main shows up without opening each repo.
-A repo you ignore for pull requests is left out, here and in the badge.
+`GET /api/v1/main-branches`, so a broken main shows up without opening each
+repo. A repo you ignore for pull requests is left out, here and in the badge.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
@@ -120,7 +120,7 @@ so in the dialog with the same causes as
 [When advisories can't be read](#when-advisories-cant-be-read), and a failed
 request offers **Try again**. The pill on a Forgejo row opens the same dialog,
 described under [Forgejo advisories](#forgejo-advisories).
-`GET /api/main-branches/advisories?forge=github&fullName=owner/repo` (or
+`GET /api/v1/main-branches/advisories?forge=github&fullName=owner/repo` (or
 `forge=forgejo`) answers the list for the dialog. An MCP client reads the same
 list with the `get_repository_advisories` tool, and the in-page WebMCP tool of
 that name does the same. An alerts list that cannot be read comes back as
@@ -271,7 +271,7 @@ notice does the same for its own rows). GitHub's reference:
 
 ## Main branches API
 
-The page draws from one read of `GET /api/main-branches`, then takes every
+The page draws from one read of `GET /api/v1/main-branches`, then takes every
 update from the dashboard stream. Each stream message carries the same
 document under `mainBranchPage`, so a branch row and its open pipeline dialog
 change on one message and the page never polls. If the stream closes, or hasn't
@@ -283,13 +283,13 @@ page stops retrying and shows what it last read until you reload.
 The stream's copy leaves out the repos ignored for pull requests, as the
 endpoint does.
 
-`GET /api/main-branches` answers the CI status of every tracked repo's default
-branch, so a broken main shows up without opening each repo. One row per repo:
-its default branch, the status of the pipeline on the newest commit (`failed`,
-`passed`, `running`, `cancelled`, `awaiting_approval` or `none`), the commit
-(short SHA, subject, author), the names of the failed jobs, when the pipeline
-finished and how long it ran, a link to the run, and the repository's latest
-published release (`latestRelease`, its tag and the page of its notes, or
+`GET /api/v1/main-branches` answers the CI status of every tracked repo's
+default branch, so a broken main shows up without opening each repo. One row per
+repo: its default branch, the status of the pipeline on the newest commit
+(`failed`, `passed`, `running`, `cancelled`, `awaiting_approval` or `none`), the
+commit (short SHA, subject, author), the names of the failed jobs, when the
+pipeline finished and how long it ran, a link to the run, and the repository's
+latest published release (`latestRelease`, its tag and the page of its notes, or
 null) and its open dependency advisories (`advisories`: `state`, `count`, the
 `highest` severity and a `url` to the alerts). A Forgejo repo's
 `advisories` is `unknown` with the reason `not_enabled` until `OSV_ADVISORIES=on`.
@@ -297,7 +297,7 @@ null) and its open dependency advisories (`advisories`: `state`, `count`, the
 forge could not say, for example alerts switched off or a token without the
 scope, and is never a count of zero; `reason` then says why when the dashboard
 can tell. The release's title and notes are a
-separate read, `GET /api/releases/details`, made when the dialog opens. The
+separate read, `GET /api/v1/releases/details`, made when the dialog opens. The
 response carries no tally: the page counts the rows it holds, and the
 navigation badge counts the same rows from the dashboard snapshot. Every row is
 returned whatever its status, ordered by commit time, latest first (rows with
@@ -337,8 +337,8 @@ cheaply:
   The jobs it counted also ride on the row as `runs`, one entry for each run
   attempt with its status and its jobs, so a client can work out the pill from
   the same facts. That costs no request, and a GitHub row carries them too.
-  The snapshot, `GET /api/dashboard` and `GET /api/main-branches` send them.
-  The MCP tools `get_main_branches` and `get_dashboard`, and the in-page
+  The snapshot, `GET /api/v1/dashboard` and `GET /api/v1/main-branches` send
+  them. The MCP tools `get_main_branches` and `get_dashboard`, and the in-page
   WebMCP tools of the same names, leave them out, since
   `get_main_branch_checks` lists the same jobs. The snapshot grows by those job
   lists, up to 50 checks for each GitHub repo.
@@ -389,7 +389,7 @@ that left. A row past the seventh keeps the pill its `runs` fold to (or the
 pill from the refresh, for a row with none) until a filter brings it into
 the first seven.
 
-`POST /api/main-branches/rerun-checks` with `{forge, fullName}` reruns the
+`POST /api/v1/main-branches/rerun-checks` with `{forge, fullName}` reruns the
 failed workflow runs on that same commit, only their failed jobs (on Forgejo,
 the jobs that need a failed job restart with it),
 and answers 204 when the forge has queued them. The pipeline panel of a failed
@@ -417,5 +417,5 @@ workflow run with a queued or running job, or a queued Forgejo run that has no
 job yet, behind the same confirm step, with the same permission needs and the
 same reasons on a refusal as the pull request button (see
 [Pull request actions](pull-request-actions.md)). It sends
-`POST /api/checks/cancel-run` with `{forge, fullName, runId}`, the run id coming
-from the checks the panel lists.
+`POST /api/v1/checks/cancel-run` with `{forge, fullName, runId}`, the run id
+coming from the checks the panel lists.

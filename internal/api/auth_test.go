@@ -184,7 +184,7 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server) (*http.Cookie,
 	authenticator := virtualwebauthn.NewAuthenticator()
 	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
 
-	beginResp, err := testClient(tb).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
+	beginResp, err := testClient(tb).Post(srv.URL+"/api/v1/auth/register/begin", "application/json", nil)
 	require.NoError(tb, err)
 	defer func() { _ = beginResp.Body.Close() }()
 	require.Equal(tb, http.StatusOK, beginResp.StatusCode)
@@ -199,7 +199,7 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server) (*http.Cookie,
 	attestationResponse := virtualwebauthn.CreateAttestationResponse(rp, authenticator, cred, *attestationOptions)
 
 	finishResp, err := testClient(tb).Post(
-		srv.URL+"/api/auth/register/finish",
+		srv.URL+"/api/v1/auth/register/finish",
 		"application/json",
 		strings.NewReader(attestationResponse),
 	)
@@ -244,7 +244,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 	require.NotEmpty(t, sessionCookie.Value)
 
 	t.Run("the session from registration reaches the protected dashboard", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard", nil)
 		require.NoError(t, err)
 		req.AddCookie(sessionCookie)
 
@@ -255,7 +255,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 	})
 
 	t.Run("the dashboard refuses a request with no session at all", func(t *testing.T) {
-		resp, err := testClient(t).Get(srv.URL + "/api/dashboard")
+		resp, err := testClient(t).Get(srv.URL + "/api/v1/dashboard")
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -264,7 +264,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 	t.Run("logging in again with the same passkey issues a new working session", func(t *testing.T) {
 		rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
 
-		beginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+		beginResp, err := testClient(t).Post(srv.URL+"/api/v1/auth/login/begin", "application/json", nil)
 		require.NoError(t, err)
 		defer func() { _ = beginResp.Body.Close() }()
 		require.Equal(t, http.StatusOK, beginResp.StatusCode)
@@ -278,7 +278,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 		assertionResponse := virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *assertionOptions)
 
 		finishResp, err := testClient(t).Post(
-			srv.URL+"/api/auth/login/finish",
+			srv.URL+"/api/v1/auth/login/finish",
 			"application/json",
 			strings.NewReader(assertionResponse),
 		)
@@ -294,7 +294,7 @@ func TestPasskeyRegistrationAndLogin_RealWebAuthnCeremony(t *testing.T) {
 		}
 		require.NotNil(t, loginCookie)
 
-		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/session", nil)
 		require.NoError(t, err)
 		req.AddCookie(loginCookie)
 		resp, err := testClient(t).Do(req)
@@ -309,7 +309,7 @@ func TestLogout_ClearsTheSession(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/logout", nil)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/auth/logout", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -317,7 +317,7 @@ func TestLogout_ClearsTheSession(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 
-	req2, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard", nil)
+	req2, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard", nil)
 	require.NoError(t, err)
 	req2.AddCookie(sessionCookie)
 	resp2, err := testClient(t).Do(req2)
@@ -334,7 +334,7 @@ func TestRegisterBegin_AfterAUserRegistered_IsClosed(t *testing.T) {
 	registerViaRealCeremony(t, srv)
 
 	for _, body := range []string{``, `{}`, `{"username":"newcomer","displayName":"Newcomer"}`} {
-		resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", strings.NewReader(body))
+		resp, err := testClient(t).Post(srv.URL+"/api/v1/auth/register/begin", "application/json", strings.NewReader(body))
 		require.NoError(t, err)
 		raw := readAll(t, resp)
 		_ = resp.Body.Close()
@@ -364,7 +364,7 @@ func TestRegisterFinish_NamesTheOwnerItself(t *testing.T) {
 	srv := newTestServer(t)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/session", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	resp, err := testClient(t).Do(req)
@@ -383,7 +383,7 @@ func TestLoginBegin_NobodyRegisteredYet_ReturnsNotFound(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+	resp, err := testClient(t).Post(srv.URL+"/api/v1/auth/login/begin", "application/json", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -396,7 +396,7 @@ func loginWithPasskey(tb testing.TB, srv *httptest.Server, cred virtualwebauthn.
 	tb.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
-	beginResp, err := testClient(tb).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+	beginResp, err := testClient(tb).Post(srv.URL+"/api/v1/auth/login/begin", "application/json", nil)
 	require.NoError(tb, err)
 	defer func() { _ = beginResp.Body.Close() }()
 	require.Equal(tb, http.StatusOK, beginResp.StatusCode)
@@ -405,7 +405,7 @@ func loginWithPasskey(tb testing.TB, srv *httptest.Server, cred virtualwebauthn.
 	require.NoError(tb, err)
 	require.Empty(tb, options.AllowCredentials)
 
-	finishResp, err := testClient(tb).Post(srv.URL+"/api/auth/login/finish", "application/json",
+	finishResp, err := testClient(tb).Post(srv.URL+"/api/v1/auth/login/finish", "application/json",
 		strings.NewReader(virtualwebauthn.CreateAssertionResponse(rp, authenticator, cred, *options)))
 	require.NoError(tb, err)
 	defer func() { _ = finishResp.Body.Close() }()
@@ -429,12 +429,12 @@ func TestRegisterBegin_AbandonedRegistration_CanBeRetried(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	resp1, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
+	resp1, err := testClient(t).Post(srv.URL+"/api/v1/auth/register/begin", "application/json", nil)
 	require.NoError(t, err)
 	_ = resp1.Body.Close()
 	require.Equal(t, http.StatusOK, resp1.StatusCode)
 
-	resp2, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
+	resp2, err := testClient(t).Post(srv.URL+"/api/v1/auth/register/begin", "application/json", nil)
 	require.NoError(t, err)
 	defer func() { _ = resp2.Body.Close() }()
 	assert.Equal(t, http.StatusOK, resp2.StatusCode)
@@ -444,12 +444,12 @@ func TestLoginBegin_AbandonedRegistration_ReturnsNotFoundNotServerError(t *testi
 	t.Parallel()
 	srv := newTestServer(t)
 
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
+	resp, err := testClient(t).Post(srv.URL+"/api/v1/auth/register/begin", "application/json", nil)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	loginResp, err := testClient(t).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+	loginResp, err := testClient(t).Post(srv.URL+"/api/v1/auth/login/begin", "application/json", nil)
 	require.NoError(t, err)
 	defer func() { _ = loginResp.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, loginResp.StatusCode)
@@ -459,7 +459,7 @@ func TestRegistrationStatus_NoUsersYet_IsOpen(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	resp, err := testClient(t).Get(srv.URL + "/api/auth/registration-status")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/auth/registration-status")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -476,7 +476,7 @@ func TestRegistrationStatus_AfterOneUserRegisters_IsClosed(t *testing.T) {
 	srv := newTestServer(t)
 	registerViaRealCeremony(t, srv)
 
-	resp, err := testClient(t).Get(srv.URL + "/api/auth/registration-status")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/auth/registration-status")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -495,7 +495,7 @@ func beginAndAttest(tb testing.TB, srv *httptest.Server) string {
 	tb.Helper()
 
 	rp := virtualwebauthn.RelyingParty{Name: "Forge Board Test", ID: testRPID, Origin: testOrigin}
-	resp, err := testClient(tb).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
+	resp, err := testClient(tb).Post(srv.URL+"/api/v1/auth/register/begin", "application/json", nil)
 	require.NoError(tb, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(tb, http.StatusOK, resp.StatusCode)
@@ -521,7 +521,7 @@ func TestRegisterFinish_TwoCeremoniesFinishingTogether_ExactlyOneWins(t *testing
 	for i, attestation := range attestations {
 		wg.Go(func() {
 			<-start
-			resp, err := testClient(t).Post(srv.URL+"/api/auth/register/finish", "application/json", strings.NewReader(attestation))
+			resp, err := testClient(t).Post(srv.URL+"/api/v1/auth/register/finish", "application/json", strings.NewReader(attestation))
 			if err != nil {
 				return
 			}
@@ -544,12 +544,12 @@ func TestRegisterFinish_ReplayedAttestation_IsRefused(t *testing.T) {
 	srv := newTestServer(t)
 
 	first := beginAndAttest(t, srv)
-	resp, err := testClient(t).Post(srv.URL+"/api/auth/register/finish", "application/json", strings.NewReader(first))
+	resp, err := testClient(t).Post(srv.URL+"/api/v1/auth/register/finish", "application/json", strings.NewReader(first))
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	resp, err = testClient(t).Post(srv.URL+"/api/auth/register/finish", "application/json", strings.NewReader(first))
+	resp, err = testClient(t).Post(srv.URL+"/api/v1/auth/register/finish", "application/json", strings.NewReader(first))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -569,7 +569,7 @@ func TestRegisterBegin_ManyAtOnceOnAFreshInstance_AllSucceed(t *testing.T) {
 	for i := range statuses {
 		wg.Go(func() {
 			<-start
-			resp, err := testClient(t).Post(srv.URL+"/api/auth/register/begin", "application/json", nil)
+			resp, err := testClient(t).Post(srv.URL+"/api/v1/auth/register/begin", "application/json", nil)
 			if err != nil {
 				return
 			}
@@ -587,7 +587,7 @@ func TestRegisterBegin_ManyAtOnceOnAFreshInstance_AllSucceed(t *testing.T) {
 func beginLogin(tb testing.TB, srv *httptest.Server) *virtualwebauthn.AssertionOptions {
 	tb.Helper()
 
-	resp, err := testClient(tb).Post(srv.URL+"/api/auth/login/begin", "application/json", nil)
+	resp, err := testClient(tb).Post(srv.URL+"/api/v1/auth/login/begin", "application/json", nil)
 	require.NoError(tb, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(tb, http.StatusOK, resp.StatusCode)
@@ -602,7 +602,7 @@ func beginLogin(tb testing.TB, srv *httptest.Server) *virtualwebauthn.AssertionO
 func finishLogin(tb testing.TB, srv *httptest.Server, body string) int {
 	tb.Helper()
 
-	resp, err := testClient(tb).Post(srv.URL+"/api/auth/login/finish", "application/json", strings.NewReader(body))
+	resp, err := testClient(tb).Post(srv.URL+"/api/v1/auth/login/finish", "application/json", strings.NewReader(body))
 	require.NoError(tb, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -689,7 +689,7 @@ func TestRegisterBegin_AsksForAResidentKey(t *testing.T) {
 	t.Parallel()
 	srv := newTestServer(t)
 
-	selection, ok := postForOptions(t, srv.URL+"/api/auth/register/begin", nil)["authenticatorSelection"].(map[string]any)
+	selection, ok := postForOptions(t, srv.URL+"/api/v1/auth/register/begin", nil)["authenticatorSelection"].(map[string]any)
 	require.True(t, ok)
 
 	assert.Equal(t, "required", selection["residentKey"])
@@ -703,7 +703,7 @@ func TestAddCredentialBegin_AsksForAResidentKey(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	selection, ok := postForOptions(t, srv.URL+"/api/auth/credentials/begin", sessionCookie)["authenticatorSelection"].(map[string]any)
+	selection, ok := postForOptions(t, srv.URL+"/api/v1/auth/credentials/begin", sessionCookie)["authenticatorSelection"].(map[string]any)
 	require.True(t, ok)
 
 	assert.Equal(t, "required", selection["residentKey"])
@@ -717,7 +717,7 @@ func TestLoginBegin_NamesNoCredentialsAndNoUser(t *testing.T) {
 	srv := newTestServer(t)
 	_, _, _ = registerViaRealCeremony(t, srv)
 
-	options := postForOptions(t, srv.URL+"/api/auth/login/begin", nil)
+	options := postForOptions(t, srv.URL+"/api/v1/auth/login/begin", nil)
 
 	assert.Empty(t, options["allowCredentials"])
 	assert.NotContains(t, options, "user")

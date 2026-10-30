@@ -29,7 +29,7 @@ type linkedEntry struct {
 	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
 }
 
-// linkedByIssue reads /api/dashboard and returns each issue's linked pull
+// linkedByIssue reads /api/v1/dashboard and returns each issue's linked pull
 // requests keyed "forge:repo#number".
 func linkedByIssue(t *testing.T, srvURL string, cookie *http.Cookie) map[string][]linkedEntry {
 	t.Helper()
@@ -123,7 +123,7 @@ func linkedServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 		return []dashboard.Source{github, forgejo}
 	})
 	cookie, _, _ = registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Eventually(t, func() bool {

@@ -28,7 +28,7 @@ func TestTokensGet_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Get(srv.URL + "/api/tokens")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/tokens")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -41,7 +41,7 @@ func TestTokensGet_NoneYet_ReturnsEmptyArrayNotNull(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/tokens", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -60,7 +60,7 @@ func TestTokensPost_ThenGet_ListsItWithoutTheRawValue(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("laptop")))
+	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens", strings.NewReader(tokenCreateBody("laptop")))
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
@@ -80,7 +80,7 @@ func TestTokensPost_ThenGet_ListsItWithoutTheRawValue(t *testing.T) {
 	assert.NotEmpty(t, created.Token)
 	assert.True(t, strings.HasPrefix(created.Token, "fdb_"))
 
-	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
+	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/tokens", nil)
 	require.NoError(t, err)
 	getReq.AddCookie(sessionCookie)
 	getResp, err := testClient(t).Do(getReq)
@@ -105,7 +105,7 @@ func TestTokensPost_BlankLabel_Returns400(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("   ")))
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens", strings.NewReader(tokenCreateBody("   ")))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -125,7 +125,7 @@ func TestTokensPost_ReturnsExpiresAt(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	wantExpiresAt := time.Now().Add(60 * 24 * time.Hour)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens",
 		strings.NewReader(fmt.Sprintf(`{"label":"laptop","expiresAt":%q}`, wantExpiresAt.Format(time.RFC3339))))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
@@ -148,7 +148,7 @@ func TestTokensGet_ListsExpiresAtPerToken(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("laptop")))
+	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens", strings.NewReader(tokenCreateBody("laptop")))
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
@@ -157,7 +157,7 @@ func TestTokensGet_ListsExpiresAtPerToken(t *testing.T) {
 	_ = postResp.Body.Close()
 	require.Equal(t, http.StatusCreated, postResp.StatusCode)
 
-	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
+	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/tokens", nil)
 	require.NoError(t, err)
 	getReq.AddCookie(sessionCookie)
 	getResp, err := testClient(t).Do(getReq)
@@ -177,7 +177,7 @@ func TestTokensPost_ExpiresAtInThePast_Returns400(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	pastExpiry := time.Now().Add(-time.Hour).Format(time.RFC3339)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens",
 		strings.NewReader(fmt.Sprintf(`{"label":"laptop","expiresAt":%q}`, pastExpiry)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
@@ -195,7 +195,7 @@ func TestTokensPost_ExpiresAtMissing_Returns400(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(`{"label":"laptop"}`))
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens", strings.NewReader(`{"label":"laptop"}`))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -216,7 +216,7 @@ func TestTokensPost_ExpiresAtBeyond366Days_Returns400(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	tooFar := time.Now().Add(367 * 24 * time.Hour).Format(time.RFC3339)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens",
 		strings.NewReader(fmt.Sprintf(`{"label":"laptop","expiresAt":%q}`, tooFar)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
@@ -242,7 +242,7 @@ func TestTokensPost_ExpiresAtExactly366Days_IsAllowed(t *testing.T) {
 	// on a slow CI runner. A minute of margin has no such race.
 	almost366Days := time.Now().Add(366*24*time.Hour - time.Minute).Format(time.RFC3339)
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens",
 		strings.NewReader(fmt.Sprintf(`{"label":"laptop","expiresAt":%q}`, almost366Days)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
@@ -265,7 +265,7 @@ func TestTokenExpired_RejectedLikeAnInvalidToken(t *testing.T) {
 	// again just after it does.
 	soonExpiry := time.Now().Add(200 * time.Millisecond).Format(time.RFC3339)
 
-	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens",
+	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens",
 		strings.NewReader(fmt.Sprintf(`{"label":"laptop","expiresAt":%q}`, soonExpiry)))
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
@@ -280,7 +280,7 @@ func TestTokenExpired_RejectedLikeAnInvalidToken(t *testing.T) {
 
 	client := testClient(t)
 	require.Eventually(t, func() bool {
-		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
+		req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/tokens", nil)
 		if err != nil {
 			return false
 		}
@@ -301,7 +301,7 @@ func TestTokenCreated_AuthenticatesAsBearerAgainstARealEndpoint(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("ci script")))
+	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens", strings.NewReader(tokenCreateBody("ci script")))
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
@@ -313,10 +313,10 @@ func TestTokenCreated_AuthenticatesAsBearerAgainstARealEndpoint(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(postResp.Body).Decode(&created))
 
-	// GET /api/tokens itself, with no session cookie at all — the real
+	// GET /api/v1/tokens itself, with no session cookie at all — the real
 	// point of this feature: a script authenticating the same way a
 	// signed-in browser does.
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/tokens", nil)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer "+created.Token)
 	resp, err := testClient(t).Do(req)
@@ -332,7 +332,7 @@ func TestTokensDelete_StopsItAuthenticating(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/tokens", strings.NewReader(tokenCreateBody("laptop")))
+	postReq, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tokens", strings.NewReader(tokenCreateBody("laptop")))
 	require.NoError(t, err)
 	postReq.AddCookie(sessionCookie)
 	postReq.Header.Set("Content-Type", "application/json")
@@ -345,7 +345,7 @@ func TestTokensDelete_StopsItAuthenticating(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(postResp.Body).Decode(&created))
 
-	delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/tokens/"+created.ID, nil)
+	delReq, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/v1/tokens/"+created.ID, nil)
 	require.NoError(t, err)
 	delReq.AddCookie(sessionCookie)
 	delResp, err := testClient(t).Do(delReq)
@@ -353,7 +353,7 @@ func TestTokensDelete_StopsItAuthenticating(t *testing.T) {
 	defer func() { _ = delResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, delResp.StatusCode)
 
-	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/tokens", nil)
+	getReq, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/tokens", nil)
 	require.NoError(t, err)
 	getReq.Header.Set("Authorization", "Bearer "+created.Token)
 	getResp, err := testClient(t).Do(getReq)
@@ -369,7 +369,7 @@ func TestTokensDelete_UnknownID_StillReturns204(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/tokens/not-a-real-id", nil)
+	req, err := http.NewRequest(http.MethodDelete, srv.URL+"/api/v1/tokens/not-a-real-id", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)

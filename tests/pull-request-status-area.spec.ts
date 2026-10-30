@@ -36,8 +36,10 @@ const WAITING = pr(2, {
 const READY = pr(1, { title: 'Ready' });
 
 async function open(page: Page, pullRequests: unknown[]) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

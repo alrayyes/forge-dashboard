@@ -1,4 +1,4 @@
-// The layout's /api/dashboard read, for the pages that need more from it than
+// The layout's /api/v1/dashboard read, for the pages that need more from it than
 // the navigation counts: Insights, Settings and Webhooks. They used to make a
 // one-shot read of their own at the same moment as the layout's, and two
 // same-URL requests collide in the browser's HTTP cache lock (#1801). The

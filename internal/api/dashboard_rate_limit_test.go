@@ -33,7 +33,7 @@ func TestDashboard_RateLimitsCarryTheNumbersAndNoGrade(t *testing.T) {
 	}
 	srv := newTestServerWithSources(t, buildSources)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(cookie)
 	putReq.Header.Set("Content-Type", "application/json")

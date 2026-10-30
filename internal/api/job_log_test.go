@@ -45,7 +45,7 @@ func (f *fakeJobLogSource) JobLog(_ context.Context, owner, name string, jobID i
 func getJobLog(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName, jobID string) *http.Response {
 	t.Helper()
 	q := url.Values{"forge": {forge}, "fullName": {fullName}, "jobId": {jobID}}
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/checks/log?"+q.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/checks/log?"+q.Encode(), nil)
 	require.NoError(t, err)
 	if sessionCookie != nil {
 		req.AddCookie(sessionCookie)
@@ -376,7 +376,7 @@ func newExcerptSource(excerpt string, err error) *fakeExcerptSource {
 func getJobExcerpt(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName, excerpt string) *http.Response {
 	t.Helper()
 	q := url.Values{"forge": {forge}, "fullName": {fullName}, "jobId": {"7"}, "excerpt": {excerpt}}
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/checks/log?"+q.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/checks/log?"+q.Encode(), nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)

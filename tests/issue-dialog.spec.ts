@@ -3,8 +3,8 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // An issue row opens a dialog like a pull request's: the description and the
-// conversation, fetched from GET /api/issues/details when it opens. Mocks
-// /api/dashboard and the details endpoint only and writes no saved state.
+// conversation, fetched from GET /api/v1/issues/details when it opens. Mocks
+// /api/v1/dashboard and the details endpoint only and writes no saved state.
 
 const NOW = new Date();
 const ago = (minutes: number) =>
@@ -64,8 +64,8 @@ async function mockDashboard(page: Page, issue: object = ISSUE) {
   await page.route('https://avatars.example.com/broken', (route: Route) =>
     route.abort(),
   );
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -85,7 +85,7 @@ async function mockDetails(
   payload: unknown = details,
 ) {
   const urls: string[] = [];
-  await page.route('**/api/issues/details*', (route: Route) => {
+  await page.route('**/api/v1/issues/details*', (route: Route) => {
     urls.push(route.request().url());
     return route.fulfill({
       status,
@@ -177,8 +177,8 @@ test.describe('an issue row opens its dialog', () => {
       await expect(filedBy).toContainText('ryankes');
       await expect(filedBy.locator('img')).toHaveCount(0);
       await dialog(page).getByRole('button', { name: 'Close details' }).click();
-      await page.unroute('**/api/dashboard*');
-      await page.unroute('**/api/issues/details*');
+      await page.unroute('**/api/v1/dashboard*');
+      await page.unroute('**/api/v1/issues/details*');
     }
   });
 
@@ -220,7 +220,7 @@ test.describe('an issue row opens its dialog', () => {
   }) => {
     await mockDashboard(page);
     let fail = true;
-    await page.route('**/api/issues/details*', (route: Route) =>
+    await page.route('**/api/v1/issues/details*', (route: Route) =>
       fail
         ? route.fulfill({
             status: 429,
@@ -287,7 +287,7 @@ test.describe('an issue row opens its dialog', () => {
         body: AVATAR,
       }),
     );
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     const snapshot = (route: Route) =>
       route.fulfill({
         status: 200,
@@ -302,9 +302,9 @@ test.describe('an issue row opens its dialog', () => {
               : [],
         }),
       });
-    await page.route('**/api/dashboard/refresh', snapshot);
-    await page.route('**/api/dashboard*', snapshot);
-    await page.route('**/api/issues/details*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', snapshot);
+    await page.route('**/api/v1/dashboard*', snapshot);
+    await page.route('**/api/v1/issues/details*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

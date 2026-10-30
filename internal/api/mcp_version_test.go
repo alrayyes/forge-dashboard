@@ -57,7 +57,7 @@ func TestMCP_GetVersion_NeedsAValidAPIToken(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/mcp", nil)
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/mcp", nil)
 	require.NoError(t, err)
 	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)

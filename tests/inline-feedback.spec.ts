@@ -101,21 +101,21 @@ async function setup(
     failing: new Set(opts.failing ?? []),
     served,
   };
-  await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ allowBotPrUpdates: false }),
     }),
   );
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(snapshot(served())),
     }),
   );
-  await page.route('**/api/dashboard/refresh', (route: Route) =>
+  await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -123,7 +123,7 @@ async function setup(
     }),
   );
   await page.route(
-    '**/api/pull-requests/update-branch',
+    '**/api/v1/pull-requests/update-branch',
     async (route: Route) => {
       const body = route.request().postDataJSON() as { number: number };
       mocks.hits[body.number] = (mocks.hits[body.number] ?? 0) + 1;
@@ -354,7 +354,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     const prs = [makePR(1), makePR(2)];
     await setup(page, prs);
     await updateBranch(rowFor(page, 2));
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -506,7 +506,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       },
       JSON.stringify(snapshot(mocks.served())),
     );
-    const answered = page.waitForResponse('**/api/dashboard/refresh');
+    const answered = page.waitForResponse('**/api/v1/dashboard/refresh');
     await page.click('#force-refresh-button');
     await answered;
     await settle(page);
@@ -531,7 +531,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
       'Updating branch',
     );
 
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -553,7 +553,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
 
   test('the banner still reports a global condition', async ({ page }) => {
     await setup(page, [makePR(1)]);
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 500,
         contentType: 'application/json',

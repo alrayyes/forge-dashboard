@@ -28,7 +28,7 @@ func TestContract_JobLog(t *testing.T) {
 	t.Run("the log answers text and a truncated flag", func(t *testing.T) {
 		t.Parallel()
 
-		op := doc.Paths.Find("/api/checks/log").Get
+		op := doc.Paths.Find("/api/v1/checks/log").Get
 		require.NotNil(t, op)
 		assert.Equal(t, "getCheckLog", op.OperationID)
 
@@ -39,7 +39,7 @@ func TestContract_JobLog(t *testing.T) {
 		t.Parallel()
 
 		var found *openapi3.Parameter
-		for _, p := range doc.Paths.Find("/api/checks/log").Get.Parameters {
+		for _, p := range doc.Paths.Find("/api/v1/checks/log").Get.Parameters {
 			if p.Value.Name == "excerpt" {
 				found = p.Value
 			}
@@ -54,7 +54,7 @@ func TestContract_JobLog(t *testing.T) {
 		source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, log: dashboard.JobLog{Text: "ok\n", Truncated: true}}
 		srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
-		req, got := record(t, http.MethodGet, srvURL+"/api/checks/log?forge=github&fullName=a/b&jobId=5", cookie)
+		req, got := record(t, http.MethodGet, srvURL+"/api/v1/checks/log?forge=github&fullName=a/b&jobId=5", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 	})

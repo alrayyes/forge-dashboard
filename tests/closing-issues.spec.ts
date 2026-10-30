@@ -3,7 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // A pull request that will close issues shows a pill for each, and the link
-// opens that issue's pop-up on the Issues page. Mocks /api/dashboard and the
+// opens that issue's pop-up on the Issues page. Mocks /api/v1/dashboard and the
 // details endpoints only and writes no saved state.
 
 const NOW = new Date();
@@ -73,8 +73,8 @@ const details = {
 type Board = { pullRequests?: unknown[]; issues?: unknown[] };
 
 async function mockBoard(page: Page, board: Board) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -87,7 +87,7 @@ async function mockBoard(page: Page, board: Board) {
     }),
   );
   for (const endpoint of ['pull-requests', 'issues'])
-    await page.route(`**/api/${endpoint}/details*`, (route: Route) =>
+    await page.route(`**/api/v1/${endpoint}/details*`, (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

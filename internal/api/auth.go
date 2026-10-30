@@ -37,7 +37,7 @@ func handleRegisterBegin(svc *auth.Service) http.HandlerFunc {
 // registrationStatusResponse matches components.schemas.RegistrationStatus.
 type registrationStatusResponse struct {
 	// Open is true only when the instance has zero registered users, the one
-	// moment POST /api/auth/register/begin is allowed at all. The login page
+	// moment POST /api/v1/auth/register/begin is allowed at all. The login page
 	// uses this to decide whether to offer its register button.
 	Open bool `json:"open"`
 }

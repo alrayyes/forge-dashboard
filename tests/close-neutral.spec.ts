@@ -30,7 +30,7 @@ function makePR(overrides: Record<string, unknown> = {}) {
 }
 
 function mockDashboard(page: Page, pr: Record<string, unknown>) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -79,7 +79,7 @@ test.describe("Close pull request looks unlike the dialog's own close", () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('it is an outlined danger button, not filled and not green', async ({

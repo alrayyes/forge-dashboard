@@ -15,7 +15,7 @@ func TestTimezoneGet_NothingSavedYet_ReturnsEmptyMeaningBrowser(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/timezone", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/timezone", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -29,7 +29,7 @@ func TestTimezoneGet_RequiresASession(t *testing.T) {
 
 	srv := newTestServer(t)
 
-	resp, err := testClient(t).Get(srv.URL + "/api/settings/timezone")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/settings/timezone")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -42,11 +42,11 @@ func TestTimezonePut_ThenGet_RoundTrips(t *testing.T) {
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/timezone", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/timezone", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 	var got api.TimezoneResponse
 	require.NoError(t, readJSON(getResp, &got))
@@ -60,7 +60,7 @@ func TestTimezonePut_AcceptsUTCAndEmpty(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	for _, body := range []string{`{"timezone":"UTC"}`, `{"timezone":""}`} {
-		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", body, sessionCookie)
+		resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/timezone", body, sessionCookie)
 		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode, body)
 	}
@@ -73,7 +73,7 @@ func TestTimezonePut_NotAnIANAName_Rejected(t *testing.T) {
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
 	for _, body := range []string{`{"timezone":"Mars/Olympus"}`, `{"timezone":"Local"}`, `{"timezone":"../etc/passwd"}`} {
-		resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", body, sessionCookie)
+		resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/timezone", body, sessionCookie)
 		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode, body)
 	}
@@ -84,13 +84,13 @@ func TestTimezonePut_DoesNotDisturbOtherSettings(t *testing.T) {
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan"}`, sessionCookie).Body.Close()
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/theme", `{"theme":"dark"}`, sessionCookie).Body.Close()
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubUsername":"ryan"}`, sessionCookie).Body.Close()
 
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie)
 	_ = putResp.Body.Close()
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 	var got api.SettingsResponse
 	require.NoError(t, readJSON(getResp, &got))
@@ -103,11 +103,11 @@ func TestSettingsPut_DoesNotAcceptOrDisturbTimezone(t *testing.T) {
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie).Body.Close()
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/timezone", `{"timezone":"Europe/Amsterdam"}`, sessionCookie).Body.Close()
 
-	_ = doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubUsername":"ryan","timezone":"UTC"}`, sessionCookie).Body.Close()
+	_ = doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubUsername":"ryan","timezone":"UTC"}`, sessionCookie).Body.Close()
 
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/settings/timezone", "", sessionCookie)
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/timezone", "", sessionCookie)
 	defer func() { _ = getResp.Body.Close() }()
 	var got api.TimezoneResponse
 	require.NoError(t, readJSON(getResp, &got))

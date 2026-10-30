@@ -48,7 +48,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 }
 
 function mockDashboard(page: Page, pr?: MockPR) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -82,7 +82,7 @@ test.describe('pull request close button', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   // mergeStatus: 'blocked' throughout — Close is offered regardless of
@@ -135,7 +135,7 @@ test.describe('pull request close button', () => {
   }) => {
     await mockDashboard(page, makePR());
     let closeCalled = false;
-    await page.route('**/api/pull-requests/close', (route: Route) => {
+    await page.route('**/api/v1/pull-requests/close', (route: Route) => {
       closeCalled = true;
       return route.fulfill({ status: 204 });
     });
@@ -172,7 +172,7 @@ test.describe('pull request close button', () => {
   }) => {
     await mockDashboard(page, makePR());
     let closeCalled = false;
-    await page.route('**/api/pull-requests/close', (route: Route) => {
+    await page.route('**/api/v1/pull-requests/close', (route: Route) => {
       closeCalled = true;
       return route.fulfill({ status: 204 });
     });
@@ -220,11 +220,11 @@ test.describe('pull request close button', () => {
     const pr = makePR();
     await mockDashboard(page, pr);
     let requestBody: unknown;
-    await page.route('**/api/pull-requests/close', (route: Route) => {
+    await page.route('**/api/v1/pull-requests/close', (route: Route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -260,11 +260,11 @@ test.describe('pull request close button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/close', async (route: Route) => {
+    await page.route('**/api/v1/pull-requests/close', async (route: Route) => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -298,7 +298,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -334,7 +334,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -376,7 +376,7 @@ test.describe('pull request close button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -410,7 +410,7 @@ test.describe('pull request close button', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await mockDashboard(page, makePR());
-      await page.route('**/api/pull-requests/close', (route: Route) =>
+      await page.route('**/api/v1/pull-requests/close', (route: Route) =>
         route.fulfill({
           status: 429,
           contentType: 'application/json',
@@ -455,7 +455,7 @@ test.describe('pull request close button', () => {
   test('the permission Close lock cue says why and passes axe, light and dark', async ({
     page,
   }) => {
-    await page.route('**/api/pull-requests/close', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -492,7 +492,7 @@ test.describe('pull request close button', () => {
   }) => {
     const pr = makePR();
     let closed = false;
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -504,11 +504,11 @@ test.describe('pull request close button', () => {
         }),
       }),
     );
-    await page.route('**/api/pull-requests/close', (route: Route) => {
+    await page.route('**/api/v1/pull-requests/close', (route: Route) => {
       closed = true;
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -548,7 +548,7 @@ test.describe('pull request close button', () => {
         allowedActions: [{ action: 'close', primary: true }],
       }),
     );
-    await page.route('**/api/pull-requests/close', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -580,7 +580,7 @@ test.describe('pull request close button', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/close', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/close', (route: Route) =>
       route.fulfill({
         status: 422,
         contentType: 'application/json',

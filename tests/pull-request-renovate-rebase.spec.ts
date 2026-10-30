@@ -45,7 +45,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 }
 
 function mockDashboard(page: Page, forge: string, pr?: MockPR) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -60,7 +60,7 @@ function mockDashboard(page: Page, forge: string, pr?: MockPR) {
 }
 
 function mockSettings(page: Page, allowBotPrUpdates?: boolean) {
-  return page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  return page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -80,7 +80,7 @@ test.describe('pull request Renovate rebase button', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await mockSettings(page);
     // Each test installs its dashboard mock, then loads the Bots page once:
     // bot pull requests live there, not on the main list (#1192).
@@ -152,10 +152,13 @@ test.describe('pull request Renovate rebase button', () => {
   }) => {
     await mockDashboard(page, 'github', makePR());
     let requestBody: unknown;
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) => {
-      requestBody = route.request().postDataJSON();
-      return route.fulfill({ status: 204 });
-    });
+    await page.route(
+      '**/api/v1/pull-requests/renovate-rebase',
+      (route: Route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      },
+    );
     await page.goto('/bots.html');
 
     const row = page.locator('#pr-rows .row').first();
@@ -176,7 +179,7 @@ test.describe('pull request Renovate rebase button', () => {
   }) => {
     await mockDashboard(page, 'github', makePR());
     await page.route(
-      '**/api/pull-requests/renovate-rebase',
+      '**/api/v1/pull-requests/renovate-rebase',
       async (route: Route) => {
         await new Promise((resolve) => setTimeout(resolve, 200));
         return route.fulfill({ status: 204 });
@@ -211,17 +214,19 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
-      route.fulfill({
-        status: 409,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'dashboard: already requested',
-          code: 'already_requested',
-          message:
-            'Renovate already has a rebase request on this pull request.',
+    await page.route(
+      '**/api/v1/pull-requests/renovate-rebase',
+      (route: Route) =>
+        route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'dashboard: already requested',
+            code: 'already_requested',
+            message:
+              'Renovate already has a rebase request on this pull request.',
+          }),
         }),
-      }),
     );
     await page.goto('/bots.html');
 
@@ -263,7 +268,7 @@ test.describe('pull request Renovate rebase button', () => {
       await mockDashboard(page, 'github', makePR({ behind: true }));
       let requestBody: unknown;
       await page.route(
-        '**/api/pull-requests/renovate-rebase',
+        '**/api/v1/pull-requests/renovate-rebase',
         (route: Route) => {
           requestBody = route.request().postDataJSON();
           return route.fulfill({ status: 204 });
@@ -310,17 +315,19 @@ test.describe('pull request Renovate rebase button', () => {
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
-    await page.route('**/api/pull-requests/renovate-rebase', (route: Route) =>
-      route.fulfill({
-        status: 429,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          error: 'github: rate limit exceeded',
-          code: 'rate_limited',
-          message:
-            "The forge's API rate limit is reached. Try again once it resets.",
+    await page.route(
+      '**/api/v1/pull-requests/renovate-rebase',
+      (route: Route) =>
+        route.fulfill({
+          status: 429,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: 'github: rate limit exceeded',
+            code: 'rate_limited',
+            message:
+              "The forge's API rate limit is reached. Try again once it resets.",
+          }),
         }),
-      }),
     );
     await page.goto('/bots.html');
 

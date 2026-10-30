@@ -34,7 +34,7 @@ func TestContract_PullRequestsCarryCheckCounts(t *testing.T) {
 		t.Parallel()
 
 		srv, cookie := populatedBoard(t)
-		req, got := record(t, http.MethodGet, srv.URL+"/api/dashboard?includeDrafts=true", cookie)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/dashboard?includeDrafts=true", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 
@@ -71,7 +71,7 @@ func TestContract_MainBranchesCarryCheckCounts(t *testing.T) {
 		t.Parallel()
 
 		srv, cookie := populatedBoard(t)
-		req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/main-branches", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 
@@ -110,7 +110,7 @@ func TestContract_MainBranchesCarryLatestRelease(t *testing.T) {
 		t.Parallel()
 
 		srv, cookie := populatedBoard(t)
-		req, got := record(t, http.MethodGet, srv.URL+"/api/main-branches", cookie)
+		req, got := record(t, http.MethodGet, srv.URL+"/api/v1/main-branches", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 

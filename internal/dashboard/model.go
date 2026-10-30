@@ -580,7 +580,7 @@ type Repo struct {
 }
 
 // Snapshot matches components.schemas.Dashboard — the whole body
-// GET /api/dashboard answers with.
+// GET /api/v1/dashboard answers with.
 type Snapshot struct {
 	GeneratedAt  time.Time     `json:"generatedAt"`
 	Forges       []ForgeHealth `json:"forges"`
@@ -588,7 +588,7 @@ type Snapshot struct {
 	Issues       []Issue       `json:"issues"`
 	Repos        []Repo        `json:"repos"`
 	// MainBranches is the CI status of every tracked repo's default branch
-	// (#1224), one row per repo, served by GET /api/main-branches.
+	// (#1224), one row per repo, served by GET /api/v1/main-branches.
 	MainBranches []MainBranch `json:"mainBranches"`
 }
 

@@ -41,12 +41,12 @@ func (rt bearerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 
 // createAPIToken registers no user of its own -- it expects sessionCookie
 // from an already-registered one (registerViaRealCeremony) -- and returns
-// a fresh personal API token via the same /api/tokens endpoint
+// a fresh personal API token via the same /api/v1/tokens endpoint
 // settings.html's own UI drives.
 func createAPIToken(t *testing.T, srvURL string, sessionCookie *http.Cookie) string {
 	t.Helper()
 
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/tokens", strings.NewReader(tokenCreateBody("mcp client")))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/tokens", strings.NewReader(tokenCreateBody("mcp client")))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -63,7 +63,7 @@ func createAPIToken(t *testing.T, srvURL string, sessionCookie *http.Cookie) str
 	return created.Token
 }
 
-// connectMCP dials srvURL's own /api/mcp Streamable HTTP endpoint,
+// connectMCP dials srvURL's own /api/v1/mcp Streamable HTTP endpoint,
 // authenticated as token -- the same transport and auth shape a real
 // MCP-capable agent would use, not an in-process shortcut.
 func connectMCP(t *testing.T, srvURL, token string) *mcp.ClientSession {
@@ -71,7 +71,7 @@ func connectMCP(t *testing.T, srvURL, token string) *mcp.ClientSession {
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.0"}, nil)
 	transport := &mcp.StreamableClientTransport{
-		Endpoint:   srvURL + "/api/mcp",
+		Endpoint:   srvURL + "/api/v1/mcp",
 		HTTPClient: &http.Client{Transport: bearerRoundTripper{token: token, base: http.DefaultTransport.(*http.Transport).Clone()}},
 	}
 	session, err := client.Connect(t.Context(), transport, nil)
@@ -86,11 +86,11 @@ func TestMCP_GetDashboard_RequiresAuth(t *testing.T) {
 
 	srv := newTestServer(t)
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0.0.0"}, nil)
-	transport := &mcp.StreamableClientTransport{Endpoint: srv.URL + "/api/mcp"}
+	transport := &mcp.StreamableClientTransport{Endpoint: srv.URL + "/api/v1/mcp"}
 
 	_, err := client.Connect(t.Context(), transport, nil)
 
-	require.Error(t, err, "connecting with no Authorization header should be refused the same way an unauthenticated /api/dashboard request is")
+	require.Error(t, err, "connecting with no Authorization header should be refused the same way an unauthenticated /api/v1/dashboard request is")
 }
 
 func TestMCP_GetDashboard_ListsTheTool(t *testing.T) {
@@ -129,7 +129,7 @@ func TestMCP_GetDashboard_ReturnsTheSameAggregatedDataAsTheHTTPEndpoint(t *testi
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 	token := createAPIToken(t, srv.URL, sessionCookie)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -288,7 +288,7 @@ func TestMCP_GetMainBranches_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
 
 	toolContent := callMainBranchesTool(t, srvURL, cookie, 2)
 
-	_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
+	_, got := record(t, http.MethodGet, srvURL+"/api/v1/main-branches", cookie)
 	var httpContent map[string]any
 	require.NoError(t, json.Unmarshal(got.body, &httpContent))
 	// A background refresh between the two reads stamps the snapshot again, so
@@ -349,7 +349,7 @@ func TestMCP_GetDashboard_LeavesOutTheRunFacts(t *testing.T) {
 	assert.NotContains(t, branches[0], "runs")
 }
 
-// The page reads the runs from the dashboard too, so GET /api/dashboard keeps
+// The page reads the runs from the dashboard too, so GET /api/v1/dashboard keeps
 // them.
 func TestDashboard_EndpointKeepsTheRunFacts(t *testing.T) {
 	t.Parallel()
@@ -359,7 +359,7 @@ func TestDashboard_EndpointKeepsTheRunFacts(t *testing.T) {
 	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{row})
 	readMainBranchesFrom(t, srvURL, cookie, 1)
 
-	_, got := record(t, http.MethodGet, srvURL+"/api/dashboard", cookie)
+	_, got := record(t, http.MethodGet, srvURL+"/api/v1/dashboard", cookie)
 
 	assert.Contains(t, string(got.body), `"runs"`)
 }
@@ -373,7 +373,7 @@ func TestMainBranches_EndpointKeepsTheRunFacts(t *testing.T) {
 	srvURL, cookie := newMainBranchesServer(t, []dashboard.MainBranch{row})
 	readMainBranchesFrom(t, srvURL, cookie, 1)
 
-	_, got := record(t, http.MethodGet, srvURL+"/api/main-branches", cookie)
+	_, got := record(t, http.MethodGet, srvURL+"/api/v1/main-branches", cookie)
 
 	assert.Contains(t, string(got.body), `"runs"`)
 }

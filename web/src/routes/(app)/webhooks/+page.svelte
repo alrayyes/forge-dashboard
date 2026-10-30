@@ -64,7 +64,7 @@
     rebaseBots: boolean;
   };
 
-  // The three choices POST /api/repos/ignore's scope maps to (#511) — a
+  // The three choices POST /api/v1/repos/ignore's scope maps to (#511) — a
   // plain union rather than two separate booleans in the UI layer, since
   // "neither" isn't a fourth choice here: it's not ignoring at all, which
   // is un-ignore's job, not this control's.
@@ -370,7 +370,7 @@
     setStatus(`Adding a webhook for ${repo.fullName}…`);
 
     try {
-      const res = await fetch("/api/webhooks/ensure", {
+      const res = await fetch("/api/v1/webhooks/ensure", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -432,7 +432,7 @@
   // step, the same as addWebhook above — a pure local write, never
   // touching the forge, so there's nothing here a retry can't undo. A
   // repeat call with a different scope (#511) replaces the saved scope
-  // rather than adding to it, matching POST /api/repos/ignore's own
+  // rather than adding to it, matching POST /api/v1/repos/ignore's own
   // documented behavior.
   async function ignoreRepo(repo: Repo, scope: IgnoreScope) {
     const key = rowKey(repo);
@@ -440,7 +440,7 @@
     setStatus(`Ignoring ${repo.fullName}…`);
 
     try {
-      const res = await fetch("/api/repos/ignore", {
+      const res = await fetch("/api/v1/repos/ignore", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -488,7 +488,7 @@
     setStatus(`Un-ignoring ${repo.fullName}…`);
 
     try {
-      const res = await fetch("/api/repos/unignore", {
+      const res = await fetch("/api/v1/repos/unignore", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -531,7 +531,7 @@
 
     try {
       const res = await fetch(
-        `/api/repos/auto-update-branch/${enabled ? "enable" : "disable"}`,
+        `/api/v1/repos/auto-update-branch/${enabled ? "enable" : "disable"}`,
         {
           method: "POST",
           headers: {
@@ -627,7 +627,7 @@
 
     try {
       const res = await fetch(
-        `/api/repos/rebase-bots/${enabled ? "enable" : "disable"}`,
+        `/api/v1/repos/rebase-bots/${enabled ? "enable" : "disable"}`,
         {
           method: "POST",
           headers: {
@@ -709,7 +709,7 @@
     });
   });
 
-  // The layout makes the one /api/dashboard read; this page follows its
+  // The layout makes the one /api/v1/dashboard read; this page follows its
   // answers until one is done (#1801). A final failure just leaves the empty
   // state showing: there is no dashboard-page-style error banner on this page.
   $effect(() => {

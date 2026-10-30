@@ -1,7 +1,7 @@
 # Pull request actions
 
 Which actions a row offers, and why a blocked one is blocked, come from the
-server: each pull request in `GET /api/dashboard` carries a list named
+server: each pull request in `GET /api/v1/dashboard` carries a list named
 `allowedActions`, and the page renders what is listed without any rules of its
 own. Only
 live state is the page's: a rate-limited or unreachable forge, a missing token,
@@ -308,7 +308,7 @@ numbers and the page grades them against its own clock.
 
 While a forge is rate limited, you can queue Update branch, `Dependabot: Rebase`
 or `Renovate: Rebase` to run when its budget comes back, instead of returning to
-click again. `POST /api/queued-actions` stores the choice on the server,
+click again. `POST /api/v1/queued-actions` stores the choice on the server,
 so it survives a page reload and a server restart. The pull request
 carries the waiting item as `queued`, for a row to show a waiting chip, `Queued
 · 14:32` with `Resets in 8m` and `Cancel` (the "Queue update" button comes back
@@ -336,11 +336,11 @@ the action still runs at the reset without anyone signing in.
 On the page, a pull request that is behind its base on a forge whose REST budget
 is spent gets a button where Update branch would have been: "Queue update for
 14:32", or `Queue rebase for 14:32` for a Dependabot or Renovate pull request.
-Queueing posts to `/api/queued-actions`. The row then says "Update branch queued
-for 14:32" with a Cancel button, and Activity lists the item with Cancel (or
-Clear, once it has finished). When an outcome arrives while the page is open, a
-polite toast and the Activity list say whether it was done, skipped with the
-reason ("Already merged") or failed. No queue button is offered for Merge or
+Queueing posts to `/api/v1/queued-actions`. The row then says "Update branch
+queued for 14:32" with a Cancel button, and Activity lists the item with Cancel
+(or Clear, once it has finished). When an outcome arrives while the page is
+open, a polite toast and the Activity list say whether it was done, skipped with
+the reason ("Already merged") or failed. No queue button is offered for Merge or
 Close, for a pull request that isn't behind, or while the forge has budget left.
 
 A forge that fails a refresh keeps showing its last good pull requests and
@@ -529,7 +529,7 @@ Renovate's rebase checkbox is ticked, a rebase is already waiting for Renovate,
 so the server lists `cancel_renovate_rebase` instead of `renovate_rebase`, and
 the row and the pop-up draw `Cancel Renovate rebase` and no `Renovate: Rebase`.
 The cancel clears the checkbox in the pull request description
-(`POST /api/pull-requests/renovate-rebase/cancel`). The server reads the box
+(`POST /api/v1/pull-requests/renovate-rebase/cancel`). The server reads the box
 from the description in the same list call (no extra request), so it holds
 whether the box was ticked here or on the forge. Renovate clears the box once it
 has rebased, and the next snapshot offers the rebase again. If the refresh
@@ -673,20 +673,20 @@ branch update. Human, draft and release-please pull requests are left alone.
 With both switches on, the rebase-bots switch decides a behind bot pull
 request. With only Auto-update on, nothing changes. A choice made on a single
 pull request still wins: a bot pull request switched off stays put. The
-setting is off by default. `POST /api/repos/rebase-bots/enable` and `/disable`
-set it, and `rebaseBots` on each repo in `GET /api/dashboard` reports it. With
-a GitHub App and no saved personal access token the switch is locked, for the
-same reason the Dependabot buttons are. The lock covers the whole switch, so
-Renovate pull requests wait too.
+setting is off by default. `POST /api/v1/repos/rebase-bots/enable` and
+`/disable` set it, and `rebaseBots` on each repo in `GET /api/v1/dashboard`
+reports it. With a GitHub App and no saved personal access token the switch is
+locked, for the same reason the Dependabot buttons are. The lock covers the
+whole switch, so Renovate pull requests wait too.
 
 Each pull request can also have its own say, whatever its repo does. Every
-pull request in `GET /api/dashboard` carries its own state under `autoUpdate`:
-whether the pass updates it (`enabled`), where that comes from (`source` is
-`repo` for the repo's setting and `pullRequest` for a choice made on this
-one), and, for a draft or a release-please pull request, the reason under
-`unavailable`, because the pass never touches those however they are
+pull request in `GET /api/v1/dashboard` carries its own state under
+`autoUpdate`: whether the pass updates it (`enabled`), where that comes from
+(`source` is `repo` for the repo's setting and `pullRequest` for a choice made
+on this one), and, for a draft or a release-please pull request, the reason
+under `unavailable`, because the pass never touches those however they are
 switched.
-`POST /api/pull-requests/auto-update` with `enabled` true or false sets it,
+`POST /api/v1/pull-requests/auto-update` with `enabled` true or false sets it,
 so a pull request you are still testing stays put while the rest of the repo
 keeps updating, or the other way round for one pull request in a repo that
 doesn't update by itself. The dashboard only keeps a choice while it differs
@@ -817,7 +817,7 @@ jobs, one after another, and fills each in as it lands, announcing it politely
 to a screen reader ("Log excerpt loaded for test."). That is one request per
 failed job (retries come out of the same five), each given 15 seconds, made only
 when the panel is open and the person is about to look at the check, through
-`GET /api/checks/log` with `excerpt=true`. A log with text is read once per
+`GET /api/v1/checks/log` with `excerpt=true`. A log with text is read once per
 finished job and kept, so a branch that stays red costs no more reads. A log
 that can't be read, or that is missing, is not asked for again for a minute, and
 an empty log, which is usually one the runner has not flushed yet, for ten
@@ -861,7 +861,7 @@ forge refuses (no permission, a run too old or already running), the panel shows
 its reason and the button stays for another try.
 A failed check that isn't an Actions job, such as an external CI, can't be
 rerun and is skipped; a pull request with nothing left to rerun answers "no
-failed job to rerun" (`POST /api/pull-requests/rerun-checks`, listed as
+failed job to rerun" (`POST /api/v1/pull-requests/rerun-checks`, listed as
 `rerun_checks` in `allowedActions`).
 
 Forgejo added the rerun routes in version 17. Versions 7 to 16 have none,
@@ -941,8 +941,8 @@ too old to have the cancel route answers with a 404, which reads the same as a
 run that is gone, so the panel shows that reason and doesn't lock. A cancel is
 never queued for a rate-limit reset: by then the run may be a different one,
 started by a newer push, and a cancel can't be undone (`POST
-/api/checks/cancel-run` with `{forge, fullName, runId}`, listed as `cancel_run`
-in `allowedActions`).
+/api/v1/checks/cancel-run` with `{forge, fullName, runId}`, listed as
+`cancel_run` in `allowedActions`).
 A job of a workflow run carries that run, so a finished job says which run it
 came from. On GitHub the run's id is in the job's page address and costs
 nothing. Its name and number come from the runs for that commit, which the checks
@@ -1035,10 +1035,10 @@ had it. A run that's under way keeps the button until it ends.
 
 ## Deleting the source branch on merge
 
-`POST /api/pull-requests/merge` can also delete the branch the pull request came
-from. Send `deleteBranch: true` with the usual `forge`, `fullName` and `number`.
-Without it, or with `false`, nothing changes: the answer is `204` and the branch
-stays.
+`POST /api/v1/pull-requests/merge` can also delete the branch the pull request
+came from. Send `deleteBranch: true` with the usual `forge`, `fullName` and
+`number`. Without it, or with `false`, nothing changes: the answer is `204` and
+the branch stays.
 
 The branch is deleted after the merge succeeds, and never before. With
 `deleteBranch` set, the answer is `200` and says what happened to the branch:

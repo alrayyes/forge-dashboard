@@ -105,7 +105,7 @@ func openCheckFeed(t *testing.T, source *checkFeedSource) (*checkFeed, string) {
 	srvURL, sessionCookie := newTestServerWithSource(t, source)
 	webhookToken, webhookSecret := webhookCredentials(t, srvURL, sessionCookie)
 
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard/stream?sid="+watchedStreamID, nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard/stream?sid="+watchedStreamID, nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -122,7 +122,7 @@ func openCheckFeed(t *testing.T, source *checkFeedSource) (*checkFeed, string) {
 // watch posts a watch and answers the status code.
 func (f *checkFeed) watch(t *testing.T, body string) int {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodPost, f.srvURL+"/api/dashboard/stream/watch", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, f.srvURL+"/api/v1/dashboard/stream/watch", strings.NewReader(body))
 	require.NoError(t, err)
 	req.AddCookie(f.cookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -448,7 +448,7 @@ func TestCheckStream_WatchRequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Post(srv.URL+"/api/dashboard/stream/watch", "application/json", strings.NewReader(watchPR))
+	resp, err := testClient(t).Post(srv.URL+"/api/v1/dashboard/stream/watch", "application/json", strings.NewReader(watchPR))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

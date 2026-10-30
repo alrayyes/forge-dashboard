@@ -84,7 +84,7 @@ async function open(
         data: JSON.stringify(data),
       });
   });
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -194,7 +194,7 @@ test('the Issues page keeps its choices with the list while updates are paused',
 test('a saved pick only the held list has is kept when the saved copy arrives', async ({
   page,
 }) => {
-  const endpoint = '/api/settings/filter-state';
+  const endpoint = '/api/v1/settings/filter-state';
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -231,7 +231,7 @@ test('a saved pick only the held list has is kept when the saved copy arrives', 
 test('the Issues list lands too when the saved copy meets a paused view', async ({
   page,
 }) => {
-  const endpoint = '/api/settings/filter-state';
+  const endpoint = '/api/v1/settings/filter-state';
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;

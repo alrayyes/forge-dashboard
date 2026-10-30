@@ -154,7 +154,7 @@ func TestDashboardStream_AppliesTheIssueSettings(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 	webhookToken, webhookSecret := webhookCredentials(t, srv.URL, cookie)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/dashboard/stream", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/dashboard/stream", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	resp, err := testClient(t).Do(req)
@@ -252,7 +252,7 @@ func TestDashboard_IssuesOfAnIgnoredRepo_AreNotCountedAsHiddenBySettings(t *test
 }
 
 // The dashboard carries the two flags so a client needn't read
-// GET /api/settings, which also holds the webhook secret, just to know whether
+// GET /api/v1/settings, which also holds the webhook secret, just to know whether
 // to draw its two fields.
 func TestDashboard_CarriesTheIssueSettingFlags(t *testing.T) {
 	t.Parallel()

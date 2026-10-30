@@ -3,7 +3,7 @@
 
 import { type Check, checkState } from './pipeline-checks';
 
-// The kilobytes the server keeps of a long log. GET /api/checks/log cuts
+// The kilobytes the server keeps of a long log. GET /api/v1/checks/log cuts
 // the start of a log past this.
 const KEPT_KB = 256;
 
@@ -33,7 +33,7 @@ export function logUrl(
   if (!repo?.forge || !repo.fullName) return null;
   const { forge, fullName } = repo;
 
-  return `/api/checks/log?${new URLSearchParams({ forge, fullName, jobId: String(jobId) })}`;
+  return `/api/v1/checks/log?${new URLSearchParams({ forge, fullName, jobId: String(jobId) })}`;
 }
 
 // What the dialog says above a log the server cut.

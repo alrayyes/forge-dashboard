@@ -3,7 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
-// Every signed-in test mocks /api/dashboard. The signed-out one clears the
+// Every signed-in test mocks /api/v1/dashboard. The signed-out one clears the
 // session cookie the server fixture sets.
 
 // #1261: the changelog, disclaimer and privacy pages are open to visitors, so
@@ -34,19 +34,21 @@ function mockDashboard(
   pullRequests: unknown[],
   openIssueCount: number,
 ) {
-  return page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests,
-        issues: [],
-        openIssueCount,
-        navCounts: navCountsFor(pullRequests, openIssueCount),
+  return page.route(
+    /\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/,
+    (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests,
+          issues: [],
+          openIssueCount,
+          navCounts: navCountsFor(pullRequests, openIssueCount),
+        }),
       }),
-    }),
   );
 }
 
@@ -99,7 +101,7 @@ test.describe('signed out', () => {
     page,
   }) => {
     let asked = false;
-    await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route) => {
+    await page.route(/\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/, (route) => {
       asked = true;
       return route.abort();
     });

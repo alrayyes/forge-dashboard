@@ -16,9 +16,9 @@ const PAGES = [
   { name: 'Webhooks', url: '/webhooks.html' },
 ];
 
-const isRead = (url: string) => new URL(url).pathname === '/api/dashboard';
+const isRead = (url: string) => new URL(url).pathname === '/api/v1/dashboard';
 
-// Counts the reads of /api/dashboard that were started and not yet ended.
+// Counts the reads of /api/v1/dashboard that were started and not yet ended.
 function trackReads(page: Page) {
   const seen = { started: 0, open: 0, max: 0, ended: 0 };
   page.on('request', (req) => {
@@ -59,7 +59,7 @@ async function spyLayoutReads(page: Page) {
       const url = typeof input === 'string' ? input : (input as Request).url;
       if (
         !init?.signal ||
-        new URL(url, location.href).pathname !== '/api/dashboard'
+        new URL(url, location.href).pathname !== '/api/v1/dashboard'
       )
         return real(input, init);
       const rec = { start: Date.now(), end: -1, cache: init.cache };
@@ -82,7 +82,7 @@ const layoutReads = (page: Page) =>
   );
 
 async function noStream(page: Page) {
-  await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
+  await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
 }
 
 // What each of the three pages draws from the layout's read, so a held first
@@ -117,7 +117,7 @@ for (const { name, url, shows, text } of FROM_READ) {
     const held = new Promise<void>((r) => {
       release = r;
     });
-    await page.route('**/api/dashboard*', async (route: Route) => {
+    await page.route('**/api/v1/dashboard*', async (route: Route) => {
       if (!isRead(route.request().url())) return route.fallback();
       await held;
       return route.fulfill({
@@ -154,7 +154,7 @@ for (const { name, url } of PAGES) {
       await freezeClock(page);
       await noStream(page);
       // Never answers: a half-open connection.
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         isRead(route.request().url()) ? undefined : route.fallback(),
       );
       const seen = trackReads(page);
@@ -173,7 +173,7 @@ for (const { name, url } of PAGES) {
       await freezeClock(page);
       await noStream(page);
       await spyLayoutReads(page);
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         isRead(route.request().url())
           ? route.fulfill({
               status: 200,
@@ -231,7 +231,7 @@ for (const { name, url } of PAGES) {
     }) => {
       await freezeClock(page);
       await noStream(page);
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         isRead(route.request().url())
           ? route.fulfill({
               status: 200,
@@ -270,7 +270,7 @@ for (const { name, url } of PAGES) {
       await freezeClock(page);
       await noStream(page);
       await spyLayoutReads(page);
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         isRead(route.request().url())
           ? route.fulfill({
               status: 200,

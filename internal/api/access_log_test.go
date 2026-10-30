@@ -57,7 +57,7 @@ func TestAccessLog_RejectedRequest_StillLogsAtWarn(t *testing.T) {
 	// No session cookie, no bearer token — RequireAuth rejects this
 	// before the handler underneath ever runs. The middleware wraps
 	// *outside* auth specifically so this still gets logged.
-	resp, err := testClient(t).Get(srv.URL + "/api/auth/session")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/auth/session")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -65,7 +65,7 @@ func TestAccessLog_RejectedRequest_StillLogsAtWarn(t *testing.T) {
 	logged := logs.String()
 	assert.Contains(t, logged, "level=WARN")
 	assert.Contains(t, logged, "status=401")
-	assert.Contains(t, logged, "path=/api/auth/session")
+	assert.Contains(t, logged, "path=/api/v1/auth/session")
 }
 
 func TestAccessLog_AuthenticatedRequest_IncludesUsername(t *testing.T) {
@@ -73,7 +73,7 @@ func TestAccessLog_AuthenticatedRequest_IncludesUsername(t *testing.T) {
 	srv := newTestServer(t)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/session", nil)
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	resp, err := testClient(t).Do(req)
@@ -184,7 +184,7 @@ func TestAccessLog_5xxStatus_LogsAtError(t *testing.T) {
 
 	require.NoError(t, db.Close())
 
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/auth/session", nil)
+	req, err := http.NewRequest(http.MethodGet, srv.URL+"/api/v1/auth/session", nil)
 	require.NoError(t, err)
 	// #nosec G124 -- a request Cookie header being simulated here, not a response Set-Cookie; Secure/HttpOnly/SameSite are response-only attributes gosec cannot tell don't apply.
 	req.AddCookie(&http.Cookie{Name: authpkg.CookieName, Value: token})

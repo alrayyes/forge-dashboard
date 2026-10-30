@@ -40,7 +40,7 @@ func (f *fakeAdvisoryListerSource) ListAdvisories(ctx context.Context, owner, na
 func getAdvisoryList(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName string) *http.Response {
 	t.Helper()
 	q := url.Values{"forge": {forge}, "fullName": {fullName}}
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/main-branches/advisories?"+q.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/main-branches/advisories?"+q.Encode(), nil)
 	require.NoError(t, err)
 	if sessionCookie != nil {
 		req.AddCookie(sessionCookie)
@@ -143,7 +143,7 @@ func TestContract_AdvisoryList(t *testing.T) {
 	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}}
-	req, got := record(t, http.MethodGet, srvURL+"/api/main-branches/advisories?"+q.Encode(), sessionCookie)
+	req, got := record(t, http.MethodGet, srvURL+"/api/v1/main-branches/advisories?"+q.Encode(), sessionCookie)
 
 	require.Equal(t, http.StatusOK, got.status, string(got.body))
 	validateAgainstSpec(t, req, got)

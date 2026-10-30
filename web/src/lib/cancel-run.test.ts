@@ -198,7 +198,7 @@ describe('cancelRun', () => {
     await cancelRun({ forge: 'github', fullName: 'a/b' }, 7);
 
     expect(seen).toEqual({
-      url: '/api/checks/cancel-run',
+      url: '/api/v1/checks/cancel-run',
       body: { forge: 'github', fullName: 'a/b', runId: 7 },
     });
   });

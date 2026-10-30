@@ -59,8 +59,10 @@ async function mock(page: Page, issues: object[] = ISSUES) {
   await page.route('https://avatars.example.com/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PIXEL }),
   );
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -80,7 +82,7 @@ async function mock(page: Page, issues: object[] = ISSUES) {
 // The issue's dialog, opened from its row, with a body and no comments.
 async function openIssueDialog(page: Page, issues: object[] = ISSUES) {
   await mock(page, issues);
-  await page.route('**/api/issues/details*', (route: Route) => {
+  await page.route('**/api/v1/issues/details*', (route: Route) => {
     const none = { count: 0, logins: [] };
     const reactions = { thumbsUp: none, thumbsDown: none };
 
@@ -300,7 +302,7 @@ test.describe('Profile links (#1991)', () => {
 });
 
 async function openDialog(page: Page) {
-  await page.route('**/api/pull-requests/details*', (route: Route) => {
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) => {
     const none = { count: 0, logins: [] };
     const reactions = { thumbsUp: none, thumbsDown: none };
     const comment = (id: string, author: object | null, text: string) => ({

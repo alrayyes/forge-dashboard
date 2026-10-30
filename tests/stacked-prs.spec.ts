@@ -75,15 +75,17 @@ const PRS = [
 
 async function open(page: Page, size = { width: 1280, height: 900 }) {
   await page.setViewportSize(size);
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ allowBotPrUpdates: false }),
     }),
   );
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

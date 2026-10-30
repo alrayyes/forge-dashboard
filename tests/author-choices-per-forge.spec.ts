@@ -44,8 +44,8 @@ const PRS = [
 ];
 
 async function open(page: Page, prs = PRS) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -123,7 +123,7 @@ test.describe('an author saved as a bare login by an earlier release', () => {
     return c ? (JSON.parse(decodeURIComponent(c.value)).shared ?? {}) : {};
   };
   const serverShared = async (page: Page) =>
-    (await (await page.request.get('/api/settings/filter-state')).json())
+    (await (await page.request.get('/api/v1/settings/filter-state')).json())
       ?.shared ?? {};
 
   test('in the cookie is read as that login on each forge and saved qualified', async ({
@@ -162,7 +162,7 @@ test.describe('an author saved as a bare login by an earlier release', () => {
   test('in the server copy is read as that login on each forge and saved qualified', async ({
     page,
   }) => {
-    await page.request.put('/api/settings/filter-state', {
+    await page.request.put('/api/v1/settings/filter-state', {
       data: { shared: { author: 'sam' }, pr: {}, issue: {}, view: {} },
     });
     await open(page);
@@ -182,7 +182,7 @@ test.describe('an author saved as a bare login by an earlier release', () => {
   test('on no forge here is set aside, named as having no forge and kept saved', async ({
     page,
   }) => {
-    await page.request.put('/api/settings/filter-state', {
+    await page.request.put('/api/v1/settings/filter-state', {
       data: { shared: { author: 'ghost' }, pr: {}, issue: {}, view: {} },
     });
     await open(page);
@@ -211,7 +211,7 @@ test.describe('an author saved as a bare login by an earlier release', () => {
   test('past the 20-value cap says how many choices were left out', async ({
     page,
   }) => {
-    await page.request.put('/api/settings/filter-state', {
+    await page.request.put('/api/v1/settings/filter-state', {
       data: {
         shared: { author: [...picks, 'sam'].join('\n') },
         pr: {},
@@ -231,7 +231,7 @@ test.describe('an author saved as a bare login by an earlier release', () => {
   });
 
   test('within the cap says nothing', async ({ page }) => {
-    await page.request.put('/api/settings/filter-state', {
+    await page.request.put('/api/v1/settings/filter-state', {
       data: { shared: { author: 'sam' }, pr: {}, issue: {}, view: {} },
     });
     await open(page, MANY);

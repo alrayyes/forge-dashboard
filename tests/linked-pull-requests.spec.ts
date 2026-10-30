@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // An issue that an open pull request will close shows a pill linking to it,
 // and the link opens that pull request's pop-up on its page. Mocks
-// /api/dashboard and the details endpoints only and writes no saved state.
+// /api/v1/dashboard and the details endpoints only and writes no saved state.
 // https://github.com/alrayyes/forge-dashboard/issues/2082
 
 const NOW = new Date();
@@ -81,8 +81,8 @@ type Board = { shown: unknown[]; everything?: unknown[]; issues?: unknown[] };
 // the longer list, as the real endpoint would answer.
 async function mockBoard(page: Page, board: Board) {
   const asked: string[] = [];
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) => {
     const url = route.request().url();
     asked.push(url);
     const all = url.includes('includeHidden=true');
@@ -97,7 +97,7 @@ async function mockBoard(page: Page, board: Board) {
       }),
     });
   });
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -335,7 +335,7 @@ test.describe('the address of a pull request', () => {
     page,
   }) => {
     await mockBoard(page, { shown: [pullRequest(12)] });
-    await page.route('**/api/dashboard?includeDrafts=true*', (route) =>
+    await page.route('**/api/v1/dashboard?includeDrafts=true*', (route) =>
       route.fulfill({ status: 500, body: '{}' }),
     );
 

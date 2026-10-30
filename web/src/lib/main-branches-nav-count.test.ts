@@ -8,7 +8,7 @@ import {
 } from './main-branches';
 
 // The Branches nav pill and the Main branches page chips are two readings of
-// one tally. The page reads /api/main-branches on its own timer and the pill
+// one tally. The page reads /api/v1/main-branches on its own timer and the pill
 // reads the dashboard snapshot on another, so a branch that went from running
 // to failed between the two showed on the page first. The page now hands the
 // pill its own counts, drawn through this one function.

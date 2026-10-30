@@ -2,7 +2,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // Insights, Settings and Webhooks take their data from the layout's one
-// /api/dashboard read (#1801). While the first refresh runs the server answers
+// /api/v1/dashboard read (#1801). While the first refresh runs the server answers
 // with an empty `firstRefreshDone:false` snapshot, so the pages must follow the
 // later answers until one is done. A read that was aborted or hit a 5xx must
 // not freeze a page on its empty state; a 4xx is final.
@@ -34,7 +34,7 @@ const PAGES = [
   },
 ];
 
-const isRead = (url: string) => new URL(url).pathname === '/api/dashboard';
+const isRead = (url: string) => new URL(url).pathname === '/api/v1/dashboard';
 
 const REPOS = [
   { forge: 'github', fullName: 'alrayyes/held', hasWebhook: true },
@@ -52,12 +52,12 @@ const body = (done: boolean, full: boolean) => ({
 
 type Step = 'hold' | number | ReturnType<typeof body>;
 
-// Answers the nth /api/dashboard request with the nth step (the last repeats):
+// Answers the nth /api/v1/dashboard request with the nth step (the last repeats):
 // 'hold' never answers, a number is an HTTP status, an object is a 200 body.
 async function script(page: Page, steps: Step[]) {
   const seen = { started: 0, open: 0, max: 0 };
-  await page.route('**/api/dashboard/stream*', (r: Route) => r.abort());
-  await page.route('**/api/dashboard*', (route: Route) => {
+  await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) => {
     if (!isRead(route.request().url())) return route.fallback();
     const step = steps[Math.min(seen.started, steps.length - 1)];
     seen.started += 1;
@@ -158,7 +158,7 @@ test('Webhooks: after a done answer a later poll does not replace the rows the p
   page,
 }) => {
   await freezeClock(page);
-  await page.route('**/api/repos/ignore', (r) => r.fulfill({ status: 204 }));
+  await page.route('**/api/v1/repos/ignore', (r) => r.fulfill({ status: 204 }));
   const seen = await script(page, [body(true, true)]);
   await page.goto('/webhooks.html');
   await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);

@@ -50,7 +50,7 @@ type repoStatus struct {
 	FailingForGood bool `json:"failingForGood,omitempty"`
 }
 
-// dashboardResponse is the wire shape for /api/dashboard and its SSE
+// dashboardResponse is the wire shape for /api/v1/dashboard and its SSE
 // stream: dashboard.Snapshot's own fields, with Repos replaced by the
 // richer repoStatus shape above.
 type dashboardResponse struct {
@@ -73,7 +73,7 @@ type dashboardResponse struct {
 	SettingsHiddenIssueCount int `json:"settingsHiddenIssueCount"`
 	// HideDependencyDashboard and IgnoredTitlesSet mirror the viewer's own
 	// settings (#1630), always, so a client knows whether to draw its two
-	// fields without reading GET /api/settings. IgnoredTitlesSet is true when
+	// fields without reading GET /api/v1/settings. IgnoredTitlesSet is true when
 	// the list is not empty, whether or not a pattern matches anything.
 	HideDependencyDashboard bool `json:"hideDependencyDashboard"`
 	IgnoredTitlesSet        bool `json:"ignoredTitlesSet"`
@@ -81,7 +81,7 @@ type dashboardResponse struct {
 	// from the lists above so they always agree with the pages.
 	NavCounts navCounts    `json:"navCounts"`
 	Repos     []repoStatus `json:"repos"`
-	// MainBranchPage is what GET /api/main-branches answers, so the Main branches
+	// MainBranchPage is what GET /api/v1/main-branches answers, so the Main branches
 	// page takes its rows from the same message as every other page and
 	// keeps no poll of its own.
 	MainBranchPage mainBranchesResponse `json:"mainBranchPage"`
@@ -965,7 +965,7 @@ func handleDashboardRefresh(deps Deps) http.HandlerFunc {
 // update instead of something only the next scheduled refresh picks up.
 //
 // The frontend's own poll against GET
-// /api/dashboard keeps running unconditionally, connected or not: a
+// /api/v1/dashboard keeps running unconditionally, connected or not: a
 // browser or proxy that can't hold this connection open just never
 // benefits from it, rather than the dashboard going stale silently.
 func handleDashboardStream(deps Deps, watches *checkWatches) http.HandlerFunc {

@@ -21,8 +21,10 @@ const ISSUES = [1, 2].map((number) => ({
 }));
 
 async function stub(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -41,7 +43,7 @@ async function stub(page: Page) {
 
 const serverCopy = async (page: Page) =>
   JSON.stringify(
-    await (await page.request.get('/api/settings/filter-state')).json(),
+    await (await page.request.get('/api/v1/settings/filter-state')).json(),
   );
 
 const cookieCopy = async (page: Page) => {
@@ -83,7 +85,7 @@ test.describe('a value typed just before leaving is kept (#1620)', () => {
     page,
   }) => {
     const puts: string[] = [];
-    await page.route('**/api/settings/filter-state', (route) => {
+    await page.route('**/api/v1/settings/filter-state', (route) => {
       if (route.request().method() === 'PUT')
         puts.push(route.request().postData() ?? '');
       return route.fallback();

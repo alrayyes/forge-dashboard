@@ -16,7 +16,7 @@ import {
 describe('logUrl', () => {
   test('takes the forge and repository from the repo', () => {
     expect(logUrl({ forge: 'github', fullName: 'a/b' }, 31)).toBe(
-      '/api/checks/log?forge=github&fullName=a%2Fb&jobId=31',
+      '/api/v1/checks/log?forge=github&fullName=a%2Fb&jobId=31',
     );
   });
 
@@ -59,7 +59,12 @@ describe('loadRunLog', () => {
       });
     }) as unknown as typeof fetch;
 
-    const got = await loadRunLog('/api/checks/log?x', 'Forgejo', stalled, 20);
+    const got = await loadRunLog(
+      '/api/v1/checks/log?x',
+      'Forgejo',
+      stalled,
+      20,
+    );
 
     expect(got.ok).toBe(false);
     if (!got.ok) expect(got.message).toContain('took too long');
@@ -79,7 +84,7 @@ describe('loadRunLog', () => {
       } as unknown as Response)) as unknown as typeof fetch;
 
     const got = await loadRunLog(
-      '/api/checks/log?x',
+      '/api/v1/checks/log?x',
       'Forgejo',
       stalledBody,
       20,
@@ -193,7 +198,7 @@ describe('copyLog', () => {
   });
 });
 
-const URL9 = '/api/checks/log?forge=github&fullName=a%2Fb&jobId=9';
+const URL9 = '/api/v1/checks/log?forge=github&fullName=a%2Fb&jobId=9';
 
 describe('logToCopy', () => {
   test('bounds the read, so a copy cannot wait for good', async () => {

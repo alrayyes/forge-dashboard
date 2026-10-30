@@ -22,7 +22,7 @@ function issue(number: number, title: string) {
 test('a saved title pattern does not change the Insights issue counts', async ({
   page,
 }) => {
-  const saved = await page.request.put('/api/settings/filter-state', {
+  const saved = await page.request.put('/api/v1/settings/filter-state', {
     data: {
       shared: {},
       pr: {},
@@ -31,7 +31,7 @@ test('a saved title pattern does not change the Insights issue counts', async ({
     },
   });
   expect(saved.ok()).toBe(true);
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

@@ -18,7 +18,7 @@ import (
 // Ignored, silently dropping dashboard.Repo's own URL and
 // CanManageWebhooks even though both are documented in
 // api/openapi.yaml's RepoStatus schema and read by the webhooks page.
-// Every other test covering this page mocks /api/dashboard's response
+// Every other test covering this page mocks /api/v1/dashboard's response
 // directly with hand-crafted JSON that already includes these fields,
 // which is exactly why the real backend's gap went unnoticed — this one
 // goes through the real handler and decodes the real JSON it writes.
@@ -125,7 +125,7 @@ func TestDashboard_RepoStatus_FlagsFailingForGood(t *testing.T) {
 }
 
 // repoStatusJSON serves repo through the real handler and returns the JSON
-// object /api/dashboard wrote for it.
+// object /api/v1/dashboard wrote for it.
 func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {
 	t.Helper()
 
@@ -145,7 +145,7 @@ func repoStatusJSON(t *testing.T, repo dashboard.Repo) map[string]any {
 	srv := newTestServerWithSources(t, buildSources)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")

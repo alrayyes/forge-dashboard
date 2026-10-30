@@ -49,7 +49,7 @@ this way leaves you on the page, with keyboard focus on that pull request's
 title in the list. If your filters leave the row out, or it was opened read
 only, focus goes to the title filter box.
 
-The pop-up loads when it opens, from `GET /api/pull-requests/details`, and
+The pop-up loads when it opens, from `GET /api/v1/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on
 rows nobody opens. While the pop-up is open, a refresh that shows the pull
 request was updated fetches the details again and swaps them in place, without
@@ -115,7 +115,7 @@ page, with the address and your filters untouched. Screen readers hear
 "Closes", the number and "opens the issue".
 
 The server works out which issues those are, and builds the address that opens
-each. In `GET /api/dashboard` each pull request has `closesIssues`, always
+each. In `GET /api/v1/dashboard` each pull request has `closesIssues`, always
 present, and each entry carries the `pageUrl` that opens it.
 
 ## Tickets a pull request mentions
@@ -123,7 +123,7 @@ present, and each entry carries the `pageUrl` that opens it.
 Besides the issues it closes, a pull request can mention others: `Refs #12` in
 its description, or a link to a ticket in its title. The server reads the title
 and description on both forges and lists what it finds, without a closing
-reference, in `GET /api/dashboard` as `mentionsIssues`, always present. A
+reference, in `GET /api/v1/dashboard` as `mentionsIssues`, always present. A
 mention is what GitHub and Forgejo both turn into a link: `#12`,
 `owner/repo#12`, the address of an issue or pull request page on the forge, and
 on GitHub `GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not

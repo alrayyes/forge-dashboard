@@ -57,7 +57,7 @@ func queueBoard(t *testing.T, limited bool, reset time.Time) (*httptest.Server, 
 		return []dashboard.Source{src}
 	})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Eventually(t, func() bool {
@@ -76,7 +76,7 @@ func queueBody(action string, number int) string {
 // queueUpdate posts one Update branch queue request and returns the status and the decoded body.
 func queueUpdate(t *testing.T, srv *httptest.Server, cookie *http.Cookie, number int) (int, map[string]any) {
 	t.Helper()
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", number), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("update_branch", number), cookie)
 	defer func() { _ = resp.Body.Close() }()
 	var out map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
@@ -86,7 +86,7 @@ func queueUpdate(t *testing.T, srv *httptest.Server, cookie *http.Cookie, number
 
 func listQueued(t *testing.T, srv *httptest.Server, cookie *http.Cookie) []any {
 	t.Helper()
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/queued-actions", "", cookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/queued-actions", "", cookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	var out []any
@@ -114,7 +114,7 @@ func TestQueuedActions_UpdateBranchOnALimitedForge_IsStoredUntilTheReset(t *test
 func TestQueuedActions_ThenList_ReturnsIt(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("update_branch", 5), cookie)
 	_ = resp.Body.Close()
 
 	assert.Len(t, listQueued(t, srv, cookie), 1)
@@ -123,7 +123,7 @@ func TestQueuedActions_ThenList_ReturnsIt(t *testing.T) {
 func TestQueuedActions_ShowOnThePullRequestAndInTheDashboard(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("update_branch", 5), cookie)
 	_ = resp.Body.Close()
 
 	board := fetchDashboard(t, srv.URL, cookie)
@@ -146,7 +146,7 @@ func TestQueuedActions_BotRebases_AreQueueable(t *testing.T) {
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
 	for action, number := range map[string]int{"dependabot_rebase": 6, "renovate_rebase": 7} {
-		resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody(action, number), cookie)
+		resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody(action, number), cookie)
 		_ = resp.Body.Close()
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode, action)
@@ -160,7 +160,7 @@ func TestQueuedActions_MergeAndCloseAndTheRest_AreRefusedWith400(t *testing.T) {
 	for _, action := range []string{"merge", "close", "auto_merge", "cancel_auto_merge", "dependabot_recreate", "rerun_checks", "cancel_run", "nonsense", ""} {
 		t.Run("action "+action, func(t *testing.T) {
 			t.Parallel()
-			resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody(action, 5), cookie)
+			resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody(action, 5), cookie)
 			_ = resp.Body.Close()
 
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -184,7 +184,7 @@ func TestQueuedActions_ResetAlreadyPassed_Answers409NotRateLimited(t *testing.T)
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(-time.Minute))
 
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("update_branch", 5), cookie)
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
@@ -226,7 +226,7 @@ func TestQueuedActions_UpdateBranchOnABotPullRequest_IsRefused(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 6), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("update_branch", 6), cookie)
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusConflict, resp.StatusCode, "a Dependabot pull request updates through its own rebase")
@@ -236,7 +236,7 @@ func TestQueuedActions_BotRebaseOnTheWrongAuthor_IsRefused(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("dependabot_rebase", 5), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("dependabot_rebase", 5), cookie)
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusConflict, resp.StatusCode)
@@ -246,7 +246,7 @@ func TestQueuedActions_PullRequestNotOnTheBoard_Answers404(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 99), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("update_branch", 99), cookie)
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -263,7 +263,7 @@ func TestQueuedActions_BadBody_Answers400(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", body, cookie)
+			resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", body, cookie)
 			_ = resp.Body.Close()
 
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -288,7 +288,7 @@ func TestQueuedActions_Cancel_RemovesItAndClearsThePullRequest(t *testing.T) {
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 	_, created := queueUpdate(t, srv, cookie, 5)
 
-	resp := doJSON(t, http.MethodDelete, srv.URL+"/api/queued-actions/"+created["id"].(string), "", cookie)
+	resp := doJSON(t, http.MethodDelete, srv.URL+"/api/v1/queued-actions/"+created["id"].(string), "", cookie)
 	_ = resp.Body.Close()
 
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
@@ -300,7 +300,7 @@ func TestQueuedActions_CancelUnknownID_Answers404(t *testing.T) {
 	t.Parallel()
 	srv, _, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
 
-	resp := doJSON(t, http.MethodDelete, srv.URL+"/api/queued-actions/nope", "", cookie)
+	resp := doJSON(t, http.MethodDelete, srv.URL+"/api/v1/queued-actions/nope", "", cookie)
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -311,9 +311,9 @@ func TestQueuedActions_RequireASession(t *testing.T) {
 	srv := newTestServer(t)
 
 	for _, c := range []struct{ method, path, body string }{
-		{http.MethodGet, "/api/queued-actions", ""},
-		{http.MethodPost, "/api/queued-actions", queueBody("update_branch", 5)},
-		{http.MethodDelete, "/api/queued-actions/abc", ""},
+		{http.MethodGet, "/api/v1/queued-actions", ""},
+		{http.MethodPost, "/api/v1/queued-actions", queueBody("update_branch", 5)},
+		{http.MethodDelete, "/api/v1/queued-actions/abc", ""},
 	} {
 		resp := doJSON(t, c.method, srv.URL+c.path, c.body, nil)
 		_ = resp.Body.Close()
@@ -325,7 +325,7 @@ func TestQueuedActions_RequireASession(t *testing.T) {
 func TestQueuedActions_SurviveARestart(t *testing.T) {
 	t.Parallel()
 	srv, service, cookie := queueBoard(t, true, time.Now().Add(time.Hour))
-	resp := doJSON(t, http.MethodPost, srv.URL+"/api/queued-actions", queueBody("update_branch", 5), cookie)
+	resp := doJSON(t, http.MethodPost, srv.URL+"/api/v1/queued-actions", queueBody("update_branch", 5), cookie)
 	_ = resp.Body.Close()
 
 	service.Stop() // what a restart does to every aggregator
@@ -361,15 +361,15 @@ func TestContract_QueuedActions(t *testing.T) {
 		return got
 	}
 
-	created := check(http.StatusCreated, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 5))
-	check(http.StatusOK, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 5))
-	check(http.StatusBadRequest, http.MethodPost, "/api/queued-actions", queueBody("merge", 5))
-	check(http.StatusConflict, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 8))
-	check(http.StatusNotFound, http.MethodPost, "/api/queued-actions", queueBody("update_branch", 99))
-	check(http.StatusOK, http.MethodGet, "/api/queued-actions", "")
-	check(http.StatusOK, http.MethodGet, "/api/dashboard", "")
+	created := check(http.StatusCreated, http.MethodPost, "/api/v1/queued-actions", queueBody("update_branch", 5))
+	check(http.StatusOK, http.MethodPost, "/api/v1/queued-actions", queueBody("update_branch", 5))
+	check(http.StatusBadRequest, http.MethodPost, "/api/v1/queued-actions", queueBody("merge", 5))
+	check(http.StatusConflict, http.MethodPost, "/api/v1/queued-actions", queueBody("update_branch", 8))
+	check(http.StatusNotFound, http.MethodPost, "/api/v1/queued-actions", queueBody("update_branch", 99))
+	check(http.StatusOK, http.MethodGet, "/api/v1/queued-actions", "")
+	check(http.StatusOK, http.MethodGet, "/api/v1/dashboard", "")
 	var item map[string]any
 	require.NoError(t, json.Unmarshal(created.body, &item))
-	check(http.StatusNoContent, http.MethodDelete, "/api/queued-actions/"+item["id"].(string), "")
-	check(http.StatusNotFound, http.MethodDelete, "/api/queued-actions/"+item["id"].(string), "")
+	check(http.StatusNoContent, http.MethodDelete, "/api/v1/queued-actions/"+item["id"].(string), "")
+	check(http.StatusNotFound, http.MethodDelete, "/api/v1/queued-actions/"+item["id"].(string), "")
 }

@@ -73,7 +73,7 @@ func newHideServer(t *testing.T) (srvURL string, cookie *http.Cookie, src *hideS
 	})
 	cookie, _, _ = registerViaRealCeremony(t, srv)
 
-	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	req, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	req.AddCookie(cookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -110,12 +110,12 @@ func hide(t *testing.T, srvURL string, cookie *http.Cookie, extra map[string]any
 	t.Helper()
 	body := map[string]any{"forge": "github", "fullName": hideRepo, "number": 1}
 	maps.Copy(body, extra)
-	resp := postHide(t, srvURL, cookie, "/api/pull-requests/hide", body)
+	resp := postHide(t, srvURL, cookie, "/api/v1/pull-requests/hide", body)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 }
 
-// boardNumbers is the pull request numbers GET /api/dashboard lists.
+// boardNumbers is the pull request numbers GET /api/v1/dashboard lists.
 func boardNumbers(t *testing.T, srvURL string, cookie *http.Cookie, query string) []int {
 	t.Helper()
 	prs, _ := fetchDashboardWith(t, srvURL, cookie, query)["pullRequests"].([]any)
@@ -139,7 +139,7 @@ func TestPullRequestHide_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	for _, path := range []string{"/api/pull-requests/hide", "/api/pull-requests/unhide"} {
+	for _, path := range []string{"/api/v1/pull-requests/hide", "/api/v1/pull-requests/unhide"} {
 		resp := postHide(t, srv.URL, nil, path, map[string]any{"forge": "github", "fullName": hideRepo, "number": 1})
 		_ = resp.Body.Close()
 
@@ -160,7 +160,7 @@ func TestPullRequestHide_RejectsABadBody(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			resp := postHide(t, srvURL, cookie, "/api/pull-requests/hide", body)
+			resp := postHide(t, srvURL, cookie, "/api/v1/pull-requests/hide", body)
 			_ = resp.Body.Close()
 
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -252,7 +252,7 @@ func TestPullRequestUnhide_BringsItBack(t *testing.T) {
 	srvURL, cookie, _ := newHideServer(t)
 	hide(t, srvURL, cookie, nil)
 
-	resp := postHide(t, srvURL, cookie, "/api/pull-requests/unhide", map[string]any{"forge": "github", "fullName": hideRepo, "number": 1})
+	resp := postHide(t, srvURL, cookie, "/api/v1/pull-requests/unhide", map[string]any{"forge": "github", "fullName": hideRepo, "number": 1})
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 
@@ -264,7 +264,7 @@ func TestPullRequestUnhide_NotHiddenIsStillA204(t *testing.T) {
 
 	srvURL, cookie, _ := newHideServer(t)
 
-	resp := postHide(t, srvURL, cookie, "/api/pull-requests/unhide", map[string]any{"forge": "github", "fullName": hideRepo, "number": 1})
+	resp := postHide(t, srvURL, cookie, "/api/v1/pull-requests/unhide", map[string]any{"forge": "github", "fullName": hideRepo, "number": 1})
 	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)

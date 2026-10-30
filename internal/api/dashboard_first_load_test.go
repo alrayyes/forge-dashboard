@@ -52,11 +52,11 @@ func TestDashboard_ReadBeforeTheFirstRefreshFinishes_WaitsForItInsteadOfAnswerin
 		}}
 	})
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
-	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+secretToken+`"}`, sessionCookie)
 	_ = putResp.Body.Close()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	resp := doJSON(t, http.MethodGet, srv.URL+"/api/dashboard", "", sessionCookie)
+	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/dashboard", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	var snap dashboard.Snapshot

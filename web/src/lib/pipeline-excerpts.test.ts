@@ -26,7 +26,7 @@ const failed = (jobId: number, extra: Partial<Check> = {}): Check => ({
 describe('excerptUrl', () => {
   test('asks the log endpoint for the excerpt of a Forgejo job', () => {
     expect(excerptUrl(FORGEJO, 7)).toBe(
-      '/api/checks/log?forge=forgejo&fullName=a%2Fb&jobId=7&excerpt=true',
+      '/api/v1/checks/log?forge=forgejo&fullName=a%2Fb&jobId=7&excerpt=true',
     );
   });
 

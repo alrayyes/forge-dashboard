@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // A pull request's dialog lists the tickets it mentions without closing, and
 // a ticket's dialog lists the pull requests that mention it. The server reads
-// the text, so these mock /api/dashboard with the fields it returns and only
+// the text, so these mock /api/v1/dashboard with the fields it returns and only
 // check what the page draws. Writes no saved state.
 
 const NOW = new Date();
@@ -89,8 +89,8 @@ async function mockBoard(
   page: Page,
   board: { pullRequests?: unknown[]; issues?: unknown[] },
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -103,7 +103,7 @@ async function mockBoard(
     }),
   );
   for (const endpoint of ['pull-requests', 'issues'])
-    await page.route(`**/api/${endpoint}/details*`, (route: Route) =>
+    await page.route(`**/api/v1/${endpoint}/details*`, (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

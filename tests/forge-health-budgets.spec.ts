@@ -13,8 +13,10 @@ const inMinutes = (m: number) =>
   new Date(Date.now() + m * 60_000).toISOString();
 
 async function open(page: Page, forge: Record<string, unknown>) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -69,10 +71,10 @@ test.describe('the budget text under the forge pill (#1433)', () => {
   test('a Forgejo forge labels its budget with its own short name', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
-    await page.route('**/api/dashboard*', (route: Route) =>
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

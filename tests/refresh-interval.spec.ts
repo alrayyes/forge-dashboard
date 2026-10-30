@@ -21,7 +21,7 @@ function snapshot(extra: Record<string, unknown> = {}) {
 
 test.describe('refresh follows the server (#809)', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
   });
@@ -30,7 +30,7 @@ test.describe('refresh follows the server (#809)', () => {
     page,
   }) => {
     let reads = 0;
-    await page.route('**/api/dashboard', (route: Route) => {
+    await page.route('**/api/v1/dashboard', (route: Route) => {
       if (route.request().method() !== 'GET') return route.fallback();
       reads++;
       return route.fulfill({
@@ -60,14 +60,14 @@ test.describe('refresh follows the server (#809)', () => {
   test('a refresh inside the cooldown renders the snapshot and locks the button for Retry-After', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard', (route: Route) =>
+    await page.route('**/api/v1/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(snapshot({ readIntervalSeconds: 30 })),
       }),
     );
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -112,14 +112,14 @@ test.describe('refresh follows the server (#809)', () => {
   test('a refresh that fetched carries no Retry-After and leaves the button usable', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard', (route: Route) =>
+    await page.route('**/api/v1/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(snapshot({ readIntervalSeconds: 30 })),
       }),
     );
-    await page.route('**/api/dashboard/refresh*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -130,7 +130,7 @@ test.describe('refresh follows the server (#809)', () => {
     const button = page.locator('#force-refresh-button');
     // Enabled before the answer arrives proves nothing: a lock from a
     // Retry-After would only land once the response has.
-    const answered = page.waitForResponse('**/api/dashboard/refresh*');
+    const answered = page.waitForResponse('**/api/v1/dashboard/refresh*');
     await button.click();
     await answered;
     // A lock is applied a frame or two after the answer is parsed.

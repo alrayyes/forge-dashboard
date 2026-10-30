@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // #1630: the "Issues" section in Settings. The server half (storing, checking
 // and applying the two settings) is a separate pull request, so this spec
-// stands in for GET and PUT /api/settings with the shapes api/openapi.yaml
+// stands in for GET and PUT /api/v1/settings with the shapes api/openapi.yaml
 // describes. The user is the spec's own: Settings saves per account.
 // https://github.com/alrayyes/forge-dashboard/issues/1630
 
@@ -42,7 +42,7 @@ async function standInSettings(
     ...state.stored,
   });
   await page.route(
-    (url) => url.pathname === '/api/settings',
+    (url) => url.pathname === '/api/v1/settings',
     async (route: Route) => {
       const request = route.request();
       if (request.method() === 'PUT') {
@@ -136,7 +136,7 @@ test.describe('Settings: Issues (#1630)', () => {
   test('a failed load turns Save off and sends nothing', async ({ page }) => {
     const puts: string[] = [];
     await page.route(
-      (url) => url.pathname === '/api/settings',
+      (url) => url.pathname === '/api/v1/settings',
       (route: Route) => {
         if (route.request().method() === 'PUT') puts.push('put');
         return route.fulfill({ status: 500, body: 'nope' });

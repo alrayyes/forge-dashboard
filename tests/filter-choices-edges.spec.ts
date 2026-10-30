@@ -67,7 +67,7 @@ async function open(
         data: JSON.stringify(data),
       });
   });
-  await page.route('**/api/dashboard', async (route: Route) => {
+  await page.route('**/api/v1/dashboard', async (route: Route) => {
     await gate;
     await route.fulfill({
       status: 200,
@@ -187,7 +187,7 @@ test('a pick the sort-landed list lacks is cleared once, and the rows agree', as
 test('a saved pick the first list lacks is set aside and the list shows', async ({
   page,
 }) => {
-  await page.route('**/api/settings/filter-state', async (route: Route) => {
+  await page.route('**/api/v1/settings/filter-state', async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     return route.fulfill({
       status: 200,

@@ -13,8 +13,10 @@ async function open(
   health: Record<string, unknown>,
   prs: Record<string, unknown>[] = [],
 ) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -51,7 +53,7 @@ test.describe('rate limits are graded by the page (#2929)', () => {
   test('a coded refusal offers Retry whatever words its message holds', async ({
     page,
   }) => {
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -97,12 +99,12 @@ test.describe('a low rate limit banner stays put while the count moves (#1791)',
 
   async function openLow(page: Page, state: State) {
     await page.clock.install();
-    await page.route('**/api/dashboard/stream*', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
       route.abort(),
     );
     // One window: the reset time holds still while the count falls.
     const resetsAt = new Date(Date.now() + 20 * 60_000).toISOString();
-    await page.route('**/api/dashboard*', (route: Route) => {
+    await page.route('**/api/v1/dashboard*', (route: Route) => {
       state.requests++;
       return route.fulfill({
         status: 200,

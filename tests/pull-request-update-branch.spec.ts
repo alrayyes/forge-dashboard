@@ -46,7 +46,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 }
 
 function mockDashboard(page: Page, pr?: MockPR) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -76,7 +76,7 @@ interface MockForge {
 // which need to control ForgeHealth directly and (for the cross-action
 // permission-lock test) more than one row.
 function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -95,7 +95,7 @@ test.describe('pull request update-branch button', () => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server, and
     // a real snapshot can't be pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('a pull request reported as behind shows an Update branch button', async ({
@@ -155,10 +155,13 @@ test.describe('pull request update-branch button', () => {
     await expect(footer).toContainText('Conflicts need fixing by hand');
 
     let requested = false;
-    await page.route('**/api/pull-requests/update-branch', (route: Route) => {
-      requested = true;
-      return route.fulfill({ status: 204 });
-    });
+    await page.route(
+      '**/api/v1/pull-requests/update-branch',
+      (route: Route) => {
+        requested = true;
+        return route.fulfill({ status: 204 });
+      },
+    );
     await button.click({ force: true });
     expect(requested).toBe(false);
 
@@ -174,11 +177,14 @@ test.describe('pull request update-branch button', () => {
     const pr = makePR();
     await mockDashboard(page, pr);
     let requestBody: unknown;
-    await page.route('**/api/pull-requests/update-branch', (route: Route) => {
-      requestBody = route.request().postDataJSON();
-      return route.fulfill({ status: 204 });
-    });
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route(
+      '**/api/v1/pull-requests/update-branch',
+      (route: Route) => {
+        requestBody = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      },
+    );
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -211,13 +217,13 @@ test.describe('pull request update-branch button', () => {
     const pr = makePR();
     await mockDashboard(page, pr);
     await page.route(
-      '**/api/pull-requests/update-branch',
+      '**/api/v1/pull-requests/update-branch',
       async (route: Route) => {
         await new Promise((resolve) => setTimeout(resolve, 200));
         return route.fulfill({ status: 204 });
       },
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -250,10 +256,10 @@ test.describe('pull request update-branch button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({ status: 202 }),
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -284,10 +290,10 @@ test.describe('pull request update-branch button', () => {
     // and back, which reads as nothing happened.
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({ status: 202 }),
     );
-    await page.route('**/api/dashboard/refresh', (route: Route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -314,7 +320,7 @@ test.describe('pull request update-branch button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    const refreshResponse = page.waitForResponse('**/api/dashboard/refresh');
+    const refreshResponse = page.waitForResponse('**/api/v1/dashboard/refresh');
     await row.getByRole('button', { name: 'Update branch' }).click();
     await refreshResponse;
 
@@ -329,11 +335,11 @@ test.describe('pull request update-branch button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({ status: 202 }),
     );
     let refreshCount = 0;
-    await page.route('**/api/dashboard/refresh', (route: Route) => {
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) => {
       refreshCount += 1;
       return route.fulfill({
         status: 200,
@@ -384,7 +390,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -413,7 +419,7 @@ test.describe('pull request update-branch button', () => {
     // here: a rate limit no longer offers Retry, #732.)
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -431,7 +437,7 @@ test.describe('pull request update-branch button', () => {
     await expect(row.getByRole('button', { name: 'Retry' })).toBeVisible();
 
     let refreshCalled = false;
-    await page.route('**/api/dashboard/refresh', (route: Route) => {
+    await page.route('**/api/v1/dashboard/refresh', (route: Route) => {
       refreshCalled = true;
       return route.fulfill({
         status: 200,
@@ -450,7 +456,7 @@ test.describe('pull request update-branch button', () => {
     // after raced that fetch reaching the route handler above, missing
     // it on an unlucky run despite the click having genuinely fired.
     // Waiting for the real response first makes this deterministic.
-    const refreshResponse = page.waitForResponse('**/api/dashboard/refresh');
+    const refreshResponse = page.waitForResponse('**/api/v1/dashboard/refresh');
     await row.getByRole('button', { name: 'Retry' }).click();
     await refreshResponse;
 
@@ -465,7 +471,7 @@ test.describe('pull request update-branch button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -569,7 +575,7 @@ test.describe('pull request update-branch button', () => {
       );
       // The force refresh below answers the same board, so it never reaches the
       // real server (which has nothing to refresh for this user).
-      await page.route('**/api/dashboard/refresh', (route: Route) =>
+      await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -581,7 +587,7 @@ test.describe('pull request update-branch button', () => {
           }),
         }),
       );
-      await page.route('**/api/pull-requests/merge', (route: Route) =>
+      await page.route('**/api/v1/pull-requests/merge', (route: Route) =>
         route.fulfill({
           status: 403,
           contentType: 'application/json',

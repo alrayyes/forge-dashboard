@@ -46,7 +46,7 @@ async function serve(
   pullRequests: unknown[],
   issues: unknown[] = [],
 ) {
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -69,7 +69,9 @@ async function open(
   pullRequests: unknown[],
   issues: unknown[] = [],
 ) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
   await serve(page, pullRequests, issues);
   await page.goto(path);
 }
@@ -125,13 +127,13 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     ]);
     const saved = page.waitForResponse(
       (r) =>
-        r.url().includes('/api/settings/filter-state') &&
+        r.url().includes('/api/v1/settings/filter-state') &&
         r.request().method() !== 'GET',
     );
     await pill(page, 'Failing CI').click();
     await saved;
 
-    await page.unroute('**/api/dashboard*');
+    await page.unroute('**/api/v1/dashboard*');
     await serve(page, [pr(1, { ci: 'success' })]);
     await page.reload();
 

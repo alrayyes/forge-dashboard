@@ -146,6 +146,9 @@ func handleHealth(w http.ResponseWriter, _ *http.Request) {
 // Version matches components.schemas.Version in api/openapi.yaml.
 type Version struct {
 	Version string `json:"version"`
+	// APIVersion is the API's current major version, the path segment its
+	// operations live under.
+	APIVersion string `json:"apiVersion"`
 }
 
 // handleVersion answers the release tag this binary was built from —
@@ -153,7 +156,7 @@ type Version struct {
 // link to it too.
 func handleVersion(version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, Version{Version: version})
+		writeJSON(w, http.StatusOK, Version{Version: version, APIVersion: apiMajorVersion})
 	}
 }
 

@@ -53,7 +53,7 @@ function pendingRequest(action: 'rebase' | 'recreate') {
 const PENDING_ACTIONS = [{ action: 'close' }];
 
 function mockDashboard(page: Page, pr: Mock, forgeExtra: Mock = {}) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -71,10 +71,13 @@ function mockDashboard(page: Page, pr: Mock, forgeExtra: Mock = {}) {
 
 async function recordPosts(page: Page) {
   const posts: Mock[] = [];
-  await page.route('**/api/pull-requests/dependabot-action', (route: Route) => {
-    posts.push(route.request().postDataJSON());
-    return route.fulfill({ status: 204 });
-  });
+  await page.route(
+    '**/api/v1/pull-requests/dependabot-action',
+    (route: Route) => {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 204 });
+    },
+  );
   return posts;
 }
 
@@ -89,8 +92,8 @@ async function openMenu(row: Locator) {
 
 test.describe('Dependabot Recreate beside Rebase on the Bots page row', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

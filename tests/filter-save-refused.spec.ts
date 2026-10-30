@@ -22,8 +22,10 @@ const ISSUES = [
 ];
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -45,7 +47,7 @@ test('a refused filter save is reported on the page', async ({ page }) => {
   await open(page);
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
-  await page.route('**/api/settings/filter-state', (route) => {
+  await page.route('**/api/v1/settings/filter-state', (route) => {
     if (route.request().method() !== 'PUT') return route.fallback();
     return route.fulfill({ status: 400, body: '{"error":"too many labels"}' });
   });

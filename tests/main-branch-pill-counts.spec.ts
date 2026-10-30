@@ -5,7 +5,7 @@ import { setTheme } from './theme-helper';
 
 // The pills on the Main branches page say how far a default branch's pipeline
 // got, as the pull request pages do (#2074). The server tallies the counts
-// (`checks` on each row of GET /api/main-branches); the page only draws them.
+// (`checks` on each row of GET /api/v1/main-branches); the page only draws them.
 // https://github.com/alrayyes/forge-dashboard/issues/2074
 
 type Status = 'failed' | 'running' | 'passed' | 'cancelled' | 'none';
@@ -65,8 +65,8 @@ const BRANCHES = [
 ];
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

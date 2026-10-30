@@ -46,7 +46,7 @@ func getPullRequestDetails(t *testing.T, srvURL string, sessionCookie *http.Cook
 		"fullName": {fullName},
 		"number":   {strconv.Itoa(number)},
 	}
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/pull-requests/details?"+q.Encode(), nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/pull-requests/details?"+q.Encode(), nil)
 	require.NoError(t, err)
 	if sessionCookie != nil {
 		req.AddCookie(sessionCookie)
@@ -282,7 +282,7 @@ func TestContract_PullRequestDetails(t *testing.T) {
 
 	for _, number := range []int{7, 8} { // a release pull request, and one the board doesn't list
 		q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {strconv.Itoa(number)}}
-		req, got := record(t, http.MethodGet, srvURL+"/api/pull-requests/details?"+q.Encode(), sessionCookie)
+		req, got := record(t, http.MethodGet, srvURL+"/api/v1/pull-requests/details?"+q.Encode(), sessionCookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
 		validateAgainstSpec(t, req, got)
 	}

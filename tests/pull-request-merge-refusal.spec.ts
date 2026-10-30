@@ -66,7 +66,7 @@ function snapshot(prs: MockPR[]) {
 }
 
 function mockBoard(page: Page, prs: MockPR[]) {
-  return page.route('**/api/dashboard*', (route) =>
+  return page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -76,7 +76,7 @@ function mockBoard(page: Page, prs: MockPR[]) {
 }
 
 function mockRefresh(page: Page, prs: MockPR[]) {
-  return page.route('**/api/dashboard/refresh', (route) =>
+  return page.route('**/api/v1/dashboard/refresh', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -86,7 +86,7 @@ function mockRefresh(page: Page, prs: MockPR[]) {
 }
 
 function refuse(page: Page, status: number, body: Record<string, unknown>) {
-  return page.route('**/api/pull-requests/merge', (route: Route) =>
+  return page.route('**/api/v1/pull-requests/merge', (route: Route) =>
     route.fulfill({
       status,
       contentType: 'application/json',
@@ -106,7 +106,7 @@ test.describe('a refused merge explains itself from the server code', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests: aborted, so no real snapshot
     // is pushed over the mock.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('already_merged: the row reads Merged, a polite toast says so, and the row is gone on the next snapshot', async ({

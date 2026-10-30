@@ -29,8 +29,10 @@ function pr(overrides: Record<string, unknown> = {}) {
 }
 
 async function open(page: Page, pullRequest: unknown) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -298,7 +300,7 @@ test('a behind mergeable Renovate pull request fits a 360px row with Merge and t
 test('the rebase beside Merge stays after Merge is refused for being behind', async ({
   page,
 }) => {
-  await page.route('**/api/pull-requests/merge', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/merge', (route: Route) =>
     route.fulfill({
       status: 409,
       contentType: 'application/json',

@@ -3,7 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // A title cut with an ellipsis carries the whole title as hover text, on the
-// visible text and only while it is cut. Mocks /api/dashboard only.
+// visible text and only while it is cut. Mocks /api/v1/dashboard only.
 // https://github.com/alrayyes/forge-dashboard/issues/1695
 
 const NOW = new Date();
@@ -55,8 +55,8 @@ async function mockDashboard(
   pullRequests: unknown[],
   issues: unknown[] = [],
 ) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -125,7 +125,7 @@ test.describe('truncated titles show the whole title on hover', () => {
   test('the cut text is what the pointer hits, and a click on it still opens the dialog', async ({
     page,
   }) => {
-    await page.route('**/api/pull-requests/details*', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

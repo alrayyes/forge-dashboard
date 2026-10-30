@@ -368,7 +368,7 @@ export function createIssueActions(host: IssueActionsHost) {
     draw();
     if (withComment && !commentPosted) {
       try {
-        await post('/api/issues/comment', { ...ref(), body: text });
+        await post('/api/v1/issues/comment', { ...ref(), body: text });
       } catch (e) {
         if (mine === session) refused(e as ActionRequestError, 'comment');
         return;
@@ -376,7 +376,7 @@ export function createIssueActions(host: IssueActionsHost) {
       commentPosted = true;
     }
     try {
-      await post('/api/issues/close', ref());
+      await post('/api/v1/issues/close', ref());
     } catch (e) {
       if (mine === session) refused(e as ActionRequestError, 'close');
       return;
@@ -399,7 +399,7 @@ export function createIssueActions(host: IssueActionsHost) {
     phase = 'reopening';
     draw();
     try {
-      await post('/api/issues/reopen', ref());
+      await post('/api/v1/issues/reopen', ref());
     } catch (e) {
       if (mine === session) refused(e as ActionRequestError, 'reopen');
       return;

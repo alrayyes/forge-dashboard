@@ -38,22 +38,25 @@ const SNAPSHOT = [
 test('the pull request page stays free of release pull requests after leaving Releases', async ({
   page,
 }) => {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   let polls = 0;
-  await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) => {
-    polls += 1;
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        generatedAt: new Date(Date.now() + polls * 1000).toISOString(),
-        readIntervalSeconds: 1,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: SNAPSHOT,
-        issues: [],
-      }),
-    });
-  });
+  await page.route(
+    /\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/,
+    (route: Route) => {
+      polls += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date(Date.now() + polls * 1000).toISOString(),
+          readIntervalSeconds: 1,
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: SNAPSHOT,
+          issues: [],
+        }),
+      });
+    },
+  );
   await page.clock.install();
 
   await page.goto('/releases.html');

@@ -9,8 +9,10 @@ function mockDashboard(
   forges?: Record<string, unknown>[],
 ) {
   // Aborted, so a real snapshot can't be pushed over the mock.
-  void page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  return page.route('**/api/dashboard*', (route: Route) =>
+  void page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -239,7 +241,7 @@ test.describe('webhooks page', () => {
       },
     ]);
     let requestBody: unknown;
-    await page.route('**/api/webhooks/ensure', (route) => {
+    await page.route('**/api/v1/webhooks/ensure', (route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
@@ -269,7 +271,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    await page.route('**/api/webhooks/ensure', (route) =>
+    await page.route('**/api/v1/webhooks/ensure', (route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -330,7 +332,7 @@ test.describe('webhooks page', () => {
     // The row's own click handler never fires for a disabled control — no
     // request should go out even if something did click it.
     let requested = false;
-    await page.route('**/api/webhooks/ensure', (route) => {
+    await page.route('**/api/v1/webhooks/ensure', (route) => {
       requested = true;
       return route.fulfill({ status: 204 });
     });
@@ -349,7 +351,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    await page.route('**/api/webhooks/ensure', (route) =>
+    await page.route('**/api/v1/webhooks/ensure', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -389,7 +391,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    await page.route('**/api/webhooks/ensure', (route) =>
+    await page.route('**/api/v1/webhooks/ensure', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -421,7 +423,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    await page.route('**/api/webhooks/ensure', (route) =>
+    await page.route('**/api/v1/webhooks/ensure', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -451,7 +453,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    await page.route('**/api/webhooks/ensure', (route) =>
+    await page.route('**/api/v1/webhooks/ensure', (route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -484,7 +486,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    await page.route('**/api/webhooks/ensure', (route) =>
+    await page.route('**/api/v1/webhooks/ensure', (route) =>
       route.fulfill({
         status: 502,
         contentType: 'application/json',
@@ -515,7 +517,7 @@ test.describe('webhooks page', () => {
         canManageWebhooks: true,
       },
     ]);
-    await page.route('**/api/webhooks/ensure', (route) =>
+    await page.route('**/api/v1/webhooks/ensure', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -936,7 +938,7 @@ test.describe('webhooks page', () => {
         },
       ]);
       let ensureCalled = false;
-      await page.route('**/api/webhooks/ensure', (route) => {
+      await page.route('**/api/v1/webhooks/ensure', (route) => {
         ensureCalled = true;
         return route.fulfill({ status: 204 });
       });
@@ -971,7 +973,7 @@ test.describe('webhooks page', () => {
         },
       ]);
       const requested: unknown[] = [];
-      await page.route('**/api/webhooks/ensure', (route) => {
+      await page.route('**/api/v1/webhooks/ensure', (route) => {
         requested.push(route.request().postDataJSON());
         return route.fulfill({ status: 204 });
       });
@@ -1008,7 +1010,7 @@ test.describe('webhooks page', () => {
           canManageWebhooks: true,
         },
       ]);
-      await page.route('**/api/webhooks/ensure', (route) => {
+      await page.route('**/api/v1/webhooks/ensure', (route) => {
         const body = route.request().postDataJSON();
         if (body.fullName === 'alrayyes/a') {
           return route.fulfill({
@@ -1043,7 +1045,7 @@ test.describe('webhooks page', () => {
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ]);
       let requestBody: unknown;
-      await page.route('**/api/repos/ignore', (route) => {
+      await page.route('**/api/v1/repos/ignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       });
@@ -1080,7 +1082,7 @@ test.describe('webhooks page', () => {
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ]);
       let requestBody: unknown;
-      await page.route('**/api/repos/ignore', (route) => {
+      await page.route('**/api/v1/repos/ignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       });
@@ -1114,7 +1116,7 @@ test.describe('webhooks page', () => {
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ]);
       let requestBody: unknown;
-      await page.route('**/api/repos/ignore', (route) => {
+      await page.route('**/api/v1/repos/ignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       });
@@ -1186,7 +1188,7 @@ test.describe('webhooks page', () => {
         },
       ]);
       let requestBody: unknown;
-      await page.route('**/api/repos/unignore', (route) => {
+      await page.route('**/api/v1/repos/unignore', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       });
@@ -1215,7 +1217,7 @@ test.describe('webhooks page', () => {
       await mockDashboard(page, [
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ]);
-      await page.route('**/api/repos/ignore', (route) =>
+      await page.route('**/api/v1/repos/ignore', (route) =>
         route.fulfill({
           status: 500,
           contentType: 'application/json',
@@ -1274,7 +1276,7 @@ test.describe('webhooks page', () => {
         },
       ]);
       let requestBody: unknown;
-      await page.route('**/api/repos/auto-update-branch/enable', (route) => {
+      await page.route('**/api/v1/repos/auto-update-branch/enable', (route) => {
         requestBody = route.request().postDataJSON();
         return route.fulfill({ status: 204 });
       });
@@ -1307,10 +1309,13 @@ test.describe('webhooks page', () => {
         },
       ]);
       let requestBody: unknown;
-      await page.route('**/api/repos/auto-update-branch/disable', (route) => {
-        requestBody = route.request().postDataJSON();
-        return route.fulfill({ status: 204 });
-      });
+      await page.route(
+        '**/api/v1/repos/auto-update-branch/disable',
+        (route) => {
+          requestBody = route.request().postDataJSON();
+          return route.fulfill({ status: 204 });
+        },
+      );
       await page.goto('/webhooks.html');
 
       const row = page.locator('#webhooks-rows tr').first();
@@ -1336,7 +1341,7 @@ test.describe('webhooks page', () => {
           autoUpdateBranch: false,
         },
       ]);
-      await page.route('**/api/repos/auto-update-branch/enable', (route) =>
+      await page.route('**/api/v1/repos/auto-update-branch/enable', (route) =>
         route.fulfill({
           status: 500,
           contentType: 'application/json',
@@ -1416,7 +1421,7 @@ test.describe('webhooks page', () => {
         },
       ]);
       let called = false;
-      await page.route('**/api/repos/auto-update-branch/enable', (route) => {
+      await page.route('**/api/v1/repos/auto-update-branch/enable', (route) => {
         called = true;
         return route.fulfill({ status: 204 });
       });
@@ -1453,7 +1458,7 @@ test.describe('webhooks page', () => {
         },
       ]);
       const requested: unknown[] = [];
-      await page.route('**/api/repos/auto-update-branch/enable', (route) => {
+      await page.route('**/api/v1/repos/auto-update-branch/enable', (route) => {
         requested.push(route.request().postDataJSON());
         return route.fulfill({ status: 204 });
       });
@@ -1488,10 +1493,13 @@ test.describe('webhooks page', () => {
         },
       ]);
       const requested: unknown[] = [];
-      await page.route('**/api/repos/auto-update-branch/disable', (route) => {
-        requested.push(route.request().postDataJSON());
-        return route.fulfill({ status: 204 });
-      });
+      await page.route(
+        '**/api/v1/repos/auto-update-branch/disable',
+        (route) => {
+          requested.push(route.request().postDataJSON());
+          return route.fulfill({ status: 204 });
+        },
+      );
       await page.goto('/webhooks.html');
 
       page.once('dialog', (dialog) => void dialog.accept());

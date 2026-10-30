@@ -37,8 +37,10 @@ const renovate = (number: number) =>
 
 async function open(page: Page, pullRequests: unknown[], forges?: unknown[]) {
   const posts: { url: string; body: Record<string, unknown> }[] = [];
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route(/\/api\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route(/\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/, (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -56,7 +58,7 @@ async function open(page: Page, pullRequests: unknown[], forges?: unknown[]) {
     }),
   );
   for (const endpoint of ['dependabot-action', 'renovate-rebase']) {
-    await page.route(`**/api/pull-requests/${endpoint}`, (route: Route) => {
+    await page.route(`**/api/v1/pull-requests/${endpoint}`, (route: Route) => {
       const body = route.request().postDataJSON();
       posts.push({ url: route.request().url(), body });
       if (body.number === 3) {
@@ -203,10 +205,13 @@ test('Rebase all shows its progress through a run, then goes', async ({
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/api/pull-requests/dependabot-action', async (route) => {
-    await held;
-    await route.fulfill({ status: 204 });
-  });
+  await page.route(
+    '**/api/v1/pull-requests/dependabot-action',
+    async (route) => {
+      await held;
+      await route.fulfill({ status: 204 });
+    },
+  );
   await page.getByRole('button', { name: 'Rebase all (2)' }).click();
   await page
     .getByRole('dialog')

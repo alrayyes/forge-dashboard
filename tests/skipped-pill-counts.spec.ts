@@ -61,8 +61,10 @@ const PRS = [
 ];
 
 async function openBoard(page: Page, path: string) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -214,8 +216,8 @@ const BRANCHES = [
 }));
 
 async function openBranches(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -294,8 +296,8 @@ const ISSUES = [
 }));
 
 async function openIssues(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

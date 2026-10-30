@@ -129,8 +129,10 @@ const loaded = (page: Page, board: Board) =>
   expect(page.locator(BOARDS[board].count)).toHaveText(/\d/);
 
 async function open(page: Page, board: Board) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -159,7 +161,8 @@ const link = (page: Page, board: Board) =>
 type Groups = Record<string, Record<string, string>>;
 
 const serverCopy = async (page: Page): Promise<Groups> =>
-  (await (await page.request.get('/api/settings/filter-state')).json()) ?? {};
+  (await (await page.request.get('/api/v1/settings/filter-state')).json()) ??
+  {};
 
 const cookieCopy = async (page: Page): Promise<Groups> => {
   const c = (await page.context().cookies()).find(
@@ -171,7 +174,7 @@ const cookieCopy = async (page: Page): Promise<Groups> => {
 // The cookie alone: the saved copy is refused for the whole check, so a value
 // that shows can only have come from the cookie read at first paint. (Waiting
 // for the copy would let a broken cookie read pass, since expect retries.)
-const COPY_URL = '**/api/settings/filter-state';
+const COPY_URL = '**/api/v1/settings/filter-state';
 async function withoutServerCopy(page: Page, check: () => Promise<void>) {
   const refuse = (route: Route) =>
     route.request().method() === 'GET' ? route.abort() : route.fallback();
@@ -540,8 +543,10 @@ const WEBHOOK_REPOS = [
 }));
 
 async function openWebhooks(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

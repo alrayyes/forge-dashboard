@@ -55,7 +55,7 @@ func TestDashboard_ACancelledAutoMergeOnAnEmptyPullRequestSaysWhy(t *testing.T) 
 		return []dashboard.Source{src}
 	}, true)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	resp := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+token+`"}`, cookie)
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+token+`"}`, cookie)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

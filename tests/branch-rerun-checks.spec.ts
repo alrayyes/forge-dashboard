@@ -89,7 +89,7 @@ async function openPanel(
 ) {
   await installFakeStream(page);
   opened.set(page, { status, state });
-  await page.route('**/api/main-branches', (route) =>
+  await page.route('**/api/v1/main-branches', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -121,7 +121,7 @@ test.describe('main branches rerun failed checks', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/main-branches/rerun-checks', async (route) => {
+    await page.route('**/api/v1/main-branches/rerun-checks', async (route) => {
       await gate;
       await route.fulfill({
         status: 409,
@@ -195,7 +195,7 @@ test.describe('main branches rerun failed checks', () => {
     page,
   }) => {
     let posted: unknown = null;
-    await page.route('**/api/main-branches/rerun-checks', async (route) => {
+    await page.route('**/api/v1/main-branches/rerun-checks', async (route) => {
       posted = route.request().postDataJSON();
       await route.fulfill({ status: 204 });
     });
@@ -218,7 +218,7 @@ test.describe('main branches rerun failed checks', () => {
     page,
   }) => {
     await page.clock.install();
-    await page.route('**/api/main-branches/rerun-checks', (route) =>
+    await page.route('**/api/v1/main-branches/rerun-checks', (route) =>
       route.fulfill({ status: 204 }),
     );
     const dialog = await openPanel(page, 'failed');
@@ -228,7 +228,7 @@ test.describe('main branches rerun failed checks', () => {
     ).toHaveAttribute('aria-disabled', 'true');
 
     // From here every poll hangs, so only the hold's own timer can redraw.
-    await page.route('**/api/main-branches', () => {});
+    await page.route('**/api/v1/main-branches', () => {});
     await page.clock.fastForward(10 * 60 * 1000 + 5_000);
 
     await expect(
@@ -240,7 +240,7 @@ test.describe('main branches rerun failed checks', () => {
   test('a refused rerun shows the forge reason and leaves the button for another try', async ({
     page,
   }) => {
-    await page.route('**/api/main-branches/rerun-checks', (route) =>
+    await page.route('**/api/v1/main-branches/rerun-checks', (route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -271,7 +271,7 @@ test.describe('main branches rerun failed checks', () => {
     page,
   }) => {
     await page.clock.install();
-    await page.route('**/api/main-branches/rerun-checks', (route) =>
+    await page.route('**/api/v1/main-branches/rerun-checks', (route) =>
       route.fulfill({ status: 204 }),
     );
     const state: {
@@ -439,7 +439,7 @@ test.describe('main branches rerun failed checks', () => {
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
     // No poll answers from here, so only the reset itself can bring it back.
-    await page.route('**/api/main-branches', () => {});
+    await page.route('**/api/v1/main-branches', () => {});
     await page.clock.runFor(5 * 60_000 + 1_000);
 
     await expect(
@@ -454,7 +454,7 @@ test.describe('main branches rerun failed checks', () => {
     const forges: unknown[] = [
       { forge: 'github', reachable: true, repoCount: 1 },
     ];
-    await page.route('**/api/main-branches/rerun-checks', (route) =>
+    await page.route('**/api/v1/main-branches/rerun-checks', (route) =>
       route.fulfill({ status: 204 }),
     );
     await page.clock.install();
@@ -525,7 +525,7 @@ test.describe('main branches rerun failed checks', () => {
         0,
       );
 
-      await page.route('**/api/main-branches', () => {});
+      await page.route('**/api/v1/main-branches', () => {});
       await page.clock.runFor(5 * 60_000 + 1_000);
 
       await expect(
@@ -560,7 +560,7 @@ test.describe('main branches rerun failed checks', () => {
     const forges: unknown[] = [
       { forge: 'github', reachable: true, repoCount: 1 },
     ];
-    await page.route('**/api/main-branches/rerun-checks', unavailable);
+    await page.route('**/api/v1/main-branches/rerun-checks', unavailable);
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
@@ -587,7 +587,7 @@ test.describe('main branches rerun failed checks', () => {
     const forges: unknown[] = [
       { forge: 'github', reachable: true, repoCount: 1 },
     ];
-    await page.route('**/api/main-branches/rerun-checks', (route) =>
+    await page.route('**/api/v1/main-branches/rerun-checks', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -620,7 +620,7 @@ test.describe('main branches rerun failed checks', () => {
   test('a poll leaves the failure box, and the focus on its Copy button, alone', async ({
     page,
   }) => {
-    await page.route('**/api/main-branches/rerun-checks', refuse);
+    await page.route('**/api/v1/main-branches/rerun-checks', refuse);
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', { checks: failedCheck });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
@@ -665,7 +665,7 @@ test.describe('main branches rerun failed checks', () => {
     const forges: unknown[] = [
       { forge: 'github', reachable: true, repoCount: 1 },
     ];
-    await page.route('**/api/main-branches/rerun-checks', unavailable);
+    await page.route('**/api/v1/main-branches/rerun-checks', unavailable);
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
@@ -783,7 +783,7 @@ test.describe('main branches rerun failed checks', () => {
     });
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
-    await page.route('**/api/main-branches', () => {});
+    await page.route('**/api/v1/main-branches', () => {});
     await page.clock.runFor(11 * 60_000);
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);

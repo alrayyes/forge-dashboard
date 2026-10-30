@@ -122,7 +122,7 @@ func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source d
 	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv)
 
 	body := `{"githubToken":"placeholder-token","forgejoUrl":"https://git.example","forgejoToken":"placeholder-token"}`
-	putReq, err := http.NewRequest(http.MethodPut, testSrv.URL+"/api/settings", strings.NewReader(body))
+	putReq, err := http.NewRequest(http.MethodPut, testSrv.URL+"/api/v1/settings", strings.NewReader(body))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -138,7 +138,7 @@ func postEnsureWebhook(t *testing.T, srvURL string, sessionCookie *http.Cookie, 
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"forge": forge, "fullName": fullName})
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/webhooks/ensure", strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/webhooks/ensure", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -344,7 +344,7 @@ func TestWebhookEnsure_Unauthenticated_Returns401(t *testing.T) {
 
 	body, err := json.Marshal(map[string]string{"forge": "github", "fullName": "alrayyes/a"})
 	require.NoError(t, err)
-	resp, err := testClient(t).Post(srvURL+"/api/webhooks/ensure", "application/json", strings.NewReader(string(body)))
+	resp, err := testClient(t).Post(srvURL+"/api/v1/webhooks/ensure", "application/json", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

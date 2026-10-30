@@ -62,7 +62,7 @@ func postMergePullRequest(t *testing.T, srvURL string, sessionCookie *http.Cooki
 	t.Helper()
 	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": fullName, "number": number})
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/merge", strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/pull-requests/merge", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -183,7 +183,7 @@ func TestPullRequestMerge_Unauthenticated_Returns401(t *testing.T) {
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)
-	resp, err := testClient(t).Post(srvURL+"/api/pull-requests/merge", "application/json", strings.NewReader(string(body)))
+	resp, err := testClient(t).Post(srvURL+"/api/v1/pull-requests/merge", "application/json", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -442,7 +442,7 @@ func postMergeDeletingBranch(t *testing.T, srvURL string, sessionCookie *http.Co
 	t.Helper()
 	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": "alrayyes/tempus-fugit", "number": number, "deleteBranch": deleteBranch})
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/merge", strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/pull-requests/merge", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")

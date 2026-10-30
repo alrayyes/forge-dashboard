@@ -76,8 +76,10 @@ let prs: unknown[] = PRS;
 let issues: unknown[] = ISSUES;
 
 async function open(page: Page, path: string) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -108,7 +110,7 @@ async function pick(page: Page, value: 'any' | 'yes' | 'no') {
   await expect(page.locator('.row').first()).toBeVisible();
   const saved = page.waitForResponse(
     (r) =>
-      r.url().includes('/api/settings/filter-state') &&
+      r.url().includes('/api/v1/settings/filter-state') &&
       r.request().method() !== 'GET',
   );
   await choice(page, value).click();

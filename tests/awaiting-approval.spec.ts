@@ -27,8 +27,10 @@ function pr(number: number, title: string, awaiting: boolean) {
 const PRS = [pr(1, 'Held for approval', true), pr(2, 'Really failing', false)];
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -84,7 +86,7 @@ test.describe('Awaiting workflow approval (#1280)', () => {
       page,
     }) => {
       await page.setViewportSize({ width, height: 800 });
-      await page.route('**/api/pull-requests/details*', (route: Route) =>
+      await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -119,7 +121,7 @@ test.describe('Awaiting workflow approval (#1280)', () => {
       page,
     }) => {
       await page.emulateMedia({ colorScheme: theme });
-      await page.route('**/api/pull-requests/details*', (route: Route) =>
+      await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',

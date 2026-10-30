@@ -28,8 +28,10 @@ func TestSingleUserCleanup_KeptUsersSessionAndTokenStillWork(t *testing.T) {
 
 	statuses := map[string]int{}
 	for name, do := range map[string]func() *http.Response{
-		"kept session": func() *http.Response { return doJSON(t, http.MethodGet, srv.URL+"/api/auth/session", "", ownerCookie) },
-		"kept token":   func() *http.Response { return doWithBearer(t, http.MethodGet, srv.URL+"/api/tokens", "", token) },
+		"kept session": func() *http.Response {
+			return doJSON(t, http.MethodGet, srv.URL+"/api/v1/auth/session", "", ownerCookie)
+		},
+		"kept token": func() *http.Response { return doWithBearer(t, http.MethodGet, srv.URL+"/api/v1/tokens", "", token) },
 	} {
 		resp := do()
 		_ = resp.Body.Close()

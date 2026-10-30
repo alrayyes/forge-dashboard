@@ -85,7 +85,7 @@ test.describe('the check itself (#1315)', () => {
   // Signing in used to land on the pull request list, which these tests
   // inject their markup into.
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await page.goto('/pull-requests.html');
   });
 
@@ -185,10 +185,10 @@ test.describe('the check itself (#1315)', () => {
 test.describe('visible text is part of the accessible name (#1135)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.route('**/api/dashboard/stream*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

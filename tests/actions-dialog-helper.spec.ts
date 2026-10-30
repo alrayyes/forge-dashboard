@@ -3,7 +3,7 @@ import { openActionsDialog } from './actions-dialog-helper';
 import { test } from './server-fixture';
 
 // The helper the specs use to reach a row's actions in its dialog. Mocks
-// /api/dashboard and the details endpoint only and writes no saved state,
+// /api/v1/dashboard and the details endpoint only and writes no saved state,
 // so it runs on the single-user fixture.
 
 const now = new Date().toISOString();
@@ -33,8 +33,8 @@ const noReactions = {
 };
 
 async function mock(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -46,7 +46,7 @@ async function mock(page: Page) {
       }),
     }),
   );
-  await page.route('**/api/pull-requests/details*', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

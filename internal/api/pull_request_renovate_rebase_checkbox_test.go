@@ -106,7 +106,7 @@ func postRenovateRebaseCancel(t *testing.T, srvURL string, sessionCookie *http.C
 	t.Helper()
 	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": fullName, "number": number})
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/renovate-rebase/cancel", strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/pull-requests/renovate-rebase/cancel", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")

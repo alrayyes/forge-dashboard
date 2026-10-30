@@ -154,7 +154,7 @@ export async function readAdvisoryList(
 ): Promise<AdvisoryRead> {
   const query = new URLSearchParams({ forge, fullName });
   try {
-    const res = await fetcher(`/api/main-branches/advisories?${query}`);
+    const res = await fetcher(`/api/v1/main-branches/advisories?${query}`);
     if (res.status === 401) return { kind: 'signed-out' };
     if (!res.ok) {
       let message = `The advisories could not be read (${res.status}).`;

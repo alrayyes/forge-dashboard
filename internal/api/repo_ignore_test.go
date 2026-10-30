@@ -27,14 +27,14 @@ func postRepoAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, pat
 	return resp
 }
 
-// postRepoIgnoreAction is postRepoAction for POST /api/repos/ignore
+// postRepoIgnoreAction is postRepoAction for POST /api/v1/repos/ignore
 // specifically, whose body carries the scope (#511) the plain
 // WebhookEnsureRequest-shaped body postRepoAction sends doesn't have.
 func postRepoIgnoreAction(t *testing.T, srvURL string, sessionCookie *http.Cookie, fullName string, prs, issues bool) *http.Response {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": fullName, "prs": prs, "issues": issues})
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/repos/ignore", strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/repos/ignore", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -75,7 +75,7 @@ func newTestServerWithRepo(t *testing.T) (srvURL string, sessionCookie *http.Coo
 	srv := newTestServerWithSources(t, buildSources)
 	sessionCookie, _, _ = registerViaRealCeremony(t, srv)
 
-	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
+	putReq, err := http.NewRequest(http.MethodPut, srv.URL+"/api/v1/settings", strings.NewReader(`{"githubToken":"`+secretToken+`"}`))
 	require.NoError(t, err)
 	putReq.AddCookie(sessionCookie)
 	putReq.Header.Set("Content-Type", "application/json")
@@ -95,7 +95,7 @@ func newTestServerWithRepo(t *testing.T) (srvURL string, sessionCookie *http.Coo
 
 func fetchDashboard(t *testing.T, srvURL string, sessionCookie *http.Cookie) map[string]any {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/dashboard", nil)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard", nil)
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	resp, err := testClient(t).Do(req)
@@ -111,7 +111,7 @@ func TestRepoIgnore_RequiresASession(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	resp, err := testClient(t).Post(srv.URL+"/api/repos/ignore", "application/json", strings.NewReader(`{"forge":"github","fullName":"alrayyes/forge-dashboard"}`))
+	resp, err := testClient(t).Post(srv.URL+"/api/v1/repos/ignore", "application/json", strings.NewReader(`{"forge":"github","fullName":"alrayyes/forge-dashboard"}`))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -244,7 +244,7 @@ func TestRepoUnignore_BringsItsPullRequestsAndIssuesBack(t *testing.T) {
 	_ = ignoreResp.Body.Close()
 	require.Equal(t, http.StatusNoContent, ignoreResp.StatusCode)
 
-	unignoreResp := postRepoAction(t, srvURL, sessionCookie, "/api/repos/unignore", "alrayyes/forge-dashboard")
+	unignoreResp := postRepoAction(t, srvURL, sessionCookie, "/api/v1/repos/unignore", "alrayyes/forge-dashboard")
 	defer func() { _ = unignoreResp.Body.Close() }()
 	require.Equal(t, http.StatusNoContent, unignoreResp.StatusCode)
 

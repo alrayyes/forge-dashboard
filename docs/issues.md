@@ -7,16 +7,16 @@ default. The badge is set from each snapshot on the dashboard and issues
 pages, and loaded once on the other signed-in pages.
 
 An issue's title opens a pop-up with its description and comments, laid out
-like a pull request's. It loads when it opens, from `GET /api/issues/details`,
-and nothing about it is part of the snapshot. The header shows whether the
-issue is open or closed, who filed it with their avatar, and its labels, and
-the footer links to the issue on its forge. The status follows the forge while
-the pop-up is open: when a refresh no longer lists the issue, lists it again,
-or shows it changed, the pop-up reads the forge again, so closing or reopening
-the issue there turns the badge to Closed or back to Open without reopening the
-pop-up. If the forge can't be read, the pop-up says why and offers **Try
-again** instead of showing an empty thread. Escape or **Close details**
-returns you to the issue's row.
+like a pull request's. It loads when it opens, from `GET
+/api/v1/issues/details`, and nothing about it is part of the snapshot. The
+header shows whether the issue is open or closed, who filed it with their
+avatar, and its labels, and the footer links to the issue on its forge. The
+status follows the forge while the pop-up is open: when a refresh no longer
+lists the issue, lists it again, or shows it changed, the pop-up reads the forge
+again, so closing or reopening the issue there turns the badge to Closed or back
+to Open without reopening the pop-up. If the forge can't be read, the pop-up
+says why and offers **Try again** instead of showing an empty thread. Escape or
+**Close details** returns you to the issue's row.
 
 ## Closing an issue from its pop-up
 
@@ -107,16 +107,16 @@ out of everything you see:
   and ignores case, so `^Weekly report` leaves out every issue whose title
   starts with "Weekly report".
 
-The server drops those issues from `issues` in `GET /api/dashboard`, its
+The server drops those issues from `issues` in `GET /api/v1/dashboard`, its
 stream and the `get_dashboard` MCP tool. `openIssueCount` and
 `navCounts.issues.total` count what remains, so the navigation badge, the
 Issues board and Insights agree with no arithmetic in the client.
 `settingsHiddenIssueCount` says how many issues the settings dropped, and is
 `0` when none were. The same response carries `hideDependencyDashboard` and
 `ignoredTitlesSet` (true when the list isn't empty), so a client knows whether
-to draw its own fields without reading `/api/settings`.
+to draw its own fields without reading `/api/v1/settings`.
 
-`GET /api/settings` and the response to saving it also carry
+`GET /api/v1/settings` and the response to saving it also carry
 `ignoredTitleCounts`: for each pattern in `ignoredTitles`, in the same order,
 how many of your open issues that pattern matches on its own. An issue two
 patterns match counts for both, so the entries can add up to more than
@@ -163,7 +163,7 @@ follow the board while the pop-up stays open.
 The server works this out, from the pull requests it already holds, so it costs
 the forge no request. It counts a draft, and a pull request you hid, but not
 one in a repo whose pull requests you ignore. When it merges or closes, the
-link goes with the next refresh. In `GET /api/dashboard` each issue has
+link goes with the next refresh. In `GET /api/v1/dashboard` each issue has
 `linkedPullRequests`, ordered by repo and number, and always present.
 
 A row shows the first two and, when there are more, a link such as "2 more"
@@ -182,7 +182,7 @@ the page says so in a note over the list.
 ## Pull requests that mention an issue
 
 A pull request can mention an issue without closing it, with `Refs #12` or a
-link in its description. In `GET /api/dashboard` each issue lists those open
+link in its description. In `GET /api/v1/dashboard` each issue lists those open
 pull requests as `mentionedByPullRequests`, always present, ordered by repo and
 number and with the same entries as `linkedPullRequests`. A pull request that
 closes the issue is only in `linkedPullRequests`; one whose `Closes` doesn't

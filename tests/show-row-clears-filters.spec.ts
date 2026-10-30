@@ -29,18 +29,20 @@ function pr(number: number, ci: string, autoMergeEnabled: boolean) {
 const PRS = [pr(1, 'success', false), pr(2, 'failure', true)];
 
 async function open(page: Page) {
-  await page.route('**/api/settings/bot-pr-updates', (route: Route) =>
+  await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ allowBotPrUpdates: false }),
     }),
   );
-  await page.route('**/api/pull-requests/update-branch', (route: Route) =>
+  await page.route('**/api/v1/pull-requests/update-branch', (route: Route) =>
     route.fulfill({ status: 202 }),
   );
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -88,7 +90,7 @@ async function savedCopies(page: Page) {
     const m = document.cookie.match(/forge-board-filters=([^;]*)/);
     return m ? JSON.parse(decodeURIComponent(m[1])) : null;
   });
-  const res = await page.request.get('/api/settings/filter-state');
+  const res = await page.request.get('/api/v1/settings/filter-state');
   return { cookie, server: await res.json() };
 }
 

@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// getSettingsSummary reads GET /api/settings/summary and answers the status,
+// getSettingsSummary reads GET /api/v1/settings/summary and answers the status,
 // the raw body and the decoded body.
 func getSettingsSummary(t *testing.T, srvURL string, cookie *http.Cookie) (int, string, map[string]any) {
 	t.Helper()
 
-	resp := doJSON(t, http.MethodGet, srvURL+"/api/settings/summary", "", cookie)
+	resp := doJSON(t, http.MethodGet, srvURL+"/api/v1/settings/summary", "", cookie)
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestContract_SettingsSummary(t *testing.T) {
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
 
-	req, got := record(t, http.MethodGet, srv.URL+"/api/settings/summary", cookie)
+	req, got := record(t, http.MethodGet, srv.URL+"/api/v1/settings/summary", cookie)
 
 	require.Equal(t, http.StatusOK, got.status)
 	validateAgainstSpec(t, req, got)

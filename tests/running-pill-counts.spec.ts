@@ -41,8 +41,10 @@ const PRS = [
 ];
 
 async function open(page: Page) {
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -157,7 +159,7 @@ test.describe('Running pill counts (#2004)', () => {
   test('in the dialog header a screen reader hears the pill once', async ({
     page,
   }) => {
-    await page.route('**/api/pull-requests/details*', (route: Route) =>
+    await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -49,7 +49,7 @@ async function setup(page: Page) {
       pullRequests: served(),
       issues: [],
     });
-  for (const pattern of ['**/api/dashboard*', '**/api/dashboard/refresh'])
+  for (const pattern of ['**/api/v1/dashboard*', '**/api/v1/dashboard/refresh'])
     await page.route(pattern, (route: Route) =>
       route.fulfill({
         status: 200,
@@ -57,7 +57,7 @@ async function setup(page: Page) {
         body: body(),
       }),
     );
-  await page.route('**/api/pull-requests/update-branch', (route: Route) => {
+  await page.route('**/api/v1/pull-requests/update-branch', (route: Route) => {
     const { number } = route.request().postDataJSON() as { number: number };
     if (number === 2)
       return route.fulfill({
@@ -68,7 +68,9 @@ async function setup(page: Page) {
     recorded.add(number);
     return route.fulfill({ status: 202 });
   });
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
   await page.goto('/pull-requests.html');
 }
 

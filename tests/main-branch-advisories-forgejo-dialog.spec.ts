@@ -74,9 +74,9 @@ const LIST = {
 };
 
 async function open(page: Page, answer: (route: Route) => Promise<void>) {
-  await page.route('**/api/dashboard/stream*', (route) => route.abort());
-  await page.route('**/api/main-branches/advisories*', answer);
-  await page.route('**/api/main-branches', (route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/main-branches/advisories*', answer);
+  await page.route('**/api/v1/main-branches', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -210,9 +210,9 @@ test.describe('Branches page advisories dialog for a Forgejo row', () => {
     await noViolations(page, 'unknown');
     await page.keyboard.press('Escape');
 
-    await page.unroute('**/api/main-branches/advisories*');
+    await page.unroute('**/api/v1/main-branches/advisories*');
     await page.route(
-      '**/api/main-branches/advisories*',
+      '**/api/v1/main-branches/advisories*',
       json({ ...LIST, partial: true }),
     );
     await page.getByTestId('main-branch-advisories').click();

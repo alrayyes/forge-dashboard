@@ -26,7 +26,7 @@ export function startPresence(): () => void {
     clearTimer: (handle) => window.clearTimeout(handle as number),
     send: async (visible): Promise<PresenceTimings | null> => {
       try {
-        const res = await fetch('/api/presence', {
+        const res = await fetch('/api/v1/presence', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ viewerId, visible }),

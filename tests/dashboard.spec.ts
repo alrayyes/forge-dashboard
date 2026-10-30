@@ -45,8 +45,8 @@ async function selectForge(page: Page, value: string) {
 test.describe('dashboard page', () => {
   test.beforeEach(async ({ page }) => {
     // The dashboard page also opens a live-updates EventSource against
-    // the real, unmocked /api/dashboard/stream — any test that mocks
-    // /api/dashboard itself and then reloads can otherwise have a real
+    // the real, unmocked /api/v1/dashboard/stream — any test that mocks
+    // /api/v1/dashboard itself and then reloads can otherwise have a real
     // snapshot pushed over that stream silently overwrite the mocked one
     // applied a moment earlier, flipping a reload assertion straight from
     // correct to empty with no error in between (confirmed live across
@@ -55,7 +55,7 @@ test.describe('dashboard page', () => {
     // background refresh running (see "a user with no background refresh
     // running yet" below) — this suite never saves real settings for
     // these per-test users, so the real endpoint would 404 anyway.
-    await page.route('**/api/dashboard/stream*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) =>
       route.fulfill({
         status: 404,
         contentType: 'application/json',
@@ -66,7 +66,7 @@ test.describe('dashboard page', () => {
     );
   });
 
-  test('renders the board and answers real data from /api/dashboard', async ({
+  test('renders the board and answers real data from /api/v1/dashboard', async ({
     page,
   }) => {
     await landOnPullRequests(page);
@@ -80,12 +80,12 @@ test.describe('dashboard page', () => {
     page,
   }) => {
     await landOnPullRequests(page);
-    // GET /api/dashboard/stream 404s until Settings has been saved once
+    // GET /api/v1/dashboard/stream 404s until Settings has been saved once
     // (no Aggregator running yet) — EventSource retries that on
     // its own, silently, and the poll this page also runs keeps the
     // dashboard itself working regardless. Real bug shape this guards
     // against: an unhandled SSE failure surfacing as a visible error.
-    const streamResponse = await page.request.get('/api/dashboard/stream');
+    const streamResponse = await page.request.get('/api/v1/dashboard/stream');
     expect(streamResponse.status()).toBe(404);
 
     await expect(page.locator('h1')).toHaveText('Forge Board');
@@ -165,7 +165,7 @@ test.describe('dashboard page', () => {
     // unfriendly and impossible to act on, so it now sits behind a
     // details disclosure and a classified, actionable headline is what's
     // primary.
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -214,7 +214,7 @@ test.describe('dashboard page', () => {
     // error disclosure here on top of that is noise, not a second
     // source of detail — reported live, the text served no purpose once
     // the banner shipped.
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -249,7 +249,7 @@ test.describe('dashboard page', () => {
   test('an unreachable forge with no recognized error kind still shows a friendly, forge-named reason', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -285,7 +285,7 @@ test.describe('dashboard page', () => {
     page,
   }) => {
     const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -319,7 +319,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 90 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -367,7 +367,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -399,7 +399,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -422,7 +422,7 @@ test.describe('dashboard page', () => {
       await page.goto('/pull-requests.html');
       await expect(page.locator('#rate-limit-banner')).toBeVisible();
 
-      await page.route('**/api/dashboard/refresh', (route: Route) =>
+      await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -454,7 +454,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -487,7 +487,7 @@ test.describe('dashboard page', () => {
 
     test('a budget at or above 5% shows no row at all', async ({ page }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -516,7 +516,7 @@ test.describe('dashboard page', () => {
       page,
     }) => {
       const resetsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -589,7 +589,7 @@ test.describe('dashboard page', () => {
     // word onto its own line. flex-basis:100% on .title should force it
     // onto a full-width line of its own regardless of how many chips sit
     // beside it.
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -646,7 +646,7 @@ test.describe('dashboard page', () => {
     // without needing a custom tooltip component, and (since the
     // truncation is purely visual CSS) a screen reader already reads
     // the untruncated text content regardless.
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -685,7 +685,7 @@ test.describe('dashboard page', () => {
   test('an ordinary owner/repo name is not truncated at desktop width', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -721,7 +721,7 @@ test.describe('dashboard page', () => {
   });
 
   test('the forge filter narrows the list to one forge', async ({ page }) => {
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -775,7 +775,7 @@ test.describe('dashboard page', () => {
   test('the pull request count reflects the active filter, not just the raw total', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -832,7 +832,7 @@ test.describe('dashboard page', () => {
 
   test.describe('theme and filters persist across a reload', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -925,7 +925,7 @@ test.describe('dashboard page', () => {
     test('the shared forge filter persists and applies to both pages, while the CI pills stay scoped to pull requests only', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -988,7 +988,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.route('**/api/dashboard/stream*', (route) => route.abort());
+      await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
       await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
@@ -1014,7 +1014,7 @@ test.describe('dashboard page', () => {
       // page's own load of the saved state.
       await expect
         .poll(async () => {
-          const resp = await page.request.get('/api/settings/filter-state');
+          const resp = await page.request.get('/api/v1/settings/filter-state');
           return (await resp.json())?.pr?.quick;
         })
         .toBe('failing');
@@ -1037,7 +1037,9 @@ test.describe('dashboard page', () => {
       await expect
         .poll(
           async () => {
-            const resp = await page.request.get('/api/settings/filter-state');
+            const resp = await page.request.get(
+              '/api/v1/settings/filter-state',
+            );
             const body = await resp.json();
             return body?.shared?.forge;
           },
@@ -1070,7 +1072,7 @@ test.describe('dashboard page', () => {
 
       // The server write is what's still debounced — shortly after the
       // last keystroke it hasn't landed yet...
-      const soonAfter = await page.request.get('/api/settings/filter-state');
+      const soonAfter = await page.request.get('/api/v1/settings/filter-state');
       const soonBody = await soonAfter.json();
       expect(soonBody?.shared?.title).not.toBe('git');
 
@@ -1078,7 +1080,9 @@ test.describe('dashboard page', () => {
       await expect
         .poll(
           async () => {
-            const resp = await page.request.get('/api/settings/filter-state');
+            const resp = await page.request.get(
+              '/api/v1/settings/filter-state',
+            );
             const body = await resp.json();
             return body?.shared?.title;
           },
@@ -1095,7 +1099,9 @@ test.describe('dashboard page', () => {
       await expect
         .poll(
           async () => {
-            const resp = await page.request.get('/api/settings/filter-state');
+            const resp = await page.request.get(
+              '/api/v1/settings/filter-state',
+            );
             const body = await resp.json();
             return body?.shared?.forge;
           },
@@ -1129,7 +1135,7 @@ test.describe('dashboard page', () => {
     // A function, not a beforeEach, so the group-by-forge describe below can
     // install its own mock and still load the page only once.
     async function landOnRepoGrouping(page: Page) {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1232,7 +1238,7 @@ test.describe('dashboard page', () => {
 
     test.describe('group by forge', () => {
       test.beforeEach(async ({ page }) => {
-        await page.route('**/api/dashboard*', (route) =>
+        await page.route('**/api/v1/dashboard*', (route) =>
           route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -1328,7 +1334,7 @@ test.describe('dashboard page', () => {
 
   test.describe('repo and author filters are selects, title is autocomplete', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1423,7 +1429,7 @@ test.describe('dashboard page', () => {
 
   test.describe('the repo/author/label filters and group-by stay consistent with the active forge', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1681,7 +1687,7 @@ test.describe('dashboard page', () => {
       // up empty and clear together rather than only Author doing so —
       // neither one, on its own, is a value still reachable given what
       // the other was set to.
-      await page.route('**/api/dashboard/refresh', (route: Route) =>
+      await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1743,7 +1749,7 @@ test.describe('dashboard page', () => {
     test('a PR-only filter like the Failing CI pill also narrows the shared repo/author/label choices', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1820,7 +1826,7 @@ test.describe('dashboard page', () => {
     test('a filtered set under one page shows no pagination controls', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1844,7 +1850,7 @@ test.describe('dashboard page', () => {
       var i: number;
       for (i = 1; i <= 30; i++) prs.push(makePR(i));
 
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1886,7 +1892,7 @@ test.describe('dashboard page', () => {
       for (i = 1; i <= 30; i++) prs.push(makePR(i));
       prs[0].title = 'the only match';
 
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1912,7 +1918,7 @@ test.describe('dashboard page', () => {
 
   test.describe('CI status click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -1993,7 +1999,7 @@ test.describe('dashboard page', () => {
 
   test.describe('CI pill wording for a passed pipeline', () => {
     function mockOnePR(page: Page, overrides: Partial<MockItem>) {
-      return page.route('**/api/dashboard*', (route: Route) =>
+      return page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2078,7 +2084,7 @@ test.describe('dashboard page', () => {
     }
 
     function mockDashboard(page: Page, pullRequests: MockItem[]) {
-      return page.route('**/api/dashboard*', (route: Route) =>
+      return page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2313,7 +2319,7 @@ test.describe('dashboard page', () => {
     test('clicking it calls the endpoint and updates the dashboard from its response', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2329,7 +2335,7 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-count')).toHaveText('0 open');
 
       let refreshCalled = false;
-      await page.route('**/api/dashboard/refresh', (route) => {
+      await page.route('**/api/v1/dashboard/refresh', (route) => {
         refreshCalled = true;
         return route.fulfill({
           status: 200,
@@ -2365,7 +2371,7 @@ test.describe('dashboard page', () => {
     test('disables itself immediately, and re-enables after the Retry-After the server gave once the response has landed', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard/refresh', async (route) => {
+      await page.route('**/api/v1/dashboard/refresh', async (route) => {
         // Held open briefly so the "is-refreshing" spin class — added
         // synchronously on click, removed once the response is in hand
         // — has a real window to be observed before it's gone again.
@@ -2407,7 +2413,7 @@ test.describe('dashboard page', () => {
     test('a failed refresh shows the existing error banner rather than failing silently', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard/refresh', (route: Route) =>
+      await page.route('**/api/v1/dashboard/refresh', (route: Route) =>
         route.fulfill({
           status: 404,
           contentType: 'application/json',
@@ -2434,7 +2440,7 @@ test.describe('dashboard page', () => {
           sharingRequests.push(r.url());
       });
       const firstRead = page.waitForResponse(
-        (r) => new URL(r.url()).pathname === '/api/dashboard',
+        (r) => new URL(r.url()).pathname === '/api/v1/dashboard',
       );
       await page.goto('/pull-requests.html');
       await firstRead;
@@ -2447,7 +2453,7 @@ test.describe('dashboard page', () => {
 
   test.describe('label click-to-filter', () => {
     test.beforeEach(async ({ page }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2529,7 +2535,7 @@ test.describe('dashboard page', () => {
       // Label is one of the shared fields now — override the fixture with
       // a matching-labeled PR so this actually exercises the cross-board
       // effect, not just an already-empty PR board staying empty.
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2589,7 +2595,7 @@ test.describe('dashboard page', () => {
           }),
         }),
       );
-      await page.route('**/api/dashboard/stream*', (route) => route.abort());
+      await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
       await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
       await page.goto('/issues.html');
@@ -2664,7 +2670,7 @@ test.describe('dashboard page', () => {
       // among an item's first three never renders a chip for it at all
       // — before the select existed, there was nothing left to click to
       // undo the filter.
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2714,7 +2720,7 @@ test.describe('dashboard page', () => {
     test('a label chip renders with its real background color and a contrasting text color', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard*', (route: Route) =>
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2800,7 +2806,7 @@ test.describe('dashboard page', () => {
         issues = [],
       }: { pullRequests?: MockItem[]; issues?: MockItem[] } = {},
     ) {
-      return page.route('**/api/dashboard*', (route: Route) =>
+      return page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -2932,7 +2938,7 @@ test.describe('dashboard page', () => {
     };
 
     function mockDashboard(page: Page) {
-      return page.route('**/api/dashboard*', (route: Route) =>
+      return page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -3001,7 +3007,7 @@ test.describe('dashboard page', () => {
     test('on the issues page, clicking it also re-checks Hide Dependency Dashboard', async ({
       page,
     }) => {
-      await page.route('**/api/dashboard/stream*', (route) => route.abort());
+      await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
       await page.goto('/issues.html');
       await page.locator('#issue-hide-dependency-dashboard').uncheck();
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
@@ -3218,10 +3224,10 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   const rowTitles = (page: Page) => page.locator('#pr-rows > .row');
 
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -3280,7 +3286,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(rowTitles(page).nth(0)).toContainText('Plain ready');
   });
 
-  // Review state comes from /api/dashboard's review object (#683). Needs
+  // Review state comes from /api/v1/dashboard's review object (#683). Needs
   // Review means a review is outstanding (#713): the forge requires one, or
   // someone was asked. Not merely "no approval yet", and unknown state (no
   // review key at all) never matches.
@@ -3337,7 +3343,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   test('quick filters leave the issues page alone, forge pills do not', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await pill(page, 'Failing CI').click();
     await page.goto('/issues.html');
     // The pull-request-only pill is not on the issues page, and All is what
@@ -3359,7 +3365,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     // (#900), so wait for it like the other persistence tests do.
     await expect
       .poll(async () => {
-        const resp = await page.request.get('/api/settings/filter-state');
+        const resp = await page.request.get('/api/v1/settings/filter-state');
         return (await resp.json())?.pr?.quick;
       })
       .toBe('failing');
@@ -3440,10 +3446,10 @@ test.describe('repo group headers: host and sync status (#679)', () => {
   ];
 
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -3559,10 +3565,10 @@ test.describe('time cells say what they are (#1109)', () => {
   };
 
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/dashboard/stream*', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) =>
       route.fulfill({ status: 404, body: '{}' }),
     );
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

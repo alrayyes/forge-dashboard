@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The set_pull_request_auto_update tool and POST /api/pull-requests/auto-update
+// The set_pull_request_auto_update tool and POST /api/v1/pull-requests/auto-update
 // share one function, so these tests pin the tool's wiring and its refusals;
 // pull_request_auto_update_test.go holds the behaviour behind both.
 

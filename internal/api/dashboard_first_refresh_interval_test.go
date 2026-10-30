@@ -85,7 +85,7 @@ func TestDashboard_ReadInterval_HeldReadEndsOnCompletionNotTimeout(t *testing.T)
 		return []dashboard.Source{src}
 	}, false, wait)
 	cookie, _, _ := registerViaRealCeremony(t, srv)
-	put := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
+	put := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubToken":"`+firstRefreshToken+`"}`, cookie)
 	_ = put.Body.Close()
 	require.Equal(t, http.StatusOK, put.StatusCode)
 
@@ -98,7 +98,7 @@ func TestDashboard_ReadInterval_HeldReadEndsOnCompletionNotTimeout(t *testing.T)
 	start := time.Now()
 	go func() {
 		var a answer
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/dashboard", nil)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/v1/dashboard", nil)
 		if err == nil {
 			req.AddCookie(cookie)
 

@@ -40,7 +40,7 @@ func postRenovateRebase(t *testing.T, srvURL string, sessionCookie *http.Cookie,
 	t.Helper()
 	body, err := json.Marshal(map[string]any{"forge": forge, "fullName": fullName, "number": number})
 	require.NoError(t, err)
-	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/pull-requests/renovate-rebase", strings.NewReader(string(body)))
+	req, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/pull-requests/renovate-rebase", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -53,7 +53,7 @@ func postRenovateRebase(t *testing.T, srvURL string, sessionCookie *http.Cookie,
 func putRenovateRebaseLabel(t *testing.T, srvURL string, sessionCookie *http.Cookie, label string) {
 	t.Helper()
 	body := `{"githubToken":"placeholder-token","forgejoUrl":"https://git.example","forgejoToken":"placeholder-token","renovateRebaseLabel":"` + label + `"}`
-	req, err := http.NewRequest(http.MethodPut, srvURL+"/api/settings", strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPut, srvURL+"/api/v1/settings", strings.NewReader(body))
 	require.NoError(t, err)
 	req.AddCookie(sessionCookie)
 	req.Header.Set("Content-Type", "application/json")
@@ -157,7 +157,7 @@ func TestPullRequestRenovateRebase_Unauthenticated_Returns401(t *testing.T) {
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)
-	resp, err := testClient(t).Post(srvURL+"/api/pull-requests/renovate-rebase", "application/json", strings.NewReader(string(body)))
+	resp, err := testClient(t).Post(srvURL+"/api/v1/pull-requests/renovate-rebase", "application/json", strings.NewReader(string(body)))
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 

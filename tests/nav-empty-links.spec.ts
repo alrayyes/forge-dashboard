@@ -47,7 +47,7 @@ function mockDashboard(
   options: { gate?: Promise<void> } = {},
 ) {
   return page.route(
-    /\/api\/dashboard(\/refresh)?(\?.*)?$/,
+    /\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/,
     async (route: Route) => {
       if (options.gate) await options.gate;
       return route.fulfill({
@@ -78,7 +78,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream would push the server's own, newer snapshot over the
     // mock, and the page drops the older one as stale.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('with nothing to show, the Pull requests link is gone too, from the header and the tab bar (#1415)', async ({

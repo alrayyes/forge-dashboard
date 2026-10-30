@@ -50,7 +50,7 @@ function makePR(overrides?: Partial<MockPR>): MockPR {
 }
 
 function mockDashboard(page: Page, pr?: MockPR) {
-  return page.route('**/api/dashboard*', (route) =>
+  return page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -69,7 +69,7 @@ function mockDashboard(page: Page, pr?: MockPR) {
 // which need to control ForgeHealth directly and (for the forge-wide
 // permission-lock test) more than one row.
 function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
-  return page.route('**/api/dashboard*', (route) =>
+  return page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -90,7 +90,7 @@ test.describe('pull request merge button', () => {
   test.beforeEach(async ({ page }) => {
     // The live stream isn't part of these tests. Aborted, so no real stream
     // stays open against the server.
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
   test('a mergeable pull request shows a Merge button', async ({ page }) => {
@@ -120,7 +120,7 @@ test.describe('pull request merge button', () => {
       'true',
     );
 
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -186,7 +186,7 @@ test.describe('pull request merge button', () => {
   }) => {
     await mockDashboard(page, makePR());
     let mergeCalled = false;
-    await page.route('**/api/pull-requests/merge', (route) => {
+    await page.route('**/api/v1/pull-requests/merge', (route) => {
       mergeCalled = true;
       return route.fulfill({ status: 204 });
     });
@@ -256,7 +256,7 @@ test.describe('pull request merge button', () => {
       repo: 'alrayyes/other-repo',
       updatedAt: new Date().toISOString(),
     });
-    await page.route('**/api/dashboard*', (route) =>
+    await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -291,7 +291,7 @@ test.describe('pull request merge button', () => {
   }) => {
     await mockDashboard(page, makePR());
     let mergeCalled = false;
-    await page.route('**/api/pull-requests/merge', (route) => {
+    await page.route('**/api/v1/pull-requests/merge', (route) => {
       mergeCalled = true;
       return route.fulfill({ status: 204 });
     });
@@ -311,14 +311,14 @@ test.describe('pull request merge button', () => {
     const pr = makePR();
     await mockDashboard(page, pr);
     let requestBody: unknown;
-    await page.route('**/api/pull-requests/merge', (route) => {
+    await page.route('**/api/v1/pull-requests/merge', (route) => {
       requestBody = route.request().postDataJSON();
       return route.fulfill({ status: 204 });
     });
     // Once merged, the immediate refresh this triggers reports the PR
     // gone — the same way a real merge would drop it from the next
     // snapshot.
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -349,13 +349,13 @@ test.describe('pull request merge button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/merge', async (route) => {
+    await page.route('**/api/v1/pull-requests/merge', async (route) => {
       // Held open briefly so the in-progress status has a moment to be
       // observed before the success one replaces it.
       await new Promise((resolve) => setTimeout(resolve, 200));
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -395,10 +395,10 @@ test.describe('pull request merge button', () => {
     // Verified against a fresh refresh rather than trusted at face value.
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.abort('failed'),
     );
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -429,10 +429,10 @@ test.describe('pull request merge button', () => {
   }) => {
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.abort('failed'),
     );
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -464,7 +464,7 @@ test.describe('pull request merge button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.fulfill({
         status: 403,
         contentType: 'application/json',
@@ -493,7 +493,7 @@ test.describe('pull request merge button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -523,7 +523,7 @@ test.describe('pull request merge button', () => {
     // method the repo doesn't allow — #349) — the old hardcoded "no
     // longer mergeable" text was simply wrong for this one.
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -559,7 +559,7 @@ test.describe('pull request merge button', () => {
     // click wiring.
     const pr = makePR();
     await mockDashboard(page, pr);
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.fulfill({
         status: 409,
         contentType: 'application/json',
@@ -578,7 +578,7 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Retry' })).toBeVisible();
 
     let refreshCalled = false;
-    await page.route('**/api/dashboard/refresh', (route) => {
+    await page.route('**/api/v1/dashboard/refresh', (route) => {
       refreshCalled = true;
       return route.fulfill({
         status: 200,
@@ -603,7 +603,7 @@ test.describe('pull request merge button', () => {
     page,
   }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', (route) =>
+    await page.route('**/api/v1/pull-requests/merge', (route) =>
       route.fulfill({
         status: 429,
         contentType: 'application/json',
@@ -634,11 +634,11 @@ test.describe('pull request merge button', () => {
 
   test('has no axe-core violations with a toast showing', async ({ page }) => {
     await mockDashboard(page, makePR());
-    await page.route('**/api/pull-requests/merge', async (route) => {
+    await page.route('**/api/v1/pull-requests/merge', async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       return route.fulfill({ status: 204 });
     });
-    await page.route('**/api/dashboard/refresh', (route) =>
+    await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -749,7 +749,7 @@ test.describe('pull request merge button', () => {
       );
       // The force refresh below answers the same board, so it never reaches the
       // real server (which has nothing to refresh for this user).
-      await page.route('**/api/dashboard/refresh', (route) =>
+      await page.route('**/api/v1/dashboard/refresh', (route) =>
         route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -761,7 +761,7 @@ test.describe('pull request merge button', () => {
           }),
         }),
       );
-      await page.route('**/api/pull-requests/merge', (route) =>
+      await page.route('**/api/v1/pull-requests/merge', (route) =>
         route.fulfill({
           status: 403,
           contentType: 'application/json',

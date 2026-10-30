@@ -160,7 +160,7 @@ async function open(
         window as unknown as { __streamPush: (m: unknown) => void }
       ).__streamPush(data);
   });
-  await page.route('**/api/dashboard', (route: Route) =>
+  await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -172,7 +172,7 @@ async function open(
       }),
     }),
   );
-  await page.route('**/api/checks/cancel-run', async (route: Route) => {
+  await page.route('**/api/v1/checks/cancel-run', async (route: Route) => {
     state.posted.push(route.request().postDataJSON());
     await state.hold;
     const answer = state.cancel ?? { status: 204 };
@@ -810,8 +810,8 @@ test.describe('cancel a running pipeline', () => {
   test('the Main branches dialog offers it too, with no allowed-actions list to ask', async ({
     page,
   }) => {
-    await page.route('**/api/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/main-branches', (route) =>
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/main-branches', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -353,11 +353,11 @@
     });
   }
 
-  // The one read of GET /api/main-branches: the first draw, and the fallback
+  // The one read of GET /api/v1/main-branches: the first draw, and the fallback
   // when the stream is down. Every update after that comes from the stream.
   async function load(initial = false) {
     try {
-      const res = await fetch("/api/main-branches", {
+      const res = await fetch("/api/v1/main-branches", {
         headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(String(res.status));

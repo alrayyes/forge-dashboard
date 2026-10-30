@@ -57,7 +57,7 @@ function mockDashboard(
     forges?: ForgeStatus[];
   } = {},
 ) {
-  return page.route('**/api/dashboard*', (route: Route) =>
+  return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -129,7 +129,7 @@ test.describe('insights page', () => {
     await expect(page.locator('.insights-header h1')).toHaveText('Insights');
   });
 
-  test("reads its data from /api/dashboard alone, next to the layout's own settings calls", async ({
+  test("reads its data from /api/v1/dashboard alone, next to the layout's own settings calls", async ({
     page,
   }) => {
     const apiPaths = new Set<string>();
@@ -145,19 +145,19 @@ test.describe('insights page', () => {
 
     await page.goto('/insights.html');
     await expect(page.locator('.insights-header h1')).toHaveText('Insights');
-    await expect.poll(() => apiPaths.has('/api/dashboard')).toBe(true);
+    await expect.poll(() => apiPaths.has('/api/v1/dashboard')).toBe(true);
     await page.waitForLoadState('networkidle');
     // The shared layout reads these for every page; any other endpoint here
     // would be a second data source the charts don't declare.
     const layout = new Set([
-      '/api/dashboard',
-      '/api/auth/session',
+      '/api/v1/dashboard',
+      '/api/v1/auth/session',
       '/api/version',
-      '/api/settings/theme',
-      '/api/settings/timezone',
-      '/api/settings/filter-state',
+      '/api/v1/settings/theme',
+      '/api/v1/settings/timezone',
+      '/api/v1/settings/filter-state',
       // The layout's heartbeat saying the tab is visible: plumbing, not a data read.
-      '/api/presence',
+      '/api/v1/presence',
     ]);
     expect([...apiPaths].filter((p) => !layout.has(p))).toEqual([]);
   });

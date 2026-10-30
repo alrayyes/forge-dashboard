@@ -95,21 +95,21 @@ func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 		method, path, body, field string
 		signedIn                  bool
 	}{
-		"github token":     {http.MethodPut, "/api/settings", `{"githubToken":"` + over("SettingsRequest", "githubToken") + `"}`, "githubToken", true},
-		"github username":  {http.MethodPut, "/api/settings", `{"githubUsername":"` + over("SettingsRequest", "githubUsername") + `"}`, "githubUsername", true},
-		"forgejo url":      {http.MethodPut, "/api/settings", `{"forgejoUrl":"` + over("SettingsRequest", "forgejoUrl") + `"}`, "forgejoUrl", true},
-		"forgejo token":    {http.MethodPut, "/api/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"` + over("SettingsRequest", "forgejoToken") + `"}`, "forgejoToken", true},
-		"forgejo username": {http.MethodPut, "/api/settings", `{"forgejoUrl":"https://f.example","forgejoUsername":"` + over("SettingsRequest", "forgejoUsername") + `"}`, "forgejoUsername", true},
-		"rebase label":     {http.MethodPut, "/api/settings", `{"renovateRebaseLabel":"` + over("SettingsRequest", "renovateRebaseLabel") + `"}`, "renovateRebaseLabel", true},
-		"timezone":         {http.MethodPut, "/api/settings/timezone", `{"timezone":"` + over("TimezoneRequest", "timezone") + `"}`, "timezone", true},
-		"api token label":  {http.MethodPost, "/api/tokens", `{"label":"` + over("APITokenCreateRequest", "label") + `","expiresAt":"2999-01-01T00:00:00Z"}`, "label", true},
-		"webhook repo":     {http.MethodPost, "/api/webhooks/ensure", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
-		"ignore repo":      {http.MethodPost, "/api/repos/ignore", `{"forge":"github","fullName":"` + repo() + `/x","prs":true,"issues":false}`, "fullName", true},
-		"unignore repo":    {http.MethodPost, "/api/repos/unignore", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
-		"auto update repo": {http.MethodPost, "/api/repos/auto-update-branch/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
-		"rebase bots repo": {http.MethodPost, "/api/repos/rebase-bots/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
-		"merge repo":       {http.MethodPost, "/api/pull-requests/merge", `{"forge":"github","fullName":"` + repo() + `/x","number":1}`, "fullName", true},
-		"dependabot repo":  {http.MethodPost, "/api/pull-requests/dependabot-action", `{"forge":"github","fullName":"` + repo() + `/x","number":1,"action":"rebase"}`, "fullName", true},
+		"github token":     {http.MethodPut, "/api/v1/settings", `{"githubToken":"` + over("SettingsRequest", "githubToken") + `"}`, "githubToken", true},
+		"github username":  {http.MethodPut, "/api/v1/settings", `{"githubUsername":"` + over("SettingsRequest", "githubUsername") + `"}`, "githubUsername", true},
+		"forgejo url":      {http.MethodPut, "/api/v1/settings", `{"forgejoUrl":"` + over("SettingsRequest", "forgejoUrl") + `"}`, "forgejoUrl", true},
+		"forgejo token":    {http.MethodPut, "/api/v1/settings", `{"forgejoUrl":"https://f.example","forgejoToken":"` + over("SettingsRequest", "forgejoToken") + `"}`, "forgejoToken", true},
+		"forgejo username": {http.MethodPut, "/api/v1/settings", `{"forgejoUrl":"https://f.example","forgejoUsername":"` + over("SettingsRequest", "forgejoUsername") + `"}`, "forgejoUsername", true},
+		"rebase label":     {http.MethodPut, "/api/v1/settings", `{"renovateRebaseLabel":"` + over("SettingsRequest", "renovateRebaseLabel") + `"}`, "renovateRebaseLabel", true},
+		"timezone":         {http.MethodPut, "/api/v1/settings/timezone", `{"timezone":"` + over("TimezoneRequest", "timezone") + `"}`, "timezone", true},
+		"api token label":  {http.MethodPost, "/api/v1/tokens", `{"label":"` + over("APITokenCreateRequest", "label") + `","expiresAt":"2999-01-01T00:00:00Z"}`, "label", true},
+		"webhook repo":     {http.MethodPost, "/api/v1/webhooks/ensure", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"ignore repo":      {http.MethodPost, "/api/v1/repos/ignore", `{"forge":"github","fullName":"` + repo() + `/x","prs":true,"issues":false}`, "fullName", true},
+		"unignore repo":    {http.MethodPost, "/api/v1/repos/unignore", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"auto update repo": {http.MethodPost, "/api/v1/repos/auto-update-branch/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"rebase bots repo": {http.MethodPost, "/api/v1/repos/rebase-bots/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
+		"merge repo":       {http.MethodPost, "/api/v1/pull-requests/merge", `{"forge":"github","fullName":"` + repo() + `/x","number":1}`, "fullName", true},
+		"dependabot repo":  {http.MethodPost, "/api/v1/pull-requests/dependabot-action", `{"forge":"github","fullName":"` + repo() + `/x","number":1,"action":"rebase"}`, "fullName", true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -141,11 +141,11 @@ func TestRequestFields_ANumberOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 	number := requestSchema(t, "PullRequestActionRequest").Properties["number"].Value
 	require.NotNil(t, number.Max)
 
-	overInstallation := doJSON(t, http.MethodPut, srv.URL+"/api/settings", `{"githubAppInstallationId":`+formatBound(*installation.Max+1)+`}`, cookie)
+	overInstallation := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubAppInstallationId":`+formatBound(*installation.Max+1)+`}`, cookie)
 	defer func() { _ = overInstallation.Body.Close() }()
 	overField(t, overInstallation, "githubAppInstallationId")
 
-	overNumber := doJSON(t, http.MethodPost, srv.URL+"/api/pull-requests/merge", `{"forge":"github","fullName":"o/r","number":`+formatBound(*number.Max+1)+`}`, cookie)
+	overNumber := doJSON(t, http.MethodPost, srv.URL+"/api/v1/pull-requests/merge", `{"forge":"github","fullName":"o/r","number":`+formatBound(*number.Max+1)+`}`, cookie)
 	defer func() { _ = overNumber.Body.Close() }()
 	overField(t, overNumber, "number")
 }

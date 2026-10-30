@@ -6,7 +6,7 @@ import { test } from './server-fixture';
 // pull request dialog closes a pull request: a confirm step, the dialog stays
 // open, the status pill switches to Closed and Reopen is the undo. A comment
 // posts first and the close second, so a half that failed is named and only
-// that half is offered again. Mocks /api/dashboard, the details endpoint and
+// that half is offered again. Mocks /api/v1/dashboard, the details endpoint and
 // the three issue action endpoints only, so it needs no second user.
 //
 // Confirm over a bare click, and a status line over a toast:
@@ -50,8 +50,10 @@ async function start(
     reopen: [...(answers.reopen ?? [])],
     comment: [...(answers.comment ?? [])],
   };
-  await page.route('**/api/dashboard/stream*', (route: Route) => route.abort());
-  await page.route('**/api/dashboard*', (route: Route) =>
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -63,7 +65,7 @@ async function start(
       }),
     }),
   );
-  await page.route('**/api/issues/details*', (route: Route) =>
+  await page.route('**/api/v1/issues/details*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -83,7 +85,7 @@ async function start(
     }),
   );
   for (const kind of ['close', 'reopen', 'comment'] as const) {
-    await page.route(`**/api/issues/${kind}`, (route: Route) => {
+    await page.route(`**/api/v1/issues/${kind}`, (route: Route) => {
       state.posted.push({
         path: kind,
         body: route.request().postDataJSON() ?? {},

@@ -53,12 +53,12 @@ type SettingsResponse struct {
 	IgnoredTitleCounts []*int `json:"ignoredTitleCounts"`
 	// Theme — see settings.Credentials' own doc comment. Round-tripped
 	// here too so the Settings page's own save confirms what it just set,
-	// even though the lightweight GET /api/settings/theme below is what
+	// even though the lightweight GET /api/v1/settings/theme below is what
 	// every other page actually polls on load.
 	Theme string `json:"theme"`
 	// Timezone — see settings.Credentials' own doc comment. Round-tripped
 	// here so the Settings page shows what is saved; every other page reads
-	// the lightweight GET /api/settings/timezone.
+	// the lightweight GET /api/v1/settings/timezone.
 	Timezone string `json:"timezone"`
 }
 
@@ -114,7 +114,7 @@ type themePutRequest struct {
 
 // handleThemePut is Settings' own dedicated, instant save for the Theme
 // control (#352) — deliberately not routed through the main
-// PUT /api/settings, whose every other field is a plain replace rather
+// PUT /api/v1/settings, whose every other field is a plain replace rather
 // than a per-field merge (see settingsPutRequest's own doc comment): a
 // request carrying only {"theme":"dark"} through that handler would blank
 // every other saved field. Picking a theme should apply immediately, the
@@ -176,7 +176,7 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 	}
 }
 
-// handleSettingsSummaryGet answers GET /api/settings/summary: the same body as
+// handleSettingsSummaryGet answers GET /api/v1/settings/summary: the same body as
 // the get_settings MCP tool. Unlike handleSettingsGet it never provisions
 // webhook credentials and never returns them.
 func handleSettingsSummaryGet(deps Deps) http.HandlerFunc {
@@ -384,7 +384,7 @@ func mergeSettings(req settingsPutRequest, existing settings.Credentials) settin
 		HideDependencyDashboard: req.HideDependencyDashboard,
 		IgnoredTitles:           req.IgnoredTitles,
 		// Theme isn't part of this request at all — it has its own
-		// dedicated PUT /api/settings/theme (handleThemePut) so
+		// dedicated PUT /api/v1/settings/theme (handleThemePut) so
 		// picking it applies and saves instantly rather than
 		// waiting on this form's Save button. Carried over
 		// untouched here for the same reason WebhookToken/
@@ -392,7 +392,7 @@ func mergeSettings(req settingsPutRequest, existing settings.Credentials) settin
 		// on every call, so leaving Theme out of this struct
 		// would silently reset it to "" on every ordinary save.
 		Theme: existing.Theme,
-		// Same for the timezone and PUT /api/settings/timezone (#996).
+		// Same for the timezone and PUT /api/v1/settings/timezone (#996).
 		Timezone: existing.Timezone,
 		// Set doesn't touch these columns (see settings.Store.Set) —
 		// carried over here only so this response reflects them
@@ -593,7 +593,7 @@ func validTimezone(name string) bool {
 }
 
 // handleTimezonePut is Settings' own instant save for the timezone, like
-// handleThemePut: carrying one field through PUT /api/settings would blank
+// handleThemePut: carrying one field through PUT /api/v1/settings would blank
 // every other saved setting.
 func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -657,7 +657,7 @@ var errCouldNotLoadSettings = errors.New("could not load settings")
 // resolveSettingsSummary reads u's saved settings without writing anything: no
 // webhook credentials are created, and the ones that exist are reduced to a
 // flag. A user with no saved row gets the zero settings. It is the one builder
-// behind both GET /api/settings/summary and the get_settings MCP tool.
+// behind both GET /api/v1/settings/summary and the get_settings MCP tool.
 func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, error) {
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {

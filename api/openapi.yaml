@@ -18,7 +18,28 @@ info:
     deliveries (5 MiB). A body whose declared length is over the cap is
     answered `413` with an `Error` before it is read; one with no declared
     length is cut off at the cap and answered as an invalid body.
-  version: 1.0.0
+
+    ## Versioning
+
+    The API's major version is in the path: every operation below lives
+    under `/api/v1`. A breaking change (a removed or renamed field, route
+    or status, a tighter rule) ships as `/api/v2` beside it, never in place.
+    `info.version` is this contract's semver. Its major matches the path's,
+    its minor grows with each compatible addition and its patch with each
+    correction that changes no behaviour.
+
+    Three things stay outside the version because something else holds
+    their address: `/healthz` and `/readyz` (orchestrators poll them), the
+    forges' webhook routes under `/api/webhooks/` (each forge keeps the URL
+    it was registered with), and `GET /api/version`, which says which major
+    versions the running server speaks.
+
+    Until the next release the old unversioned address of each operation
+    (`/api/dashboard`) answers `308 Permanent Redirect` to its `/api/v1`
+    path, with a `Deprecation` header (RFC 9745). The `308` keeps the
+    method and body, so a stale browser tab keeps working through a deploy.
+    Move to the `/api/v1` path; the redirects are removed after one release.
+  version: 2.0.0
   contact:
     name: forge-dashboard
     url: https://github.com/alrayyes/forge-dashboard
@@ -27,6 +48,8 @@ info:
     identifier: AGPL-3.0-only
 
 servers:
+  # The host only, with /api/v1 in each path: /healthz, /readyz, /api/version
+  # and the webhook routes are not versioned and share this URL.
   - url: "{scheme}://{host}"
     # For whoever runs their own copy: the audience is the API's consumers,
     # not this project's own staff.
@@ -74,7 +97,7 @@ tags:
       endpoints aren't session-authenticated like everything else here —
       the path's token is the instance's webhook token, and the request's HMAC
       signature (computed with its webhook secret) is what proves
-      it actually came from their forge; `POST /api/webhooks/ensure` is a
+      it actually came from their forge; `POST /api/v1/webhooks/ensure` is a
       normal session-authenticated endpoint like the rest of this API.
   - name: pull-requests
     description: |
@@ -97,7 +120,7 @@ tags:
       description for how a token authenticates once generated here.
 
 paths:
-  /api/auth/registration-status:
+  /api/v1/auth/registration-status:
     get:
       operationId: getRegistrationStatus
       x-mcp-excluded: "Pre-login: reports whether self-registration is open. An MCP client already has a token."
@@ -118,14 +141,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/RegistrationStatus"
 
-  /api/auth/register/begin:
+  /api/v1/auth/register/begin:
     post:
       operationId: beginRegistration
       x-mcp-excluded: "A WebAuthn ceremony that needs a browser authenticator; a token cannot take part."
       summary: Start a passkey registration ceremony
       description: |
         An instance has one user. The first registration on a fresh
-        instance (see GET /api/auth/registration-status) creates that
+        instance (see GET /api/v1/auth/registration-status) creates that
         user and the server names it, so the request carries no body. The
         options require a resident key, so the passkey can be found at
         sign-in without being named. Once any account holds a passkey, this
@@ -150,7 +173,7 @@ paths:
         "429":
           $ref: "#/components/responses/AuthRateLimited"
 
-  /api/auth/register/finish:
+  /api/v1/auth/register/finish:
     post:
       operationId: finishRegistration
       x-mcp-excluded: "The second half of the WebAuthn registration ceremony."
@@ -190,7 +213,7 @@ paths:
         "429":
           $ref: "#/components/responses/AuthRateLimited"
 
-  /api/auth/login/begin:
+  /api/v1/auth/login/begin:
     post:
       operationId: beginLogin
       x-mcp-excluded: "A WebAuthn ceremony that needs a browser authenticator."
@@ -219,7 +242,7 @@ paths:
         "429":
           $ref: "#/components/responses/AuthRateLimited"
 
-  /api/auth/login/finish:
+  /api/v1/auth/login/finish:
     post:
       operationId: finishLogin
       x-mcp-excluded: "The second half of the WebAuthn login ceremony."
@@ -250,7 +273,7 @@ paths:
         "429":
           $ref: "#/components/responses/AuthRateLimited"
 
-  /api/auth/logout:
+  /api/v1/auth/logout:
     post:
       operationId: logout
       x-mcp-excluded: "Ends a browser session; an MCP client's token is not that session."
@@ -260,7 +283,7 @@ paths:
         "204":
           description: Logged out; the session cookie is now cleared.
 
-  /api/auth/session:
+  /api/v1/auth/session:
     get:
       operationId: getSession
       summary: Who, if anyone, the current session cookie belongs to
@@ -280,7 +303,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/auth/credentials:
+  /api/v1/auth/credentials:
     get:
       operationId: listCredentials
       summary: List the signed-in user's own passkeys
@@ -305,13 +328,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/auth/credentials/begin:
+  /api/v1/auth/credentials/begin:
     post:
       operationId: beginAddCredential
       x-mcp-excluded: "A WebAuthn ceremony that needs a browser authenticator."
       summary: Start a ceremony to add another passkey to the signed-in account
       description: |
-        The authenticated counterpart to POST /api/auth/register/begin —
+        The authenticated counterpart to POST /api/v1/auth/register/begin —
         that one only ever works for a brand-new, credential-less
         account; this is how an already-registered user adds a second
         (or third...) passkey, e.g. a laptop and a security key. Like the
@@ -336,7 +359,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/auth/credentials/finish:
+  /api/v1/auth/credentials/finish:
     post:
       operationId: finishAddCredential
       x-mcp-excluded: "The second half of adding a passkey."
@@ -386,7 +409,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/auth/credentials/{id}:
+  /api/v1/auth/credentials/{id}:
     patch:
       operationId: renameCredential
       summary: Rename one of the signed-in user's own passkeys
@@ -469,17 +492,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/settings:
+  /api/v1/settings:
     get:
       operationId: getSettings
-      x-mcp-excluded: "It provisions webhook credentials on first read and returns them. The get_settings tool returns GET /api/settings/summary instead."
+      x-mcp-excluded: "It provisions webhook credentials on first read and returns them. The get_settings tool returns GET /api/v1/settings/summary instead."
       summary: The signed-in user's own forge configuration
       description: |
         Forge tokens are never returned, only whether one is set. The
         webhook token and secret are returned, since the user pastes them
         into the forge's webhook setup, and a first read creates them. For
         a read that creates nothing and omits both, see
-        `GET /api/settings/summary`.
+        `GET /api/v1/settings/summary`.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       responses:
@@ -535,12 +558,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/settings/summary:
+  /api/v1/settings/summary:
     get:
       operationId: getSettingsSummary
       summary: The signed-in user's settings, read without side effects
       description: |
-        The same data as `GET /api/settings`, minus the webhook token and
+        The same data as `GET /api/v1/settings`, minus the webhook token and
         secret, plus `webhookConfigured`. It never provisions webhook
         credentials: for a user who has none yet it answers
         `webhookConfigured: false` and creates nothing. Forge tokens are
@@ -561,14 +584,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /api/settings/theme:
+  /api/v1/settings/theme:
     get:
       operationId: getTheme
       summary: The signed-in user's own saved theme preference
       description: |
         A lightweight, side-effect-free read of one field — theme — for
         every page to check on load. Deliberately not
-        GET /api/settings itself: that handler also provisions webhook
+        GET /api/v1/settings itself: that handler also provisions webhook
         credentials on first call (EnsureWebhookCredentials), which
         every page loading shouldn't trigger for a user who's never
         opened Settings at all.
@@ -592,7 +615,7 @@ paths:
       summary: Save the signed-in user's own theme preference
       description: |
         A dedicated, instant save — deliberately not routed
-        through the main PUT /api/settings, whose every other field is
+        through the main PUT /api/v1/settings, whose every other field is
         a plain replace rather than a per-field merge: a request
         carrying only theme through that handler would blank every
         other saved setting. Picking a theme applies immediately, the
@@ -627,14 +650,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/settings/timezone:
+  /api/v1/settings/timezone:
     get:
       operationId: getTimezone
       summary: The signed-in user's own saved time zone
       description: |
         A lightweight, side-effect-free read of one field, for every page to
         check on load so it can show times in the user's zone. Deliberately
-        not GET /api/settings, for the reason GET /api/settings/theme isn't.
+        not GET /api/v1/settings, for the reason GET /api/v1/settings/theme isn't.
         Empty means "use the browser's own zone".
       tags: [settings]
       security: [{ bearerAuth: [] }]
@@ -655,7 +678,7 @@ paths:
       operationId: setTimezone
       summary: Save the signed-in user's own time zone
       description: |
-        A dedicated, instant save, not routed through PUT /api/settings,
+        A dedicated, instant save, not routed through PUT /api/v1/settings,
         which replaces every other field. Exists for browsers that report
         UTC to every page, such as Firefox with fingerprint resistance.
       tags: [settings]
@@ -686,14 +709,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/settings/filter-state:
+  /api/v1/settings/filter-state:
     get:
       operationId: getFilterState
       x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403, so an MCP client cannot call it."
       summary: The signed-in user's own saved dashboard/Insights filter state
       description: |
         A lightweight read of one opaque blob, deliberately not
-        GET /api/settings itself for the same reason GET /api/settings/theme
+        GET /api/v1/settings itself for the same reason GET /api/v1/settings/theme
         isn't either: this loads on every dashboard/Insights visit and
         shouldn't provision webhook credentials as a side effect.
         `{}` for a user who's never saved any filters yet, not a 404.
@@ -726,7 +749,7 @@ paths:
       summary: Save the signed-in user's own dashboard/Insights filter state
       description: |
         A dedicated, lightweight save separate from the main
-        PUT /api/settings — filters change on nearly every click, a
+        PUT /api/v1/settings — filters change on nearly every click, a
         mismatch for that endpoint's "always a full form submit"
         convention. The body replaces the saved state entirely,
         the same "always a full submit, just of a much smaller and
@@ -767,7 +790,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/tokens:
+  /api/v1/tokens:
     get:
       operationId: listAPITokens
       x-mcp-excluded: "A token must not enumerate, mint or revoke tokens: one leaked token would otherwise keep itself alive by minting others."
@@ -824,7 +847,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/tokens/{id}:
+  /api/v1/tokens/{id}:
     delete:
       operationId: deleteAPIToken
       x-mcp-excluded: "A token must not revoke tokens (see listAPITokens)."
@@ -849,7 +872,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/webhooks/ensure:
+  /api/v1/webhooks/ensure:
     post:
       operationId: ensureWebhook
       summary: Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
@@ -857,7 +880,7 @@ paths:
         Creates a webhook on the named repo, pointed at the signed-in
         user's own webhook URL and secret, subscribed to the events
         docs/webhooks.md's manual steps recommend. If one already exists
-        there (found the same way GET /api/dashboard's own `hasWebhook`
+        there (found the same way GET /api/v1/dashboard's own `hasWebhook`
         does — matching by URL path, not object identity) it's brought
         back to active with the right events instead of creating a
         duplicate.
@@ -925,13 +948,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/repos/ignore:
+  /api/v1/repos/ignore:
     post:
       operationId: ignoreRepo
       summary: Hide one tracked repo's pull requests, issues, or both from the dashboard and Insights
       description: |
         Reversible, not destructive: the repo itself keeps
-        appearing in GET /api/dashboard's `repos` array with accurate
+        appearing in GET /api/v1/dashboard's `repos` array with accurate
         webhook-coverage status, and keeps being fetched and counted —
         only the pullRequests and/or issues entries the request scopes
         stop appearing there and on Insights. A repeat call
@@ -965,12 +988,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/repos/unignore:
+  /api/v1/repos/unignore:
     post:
       operationId: unignoreRepo
       summary: Stop ignoring one tracked repo
       description: |
-        The reverse of POST /api/repos/ignore. Idempotent: un-ignoring a
+        The reverse of POST /api/v1/repos/ignore. Idempotent: un-ignoring a
         repo that was never ignored is a no-op, not an error.
       tags: [dashboard]
       security: [{ bearerAuth: [] }]
@@ -996,7 +1019,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/repos/auto-update-branch/enable:
+  /api/v1/repos/auto-update-branch/enable:
     post:
       operationId: enableAutoUpdateBranch
       summary: Turn on automatic branch updates for one tracked repo
@@ -1031,12 +1054,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/repos/auto-update-branch/disable:
+  /api/v1/repos/auto-update-branch/disable:
     post:
       operationId: disableAutoUpdateBranch
       summary: Turn off automatic branch updates for one tracked repo
       description: |
-        The reverse of POST /api/repos/auto-update-branch/enable.
+        The reverse of POST /api/v1/repos/auto-update-branch/enable.
         Idempotent: disabling a repo that was never enabled is a no-op,
         not an error.
       tags: [dashboard]
@@ -1063,7 +1086,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/repos/rebase-bots/enable:
+  /api/v1/repos/rebase-bots/enable:
     post:
       operationId: enableRebaseBots
       summary: Rebase Dependabot and Renovate pull requests for one tracked repo
@@ -1100,12 +1123,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/repos/rebase-bots/disable:
+  /api/v1/repos/rebase-bots/disable:
     post:
       operationId: disableRebaseBots
       summary: Stop rebasing Dependabot and Renovate pull requests for one tracked repo
       description: |
-        The reverse of POST /api/repos/rebase-bots/enable. Idempotent:
+        The reverse of POST /api/v1/repos/rebase-bots/enable. Idempotent:
         disabling a repo that was never enabled is a no-op, not an error.
       tags: [dashboard]
       security: [{ bearerAuth: [] }]
@@ -1131,7 +1154,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/pull-requests/merge:
+  /api/v1/pull-requests/merge:
     post:
       operationId: mergePullRequest
       summary: Merge one pull request, on the signed-in user's behalf
@@ -1237,7 +1260,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/auto-merge:
+  /api/v1/pull-requests/auto-merge:
     post:
       operationId: enablePullRequestAutoMerge
       summary: Arm auto-merge on a pull request, on the signed-in user's behalf
@@ -1330,12 +1353,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/auto-merge/cancel:
+  /api/v1/pull-requests/auto-merge/cancel:
     post:
       operationId: cancelPullRequestAutoMerge
       summary: Cancel auto-merge on a pull request, on the signed-in user's behalf
       description: |
-        Forgejo: removes the intent stored by `POST /api/pull-requests/auto-merge`,
+        Forgejo: removes the intent stored by `POST /api/v1/pull-requests/auto-merge`,
         so the background pass never merges the pull request. Nothing is sent
         to the forge. Idempotent: a pull request with no intent is a 204 too.
 
@@ -1383,7 +1406,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/close:
+  /api/v1/pull-requests/close:
     post:
       operationId: closePullRequest
       summary: Close one pull request without merging it, on the signed-in user's behalf
@@ -1452,7 +1475,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/reopen:
+  /api/v1/pull-requests/reopen:
     post:
       operationId: reopenPullRequest
       summary: Reopen one pull request that was closed without merging, on the signed-in user's behalf
@@ -1532,7 +1555,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/rerun-checks:
+  /api/v1/pull-requests/rerun-checks:
     post:
       operationId: rerunPullRequestChecks
       summary: Rerun only the failed jobs of one pull request's checks, on the signed-in user's behalf
@@ -1636,7 +1659,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/checks/cancel-run:
+  /api/v1/checks/cancel-run:
     post:
       operationId: cancelWorkflowRun
       summary: Cancel one running or queued Actions workflow run, on the signed-in user's behalf
@@ -1644,7 +1667,7 @@ paths:
         Asks the forge to cancel a whole workflow run: every job of it stops,
         because neither GitHub nor Forgejo can stop one job of a running
         workflow. A client takes `runId` from a check in a `run` event on
-        GET /api/dashboard/stream, from a job that is still queued or running.
+        GET /api/v1/dashboard/stream, from a job that is still queued or running.
         A check with no `runId` (a third-party check, a legacy commit status,
         an external CI) belongs to no Actions run and can't be cancelled
         here.
@@ -1727,19 +1750,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/hide:
+  /api/v1/pull-requests/hide:
     post:
       operationId: hidePullRequest
       summary: Hide one pull request from the signed-in user's dashboard
       description: |
         Reversible, not destructive, like ignoring a repo: nothing is sent to
         the forge. A hidden pull request leaves `pullRequests` in
-        GET /api/dashboard and everything counted from it, and is counted in
+        GET /api/v1/dashboard and everything counted from it, and is counted in
         `hiddenPullRequests` instead. It stays listed for
         `includeHidden=true`, marked `hidden`, so a client can offer a Restore.
 
         With `days`, the hide ends by itself that many days from now. Without
-        it the pull request stays hidden until `POST /api/pull-requests/unhide`.
+        it the pull request stays hidden until `POST /api/v1/pull-requests/unhide`.
         A repeat call replaces the earlier choice (hide until restored, then
         hide for 7 days, ends with the 7 days). The server forgets the record
         once the pull request is no longer open, so the list never grows
@@ -1772,20 +1795,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/pull-requests/auto-update:
+  /api/v1/pull-requests/auto-update:
     post:
       operationId: setPullRequestAutoUpdate
       summary: Turn the automatic branch update on or off for one pull request
       description: |
         A pure local write: nothing is sent to the forge. The choice is kept
         only while it differs from the repo's auto-update setting
-        (`/api/repos/auto-update-branch/enable`), so a choice that matches
+        (`/api/v1/repos/auto-update-branch/enable`), so a choice that matches
         the repo is dropped and the pull request follows the repo again, and
         a later change to the repo's setting reaches it. With `enabled`
         `null` or absent the pull request goes back to its repo's setting.
         Idempotent. A draft and a release-please pull request are never
         updated automatically, whatever is chosen: `autoUpdate.unavailable`
-        in GET /api/dashboard says so. The server forgets the choice once
+        in GET /api/v1/dashboard says so. The server forgets the choice once
         the pull request is no longer open, its repo is no longer tracked, or
         the repo's setting changes to match it. A pull request the dashboard
         doesn't hold is a 404.
@@ -1821,12 +1844,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/pull-requests/unhide:
+  /api/v1/pull-requests/unhide:
     post:
       operationId: unhidePullRequest
       summary: Bring a hidden pull request back onto the signed-in user's dashboard
       description: |
-        The reverse of POST /api/pull-requests/hide. Idempotent: restoring a
+        The reverse of POST /api/v1/pull-requests/hide. Idempotent: restoring a
         pull request that isn't hidden is a 204 too.
       tags: [pull-requests]
       security: [{ bearerAuth: [] }]
@@ -1854,7 +1877,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/pull-requests/update-branch:
+  /api/v1/pull-requests/update-branch:
     post:
       operationId: updatePullRequestBranch
       summary: Bring one pull request's branch up to date with its base, on the signed-in user's behalf
@@ -1941,7 +1964,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/dependabot-action:
+  /api/v1/pull-requests/dependabot-action:
     post:
       operationId: postPullRequestDependabotAction
       summary: Post one of Dependabot's own documented PR-comment commands on a pull request, on the signed-in user's behalf
@@ -2029,7 +2052,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/renovate-rebase:
+  /api/v1/pull-requests/renovate-rebase:
     post:
       operationId: postPullRequestRenovateRebase
       summary: Trigger Renovate's own rebase/retry on a pull request, on the signed-in user's behalf
@@ -2105,7 +2128,7 @@ paths:
             already ticked: the rebase is queued, and nothing was changed.
             A client that follows `allowedActions` never meets it, since a
             rebase that is already requested is not offered; it can be
-            withdrawn with `POST /api/pull-requests/renovate-rebase/cancel`.
+            withdrawn with `POST /api/v1/pull-requests/renovate-rebase/cancel`.
           content:
             application/json:
               schema:
@@ -2123,7 +2146,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/renovate-rebase/cancel:
+  /api/v1/pull-requests/renovate-rebase/cancel:
     post:
       operationId: cancelPullRequestRenovateRebase
       summary: Withdraw a requested Renovate rebase on a pull request, on the signed-in user's behalf
@@ -2201,7 +2224,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/pull-requests/details:
+  /api/v1/pull-requests/details:
     get:
       operationId: getPullRequestDetails
       summary: Read a pull request's description, comments and reactions, on demand
@@ -2210,7 +2233,7 @@ paths:
         conversation in order, the thumbs up and thumbs down reactions on each
         with who gave them, and, for a release pull request, the release
         notes. Fetched live on every call, never as part of GET
-        /api/dashboard's snapshot: comments and reactions for every row would
+        /api/v1/dashboard's snapshot: comments and reactions for every row would
         spend the forge's budget on rows nobody opens.
 
         GitHub answers with one GraphQL query. Forgejo costs one call for the
@@ -2230,7 +2253,7 @@ paths:
         the browser loads it directly. A future policy's `img-src` has to
         allow avatars.githubusercontent.com, repository-images.githubusercontent.com
         (a GitHub repository's logo, see `logoUrl` on a repo in GET
-        /api/dashboard) and the Forgejo host.
+        /api/v1/dashboard) and the Forgejo host.
 
         A forge that can't be read is an error, never an empty thread.
       tags: [pull-requests]
@@ -2246,13 +2269,13 @@ paths:
           required: true
           schema:
             type: string
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         - name: number
           in: query
           required: true
           schema:
             type: integer
-          description: Matching a PullRequest.number from GET /api/dashboard.
+          description: Matching a PullRequest.number from GET /api/v1/dashboard.
       responses:
         "200":
           description: The pull request's description, conversation and, for a release pull request, release notes.
@@ -2297,7 +2320,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/issues/details:
+  /api/v1/issues/details:
     get:
       operationId: getIssueDetails
       x-mcp-excluded: "Not offered to MCP clients yet: only the Issues page's dialog reads it. The pull request one (get_pull_request_details) is the model if that changes."
@@ -2305,9 +2328,9 @@ paths:
       description: |
         What the issue dialog shows: the description, the conversation in
         order, and the thumbs up and thumbs down reactions on each with who
-        gave them. The same shape and rules as GET /api/pull-requests/details
+        gave them. The same shape and rules as GET /api/v1/pull-requests/details
         without the release notes, which only a pull request has. Fetched live
-        on every call, never as part of GET /api/dashboard's snapshot.
+        on every call, never as part of GET /api/v1/dashboard's snapshot.
 
         GitHub answers with one GraphQL query. Forgejo costs one call for the
         issue, one for its comments, one for the description's reactions and
@@ -2323,7 +2346,7 @@ paths:
         number. An avatar is the forge's own URL, passed through unchanged and
         never proxied.
 
-        The error answers are those of GET /api/pull-requests/details, with
+        The error answers are those of GET /api/v1/pull-requests/details, with
         the same codes. An issue that doesn't exist is a 404, and a forge that
         can't be read is an error, never an empty thread.
       tags: [dashboard]
@@ -2339,13 +2362,13 @@ paths:
           required: true
           schema:
             type: string
-          description: '"owner/repo", matching an Issue.repo from GET /api/dashboard.'
+          description: '"owner/repo", matching an Issue.repo from GET /api/v1/dashboard.'
         - name: number
           in: query
           required: true
           schema:
             type: integer
-          description: Matching an Issue.number from GET /api/dashboard.
+          description: Matching an Issue.number from GET /api/v1/dashboard.
       responses:
         "200":
           description: The issue's description and conversation.
@@ -2390,13 +2413,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/issues/close:
+  /api/v1/issues/close:
     post:
       operationId: closeIssue
       summary: Close one issue, on the signed-in user's behalf
       description: |
         Closes the named issue. The Issues page's dialog offers it, on its own
-        or after posting a comment with `POST /api/issues/comment`. Closing an
+        or after posting a comment with `POST /api/v1/issues/comment`. Closing an
         issue that is already closed is not refused: both forges treat it as
         done, so the call succeeds and there is no `already_closed` answer.
 
@@ -2460,7 +2483,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/issues/reopen:
+  /api/v1/issues/reopen:
     post:
       operationId: reopenIssue
       summary: Reopen one issue that was closed, on the signed-in user's behalf
@@ -2525,7 +2548,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/issues/comment:
+  /api/v1/issues/comment:
     post:
       operationId: commentOnIssue
       summary: Post a comment on one issue, on the signed-in user's behalf
@@ -2593,7 +2616,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/releases/details:
+  /api/v1/releases/details:
     get:
       operationId: getReleaseDetails
       x-mcp-excluded: "Not offered to MCP clients yet: only the Main branches page's release dialog reads it. The pull request one (get_pull_request_details) is the model if that changes."
@@ -2602,7 +2625,7 @@ paths:
         What the release dialog on the Main branches page shows for a
         repository's latest published release: its title, when it was
         published, its notes and the thumbs reactions on them. Fetched live on
-        every call, never as part of GET /api/main-branches' snapshot, so a
+        every call, never as part of GET /api/v1/main-branches' snapshot, so a
         release nobody opens costs no budget.
 
         GitHub answers with one GraphQL query. Only GitHub rows carry a latest
@@ -2614,7 +2637,7 @@ paths:
         20,000 characters (`truncated`), and a reaction names at most its
         first 10 people while `count` is the full number.
 
-        The error answers are those of GET /api/pull-requests/details, with
+        The error answers are those of GET /api/v1/pull-requests/details, with
         the same codes. A tag that has no published release is a 404, and so is a draft,
         a pre-release or a release with no publish date.
       tags: [dashboard]
@@ -2630,14 +2653,14 @@ paths:
           required: true
           schema:
             type: string
-          description: '"owner/repo", matching a MainBranch.fullName from GET /api/main-branches.'
+          description: '"owner/repo", matching a MainBranch.fullName from GET /api/v1/main-branches.'
         - name: tag
           in: query
           required: true
           schema:
             type: string
             minLength: 1
-          description: Matching a MainBranchRelease.tag from GET /api/main-branches.
+          description: Matching a MainBranchRelease.tag from GET /api/v1/main-branches.
       responses:
         "200":
           description: The release's title and notes.
@@ -2682,7 +2705,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/queued-actions:
+  /api/v1/queued-actions:
     get:
       operationId: listQueuedActions
       summary: List the signed-in user's queued actions, waiting and recently finished
@@ -2691,7 +2714,7 @@ paths:
         resets, oldest first: the ones still `queued`, and the
         final ones (`done`, `skipped`, `failed`) kept for 24 hours so a
         client can show the outcome in its Activity list. The same list
-        rides along on GET /api/dashboard as `queuedActions`.
+        rides along on GET /api/v1/dashboard as `queuedActions`.
       tags: [queued-actions]
       security: [{ bearerAuth: [] }]
       responses:
@@ -2788,7 +2811,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
-  /api/queued-actions/{id}:
+  /api/v1/queued-actions/{id}:
     delete:
       operationId: cancelQueuedAction
       summary: Cancel a queued action, or clear a finished one from the list
@@ -2919,8 +2942,9 @@ paths:
                 $ref: "#/components/schemas/Version"
               example:
                 version: 0.12.1
+                apiVersion: v1
 
-  /api/dashboard:
+  /api/v1/dashboard:
     get:
       operationId: getDashboard
       summary: The aggregated view
@@ -2955,7 +2979,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/dashboard/stream:
+  /api/v1/dashboard/stream:
     get:
       operationId: streamDashboard
       x-mcp-excluded: "A server-sent event stream; a tool call answers once. get_dashboard covers the data."
@@ -2967,7 +2991,7 @@ paths:
         one, which is what turns that into a live update instead of
         something only the next scheduled refresh picks up.
 
-        The frontend's own 30-second poll against GET /api/dashboard
+        The frontend's own 30-second poll against GET /api/v1/dashboard
         keeps running unconditionally, connected or not — a browser or
         proxy that can't hold an SSE connection open just never
         benefits from this, rather than the dashboard going stale
@@ -2979,7 +3003,7 @@ paths:
 
         A client that passes `sid` can also follow the job lists of the
         pull requests and default branches it has open, through
-        `POST /api/dashboard/stream/watch`. Each list arrives as named
+        `POST /api/v1/dashboard/stream/watch`. Each list arrives as named
         `run` events on this stream, one for each workflow run attempt, so a
         client that only listens for default messages never sees one. A
         reconnect reuses the same `sid` with nothing watched, so the client
@@ -3003,7 +3027,7 @@ paths:
         "200":
           description: |
             An SSE stream. Each event's `data` field is a JSON-encoded
-            snapshot, identical in shape to GET /api/dashboard's
+            snapshot, identical in shape to GET /api/v1/dashboard's
             response body. A named `run` event carries a `RunEvent`
             instead.
           content:
@@ -3025,7 +3049,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/dashboard/stream/watch:
+  /api/v1/dashboard/stream/watch:
     post:
       operationId: watchDashboardStreamChecks
       x-mcp-excluded: "Steers an open event stream, which a tool call cannot hold. get_pull_request_checks and get_main_branch_checks list the jobs once."
@@ -3078,7 +3102,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/presence:
+  /api/v1/presence:
     post:
       operationId: reportDashboardPresence
       x-mcp-excluded: "Cookie-session only: the spec refuses a personal API token with 403, so an MCP client cannot call it."
@@ -3140,7 +3164,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/dashboard/refresh:
+  /api/v1/dashboard/refresh:
     post:
       operationId: refreshDashboard
       summary: Trigger an immediate refresh of the signed-in user's own dashboard
@@ -3202,7 +3226,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/main-branches:
+  /api/v1/main-branches:
     get:
       operationId: getMainBranches
       summary: The CI status of every tracked repository's default branch
@@ -3228,7 +3252,7 @@ paths:
 
         A forge that can't be reached keeps its last known rows, each marked
         `staleSince`, the same carry-over `forges[].staleSince`
-        on GET /api/dashboard reports. A forge whose rate-limit budget is
+        on GET /api/v1/dashboard reports. A forge whose rate-limit budget is
         spent is skipped until it resets and its rows are kept the same way.
         Only the signed-in user's own repositories.
 
@@ -3251,7 +3275,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/checks/log:
+  /api/v1/checks/log:
     get:
       operationId: getCheckLog
       summary: Read the output of one CI job, on demand
@@ -3365,7 +3389,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/main-branches/advisories:
+  /api/v1/main-branches/advisories:
     get:
       operationId: listAdvisories
       summary: List a repository's open dependency advisories in full, on demand
@@ -3374,7 +3398,7 @@ paths:
         repository: each open Dependabot alert with the fields GitHub's own
         alert page shows. The list and the detail view are the same answer, so
         opening one advisory costs no second call. Fetched live on every call,
-        never as part of GET /api/main-branches' snapshot, so a repository
+        never as part of GET /api/v1/main-branches' snapshot, so a repository
         nobody opens costs no budget.
 
         Sorted by severity, highest first, then newest first. GitHub reads them
@@ -3414,7 +3438,7 @@ paths:
           required: true
           schema:
             type: string
-          description: '"owner/repo", matching a MainBranch.fullName from GET /api/main-branches.'
+          description: '"owner/repo", matching a MainBranch.fullName from GET /api/v1/main-branches.'
       responses:
         "200":
           description: The repository's open advisories, or the reason they couldn't be read.
@@ -3459,12 +3483,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
-  /api/main-branches/rerun-checks:
+  /api/v1/main-branches/rerun-checks:
     post:
       operationId: rerunMainBranchChecks
       summary: Rerun only the failed jobs of a repository's default-branch pipeline, on the signed-in user's behalf
       description: |
-        The branch twin of POST /api/pull-requests/rerun-checks. Asks the forge
+        The branch twin of POST /api/v1/pull-requests/rerun-checks. Asks the forge
         to rerun the failed jobs of the Actions workflow runs on the commit
         the branch's job list shows, and nothing that passed. It
         answers once the forge has queued them, not when they finish, so a
@@ -3532,7 +3556,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ActionError"
-  /api/stats/forge-api:
+  /api/v1/stats/forge-api:
     get:
       operationId: getForgeApiStats
       summary: How many forge API calls the dashboard has spent, and on what
@@ -3567,7 +3591,7 @@ paths:
         the caller has saved, and a GitHub App installation id is a number the
         caller types in, so until the dashboard has one user, someone who saves
         another account's installation id sees that installation's counts. `budgets` are the rate limits each forge last
-        reported, the same figures as `forges` on GET /api/dashboard.
+        reported, the same figures as `forges` on GET /api/v1/dashboard.
       tags: [dashboard]
       security: [{ bearerAuth: [] }]
       responses:
@@ -3682,7 +3706,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: A personal API token from POST /api/tokens, as an alternative to the session cookie.
+      description: A personal API token from POST /api/v1/tokens, as an alternative to the session cookie.
     cookieAuth:
       type: apiKey
       in: cookie
@@ -3693,9 +3717,9 @@ components:
     AuthRateLimited:
       description: |
         This address made too many sign-in or registration requests. The
-        four ceremony endpoints (`/api/auth/register/begin`,
-        `/api/auth/register/finish`, `/api/auth/login/begin` and
-        `/api/auth/login/finish`) share one allowance per client address: a
+        four ceremony endpoints (`/api/v1/auth/register/begin`,
+        `/api/v1/auth/register/finish`, `/api/v1/auth/login/begin` and
+        `/api/v1/auth/login/finish`) share one allowance per client address: a
         burst of 10 requests, then one more every 6 seconds. A person signing
         in uses two requests, so they never reach it. Wait `Retry-After`
         seconds and try again. The client address is the connection's own, or
@@ -3744,7 +3768,7 @@ components:
       in: query
       required: false
       description: |
-        Whether pull requests the user hid (`POST /api/pull-requests/hide`)
+        Whether pull requests the user hid (`POST /api/v1/pull-requests/hide`)
         are in `pullRequests`, marked `hidden: true`. Defaults to `false`: a
         hidden pull request is left out and counted in the response's
         `hiddenPullRequests`. A client lists the hidden ones, to offer a
@@ -3797,8 +3821,14 @@ components:
 
     Version:
       type: object
-      required: [version]
+      required: [version, apiVersion]
       properties:
+        apiVersion:
+          type: string
+          description: |
+            The API's current major version, such as v1: the path segment
+            the versioned operations live under. It is one value, not a list.
+          examples: [v1]
         version:
           type: string
           description: |
@@ -4092,20 +4122,20 @@ components:
             means "system" — follow the browser's prefers-color-scheme
             rather than a saved choice. Set only from Settings; every
             other page reads it via the lightweight
-            GET /api/settings/theme instead of this endpoint.
+            GET /api/v1/settings/theme instead of this endpoint.
         timezone:
           type: string
           description: |
             The signed-in user's own time zone as an IANA name such as
             `Europe/Amsterdam`. Empty means the browser's own zone. Set only
-            from Settings (PUT /api/settings/timezone); every other page reads
-            it via GET /api/settings/timezone.
+            from Settings (PUT /api/v1/settings/timezone); every other page reads
+            it via GET /api/v1/settings/timezone.
         hideDependencyDashboard:
           type: boolean
           description: |
             Whether the user hides the bot-kept "Dependency Dashboard" issue
             everywhere: the server leaves a `housekeeping` issue out of the
-            `issues` of GET /api/dashboard and its stream, and out of every
+            `issues` of GET /api/v1/dashboard and its stream, and out of every
             count and total built from them (`navCounts`, Insights). Always
             present once the server applies it.
         ignoredTitles:
@@ -4142,7 +4172,7 @@ components:
     SettingsSummary:
       type: object
       description: |
-        The signed-in user's settings as `GET /api/settings/summary` and the
+        The signed-in user's settings as `GET /api/v1/settings/summary` and the
         `get_settings` MCP tool return them: every field of
         SettingsResponse except `webhookToken` and `webhookSecret`, which are
         never part of it, plus `webhookConfigured`. No forge token appears,
@@ -4187,7 +4217,7 @@ components:
           description: |
             Whether this user's webhook token and secret exist. They are
             created the first time the Settings page reads
-            `GET /api/settings`, never by this read, so this is false for a
+            `GET /api/v1/settings`, never by this read, so this is false for a
             user who has not opened Settings yet.
         renovateRebaseLabel:
           type: string
@@ -4224,7 +4254,7 @@ components:
         0 or omitted really does disconnect the App. Rejected (400) if
         the server has no GitHub App configured (see
         SettingsResponse.githubAppConfigured). Theme isn't settable
-        here at all — see PUT /api/settings/theme.
+        here at all — see PUT /api/v1/settings/theme.
       properties:
         githubToken:
           type: string
@@ -4297,7 +4327,7 @@ components:
 
     ThemeResponse:
       type: object
-      description: See GET /api/settings/theme's own description.
+      description: See GET /api/v1/settings/theme's own description.
       required: [theme]
       properties:
         theme:
@@ -4306,7 +4336,7 @@ components:
 
     ThemeRequest:
       type: object
-      description: See PUT /api/settings/theme's own description.
+      description: See PUT /api/v1/settings/theme's own description.
       required: [theme]
       properties:
         theme:
@@ -4316,7 +4346,7 @@ components:
 
     TimezoneResponse:
       type: object
-      description: See GET /api/settings/timezone's own description.
+      description: See GET /api/v1/settings/timezone's own description.
       required: [timezone]
       properties:
         timezone:
@@ -4326,7 +4356,7 @@ components:
 
     TimezoneRequest:
       type: object
-      description: See PUT /api/settings/timezone's own description.
+      description: See PUT /api/v1/settings/timezone's own description.
       required: [timezone]
       properties:
         timezone:
@@ -4348,7 +4378,7 @@ components:
           description: This passkey's own credential ID (base64url), distinct from the account's user ID.
         label:
           type: string
-          description: The passkey's name, given at registration and changeable with `PATCH /api/auth/credentials/{id}`. Empty when it was never named; clients then fall back to `createdAt`.
+          description: The passkey's name, given at registration and changeable with `PATCH /api/v1/auth/credentials/{id}`. Empty when it was never named; clients then fall back to `createdAt`.
         createdAt:
           type: string
           format: date-time
@@ -4442,7 +4472,7 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
 
     RepoIgnoreRequest:
       type: object
@@ -4451,14 +4481,14 @@ components:
         Which repo to ignore, and in which scope(s). At least one
         of prs/issues must be true — a request with both false is
         rejected with 400 rather than silently doing nothing; use POST
-        /api/repos/unignore to clear both at once instead.
+        /api/v1/repos/unignore to clear both at once instead.
       properties:
         forge:
           $ref: "#/components/schemas/Forge"
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         prs:
           type: boolean
           description: Whether to ignore this repo's pull requests.
@@ -4528,11 +4558,11 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         number:
           type: integer
           maximum: 2147483647
-          description: Matching a PullRequest.number from GET /api/dashboard.
+          description: Matching a PullRequest.number from GET /api/v1/dashboard.
 
     PullRequestMergeRequest:
       description: Which pull request to merge, and whether to delete its source branch afterwards.
@@ -4590,11 +4620,11 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching an Issue.repo from GET /api/dashboard.'
+          description: '"owner/repo", matching an Issue.repo from GET /api/v1/dashboard.'
         number:
           type: integer
           maximum: 2147483647
-          description: Matching an Issue.number from GET /api/dashboard.
+          description: Matching an Issue.number from GET /api/v1/dashboard.
 
     IssueCommentRequest:
       type: object
@@ -4606,11 +4636,11 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching an Issue.repo from GET /api/dashboard.'
+          description: '"owner/repo", matching an Issue.repo from GET /api/v1/dashboard.'
         number:
           type: integer
           maximum: 2147483647
-          description: Matching an Issue.number from GET /api/dashboard.
+          description: Matching an Issue.number from GET /api/v1/dashboard.
         body:
           type: string
           minLength: 1
@@ -4627,7 +4657,7 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a MainBranch.fullName from GET /api/main-branches.'
+          description: '"owner/repo", matching a MainBranch.fullName from GET /api/v1/main-branches.'
 
     PullRequestHideRequest:
       type: object
@@ -4641,12 +4671,12 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         number:
           type: integer
           minimum: 1
           maximum: 2147483647
-          description: Matching a PullRequest.number from GET /api/dashboard.
+          description: Matching a PullRequest.number from GET /api/v1/dashboard.
         days:
           type: integer
           minimum: 1
@@ -4663,11 +4693,11 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         number:
           type: integer
           maximum: 2147483647
-          description: Matching a PullRequest.number from GET /api/dashboard.
+          description: Matching a PullRequest.number from GET /api/v1/dashboard.
         action:
           type: string
           maxLength: 8
@@ -4820,7 +4850,7 @@ components:
           type: integer
           minimum: 1
           description: |
-            The Actions job (or check run) id to pass to GET /api/checks/log.
+            The Actions job (or check run) id to pass to GET /api/v1/checks/log.
             Absent for a legacy commit status and for a workflow held for
             approval, which have no output to read.
         runId:
@@ -4828,7 +4858,7 @@ components:
           minimum: 1
           description: |
             The Actions workflow run this job belongs to, to pass to
-            `POST /api/checks/cancel-run`. Present on every Actions job,
+            `POST /api/v1/checks/cancel-run`. Present on every Actions job,
             finished or not; only a job that is queued or running has
             anything left to cancel, which a client reads from `status`. A
             third-party check and a legacy commit status have none.
@@ -4899,8 +4929,8 @@ components:
             the first five failed jobs of a list, in the list's order.
             Forgejo never fills it in a list, since that would read a log
             while the list is built: ask for it through
-            GET /api/checks/log with `excerpt=true`. The whole output is read
-            through GET /api/checks/log.
+            GET /api/v1/checks/log with `excerpt=true`. The whole output is read
+            through GET /api/v1/checks/log.
 
     CheckLog:
       type: object
@@ -5991,7 +6021,7 @@ components:
       description: |
         Whether the dashboard brings this pull request's branch up to date by
         itself: the pull request's own choice when it has one
-        (`POST /api/pull-requests/auto-update`), else its repo's
+        (`POST /api/v1/pull-requests/auto-update`), else its repo's
         auto-update setting. Always present.
       properties:
         enabled:
@@ -6037,12 +6067,12 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         number:
           type: integer
           minimum: 1
           maximum: 2147483647
-          description: Matching a PullRequest.number from GET /api/dashboard.
+          description: Matching a PullRequest.number from GET /api/v1/dashboard.
         enabled:
           type: [boolean, "null"]
           description: |
@@ -6067,11 +6097,11 @@ components:
         fullName:
           type: string
           maxLength: 255
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         number:
           type: integer
           maximum: 2147483647
-          description: Matching a PullRequest.number from GET /api/dashboard.
+          description: Matching a PullRequest.number from GET /api/v1/dashboard.
 
     QueuedAction:
       type: object
@@ -6083,7 +6113,7 @@ components:
       properties:
         id:
           type: string
-          description: Opaque. What DELETE /api/queued-actions/{id} takes.
+          description: Opaque. What DELETE /api/v1/queued-actions/{id} takes.
         action:
           type: string
           enum: [update_branch, dependabot_rebase, renovate_rebase]
@@ -6596,7 +6626,7 @@ components:
             $ref: "#/components/schemas/QueuedAction"
           description: |
             The signed-in user's queued actions, waiting and finished in the
-            last 24 hours (GET /api/queued-actions), so a client lists them in
+            last 24 hours (GET /api/v1/queued-actions), so a client lists them in
             its Activity panel and learns an outcome from the stream it
             already reads. Always present, empty when there are none.
         autoMerged:
@@ -6636,7 +6666,7 @@ components:
             last run: those rows are on the page, and their forge reports
             `reachable: false` with `staleSince` until the first refresh
             succeeds. The same
-            on `GET /api/dashboard`, the stream and the MCP `get_dashboard`
+            on `GET /api/v1/dashboard`, the stream and the MCP `get_dashboard`
             output. Always present. A client of an older server that
             lacks it should treat a missing flag as true (loaded).
         navCounts:
@@ -6644,7 +6674,7 @@ components:
         mainBranchPage:
           $ref: "#/components/schemas/MainBranches"
           description: |
-            What `GET /api/main-branches` answers, from the same snapshot and
+            What `GET /api/v1/main-branches` answers, from the same snapshot and
             with the same ignore list, so the Main branches page redraws from
             the message every other page reads. It reads the endpoint itself only
             while the stream is down or just back.
@@ -6658,7 +6688,7 @@ components:
           minimum: 1
           description: |
             How often, in seconds, a client should re-read GET
-            /api/dashboard. The server's advice, so a client needs no
+            /api/v1/dashboard. The server's advice, so a client needs no
             interval of its own. The read is cheap and never calls a
             forge; this is not the backend's refresh schedule. It is
             shorter (2) until the viewer's first refresh has finished, so a
@@ -6763,7 +6793,7 @@ components:
           $ref: "#/components/schemas/Forge"
         fullName:
           type: string
-          description: '"owner/repo", matching a Repo.fullName from GET /api/dashboard.'
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
         url:
           type: string
           description: The repository's own page on its forge.
@@ -6811,7 +6841,7 @@ components:
             What each workflow run attempt on the newest commit did, the
             facts `status`, `failingJobs` and `checks` were worked out from,
             in the order the forge listed them. A client can fold them into
-            its own pill. They are the jobs `GET /api/main-branches/checks`
+            its own pill. They are the jobs `GET /api/v1/main-branches/checks`
             lists, grouped as the stream's `run` events group them. Present
             for a repository with at least one check. On GitHub they are the
             first 50 checks of the newest commit, grouped by the workflow run

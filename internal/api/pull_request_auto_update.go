@@ -22,7 +22,7 @@ type pullRequestAutoUpdateRequest struct {
 	Enabled  *bool  `json:"enabled"`
 }
 
-// handlePullRequestAutoUpdate implements POST /api/pull-requests/auto-update: a
+// handlePullRequestAutoUpdate implements POST /api/v1/pull-requests/auto-update: a
 // pure local write to settings.Store, like hiding a pull request. A choice that
 // equals the repo's own setting is not kept, so the pull request follows the
 // repo again and a later change to the repo's setting reaches it. A pull

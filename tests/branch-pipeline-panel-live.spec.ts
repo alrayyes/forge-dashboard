@@ -111,7 +111,7 @@ async function open(
   const state = { row: first, checks, status: 200 };
   await page.clock.install();
   await serveChecks(page, () => state.checks as CheckRow[]);
-  await page.route('**/api/main-branches', (route: Route) =>
+  await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
