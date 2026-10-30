@@ -10,10 +10,9 @@
 // URL, and internal/api/... is a repository path; neither is flagged.
 //
 // Allowed: /api/v1, /api/version and /api/webhooks (each must end at a
-// boundary, so /api/version-x is flagged). A line that carries a
-// `legacy-api-route` marker is exempt, for a deliberate test of a legacy
-// alias; the marker covers its own line only. /api/nope, the 404 probe, is
-// not allowed: it is used by Go tests, not by any spec.
+// boundary, so /api/version-x is flagged). There is no per-line exemption.
+// /api/nope, the 404 probe, is not allowed: it is used by Go tests, not by
+// any spec.
 // Run by `bun run lint:specs`, lefthook and the ci.yml js job.
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -21,8 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 export const RULE =
   'Specs must name /api/v1/... routes. Only /api/version, ' +
-  '/api/webhooks/... are unversioned; mark a deliberate ' +
-  'legacy-route test with a `legacy-api-route` comment on its line.';
+  '/api/webhooks/... are unversioned.';
 
 export interface Finding {
   line: number;
@@ -38,7 +36,7 @@ const ROUTE = new RegExp(
 export function findUnversionedRoutes(source: string): Finding[] {
   const findings: Finding[] = [];
   source.split('\n').forEach((text, i) => {
-    if (ROUTE.test(text) && !text.includes('legacy-api-route')) {
+    if (ROUTE.test(text)) {
       findings.push({ line: i + 1, text: text.trim() });
     }
   });

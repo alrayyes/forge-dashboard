@@ -24,10 +24,10 @@ test('ignores paths that only contain /api/ and bare prefixes', () => {
   expect(lines("if (!p.startsWith('/api/')) return;")).toEqual([]);
 });
 
-test('the legacy marker exempts only its own line', () => {
-  expect(lines("get('/api/dashboard') // legacy-api-route")).toEqual([]);
+test('a legacy-api-route comment no longer exempts a line', () => {
+  expect(lines("get('/api/dashboard') // legacy-api-route")).toEqual([1]);
   const src = "get('/api/a') // legacy-api-route\nget('/api/b')";
-  expect(lines(src)).toEqual([2]);
+  expect(lines(src)).toEqual([1, 2]);
 });
 
 test('flags a double-escaped route in a string or RegExp', () => {
