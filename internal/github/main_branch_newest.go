@@ -133,12 +133,7 @@ func suitesToRead(ref *graphqlBranchRef) []branchSuite {
 	superseded := dashboard.SupersededRuns(checks)
 
 	cut := rollup.cutShort()
-	held := map[int64]bool{}
-	for _, n := range rollup.Contexts.Nodes {
-		if n.CheckSuite != nil && n.CheckSuite.WorkflowRun != nil {
-			held[n.CheckSuite.WorkflowRun.DatabaseID] = true
-		}
-	}
+	held := rollup.heldRuns()
 
 	var out []branchSuite
 	for i, s := range suites {
@@ -151,6 +146,18 @@ func suitesToRead(ref *graphqlBranchRef) []branchSuite {
 	}
 
 	return out
+}
+
+// heldRuns is the ids of the workflow runs the rollup lists a check of.
+func (r *statusCheckRollup) heldRuns() map[int64]bool {
+	held := map[int64]bool{}
+	for _, n := range r.Contexts.Nodes {
+		if n.CheckSuite != nil && n.CheckSuite.WorkflowRun != nil {
+			held[n.CheckSuite.WorkflowRun.DatabaseID] = true
+		}
+	}
+
+	return held
 }
 
 // cutShort reports that the commit has more checks than the rollup listed.
@@ -213,9 +220,15 @@ func (r *statusCheckRollup) keepNewestRuns(extra []branchContext) {
 		}
 	}
 
+	r.Contexts.Nodes = kept
+	r.setCounts()
+}
+
+// setCounts works the two count lists and the state out from the nodes.
+func (r *statusCheckRollup) setCounts() {
 	runCounts, statusCounts := map[string]int{}, map[string]int{}
 	failed, pending := false, false
-	for _, n := range kept {
+	for _, n := range r.Contexts.Nodes {
 		if n.Typename == "StatusContext" {
 			statusCounts[n.State]++
 			failed = failed || n.State == "FAILURE" || n.State == "ERROR"
@@ -233,7 +246,6 @@ func (r *statusCheckRollup) keepNewestRuns(extra []branchContext) {
 		failed = failed || failedConclusion(n.Conclusion) || n.Conclusion == "CANCELLED"
 	}
 
-	r.Contexts.Nodes = kept
 	r.Contexts.CheckRunCountsByState = countsOf(runCounts)
 	r.Contexts.StatusContextCountsByState = countsOf(statusCounts)
 	switch {
