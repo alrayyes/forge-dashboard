@@ -12,7 +12,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
-// maxFilterStateBytes caps the request body PUT /api/settings/filter-state
+// maxFilterStateBytes caps the request body PUT /api/v1/settings/filter-state
 // accepts — filter state is a handful of short strings (#353), generous
 // headroom over anything the frontend filter bar could ever actually produce, just
 // enough to refuse an obviously abusive body outright rather than

@@ -21,7 +21,7 @@ type queuedActionRequest struct {
 	Number   int                  `json:"number"`
 }
 
-// handleQueuedActionsList implements GET /api/queued-actions: the signed-in
+// handleQueuedActionsList implements GET /api/v1/queued-actions: the signed-in
 // queue, waiting and finished. There is one queue per instance.
 func handleQueuedActionsList(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func resolveQueuedActionsFor(ctx context.Context, deps Deps) ([]dashboard.Queued
 	return items, nil
 }
 
-// handleQueuedActionsCreate implements POST /api/queued-actions (#756). It
+// handleQueuedActionsCreate implements POST /api/v1/queued-actions (#756). It
 // stores the intent and does nothing on the forge: the scheduler runs it once
 // the forge's budget is back, after re-reading the pull request.
 //
@@ -160,7 +160,7 @@ func writeQueueRefusal(w http.ResponseWriter, code dashboard.ActionCode, message
 	writeJSON(w, http.StatusConflict, actionErrorBody{Error: message, Code: string(code), Message: message})
 }
 
-// handleQueuedActionsCancel implements DELETE /api/queued-actions/{id}: it
+// handleQueuedActionsCancel implements DELETE /api/v1/queued-actions/{id}: it
 // removes a waiting item so nothing runs, or clears a finished one. An id that
 // is someone else's is indistinguishable from one that doesn't exist.
 func handleQueuedActionsCancel(deps Deps) http.HandlerFunc {

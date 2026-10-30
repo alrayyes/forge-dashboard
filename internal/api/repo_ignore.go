@@ -25,7 +25,7 @@ type repoIgnoreRequest struct {
 	Issues   bool   `json:"issues"`
 }
 
-// handleRepoIgnore implements POST /api/repos/ignore: a pure local write
+// handleRepoIgnore implements POST /api/v1/repos/ignore: a pure local write
 // to settings.Store, never touching the forge itself (#363) — the repo
 // keeps being fetched and tracked, only the pullRequests/issues entries
 // the request scopes (#511) stop appearing in buildDashboardResponse. A
@@ -62,7 +62,7 @@ func handleRepoIgnore(deps Deps) http.HandlerFunc {
 	}
 }
 
-// handleRepoUnignore implements POST /api/repos/unignore — the reverse of
+// handleRepoUnignore implements POST /api/v1/repos/unignore — the reverse of
 // handleRepoIgnore, same request shape, same idempotence.
 func handleRepoUnignore(deps Deps) http.HandlerFunc {
 	return handleRepoSetting(deps, func(ctx context.Context, store *settings.Store, forge, fullName string) error {
