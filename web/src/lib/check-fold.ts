@@ -29,6 +29,61 @@ export type BranchFold = {
   failing: string[];
 };
 
+// The jobs of the newest run of each workflow. A default branch's commit can
+// carry many runs of one workflow (a push, then scheduled or dispatched ones),
+// and only the newest says whether the code works now: a higher run number, or a
+// later attempt of the same run, replaces the older. A run that was only
+// cancelled replaces nothing. A job with no workflow name or run number is kept.
+// The server drops the same jobs from the row it sends
+// (SupersededRuns in internal/dashboard/newest_runs.go); the page does it again
+// for jobs that arrive over the stream, so a pill and the list under it agree.
+export function newestRuns(checks: readonly Check[]): Check[] {
+  const cancelled = cancelledRuns(checks);
+  const newest = new Map<string, Check>();
+  for (const check of checks) {
+    if (!check.runName || !check.runNumber || cancelled.has(runKey(check)))
+      continue;
+    const name = check.runName as string;
+    const current = newest.get(name);
+    if (!current || isOlder(current, check)) newest.set(name, check);
+  }
+
+  return checks.filter((check) => {
+    if (!check.runName || !check.runNumber) return true;
+    const current = newest.get(check.runName);
+
+    return !current || !isOlder(check, current);
+  });
+}
+
+const runKey = (check: Check): string =>
+  `${check.runName}#${check.runNumber}.${check.runAttempt ?? 0}`;
+
+// The runs whose every job was cancelled: the page's reading of a run the
+// server's suite calls cancelled.
+function cancelledRuns(checks: readonly Check[]): Set<string> {
+  const live = new Set<string>();
+  const all = new Set<string>();
+  for (const check of checks) {
+    all.add(runKey(check));
+    if (checkState(check) !== 'cancelled') live.add(runKey(check));
+  }
+
+  return new Set([...all].filter((key) => !live.has(key)));
+}
+
+function isOlder(a: Check, b: Check): boolean {
+  const [an, bn] = [a.runNumber ?? 0, b.runNumber ?? 0];
+
+  return an < bn || (an === bn && (a.runAttempt ?? 0) < (b.runAttempt ?? 0));
+}
+
+// foldBranch over the newest run of each workflow, as a default branch's pill
+// reads its jobs.
+export function foldNewestRuns(checks: readonly Check[]): BranchFold {
+  return foldBranch(newestRuns(checks));
+}
+
 // A real failure wins over a job still going; jobs that were only cancelled,
 // with nothing left running to replace them, are cancelled: nothing broke. A
 // pull request's rollup reads the same jobs differently on purpose, so this is

@@ -4,7 +4,7 @@
 
 import type { CheckCounts } from './check-counts';
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
-import { foldBranch } from './check-fold';
+import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
@@ -275,7 +275,7 @@ export function branchPill(
   if (!live || live.length === 0)
     return { status: row.status, counts: row.checks, failing: row.failingJobs };
 
-  const { status, counts, failing } = foldBranch(live);
+  const { status, counts, failing } = foldNewestRuns(live);
 
   return { status, counts, failing };
 }
@@ -311,7 +311,7 @@ export function withSnapshotRuns(rows: readonly MainBranch[]): MainBranch[] {
     const jobs = row.runs?.flatMap((run) => run.checks) ?? [];
     if (jobs.length === 0) return row;
 
-    const { status, counts, failing } = foldBranch(jobs);
+    const { status, counts, failing } = foldNewestRuns(jobs);
 
     return { ...row, status, checks: counts, failingJobs: failing };
   });
