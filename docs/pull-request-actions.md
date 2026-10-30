@@ -522,7 +522,7 @@ hasn't restarted), the chip reads `Rebasing`. When the server drops it (CI
 showing pending, two minutes after the push, or the pull request leaving), the
 chip reads `Settled`, then goes, and a toast says it finished. When the server
 marks it `expired` (ten minutes with no sign of the bot), the row says it timed
-out, with an error toast and a Retry.
+out, with an error toast, and a Retry.
 
 Once a rebase is requested, the pull request offers no second request. While
 Renovate's rebase checkbox is ticked, a rebase is already waiting for Renovate,
