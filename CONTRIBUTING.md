@@ -56,7 +56,7 @@ each job runs when its area is set:
 | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `go`       | Go files, `go.mod`, `api/openapi.yaml`, `integration/`                         | `lint`, `test`, `build`, `container-integration`, `govulncheck`, `gomod` |
 | `web`      | `web/`, `tests/`, `.semgrep/`, `package.json`, `biome.json`                    | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`                  |
-| `image`    | Go, web or Docker changes                                                      | `docker`, `e2e`                                                          |
+| `image`    | Go, web, or Docker changes                                                     | `docker`, `e2e`                                                          |
 | `hadolint` | `Dockerfile*`, `.dockerignore`                                                 | `dockerfile`                                                             |
 | `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`                                                                  |
 | `api`      | `api/`, `redocly.yaml`, `.spectral.yaml`, `package.json`                       | `api`, `api-security`                                                    |
@@ -136,16 +136,16 @@ admin rights on a repo to run on a schedule isn't worth the exposure.
 ### Running the Playwright suite locally
 
 `./tests/run-local.sh` builds the binary and runs the suite. Every worker
-starts a server of its own from it, on a free port and a throwaway SQLite
+starts a server of its own from it, on a free port, and a throwaway SQLite
 database, so nothing needs cleaning up and a dev server on 8080 can keep
 running. Extra arguments go to Playwright
 (`./tests/run-local.sh tests/auth.spec.ts --workers=2`).
 
-CI runs the browser jobs (the e2e shards, Lighthouse and the release
+CI runs the browser jobs (the e2e shards, Lighthouse, and the release
 screenshots) in our own image, `ghcr.io/alrayyes/ci-playwright:<version>`,
 built from Playwright's official image with bun added. It already holds the
-browsers, bun, node, git, the GitHub CLI and ImageMagick, so no job downloads a
-browser, installs bun or runs apt. The tag is the `@playwright/test` version,
+browsers, bun, node, git, `gh`, and ImageMagick, so no job downloads a
+browser, installs bun, or runs apt. The tag is the `@playwright/test` version,
 and the bun inside is the one `packageManager` names.
 `scripts/test-playwright-image.sh` fails the `changes` job when an image's
 version differs from `package.json` or `bun.lock`, when two jobs use
@@ -305,7 +305,7 @@ what it checks, so hold to them anyway.
 
 A `feat`, `fix` or `perf` commit has to change something that ships:
 `cmd/`, `internal/`, `web/`, `api/`, `go.mod`, `go.sum`, a `Dockerfile` or
-`.goreleaser.yml`, and not a test, a Markdown file or CI config.
+`.goreleaser.yml`, and not a test, a Markdown file, or CI config.
 Otherwise release-please cuts a version and a changelog entry for a change
 nobody gets. Type a docs, test, CI or tooling change `docs`, `test`, `ci`,
 `build` or `chore`. `scripts/check-release-type.sh` fails the commit at

@@ -179,11 +179,12 @@ Settings rows keyed to a user that is not in the `users` table belong to nobody,
 so that rebuild refuses them, whether or not the owner has rows in the same
 table. The message names the table and the user ids and gives the `DELETE` that
 clears them. Copy the database file, run it, and start again. Nothing is deleted
-for you. The sign-in rebuild treats sessions, API tokens and passkey labels of an
+for you. The sign-in rebuild treats sessions, API tokens, and passkey labels of
+an
 unknown user the same way, unless the earlier release's clean-up ran on this
 database (it leaves a `single_user_cleanup` table). That clean-up removed such
 rows without a word, so there the rebuild drops them and logs the table, the
-count and the user ids.
+count, and the user ids.
 
 Rows of another user who still exists, left beside the owner's by a second
 registration after the extra users were removed, are not an error: the owner
@@ -206,7 +207,7 @@ is overwritten.
 The earlier clean-up deleted a removed user's sessions and API tokens with the
 user. Once this version has rebuilt those tables they carry no user, so a later
 clean-up can no longer revoke them by user. This version has no second user to
-remove, so run the earlier release first, as above.
+remove, so run the earlier release first, as the preceding steps describe.
 
 Delete the copy once you are satisfied; the server never does. A start that
 fails on its first step removes the copy it took, since the database is as it

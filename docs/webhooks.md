@@ -127,7 +127,7 @@ request or a comment but never to that pull request's checks finishing.
 | A review thread being resolved or unresolved (GitHub only)                                      | Pull request review threads                        | not tracked                                                                             |
 | **CI/build status** — Actions, a third-party check, or a classic commit status, on either forge | Statuses, Check runs                               | Status                                                                                  |
 | A commit landing outside an open pull request                                                   | not tracked                                        | Push                                                                                    |
-| An Actions run finishing, including a rerun, so a branch's pill leaves the old result           | covered above                                      | Action Run Failure, Action Run Success                                                  |
+| An Actions run finishing, including a rerun, so a branch's pill leaves the old result           | covered earlier                                    | Action Run Failure, Action Run Success                                                  |
 
 GitHub splits CI into two separate events because it has two separate
 CI mechanisms with two separate APIs — **Statuses** is the older

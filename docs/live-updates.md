@@ -13,11 +13,11 @@ waiting for its second click), a pop-up other than the
 pull request pop-up is open, the mouse rests on the list (until you move away,
 close a pop-up or leave the window), or a finger has just touched or scrolled
 the page (for about a second). A refresh you asked for (Refresh now, or the one
-after your own merge) lands at once. When rows land above what you are reading,
+after your own merge) lands at once. When rows land ahead of what you are reading,
 the page scrolls by the same amount so nothing you can see moves. The pull
 request pop-up itself doesn't hold the board: the list behind it keeps updating,
-and the pop-up follows its own pull request, including a merge result or a
-failure line. Keyboard focus on a row doesn't hold either, and stays on the row
+and the pop-up follows its own pull request (including a merge result or a
+failure line). Keyboard focus on a row doesn't hold either, and stays on the row
 when the list redraws. When rows land, one polite line tells a screen reader
 what changed ("List updated: 1 added, 2 removed"). **Pause live updates** is
 your own control: it stops every automatic update until you turn it back on,
@@ -30,7 +30,7 @@ The pull requests page also watches the rows you can see, in the order it
 draws them, so their CI pills fold from the live jobs without a dialog open.
 The stream takes eight watched subjects at once, and the pipeline panel keeps
 the eighth, so at most seven rows are watched. Before the page knows which rows
-are in view, it watches the first seven. A filter, a page of the pager or a
+are in view, it watches the first seven. A filter, a page of the pager, or a
 grouping changes which rows are drawn, and scrolling changes which of them are
 in view. The page watches the rows that came into view and stops watching the
 ones that left. A re-render keeps the watch on the rows that are in view, so it
@@ -50,12 +50,12 @@ releases and bots pages share the pull request board but watch no rows, so
 their pills read the refresh. A cancelled
 run reads as cancelled on a watched row, as it does in the panel. On Forgejo,
 jobs behind a failed one stay queued in a run that has finished, and nothing
-will start them. A watched row and the panel leave them out of the waiting
+starts them. A watched row and the panel leave them out of the waiting
 count, so a failed run reads as Failed without a spinner. A rerun is a new
 attempt, so its queued jobs still wait. The quick
 filters and the auto-merge status still read the refresh.
 
-The pipeline panel is one dialog on the pull request, bot and Main branches
+The pipeline panel is one dialog on the pull request, bot, and Main branches
 pages, so what follows holds on all three. It follows its row. While it is open,
 a check's pill changes where it stands, in the order the panel already shows,
 when the live stream says that pull request's or branch's CI changed. The
@@ -95,13 +95,13 @@ the panel redraws nothing when no check differs. With **Pause live updates** on,
 the panel holds the newest list and says "Live updates are paused. These
 checks may be out of date."; turning updates back on draws the held list.
 A redraw keeps keyboard focus on the same check's link or log, even
-when checks above it came or went; if that check is gone, focus moves to the
+when checks before it came or went; if that check is gone, focus moves to the
 close button.
 
 Draft pull requests are left out by default. The **Show drafts** toggle in the
 filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
-filters and goes with every dashboard request, refresh and the live stream.
+filters and goes with every dashboard request, refresh, and the live stream.
 
 ## When nobody is looking
 
@@ -109,7 +109,7 @@ The server refreshes your forges on a schedule (`REFRESH_INTERVAL`), but it
 rests that schedule once nothing has used the dashboard for `IDLE_AFTER` (15
 minutes by default). What counts as use is a tab someone is looking at: the page
 tells the server when its tab is visible or hidden and sends a short heartbeat
-while it is visible, and a visible tab with no pointer, key or scroll input for
+while it is visible, and a visible tab with no pointer, key, or scroll input for
 the period stops counting too. A forgotten tab in the background, a laptop with
 the lid shut, or a browser that crashed (no heartbeat for three minutes) lets
 the schedule rest. The live stream stays open and keeps delivering snapshots
@@ -129,7 +129,7 @@ behind one waiting for auto-update needs it
 A restarted server starts from the snapshot its last run saved, so the board
 shows those rows at once. Their forge reads as unreachable with a stale time
 until the first refresh succeeds, then the mark clears. The rest of this section
-covers a start with nothing saved, such as a first install or a new database.
+covers a start with nothing saved (for example a first install or a new database).
 There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
 Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one
 polite "Loading your repositories…" line, not their empty states, and the
@@ -148,7 +148,7 @@ user ends. A snapshot restored from the last run already counts as loaded, so
 snapshot tells an empty board from one that hasn't loaded: it is `false` from
 process start until the viewer's first refresh has finished, whether it
 succeeded or failed (a failed one shows in the forge health), and `true` from
-then on, including after later refreshes and settings saves. It is not stored,
+then on (including after later refreshes and settings saves). It is not stored,
 so a restart resets it. The first refresh starts when the process does, from the
 saved credentials, so it is usually done before you sign in. An account with no
 saved settings has nothing to refresh, so it reads `true` at once. `GET
@@ -181,7 +181,7 @@ up. A zero is never drawn, and the link's name says the same in words, in the
 same order, after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
 2 failing, 10 passing, 3 running", and "7 2 3 1 1, Branches, 7 total, 2 failing,
 3 passing, 1 running, 1 without a pipeline". On
-a phone the total sits on its own line above the counts, and with three-digit
+a phone the total sits on its own line before the counts, and with three-digit
 numbers each count takes a line, so the busy tabs grow to about 110px. Issues
 counts open issues, without Renovate's Dependency Dashboard or what your
 settings hide, and has no failed count. The server works the numbers out from
@@ -207,7 +207,8 @@ to failing pull requests, and All clears it. How many repositories are tracked
 is a quiet line under the Insights heading. A page with nothing open says so,
 even when its nav item is hidden.
 
-On a phone the numbers sit above each tab's icon. An item's accessible name says
+On a phone the numbers sit on top of each tab's icon. An item's accessible name
+says
 both in words, and opens with the numbers as drawn so the name contains the text
 on screen: "12 3 8 1, Branches, 12 total, 3 failing, 8 passing, 1 running" on
 the header icon, "12 3 8 1 Branches, 3 failing, 8 passing, 1 running" on the
@@ -220,8 +221,8 @@ navigation badges for Pull requests, Releases and Bots: a `total` and how many
 have CI `running`, `failed` and `passed`; and for Issues a `total` only. A pull
 request with no checks counts in the total alone, so the four numbers need not
 add up. They count what each page shows when it opens. Pull requests leave out
-ignored repos, drafts and hidden ones, even while Show drafts or Show hidden is
-on. They are always present, zero when nothing is there.
+ignored repos, drafts and hidden ones (even while Show drafts or Show hidden is
+on). They are always present, zero when nothing is there.
 
 The Branches badge isn't in `navCounts`. The page counts the default branches
 in `mainBranchPage`, the same rows the Main branches page lists, so the badge
@@ -231,7 +232,7 @@ pull requests is left out of both.
 
 ## Which filter choices a page offers
 
-The repo, author and label choices on the pull request, release, bot and issue
+The repo, author and label choices on the pull request, release, bot, and issue
 pages and on Insights come from what the page can show: the items every other
 filter lets through, and without the Dependency Dashboard while it is hidden. A
 repo whose only issue is that one isn't offered until **Hide Dependency
@@ -271,7 +272,7 @@ with 44px choices.
 A label saved before the list existed is read as a list of one, so nothing
 needs doing after an upgrade. A pick holds up to 20 labels and 1000
 characters, and the server refuses a longer one. The browser keeps the saved
-filters in one cookie of about 4 KB, and label, repo and author each
+filters in one cookie of about 4 KB, and label, repo, and author each
 take a share of it, so a pick is also held to 1000 characters as that cookie
 writes it; labels in a script that takes several
 bytes a letter run out of room sooner, and the page stops ticking more once
@@ -361,7 +362,7 @@ or switch tab, so a value typed just before leaving is kept. The title search
 stops at 200 characters to keep it small in the cookie. A title in a script
 that takes several bytes a letter still counts for more there, and with three
 full picks it can pass the cookie's room.
-Each save carries a revision number, in the cookie and in the server copy. When
+Each save carries a revision number in both the cookie and the server copy. When
 a page loads, the server copy is applied unless the cookie holds a newer
 revision, so a value typed just before a reload is not replaced by an older
 copy whose save was slow or lost. The page then sends the cookie's state to the
@@ -370,7 +371,7 @@ What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, the
 hidden pull requests panel, and the expanded rows on Branches. The Branches
 status, forge, advisories and search follow you to another browser the same
-way, and so do the Webhooks forge buttons, repo search, status select and sort.
+way, and so do the Webhooks forge buttons, repo search, status select, and sort.
 The Webhooks page size is not remembered, as on the other pages.
 
 ## Filters on a phone
@@ -379,11 +380,11 @@ Below 760px wide the filter bar folds down so the first screen shows pull
 requests. Closed, it is one search row (the title filter and a **Filters**
 button) and one row of quick filters that scrolls sideways. The button's count,
 as in "Filters (2)", is how many filters are on: forge, repo, author, each label,
-created, updated and Show drafts. Each active filter also shows as a chip you
+created, updated, and Show drafts. Each active filter also shows as a chip you
 can tap to remove without opening anything.
 
 **Filters** opens a bottom sheet with the rest of the controls: forge, Show
-drafts, sort, group, repo, author, label, created and updated. Filters apply as
+drafts, sort, group, repo, author, label, created, and updated. Filters apply as
 you change them, and the sheet's **Show N results** button, which closes it,
 says what you would see, so a refresh can't change something you are editing.
 **Clear all** resets everything. Escape, the close button, or a tap outside

@@ -3,10 +3,11 @@
 ## Pull request details
 
 Clicking a pull request row, anywhere on it, opens a pop-up. The row's title is
-the button that does it, stretched over the row; the CI pill, the labels and the
+the button that does it, stretched over the row; the CI pill, the labels, and the
 row's own buttons stay clickable on top of it. On a phone the row's one button
-is the last tier of the card: after a divider, the full width and 44 pixels
-tall. A locked Merge stays there greyed; the status block just above it says
+is the last tier of the card: after a divider (the full width and 44 pixels
+tall). A locked Merge stays there greyed; the status block directly on top of it
+says
 why, and the button is described by it. The pop-up has the pull request's
 description, its comments and the thumbs up and thumbs down reactions on each,
 and an **Open on GitHub** (or Forgejo) link. On the Releases page the pop-up
@@ -24,7 +25,7 @@ dashboard, and the two-step confirm still guards it. The buttons have the same
 states on the row and in the footer: locked with the reason, queued, in flight
 and the two-step confirm for Merge and Close. A locked button stays on screen,
 greyed, with the reason printed as text beside it or in the status block under
-the header, and described to screen readers. A failure shows as a line above
+the header, and described to screen readers. A failure shows as a line on top of
 the footer, with room for several, and leaves the buttons usable. The footer
 also holds Hide this pull request and Hide for 7 days, and **Rerun failed
 checks** when CI is failing and the server offers it. Results are spoken
@@ -60,7 +61,7 @@ Conflicting or Blocked pill beside it when the row has one, then the title,
 then the attributes as quiet outlined chips (auto-merge, draft, bot, out of
 date, labels, and the version on the Releases page). Each comment carries the
 author's avatar (the forge's own HTTPS image URL, or an initial if it isn't one
-or can't load), a relative time and an
+or can't load), a relative time, and an
 "edited" mark. The avatar and the name are one link to that person's page on
 the forge. A deleted author reads "ghost" and isn't a link. Hovering or
 focusing a reaction lists who gave it, up to ten names and then "and N more";
@@ -90,7 +91,7 @@ from.
 
 ## Finding a pull request by its number
 
-The title box (`Title or #number`) on the Pull requests, Bots and Releases
+The title box (`Title or #number`) on the Pull requests, Bots, and Releases
 pages also takes a pull request number. `2509` or `#2509` lists the pull
 requests whose number starts with it, one per repo that has it, and `25` lists
 25, 250, 2509, and so on. The `#` is optional. The box still matches titles
@@ -100,7 +101,7 @@ filters** empties it.
 
 ## Issues a pull request closes
 
-A pull request that will close issues shows a "Closes" link for each, after
+A pull request that closes issues shows a "Closes" link for each, after
 its title on the row and among the attributes in the pop-up. The row shows the
 first two and, when there are more, a link such as "2 more" that shows the rest
 in place. An issue in another repository than the pull request's names its
@@ -111,7 +112,7 @@ show it. Inside a pull request's own pop-up the pill is a link to the
 [Issues page](issues.md#opening-an-issue-from-its-address), so a middle or
 modified click opens that page in a new tab. A plain click closes the pull
 request's pop-up and opens the issue's in its place without leaving the
-page, with the address and your filters untouched. Screen readers hear
+page. The address and your filters stay untouched. Screen readers hear
 "Closes", the number and "opens the issue".
 
 The server works out which issues those are, and builds the address that opens
@@ -171,7 +172,7 @@ empty space. The rows don't show mentions.
 A row shows the author's avatar to the left of their name. It is the forge's
 own HTTPS image URL, loaded straight from the forge by your browser. When the
 forge sends none, the URL isn't HTTPS, or the image can't load, the row shows
-the name alone. The narrow layout drops the author column, avatar and all.
+the name alone. The narrow layout drops the author column, avatar included.
 
 The avatar and the name are one link to the author's page on the forge, opening
 in a new tab. The server builds the address from the forge's own web address, so
@@ -197,8 +198,8 @@ username-only listing carries no images, so it shows none.
 A repository name that is too long for its column is cut with an ellipsis. Hover
 it and the whole `owner/name` shows as hover text, the same as a cut pull
 request title. A name that fits has no hover text, since it would only repeat
-what the row already shows. A click on the name opens the pull request, like a click
-anywhere else on the row.
+what the row already shows. Clicking the name opens the pull request, like a
+click anywhere else on the row.
 
 ## Releases
 
@@ -208,7 +209,7 @@ requests the server marks `kind: release` (release-please's, by its
 `autorelease:` label, or by its `release-please--branches--<base>` head branch
 when release-please failed before it could label the pull request, as long as
 the pull request is from the same repository and aimed at that base), with the
-same filters, rows and actions as the main page. The main pull request page
+same filters, rows, and actions as the main page. The main pull request page
 lists none of them, and doesn't count them. Each row shows the version being
 released next to the title. Merge is offered when the release can merge, or
 greyed out with the reason when it can't. A release that is behind its base
@@ -217,10 +218,10 @@ a releasable change lands, and its row carries the Out of date badge like any
 other behind pull request. With no release pull requests open the page says
 nothing is waiting to ship.
 
-The quick filter pills above the list include **Failing CI**, **Running CI**,
+The quick filter pills ahead of the list include **Failing CI**, **Running CI**,
 **Passing CI** and **No checks**, each offered only when it would show
 something. They are the only CI filter: the board header has no separate CI
-status dropdown, on this page, Releases and Bots. The **No checks** pill shows
+status dropdown, on this page, Releases, and Bots. The **No checks** pill shows
 the pull requests that have no CI configured. A CI status saved from when the
 dropdown existed becomes the matching pill when the page loads, unless a pill or
 a forge is already picked, in which case it is dropped, so nothing stays
@@ -228,12 +229,12 @@ filtered out of sight. The **Out of date** pill, on this page and on Bots,
 keeps the pull requests whose base branch has moved on, the same ones that
 carry the row's Out of date badge. An empty pull request is left out. The
 choice is saved like the other pills. Next to them an **Auto-merge** control
-has Any, On and Off. On shows only pull requests that have auto-merge armed, Off
+has Any, On, and Off. On shows only pull requests that have auto-merge armed, Off
 only those without. It combines with a pill, so Failing CI with Auto-merge On
 finds armed pull requests whose checks have since failed.
 
-A **Closing issue** control beside it has Any, **Closes an issue** and **Closes
-no issue**. The first keeps the pull requests that will close at least one
+A **Closing issue** control beside it has Any, **Closes an issue**, and **Closes
+no issue**. The first keeps the pull requests that close at least one
 issue when they merge (the ones with a "Closes" pill), the second the rest.
 Like Auto-merge it is saved with your other filters, comes back after a reload,
 is emptied by **Clear filters**, and offers a choice only when something in the
@@ -247,7 +248,7 @@ or **Clear filters** brings the rows back.
 Dependabot and Renovate pull requests have their own page, `/bots.html`,
 reached from the **Bots** item in the navigation. Like Releases, it is the pull
 request board over the pull requests the server marks `kind: dependency`, with
-the same filters, rows and actions as the main page. Its rows leave out the
+the same filters, rows, and actions as the main page. Its rows leave out the
 **Bot** pill, since every row there is a bot's and the author already names it;
 the pop-up still shows it. The main pull request page
 lists none of them, so it has no quick filter for bots. A saved quick filter

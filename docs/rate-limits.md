@@ -29,8 +29,8 @@ tries again at the next scheduled refresh.
 
 **Forgejo** doesn't count requests itself and reports no budget. If a limit
 exists, it comes from a proxy in front of the instance. When the proxy refuses
-an action, the response carries a `Retry-After` header, in seconds or as a
-date, and the dashboard takes the reset time from it (see
+an action, the response carries a `Retry-After` header in seconds or as a date,
+and the dashboard takes the reset time from it (see
 [Pull request actions](pull-request-actions.md)). Because Forgejo reports no
 budget, the severity grades, the banners and the back-off below apply to GitHub
 only. A refresh the proxy refuses keeps the last data, and the next scheduled
@@ -64,8 +64,8 @@ refresh tries again.
   shorter wait). It is also `REFRESH_INTERVAL` when a forge's last fetch failed
   or it has not reported, or a repo could not be fully fetched. A repo that has
   failed to fetch for three times `REFRESH_INTERVAL` of clock time, counted from
-  its first failed fetch, counts as failing for good and stops holding the short
-  wait, so one broken repo (issues disabled, an empty repo, a token without the
+  its first failed fetch, counts as failing for good, and stops holding the short
+  wait, so one broken repo (issues turned off, an empty repo, a token without the
   scope) doesn't cost every other repo the saving. Its row on the Webhooks page
   then reads "Still failing since". A webhook-driven refresh that
   fetches a stale repo clears the mark, which also ends its hold, unless its
@@ -104,8 +104,8 @@ refresh tries again.
   What waits for the next use instead: Dependabot's acknowledgement checks and
   the check on a rebased Dependabot pull request.
 
-A GitHub App installation has its own budget, separate from your tokens and
-from other tools. The dashboard asks GitHub for an installation token for the
+A GitHub App installation has its own budget separate from your tokens and from
+other tools. The dashboard asks GitHub for an installation token for the
 installation you connect and uses it for reading and for most actions. The
 exception is the `@dependabot` comments, which Dependabot ignores from an App.
 They are posted with the personal token you saved, and they spend that token's
@@ -136,7 +136,7 @@ Once the reset time has passed a spent budget stops counting as exceeded, even
 before the next refresh confirms it.
 
 When both the REST and the GraphQL budget are spent, the forge goes read-only.
-When only REST is spent, Merge, Update branch, the bot rebases and Close are
+When only REST is spent, Merge, Update branch, the bot rebases, and Close are
 unavailable, and Enable auto-merge still works. When only GraphQL is spent, only
 Enable auto-merge is unavailable. The controls that can't work aren't drawn, a
 **Why?** under the banner explains the limit, and **What still works** lists
@@ -161,7 +161,7 @@ On every forge, "Refresh now" runs at most once every five seconds.
 On GitHub the dashboard keeps part of each budget for you. Background work
 (the scheduled full refresh, the CI and auto-merge polls, and webhook
 maintenance) stops once a call would leave the REST or the GraphQL budget at or
-under the reserve: 10% of the budget, never less than 50 points and never more
+under the reserve: 10% of the budget, never less than 50 points, and never more
 than half of it. A 5000 point budget keeps 500. A low budget of either kind
 holds all of that background work, even work that only uses the other. For a
 full refresh, "a call" means what the last one spent, counted from its own
@@ -175,10 +175,10 @@ background full refresh waits when one costing that much would take the budget
 under the reserve. It waits for the reset, and the board keeps its last data,
 marked stale, in the meantime.
 
-Your own actions are never held back by it: Merge, Update branch, the bot
+Your own actions are never held back by it (Merge, Update branch, the bot
 rebases, Close, Enable auto-merge, queued actions, Refresh now, and the refresh
-that opening the board after an idle spell starts. They stop only when the
-budget is spent, as described above. A refresh that a webhook delivery asks for
+that opening the board after an idle spell starts). They stop only when the
+budget is spent, as described earlier. A refresh that a webhook delivery asks for
 is cheap and is how the board stays current, so it also runs inside the reserve
 and waits only when the budget is spent.
 
@@ -204,7 +204,7 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
 - **Longer gaps while nothing changes.** A pull request that reads the same after
   a poll waits twice as long before the next one: `CI_POLL_INTERVAL`, then double,
   up to 15 minutes. Any change in its checks, merge state or auto-merge setting
-  puts it back at `CI_POLL_INTERVAL`. If you set `CI_POLL_INTERVAL` above 15
+  puts it back at `CI_POLL_INTERVAL`. If you set `CI_POLL_INTERVAL` over 15
   minutes, that wins, so the poll is never faster than you asked. Only a poll
   that read the pull request counts: a refresh that failed leaves the gap alone
   and the next tick tries again. A read that joined a webhook refresh already in
@@ -275,7 +275,7 @@ no credential, may still be charged.
 The cache is keyed by forge, credential label, URL and `Accept` header, never
 by user. GitHub folds the credential into the ETag, so one credential's ETag is
 never offered under another. Two clients holding the same credential share
-entries, and a replaced token starts empty. A page size, page number or filter
+entries, and a replaced token starts empty. A page size, page number, or filter
 is part of the URL, so a different one is a different entry.
 
 The cache lives in memory and in the database, and both are bounded. A body over
@@ -393,8 +393,8 @@ The kind says why the request was made:
 | `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                                                                                                                                                                                                |
 | `ci_poll`          | A poll of pull requests with a check still running.                                                                                                                                                                                                            |
 | `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.                                                                                                                                                                             |
-| `details`          | A pull request, issue or check list you opened.                                                                                                                                                                                                                |
-| `hook_maintenance` | Checking, adding or upgrading webhooks.                                                                                                                                                                                                                        |
+| `details`          | A pull request, issue, or check list you opened.                                                                                                                                                                                                               |
+| `hook_maintenance` | Checking, adding, or upgrading webhooks.                                                                                                                                                                                                                       |
 | `advisories`       | Reading a repo's open Dependabot alerts, or on Forgejo its file tree and lock files, at most every 15 minutes per repo. A failed read, or a first refusal, is tried again after 5. Opening a repo's advisories dialog reads its alerts in full, once per open. |
 | `user_action`      | A button you pressed, a queued action, or auto-merge and auto-update acting for you.                                                                                                                                                                           |
 | `unknown`          | A request nobody tagged. That is a bug in the dashboard; please report it.                                                                                                                                                                                     |
@@ -431,8 +431,8 @@ A few things to know when you read the numbers:
 ## Baseline: what each kind of refresh costs today
 
 This is the reference to compare a change against: what each kind of request
-cost before the dashboard was made cheaper. Read it as a fixture baseline, not
-as a 30 or more repo account. No account of that size was available, so the
+cost before the dashboard was made cheaper. Read it as a fixture baseline rather
+than as a 30 or more repo account. No account of that size was available, so the
 numbers come from the account that owns the project's end-to-end fixture
 repository (`alrayyes/forge-dashboard-e2e-fixture`, 18 open pull requests when
 measured). That account is not only the fixture, though. The dashboard tracked
@@ -495,14 +495,14 @@ How to read the table:
 This was a few minutes of use, not an hour, and one start, not several. The
 counters reset on a start, so the first-refresh row is also what a restart
 costs. The 56 repos are the whole account, so another account with the same
-number of repos but different pull requests and issues will differ, most of
+number of repos but different pull requests and issues differ, most of
 all in the REST column.
 
 ## A full refresh that fetches only what changed
 
 A scheduled refresh no longer re-reads every repo. When a webhook is
 configured, it first asks GitHub one cheap question per 100 repos: when each
-repo was last pushed to or edited, how many open pull requests and issues it
+repo was last pushed to or edited, how many open pull requests plus issues it
 has, and when the newest-touched one last changed. A repo whose answer matches
 the last refresh, and whose webhook is switched on and subscribed to check
 events, is skipped: its pull requests, issues and main-branch row stay as they

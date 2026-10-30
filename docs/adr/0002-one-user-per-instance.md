@@ -19,10 +19,10 @@ into a second user's view.
 
 - **Keep multi-user.** Nothing to migrate, but every feature still has to think
   about whose data it touches, and the invite and admin paths stay exposed.
-- **Hide it, keep the plumbing.** Remove the invite, admin and sharing screens
-  and endpoints, but leave the per-user aggregators, keys and user id columns.
+- **Hide it, keep the plumbing.** Remove the invite, admin, and sharing screens
+  and endpoints, but leave the per-user aggregators, keys, and user id columns.
   It is a smaller change, but the code that exists only for extra users stays
-  to be maintained, tested and secured for nobody.
+  to be maintained, tested, and secured for nobody.
 - **Remove all of it.** Take out invites, the admin area, sharing, and then the
   per-user plumbing itself.
 
@@ -38,7 +38,7 @@ pull requests, one feature each.
 - Invites, the admin area and dashboard sharing are gone, along with the
   `owner` argument on the dashboard and the MCP reads.
 - One aggregator replaces the manager of per-user ones. The user id column is
-  dropped from settings, sessions, API tokens, passkey labels and the request
+  dropped from settings, sessions, API tokens, passkey labels, and the request
   log, and webhook routing uses one token.
 - A database that still holds several users keeps the oldest user who has a
   passkey and deletes the others, once, after copying the file. The new version
@@ -64,5 +64,5 @@ runs one instance per customer.
 
 ## Sources
 
-- OWASP [Multi-Tenant Application Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)
+- OWASP [multi-tenant security cheat sheet](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)
   on instance-per-tenant as the strongest isolation

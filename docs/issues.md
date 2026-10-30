@@ -23,7 +23,7 @@ says why and offers **Try again** instead of showing an empty thread. Escape or
 The footer offers **Close issue** and **Close with a comment**. There is no
 merge or rebase on an issue.
 
-- **Close issue** asks you to confirm. **Confirm close issue?** closes it,
+- **Close issue** asks you to confirm. **Confirm close issue?** closes it;
   **Cancel** or Escape drops the step.
 - **Close with a comment** opens a **Comment** field. **Comment and close**
   posts the comment, then closes the issue. A blank comment is not sent.
@@ -47,17 +47,17 @@ A refusal about permission does not clear by clicking again. Fix the token and
 reopen the pop-up. A forge error that passes by itself keeps the buttons live.
 
 Closing and commenting need write access to issues, which listing them does
-not. On GitHub that is **Issues: Read and write** on a fine-grained token, the
+not. On GitHub that is **`Issues: Read and write`** on a fine-grained token, the
 `repo` scope on a classic one, or the repository permission for issues set to
 read and write on a GitHub App installation, accepted on the installation. On
 Forgejo it is the `write:issue` scope. The Connections page in Settings lists
 them.
 
-Next to **Hide Dependency Dashboard**, the **Hide titles matching (regex)**
+Next to **Hide Dependency Dashboard**, the **`Hide titles matching (regex)`**
 box hides the issues whose title matches a regular expression. The match is
 case-insensitive and can fall anywhere in the title, so `^Weekly report` hides
 every issue whose title starts with "Weekly report". Empty hides nothing. A
-note says how many issues the pattern hides, and the repo, author and label
+note says how many issues the pattern hides, and the repo, author, and label
 choices leave out what it hides. The pattern is saved with the other filters,
 and **Clear filters** empties it. A pattern the page can't use is ignored and
 the list stays as it was. A syntax error shows "That pattern isn't valid." A
@@ -89,7 +89,7 @@ A row shows the avatar of whoever filed the issue to the left of their name,
 the same as a pull request row. It is the forge's own HTTPS image URL, loaded
 straight from the forge by your browser. When the forge sends none, the URL
 isn't HTTPS, or the image can't load, the row shows the name alone. The narrow
-layout drops the author column, avatar and all.
+layout drops the author column, avatar included.
 
 The avatar and the name are one link to that person's page on the forge, in a new
 tab, on the row and on the pop-up's "Filed by" line. A deleted account has no
@@ -135,7 +135,7 @@ pattern, drops blanks and repeats (ignoring case), and takes at most 20
 patterns of at most 200 characters. A pattern that doesn't compile is a 400
 that names `ignoredTitles` and the entry, counted from 1 in the list as sent,
 and says why, as in `ignoredTitles entry 2 ("("): missing closing )`.
-Nothing is saved then, not the other patterns and not the other settings.
+Nothing is saved then, not the other patterns, and not the other settings.
 
 ## Pull requests that close an issue
 
@@ -244,7 +244,7 @@ refuses is shown beside the list with the reason, and nothing is saved.
 
 While a setting applies, the page's own field for it is not shown: the **Hide
 Dependency Dashboard** checkbox on the Issues page and Insights while the first
-setting is on, and the **Hide titles matching (regex)** box while the list has
+setting is on, and the **`Hide titles matching (regex)`** box while the list has
 an entry. What you had in those fields is kept, not used, and comes back when
 you turn the setting off or empty the list. **Clear filters** changes neither
 setting.
@@ -252,7 +252,7 @@ setting.
 The issues page filters like the pull request page: forge, repo, title, author,
 label, created and updated, plus Group by. Those filters are shared and saved
 with your other filters, so a filter set on one page is still set on the other.
-A **Closing PR** control adds Any, **Has a closing pull request** and **No
+A **Closing PR** control adds Any, **Has a closing pull request**, and **No
 closing pull request**, to find the issues something is already fixing and the
 ones nothing is. Only this page's list is filtered by it, it is saved and
 restored like the others, and a choice is offered only when some issue is that
