@@ -241,7 +241,7 @@ func NewMux(deps Deps) http.Handler {
 		})
 	}
 
-	return noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, deps.Version, limitRequestBody(legacyRoutes(mux)))))
+	return noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, deps.Version, limitRequestBody(mux))))
 }
 
 // noIndex marks every response, page, script, JSON or error, as not for search

@@ -18,18 +18,20 @@ func noFollowClient(t *testing.T) *http.Client {
 	return c
 }
 
-func TestLegacyRoutes_UnversionedClientRoute_Answers308ToV1(t *testing.T) {
+func TestUnversionedRoutes_OldClientAddress_IsTheJSON404OfAnyUnknownPath(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
 	tests := []struct {
-		method, path, want string
+		method, path string
 	}{
-		{http.MethodGet, "/api/dashboard?includeDrafts=true", "/api/v1/dashboard?includeDrafts=true"},
-		{http.MethodPost, "/api/pull-requests/merge", "/api/v1/pull-requests/merge"},
-		{http.MethodDelete, "/api/tokens/7", "/api/v1/tokens/7"},
-		{http.MethodGet, "/api/dashboard/stream", "/api/v1/dashboard/stream"},
-		{http.MethodPost, "/api/mcp", "/api/v1/mcp"},
+		{http.MethodGet, "/api/dashboard?includeDrafts=true"},
+		{http.MethodPost, "/api/pull-requests/merge"},
+		{http.MethodDelete, "/api/tokens/7"},
+		{http.MethodGet, "/api/dashboard/stream"},
+		{http.MethodPost, "/api/mcp"},
+		{http.MethodGet, "/api/nope"},
+		{http.MethodPost, "/api/nope"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
@@ -41,15 +43,15 @@ func TestLegacyRoutes_UnversionedClientRoute_Answers308ToV1(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
-			assert.Equal(t, http.StatusPermanentRedirect, resp.StatusCode)
-			assert.Equal(t, tt.want, resp.Header.Get("Location"))
-			assert.Regexp(t, `^@\d+$`, resp.Header.Get("Deprecation"))
-			assert.Contains(t, resp.Header.Get("Link"), `rel="successor-version"`)
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+			assert.Empty(t, resp.Header.Get("Location"))
+			assert.Empty(t, resp.Header.Get("Deprecation"))
 		})
 	}
 }
 
-func TestLegacyRoutes_UnversionedByDesign_AreNotRedirected(t *testing.T) {
+func TestUnversionedRoutes_UnversionedByDesign_StillAnswer(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -63,13 +65,14 @@ func TestLegacyRoutes_UnversionedByDesign_AreNotRedirected(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
-			assert.NotEqual(t, http.StatusPermanentRedirect, resp.StatusCode)
+			assert.NotEqual(t, http.StatusNotFound, resp.StatusCode)
+			assert.Empty(t, resp.Header.Get("Location"))
 			assert.Empty(t, resp.Header.Get("Deprecation"))
 		})
 	}
 }
 
-func TestLegacyRoutes_WebhookRoute_IsNotRedirected(t *testing.T) {
+func TestUnversionedRoutes_WebhookRoute_IsNotRedirected(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -79,18 +82,25 @@ func TestLegacyRoutes_WebhookRoute_IsNotRedirected(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.NotEqual(t, http.StatusPermanentRedirect, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Location"))
 }
 
-func TestLegacyRoutes_VersionedUnknownPath_Is404NotARedirectLoop(t *testing.T) {
+func TestAPI_NotRoutedPaths_AnswerJSON404(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/v1/nope", nil)
-	require.NoError(t, err)
-	resp, err := noFollowClient(t).Do(req)
-	require.NoError(t, err)
-	defer func() { _ = resp.Body.Close() }()
+	for _, path := range []string{"/api/webhooks/github/x", "/api/v1", "/api/v1/nope"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+path, nil)
+			require.NoError(t, err)
+			resp, err := noFollowClient(t).Do(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+		})
+	}
 }
