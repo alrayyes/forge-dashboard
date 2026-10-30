@@ -20,6 +20,7 @@
     "lint:pkg": "sort-package-json --check package.json web/package.json",
     "lint:prose": "./scripts/lint-prose.sh",
     "lint:refs": "bun scripts/check-doc-ticket-refs.ts",
+    "lint:specs": "bun scripts/check-spec-api-routes.ts",
     "prepare": "lefthook install",
     "test:e2e": "playwright test",
     "test:lighthouse": "lhci autorun",
