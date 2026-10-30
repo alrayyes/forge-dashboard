@@ -262,7 +262,7 @@ func TestReadMainBranch(t *testing.T) {
 		require.NotNil(t, row.FinishedAt)
 		assert.Equal(t, time.Date(2026, 10, 10, 9, 5, 30, 0, time.UTC), *row.FinishedAt)
 		require.NotNil(t, row.DurationSeconds)
-		assert.Equal(t, 270, *row.DurationSeconds)
+		assert.Equal(t, 240, *row.DurationSeconds, "the run that finished last, from its own start")
 	})
 
 	t.Run("cancelled runs alone are cancelled, name no job and link the cancelled run (#1950)", func(t *testing.T) {
