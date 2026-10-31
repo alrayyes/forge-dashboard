@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.0.5](https://github.com/alrayyes/forge-dashboard/compare/v9.0.4...v9.0.5) (2026-10-31)
+
+
+### Bug Fixes
+
+* **web:** drop a closed pull request's row when the close is accepted ([#3131](https://github.com/alrayyes/forge-dashboard/issues/3131)) ([4040150](https://github.com/alrayyes/forge-dashboard/commit/4040150e751314645cf79ac5c21e2ef81aa7f7ce)), closes [#3130](https://github.com/alrayyes/forge-dashboard/issues/3130)
+
 ## [9.0.4](https://github.com/alrayyes/forge-dashboard/compare/v9.0.3...v9.0.4) (2026-10-31)
 
 
