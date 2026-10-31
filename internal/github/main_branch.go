@@ -28,6 +28,7 @@ const checkRunFields = `
                           databaseId
                           runAttempt
                           runNumber
+                          event
                           workflow { name }
                         }
                       }`
@@ -47,6 +48,7 @@ const commitChecks = `
                     databaseId
                     runAttempt
                     runNumber
+                    event
                     workflow { name }
                   }
                 }
@@ -168,9 +170,10 @@ type branchContext struct {
 		Status      string `json:"status"`
 		Conclusion  string `json:"conclusion"`
 		WorkflowRun *struct {
-			DatabaseID int64 `json:"databaseId"`
-			RunAttempt int64 `json:"runAttempt"`
-			RunNumber  int64 `json:"runNumber"`
+			DatabaseID int64  `json:"databaseId"`
+			RunAttempt int64  `json:"runAttempt"`
+			RunNumber  int64  `json:"runNumber"`
+			Event      string `json:"event"`
 			Workflow   struct {
 				Name string `json:"name"`
 			} `json:"workflow"`
@@ -531,16 +534,23 @@ func (c *Client) heldBranchRun(ctx context.Context, owner, name, sha string) (st
 	return held[0].URL, true
 }
 
-// uncheckedBranches picks the repos whose newest commit has no rollup and are
-// worth walking back for. A commit whose runs are held for approval has no check
-// run for the same reason a [skip ci] one has none, but it is not finished: its
-// ref is marked and left where it is, so the row says so rather than showing an
-// older commit's result (#2024).
+// uncheckedBranches picks the repos whose newest commit has no rollup (or only
+// Dependabot Updates runs, which are not its CI) and are worth walking back
+// for. A commit whose runs are held for approval has no check run for the same
+// reason a [skip ci] one has none, but it is not finished: its ref is marked and
+// left where it is, so the row says so rather than showing an older commit's
+// result (#2024).
 func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) []branchRepo {
 	var unchecked []branchRepo
 	for _, r := range tracked {
 		ref := r.DefaultBranchRef
-		if ref == nil || ref.Target.OID == "" || ref.Target.StatusCheckRollup != nil {
+		if ref == nil || ref.Target.OID == "" {
+			continue
+		}
+		if ref.Target.StatusCheckRollup.onlyDynamic() {
+			ref.Target.StatusCheckRollup = nil
+		}
+		if ref.Target.StatusCheckRollup != nil {
 			continue
 		}
 		if runURL, held := c.heldBranchRun(ctx, r.Owner.Login, r.Name, ref.Target.OID); held {
@@ -558,8 +568,9 @@ func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) [
 }
 
 // withCheckedCommits moves each ref's target to the newest commit a check ran
-// on, for the repos whose newest commit has none and no runs held for approval. Any failure leaves the refs
-// as they were, so the row reads none rather than the poll failing.
+// on, for the repos whose newest commit has none and no runs held for approval.
+// Dependabot Updates runs don't count as checks. Any failure leaves the refs as
+// they were, so the row reads none rather than the poll failing.
 func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) {
 	unchecked := c.uncheckedBranches(ctx, tracked)
 	if len(unchecked) == 0 {
@@ -586,7 +597,7 @@ func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) 
 			continue
 		}
 		for _, commit := range repo.DefaultBranchRef.Target.History.Nodes {
-			if commit.StatusCheckRollup != nil {
+			if commit.StatusCheckRollup != nil && !commit.StatusCheckRollup.onlyDynamic() {
 				r.ref.Target = commit
 
 				break

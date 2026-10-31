@@ -16,9 +16,10 @@ type branchSuite struct {
 	Status      string `json:"status"`
 	Conclusion  string `json:"conclusion"`
 	WorkflowRun *struct {
-		DatabaseID int64 `json:"databaseId"`
-		RunAttempt int64 `json:"runAttempt"`
-		RunNumber  int64 `json:"runNumber"`
+		DatabaseID int64  `json:"databaseId"`
+		RunAttempt int64  `json:"runAttempt"`
+		RunNumber  int64  `json:"runNumber"`
+		Event      string `json:"event"`
 		Workflow   struct {
 			Name string `json:"name"`
 		} `json:"workflow"`
@@ -67,6 +68,7 @@ const newestRunsQuery = `query($ids: [ID!]!) {
               databaseId
               runAttempt
               runNumber
+              event
               workflow { name }
             }
           }
@@ -140,7 +142,7 @@ func suitesToRead(ref *graphqlBranchRef) []branchSuite {
 
 	var out []branchSuite
 	for i, s := range suites {
-		if s.WorkflowRun == nil || superseded[i] || checks[i].Run != nil || s.ID == "" {
+		if s.WorkflowRun == nil || s.WorkflowRun.Event == dynamicEvent || superseded[i] || checks[i].Run != nil || s.ID == "" {
 			continue
 		}
 		if cut || !held[s.WorkflowRun.DatabaseID] {
@@ -222,10 +224,32 @@ func (c *Client) readSuiteChecks(ctx context.Context, ids []string) map[string]s
 	return out
 }
 
+// dynamicEvent is the event of a Dependabot Updates run. Several start at once
+// on the default branch, one per update, so the newest of them says nothing
+// about the branch (#3125).
+const dynamicEvent = "dynamic"
+
+// isDynamic reports that the check belongs to a Dependabot Updates run.
+func (n branchContext) isDynamic() bool {
+	return n.CheckSuite != nil && n.CheckSuite.WorkflowRun != nil && n.CheckSuite.WorkflowRun.Event == dynamicEvent
+}
+
+// onlyDynamic reports that every check of the commit, all of them listed,
+// belongs to a Dependabot Updates run: it has no CI of its own. A nil rollup
+// is not.
+func (r *statusCheckRollup) onlyDynamic() bool {
+	if r == nil || r.Contexts == nil || len(r.Contexts.Nodes) == 0 || r.cutShort() {
+		return false
+	}
+
+	return !slices.ContainsFunc(r.Contexts.Nodes, func(n branchContext) bool { return !n.isDynamic() })
+}
+
 // keepNewestRuns adds extra (the checks of runs the rollup left out) to the
-// rollup's checks, drops those a newer run of the same workflow replaces, and
-// works the state and counts out from what is left. A check the rollup already
-// lists is not added again. more says a suite has checks past the ones read.
+// rollup's checks, drops those a newer run of the same workflow replaces and
+// those of Dependabot Updates runs, and works the state and counts out from
+// what is left. A check the rollup already lists is not added again. more
+// says a suite has checks past the ones read.
 // With nothing added or dropped it leaves the rollup as GitHub gave it.
 //
 // The counts are rebuilt from the nodes kept, so they would hide a commit with
@@ -249,12 +273,15 @@ func (r *statusCheckRollup) keepNewestRuns(extra []branchContext, more bool) {
 	}
 
 	nodes := slices.Concat(r.Contexts.Nodes, fresh)
+	before := len(nodes)
+	nodes = slices.DeleteFunc(nodes, branchContext.isDynamic)
+	dropped := len(nodes) < before
 	checks := make([]dashboard.Check, len(nodes))
 	for i, n := range nodes {
 		checks[i] = n.asCheck()
 	}
 	superseded := dashboard.SupersededRuns(checks)
-	if len(fresh) == 0 && !slices.Contains(superseded, true) {
+	if len(fresh) == 0 && !dropped && !slices.Contains(superseded, true) {
 		return
 	}
 	r.jobsCut = cut
