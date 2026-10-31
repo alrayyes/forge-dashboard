@@ -28,6 +28,7 @@ const checkRunFields = `
                           databaseId
                           runAttempt
                           runNumber
+                          event
                           workflow { name }
                         }
                       }`
@@ -47,6 +48,7 @@ const commitChecks = `
                     databaseId
                     runAttempt
                     runNumber
+                    event
                     workflow { name }
                   }
                 }
@@ -168,9 +170,10 @@ type branchContext struct {
 		Status      string `json:"status"`
 		Conclusion  string `json:"conclusion"`
 		WorkflowRun *struct {
-			DatabaseID int64 `json:"databaseId"`
-			RunAttempt int64 `json:"runAttempt"`
-			RunNumber  int64 `json:"runNumber"`
+			DatabaseID int64  `json:"databaseId"`
+			RunAttempt int64  `json:"runAttempt"`
+			RunNumber  int64  `json:"runNumber"`
+			Event      string `json:"event"`
 			Workflow   struct {
 				Name string `json:"name"`
 			} `json:"workflow"`
