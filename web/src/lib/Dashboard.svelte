@@ -1735,8 +1735,10 @@
             toast: true,
             announce: "Reopened.",
           });
-          // The row returns with the next snapshot; the dialog goes back to
-          // its normal state once it is in.
+          // The row returns now, where it stood, and the snapshot after
+          // brings it up to date; the dialog goes back to its normal state
+          // once that is in.
+          restoreReopenedRow(item);
           return refreshBoard();
         })
         .then(() => {
@@ -3873,12 +3875,29 @@
       }).observe(prRowsEl, { childList: true, subtree: true });
 
     // Takes a pull request the server has just closed off the board, whatever
-    // holds the list back (a resting pointer, a waiting snapshot).
+    // holds the list back (a resting pointer, a waiting snapshot). Where it
+    // stood is kept, so a reopen can put it back before any refresh answers.
+    const droppedAt: Record<string, number> = {};
     function dropClosedRow(key: string) {
       const stays = (p: PullRequestItem) => prKey(p) !== key;
+      droppedAt[key] = prShown.items.findIndex((p) => !stays(p));
       latestPRs = latestPRs?.filter(stays) ?? null;
       rawPRs = rawPRs.filter(stays);
       prShown.land(prShown.items.filter(stays));
+      keepFocusAcross(() => prBoard.setItems(prShown.items, true));
+    }
+
+    // The way back from dropClosedRow, when the server has reopened it.
+    function restoreReopenedRow(item: PullRequestItem) {
+      const key = prKey(item);
+      const at = droppedAt[key];
+      delete droppedAt[key];
+      if (at === undefined || prShown.items.some((p) => prKey(p) === key))
+        return;
+      const next = prShown.items.slice();
+      next.splice(Math.min(Math.max(at, 0), next.length), 0, item);
+      rawPRs = [item, ...rawPRs];
+      prShown.land(next);
       keepFocusAcross(() => prBoard.setItems(prShown.items, true));
     }
 
