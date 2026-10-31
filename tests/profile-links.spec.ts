@@ -191,7 +191,7 @@ test.describe('Profile links (#1991)', () => {
       );
     const popup = page.waitForEvent('popup');
     await author(page, 'With avatar').getByRole('link').click();
-    expect((await popup).url()).toBe('https://github.com/claude');
+    await (await popup).waitForURL('https://github.com/claude');
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 

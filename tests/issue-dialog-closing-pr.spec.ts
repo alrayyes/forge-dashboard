@@ -353,7 +353,7 @@ test('a modified click on the dialog pill is left to the browser and opens the p
     .click({ modifiers: ['Control'] });
   const tab = await opened;
 
-  expect(tab.url()).toContain('/pull-requests.html?pr=github/');
+  await tab.waitForURL(/\/pull-requests\.html\?pr=github\//);
   expect(page.url()).toBe(before);
   await expect(dialog(page)).toBeVisible();
 });
