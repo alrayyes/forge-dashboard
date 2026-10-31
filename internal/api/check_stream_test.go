@@ -116,6 +116,18 @@ func openCheckFeed(t *testing.T, source *checkFeedSource) (*checkFeed, string) {
 	events := make(chan sseEvent, 16)
 	go readNamedEvents(bufio.NewReader(resp.Body), events)
 
+	// A watch reads the row it lists for from the snapshot as it stands. Before
+	// the first refresh finishes there is none, and the snapshot that brings it
+	// lists the subject once more, which a test counting lists would see as an
+	// extra one (#3127). A read of the dashboard holds until that refresh is in.
+	load, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/dashboard", nil)
+	require.NoError(t, err)
+	load.AddCookie(sessionCookie)
+	loaded, err := testClient(t).Do(load)
+	require.NoError(t, err)
+	require.NoError(t, loaded.Body.Close())
+	require.Equal(t, http.StatusOK, loaded.StatusCode)
+
 	return &checkFeed{srvURL: srvURL, cookie: sessionCookie, events: events}, webhookToken + ":" + webhookSecret
 }
 
