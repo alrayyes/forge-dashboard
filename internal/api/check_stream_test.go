@@ -360,22 +360,19 @@ func TestCheckStream_OverlappingListingsOfOneSubjectNeverInterleave(t *testing.T
 
 		return checks
 	}}
-	feed, _ := openCheckFeed(t, source)
+	feed, hook := openCheckFeed(t, source)
 	refresh := strings.Replace(watchPR, `"subjects"`, `"refresh":true,"subjects"`, 1)
 	for range asks {
 		feed.watch(t, refresh)
 	}
+	// A snapshot reaches the stream among the runs (#3132). It carries no key.
+	tokenSecret := strings.SplitN(hook, ":", 2)
+	triggerWebhook(t, feed.srvURL, tokenSecret[0], tokenSecret[1])
 
 	held := map[string]bool{}
 	for {
-		var ev map[string]any
-		select {
-		case raw, ok := <-feed.events:
-			if !ok {
-				return
-			}
-			require.NoError(t, json.Unmarshal([]byte(raw.data), &ev))
-		case <-time.After(time.Second):
+		ev, ok := nextRunWithin(t, feed.events, time.Second)
+		if !ok {
 			return
 		}
 		key, _ := ev["key"].(string)
@@ -386,6 +383,31 @@ func TestCheckStream_OverlappingListingsOfOneSubjectNeverInterleave(t *testing.T
 		}
 		if ev["final"] == true {
 			require.Len(t, held, runsPerAsk, "a listing ended holding runs of another listing")
+		}
+	}
+}
+
+// nextRunWithin is the next run event, decoded, skipping any other event on the
+// stream such as a dashboard snapshot. False once the stream ends or nothing
+// more comes within wait.
+func nextRunWithin(t *testing.T, events <-chan sseEvent, wait time.Duration) (map[string]any, bool) {
+	t.Helper()
+	timeout := time.After(wait)
+	for {
+		select {
+		case raw, ok := <-events:
+			if !ok {
+				return nil, false
+			}
+			if raw.name != "run" {
+				continue
+			}
+			var ev map[string]any
+			require.NoError(t, json.Unmarshal([]byte(raw.data), &ev))
+
+			return ev, true
+		case <-timeout:
+			return nil, false
 		}
 	}
 }
