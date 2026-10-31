@@ -3872,6 +3872,16 @@
         readConfirmPause();
       }).observe(prRowsEl, { childList: true, subtree: true });
 
+    // Takes a pull request the server has just closed off the board, whatever
+    // holds the list back (a resting pointer, a waiting snapshot).
+    function dropClosedRow(key: string) {
+      const stays = (p: PullRequestItem) => prKey(p) !== key;
+      latestPRs = latestPRs?.filter(stays) ?? null;
+      rawPRs = rawPRs.filter(stays);
+      prShown.land(prShown.items.filter(stays));
+      keepFocusAcross(() => prBoard.setItems(prShown.items, true));
+    }
+
     function doClose(item: PullRequestItem, confirmButton: HTMLButtonElement) {
       const key = prKey(item);
       closeState[key] = { phase: "closing" };
@@ -3931,6 +3941,9 @@
             announce: inDialog ? CLOSED_STATUS : "Closed.",
           });
           if (inDialog) showClosedInDialog(item);
+          // The 204 is the forge's answer: the row leaves now, not when the
+          // refresh below has asked every forge again (#3130).
+          dropClosedRow(key);
           return refreshBoard();
         })
         .catch(async (err: ActionRequestError) => {
