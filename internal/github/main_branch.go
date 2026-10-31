@@ -568,8 +568,9 @@ func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) [
 }
 
 // withCheckedCommits moves each ref's target to the newest commit a check ran
-// on, for the repos whose newest commit has none and no runs held for approval. Any failure leaves the refs
-// as they were, so the row reads none rather than the poll failing.
+// on, for the repos whose newest commit has none and no runs held for approval.
+// Dependabot Updates runs don't count as checks. Any failure leaves the refs as
+// they were, so the row reads none rather than the poll failing.
 func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) {
 	unchecked := c.uncheckedBranches(ctx, tracked)
 	if len(unchecked) == 0 {
@@ -596,7 +597,7 @@ func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) 
 			continue
 		}
 		for _, commit := range repo.DefaultBranchRef.Target.History.Nodes {
-			if commit.StatusCheckRollup != nil {
+			if commit.StatusCheckRollup != nil && !commit.StatusCheckRollup.onlyDynamic() {
 				r.ref.Target = commit
 
 				break

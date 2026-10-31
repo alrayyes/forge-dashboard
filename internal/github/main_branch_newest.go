@@ -248,7 +248,8 @@ func (r *statusCheckRollup) onlyDynamic() bool {
 // keepNewestRuns adds extra (the checks of runs the rollup left out) to the
 // rollup's checks, drops those a newer run of the same workflow replaces and
 // those of Dependabot Updates runs, and works the state and counts out from
-// what is left. A check the rollup already lists is not added again. more says a suite has checks past the ones read.
+// what is left. A check the rollup already lists is not added again. more
+// says a suite has checks past the ones read.
 // With nothing added or dropped it leaves the rollup as GitHub gave it.
 //
 // The counts are rebuilt from the nodes kept, so they would hide a commit with

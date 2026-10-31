@@ -90,3 +90,63 @@ func TestFetch_MainBranch_ACommitFoundBehindASkipCiCommitReadsItsNewestRun(t *te
 	assert.Contains(t, historyQuery, "contexts(first: 100)", "and as many checks as the head read does")
 	assert.Contains(t, historyQuery, "workflowRun", "and the run each check belongs to")
 }
+
+// The commit behind a "[skip ci]" one may carry only Dependabot Updates runs,
+// which are not its CI: the walk-back goes past it rather than reading a pass
+// with no checks (#3125).
+func TestFetch_MainBranch_AWalkBackSkipsACommitWithOnlyDependabotUpdateRuns(t *testing.T) {
+	t.Parallel()
+
+	update := workflowRun(2, 1, 6, "Dependabot Updates")
+	update["event"] = "dynamic"
+	dependabotOnly := map[string]any{
+		"oid": "322ca560e61ef0378ee010d60c6c71df9aff2650", "abbreviatedOid": "322ca56",
+		"messageHeadline": "chore: bump", "url": "https://github.com/alrayyes/a/commit/322ca56",
+		"committedDate": "2026-10-09T09:00:00Z",
+		"statusCheckRollup": rollupOf("FAILURE", map[string]int{"FAILURE": 1},
+			runCheck(21, "Dependabot", "COMPLETED", "FAILURE", "2026-10-09T09:01:00Z", "2026-10-09T09:03:00Z", runsURL+"2/job/21", suiteOf("COMPLETED", "FAILURE", update))),
+		"checkSuites": map[string]any{"nodes": []map[string]any{suiteNode("S2", "COMPLETED", "FAILURE", update)}},
+	}
+	skipCI := map[string]any{
+		"oid": "d77a71648ce53adf4e77dc02ce7c434f55538953", "abbreviatedOid": "d77a716",
+		"messageHeadline": "chore(release): 2.6.2 [skip ci]", "url": "https://github.com/alrayyes/a/commit/d77a716",
+		"committedDate": "2026-10-09T09:10:00Z", "statusCheckRollup": nil,
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		query := readGraphQLRequest(t, r).Query
+		rate := map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"}
+		if strings.Contains(query, "history(") {
+			writeJSON(t, w, map[string]any{"data": map[string]any{"rateLimit": rate, "m0": map[string]any{
+				"defaultBranchRef": map[string]any{"target": map[string]any{
+					"history": map[string]any{"nodes": []map[string]any{skipCI, dependabotOnly}},
+				}},
+			}}})
+
+			return
+		}
+		head := branchRef(nil)
+		head["target"] = skipCI
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": rate,
+			"viewer": map[string]any{"repositories": map[string]any{
+				"pageInfo": map[string]any{"hasNextPage": false},
+				"nodes": []map[string]any{{
+					"name": "a", "url": "https://github.com/alrayyes/a", "viewerPermission": "WRITE",
+					"owner":            map[string]any{"login": "alrayyes"},
+					"pullRequests":     map[string]any{"nodes": []map[string]any{}},
+					"issues":           map[string]any{"nodes": []map[string]any{}},
+					"defaultBranchRef": head,
+				}},
+			}},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.MainBranches, 1)
+	assert.Equal(t, dashboard.MainBranchNone, result.MainBranches[0].Status)
+}
