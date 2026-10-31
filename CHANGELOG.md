@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.0.4](https://github.com/alrayyes/forge-dashboard/compare/v9.0.3...v9.0.4) (2026-10-31)
+
+
+### Bug Fixes
+
+* **github:** leave Dependabot update runs out of the branches row ([#3126](https://github.com/alrayyes/forge-dashboard/issues/3126)) ([a436d5f](https://github.com/alrayyes/forge-dashboard/commit/a436d5f6dbae7a60ae953b2baad759cc19b09b79)), closes [#3125](https://github.com/alrayyes/forge-dashboard/issues/3125)
+
 ## [9.0.3](https://github.com/alrayyes/forge-dashboard/compare/v9.0.2...v9.0.3) (2026-10-30)
 
 
