@@ -255,6 +255,46 @@ test.describe('pull request close button', () => {
     });
   });
 
+  // #3130: the close is confirmed by the 204, so the row leaves then. It must
+  // not wait for the refresh that follows, which asks every forge again.
+  test('the row leaves as soon as the close is accepted, without waiting for the refresh', async ({
+    page,
+  }) => {
+    await mockDashboard(page, makePR());
+    let closed = false;
+    await page.route('**/api/v1/pull-requests/close', (route: Route) => {
+      closed = true;
+      return route.fulfill({ status: 204 });
+    });
+    await page.route('**/api/v1/dashboard/refresh', async (route: Route) => {
+      if (!closed) return route.fallback();
+      await new Promise((resolve) => setTimeout(resolve, 8000));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [],
+          issues: [],
+        }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    const { dialog, footer, close } = await openCloseInDialog(row);
+    await close.click();
+    await footer
+      .getByRole('button', { name: 'Confirm close pull request?' })
+      .click();
+    await closeActionsDialog(dialog);
+
+    await expect(page.locator('#pr-rows .row')).toHaveCount(0, {
+      timeout: 2000,
+    });
+  });
+
   test('shows an in-progress status while closing, then a success status', async ({
     page,
   }) => {
