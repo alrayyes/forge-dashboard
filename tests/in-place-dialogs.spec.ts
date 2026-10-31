@@ -397,7 +397,8 @@ test.describe('pills inside the pull request dialog', () => {
     await pullDialog(page)
       .locator('.closing-issue')
       .click({ modifiers: ['Control'] });
-    expect((await opened).url()).toContain('/issues.html?issue=github/');
+    const popup = await opened;
+    await popup.waitForURL(/\/issues\.html\?issue=github\//);
     await expect(pullDialog(page)).toBeVisible();
   });
 
