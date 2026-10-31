@@ -234,11 +234,21 @@ func (n branchContext) isDynamic() bool {
 	return n.CheckSuite != nil && n.CheckSuite.WorkflowRun != nil && n.CheckSuite.WorkflowRun.Event == dynamicEvent
 }
 
+// onlyDynamic reports that every check of the commit, all of them listed,
+// belongs to a Dependabot Updates run: it has no CI of its own. A nil rollup
+// is not.
+func (r *statusCheckRollup) onlyDynamic() bool {
+	if r == nil || r.Contexts == nil || len(r.Contexts.Nodes) == 0 || r.cutShort() {
+		return false
+	}
+
+	return !slices.ContainsFunc(r.Contexts.Nodes, func(n branchContext) bool { return !n.isDynamic() })
+}
+
 // keepNewestRuns adds extra (the checks of runs the rollup left out) to the
 // rollup's checks, drops those a newer run of the same workflow replaces and
 // those of Dependabot Updates runs, and works the state and counts out from
-// what is left. A check the rollup already
-// lists is not added again. more says a suite has checks past the ones read.
+// what is left. A check the rollup already lists is not added again. more says a suite has checks past the ones read.
 // With nothing added or dropped it leaves the rollup as GitHub gave it.
 //
 // The counts are rebuilt from the nodes kept, so they would hide a commit with

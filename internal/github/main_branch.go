@@ -534,16 +534,23 @@ func (c *Client) heldBranchRun(ctx context.Context, owner, name, sha string) (st
 	return held[0].URL, true
 }
 
-// uncheckedBranches picks the repos whose newest commit has no rollup and are
-// worth walking back for. A commit whose runs are held for approval has no check
-// run for the same reason a [skip ci] one has none, but it is not finished: its
-// ref is marked and left where it is, so the row says so rather than showing an
-// older commit's result (#2024).
+// uncheckedBranches picks the repos whose newest commit has no rollup (or only
+// Dependabot Updates runs, which are not its CI) and are worth walking back
+// for. A commit whose runs are held for approval has no check run for the same
+// reason a [skip ci] one has none, but it is not finished: its ref is marked and
+// left where it is, so the row says so rather than showing an older commit's
+// result (#2024).
 func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) []branchRepo {
 	var unchecked []branchRepo
 	for _, r := range tracked {
 		ref := r.DefaultBranchRef
-		if ref == nil || ref.Target.OID == "" || ref.Target.StatusCheckRollup != nil {
+		if ref == nil || ref.Target.OID == "" {
+			continue
+		}
+		if ref.Target.StatusCheckRollup.onlyDynamic() {
+			ref.Target.StatusCheckRollup = nil
+		}
+		if ref.Target.StatusCheckRollup != nil {
 			continue
 		}
 		if runURL, held := c.heldBranchRun(ctx, r.Owner.Login, r.Name, ref.Target.OID); held {

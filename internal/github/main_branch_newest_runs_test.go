@@ -263,3 +263,35 @@ func TestFetchMainBranch_AFailedDependabotUpdateRunDoesNotFailTheRow(t *testing.
 
 	assert.Equal(t, dashboard.MainBranchPassed, row.Status)
 }
+
+// A head commit carrying only Dependabot Updates runs has no CI of its own: the
+// row must not read it as a pass with no checks (#3125).
+func TestFetchMainBranch_ACommitWithOnlyDependabotUpdateRunsHasNoCI(t *testing.T) {
+	t.Parallel()
+
+	update := workflowRun(2, 1, 6, "Dependabot Updates")
+	update["event"] = "dynamic"
+	rollup := rollupOf("PENDING", map[string]int{"IN_PROGRESS": 1},
+		runCheck(21, "Dependabot", "IN_PROGRESS", "", "2026-10-31T00:32:00Z", "", runsURL+"2/job/21", suiteOf("IN_PROGRESS", "", update)),
+	)
+
+	row := fetchNewest(t, rollup, nil, nil)
+
+	assert.Equal(t, dashboard.MainBranchNone, row.Status)
+}
+
+func TestFetchMainBranch_ADependabotUpdateRunIsNotCountedAmongTheChecks(t *testing.T) {
+	t.Parallel()
+
+	ci := workflowRun(1, 1, 5, "ci")
+	update := workflowRun(2, 1, 6, "Dependabot Updates")
+	update["event"] = "dynamic"
+	rollup := rollupOf("FAILURE", map[string]int{"SUCCESS": 1, "FAILURE": 1},
+		runCheck(11, "lint", "COMPLETED", "SUCCESS", "2026-10-31T00:30:00Z", "2026-10-31T00:31:00Z", runsURL+"1/job/11", suiteOf("COMPLETED", "SUCCESS", ci)),
+		runCheck(21, "Dependabot", "COMPLETED", "FAILURE", "2026-10-31T00:32:00Z", "2026-10-31T00:33:00Z", runsURL+"2/job/21", suiteOf("COMPLETED", "FAILURE", update)),
+	)
+
+	row := fetchNewest(t, rollup, nil, nil)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, row.Checks)
+}
