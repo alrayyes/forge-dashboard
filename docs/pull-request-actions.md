@@ -620,8 +620,7 @@ as separate buttons, and Recreate asks first there too. The menu opens under
 the button, so a row on a phone doesn't grow sideways.
 
 Dependabot only honours these commands from a user with push access, and
-it ignores GitHub App accounts whatever permissions the App holds
-([upstream issue](https://github.com/dependabot/dependabot-core/issues/9147)).
+it ignores GitHub App accounts whatever permissions the App holds.
 So when you've connected a GitHub App, the commands go out with your saved
 personal access token instead, and the comment shows up as you. With an
 App and no saved token, both buttons are locked with that explanation
