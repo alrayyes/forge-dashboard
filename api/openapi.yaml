@@ -4003,10 +4003,13 @@ components:
         of one. At most 20 values and 1000 characters in each, with no
         control character other than the separator; a save over either is
         refused. This server stores and
-        returns it verbatim, byte for byte, and apart from those limits never parses or
-        validates its shape — the same "opaque blob, not this layer's
-        concern" treatment WebAuthnCeremonyOptions above gets, so a
-        client-side shape change here never needs a matching spec change.
+        returns it verbatim, byte for byte. Apart from those limits it reads
+        one field: a top-level numeric `rev`, used to ignore a save whose
+        `rev` is lower than the saved copy's (a missing or non-numeric `rev`
+        is never ignored). It validates nothing else about the shape — the
+        same "opaque blob, not this layer's concern" treatment
+        WebAuthnCeremonyOptions above gets for every other field, so a
+        client-side shape change there never needs a matching spec change.
       additionalProperties: true
 
     SessionUser:
