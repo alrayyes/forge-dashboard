@@ -252,3 +252,15 @@ func TestFilterStatePut_NoRevision_Replaces(t *testing.T) {
 
 	assert.JSONEq(t, `{"shared":{"title":"b"}}`, getFilterState(t, srv.URL, sessionCookie))
 }
+
+func TestFilterStatePut_NonNumericRevision_DoesNotPinTheCopy(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"a"},"rev":"x"}`, sessionCookie))
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"b"},"rev":1}`, sessionCookie))
+
+	assert.JSONEq(t, `{"shared":{"title":"b"},"rev":1}`, getFilterState(t, srv.URL, sessionCookie))
+}
