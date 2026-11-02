@@ -754,6 +754,12 @@ paths:
         A signed-in browser session only: a personal API token is refused
         with 403, so a script or agent can't change the filters the user
         sees. Each save is logged with the user agent.
+
+        A save whose top-level `rev` is lower than the saved copy's is
+        ignored and still answers 204. A page that is closing sends its last
+        save beside one already in flight, so the older one can arrive
+        last, and it must not replace the newer copy. A body with no `rev`,
+        or a saved copy with none, is always stored.
       tags: [settings]
       security: [{ cookieAuth: [] }]
       requestBody:
@@ -764,7 +770,7 @@ paths:
               $ref: "#/components/schemas/FilterState"
       responses:
         "204":
-          description: Saved.
+          description: Saved, or ignored because the saved copy has a higher `rev`.
         "400":
           description: The request body wasn't valid JSON, exceeded the size this endpoint accepts, or its `shared.label`, `shared.repo` or `shared.author` held more than 20 values, more than 1000 characters, or a control character other than the newline between values. The message names the filter that failed.
           content:

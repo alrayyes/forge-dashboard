@@ -192,3 +192,63 @@ func TestFilterStatePut_LogsHowTheCallerAuthenticatedAndTheUserAgent(t *testing.
 	assert.Contains(t, logs.String(), "via=session")
 	assert.Contains(t, logs.String(), "Mozilla/5.0 (test browser)")
 }
+
+func putFilterState(t *testing.T, serverURL, body string, sessionCookie *http.Cookie) int {
+	t.Helper()
+
+	resp := doJSON(t, http.MethodPut, serverURL+"/api/v1/settings/filter-state", body, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	return resp.StatusCode
+}
+
+func getFilterState(t *testing.T, serverURL string, sessionCookie *http.Cookie) string {
+	t.Helper()
+
+	resp := doJSON(t, http.MethodGet, serverURL+"/api/v1/settings/filter-state", "", sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	return readAll(t, resp)
+}
+
+// A save sent on leaving the page can overtake an older one still in flight;
+// the older one then lands last and must not bring the old value back.
+func TestFilterStatePut_OlderRevisionThanSaved_KeepsTheNewerCopy(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	newer := `{"shared":{"title":"zqxjk"},"rev":7}`
+
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, newer, sessionCookie))
+	assert.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"first"},"rev":6}`, sessionCookie))
+
+	assert.JSONEq(t, newer, getFilterState(t, srv.URL, sessionCookie))
+}
+
+func TestFilterStatePut_SameOrNewerRevision_Replaces(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"a"},"rev":7}`, sessionCookie))
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"b"},"rev":7}`, sessionCookie))
+	assert.JSONEq(t, `{"shared":{"title":"b"},"rev":7}`, getFilterState(t, srv.URL, sessionCookie))
+
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"c"},"rev":8}`, sessionCookie))
+	assert.JSONEq(t, `{"shared":{"title":"c"},"rev":8}`, getFilterState(t, srv.URL, sessionCookie))
+}
+
+// A body with no revision, from a client older than revisions, still saves.
+func TestFilterStatePut_NoRevision_Replaces(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"a"},"rev":7}`, sessionCookie))
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"b"}}`, sessionCookie))
+
+	assert.JSONEq(t, `{"shared":{"title":"b"}}`, getFilterState(t, srv.URL, sessionCookie))
+}
