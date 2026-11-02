@@ -209,6 +209,17 @@ func TestFetch_MainBranch(t *testing.T) {
 		assert.Equal(t, "https://ci.example/1", row.RunURL)
 	})
 
+	t.Run("a failed check whose details page is a GitHub app's API host links to the check's own page (#3148)", func(t *testing.T) {
+		t.Parallel()
+		dependabot := checkRun(".github/dependabot.yml", "FAILURE", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z")
+		dependabot["detailsUrl"] = "https://dependabot-api.githubapp.com"
+		dependabot["permalink"] = "https://github.com/alrayyes/a/runs/125256152681"
+
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("FAILURE", map[string]int{"FAILURE": 1}, dependabot)))
+
+		assert.Equal(t, "https://github.com/alrayyes/a/runs/125256152681", row.RunURL)
+	})
+
 	t.Run("a commit nothing ran on has no pipeline and links to the commit", func(t *testing.T) {
 		t.Parallel()
 		row, _ := tokenFetchWith(t, branchRef(nil))
