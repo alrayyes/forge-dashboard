@@ -756,8 +756,9 @@ paths:
         sees. Each save is logged with the user agent.
 
         A save whose top-level `rev` is lower than the saved copy's is
-        ignored and still answers 204. A page that is closing sends its last
-        save beside one already in flight, so the older one can arrive
+        ignored and answers 200 with the saved copy's `rev`, so the page can
+        catch up and send the save again. A page that is closing sends its
+        last save beside one already in flight, so the older one can arrive
         last, and it must not replace the newer copy. A body with no `rev`,
         or a saved copy with none, is always stored.
       tags: [settings]
@@ -770,7 +771,18 @@ paths:
               $ref: "#/components/schemas/FilterState"
       responses:
         "204":
-          description: Saved, or ignored because the saved copy has a higher `rev`.
+          description: Saved.
+        "200":
+          description: Ignored, because the saved copy has a higher `rev`. The body carries that `rev`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rev]
+                properties:
+                  rev:
+                    type: number
+                    description: The saved copy's revision.
         "400":
           description: The request body wasn't valid JSON, exceeded the size this endpoint accepts, or its `shared.label`, `shared.repo` or `shared.author` held more than 20 values, more than 1000 characters, or a control character other than the newline between values. The message names the filter that failed.
           content:
