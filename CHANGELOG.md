@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.0.7](https://github.com/alrayyes/forge-dashboard/compare/v9.0.6...v9.0.7) (2026-11-02)
+
+
+### Bug Fixes
+
+* **github:** link a Dependabot check to its own page ([#3150](https://github.com/alrayyes/forge-dashboard/issues/3150)) ([1bbd4c9](https://github.com/alrayyes/forge-dashboard/commit/1bbd4c9fc66d2445199b6e9ee93d525bf4d57a86)), closes [#3148](https://github.com/alrayyes/forge-dashboard/issues/3148)
+
 ## [9.0.6](https://github.com/alrayyes/forge-dashboard/compare/v9.0.5...v9.0.6) (2026-11-02)
 
 
