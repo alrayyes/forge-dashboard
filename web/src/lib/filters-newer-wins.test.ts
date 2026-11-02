@@ -118,3 +118,17 @@ describe('loading the copy', () => {
     expect(puts).toHaveLength(0);
   });
 });
+
+describe('the server refuses a save older than its copy', () => {
+  test('an empty copy still teaches the page its revision, so the next save is newer', async () => {
+    loadState();
+    served = { rev: 5000, shared: {}, pr: {}, issue: {} };
+    expect(await loadStateFromServer()).toBeNull();
+
+    const state = loadState();
+    state.pr.title = 'a';
+    saveState(state);
+
+    expect(puts.at(-1)?.rev as number).toBeGreaterThan(5000);
+  });
+});

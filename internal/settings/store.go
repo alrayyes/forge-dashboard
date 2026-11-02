@@ -391,7 +391,12 @@ func (s *Store) GetFilterState(ctx context.Context) (string, error) {
 }
 
 // SetFilterState replaces the saved filter state with stateJSON
-// verbatim — this Store never parses or validates its shape, the same
+// verbatim, with one exception: when both copies carry a numeric
+// top-level "rev" and the incoming one is lower, the write is skipped
+// and is not an error. A save from a page that leaving cut short can
+// land after a newer one, and the older copy must not win. A copy with no
+// rev, or a rev that isn't a number, on either side always replaces.
+// Otherwise this Store never parses or validates its shape, the same
 // "opaque blob, not this layer's concern" treatment WebAuthnCeremonyOptions
 // gets in api/openapi.yaml. Doesn't touch any other field, including on a
 // user with no saved row at all yet (EnsureWebhookCredentials' own
@@ -402,7 +407,10 @@ func (s *Store) SetFilterState(ctx context.Context, stateJSON string) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO settings (id, filter_state, updated_at)
 		VALUES (1, ?, ?)
-		ON CONFLICT (id) DO UPDATE SET filter_state = excluded.filter_state`,
+		ON CONFLICT (id) DO UPDATE SET filter_state = excluded.filter_state
+		WHERE COALESCE(json_type(excluded.filter_state, '$.rev'), '') NOT IN ('integer', 'real')
+		   OR COALESCE(json_type(settings.filter_state, '$.rev'), '') NOT IN ('integer', 'real')
+		   OR json_extract(excluded.filter_state, '$.rev') >= json_extract(settings.filter_state, '$.rev')`,
 		// updated_at is only ever used for the fresh-row INSERT case above
 		// (the ON CONFLICT clause deliberately leaves it out) — the same
 		// "this column means a real Settings form save happened" convention
