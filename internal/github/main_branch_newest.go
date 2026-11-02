@@ -61,6 +61,7 @@ const newestRunsQuery = `query($ids: [ID!]!) {
           startedAt
           completedAt
           detailsUrl
+          permalink
           checkSuite {
             status
             conclusion

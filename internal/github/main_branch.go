@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ const checkRunFields = `
                       startedAt
                       completedAt
                       detailsUrl
+                      permalink
                       checkSuite {
                         status
                         conclusion
@@ -164,6 +166,7 @@ type branchContext struct {
 	StartedAt   time.Time `json:"startedAt"`
 	CompletedAt time.Time `json:"completedAt"`
 	DetailsURL  string    `json:"detailsUrl"`
+	Permalink   string    `json:"permalink"`
 	// CheckSuite is the suite a check run belongs to, whose workflow run is
 	// null for a check app that isn't Actions.
 	CheckSuite *struct {
@@ -277,7 +280,7 @@ func (c branchContext) asCheck() dashboard.Check {
 		Name:               c.Name,
 		State:              checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)),
 		ReportedConclusion: reportedWord(c.Status, c.Conclusion),
-		URL:                c.DetailsURL,
+		URL:                c.page(),
 		JobID:              c.DatabaseID,
 		StartedAt:          timePtr(c.StartedAt),
 		CompletedAt:        timePtr(c.CompletedAt),
@@ -410,16 +413,28 @@ func branchRunURL(checks []branchContext, status dashboard.MainBranchStatus) str
 // firstPage is the page of the first check that passes keep and has one.
 func firstPage(checks []branchContext, keep func(branchContext) bool) string {
 	for _, c := range checks {
-		page := c.DetailsURL
-		if c.Typename == "StatusContext" {
-			page = c.TargetURL
-		}
+		page := c.page()
 		if keep(c) && page != "" {
 			return page
 		}
 	}
 
 	return ""
+}
+
+// page is where to read the check: a status's target URL, or a check run's
+// details URL. A GitHub app such as Dependabot sets the details URL to its own
+// API host, which shows a visitor nothing, so a *.githubapp.com address falls
+// back to the check run's page on GitHub.
+func (c branchContext) page() string {
+	if c.Typename == "StatusContext" {
+		return c.TargetURL
+	}
+	if u, err := url.Parse(c.DetailsURL); err == nil && strings.HasSuffix(u.Hostname(), ".githubapp.com") && c.Permalink != "" {
+		return c.Permalink
+	}
+
+	return c.DetailsURL
 }
 
 // label is the name a check goes by.
