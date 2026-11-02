@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.0.8](https://github.com/alrayyes/forge-dashboard/compare/v9.0.7...v9.0.8) (2026-11-02)
+
+
+### Bug Fixes
+
+* **api:** ignore a filter-state save older than the saved copy ([#3147](https://github.com/alrayyes/forge-dashboard/issues/3147)) ([0bbd0d0](https://github.com/alrayyes/forge-dashboard/commit/0bbd0d029aeb356f6b6375c9e107e57051ee6c5d))
+
 ## [9.0.7](https://github.com/alrayyes/forge-dashboard/compare/v9.0.6...v9.0.7) (2026-11-02)
 
 
