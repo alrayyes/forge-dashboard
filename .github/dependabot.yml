@@ -93,10 +93,12 @@ updates:
   # bumped web/package.json without the lockfile and every frozen install
   # failed. Dependabot allows one entry per ecosystem and directory, and
   # rejects the whole file if two resolve to the same path (a second entry
-  # spelled "." was tried and refused), so shipped and tooling bumps can't
-  # have separate prefixes. They get fix:, which is safe for what ships; a
-  # tooling bump costs a patch release it didn't strictly need. The groups
-  # keep the two kinds in separate pull requests.
+  # spelled "." was tried and refused), so shipped and tooling bumps share
+  # one entry, one prefix and one group. They get fix:, which is safe for
+  # what ships; a tooling bump costs a patch release it didn't strictly need.
+  # Groups can't split them: `dependency-type` in a group is documented for
+  # other ecosystems, not bun, and a config Dependabot rejects can't be
+  # checked before it merges.
   - package-ecosystem: bun
     directory: /
     schedule:
@@ -108,11 +110,8 @@ updates:
       prefix: fix
       include: scope
     groups:
-      web-shipped:
-        dependency-type: production
-        update-types: [minor, patch]
-      tooling:
-        dependency-type: development
+      bun-dependencies:
+        patterns: ["*"]
         update-types: [minor, patch]
       bun-major:
         patterns: ["*"]
