@@ -88,41 +88,15 @@ updates:
         patterns: ["*"]
         update-types: [major]
 
-  # The web UI. Two entries, because Dependabot sets one commit prefix per
-  # entry, not per package, and bun has no `prefix-development`. The split is
-  # by directory plus `allow: dependency-type`: web/package.json keeps what
-  # the build compiles into the shipped UI (svelte, @sveltejs/kit, the
-  # fontsource packages) in `dependencies`, and a bump there is a change to
-  # what ships, so fix:. Everything else is tooling and gets chore:. Keep that
-  # split true when adding a package (see #1006).
-  #
-  # Both entries have to resolve to the workspace root, where the only
-  # bun.lock lives. This one pointed at /web and Dependabot bumped
-  # web/package.json without touching the lockfile, so every frozen install
-  # failed. Dependabot allows one entry per ecosystem and directory, and "/"
-  # is taken by the tooling entry below, so this one says "." for the same
-  # path. That spelling isn't documented, so after touching this file check
-  # the repo's Dependabot insights show both bun entries without an error.
-  - package-ecosystem: bun
-    directory: "."
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Europe/Amsterdam
-    allow:
-      - dependency-type: production
-    commit-message:
-      prefix: fix
-      include: scope
-    groups:
-      web-shipped:
-        patterns: ["*"]
-        update-types: [minor, patch]
-      web-shipped-major:
-        patterns: ["*"]
-        update-types: [major]
-
+  # The web UI and the repo tooling, as one entry. bun.lock lives at the
+  # workspace root, so the entry has to point there: one pointed at /web
+  # bumped web/package.json without the lockfile and every frozen install
+  # failed. Dependabot allows one entry per ecosystem and directory, and
+  # rejects the whole file if two resolve to the same path (a second entry
+  # spelled "." was tried and refused), so shipped and tooling bumps can't
+  # have separate prefixes. They get fix:, which is safe for what ships; a
+  # tooling bump costs a patch release it didn't strictly need. The groups
+  # keep the two kinds in separate pull requests.
   - package-ecosystem: bun
     directory: /
     schedule:
@@ -130,16 +104,17 @@ updates:
       day: monday
       time: "06:00"
       timezone: Europe/Amsterdam
-    allow:
-      - dependency-type: development
     commit-message:
-      prefix: chore
+      prefix: fix
       include: scope
     groups:
-      tooling:
-        patterns: ["*"]
+      web-shipped:
+        dependency-type: production
         update-types: [minor, patch]
-      tooling-major:
+      tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+      bun-major:
         patterns: ["*"]
         update-types: [major]
     ignore:
