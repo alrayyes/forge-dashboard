@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.0.6](https://github.com/alrayyes/forge-dashboard/compare/v9.0.5...v9.0.6) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** bump @sveltejs/kit to 3.1.1 and svelte to 5.57.3 ([#3142](https://github.com/alrayyes/forge-dashboard/issues/3142)) ([175df43](https://github.com/alrayyes/forge-dashboard/commit/175df43ed4e6abc1ce8f24260da440589b637609))
+* **deps:** bump busybox from `fd7dc98` to `a46257e` ([#3139](https://github.com/alrayyes/forge-dashboard/issues/3139)) ([c53ff38](https://github.com/alrayyes/forge-dashboard/commit/c53ff3870f740a6030aafbc04e23c4349ee92d63))
+* **deps:** bump golang from `972b411` to `d9b6a1b` ([#3138](https://github.com/alrayyes/forge-dashboard/issues/3138)) ([f1833fb](https://github.com/alrayyes/forge-dashboard/commit/f1833fb1e6b8dcd6551ef5b5190ac9a4aee2c82c))
+
 ## [9.0.5](https://github.com/alrayyes/forge-dashboard/compare/v9.0.4...v9.0.5) (2026-10-31)
 
 
