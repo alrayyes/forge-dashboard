@@ -95,8 +95,16 @@ updates:
   # fontsource packages) in `dependencies`, and a bump there is a change to
   # what ships, so fix:. Everything else is tooling and gets chore:. Keep that
   # split true when adding a package (see #1006).
+  #
+  # Both entries have to resolve to the workspace root, where the only
+  # bun.lock lives. This one pointed at /web and Dependabot bumped
+  # web/package.json without touching the lockfile, so every frozen install
+  # failed. Dependabot allows one entry per ecosystem and directory, and "/"
+  # is taken by the tooling entry below, so this one says "." for the same
+  # path. That spelling isn't documented, so after touching this file check
+  # the repo's Dependabot insights show both bun entries without an error.
   - package-ecosystem: bun
-    directory: /web
+    directory: "."
     schedule:
       interval: weekly
       day: monday
