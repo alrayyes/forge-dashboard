@@ -1073,6 +1073,11 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
     .then((res) => (res.ok ? res.json() : null))
     .then((parsed: Partial<SharedFilterState> | null) => {
       if (!parsed || typeof parsed !== 'object') return null;
+      // Learn the copy's revision before anything can return: the server drops
+      // a save older than its copy, so a page that never learned it (an empty
+      // copy, a fresh browser) would send saves it silently discards.
+      const copyRev = revOf((parsed as { rev?: unknown }).rev);
+      if (copyRev !== null) knownRev = Math.max(knownRev, copyRev);
       if (
         (!parsed.shared || Object.keys(parsed.shared).length === 0) &&
         (!parsed.pr || Object.keys(parsed.pr).length === 0) &&
@@ -1083,8 +1088,6 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
       ) {
         return null;
       }
-      const copyRev = revOf((parsed as { rev?: unknown }).rev);
-      if (copyRev !== null) knownRev = Math.max(knownRev, copyRev);
       // The cookie holds a newer save than the copy: the copy is what a slow or
       // lost save left behind, so it must not overwrite the cookie. Send the
       // cookie's state so the server catches up. A missing or equal revision on
