@@ -3554,6 +3554,17 @@ func (c *Client) FetchRepo(ctx context.Context, owner, name, fullName string) ([
 // requests are IP-limited to 60/hour, a budget concurrency would only
 // burn through faster.
 
+// restErrorReason is the text after the colon: GitHub's own message, or the
+// response status when there is none. A gateway error from GitHub's edge has
+// an HTML or empty body.
+func restErrorReason(errResp *ghsdk.ErrorResponse) string {
+	if errResp.Message == "" && errResp.Response != nil {
+		return errResp.Response.Status
+	}
+
+	return errResp.Message
+}
+
 // restError turns a failed go-github REST call into the reason a person
 // reading the dashboard's forge-health error actually needs — go-github's
 // typed RateLimitError/AbuseRateLimitError already carry the same
@@ -3612,7 +3623,7 @@ func (c *Client) restError(ctx context.Context, method, path string, err error) 
 		status, requestID := forgeFailure(errResp.Response)
 
 		return &apiError{
-			msg:       fmt.Sprintf("github: %s %s: %s", method, path, errResp.Message),
+			msg:       fmt.Sprintf("github: %s %s: %s", method, path, restErrorReason(errResp)),
 			kind:      kind,
 			rateLimit: rl,
 			status:    status,
