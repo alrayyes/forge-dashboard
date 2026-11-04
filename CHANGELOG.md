@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.2.0](https://github.com/alrayyes/forge-dashboard/compare/v9.1.2...v9.2.0) (2026-11-04)
+
+
+### Features
+
+* **github:** retry a transient GraphQL failure before giving up ([#3169](https://github.com/alrayyes/forge-dashboard/issues/3169)) ([12da9ec](https://github.com/alrayyes/forge-dashboard/commit/12da9ec72a8409171a6caa2cd677f341e9a9c6b8)), closes [#3160](https://github.com/alrayyes/forge-dashboard/issues/3160)
+
+
+### Bug Fixes
+
+* **dashboard:** say the branch moved when update-branch refuses on a stale head ([#3172](https://github.com/alrayyes/forge-dashboard/issues/3172)) ([394f6be](https://github.com/alrayyes/forge-dashboard/commit/394f6be44e18f8d1b784144ed5a9e1c32516cda8)), closes [#3171](https://github.com/alrayyes/forge-dashboard/issues/3171)
+
 ## [9.1.2](https://github.com/alrayyes/forge-dashboard/compare/v9.1.1...v9.1.2) (2026-11-04)
 
 
