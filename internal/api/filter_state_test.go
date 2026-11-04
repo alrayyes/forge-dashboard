@@ -221,9 +221,26 @@ func TestFilterStatePut_OlderRevisionThanSaved_KeepsTheNewerCopy(t *testing.T) {
 	newer := `{"shared":{"title":"zqxjk"},"rev":7}`
 
 	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, newer, sessionCookie))
-	assert.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"first"},"rev":6}`, sessionCookie))
+	assert.Equal(t, http.StatusOK, putFilterState(t, srv.URL, `{"shared":{"title":"first"},"rev":6}`, sessionCookie))
 
 	assert.JSONEq(t, newer, getFilterState(t, srv.URL, sessionCookie))
+}
+
+// The page that sent the ignored save learns which revision won, so it can
+// catch up and send the edit again.
+func TestFilterStatePut_OlderRevisionThanSaved_AnswersWithTheSavedRevision(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+
+	require.Equal(t, http.StatusNoContent, putFilterState(t, srv.URL, `{"shared":{"title":"a"},"rev":7}`, sessionCookie))
+
+	resp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", `{"shared":{"title":"b"},"rev":6}`, sessionCookie)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.JSONEq(t, `{"rev":7}`, readAll(t, resp))
 }
 
 func TestFilterStatePut_SameOrNewerRevision_Replaces(t *testing.T) {

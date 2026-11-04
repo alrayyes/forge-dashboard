@@ -285,7 +285,8 @@ func TestStore_SetFilterState_ThenGetFilterState_RoundTrips(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
+	_, err := store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`)
+	require.NoError(t, err)
 
 	got, err := store.GetFilterState(t.Context())
 	require.NoError(t, err)
@@ -296,8 +297,10 @@ func TestStore_SetFilterState_Twice_ReplacesIt(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
 
-	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
-	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"forgejo"}}`))
+	_, err := store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`)
+	require.NoError(t, err)
+	_, err = store.SetFilterState(t.Context(), `{"shared":{"forge":"forgejo"}}`)
+	require.NoError(t, err)
 
 	got, err := store.GetFilterState(t.Context())
 	require.NoError(t, err)
@@ -310,7 +313,8 @@ func TestStore_SetFilterState_BeforeAnySettingsSaved_StillWorks(t *testing.T) {
 
 	// No Set/EnsureWebhookCredentials call first — a brand-new user who's
 	// never touched Settings at all, only the filter bar.
-	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{}}`))
+	_, err := store.SetFilterState(t.Context(), `{"shared":{}}`)
+	require.NoError(t, err)
 
 	got, err := store.GetFilterState(t.Context())
 	require.NoError(t, err)
@@ -322,7 +326,8 @@ func TestStore_SetFilterState_AfterExistingSettingsSaved_LeavesThemIntact(t *tes
 	store := newTestStore(t)
 	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubUsername: "ryan"}))
 
-	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
+	_, err := store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`)
+	require.NoError(t, err)
 
 	got, err := store.Get(t.Context())
 	require.NoError(t, err)
@@ -332,7 +337,8 @@ func TestStore_SetFilterState_AfterExistingSettingsSaved_LeavesThemIntact(t *tes
 func TestStore_Set_NeverOverwritesAlreadySavedFilterState(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t)
-	require.NoError(t, store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`))
+	_, err := store.SetFilterState(t.Context(), `{"shared":{"forge":"github"}}`)
+	require.NoError(t, err)
 
 	// A real settings save (the Settings page's own Save button) — it
 	// doesn't know about filter state at all, and shouldn't need to for
