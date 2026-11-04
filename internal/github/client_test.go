@@ -86,6 +86,84 @@ func TestFetch_QueriesNewestPullRequestsAndIssuesFirst(t *testing.T) {
 	require.True(t, result.Health.Reachable)
 }
 
+// discoveryOK is an empty but valid answer to the repo discovery query.
+func discoveryOK(t *testing.T, w http.ResponseWriter) {
+	t.Helper()
+
+	writeJSON(t, w, map[string]any{
+		"data": map[string]any{
+			"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+			"viewer": map[string]any{
+				"repositories": map[string]any{
+					"pageInfo": map[string]any{"hasNextPage": false},
+					"nodes":    []map[string]any{},
+				},
+			},
+		},
+	})
+}
+
+// A blip of a few seconds must not mark every repository stale (#3160).
+func TestFetch_TransientGatewayError_IsRetriedAndStaysReachable(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusBadGateway)
+
+			return
+		}
+		discoveryOK(t, w)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+}
+
+func TestFetch_EveryAttemptFails_GivesUpAfterThree(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Equal(t, int32(3), calls.Load())
+}
+
+func TestFetch_BadCredentials_IsNotRetried(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+	result := client.Fetch(t.Context())
+
+	require.False(t, result.Health.Reachable)
+	assert.Equal(t, int32(1), calls.Load())
+}
+
 func TestFetchRepo_QueriesNewestPullRequestsAndIssuesFirst(t *testing.T) {
 	t.Parallel()
 

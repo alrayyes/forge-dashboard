@@ -2500,10 +2500,55 @@ func (c *Client) graphqlDoPartial(ctx context.Context, query string, variables m
 	return c.graphqlExec(ctx, query, variables, requested, out)
 }
 
-// graphqlExec posts the request. partial names the aliases whose errors are
-// reported in the returned set rather than failing the call; nil makes every
-// error fail it.
+// graphqlAttempts is how many times one GraphQL request is sent before the
+// failure is returned, and graphqlRetryDelay the wait before the second try,
+// doubling for the third (#3160). A blip of a few seconds on GitHub's side
+// should not mark every repository stale.
+const (
+	graphqlAttempts   = 3
+	graphqlRetryDelay = 200 * time.Millisecond
+)
+
+// transientFailure reports whether err is worth sending the request again: the
+// connection failed outright, or GitHub's edge answered 502, 503 or 504. A bad
+// token, a missing resource and a rate limit answer the same way every time.
+func transientFailure(err error) bool {
+	apiErr, ok := errors.AsType[*apiError](err)
+	if !ok {
+		return false
+	}
+	switch apiErr.status {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	}
+
+	return apiErr.status == 0 && apiErr.kind == dashboard.ForgeErrorUnreachable
+}
+
+// graphqlExec posts the request, sending it again after a transient failure.
+// partial names the aliases whose errors are reported in the returned set
+// rather than failing the call; nil makes every error fail it.
 func (c *Client) graphqlExec(ctx context.Context, query string, variables map[string]any, partial map[string]struct{}, out any) (map[string]struct{}, error) {
+	delay := graphqlRetryDelay
+
+	for attempt := 1; ; attempt++ {
+		failed, err := c.graphqlSend(ctx, query, variables, partial, out)
+		if err == nil || attempt == graphqlAttempts || !transientFailure(err) {
+			return failed, err
+		}
+
+		slog.Warn("github graphql request failed, trying again", "attempt", attempt, "error", err)
+		select {
+		case <-ctx.Done():
+			return failed, err
+		case <-time.After(delay):
+		}
+		delay *= 2
+	}
+}
+
+// graphqlSend posts the request once.
+func (c *Client) graphqlSend(ctx context.Context, query string, variables map[string]any, partial map[string]struct{}, out any) (map[string]struct{}, error) {
 	body, err := json.Marshal(graphqlRequestBody{Query: query, Variables: variables})
 	if err != nil {
 		return nil, fmt.Errorf("github: encode graphql request: %w", err)
