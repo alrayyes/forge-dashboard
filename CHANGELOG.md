@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.1.1](https://github.com/alrayyes/forge-dashboard/compare/v9.1.0...v9.1.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **github:** name the HTTP status when an error response has no message ([#3164](https://github.com/alrayyes/forge-dashboard/issues/3164)) ([55f8206](https://github.com/alrayyes/forge-dashboard/commit/55f8206b06d913dd34061e8bef9378b96ee5a7a7)), closes [#3163](https://github.com/alrayyes/forge-dashboard/issues/3163)
+
 ## [9.1.0](https://github.com/alrayyes/forge-dashboard/compare/v9.0.8...v9.1.0) (2026-11-04)
 
 
