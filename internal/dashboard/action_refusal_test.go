@@ -415,3 +415,20 @@ func TestEndSentence_EmptyStaysEmpty(t *testing.T) {
 	assert.Empty(t, dashboard.EndSentenceForTest(": "))
 	assert.Equal(t, "Done.", dashboard.EndSentenceForTest("Done"))
 }
+
+// GitHub refuses update-branch with a 422 when the branch moved after the page
+// loaded. The client files every 422 as a conflict, but nothing conflicts: the
+// reader must not be sent to resolve one (#3171).
+func TestClassifyActionRefusalFor_UpdateBranchHeadMoved_IsNotAConflict(t *testing.T) {
+	t.Parallel()
+
+	moved := &dashboard.ClientError{
+		Kind: dashboard.ForgeErrorConflict,
+		Err:  errors.New("github: PUT /repos/o/r/pulls/5/update-branch: expected head sha didn’t match current head ref"),
+	}
+
+	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionUpdateBranch, moved, &dashboard.PullRequestState{})
+
+	assert.Equal(t, "The branch changed while updating. Refresh and try again.", got.Message)
+	assert.NotEqual(t, dashboard.ActionConflict, got.Code)
+}

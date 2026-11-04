@@ -430,6 +430,11 @@ func classifyUpdateBranchRefusal(actionErr error, forgeText string, state *PullR
 	if clientErr, ok := errors.AsType[*ClientError](actionErr); ok {
 		conflictKind = clientErr.Kind == ForgeErrorConflict
 	}
+	// A 422 too, but the branch only moved after the page loaded (a push, or
+	// another update): nothing conflicts, and a page known to conflict says so.
+	if strings.Contains(lower, "expected head sha") && (state == nil || !state.Conflicting) {
+		return ActionRefusal{Code: ActionUnknown, Message: "The branch changed while updating. Refresh and try again."}
+	}
 	if conflictKind || (state != nil && state.Conflicting) {
 		return ActionRefusal{Code: ActionConflict, Message: "Can't update cleanly. Resolve the conflict on the forge."}
 	}
