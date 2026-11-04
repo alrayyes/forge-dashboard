@@ -116,8 +116,29 @@ func handleFilterStatePut(store *settings.Store) http.HandlerFunc {
 			return
 		}
 
-		if err := store.SetFilterState(r.Context(), string(body)); err != nil {
+		stored, err := store.SetFilterState(r.Context(), string(body))
+		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not save filter state"))
+
+			return
+		}
+
+		if !stored {
+			// Ignored as older: tell the page which revision won so it can
+			// catch up and send the edit again.
+			saved, loadErr := store.GetFilterState(r.Context())
+			if loadErr != nil {
+				writeJSON(w, http.StatusInternalServerError, errorBody("could not load filter state"))
+
+				return
+			}
+
+			var revOnly struct {
+				Rev float64 `json:"rev"`
+			}
+			_ = json.Unmarshal([]byte(saved), &revOnly)
+
+			writeJSON(w, http.StatusOK, revOnly)
 
 			return
 		}

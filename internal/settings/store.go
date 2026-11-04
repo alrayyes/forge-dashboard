@@ -403,8 +403,11 @@ func (s *Store) GetFilterState(ctx context.Context) (string, error) {
 // "insert just this one field" shape, not Set's full-row replace — #353's
 // whole point is that this saves far more often than a real Settings
 // submit does, so it can't wait on one having happened first).
-func (s *Store) SetFilterState(ctx context.Context, stateJSON string) error {
-	_, err := s.db.ExecContext(ctx, `
+//
+// It reports whether the state was stored: false means the save was
+// ignored as older than the saved copy.
+func (s *Store) SetFilterState(ctx context.Context, stateJSON string) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `
 		INSERT INTO settings (id, filter_state, updated_at)
 		VALUES (1, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET filter_state = excluded.filter_state
@@ -420,10 +423,15 @@ func (s *Store) SetFilterState(ctx context.Context, stateJSON string) error {
 		stateJSON, time.Now().UTC(),
 	)
 	if err != nil {
-		return fmt.Errorf("settings: save filter state: %w", err)
+		return false, fmt.Errorf("settings: save filter state: %w", err)
 	}
 
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("settings: save filter state: %w", err)
+	}
+
+	return n > 0, nil
 }
 
 // randomWebhookValue returns 256 bits of randomness as a URL-safe string —
