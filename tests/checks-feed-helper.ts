@@ -128,6 +128,9 @@ export async function serveChecks(page: Page, serve: Serve) {
         // so there is nobody to tell.
         if (page.isClosed()) return;
         await pushChecks(page, subject, reply).catch((err: Error) => {
+          // A page that navigated meanwhile is as gone as a closed one: the
+          // new page opens a new stream and is listed everything again.
+          if (/Execution context was destroyed/.test(err.message)) return;
           if (!page.isClosed()) throw err;
         });
       }
