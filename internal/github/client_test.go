@@ -3062,6 +3062,29 @@ func TestListDefaultBranchChecks_ReturnsTheCheckRunsOfTheNewestCommit(t *testing
 	}, checks)
 }
 
+// A gateway error from GitHub's edge carries an HTML or empty body, so the
+// error has no message of its own; the log line must still say what happened.
+func TestListDefaultBranchChecks_GatewayErrorWithoutMessage_NamesTheStatus(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/commits", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []map[string]any{{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	_, err := client.ListDefaultBranchChecks(t.Context(), "alrayyes", "a")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "502 Bad Gateway")
+}
+
 // A release bot's "[skip ci]" commit has no checks; the row shows the commit
 // before it, so the panel must too (the pill and the panel describe one run).
 func TestListDefaultBranchChecks_NewestCommitHasNoChecks_UsesTheNewestThatDoes(t *testing.T) {
