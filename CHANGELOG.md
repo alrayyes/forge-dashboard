@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.1.0](https://github.com/alrayyes/forge-dashboard/compare/v9.0.8...v9.1.0) (2026-11-04)
+
+
+### Features
+
+* **api:** tell the page when the server ignores a filter save as older ([#3159](https://github.com/alrayyes/forge-dashboard/issues/3159)) ([9b537fe](https://github.com/alrayyes/forge-dashboard/commit/9b537febb88858b3270a780b4be6748b6ecc097b)), closes [#3152](https://github.com/alrayyes/forge-dashboard/issues/3152)
+
 ## [9.0.8](https://github.com/alrayyes/forge-dashboard/compare/v9.0.7...v9.0.8) (2026-11-02)
 
 
