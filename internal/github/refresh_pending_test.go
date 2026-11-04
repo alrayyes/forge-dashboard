@@ -186,9 +186,10 @@ func TestRefreshPending_ARateLimitErrorOnAPullRequestAliasFailsTheCall(t *testin
 	require.Error(t, err, "a throttle is the whole request failing, not one pull request")
 }
 
-// failingSecondRequest forwards to inner but answers the second request it sees
-// with a 502, as a flaky edge would.
-func failingSecondRequest(t *testing.T, inner *httptest.Server) *httptest.Server {
+// failingFromSecondRequest forwards to inner but answers the second request it sees
+// and every one after it with a 502, as an edge that stays down would: one
+// 502 alone is retried (#3160).
+func failingFromSecondRequest(t *testing.T, inner *httptest.Server) *httptest.Server {
 	t.Helper()
 
 	target, err := url.Parse(inner.URL)
@@ -196,7 +197,7 @@ func failingSecondRequest(t *testing.T, inner *httptest.Server) *httptest.Server
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	var seen atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if seen.Add(1) == 2 {
+		if seen.Add(1) >= 2 {
 			w.WriteHeader(http.StatusBadGateway)
 
 			return
@@ -212,7 +213,7 @@ func TestRefreshPending_ALaterChunkFailingKeepsTheEarlierChunksAnswers(t *testin
 	t.Parallel()
 
 	inner, _ := pendingServer(t, nil, nil)
-	c := github.NewClient("test-token", "", failingSecondRequest(t, inner).URL)
+	c := github.NewClient("test-token", "", failingFromSecondRequest(t, inner).URL)
 
 	res, err := c.RefreshPending(t.Context(), pendingRefs(60))
 

@@ -250,8 +250,8 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 	t.Parallel()
 
 	allowedGitHub := map[string]bool{
-		"internal/github/client.go:graphqlExec:NewRequestWithContext": true, // POST
-		"internal/github/client.go:graphqlExec:Do":                    true, // POST
+		"internal/github/client.go:graphqlSend:NewRequestWithContext": true, // POST
+		"internal/github/client.go:graphqlSend:Do":                    true, // POST
 		"internal/github/client.go:logExcerpt:Do":                     true, // job log download, listed as not conditional
 		"internal/github/job_log.go:fetchLogBlob:Do":                  true, // job log download, listed as not conditional
 		"internal/github/advisory_list.go:readAlertPage:NewRequest":   true, // alert pages read when the advisories dialog opens: a user-driven live read, never cached
