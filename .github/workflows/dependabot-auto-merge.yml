@@ -43,7 +43,13 @@ jobs:
         if: |
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor'
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          # GitHub's GraphQL API errors now and then (#3167); try again.
+          for attempt in 1 2 3; do
+            gh pr merge --auto --squash "$PR_URL" && exit 0
+            sleep $((attempt * 5))
+          done
+          exit 1
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
