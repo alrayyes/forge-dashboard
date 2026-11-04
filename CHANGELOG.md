@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.1.2](https://github.com/alrayyes/forge-dashboard/compare/v9.1.1...v9.1.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* **web:** resend a flushed filter save the server ignored as older ([#3166](https://github.com/alrayyes/forge-dashboard/issues/3166)) ([32eac75](https://github.com/alrayyes/forge-dashboard/commit/32eac75cc43845a5db74a413744cdf0b9bc0590b)), closes [#3162](https://github.com/alrayyes/forge-dashboard/issues/3162)
+
 ## [9.1.1](https://github.com/alrayyes/forge-dashboard/compare/v9.1.0...v9.1.1) (2026-11-04)
 
 
