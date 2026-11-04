@@ -1,6 +1,11 @@
 /// <reference types="bun" />
 import { afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
-import { loadState, releaseAllHeld, saveState } from './filters';
+import {
+  flushPendingSave,
+  loadState,
+  releaseAllHeld,
+  saveState,
+} from './filters';
 
 // The server ignores a save older than its copy and answers 200 with the copy's
 // revision. The page takes that revision, then sends the edit again, once.
@@ -70,5 +75,38 @@ describe('a save the server ignores as older', () => {
     await settle();
 
     expect(puts).toHaveLength(1);
+  });
+});
+
+describe('a flush beside a save in flight that the server ignores as older', () => {
+  test('is sent again, past the revision the server holds', async () => {
+    const waiting: Array<(res: Response) => void> = [];
+    globalThis.fetch = ((_url: string, init?: RequestInit) => {
+      if (init?.method !== 'PUT') return Promise.resolve(new Response('{}'));
+      puts.push(JSON.parse(String(init.body)));
+      return new Promise<Response>((resolve) => waiting.push(resolve));
+    }) as typeof fetch;
+
+    const state = loadState();
+    saveState(state);
+    state.pr.title = 'billing';
+    saveState(state, 'title');
+    flushPendingSave();
+    expect(puts).toHaveLength(2);
+
+    // The flush is answered first: the server holds a newer copy.
+    waiting[1](new Response(JSON.stringify({ rev: 500 }), { status: 200 }));
+    await settle();
+
+    expect(puts).toHaveLength(3);
+    expect(puts[2].rev as number).toBeGreaterThan(500);
+    expect((puts[2].pr as { title: string }).title).toBe('billing');
+
+    // Let every request finish, or the save left in flight leaks into the
+    // next test file.
+    for (let i = 0; i < 5; i++) {
+      for (const done of waiting) done(new Response(null, { status: 204 }));
+      await settle();
+    }
   });
 });

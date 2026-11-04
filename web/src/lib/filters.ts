@@ -961,7 +961,8 @@ function sendFilterState(state: SharedFilterState, again = false): void {
       clearRefusedNotice();
       // 200 means the server ignored this save as older than its copy and
       // says which revision it holds. Take it and send the edit again, once;
-      // a newer edit already waiting in the queue goes out past it anyway.
+      // a newer edit already waiting in the queue goes out past it anyway, but a
+      // flush's own snapshot stays queued too and still needs this resend.
       if (res.status !== 200) return;
       return res
         .json()
@@ -969,7 +970,7 @@ function sendFilterState(state: SharedFilterState, again = false): void {
           const heldRev = revOf(held.rev);
           if (heldRev === null) return;
           knownRev = Math.max(knownRev, heldRev + 1);
-          if (!again && !queuedState) resend = state;
+          if (!again && (!queuedState || queuedState === state)) resend = state;
         })
         .catch(() => {});
     })
@@ -986,11 +987,11 @@ function sendFilterState(state: SharedFilterState, again = false): void {
       // A flush can send beside a PUT in flight; only the one that took the
       // slot gives it back, or the queue would open early.
       if (alone) putInFlight = false;
-      else return;
       if (resend) {
         sendFilterState(resend, true);
         return;
       }
+      if (!alone) return;
       const next = queuedState;
       queuedState = null;
       if (next) putFilterStateToServer(next);
