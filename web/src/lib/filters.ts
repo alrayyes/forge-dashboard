@@ -933,7 +933,8 @@ function putFilterStateToServer(state: SharedFilterState): void {
   sendFilterState(state);
 }
 
-function sendFilterState(state: SharedFilterState): void {
+// `again` marks the one resend after the server ignored a save as older.
+function sendFilterState(state: SharedFilterState, again = false): void {
   const alone = !putInFlight;
   putInFlight = true;
   // keepalive lets the request outlive the page: the dashboard and issues
@@ -941,6 +942,7 @@ function sendFilterState(state: SharedFilterState): void {
   // after a change would otherwise cancel the save (#827).
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), PUT_TIMEOUT_MS);
+  let resend: SharedFilterState | null = null;
   void fetch(FILTER_STATE_ENDPOINT, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -952,8 +954,24 @@ function sendFilterState(state: SharedFilterState): void {
       // A save the server turns away is not sent again (the same body would
       // get the same answer); the reader is told instead of left to find the
       // filter gone on another device.
-      if (!res.ok) refusedHandler();
-      else clearRefusedNotice();
+      if (!res.ok) {
+        refusedHandler();
+        return;
+      }
+      clearRefusedNotice();
+      // 200 means the server ignored this save as older than its copy and
+      // says which revision it holds. Take it and send the edit again, once;
+      // a newer edit already waiting in the queue goes out past it anyway.
+      if (res.status !== 200) return;
+      return res
+        .json()
+        .then((held: { rev?: unknown }) => {
+          const heldRev = revOf(held.rev);
+          if (heldRev === null) return;
+          knownRev = Math.max(knownRev, heldRev + 1);
+          if (!again && !queuedState) resend = state;
+        })
+        .catch(() => {});
     })
     .catch(() => {
       // Best-effort, the same restraint RecordWebhookDelivery's own
@@ -969,6 +987,10 @@ function sendFilterState(state: SharedFilterState): void {
       // slot gives it back, or the queue would open early.
       if (alone) putInFlight = false;
       else return;
+      if (resend) {
+        sendFilterState(resend, true);
+        return;
+      }
       const next = queuedState;
       queuedState = null;
       if (next) putFilterStateToServer(next);

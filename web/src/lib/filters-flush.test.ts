@@ -31,7 +31,7 @@ beforeEach(() => {
       sent.push({
         body: JSON.parse(String(init?.body)),
         keepalive: init?.keepalive === true,
-        done: () => resolve(new Response('{}')),
+        done: () => resolve(new Response(null, { status: 204 })),
       });
     })) as typeof fetch;
 });
