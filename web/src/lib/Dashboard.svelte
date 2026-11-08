@@ -62,6 +62,10 @@
     firstRefreshPending,
     hasTimestamp,
   } from "#lib/first-refresh.js";
+  import {
+    BackendStatusError,
+    dashboardReadFailureMessage,
+  } from "#lib/dashboard-read-error.js";
   import { adviseReadIntervalMs } from "#lib/read-interval.js";
   import {
     firstRefresh,
@@ -8768,11 +8772,20 @@
       renderRateLimitBanner();
     }, 1000);
 
-    function showError(message: string) {
+    function showError(message: string, onRetry?: () => void) {
       if (destroyed) return;
       document.getElementById("error-banner")?.remove();
-      const banner = el("div", "error-banner", message);
+      const banner = el("div", "error-banner");
       banner.id = "error-banner";
+      banner.append(el("span", "error-banner-text", message));
+      if (onRetry) {
+        // A failed read recovers by itself on the next poll; Retry is for
+        // someone who does not want to wait (#3211).
+        const retry = el("button", "error-banner-retry", "Retry");
+        retry.setAttribute("type", "button");
+        retry.addEventListener("click", onRetry);
+        banner.append(retry);
+      }
       // role="alert" carries an implicit aria-live="assertive" — this
       // was never actually wired up to announce to a screen reader
       // before, despite being the one place a failed write to a forge
@@ -9361,7 +9374,7 @@
           window.location.href = "/login.html";
           throw new Error("session expired");
         }
-        if (!res.ok) throw new Error(`backend answered ${res.status}`);
+        if (!res.ok) throw new BackendStatusError(res.status);
 
         return res.json();
       });
@@ -9401,9 +9414,8 @@
           // that would never end.
           settleFirstRefresh();
           showError(
-            `Could not reach the backend: ${
-              abort?.signal.aborted ? "it did not answer in time" : err.message
-            }`,
+            dashboardReadFailureMessage(err, !!abort?.signal.aborted),
+            () => refresh(true),
           );
           armFirstPoll();
           settled();

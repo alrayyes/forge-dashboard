@@ -2516,6 +2516,37 @@ a.ci-pill:hover {
   padding: 12px 16px;
   margin-bottom: 16px;
   font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.error-banner-text {
+  flex: 1 1 auto;
+}
+
+/* Retry on the dashboard read error (#3211). */
+.error-banner-retry {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  min-height: var(--tap-floor);
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.error-banner-retry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .error-banner-retry {
+    min-height: var(--tap);
+  }
 }
 
 /* #714: per-pull-request action feedback. The inline line sits under a
