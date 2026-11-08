@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
+  import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
   import * as Filters from "#lib/filters.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -328,8 +329,8 @@
   });
 
   // The layout makes the one /api/v1/dashboard read; this page follows its
-  // answers until one is done (#1801). A final failure leaves the empty states
-  // showing; the dashboard page itself is where a real error banner belongs.
+  // answers until one is done (#1801). A failed read shows ReadFailureAlert,
+  // so an empty page is not read as a real zero (#3212).
   $effect(() => {
     const { state, data, status } = dashboardRead;
     if (state === "pending") return;
@@ -694,8 +695,11 @@
 <div class="insights-wrap">
   <div class="insights-header">
     <h1>Insights</h1>
-    <p class="insights-tracked" id="insights-tracked">{trackedText}</p>
+    {#if !(dashboardRead.lastError && !dashboardRead.data)}
+      <p class="insights-tracked" id="insights-tracked">{trackedText}</p>
+    {/if}
   </div>
+  <ReadFailureAlert />
 
   <div class="card">
     <h2>Filters</h2>
