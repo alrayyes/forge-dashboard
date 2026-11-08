@@ -15,7 +15,10 @@
 //    5xx settles nothing: the page keeps what it has and the next answer
 //    decides.
 // `state` is "pending" until the first answer or latched failure. `status` is
-// the HTTP status of a latched failure.
+// the HTTP status of a latched failure. `lastError` is the message for the
+// latest read that failed (a 5xx, a network error, or a 4xx other than 401,
+// which sends the page to sign-in), cleared by the next answer. It does not
+// settle anything: it only lets a page say the data did not load (#3212).
 
 export type DashboardReadData = {
   repos?: unknown[];
@@ -32,27 +35,55 @@ export const dashboardRead = $state<{
   data: DashboardReadData | null;
   status: number;
   latched: boolean;
-}>({ state: 'pending', data: null, status: 0, latched: false });
+  lastError: string | null;
+}>({
+  state: 'pending',
+  data: null,
+  status: 0,
+  latched: false,
+  lastError: null,
+});
+
+// The layout owns the read; it registers how to run it again so a page's Retry
+// button can ask for one.
+let rereader: (() => void) | null = null;
+
+export function setDashboardRereader(fn: (() => void) | null) {
+  rereader = fn;
+}
+
+export function retryDashboardRead() {
+  // A latched failure ignores every later answer, so let this one decide.
+  if (dashboardRead.state === 'failed') {
+    dashboardRead.state = 'pending';
+    dashboardRead.latched = false;
+  }
+  rereader?.();
+}
 
 export function resetDashboardRead() {
   dashboardRead.state = 'pending';
   dashboardRead.data = null;
   dashboardRead.status = 0;
   dashboardRead.latched = false;
+  dashboardRead.lastError = null;
 }
 
 export function settleDashboardRead(
   data: DashboardReadData | null,
   status = 0,
+  error: string | null = null,
 ) {
   if (dashboardRead.latched) return;
   if (data) {
     dashboardRead.data = data;
     dashboardRead.status = 200;
     dashboardRead.state = 'answered';
+    dashboardRead.lastError = null;
     dashboardRead.latched = data.firstRefreshDone !== false;
     return;
   }
+  if (status !== 401) dashboardRead.lastError = error;
   if (status < 400 || status >= 500) return;
   dashboardRead.data = null;
   dashboardRead.status = status;
