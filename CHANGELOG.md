@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.7](https://github.com/alrayyes/forge-dashboard/compare/v9.2.6...v9.2.7) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** say what the dashboard read error was and add Retry ([#3217](https://github.com/alrayyes/forge-dashboard/issues/3217)) ([0eb2429](https://github.com/alrayyes/forge-dashboard/commit/0eb24295195d0b7d38c9d820b50de88ee6462b75)), closes [#3211](https://github.com/alrayyes/forge-dashboard/issues/3211)
+
 ## [9.2.6](https://github.com/alrayyes/forge-dashboard/compare/v9.2.5...v9.2.6) (2026-11-08)
 
 
