@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.4](https://github.com/alrayyes/forge-dashboard/compare/v9.2.3...v9.2.4) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** give Settings fields and the Issues regex field a 3:1 border ([#3208](https://github.com/alrayyes/forge-dashboard/issues/3208)) ([2859097](https://github.com/alrayyes/forge-dashboard/commit/28590978604e16462b2faa2c85d4ad82c8e60a20)), closes [#3207](https://github.com/alrayyes/forge-dashboard/issues/3207)
+
 ## [9.2.3](https://github.com/alrayyes/forge-dashboard/compare/v9.2.2...v9.2.3) (2026-11-08)
 
 
