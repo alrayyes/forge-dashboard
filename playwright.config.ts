@@ -8,6 +8,7 @@ const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/dashboard-error-banner.spec.ts',
   '**/settings-field-errors.spec.ts',
+  '**/insights-webhooks-read-failure.spec.ts',
   '**/out-of-date-filter.spec.ts',
   '**/branch-pill-dialog-agree.spec.ts',
   '**/repo-name-hover.spec.ts',
