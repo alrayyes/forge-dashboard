@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.5](https://github.com/alrayyes/forge-dashboard/compare/v9.2.4...v9.2.5) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** keep focused controls clear of the phone bottom nav ([#3214](https://github.com/alrayyes/forge-dashboard/issues/3214)) ([df5c80b](https://github.com/alrayyes/forge-dashboard/commit/df5c80babf973d9ea20f51b4ec5420c0ca6ad53e)), closes [#3209](https://github.com/alrayyes/forge-dashboard/issues/3209)
+
 ## [9.2.4](https://github.com/alrayyes/forge-dashboard/compare/v9.2.3...v9.2.4) (2026-11-08)
 
 
