@@ -297,7 +297,7 @@ test.describe('settings page', () => {
     expect(saveRequest).toBeTruthy();
 
     await expect(page.locator('#connections-status')).toContainText(
-      /forgejoUrl/,
+      /Instance URL is required when a Forgejo token or username is set/,
     );
     await expect(page.locator('#forgejo-url')).toBeFocused();
 
