@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.6](https://github.com/alrayyes/forge-dashboard/compare/v9.2.5...v9.2.6) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** let advisory description code blocks scroll inside their own box ([#3216](https://github.com/alrayyes/forge-dashboard/issues/3216)) ([00078dc](https://github.com/alrayyes/forge-dashboard/commit/00078dcc941cb568a250d30a46cec8f33c879af3)), closes [#3210](https://github.com/alrayyes/forge-dashboard/issues/3210)
+
 ## [9.2.5](https://github.com/alrayyes/forge-dashboard/compare/v9.2.4...v9.2.5) (2026-11-08)
 
 
