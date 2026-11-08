@@ -64,7 +64,7 @@ const BRANCHES = [
   }),
 ];
 
-async function open(page: Page) {
+async function open(page: Page, branches: unknown[] = BRANCHES) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/main-branches', (route: Route) =>
     route.fulfill({
@@ -79,15 +79,15 @@ async function open(page: Page) {
           cancelled: 1,
           awaitingApproval: 0,
           none: 0,
-          total: BRANCHES.length,
+          total: branches.length,
         },
-        branches: BRANCHES,
+        branches,
       }),
     }),
   );
   await page.goto('/');
   await expect(page.locator('[data-testid="main-branch-row"]')).toHaveCount(
-    BRANCHES.length,
+    branches.length,
   );
 }
 
@@ -221,5 +221,95 @@ test.describe('Main branches pill counts (#2074)', () => {
       }
     }
     await setTheme(page, 'light');
+  });
+
+  // The capsule is about 200px wide. Beside the name on a phone it left the
+  // name 102px and broke it inside a word.
+  // https://github.com/alrayyes/forge-dashboard/issues/3190
+  test.describe('repo names beside the capsule (#3190)', () => {
+    const capsule = { passed: 8, running: 1, waiting: 2, failed: 3 };
+    const NAMES = [
+      'example-org/api-gateway',
+      'sandbox/dotfiles',
+      'alrayyes/forge-dashboard',
+    ];
+    const repo = (page: Page, name: string) =>
+      page
+        .locator('[data-testid="main-branch-row"]', { hasText: name })
+        .locator('.mb-repo');
+
+    test('on a phone a name that fits stays on one line', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await open(
+        page,
+        NAMES.map((n) => row(n, 'failed', capsule)),
+      );
+      for (const name of NAMES) {
+        const box = await repo(page, name).boundingBox();
+        expect(box?.height, name).toBeLessThan(24);
+      }
+    });
+
+    test('on a phone the capsule sits above the name and still opens the panel at 44px', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await open(page, [row(NAMES[1], 'failed', capsule)]);
+      const r = page.locator('[data-testid="main-branch-row"]');
+      const pill = await r.locator('.ci-pill').boundingBox();
+      const name = await r.locator('.mb-repo').boundingBox();
+      expect((pill?.y ?? 0) + (pill?.height ?? 0)).toBeLessThanOrEqual(
+        name?.y ?? 0,
+      );
+      expect(pill?.height).toBeGreaterThanOrEqual(44);
+    });
+
+    test('a name longer than the row wraps at a hyphen, not inside a word', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await open(page, [
+        row(
+          'acme/very-long-repository-name-for-the-wrapping-check',
+          'failed',
+          capsule,
+        ),
+      ]);
+      const lines = await page.evaluate(() => {
+        const el = document.querySelector('.mb-repo');
+        if (!el) throw new Error('no repo name');
+        const range = document.createRange();
+        const text = el.firstChild as Text;
+        const out: string[] = [];
+        let top = -1;
+        let line = '';
+        for (let i = 0; i < text.length; i++) {
+          range.setStart(text, i);
+          range.setEnd(text, i + 1);
+          const y = Math.round(range.getBoundingClientRect().top);
+          if (top !== -1 && y !== top) {
+            out.push(line);
+            line = '';
+          }
+          top = y;
+          line += text.data[i];
+        }
+        out.push(line);
+        return out;
+      });
+      expect(lines.length).toBeGreaterThan(1);
+      for (const l of lines.slice(0, -1)) expect(l).toMatch(/[-/]$/);
+    });
+
+    test('above 420px the capsule stays top right of the row', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 820, height: 800 });
+      await open(page, [row(NAMES[1], 'failed', capsule)]);
+      const r = page.locator('[data-testid="main-branch-row"]');
+      const pill = await r.locator('.ci-pill').boundingBox();
+      const name = await r.locator('.mb-repo').boundingBox();
+      expect(pill?.x ?? 0).toBeGreaterThan((name?.x ?? 0) + (name?.width ?? 0));
+    });
   });
 });
