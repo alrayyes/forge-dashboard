@@ -20,7 +20,7 @@ function block(source: string, header: string): string {
 }
 
 describe('bottom nav scroll padding', () => {
-  const header = '@media (max-width: 420px)';
+  const header = '\n@media (max-width: 420px) {';
   const phone = block(css, header);
 
   test('html reserves the nav height, gap and safe-area inset on phones', () => {
