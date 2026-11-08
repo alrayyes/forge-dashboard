@@ -721,7 +721,7 @@ section.board {
   font-size: 12px;
   padding: 5px 7px;
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   background: var(--surface);
   color: var(--ink);
 }

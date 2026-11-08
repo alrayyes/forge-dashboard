@@ -113,6 +113,7 @@ const singleUserSpecs = [
   '**/bots-page.spec.ts',
   '**/branches-skeleton-contrast.spec.ts',
   '**/filter-control-border.spec.ts',
+  '**/settings-control-border.spec.ts',
   '**/placeholder-contrast.spec.ts',
   '**/changelog.spec.ts',
   '**/ci-pill-actions.spec.ts',
