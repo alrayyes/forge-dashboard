@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.2](https://github.com/alrayyes/forge-dashboard/compare/v9.2.1...v9.2.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** make filter bar text fields and dropdowns meet 3:1 border contrast ([#3200](https://github.com/alrayyes/forge-dashboard/issues/3200)) ([12bb65c](https://github.com/alrayyes/forge-dashboard/commit/12bb65c6e9e4ddb3c33343b96ecf3efded9d7e60)), closes [#3193](https://github.com/alrayyes/forge-dashboard/issues/3193)
+* **web:** stop the CI capsule squeezing repo names mid-word on Main branches ([#3195](https://github.com/alrayyes/forge-dashboard/issues/3195)) ([5964beb](https://github.com/alrayyes/forge-dashboard/commit/5964bebb3bcb99159fb8ccc3d635ac0666d86861)), closes [#3190](https://github.com/alrayyes/forge-dashboard/issues/3190)
+
 ## [9.2.1](https://github.com/alrayyes/forge-dashboard/compare/v9.2.0...v9.2.1) (2026-11-08)
 
 
