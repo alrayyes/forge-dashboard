@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/1753
@@ -496,6 +497,96 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     ).toBeVisible();
     await sweepAll(page, 'update all dialog', problems);
     expectNone(problems);
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/3191
+  // https://github.com/alrayyes/forge-dashboard/issues/3192
+  // The sweep opened the details and Update all dialogs and missed this one:
+  // its Close was 30px and its row links and Copy log were about 15px tall.
+  // One View run is expanded so the run-output Copy and Hide run buttons,
+  // which share the row link class, are swept too.
+  test('pull requests: the Pipeline checks dialog open', async ({ page }) => {
+    const problems: string[] = [];
+    const base = 'https://github.com/alrayyes/forge-dashboard/actions/runs/1';
+    await mockDashboard(page);
+    await serveChecks(page, () => [
+      {
+        name: 'test',
+        status: 'completed',
+        conclusion: 'failure',
+        url: `${base}/job/1`,
+        jobId: 1,
+        required: true,
+        failedStep: 'Run go test ./...',
+        excerpt: 'FAIL: database is locked',
+      },
+      ...['lint', 'build', 'typecheck'].map((name, i) => ({
+        name,
+        status: 'completed',
+        conclusion: 'success',
+        url: `${base}/job/${i + 2}`,
+        required: true,
+      })),
+      {
+        name: 'e2e',
+        status: 'in_progress',
+        url: `${base}/job/5`,
+        required: true,
+      },
+      {
+        name: 'lighthouse',
+        status: 'completed',
+        conclusion: 'cancelled',
+        url: `${base}/job/6`,
+        required: false,
+      },
+      {
+        name: 'auto-merge',
+        status: 'queued',
+        url: `${base}/job/7`,
+        required: false,
+      },
+    ]);
+    await page.route('**/api/v1/checks/log*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ text: 'step 1\nboom\n', truncated: false }),
+      }),
+    );
+    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
+    await page.goto('/pull-requests.html');
+    await ready(page, '#pr-rows .row');
+    await page
+      .locator('#pr-rows .row')
+      .nth(1)
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.locator('.pipeline-check').first()).toBeVisible();
+    await dialog.getByRole('button', { name: 'View run: test' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Copy output: test' }),
+    ).toBeVisible();
+    // Phone widths only: from 761px the dialog keeps its density, and its
+    // 16px row links are under the 24px floor the other sizes sweep for.
+    await sweepAll(page, 'pipeline checks dialog', problems, {
+      sizes: [PHONE, NARROW],
+    });
+    expectNone(problems);
+
+    for (const size of [TABLET, DESKTOP]) {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      const close = await dialog
+        .getByRole('button', { name: 'Close pipeline checks' })
+        .boundingBox();
+      expect(close?.width, `close @${size.width}`).toBeCloseTo(30, 0);
+      expect(close?.height, `close @${size.width}`).toBeCloseTo(30, 0);
+      const link = await dialog
+        .getByRole('button', { name: 'Copy log: test' })
+        .boundingBox();
+      expect(link?.height, `copy log @${size.width}`).toBeLessThan(20);
+    }
   });
 
   // https://github.com/alrayyes/forge-dashboard/issues/1867
