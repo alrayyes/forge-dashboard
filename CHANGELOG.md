@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.9](https://github.com/alrayyes/forge-dashboard/compare/v9.2.8...v9.2.9) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** tell Insights and Webhooks when the dashboard read fails ([#3226](https://github.com/alrayyes/forge-dashboard/issues/3226)) ([04aee93](https://github.com/alrayyes/forge-dashboard/commit/04aee939989f3a70c3975aaeaa0a39924dd5740b)), closes [#3212](https://github.com/alrayyes/forge-dashboard/issues/3212)
+
 ## [9.2.8](https://github.com/alrayyes/forge-dashboard/compare/v9.2.7...v9.2.8) (2026-11-08)
 
 
