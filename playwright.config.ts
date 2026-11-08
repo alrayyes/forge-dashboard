@@ -147,6 +147,7 @@ const singleUserSpecs = [
   '**/presence-hidden-tab.spec.ts',
   '**/settings-counts-after-save.spec.ts',
   '**/settings-groups.spec.ts',
+  '**/revoke-button-phone.spec.ts',
   '**/settings-ignore-counts.spec.ts',
   '**/settings-ignore-issues.spec.ts',
   '**/settings.spec.ts',

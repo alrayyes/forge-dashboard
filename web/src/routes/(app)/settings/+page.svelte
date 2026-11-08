@@ -1477,8 +1477,13 @@
       align-items: center;
       justify-content: space-between;
       padding: 8px 0;
+      gap: 8px;
       border-bottom: 1px solid var(--border);
       font-size: 13.5px;
+    }
+    .entry-list li > :first-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .entry-list li:last-child {
       border-bottom: none;
@@ -1494,6 +1499,10 @@
       background: var(--surface-sunken);
       color: var(--ink);
       cursor: pointer;
+    }
+    .entry-list .btn-remove {
+      flex-shrink: 0;
+      white-space: nowrap;
     }
     .entry-list .btn-remove:hover,
     .entry-list .btn-small:hover {
