@@ -15,6 +15,11 @@ const branches = readFileSync(
   'utf8',
 );
 
+const settings = readFileSync(
+  new URL('../routes/(app)/settings/+page.svelte', import.meta.url),
+  'utf8',
+);
+
 function block(source: string, selector: string): string {
   const start = source.indexOf(selector);
   if (start < 0) throw new Error(`no ${selector} in style.css`);
@@ -105,5 +110,21 @@ describe('--control-border', () => {
 
   test('.mb-search on the Branches page draws its border from the token', () => {
     expect(usesToken(branches, '.mb-search')).toBe(true);
+  });
+
+  for (const selector of [
+    '.field input',
+    '.entry-form input',
+    '.rename-row input',
+    '#token-form select',
+    '#timezone-select',
+  ]) {
+    test(`${selector} on the Settings page draws its border from the token`, () => {
+      expect(usesToken(settings, selector)).toBe(true);
+    });
+  }
+
+  test('the Issues regex field draws its border from the token', () => {
+    expect(usesToken(css, '.text-filter input[type="text"]')).toBe(true);
   });
 });
