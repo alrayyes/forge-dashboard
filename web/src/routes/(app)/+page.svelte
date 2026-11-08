@@ -596,6 +596,9 @@
       border: 1px solid var(--control-border);
       border-radius: var(--radius);
     }
+    .mb-search::placeholder {
+      color: var(--ink-3);
+    }
     /* The placeholder rows sit on a card, as on the list pages: the bars are
        the neutral fill, which is the page background itself in the light
        scheme and would not show on it. */
