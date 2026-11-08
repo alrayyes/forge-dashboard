@@ -713,6 +713,16 @@
     background: var(--surface-sunken);
     overflow-wrap: anywhere;
   }
+  .adv-description :global(pre) {
+    overflow-x: auto;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .adv-description :global(pre:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .adv-refs {
     margin: 0;
     padding: 0;

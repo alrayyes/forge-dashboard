@@ -1,5 +1,62 @@
 # Changelog
 
+## [9.2.9](https://github.com/alrayyes/forge-dashboard/compare/v9.2.8...v9.2.9) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** tell Insights and Webhooks when the dashboard read fails ([#3226](https://github.com/alrayyes/forge-dashboard/issues/3226)) ([04aee93](https://github.com/alrayyes/forge-dashboard/commit/04aee939989f3a70c3975aaeaa0a39924dd5740b)), closes [#3212](https://github.com/alrayyes/forge-dashboard/issues/3212)
+
+## [9.2.8](https://github.com/alrayyes/forge-dashboard/compare/v9.2.7...v9.2.8) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** show Settings field errors under the field, worded by its label ([#3219](https://github.com/alrayyes/forge-dashboard/issues/3219)) ([c2135cb](https://github.com/alrayyes/forge-dashboard/commit/c2135cbcac80f8cc00b250793b0f6ca63fde3dfd)), closes [#3213](https://github.com/alrayyes/forge-dashboard/issues/3213)
+
+## [9.2.7](https://github.com/alrayyes/forge-dashboard/compare/v9.2.6...v9.2.7) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** say what the dashboard read error was and add Retry ([#3217](https://github.com/alrayyes/forge-dashboard/issues/3217)) ([0eb2429](https://github.com/alrayyes/forge-dashboard/commit/0eb24295195d0b7d38c9d820b50de88ee6462b75)), closes [#3211](https://github.com/alrayyes/forge-dashboard/issues/3211)
+
+## [9.2.6](https://github.com/alrayyes/forge-dashboard/compare/v9.2.5...v9.2.6) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** let advisory description code blocks scroll inside their own box ([#3216](https://github.com/alrayyes/forge-dashboard/issues/3216)) ([00078dc](https://github.com/alrayyes/forge-dashboard/commit/00078dcc941cb568a250d30a46cec8f33c879af3)), closes [#3210](https://github.com/alrayyes/forge-dashboard/issues/3210)
+
+## [9.2.5](https://github.com/alrayyes/forge-dashboard/compare/v9.2.4...v9.2.5) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** keep focused controls clear of the phone bottom nav ([#3214](https://github.com/alrayyes/forge-dashboard/issues/3214)) ([df5c80b](https://github.com/alrayyes/forge-dashboard/commit/df5c80babf973d9ea20f51b4ec5420c0ca6ad53e)), closes [#3209](https://github.com/alrayyes/forge-dashboard/issues/3209)
+
+## [9.2.4](https://github.com/alrayyes/forge-dashboard/compare/v9.2.3...v9.2.4) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** give Settings fields and the Issues regex field a 3:1 border ([#3208](https://github.com/alrayyes/forge-dashboard/issues/3208)) ([2859097](https://github.com/alrayyes/forge-dashboard/commit/28590978604e16462b2faa2c85d4ad82c8e60a20)), closes [#3207](https://github.com/alrayyes/forge-dashboard/issues/3207)
+
+## [9.2.3](https://github.com/alrayyes/forge-dashboard/compare/v9.2.2...v9.2.3) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** give the Issues regex and Branches search placeholders readable contrast ([#3204](https://github.com/alrayyes/forge-dashboard/issues/3204)) ([ed126ed](https://github.com/alrayyes/forge-dashboard/commit/ed126edefad1d6238a05e6aba78fdefa165098c6)), closes [#3201](https://github.com/alrayyes/forge-dashboard/issues/3201)
+
+## [9.2.2](https://github.com/alrayyes/forge-dashboard/compare/v9.2.1...v9.2.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** make filter bar text fields and dropdowns meet 3:1 border contrast ([#3200](https://github.com/alrayyes/forge-dashboard/issues/3200)) ([12bb65c](https://github.com/alrayyes/forge-dashboard/commit/12bb65c6e9e4ddb3c33343b96ecf3efded9d7e60)), closes [#3193](https://github.com/alrayyes/forge-dashboard/issues/3193)
+* **web:** stop the CI capsule squeezing repo names mid-word on Main branches ([#3195](https://github.com/alrayyes/forge-dashboard/issues/3195)) ([5964beb](https://github.com/alrayyes/forge-dashboard/commit/5964bebb3bcb99159fb8ccc3d635ac0666d86861)), closes [#3190](https://github.com/alrayyes/forge-dashboard/issues/3190)
+
 ## [9.2.1](https://github.com/alrayyes/forge-dashboard/compare/v9.2.0...v9.2.1) (2026-11-08)
 
 

@@ -7,8 +7,13 @@
   import type { DashboardReadData } from "#lib/dashboard-read.svelte.js";
   import {
     resetDashboardRead,
+    setDashboardRereader,
     settleDashboardRead,
   } from "#lib/dashboard-read.svelte.js";
+  import {
+    BackendStatusError,
+    dashboardReadFailureMessage,
+  } from "#lib/dashboard-read-error.js";
   import { navCounts, setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranches } from "#lib/main-branches.js";
@@ -172,6 +177,7 @@
       if (!document.hidden && polling) loadNavCounts();
     };
     document.addEventListener("visibilitychange", onVisible);
+    setDashboardRereader(() => loadNavCounts());
 
     function scheduleNavRead() {
       window.clearTimeout(navTimer);
@@ -220,7 +226,15 @@
         cache: "no-store",
       })
         .then((res) => {
-          if (!res.ok) settleDashboardRead(null, res.status);
+          if (!res.ok)
+            settleDashboardRead(
+              null,
+              res.status,
+              dashboardReadFailureMessage(
+                new BackendStatusError(res.status),
+                false,
+              ),
+            );
           return res.ok ? res.json() : null;
         })
         .then(
@@ -257,11 +271,21 @@
             );
           },
         )
-        .catch(() => {
+        .catch((err: unknown) => {
           /* no badge is better than a wrong one */
           // An aborted or failed read settles nothing for the pages that use
-          // the answer: they wait for the next one.
-          if (!gone) settleFirstRefresh();
+          // the answer: they wait for the next one. They are told it failed,
+          // so an empty page is not read as a real zero (#3212).
+          if (gone) return;
+          settleDashboardRead(
+            null,
+            0,
+            dashboardReadFailureMessage(
+              err instanceof Error ? err : new Error(String(err)),
+              abort.signal.aborted,
+            ),
+          );
+          settleFirstRefresh();
         })
         .finally(settled);
     }
@@ -306,6 +330,7 @@
       window.clearTimeout(navTimer);
       // A read still out has nobody left to tell.
       navAbort?.abort();
+      setDashboardRereader(null);
       document.removeEventListener("visibilitychange", onVisible);
     };
   });

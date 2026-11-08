@@ -562,7 +562,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     );
     await page.goto('/pull-requests.html');
     await expect(page.locator('#error-banner')).toContainText(
-      'Could not reach the backend',
+      'The backend answered with an error (500)',
     );
   });
 

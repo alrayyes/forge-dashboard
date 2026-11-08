@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
+  import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
   import {
     type ActionRequestError,
     interpretActionFailure,
@@ -98,6 +99,10 @@
 
   let loaded = $state(false);
   let repos = $state<Repo[]>([]);
+  // A failed read with nothing to show: the alert speaks, the card stays blank.
+  const readFailedEmpty = $derived(
+    dashboardRead.lastError !== null && repos.length === 0,
+  );
   let forges = $state<ForgeHealthEntry[]>([]);
 
   let filterForge = $state("");
@@ -710,8 +715,8 @@
   });
 
   // The layout makes the one /api/v1/dashboard read; this page follows its
-  // answers until one is done (#1801). A final failure just leaves the empty
-  // state showing: there is no dashboard-page-style error banner on this page.
+  // answers until one is done (#1801). A failed read shows ReadFailureAlert,
+  // so an empty page is not read as "nothing tracked" (#3212).
   $effect(() => {
     const { state, data, status } = dashboardRead;
     if (state === "pending") return;
@@ -1033,6 +1038,8 @@
     <h1>Webhooks</h1>
   </div>
 
+  <ReadFailureAlert />
+
   <div class="card">
     <p class="hint" id="webhooks-hint">
       Every tracked repo, and whether this dashboard has confirmed a webhook for
@@ -1104,7 +1111,9 @@
       </button>
     {/if}
 
-    {#if loaded && repos.length === 0}
+    {#if readFailedEmpty}
+      <!-- The alert above says why; an empty card must not read as a result. -->
+    {:else if loaded && repos.length === 0}
       <p class="empty-state" id="webhooks-empty">
         Nothing tracked yet — save GitHub or Forgejo credentials in Settings
         first.

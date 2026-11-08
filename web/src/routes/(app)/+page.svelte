@@ -593,8 +593,11 @@
       font-size: 13px;
       color: var(--ink);
       background: var(--surface-sunken);
-      border: 1px solid var(--border);
+      border: 1px solid var(--control-border);
       border-radius: var(--radius);
+    }
+    .mb-search::placeholder {
+      color: var(--ink-3);
     }
     /* The placeholder rows sit on a card, as on the list pages: the bars are
        the neutral fill, which is the page background itself in the light
@@ -859,12 +862,20 @@
       .mb-search {
         flex: none;
       }
+      /* The capsule is about 200px wide. Beside the name it leaves the name
+         102px and breaks it inside a word, so on a phone it sits above. */
       .mb-row {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
         padding: 12px;
       }
-      .mb-row .mb-main {
+      .mb-row .ci-slot {
+        grid-column: 1;
         grid-row: 1;
+        justify-self: start;
+      }
+      .mb-row .mb-main {
+        grid-column: 1;
+        grid-row: 2;
       }
     }
     @media (max-width: 760px) {

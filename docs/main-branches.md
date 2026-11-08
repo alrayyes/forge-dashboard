@@ -8,7 +8,8 @@ repo. A repo you ignore for pull requests is left out here and in the badge.
 The pull request list is at `/pull-requests.html`. The page used to live at
 `/main-branches.html`, which now redirects to `/`.
 
-Each row shows the status top right, in the same slot the pull request rows use:
+Each row shows the status top right (on a phone it sits over the name, so a wide
+count capsule never squeezes the name), in the same slot the pull request rows use:
 a running branch is a state (Running, an amber spinner, a still clock under
 reduced motion) and a finished one an outcome (Failed, Passed or Cancelled),
 with the same glyphs and colours, so a run turns into its result without the row

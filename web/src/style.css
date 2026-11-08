@@ -4,6 +4,7 @@
   --surface-sunken: #f4f7fa;
   --border: #d9e0e8;
   --border-strong: #c3ccd6;
+  --control-border: #7c8a9b;
   --ink: #101826;
   --ink-2: #48566a;
   --ink-3: #4f5d6e;
@@ -77,6 +78,7 @@
     --surface-sunken: #0e1319;
     --border: #232c37;
     --border-strong: #2e3947;
+    --control-border: #5f6d82;
     --ink: #e7ebf1;
     --ink-2: #aab5c4;
     --ink-3: #7c8aa0;
@@ -111,6 +113,7 @@
   --surface-sunken: #0e1319;
   --border: #232c37;
   --border-strong: #2e3947;
+  --control-border: #5f6d82;
   --ink: #e7ebf1;
   --ink-2: #aab5c4;
   --ink-3: #7c8aa0;
@@ -718,9 +721,12 @@ section.board {
   font-size: 12px;
   padding: 5px 7px;
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   background: var(--surface);
   color: var(--ink);
+}
+.text-filter input::placeholder {
+  color: var(--ink-3);
 }
 .text-filter input[type="text"]:focus-visible {
   outline: 2px solid var(--accent);
@@ -760,7 +766,7 @@ section.board {
 .group-select {
   font-family: inherit;
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
@@ -928,6 +934,12 @@ section.board {
   background: var(--surface);
   color: var(--ink);
   min-width: 0;
+}
+/* The edge of a field or dropdown is what identifies it, so it takes the
+   3:1 control border. The visually hidden radios and checkboxes inside
+   .forge-segmented share the class and keep the divider colour. */
+.col-filter:not([type="radio"], [type="checkbox"]) {
+  border-color: var(--control-border);
 }
 
 .col-filter::placeholder {
@@ -2491,7 +2503,7 @@ a.ci-pill:hover {
   font-size: 12px;
   padding: 4px 6px;
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
@@ -2504,6 +2516,37 @@ a.ci-pill:hover {
   padding: 12px 16px;
   margin-bottom: 16px;
   font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.error-banner-text {
+  flex: 1 1 auto;
+}
+
+/* Retry on the dashboard read error (#3211). */
+.error-banner-retry {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  min-height: var(--tap-floor);
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.error-banner-retry:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .error-banner-retry {
+    min-height: var(--tap);
+  }
 }
 
 /* #714: per-pull-request action feedback. The inline line sits under a
@@ -3395,6 +3438,12 @@ footer a.mono:focus-visible {
      same media query. */
   body {
     padding-bottom: calc(64px + 44px + 12px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Tab scrolls a control in only until it is flush with the viewport
+     bottom, which is where the fixed nav sits. Keep it clear: nav height,
+     the gap above it, and the safe-area inset. WCAG 2.2 SC 2.4.11. */
+  html {
+    scroll-padding-bottom: calc(46px + 12px + env(safe-area-inset-bottom, 0px));
   }
 }
 
