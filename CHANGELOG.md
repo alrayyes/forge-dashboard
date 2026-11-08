@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.8](https://github.com/alrayyes/forge-dashboard/compare/v9.2.7...v9.2.8) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** show Settings field errors under the field, worded by its label ([#3219](https://github.com/alrayyes/forge-dashboard/issues/3219)) ([c2135cb](https://github.com/alrayyes/forge-dashboard/commit/c2135cbcac80f8cc00b250793b0f6ca63fde3dfd)), closes [#3213](https://github.com/alrayyes/forge-dashboard/issues/3213)
+
 ## [9.2.7](https://github.com/alrayyes/forge-dashboard/compare/v9.2.6...v9.2.7) (2026-11-08)
 
 
