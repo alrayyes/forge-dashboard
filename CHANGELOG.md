@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.3](https://github.com/alrayyes/forge-dashboard/compare/v9.2.2...v9.2.3) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** give the Issues regex and Branches search placeholders readable contrast ([#3204](https://github.com/alrayyes/forge-dashboard/issues/3204)) ([ed126ed](https://github.com/alrayyes/forge-dashboard/commit/ed126edefad1d6238a05e6aba78fdefa165098c6)), closes [#3201](https://github.com/alrayyes/forge-dashboard/issues/3201)
+
 ## [9.2.2](https://github.com/alrayyes/forge-dashboard/compare/v9.2.1...v9.2.2) (2026-11-08)
 
 
