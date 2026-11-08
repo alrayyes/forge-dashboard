@@ -332,7 +332,7 @@ test.describe('settings groups', () => {
       );
       await expect(page.locator('#forgejo-url')).toBeFocused();
       await expect(page.locator('#connections-status')).toContainText(
-        /forgejoUrl/,
+        /Instance URL is required when a Forgejo token or username is set/,
       );
       await expect(page.locator('#connections-status')).toBeVisible();
       expect(new URL(page.url()).hash).toBe('#connections');
