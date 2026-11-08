@@ -164,6 +164,23 @@
   let savedTitles = $state<Set<string>>(new Set());
   let ignoredPattern = $state("");
   let ignoredError = $state("");
+  // The server's refusal of a Connections or Behaviour field, keyed by the
+  // API's field name and worded with the label the person sees.
+  let fieldErrors = $state<Record<string, string>>({});
+  // What each field's label says, for wording its error. The server names
+  // fields by their API name ("forgejoUrl must be..."), which nobody sees.
+  const FIELD_LABELS: Record<string, string> = {
+    githubToken: "Personal access token",
+    githubUsername: "GitHub username",
+    githubAppInstallationId: "GitHub App installation ID",
+    forgejoUrl: "Instance URL",
+    forgejoToken: "Forgejo API token",
+    forgejoUsername: "Forgejo username",
+    renovateRebaseLabel: "Renovate rebase label",
+  };
+  function describedBy(field: string, base: string): string {
+    return fieldErrors[field] ? `${base}-hint ${base}-error` : `${base}-hint`;
+  }
   // Set once the person edits either, so the load landing late never
   // clobbers an edit in flight.
   let issueSettingsTouched = false;
@@ -433,6 +450,7 @@
       ignoredTitles,
     };
     ignoredError = "";
+    fieldErrors = {};
     stopCounting();
 
     fetch("/api/v1/settings", {
@@ -490,6 +508,11 @@
         statusKind = "error";
         // The server names the entry it refused; say so beside the list.
         if (err.field === "ignoredTitles") ignoredError = status;
+        const label = err.field ? FIELD_LABELS[err.field] : undefined;
+        if (err.field && label) {
+          status = status.replaceAll(err.field, label);
+          fieldErrors = { [err.field]: status };
+        }
         // Its inputs are named for the API's own field names. The field may
         // sit in a group that isn't showing: open it first, so the focus
         // lands and the error is on screen.
@@ -1686,7 +1709,8 @@
                   type={githubTokenShown ? "text" : "password"}
                   autocomplete="off"
                   placeholder="ghp_…"
-                  aria-describedby="github-token-hint"
+                  aria-invalid={fieldErrors.githubToken ? "true" : undefined}
+                  aria-describedby={describedBy("githubToken", "github-token")}
                   bind:value={githubToken}
                 />
                 <button
@@ -1701,6 +1725,13 @@
                   >{githubTokenShown ? "Hide" : "Show"}</button
                 >
               </div>
+              <p
+                class="pattern-error"
+                id="github-token-error"
+                hidden={!fieldErrors.githubToken}
+              >
+                {fieldErrors.githubToken}
+              </p>
               <Disclosure
                 id="github-token-hint"
                 label="What does this token need?"
@@ -1770,10 +1801,23 @@
                 inputmode="numeric"
                 autocomplete="off"
                 placeholder="e.g. 12345678"
-                aria-describedby="github-app-installation-id-hint"
+                aria-invalid={fieldErrors.githubAppInstallationId
+                  ? "true"
+                  : undefined}
+                aria-describedby={describedBy(
+                  "githubAppInstallationId",
+                  "github-app-installation-id",
+                )}
                 bind:value={githubAppInstallationId}
                 disabled={!githubAppConfigured}
               />
+              <p
+                class="pattern-error"
+                id="github-app-installation-id-error"
+                hidden={!fieldErrors.githubAppInstallationId}
+              >
+                {fieldErrors.githubAppInstallationId}
+              </p>
               <p class="field-hint" id="github-app-installation-id-hint">
                 {#if githubAppConfigured}
                   Uses the alrayyes-automation GitHub App's own independent
@@ -1798,9 +1842,20 @@
                 type="text"
                 autocomplete="off"
                 placeholder="your-username"
-                aria-describedby="github-username-hint"
+                aria-invalid={fieldErrors.githubUsername ? "true" : undefined}
+                aria-describedby={describedBy(
+                  "githubUsername",
+                  "github-username",
+                )}
                 bind:value={githubUsername}
               />
+              <p
+                class="pattern-error"
+                id="github-username-error"
+                hidden={!fieldErrors.githubUsername}
+              >
+                {fieldErrors.githubUsername}
+              </p>
               <p class="field-hint" id="github-username-hint">
                 Shows that account's public repos, unauthenticated — no
                 credential involved.
@@ -1822,9 +1877,17 @@
                 type="text"
                 autocomplete="off"
                 placeholder="https://git.example.com"
-                aria-describedby="forgejo-url-hint"
+                aria-invalid={fieldErrors.forgejoUrl ? "true" : undefined}
+                aria-describedby={describedBy("forgejoUrl", "forgejo-url")}
                 bind:value={forgejoUrl}
               />
+              <p
+                class="pattern-error"
+                id="forgejo-url-error"
+                hidden={!fieldErrors.forgejoUrl}
+              >
+                {fieldErrors.forgejoUrl}
+              </p>
               <p class="field-hint" id="forgejo-url-hint">
                 Required if you set a token or username below — otherwise
                 Forgejo is skipped entirely, with nothing to tell it which
@@ -1846,7 +1909,11 @@
                   type={forgejoTokenShown ? "text" : "password"}
                   autocomplete="off"
                   placeholder="Leave blank to keep the saved token"
-                  aria-describedby="forgejo-token-hint"
+                  aria-invalid={fieldErrors.forgejoToken ? "true" : undefined}
+                  aria-describedby={describedBy(
+                    "forgejoToken",
+                    "forgejo-token",
+                  )}
                   bind:value={forgejoToken}
                 />
                 <button
@@ -1861,6 +1928,13 @@
                   >{forgejoTokenShown ? "Hide" : "Show"}</button
                 >
               </div>
+              <p
+                class="pattern-error"
+                id="forgejo-token-error"
+                hidden={!fieldErrors.forgejoToken}
+              >
+                {fieldErrors.forgejoToken}
+              </p>
               <Disclosure
                 id="forgejo-token-hint"
                 label="What does this token need?"
@@ -1919,9 +1993,20 @@
                 name="forgejoUsername"
                 type="text"
                 autocomplete="off"
+                aria-invalid={fieldErrors.forgejoUsername ? "true" : undefined}
+                aria-describedby={fieldErrors.forgejoUsername
+                  ? "forgejo-username-error"
+                  : undefined}
                 placeholder="your-username"
                 bind:value={forgejoUsername}
               />
+              <p
+                class="pattern-error"
+                id="forgejo-username-error"
+                hidden={!fieldErrors.forgejoUsername}
+              >
+                {fieldErrors.forgejoUsername}
+              </p>
             </div>
           </div>
           <div class="actions">
@@ -1959,9 +2044,22 @@
                 type="text"
                 autocomplete="off"
                 placeholder="rebase"
-                aria-describedby="renovate-rebase-label-hint"
+                aria-invalid={fieldErrors.renovateRebaseLabel
+                  ? "true"
+                  : undefined}
+                aria-describedby={describedBy(
+                  "renovateRebaseLabel",
+                  "renovate-rebase-label",
+                )}
                 bind:value={renovateRebaseLabel}
               />
+              <p
+                class="pattern-error"
+                id="renovate-rebase-label-error"
+                hidden={!fieldErrors.renovateRebaseLabel}
+              >
+                {fieldErrors.renovateRebaseLabel}
+              </p>
               <p class="field-hint" id="renovate-rebase-label-hint">
                 Only used when a Renovate pull request's body has no rebase
                 checkbox, so the button falls back to this label (Renovate's own
