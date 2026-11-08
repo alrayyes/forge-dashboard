@@ -112,6 +112,7 @@ const singleUserSpecs = [
   '**/bot-rebase-pickup.spec.ts',
   '**/bots-page.spec.ts',
   '**/branches-skeleton-contrast.spec.ts',
+  '**/filter-control-border.spec.ts',
   '**/changelog.spec.ts',
   '**/ci-pill-actions.spec.ts',
   '**/close-neutral.spec.ts',

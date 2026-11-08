@@ -593,7 +593,7 @@
       font-size: 13px;
       color: var(--ink);
       background: var(--surface-sunken);
-      border: 1px solid var(--border);
+      border: 1px solid var(--control-border);
       border-radius: var(--radius);
     }
     /* The placeholder rows sit on a card, as on the list pages: the bars are

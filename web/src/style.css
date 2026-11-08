@@ -4,6 +4,7 @@
   --surface-sunken: #f4f7fa;
   --border: #d9e0e8;
   --border-strong: #c3ccd6;
+  --control-border: #7c8a9b;
   --ink: #101826;
   --ink-2: #48566a;
   --ink-3: #4f5d6e;
@@ -77,6 +78,7 @@
     --surface-sunken: #0e1319;
     --border: #232c37;
     --border-strong: #2e3947;
+    --control-border: #5f6d82;
     --ink: #e7ebf1;
     --ink-2: #aab5c4;
     --ink-3: #7c8aa0;
@@ -111,6 +113,7 @@
   --surface-sunken: #0e1319;
   --border: #232c37;
   --border-strong: #2e3947;
+  --control-border: #5f6d82;
   --ink: #e7ebf1;
   --ink-2: #aab5c4;
   --ink-3: #7c8aa0;
@@ -760,7 +763,7 @@ section.board {
 .group-select {
   font-family: inherit;
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
@@ -928,6 +931,12 @@ section.board {
   background: var(--surface);
   color: var(--ink);
   min-width: 0;
+}
+/* The edge of a field or dropdown is what identifies it, so it takes the
+   3:1 control border. The visually hidden radios and checkboxes inside
+   .forge-segmented share the class and keep the divider colour. */
+.col-filter:not([type="radio"], [type="checkbox"]) {
+  border-color: var(--control-border);
 }
 
 .col-filter::placeholder {
@@ -2491,7 +2500,7 @@ a.ci-pill:hover {
   font-size: 12px;
   padding: 4px 6px;
   border-radius: 6px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--control-border);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
