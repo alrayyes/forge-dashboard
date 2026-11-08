@@ -720,6 +720,63 @@ test.describe('insights page', () => {
     });
   });
 
+  test.describe('filter card on a phone (3189)', () => {
+    // In the phone layout the bar is a column, so a flex-basis of 130px on a
+    // control is a height. Each control must take its own height instead.
+    async function open(page: Page, width: number) {
+      await page.setViewportSize({ width, height: 900 });
+      await mockDashboard(page, {
+        pullRequests: [pr('success')],
+        issues: [issue()],
+      });
+      await page.goto('/insights.html');
+      await expect(
+        page.locator('[data-ci-status="success"] .ci-count'),
+      ).toHaveText('1');
+    }
+
+    test('the Title input is 44px tall and the gap above it is the bar gap', async ({
+      page,
+    }) => {
+      await open(page, 390);
+      const title = page.locator('.filter-bar input[data-col="title"]');
+      const box = await title.boundingBox();
+      expect(box?.height).toBe(44);
+      const previous = await title.evaluate((el) => {
+        const prev = el.previousElementSibling as HTMLElement;
+        return prev.getBoundingClientRect().bottom;
+      });
+      expect((box?.y ?? 0) - previous).toBe(8);
+    });
+
+    test('every control sits the bar gap below the one before it', async ({
+      page,
+    }) => {
+      await open(page, 390);
+      const rects = await page.evaluate(() =>
+        Array.from(document.querySelector('.filter-bar')?.children ?? [])
+          .filter((el) => el.tagName !== 'DATALIST')
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom };
+          }),
+      );
+      for (let i = 1; i < rects.length; i++) {
+        expect(rects[i].top - rects[i - 1].bottom).toBe(8);
+      }
+    });
+
+    test('the Title input keeps its compact height at 820px', async ({
+      page,
+    }) => {
+      await open(page, 820);
+      const box = await page
+        .locator('.filter-bar input[data-col="title"]')
+        .boundingBox();
+      expect(Math.round(box?.height ?? 0)).toBe(29);
+    });
+  });
+
   test('has no axe-core violations at desktop width, with real chart content present', async ({
     page,
   }) => {
