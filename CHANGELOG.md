@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.2.1](https://github.com/alrayyes/forge-dashboard/compare/v9.2.0...v9.2.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* **web:** make Pipeline checks dialog Close and row links 44px on phones ([#3196](https://github.com/alrayyes/forge-dashboard/issues/3196)) ([56ea184](https://github.com/alrayyes/forge-dashboard/commit/56ea184af1a67465482936a7e701c8a08db34a4d)), closes [#3191](https://github.com/alrayyes/forge-dashboard/issues/3191) [#3192](https://github.com/alrayyes/forge-dashboard/issues/3192)
+* **web:** stop the Insights filter controls reserving 130px each on phone ([#3194](https://github.com/alrayyes/forge-dashboard/issues/3194)) ([eded49f](https://github.com/alrayyes/forge-dashboard/commit/eded49fa5d1f92b9779d589a1321db113fe975a1)), closes [#3189](https://github.com/alrayyes/forge-dashboard/issues/3189)
+* **web:** stop the Revoke button shrinking and mis-centring on phone ([#3197](https://github.com/alrayyes/forge-dashboard/issues/3197)) ([cded084](https://github.com/alrayyes/forge-dashboard/commit/cded08440b598e4a85c856d75ac4f736d46c7308)), closes [#3188](https://github.com/alrayyes/forge-dashboard/issues/3188)
+
 ## [9.2.0](https://github.com/alrayyes/forge-dashboard/compare/v9.1.2...v9.2.0) (2026-11-04)
 
 
