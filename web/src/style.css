@@ -3729,6 +3729,21 @@ button.pipeline-check-link:disabled {
   }
 }
 
+/* The phone floor (--tap): Close and the row links were 30px and 16px. */
+@media (max-width: 760px) {
+  .pipeline-dialog-close {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .pipeline-check-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+}
+
 /* Quick filter pills (#678): toggle buttons with aria-pressed, one active
    at a time. Same pill look as .forge-segmented, which the other pages
    still use for their own forge radio group. */
