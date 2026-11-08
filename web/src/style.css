@@ -3886,6 +3886,14 @@ button.pipeline-check-link:disabled {
     padding: 10px 12px;
     margin-bottom: 14px;
   }
+  /* In a column the 130px flex-basis above is a height, so each control
+     would reserve 130px (#3189). Take the control's own height instead. */
+  .filter-bar > *,
+  .filter-bar .col-filter,
+  .filter-bar .group-select,
+  .filter-bar .label-filter {
+    flex: 0 0 auto;
+  }
   .filter-bar-top {
     display: flex;
     gap: 8px;
