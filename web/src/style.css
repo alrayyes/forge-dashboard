@@ -3408,6 +3408,12 @@ footer a.mono:focus-visible {
   body {
     padding-bottom: calc(64px + 44px + 12px + env(safe-area-inset-bottom, 0px));
   }
+  /* Tab scrolls a control in only until it is flush with the viewport
+     bottom, which is where the fixed nav sits. Keep it clear: nav height,
+     the gap above it, and the safe-area inset. WCAG 2.2 SC 2.4.11. */
+  html {
+    scroll-padding-bottom: calc(46px + 12px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ---- pipeline-checks panel ----
