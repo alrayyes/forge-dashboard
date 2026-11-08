@@ -273,4 +273,53 @@ test.describe('Branches page advisories dialog', () => {
     }
     await setTheme(page, 'light');
   });
+
+  test('a long code line in the description scrolls inside its own box at 390 and 820px', async ({
+    page,
+  }) => {
+    // https://github.com/alrayyes/forge-dashboard/issues/3210
+    const code = 'x'.repeat(210);
+    const long = {
+      ...LIST,
+      advisories: [
+        advisory(1, 'critical', {
+          description: `Run this:\n\n\`\`\`\n${code}\n\`\`\`\n`,
+        }),
+      ],
+    };
+    await open(page, json(long));
+
+    for (const width of [390, 820]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.locator('[data-number="1"]').click();
+      const pre = page.locator('.adv-description pre');
+      await expect(pre).toBeVisible();
+      await expect(pre).toHaveCSS('overflow-x', 'auto');
+
+      const m = await pre.evaluate((el) => {
+        const body = el.closest('.adv-body') as HTMLElement;
+        const box = el.getBoundingClientRect();
+        const parent = (
+          el.parentElement as HTMLElement
+        ).getBoundingClientRect();
+        return {
+          scroll: el.scrollWidth,
+          client: el.clientWidth,
+          inside: box.right <= parent.right + 0.5,
+          bodyOver: body.scrollWidth - body.clientWidth,
+        };
+      });
+      expect(m.scroll, `pre scrolls ${width}px`).toBeGreaterThan(m.client);
+      expect(m.inside, `pre inside its box ${width}px`).toBe(true);
+      expect(m.bodyOver, `body sideways ${width}px`).toBeLessThanOrEqual(0);
+
+      await pre.focus();
+      await page.keyboard.press('Shift');
+      const outline = await pre.evaluate(
+        (el) => getComputedStyle(el).outlineStyle,
+      );
+      expect(outline, `focus outline ${width}px`).not.toBe('none');
+      await page.getByTestId('advisory-back').click();
+    }
+  });
 });
