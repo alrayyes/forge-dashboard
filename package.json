@@ -24,6 +24,7 @@
     "prepare": "lefthook install",
     "test:e2e": "playwright test",
     "test:lighthouse": "lhci autorun",
+    "test:storybook": "bun test ./scripts/storybook-smoke.ts",
     "test:unit": "bun test web/src scripts"
   },
   "browserslist": [
