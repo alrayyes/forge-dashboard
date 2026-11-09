@@ -133,6 +133,60 @@ const noOverflow = async (page: Page, label: string) => {
 };
 
 test.describe('Branches page advisories dialog', () => {
+  // Every row's text column starts at one x: the severity badges differ in
+  // width, so the column sits a gap past the widest badge, not past its own.
+  // https://github.com/alrayyes/forge-dashboard/issues/3278
+  const MIXED = {
+    ...LIST,
+    advisories: [
+      advisory(1, 'critical'),
+      advisory(2, 'high'),
+      advisory(3, 'medium'),
+      advisory(4, 'low', {
+        summary: `A very long summary ${'that keeps wrapping '.repeat(12)}`,
+      }),
+    ],
+  };
+
+  for (const theme of ['light', 'dark']) {
+    for (const width of [390, 820, 1280]) {
+      test(`the text column lines up in every row, ${theme} at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await open(page, json(MIXED));
+        if (theme === 'dark') {
+          await setTheme(page, 'dark');
+          await page.reload();
+          await page.getByTestId('main-branch-advisories').click();
+          await expect(page.getByTestId('advisories-dialog')).toBeVisible();
+        }
+        const rows = page.getByTestId('advisory-row');
+        await expect(rows).toHaveCount(4);
+
+        const edges = await rows.evaluateAll((els) =>
+          els.map((row) => {
+            const badge = row.querySelector('.adv-sev') as HTMLElement;
+            const main = row.querySelector('.adv-row-main') as HTMLElement;
+            const box = row.getBoundingClientRect();
+            return {
+              text: main.getBoundingClientRect().left,
+              textRight: main.getBoundingClientRect().right,
+              badgeRight: badge.getBoundingClientRect().right,
+              rowRight: box.right,
+            };
+          }),
+        );
+        const widest = Math.max(...edges.map((e) => e.badgeRight));
+        for (const e of edges) {
+          expect(Math.abs(e.text - (widest + 12))).toBeLessThanOrEqual(0.5);
+          expect(e.textRight).toBeLessThanOrEqual(e.rowRight);
+        }
+        await noOverflow(page, `${theme} ${width}`);
+      });
+    }
+  }
+
   test('lists the advisories by severity, with the facts a row needs', async ({
     page,
   }) => {
