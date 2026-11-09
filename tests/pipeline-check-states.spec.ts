@@ -162,6 +162,94 @@ test.describe('pipeline check states (#1473)', () => {
     await expect(row).not.toContainText('Running');
   });
 
+  test('a row without a control says why (#3258)', async ({ page }) => {
+    const dialog = await open(page);
+    const hint = (state: string) =>
+      dialog
+        .locator('.pipeline-check', { hasText: `check-${state}` })
+        .locator('.pipeline-check-hint');
+    await expect(hint('skipped')).toHaveCount(0);
+    await expect(hint('queued')).toHaveText('Not started yet.');
+    for (const state of [
+      'success',
+      'failure',
+      'timed_out',
+      'running',
+      'cancelled',
+    ]) {
+      await expect(hint(state)).toHaveText('No page for this check.');
+    }
+    // A held workflow has its approve link.
+    await expect(hint('awaiting_approval')).toHaveCount(0);
+    // Plain text, read once: no live region.
+    await expect(
+      dialog.locator(
+        '.pipeline-check-hint[role], .pipeline-check-hint[aria-live]',
+      ),
+    ).toHaveCount(0);
+  });
+
+  test('a queued check with a page and a running GitHub job explain themselves (#3258)', async ({
+    page,
+  }) => {
+    const url = 'https://github.com/alrayyes/forge-dashboard/actions/runs/9';
+    const now = new Date().toISOString();
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: now,
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [
+            {
+              forge: 'github',
+              repo: 'alrayyes/forge-dashboard',
+              number: 42,
+              title: 'Add structured logging',
+              url: 'https://example.com/42',
+              author: 'ryankes',
+              draft: false,
+              ci: 'pending',
+              labels: [],
+              createdAt: now,
+              updatedAt: now,
+              mergeStatus: 'mergeable',
+              behind: false,
+            },
+          ],
+          issues: [],
+        }),
+      }),
+    );
+    await serveChecks(page, () => [
+      { name: 'check-queued', ...factsOf('queued'), url, jobId: 1 },
+      { name: 'check-running', ...factsOf('running'), url, jobId: 2 },
+    ]);
+    await page.goto('/pull-requests.html');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const queued = dialog.locator('.pipeline-check', {
+      hasText: 'check-queued',
+    });
+    await expect(queued.locator('.pipeline-check-hint')).toHaveText(
+      'Not started yet.',
+    );
+    await expect(queued.getByRole('link')).toContainText('Open on GitHub');
+    const running = dialog.locator('.pipeline-check', {
+      hasText: 'check-running',
+    });
+    await expect(running.locator('.pipeline-check-hint')).toHaveText(
+      'Output is available when it finishes.',
+    );
+    await expect(running.getByRole('link')).toContainText('Watch on GitHub');
+  });
+
   test('a failed, timed-out or held required check carries its Blocking badge', async ({
     page,
   }) => {
