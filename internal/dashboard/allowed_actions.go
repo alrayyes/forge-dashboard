@@ -318,6 +318,8 @@ func forgeMergeAvailability(pr PullRequest) ActionAvailability {
 	switch {
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
 		return mergeBlocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
+	case pr.MergeStatus == MergeBlocked && pr.CI == CICancelled:
+		return mergeBlocked(ActionBlockedByProtection, "Blocked, the only run was cancelled", "Run the checks again to unlock Merge")
 	case pr.MergeStatus == MergeBlocked:
 		return mergeBlocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")
 	case pr.MergeStatus != MergeMergeable:
