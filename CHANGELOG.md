@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.7](https://github.com/alrayyes/forge-dashboard/compare/v9.5.6...v9.5.7) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** put the phone bottom nav last in the Tab order ([#3330](https://github.com/alrayyes/forge-dashboard/issues/3330)) ([84c1299](https://github.com/alrayyes/forge-dashboard/commit/84c12999a42767f2ee8267865eb8cabfa9ab8932)), closes [#3263](https://github.com/alrayyes/forge-dashboard/issues/3263)
+
 ## [9.5.6](https://github.com/alrayyes/forge-dashboard/compare/v9.5.5...v9.5.6) (2026-11-09)
 
 
