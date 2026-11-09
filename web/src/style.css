@@ -3803,6 +3803,15 @@ footer a.mono:focus-visible {
   letter-spacing: 0.04em;
   color: var(--ink-3);
 }
+.pipeline-group-title:has(+ .pipeline-group-hint) {
+  margin-bottom: 2px;
+}
+.pipeline-group-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
 .pipeline-check-link {
   flex: none;
   font-size: 12px;

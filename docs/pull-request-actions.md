@@ -1000,7 +1000,8 @@ status checks and its rulesets are both read, and Forgejo's
 `status_check_contexts` patterns. Reading branch protection needs more
 permission than listing checks (admin on GitHub's classic rules and on
 Forgejo), so with a token that can't, or for a check the dashboard can't
-match to a protection entry, the check lands under `Status unknown`
+match to a protection entry, the check lands under `Not known if required`,
+with a one-line hint that the forge didn't say whether it blocks the merge,
 rather than being guessed advisory (the pill has its own fallback, described
 earlier). A
 Forgejo Actions job is only marked required when a pattern matches its job
