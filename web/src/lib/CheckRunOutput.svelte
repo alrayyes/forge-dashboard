@@ -20,12 +20,16 @@
     repo,
     runUrl,
     forgeName,
+    onloaded,
   }: {
     name: string;
     jobId: number;
     repo: RepoRef | undefined;
     runUrl: string;
     forgeName: string;
+    // Told when the panel is open with its text loaded, and when it stops
+    // being: the row hides its excerpt and second Copy button meanwhile.
+    onloaded?: (loaded: boolean) => void;
   } = $props();
 
   const url = $derived(logUrl(repo, jobId));
@@ -39,7 +43,11 @@
   // A late answer for a closed panel is dropped. The one polite line, for the
   // load and for a copy alike, is the flow's.
   const flow = new CopyFlow(() => forgeName, "output");
-  onDestroy(() => flow.destroy());
+  onDestroy(() => {
+    flow.destroy();
+    onloaded?.(false);
+  });
+  let panel = $state<HTMLDivElement>();
   let ask = 0;
   let output = $state<HTMLPreElement>();
   const panelId = `run-output-${Math.random().toString(36).slice(2, 9)}`;
@@ -49,20 +57,30 @@
     flow.reset();
     if (!shown || !url) {
       ask++;
+      onloaded?.(false);
       return;
     }
     const mine = ++ask;
     phase = "loading";
+    onloaded?.(false);
     flow.status = "Loading output";
     const got = await loadRunLog(url, forgeName);
     if (mine !== ask) return;
     if (got.ok) {
+      // The excerpt's Copy button leaves when the text lands. If it had focus,
+      // the panel's Copy button takes it.
+      const copyArea = panel
+        ?.closest("li")
+        ?.querySelector(".pipeline-check-copy");
+      const hadFocus = !!copyArea?.contains(document.activeElement);
       text = got.text;
       truncated = got.truncated;
       phase = "ready";
       flow.status = "";
+      onloaded?.(true);
       // The end of a log is where it failed.
       await tick();
+      if (hadFocus) flow.button?.focus();
       if (output) output.scrollTop = output.scrollHeight;
     } else {
       message = got.message;
@@ -109,20 +127,21 @@
   aria-label={checkLinkLabel(`Open job on ${forgeName}`, name)}
   >Open job on {forgeName}<ExternalLinkIcon /></a
 >
-<div id={panelId} class="run-output" hidden={!shown}>
+<div id={panelId} class="run-output" hidden={!shown} bind:this={panel}>
   {#if shown}
     <div class="run-output-bar">
       <span class="run-output-title">Output</span>
-      <button
-        bind:this={flow.button}
-        type="button"
-        class="pipeline-check-link"
-        disabled={phase !== "ready"}
-        aria-disabled={flow.busy ? "true" : undefined}
-        aria-busy={flow.busy ? "true" : undefined}
-        onclick={copy}
-        aria-label="Copy output: {name}">Copy</button
-      >
+      {#if phase === "ready"}
+        <button
+          bind:this={flow.button}
+          type="button"
+          class="pipeline-check-link"
+          aria-disabled={flow.busy ? "true" : undefined}
+          aria-busy={flow.busy ? "true" : undefined}
+          onclick={copy}
+          aria-label="Copy output: {name}">Copy</button
+        >
+      {/if}
     </div>
     <p class="run-output-status" aria-live="polite">
       {flow.busy ? "Copying" : flow.status}

@@ -239,6 +239,24 @@ export function checkControl(
   return 'link';
 }
 
+// The muted line a row carries when it has no output or no page to open, so
+// the gap doesn't read as a broken dialog. The first rule that matches wins.
+// A skipped check says nothing: its status chip already does.
+export function checkHint(
+  check: Pick<Check, 'status' | 'conclusion' | 'jobId'> & { url?: string },
+  repo: RepoRef | undefined,
+): string | null {
+  const state = checkState(check);
+  if (state === 'skipped') return null;
+  if (state === 'queued') return 'Not started yet.';
+  if (!check.url) return 'No page for this check.';
+  if (runningWithoutLog(state, repo)) {
+    return 'Output is available when it finishes.';
+  }
+
+  return null;
+}
+
 // The words on the link a check offers beside its name. A running job that
 // links out has no output to show until it finishes, and says that it is
 // watched on the forge; a queued one has not started, and is only opened.

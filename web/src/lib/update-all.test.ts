@@ -109,7 +109,7 @@ describe('updateAllPlan and automatic branch update', () => {
     expect(numbers(undefined)).toEqual([1]);
   });
 
-  test('counts only the rows left in the total shown as out of date', () => {
+  test('counts only the rows left in the total shown as updatable', () => {
     const plan = updateAllPlan([
       row({ number: 1, autoUpdate: auto({ enabled: true }) }),
       row({ number: 2 }),
@@ -153,9 +153,9 @@ describe('labels', () => {
     expect(updateAllLabel(0)).toBe('Update all');
   });
 
-  test('counts how many of the listed rows are out of date', () => {
-    expect(summaryLine(1, 6)).toBe('1 of 6 is out of date.');
-    expect(summaryLine(4, 6)).toBe('4 of 6 are out of date.');
+  test('counts how many of the listed rows can be updated', () => {
+    expect(summaryLine(1, 6)).toBe('1 of 6 can be updated.');
+    expect(summaryLine(4, 6)).toBe('4 of 6 can be updated.');
   });
 
   test('reads the progress as done of total', () => {

@@ -69,7 +69,7 @@ export function updateAllLabel(count: number): string {
 }
 
 export function summaryLine(count: number, total: number): string {
-  return `${count} of ${total} ${count === 1 ? 'is' : 'are'} out of date.`;
+  return `${count} of ${total} can be updated.`;
 }
 
 export function progressLabel(done: number, count: number): string {

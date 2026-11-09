@@ -97,6 +97,21 @@ func TestClassifyActionRefusal_ForgejoProbableConflictSaysWhatItCannotTellApart(
 	assert.Contains(t, got.Message, "still checking")
 }
 
+// The forge's own "checking is in progress" refusal is a confirmed still
+// checking, so it must not read as a conflict even when the re-read says the
+// pull request is unmergeable (#3304).
+func TestClassifyActionRefusal_ForgejoCheckInProgressIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
+	err := refusal(dashboard.ForgeErrorConflict, "forgejo: POST /repos/o/r/pulls/5/merge: Merge conflict checking is in progress. Try again in few moments.")
+
+	got := dashboard.ClassifyActionRefusal(err, &dashboard.PullRequestState{ConflictUnconfirmed: true})
+
+	assert.Equal(t, dashboard.ActionChecksPending, got.Code)
+	assert.Contains(t, got.Message, "Still checking for conflicts")
+	assert.Contains(t, got.Message, "Try again")
+}
+
 func TestClassifyActionRefusal_UnknownKeepsTheForgesOwnReasonWithoutTheDiagnosticPrefix(t *testing.T) {
 	t.Parallel()
 

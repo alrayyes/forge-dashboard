@@ -106,3 +106,6 @@ func WrapTransport(c *Client, wrap func(next http.RoundTripper) http.RoundTrippe
 func JobLogWindow(ctx context.Context, c *Client, owner, name string, id int64, window int) (dashboard.JobLog, error) {
 	return c.jobLog(ctx, owner, name, id, window, false)
 }
+
+// SetConflictClock replaces the clock the conflict check window runs by.
+func SetConflictClock(c *Client, now func() time.Time) { c.conflicts.now = now }

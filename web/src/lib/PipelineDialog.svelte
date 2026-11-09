@@ -74,6 +74,7 @@
   import {
     canCopyLog,
     checkControl,
+    checkHint,
     checkLinkLabel,
     checkLinkText,
     type RepoRef,
@@ -138,6 +139,9 @@
   let excerpts = $state<Record<string, string>>({});
   let reads = newExcerptReads();
   let excerptRun = 0;
+  // Rows whose output panel is open and loaded, by row key. Their excerpt and
+  // its copy button give way to the panel's own.
+  let outputLoaded = $state<Record<string, boolean>>({});
 
   // Cancel run: one entry per run the person has started to cancel, by run id.
   // `confirm` waits for the second click, `cancelling` is the forge accepting,
@@ -627,6 +631,7 @@
       {@const copyable = copyableLog(check)}
       {@const forge = target ? forgeLabel(target) : "the forge"}
       {@const control = checkControl(check, target?.repo)}
+      {@const hint = checkHint(check, target?.repo)}
       {@const secs = checkDurationSeconds(check)}
       {@const state = checkState(check)}
       <li class="pipeline-check">
@@ -663,6 +668,8 @@
             repo={target.repo}
             runUrl={check.url}
             forgeName={forge}
+            onloaded={(loaded) =>
+              (outputLoaded[keyOf.get(check) ?? ""] = loaded)}
           />
         {:else if control === "open-on-forge" || control === "link"}
           <!-- Never an empty href, which would resolve to this page. A job with
@@ -678,6 +685,9 @@
             >{linkText}<ExternalLinkIcon /></a
           >
         {/if}
+        {#if hint}
+          <p class="pipeline-check-hint">{hint}</p>
+        {/if}
         {#if check.failedStep}
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
         {/if}
@@ -689,6 +699,7 @@
           forgeName={forge}
           {copyable}
           runKey={checkRunKey(check)}
+          outputLoaded={outputLoaded[keyOf.get(check) ?? ""] ?? false}
         />
       </li>
     {/each}
@@ -825,10 +836,20 @@
         {#if group.id === ""}
           {@render list(group.checks)}
         {:else}
-          <div class="pipeline-group" role="group" aria-labelledby={group.id}>
+          <div
+            class="pipeline-group"
+            role="group"
+            aria-labelledby={group.id}
+            aria-describedby={group.hint ? `${group.id}-hint` : undefined}
+          >
             <h3 class="pipeline-group-title" id={group.id}>
               {group.title} ({group.checks.length})
             </h3>
+            {#if group.hint}
+              <p class="pipeline-group-hint" id="{group.id}-hint">
+                {group.hint}
+              </p>
+            {/if}
             {@render list(group.checks)}
           </div>
         {/if}

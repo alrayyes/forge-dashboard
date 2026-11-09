@@ -668,7 +668,8 @@ func TestListOpenIssues_CarriesThePosterAvatar(t *testing.T) {
 
 // TestListOpenPullRequests_MapsMergeableToMergeStatus asserts the
 // mapping: false on a pull request whose base has moved past its merge
-// base is a conflict (a conflict needs the base to have moved), and false
+// base is MergeChecking (a conflict needs the base to have moved, but the
+// same flag is false while the forge rechecks after a base push, #3304), and false
 // on one that hasn't stays MergeBlocked — Forgejo computes this field via
 // a background queue that upstream issues (go-gitea/gitea#22578, #25849)
 // show can lag or get stuck stale. AutoMergeEnabled is always nil: the SDK
@@ -684,7 +685,7 @@ func TestListOpenPullRequests_MapsMergeableToMergeStatus(t *testing.T) {
 		want      dashboard.MergeStatus
 	}{
 		{"mergeable true maps to Mergeable", true, "aaa", "bbb", dashboard.MergeMergeable},
-		{"mergeable false on a moved base maps to Conflicting", false, "aaa", "bbb", dashboard.MergeConflicting},
+		{"mergeable false on a moved base maps to Checking, not Conflicting (#3304)", false, "aaa", "bbb", dashboard.MergeChecking},
 		{"mergeable false on an unmoved base stays Blocked", false, "aaa", "aaa", dashboard.MergeBlocked},
 		{"mergeable false with no merge base stays Blocked", false, "aaa", "", dashboard.MergeBlocked},
 	}

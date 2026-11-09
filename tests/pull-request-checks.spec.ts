@@ -472,9 +472,14 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(dialog.getByRole('group', { name: /^Advisory/ })).toHaveCount(
       0,
     );
-    await expect(
-      dialog.getByRole('group', { name: /^Status unknown/ }),
-    ).toContainText('mystery');
+    const unknown = dialog.getByRole('group', {
+      name: /^Not known if required/,
+    });
+    await expect(unknown).toContainText('mystery');
+    await expect(unknown).toContainText(
+      "The forge didn't say whether these block the merge.",
+    );
+    await expect(dialog.getByText('Status unknown')).toHaveCount(0);
   });
 
   test('a failed check shows its failed step, how long it ran and the log excerpt as plain text', async ({

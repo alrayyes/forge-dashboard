@@ -142,15 +142,24 @@ exception: it is drawn for every pull request that is behind its base and has
 something left to merge, on the overview and the Bots page alike, in the
 warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
-3:1 for the outline). Conflicts and Blocked stay
-as merge pills, since they say what the merge needs. On a phone the CI slot sits
-at the top right and the attributes take a line of their own.
+3:1 for the outline). Conflicts, Blocked and
+Checking for conflicts stay as merge pills, since they say what the merge needs.
+Forgejo has one `mergeable` flag, false for a conflict and also while the forge
+rechecks after a base push, so a Forgejo pull request that is false with a moved
+base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
+seconds, two refresh intervals. Its Merge stays locked with the same words.
+If the flag is still false for the same head and base after that, the row says
+"Conflicting", and a new head or base starts the wait again. GitHub reports
+conflicts itself and is unchanged.
+On a phone the CI slot sits at the top right and the attributes take a line of
+their own.
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the
 row, locked
 (`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
-to finish" (it unlocks on its own at the next refresh), a merge conflict, a
+to finish" (it unlocks on its own at the next refresh), "Checking for
+conflicts" on Forgejo, a merge conflict, a
 draft, a branch that's behind, or "Blocked by the forge" when the forge says no
 without saying why. A failing check is named only when CI itself reports
 failing. A token missing the right permission, or the forge being unreachable,
@@ -217,7 +226,10 @@ On Forgejo a rate limit comes from a proxy in front of it, and its reset time is
 read from the `Retry-After` header. Forgejo's API says only whether a pull
 request can be merged, not why, so a Merge it refuses on a pull request that
 can't be merged is reported as a probable conflict, with the message saying it can't
-tell a conflict from a merge check that is still running. A missing review or
+tell a conflict from a merge check that is still running. When Forgejo answers
+that the conflict check is in progress, the toast says "Still checking for
+conflicts. Try again in a moment." and the pull request is not called
+conflicting. A missing review or
 check is named when the refusal's own text names it.
 
 Every other action (Close, Update branch, Enable auto-merge, Dependabot and
@@ -814,7 +826,7 @@ commit the checks belong to, and when it isn't the head of the pull request the
 pill stays pending until they agree.
 
 A check that failed or timed out, and has an excerpt or a job to read, also
-has a `Copy log` button under it. A cancelled check doesn't. The button copies
+has a `Copy output` button under it. A cancelled check doesn't. The button copies
 the whole log of the job, or the last 256 KB of it when the log is longer, and
 the excerpt alone when the log can't be read; the status line beside the button
 says which of these it copied. A log the forge doesn't send within 30 seconds
@@ -823,6 +835,12 @@ reuses the log it read; after that it reads the log again, since a read just
 after a job finished can miss lines. Where the browser refuses every way of copying,
 the log is put in a text field, selected, for the
 person to copy with Ctrl+C (Cmd+C on a Mac).
+
+While the check's output is open and loaded, the excerpt and its `Copy output`
+button are hidden, since the output panel has the whole text and one `Copy`
+button of its own (named "Copy output: {check}"). The `Failed step` line stays.
+While the output is loading or failed to load, the panel has no Copy button and
+the excerpt and its button stay.
 
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
@@ -988,7 +1006,8 @@ status checks and its rulesets are both read, and Forgejo's
 `status_check_contexts` patterns. Reading branch protection needs more
 permission than listing checks (admin on GitHub's classic rules and on
 Forgejo), so with a token that can't, or for a check the dashboard can't
-match to a protection entry, the check lands under `Status unknown`
+match to a protection entry, the check lands under `Not known if required`,
+with a one-line hint that the forge didn't say whether it blocks the merge,
 rather than being guessed advisory (the pill has its own fallback, described
 earlier). A
 Forgejo Actions job is only marked required when a pattern matches its job
@@ -1033,8 +1052,8 @@ The Pull requests page header has the `Update all` button, where the Bots page
 has `Rebase all`. It counts the pull requests the filters leave whose `Update
 branch` action the server offers and doesn't block, so `Update all (4)` means
 four, and a filter that narrows the list narrows the count. A line beside it
-says how many of the listed pull requests are out of date, for example `4 of 6
-are out of date.` Bots have their own page and aren't listed here.
+says how many of the listed pull requests can be updated, for example `4 of 6
+can be updated.` Bots have their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or

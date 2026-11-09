@@ -1,5 +1,87 @@
 # Changelog
 
+## [9.8.0](https://github.com/alrayyes/forge-dashboard/compare/v9.7.0...v9.8.0) (2026-11-09)
+
+
+### Features
+
+* **web:** name the unknown checks group by the missing fact ([#3346](https://github.com/alrayyes/forge-dashboard/issues/3346)) ([c84390d](https://github.com/alrayyes/forge-dashboard/commit/c84390d4e78fb9c35bf554f5c2639f6ffbeaf64e))
+
+
+### Bug Fixes
+
+* **web:** draw one accent focus ring on every control ([#3347](https://github.com/alrayyes/forge-dashboard/issues/3347)) ([93bc478](https://github.com/alrayyes/forge-dashboard/commit/93bc47863e86a815e48001a6d15e2ac29ea3173d)), closes [#3262](https://github.com/alrayyes/forge-dashboard/issues/3262)
+
+## [9.7.0](https://github.com/alrayyes/forge-dashboard/compare/v9.6.0...v9.7.0) (2026-11-09)
+
+
+### Features
+
+* **web:** show one Copy button on an open pipeline output row ([#3339](https://github.com/alrayyes/forge-dashboard/issues/3339)) ([816efe8](https://github.com/alrayyes/forge-dashboard/commit/816efe80cf1f62313effb1c770868c4f68e74061))
+
+## [9.6.0](https://github.com/alrayyes/forge-dashboard/compare/v9.5.8...v9.6.0) (2026-11-09)
+
+
+### Features
+
+* **web:** say why a pipeline check row has no control ([#3337](https://github.com/alrayyes/forge-dashboard/issues/3337)) ([10e01bb](https://github.com/alrayyes/forge-dashboard/commit/10e01bbc3a5f2f642256c8bad70483818e52e5fe)), closes [#3258](https://github.com/alrayyes/forge-dashboard/issues/3258)
+
+## [9.5.8](https://github.com/alrayyes/forge-dashboard/compare/v9.5.7...v9.5.8) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep a readable description on a short screen ([#3336](https://github.com/alrayyes/forge-dashboard/issues/3336)) ([fdf2108](https://github.com/alrayyes/forge-dashboard/commit/fdf21089ea797e414c64aa3b39d12fd5f27e4a6c)), closes [#3271](https://github.com/alrayyes/forge-dashboard/issues/3271)
+
+## [9.5.7](https://github.com/alrayyes/forge-dashboard/compare/v9.5.6...v9.5.7) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** put the phone bottom nav last in the Tab order ([#3330](https://github.com/alrayyes/forge-dashboard/issues/3330)) ([84c1299](https://github.com/alrayyes/forge-dashboard/commit/84c12999a42767f2ee8267865eb8cabfa9ab8932)), closes [#3263](https://github.com/alrayyes/forge-dashboard/issues/3263)
+
+## [9.5.6](https://github.com/alrayyes/forge-dashboard/compare/v9.5.5...v9.5.6) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** say how many pull requests can be updated, not that they are out of date ([#3329](https://github.com/alrayyes/forge-dashboard/issues/3329)) ([8cbd028](https://github.com/alrayyes/forge-dashboard/commit/8cbd02852e227a75982fdb4e890f97d2ee34b87b)), closes [#3275](https://github.com/alrayyes/forge-dashboard/issues/3275)
+
+## [9.5.5](https://github.com/alrayyes/forge-dashboard/compare/v9.5.4...v9.5.5) (2026-11-09)
+
+
+### Bug Fixes
+
+* **dashboard:** drop stale scoped reads and mark held-back rows stale ([#3323](https://github.com/alrayyes/forge-dashboard/issues/3323)) ([a84e58d](https://github.com/alrayyes/forge-dashboard/commit/a84e58d0cd75d44494ed0cc4ae3683e74bc9b62c)), closes [#3311](https://github.com/alrayyes/forge-dashboard/issues/3311)
+
+## [9.5.4](https://github.com/alrayyes/forge-dashboard/compare/v9.5.3...v9.5.4) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep focus on Refresh now and Queue update while they run ([#3321](https://github.com/alrayyes/forge-dashboard/issues/3321)) ([40d320e](https://github.com/alrayyes/forge-dashboard/commit/40d320e15319f9a0306afc0d7081c908071227ca)), closes [#3289](https://github.com/alrayyes/forge-dashboard/issues/3289)
+
+## [9.5.3](https://github.com/alrayyes/forge-dashboard/compare/v9.5.2...v9.5.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** size bottom nav tabs by their label so Webhooks fits at 320px ([#3309](https://github.com/alrayyes/forge-dashboard/issues/3309)) ([e7bfa96](https://github.com/alrayyes/forge-dashboard/commit/e7bfa962ccb1d55188bbcbaaaf1c21b3b0a2ff7e)), closes [#3288](https://github.com/alrayyes/forge-dashboard/issues/3288)
+
+## [9.5.2](https://github.com/alrayyes/forge-dashboard/compare/v9.5.1...v9.5.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** show a failed Branches load as the shared error banner ([#3310](https://github.com/alrayyes/forge-dashboard/issues/3310)) ([4d2d3d0](https://github.com/alrayyes/forge-dashboard/commit/4d2d3d0d5bbaf98ba8525a468d28b49881d8d3d8))
+
+## [9.5.1](https://github.com/alrayyes/forge-dashboard/compare/v9.5.0...v9.5.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **forgejo:** say Checking for conflicts, not Conflicting ([#3307](https://github.com/alrayyes/forge-dashboard/issues/3307)) ([1e14ad5](https://github.com/alrayyes/forge-dashboard/commit/1e14ad5011053fe11d4b845dc4cf5b5bac541409))
+
 ## [9.5.0](https://github.com/alrayyes/forge-dashboard/compare/v9.4.2...v9.5.0) (2026-11-09)
 
 
