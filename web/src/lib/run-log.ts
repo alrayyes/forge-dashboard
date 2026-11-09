@@ -252,7 +252,7 @@ export function checkLinkText(
   }
 
   return state === 'awaiting_approval'
-    ? 'Approve on GitHub'
+    ? `Approve on ${forgeName}`
     : 'Open check page';
 }
 

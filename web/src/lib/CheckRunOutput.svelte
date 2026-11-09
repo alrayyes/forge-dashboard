@@ -1,9 +1,10 @@
 <script lang="ts">
   // One check's "Show output": a button that opens the job's output under the
-  // check, with a Copy button beside it, and a link to the run on the forge for
+  // check, with a Copy button beside it, and a link to the job on the forge for
   // when the output is cut or can't be read. Text only: the output is never
   // parsed as markup.
   import { onDestroy, tick } from "svelte";
+  import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import { CopyFlow } from "#lib/copy-flow.svelte.js";
   import {
     checkLinkLabel,
@@ -105,8 +106,8 @@
   href={runUrl}
   target="_blank"
   rel="noopener"
-  aria-label={checkLinkLabel(`Open on ${forgeName}`, name)}
-  >Open on {forgeName}</a
+  aria-label={checkLinkLabel(`Open job on ${forgeName}`, name)}
+  >Open job on {forgeName}<ExternalLinkIcon /></a
 >
 <div id={panelId} class="run-output" hidden={!shown}>
   {#if shown}

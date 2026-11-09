@@ -502,7 +502,9 @@ test.describe('Main branches page (#1224, #1279)', () => {
       .getByRole('button', { name: /^Failed.* Open pipeline/ })
       .click();
 
-    const run = dialog(page).getByRole('link', { name: /open run on github/i });
+    const run = dialog(page).getByRole('link', {
+      name: /open the whole run on github/i,
+    });
     await expect(run).toHaveAttribute(
       'href',
       'https://example.com/acme/ingress-controller/actions/runs/1',
@@ -595,7 +597,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
       .click();
     await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
     await expect(
-      dialog(page).getByRole('link', { name: /open run on/i }),
+      dialog(page).getByRole('link', { name: /open the whole run on/i }),
     ).toHaveCount(0);
   });
 
@@ -613,7 +615,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
       .getByRole('button', { name: /open pipeline/i })
       .click();
     await expect(
-      dialog(page).getByRole('link', { name: /open run on/i }),
+      dialog(page).getByRole('link', { name: /open the whole run on/i }),
     ).toHaveAttribute(
       'href',
       'https://example.com/acme/ingress-controller/actions/runs/1',

@@ -3741,6 +3741,11 @@ footer a.mono:focus-visible {
   color: var(--accent);
   text-decoration: none;
 }
+.external-icon {
+  margin-left: 4px;
+  vertical-align: -1px;
+  flex: none;
+}
 .pipeline-check-link:hover,
 .pipeline-check-link:focus-visible {
   text-decoration: underline;
