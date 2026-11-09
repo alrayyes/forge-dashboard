@@ -143,3 +143,53 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
     expect(ci).toBeLessThan(chip);
   });
 });
+
+// #3264 acceptance: only the phone layout changes. At 820px and wider the
+// reserved slot stays above the pill, where main has always drawn it. These
+// offsets from the row's top edge were measured on main before the fix.
+test.describe('wider rows keep the wait slot above the pill (#3264)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  });
+
+  const offsets = (row: import('@playwright/test').Locator) =>
+    row.evaluate((r) => {
+      const top = r.getBoundingClientRect().top;
+      const y = (s: string) =>
+        Math.round(
+          (r.querySelector(s)?.getBoundingClientRect().top ?? NaN) - top,
+        );
+      return {
+        wait: y('.wait-slot'),
+        ci: y('.ci-slot'),
+        status: y('.status-area'),
+        height: Math.round(r.getBoundingClientRect().height),
+      };
+    });
+
+  for (const width of [820, 1280]) {
+    test(`${width}px: plain row has the slot at 12 and the pill at 62`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mockDashboard(page, [BOT_PR]);
+      await page.goto('/bots.html');
+      const row = page.locator('#pr-rows > .row').first();
+      await expect(row).toBeVisible();
+      const m = await offsets(row);
+      expect({ wait: m.wait, ci: m.ci }).toEqual({ wait: 12, ci: 62 });
+    });
+
+    test(`${width}px: armed row has the slot at 12, the pill at 62, the status line at 92`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mockDashboard(page, [ARMED_PR]);
+      await page.goto('/bots.html');
+      const row = page.locator('#pr-rows > .row').first();
+      await expect(row.locator('.wait-chip')).toBeVisible();
+      const m = await offsets(row);
+      expect(m).toEqual({ wait: 12, ci: 62, status: 92, height: m.height });
+    });
+  }
+});
