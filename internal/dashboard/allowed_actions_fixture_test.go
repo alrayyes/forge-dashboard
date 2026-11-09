@@ -51,7 +51,7 @@ var fixtureAxes = []axis{
 	{"empty", []string{"no", "yes"}},
 	{"behind", []string{"no", "yes"}},
 	{"draft", []string{"no", "yes"}},
-	{"ci", []string{"none", "pending", "success", "failure"}},
+	{"ci", []string{"none", "pending", "success", "failure", "cancelled"}},
 	{"mergeStatus", []string{"mergeable", "blocked", "conflicting", "checking", "unstable", "unknown"}},
 	{"autoMergeEnabled", []string{"off", "on"}},
 	{"autoMergeAllowed", []string{"yes", "no"}},

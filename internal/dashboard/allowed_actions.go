@@ -186,7 +186,7 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 			continue
 		}
 		switch {
-		case a.Blocked == nil && pr.CI != CIFailure:
+		case a.Blocked == nil && pr.CI != CIFailure && pr.CI != CICancelled:
 			return []ActionName{ActionMerge}
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
 			return append([]ActionName{ActionUpdateBranch}, botRebases()...)
@@ -322,6 +322,8 @@ func forgeMergeAvailability(pr PullRequest) ActionAvailability {
 	switch {
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
 		return mergeBlocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
+	case pr.MergeStatus == MergeBlocked && pr.CI == CICancelled:
+		return mergeBlocked(ActionBlockedByProtection, "Blocked, the only run was cancelled", "Run the checks again to unlock Merge")
 	case pr.MergeStatus == MergeBlocked:
 		return mergeBlocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")
 	case pr.MergeStatus != MergeMergeable:

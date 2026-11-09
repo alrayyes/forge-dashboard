@@ -1605,7 +1605,7 @@ func ciFromRollup(commits []prCommitNode) dashboard.CIStatus {
 		return dashboard.CINone
 	}
 
-	return commits[0].Commit.StatusCheckRollup.ci()
+	return commits[0].Commit.StatusCheckRollup.pullRequestCI()
 }
 
 // checkCountsOf tallies the rollup's per-state counts the query already asks
@@ -1635,12 +1635,19 @@ func checkCountsOf(commits []prCommitNode) dashboard.CheckCounts {
 // its own, and a failing one is a state of its own that is counted as failed.
 func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 	out := r.rawCheckCounts()
-	// A failing rollup with no failed check is failing because of cancelled
-	// runs (nothing is running to replace them, see settleFailedRollup), so
-	// those are what failed. Left in none of the four, a Failed pill would show
-	// counts that never mention the failure. A held run is not counted: a pull
-	// request says that with its own flag.
-	if out.Failed == 0 && r.ci() == dashboard.CIFailure {
+	ci := r.pullRequestCI()
+	if ci == dashboard.CICancelled {
+		// Nothing failed: the cancelled runs are counted as what they are.
+		out.Cancelled = r.runsInState("CANCELLED")
+
+		return out
+	}
+	// A failing rollup with no failed check is failing because a run is held
+	// for approval, and cancelled runs beside it are counted as failed so the
+	// pill has a number. Cancelled runs alone are not failing (#3301), and
+	// returned above. A held run is not counted: a pull request says that with
+	// its own flag.
+	if out.Failed == 0 && ci == dashboard.CIFailure {
 		out.Failed = r.runsInState("CANCELLED")
 	}
 
@@ -1758,6 +1765,21 @@ func (r *statusCheckRollup) failsOnlyForApproval() bool {
 	}
 
 	return !r.hasFailedContext(failureKinds{cancelled: true})
+}
+
+// pullRequestCI is ci() for a pull request row. GitHub rolls a cancelled run up
+// as FAILURE and keeps it there until a run replaces it; with no failed check,
+// no failed or errored status, no held run and nothing running, nothing broke,
+// so the row says Cancelled (#3301, which reverses #722's third criterion). A
+// default branch keeps ci() and reads its cancelled runs itself (#1950).
+func (r *statusCheckRollup) pullRequestCI() dashboard.CIStatus {
+	ci := r.ci()
+	if ci == dashboard.CIFailure && r != nil && r.Contexts != nil &&
+		!r.hasFailedContext(failureKinds{heldRun: true}) && r.runsInState("CANCELLED") > 0 {
+		return dashboard.CICancelled
+	}
+
+	return ci
 }
 
 // ci is the rollup's combined result. A commit with no rollup (nil) has no
@@ -3972,7 +3994,7 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 		return dashboard.CIPending
 	}
 	if cancelled {
-		return dashboard.CIFailure
+		return dashboard.CICancelled
 	}
 
 	return dashboard.CISuccess
