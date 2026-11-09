@@ -110,8 +110,8 @@ describe('loadRunLog', () => {
       respond(403, { error: 'raw 403 body' }),
     )) as Extract<LogResult, { ok: false }>;
     expect(got.ok).toBe(false);
-    expect(got.message).toContain("can't read");
-    expect(got.message).toContain('GitHub');
+    expect(got.message).toBe("The saved GitHub token can't read this output.");
+    expect(got.kind).toBe('forbidden');
     expect(got.message).not.toContain('raw 403 body');
   });
 
@@ -121,8 +121,10 @@ describe('loadRunLog', () => {
       'Forgejo',
       respond(404, { error: 'x' }),
     )) as Extract<LogResult, { ok: false }>;
-    expect(got.message).toContain('Forgejo');
-    expect(got.message).toContain('expired');
+    expect(got.message).toBe(
+      'Forgejo has no output for this check. It may have expired.',
+    );
+    expect(got.kind).toBe('missing');
   });
 
   test('a rate limit says to try again', async () => {
@@ -131,6 +133,19 @@ describe('loadRunLog', () => {
       { ok: false }
     >;
     expect(got.message).toContain('try again');
+    expect(got.kind).toBe('other');
+  });
+
+  test('another status and a bad body are not offered the job link', async () => {
+    const other = (await loadRunLog(
+      '/x',
+      'GitHub',
+      respond(500, {}),
+    )) as Extract<LogResult, { ok: false }>;
+    expect(other.message).toBe(
+      "Couldn't load the output: GitHub didn't answer (500).",
+    );
+    expect(other.kind).toBe('other');
   });
 
   test('a network failure is a message, not a throw', async () => {
@@ -139,6 +154,7 @@ describe('loadRunLog', () => {
     }) as unknown as typeof fetch)) as Extract<LogResult, { ok: false }>;
     expect(got.ok).toBe(false);
     expect(got.message).toContain('offline');
+    expect(got.kind).toBe('other');
   });
 
   test('a signed-out answer is reported so the caller can sign in', async () => {
@@ -153,8 +169,7 @@ describe('loadRunLog', () => {
 
 describe('notePlaces', () => {
   test('says how much was kept', () => {
-    expect(notePlaces('GitHub')).toContain('last 256 KB');
-    expect(notePlaces('GitHub')).toContain('GitHub');
+    expect(notePlaces()).toBe('Showing the last 256 KB of this output.');
   });
 });
 
@@ -264,7 +279,7 @@ describe('logToCopy', () => {
 
     expect(got.text).toBe('tail');
     expect(got.kind).toBe('excerpt');
-    expect(got.why).toContain("can't read this job's output");
+    expect(got.why).toBe("The saved GitHub token can't read this output.");
   });
 
   test('asks for a new sign-in on a 401, with nothing to copy', async () => {
@@ -310,7 +325,9 @@ describe('copyStatus', () => {
 
     expect(said).toContain('Copied the last 256 KB');
     expect(said).not.toContain('Showing');
-    expect(said).toContain('Open the run on GitHub');
+    expect(said).toBe(
+      'Copied the last 256 KB of the log, which is all the dashboard keeps. Open the job on GitHub for the rest.',
+    );
   });
 
   test('an excerpt says it is only the excerpt, and why', () => {
@@ -347,7 +364,9 @@ describe('copyStatus for a cut log copied by hand', () => {
 
     expect(said).toContain('The log is selected below');
     expect(said).toContain('last 256 KB');
-    expect(said).toContain('Open the run on GitHub for the rest');
+    expect(said).toContain(
+      'It is the last 256 KB of the log, which is all the dashboard keeps. Open the job on GitHub for the rest.',
+    );
   });
 });
 
