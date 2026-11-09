@@ -131,6 +131,19 @@ for (const size of [
   });
 }
 
+// The minimum must not become a fixed size: with room to spare the body
+// grows into it, as it did before (152px body, 351px dialog on main).
+test('844x390: the dialog fills its 90vh cap and the body is no smaller than before', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  const dialog = await open(page);
+  const body = await dialog.locator('.details-body').boundingBox();
+  const box = await dialog.boundingBox();
+  expect(body?.height).toBeGreaterThanOrEqual(150);
+  expect(box?.height).toBeGreaterThanOrEqual(Math.floor(390 * 0.9) - 1);
+});
+
 test('390x844 portrait: the body still takes more than half the height', async ({
   page,
 }) => {
