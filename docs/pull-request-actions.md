@@ -1045,8 +1045,8 @@ The Pull requests page header has the `Update all` button, where the Bots page
 has `Rebase all`. It counts the pull requests the filters leave whose `Update
 branch` action the server offers and doesn't block, so `Update all (4)` means
 four, and a filter that narrows the list narrows the count. A line beside it
-says how many of the listed pull requests are out of date, for example `4 of 6
-are out of date.` Bots have their own page and aren't listed here.
+says how many of the listed pull requests can be updated, for example `4 of 6
+can be updated.` Bots have their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or

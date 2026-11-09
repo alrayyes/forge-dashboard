@@ -109,7 +109,7 @@ test('Update all updates the ticked rows', async ({ page }) => {
   ]);
   const button = page.getByRole('button', { name: 'Update all (3)' });
   await expect(button).toBeVisible();
-  await expect(page.getByText('3 of 4 are out of date.')).toBeVisible();
+  await expect(page.getByText('3 of 4 can be updated.')).toBeVisible();
 
   await button.click();
   const dialog = page.getByRole('dialog', { name: 'Update 3 pull requests?' });
