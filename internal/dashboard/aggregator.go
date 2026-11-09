@@ -1124,26 +1124,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	for i, sr := range results {
 		r := sr.Result
 		forge := a.sources[i].Forge()
-		switch at, good := goodAt[forge]; {
-		case r.Health.Reachable && sr.asked:
-			goodAt[forge] = snap.GeneratedAt
-			readForges[forge] = true
-			for _, f := range r.FailedRepos {
-				unread[repoKey{forge, f.FullName}] = true
-			}
-			r = keepUnchangedRepos(keepFailedRepos(r, earlier, forge), earlier, forge)
-		case r.Health.Reachable:
-			// Held back (budget spent or at its reserve): nothing was read, so
-			// the rows are the old ones, and they say so instead of passing
-			// for this refresh's.
-			r = markReposStale(r, at, good)
-		case good:
-			// A failed fetch carries no data. Showing none would drop every
-			// row of this forge until the next good refresh (#922), so show
-			// what it last had, and say how old that is.
-			r = carryOver(r, earlier, forge)
-			r.Health.StaleSince = &at
-		}
+		r = settleSource(r, sr.asked, earlier, goodAt, snap.GeneratedAt, readForges, unread, forge)
 		noteBlockedActions(&r.Health, a.sources[i])
 		snap.Forges = append(snap.Forges, r.Health)
 		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
@@ -1166,15 +1147,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	// cancel takes, so none can land between the settling and the swap.
 	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] }, read)
 	a.snap = snap
-	for forge := range readForges {
-		a.fullSeq[forge] = max(a.fullSeq[forge], seq)
-	}
-	for key := range a.unread {
-		if _, again := readForges[key.forge]; again {
-			delete(a.unread, key)
-		}
-	}
-	maps.Copy(a.unread, unread)
+	a.noteFullRead(seq, readForges, unread)
 	a.lastGood = goodAt
 	a.mu.Unlock()
 	a.markFirstRefreshed()
@@ -1184,6 +1157,51 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.publish(ctx, snap)
 	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// settleSource is forge's result as the snapshot should show it: freshly read
+// (noting the forge in readForges and the repos it could not read in unread),
+// held back, or carried over from earlier after a failed fetch. goodAt is
+// updated for a forge that was read.
+func settleSource(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.Time, now time.Time, readForges map[Forge]bool, unread map[repoKey]bool, forge Forge) Result {
+	at, good := goodAt[forge]
+	switch {
+	case r.Health.Reachable && asked:
+		goodAt[forge] = now
+		readForges[forge] = true
+		for _, f := range r.FailedRepos {
+			unread[repoKey{forge, f.FullName}] = true
+		}
+
+		return keepUnchangedRepos(keepFailedRepos(r, earlier, forge), earlier, forge)
+	case r.Health.Reachable:
+		// Held back (budget spent or at its reserve): nothing was read, so the
+		// rows are the old ones, and they say so instead of passing for this
+		// refresh's.
+		return markReposStale(r, at, good)
+	case good:
+		// A failed fetch carries no data. Showing none would drop every row of
+		// this forge until the next good refresh (#922), so show what it last
+		// had, and say how old that is.
+		r = carryOver(r, earlier, forge)
+		r.Health.StaleSince = &at
+	}
+
+	return r
+}
+
+// noteFullRead records, under mu, which forges the full refresh with sequence
+// number seq read, and which of their repos it could not.
+func (a *Aggregator) noteFullRead(seq uint64, readForges map[Forge]bool, unread map[repoKey]bool) {
+	for forge := range readForges {
+		a.fullSeq[forge] = max(a.fullSeq[forge], seq)
+	}
+	for key := range a.unread {
+		if readForges[key.forge] {
+			delete(a.unread, key)
+		}
+	}
+	maps.Copy(a.unread, unread)
 }
 
 // reachableForges says which forges answered, by forge.
