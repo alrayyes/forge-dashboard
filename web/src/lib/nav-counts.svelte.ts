@@ -15,8 +15,7 @@ import {
 
 // running and passed come with the pages that have CI (#1439, #1458):
 // Branches, Pull requests, Bots and Releases. A branch with no pipeline or a
-// pull request with no checks is in the total only, so the four need not add
-// up. Issues carries neither. Branches also carries `none` (#1531), the ones
+// pull request with no checks has its own neutral count (#3241). Issues carries neither. Branches also carries `none` (#1531), the ones
 // with no pipeline, so its five add up; the other pages have no such number.
 export type NavCount = {
   total: number;
@@ -24,6 +23,7 @@ export type NavCount = {
   running?: number;
   passed?: number;
   none?: number;
+  noChecks?: number;
   awaitingApproval?: number;
 };
 
