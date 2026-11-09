@@ -18,8 +18,8 @@ runs axe over the same page. A story that throws, or any axe violation, fails
 the run after every story has been tried.
 
 It needs Playwright's Chromium. Run `bunx playwright install chromium` once.
-`--skip-build` reuses the last build, and `--only=<text>` keeps the stories
-whose ID contains the text.
+`--static-dir=<dir>` serves a build you already made instead of building one,
+and `--only=<text>` keeps the stories whose ID contains the text.
 
 To browse the catalogue instead, run `bunx storybook dev` in `web/`.
 

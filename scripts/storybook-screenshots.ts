@@ -15,7 +15,7 @@
 
 import { spawn } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { mkdir, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -26,8 +26,6 @@ import { chromium } from '@playwright/test';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const WEB = path.join(ROOT, 'web');
-// Outside the checkout, so svelte-check and Biome never read the built catalog.
-const STATIC_DIR = path.join(tmpdir(), 'forge-dashboard-storybook');
 const OUT_DIR = path.join(ROOT, 'docs', 'storybook');
 const VIEWPORT = { width: 1280, height: 800 };
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
@@ -42,10 +40,11 @@ const LOGO_SVG =
 
 type IndexEntry = { id: string; type: string };
 
-async function build() {
+// The build goes outside the checkout, so svelte-check and Biome never read it.
+async function build(staticDir: string) {
   const proc = spawn(
     'bunx',
-    ['storybook', 'build', '--quiet', '-o', STATIC_DIR],
+    ['storybook', 'build', '--quiet', '-o', staticDir],
     {
       cwd: WEB,
       stdio: 'inherit',
@@ -71,12 +70,12 @@ const TYPES: Record<string, string> = {
   '.png': 'image/png',
 };
 
-async function serve() {
+async function serve(staticDir: string) {
   const server = createServer(async (req, res) => {
     const { pathname } = new URL(req.url ?? '/', 'http://localhost');
     const rel = pathname === '/' ? '/index.html' : pathname;
-    const file = path.join(STATIC_DIR, path.normalize(rel));
-    const inside = file.startsWith(STATIC_DIR + path.sep);
+    const file = path.join(staticDir, path.normalize(rel));
+    const inside = file.startsWith(staticDir + path.sep);
     const found = inside && (await stat(file).catch(() => null))?.isFile();
     if (!found) {
       res.writeHead(404).end('not found');
@@ -126,7 +125,12 @@ async function waitForIndex(base: string): Promise<IndexEntry[]> {
 }
 
 // A story is done when the preview's render reaches "finished", which is after
-// its play function has returned. A failure is read off the preview channel's
+// its play function has returned.
+//
+// Both signals here are private to Storybook: window.__STORYBOOK_PREVIEW__
+// .currentRender.phase, and patching emit on the channel at
+// window.__STORYBOOK_ADDONS_CHANNEL__. Neither is a public API. Recheck them
+// on every Storybook upgrade; a rename shows up as every story timing out. A failure is read off the preview channel's
 // events as they are emitted: the channel's own listeners do not hear them.
 // The hook is installed before the page's scripts run and keeps looking until
 // the preview exists.
@@ -163,18 +167,21 @@ const QUIET = `
 }`;
 
 async function main() {
-  // `--skip-build` reuses the last build, and `--only=<text>` keeps the
+  // `--static-dir=<dir>` serves an existing build instead of making one, and
+  // `--only=<text>` keeps the
   // stories whose ID contains it. Both are for working on one story.
-  const skipBuild = process.argv.includes('--skip-build');
+  const given = process.argv
+    .find((a) => a.startsWith('--static-dir='))
+    ?.slice(13);
   const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7);
   await rm(OUT_DIR, { recursive: true, force: true });
   await mkdir(OUT_DIR, { recursive: true });
-  if (!skipBuild) {
-    await rm(STATIC_DIR, { recursive: true, force: true });
-    await build();
-  }
+  const staticDir = given
+    ? path.resolve(given)
+    : await mkdtemp(path.join(tmpdir(), 'forge-dashboard-storybook-'));
+  if (!given) await build(staticDir);
 
-  const server = await serve();
+  const server = await serve(staticDir);
   const base = `http://localhost:${server.port}`;
   const browser = await chromium.launch();
   const failures: string[] = [];
@@ -241,6 +248,7 @@ async function main() {
   } finally {
     await browser.close();
     server.stop();
+    if (!given) await rm(staticDir, { recursive: true, force: true });
   }
 
   console.log(`saved ${shot} screenshots to ${path.relative(ROOT, OUT_DIR)}`);
