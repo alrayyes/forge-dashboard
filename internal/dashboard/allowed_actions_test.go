@@ -182,6 +182,7 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 		{"blocked with a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }, dashboard.ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge"},
 		{"blocked with passing CI does not invent a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CISuccess }, dashboard.ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing"},
 		{"conflicting", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
+		{"checking for conflicts", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeChecking; p.Behind = true }, dashboard.ActionChecksPending, "Checking for conflicts", "Merge unlocks once the forge finishes"},
 		{"draft", func(p *dashboard.PullRequest) { p.Draft = true }, dashboard.ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge"},
 		{"merge status not known yet", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }, dashboard.ActionNotMergeable, "Merge status not known yet", "Merge unlocks once the forge reports it"},
 	}
