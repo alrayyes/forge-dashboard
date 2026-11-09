@@ -2438,7 +2438,12 @@
       }
 
       const meta = el("div", "row-meta");
-      const authorCell = el("div", "author", item.author);
+      const authorCell = el("div", "author");
+      // Always its own span: the ellipsis and the hover text need an element
+      // that overflows, which the inline-flex link around bare text is not.
+      const nameSpan = el("span", "author-name", item.author);
+      if (item.author) titleHover.track(nameSpan, item.author);
+      authorCell.appendChild(nameSpan);
       const avatar = avatarSrc(
         (item as PullRequestItem | IssueItem).authorAvatarUrl,
       );
@@ -2457,7 +2462,7 @@
           authorCell.classList.remove("has-avatar");
         });
         authorCell.classList.add("has-avatar");
-        authorCell.replaceChildren(img, el("span", "author-name", item.author));
+        authorCell.replaceChildren(img, nameSpan);
       }
       // The avatar and the name are one link to the person's page on the
       // forge, not two links to the same place. It sits above the row's
