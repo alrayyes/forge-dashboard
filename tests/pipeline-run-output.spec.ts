@@ -176,7 +176,7 @@ test.describe('a check run output in the pipeline dialog', () => {
 
     // The run on the forge stays one click away.
     await expect(
-      dialog.getByRole('link', { name: /Open on GitHub .*: build/ }),
+      dialog.getByRole('link', { name: /Open job on GitHub .*: build/ }),
     ).toHaveAttribute('href', runUrl);
 
     const results = await new AxeBuilder({ page })
@@ -360,6 +360,45 @@ test.describe('a check run output in the pipeline dialog', () => {
         name: checkLinkName('Open on Forgejo', 'queued-job'),
       }),
     ).toBeVisible();
+  });
+
+  test('each link that leaves the dashboard says what it opens and shows an external-link icon', async ({
+    page,
+  }) => {
+    await setup(page, { status: 200, body: { text: '', truncated: false } }, [
+      { name: 'queued-job', status: 'queued', url: runUrl, jobId: 7 },
+      {
+        name: 'done-job',
+        status: 'completed',
+        conclusion: 'failure',
+        url: runUrl,
+        jobId: 9,
+      },
+      {
+        name: 'lint',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/9/job/1',
+      },
+    ]);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const names = [
+      checkLinkName('Open on GitHub', 'queued-job'),
+      checkLinkName('Open job on GitHub', 'done-job'),
+      checkLinkName('Open check page', 'lint'),
+      'Open the whole run on GitHub (opens in a new tab)',
+    ];
+    for (const name of names) {
+      const link = dialog.getByRole('link', { name });
+      await expect(link).toBeVisible();
+      await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+    }
+    await expect(dialog.locator('a[target="_blank"]')).toHaveCount(
+      names.length,
+    );
+    await expect(dialog.locator('.pipeline-run a')).toHaveText(
+      'Open the whole run on GitHub',
+    );
   });
 
   test('a check with no job id keeps the plain link', async ({ page }) => {
