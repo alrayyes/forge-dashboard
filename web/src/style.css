@@ -2116,6 +2116,13 @@ a.ci-pill:hover {
 .merge-pill.conflicting .dot {
   background: var(--critical);
 }
+.merge-pill.checking {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.merge-pill.checking .dot {
+  background: var(--warning);
+}
 .merge-pill.blocked {
   background: var(--warning-bg);
   color: var(--warning);

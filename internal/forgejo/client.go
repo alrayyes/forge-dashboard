@@ -960,9 +960,11 @@ func posterLogin(u *gitea.User) string {
 	return u.UserName
 }
 
-// mergeStatusOf maps Forgejo's mergeable flag to a merge status. False is a
-// conflict only when the base has also moved past the merge base (isBehind):
-// a conflict can't exist otherwise. Forgejo computes the flag via a
+// mergeStatusOf maps Forgejo's mergeable flag to a merge status. False can
+// be a conflict only when the base has also moved past the merge base
+// (isBehind), but a pull request being rechecked after a base push looks the
+// same, so that case is MergeChecking and never MergeConflicting: the flag
+// alone can't confirm a conflict (#3304). Forgejo computes the flag via a
 // background queue that can lag or stick stale (go-gitea/gitea#22578,
 // #25849), so false on a pull request that hasn't fallen behind stays
 // MergeBlocked, only that something is stopping the merge.
@@ -971,7 +973,7 @@ func mergeStatusOf(p *gitea.PullRequest) dashboard.MergeStatus {
 	case p.Mergeable:
 		return dashboard.MergeMergeable
 	case isBehind(p):
-		return dashboard.MergeConflicting
+		return dashboard.MergeChecking
 	default:
 		return dashboard.MergeBlocked
 	}

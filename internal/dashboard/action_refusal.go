@@ -392,11 +392,16 @@ func refusalFromKind(actionErr error) (ActionRefusal, bool) {
 }
 
 func classifyMergeRefusal(forgeText string, state *PullRequestState) ActionRefusal {
+	lower := strings.ToLower(forgeText)
+	// Forgejo's own answer while it checks for conflicts: confirmed still
+	// checking, so it outranks the flags, which read as a conflict (#3304).
+	if strings.Contains(lower, "checking is in progress") {
+		return ActionRefusal{Code: ActionChecksPending, Message: "Still checking for conflicts. Try again in a moment."}
+	}
 	if r, ok := refusalFromFlags(state); ok {
 		return r
 	}
 
-	lower := strings.ToLower(forgeText)
 	if strings.Contains(lower, "approval") || strings.Contains(lower, "requested change") {
 		return ActionRefusal{Code: ActionBlockedByProtection, Message: "Blocked by branch protection: a required review is missing."}
 	}

@@ -142,15 +142,22 @@ exception: it is drawn for every pull request that is behind its base and has
 something left to merge, on the overview and the Bots page alike, in the
 warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
-3:1 for the outline). Conflicts and Blocked stay
-as merge pills, since they say what the merge needs. On a phone the CI slot sits
-at the top right and the attributes take a line of their own.
+3:1 for the outline). Conflicts, Blocked and
+Checking for conflicts stay as merge pills, since they say what the merge needs.
+Forgejo has one `mergeable` flag, false for a conflict and also while the forge
+rechecks after a base push, so a Forgejo pull request that is false with a moved
+base says "Checking for conflicts" (`mergeStatus: checking`) and never
+"Conflicting". Its Merge stays locked with the same words, and it re-reads on
+the next refresh. GitHub reports conflicts itself and is unchanged.
+On a phone the CI slot sits at the top right and the attributes take a line of
+their own.
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the
 row, locked
 (`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
-to finish" (it unlocks on its own at the next refresh), a merge conflict, a
+to finish" (it unlocks on its own at the next refresh), "Checking for
+conflicts" on Forgejo, a merge conflict, a
 draft, a branch that's behind, or "Blocked by the forge" when the forge says no
 without saying why. A failing check is named only when CI itself reports
 failing. A token missing the right permission, or the forge being unreachable,
@@ -217,7 +224,10 @@ On Forgejo a rate limit comes from a proxy in front of it, and its reset time is
 read from the `Retry-After` header. Forgejo's API says only whether a pull
 request can be merged, not why, so a Merge it refuses on a pull request that
 can't be merged is reported as a probable conflict, with the message saying it can't
-tell a conflict from a merge check that is still running. A missing review or
+tell a conflict from a merge check that is still running. When Forgejo answers
+that the conflict check is in progress, the toast says "Still checking for
+conflicts. Try again in a moment." and the pull request is not called
+conflicting. A missing review or
 check is named when the refusal's own text names it.
 
 Every other action (Close, Update branch, Enable auto-merge, Dependabot and

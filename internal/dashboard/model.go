@@ -59,8 +59,13 @@ const (
 	MergeMergeable   MergeStatus = "mergeable"
 	MergeConflicting MergeStatus = "conflicting"
 	MergeBlocked     MergeStatus = "blocked"
-	MergeUnstable    MergeStatus = "unstable"
-	MergeUnknown     MergeStatus = "unknown"
+	// MergeChecking is Forgejo's mergeable flag reading false on a pull
+	// request whose base has moved, with no refusal naming a conflict yet.
+	// That is also what a pull request looks like while the forge rechecks
+	// it after a base push, so the row says it is checking (#3304).
+	MergeChecking MergeStatus = "checking"
+	MergeUnstable MergeStatus = "unstable"
+	MergeUnknown  MergeStatus = "unknown"
 )
 
 // Label matches components.schemas.Label — a label's name and its real

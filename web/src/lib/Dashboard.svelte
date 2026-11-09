@@ -996,6 +996,7 @@
     const MERGE_STATUS_LABELS: Record<string, string> = {
       conflicting: "Conflicting",
       blocked: "Blocked",
+      checking: "Checking for conflicts",
     };
 
     // Silent for "mergeable" and "unknown" — flagging every clean row
