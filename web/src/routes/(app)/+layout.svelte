@@ -594,13 +594,20 @@
   </header>
 </div>
 
+{@render children()}
+
+<Footer />
+
 <!--
   The mobile bottom tab bar (design.md - Decisions): a second, distinct
   <nav> landmark — not a copy of .app-nav's DOM, and given its own
   aria-label ("Mobile navigation" vs. the header's "Main") so a Playwright
   locator scoped to `a[aria-label="..."]` can tell the two surfaces apart
   once both exist in the DOM. Reuses the header's own icon SVGs and link
-  labels for a consistent accessible name per destination. Shown/hidden purely by CSS (style.css's own
+  labels for a consistent accessible name per destination. It sits after
+  the footer because it is position: fixed at the bottom of the screen: its
+  DOM place is its Tab place, so keyboard focus reaches it last, as it
+  appears (#3263). Shown/hidden purely by CSS (style.css's own
   breakpoint comment names which one) rather than an {#if isMobile} block,
   so there's no flash-of-missing-nav on first paint and no matchMedia
   listener needed.
@@ -791,7 +798,3 @@
     <span class="bottom-nav-label">Settings</span>
   </a>
 </nav>
-
-{@render children()}
-
-<Footer />

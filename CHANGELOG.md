@@ -1,5 +1,40 @@
 # Changelog
 
+## [9.5.7](https://github.com/alrayyes/forge-dashboard/compare/v9.5.6...v9.5.7) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** put the phone bottom nav last in the Tab order ([#3330](https://github.com/alrayyes/forge-dashboard/issues/3330)) ([84c1299](https://github.com/alrayyes/forge-dashboard/commit/84c12999a42767f2ee8267865eb8cabfa9ab8932)), closes [#3263](https://github.com/alrayyes/forge-dashboard/issues/3263)
+
+## [9.5.6](https://github.com/alrayyes/forge-dashboard/compare/v9.5.5...v9.5.6) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** say how many pull requests can be updated, not that they are out of date ([#3329](https://github.com/alrayyes/forge-dashboard/issues/3329)) ([8cbd028](https://github.com/alrayyes/forge-dashboard/commit/8cbd02852e227a75982fdb4e890f97d2ee34b87b)), closes [#3275](https://github.com/alrayyes/forge-dashboard/issues/3275)
+
+## [9.5.5](https://github.com/alrayyes/forge-dashboard/compare/v9.5.4...v9.5.5) (2026-11-09)
+
+
+### Bug Fixes
+
+* **dashboard:** drop stale scoped reads and mark held-back rows stale ([#3323](https://github.com/alrayyes/forge-dashboard/issues/3323)) ([a84e58d](https://github.com/alrayyes/forge-dashboard/commit/a84e58d0cd75d44494ed0cc4ae3683e74bc9b62c)), closes [#3311](https://github.com/alrayyes/forge-dashboard/issues/3311)
+
+## [9.5.4](https://github.com/alrayyes/forge-dashboard/compare/v9.5.3...v9.5.4) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep focus on Refresh now and Queue update while they run ([#3321](https://github.com/alrayyes/forge-dashboard/issues/3321)) ([40d320e](https://github.com/alrayyes/forge-dashboard/commit/40d320e15319f9a0306afc0d7081c908071227ca)), closes [#3289](https://github.com/alrayyes/forge-dashboard/issues/3289)
+
+## [9.5.3](https://github.com/alrayyes/forge-dashboard/compare/v9.5.2...v9.5.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** size bottom nav tabs by their label so Webhooks fits at 320px ([#3309](https://github.com/alrayyes/forge-dashboard/issues/3309)) ([e7bfa96](https://github.com/alrayyes/forge-dashboard/commit/e7bfa962ccb1d55188bbcbaaaf1c21b3b0a2ff7e)), closes [#3288](https://github.com/alrayyes/forge-dashboard/issues/3288)
+
 ## [9.5.2](https://github.com/alrayyes/forge-dashboard/compare/v9.5.1...v9.5.2) (2026-11-09)
 
 
