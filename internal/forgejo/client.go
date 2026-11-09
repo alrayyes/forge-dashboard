@@ -89,6 +89,10 @@ type clientState struct {
 	schedule    map[string]cachedSchedule
 	scheduleSeq uint64
 
+	// conflicts times how long an unmergeable pull request on a moved base
+	// reads Checking before it reads Conflicting (#3304).
+	conflicts *conflictTracker
+
 	// version is the instance's major version, read from /version (see
 	// versionCache).
 	version versionCache
@@ -182,6 +186,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		rawTransport:   rawTransport,
 		reviews:        map[string]cachedReview{},
 		schedule:       map[string]cachedSchedule{},
+		conflicts:      newConflictTracker(),
 		finishedJobs:   newFinishedJobs(maxFinishedJobs),
 		excerpts:       newExcerptCache(maxExcerpts),
 		excerptTimeout: dashboard.ExcerptReadTimeout,
@@ -960,11 +965,24 @@ func posterLogin(u *gitea.User) string {
 	return u.UserName
 }
 
+// mergeStatus is mergeStatusOf with the Checking window applied: a pull
+// request mergeStatusOf can't confirm stays Checking for conflictWindow, then
+// is Conflicting.
+func (c *Client) mergeStatus(owner, name string, p *gitea.PullRequest) dashboard.MergeStatus {
+	status := mergeStatusOf(p)
+	if status != dashboard.MergeChecking {
+		return status
+	}
+
+	return c.conflicts.status(conflictKey(owner, name, p))
+}
+
 // mergeStatusOf maps Forgejo's mergeable flag to a merge status. False can
 // be a conflict only when the base has also moved past the merge base
 // (isBehind), but a pull request being rechecked after a base push looks the
-// same, so that case is MergeChecking and never MergeConflicting: the flag
-// alone can't confirm a conflict (#3304). Forgejo computes the flag via a
+// same, so that case is MergeChecking: the flag alone can't confirm a
+// conflict. Client.mergeStatus turns it into MergeConflicting once the flag
+// has stayed false past conflictWindow (#3304). Forgejo computes the flag via a
 // background queue that can lag or stick stale (go-gitea/gitea#22578,
 // #25849), so false on a pull request that hasn't fallen behind stays
 // MergeBlocked, only that something is stopping the merge.
@@ -1161,7 +1179,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		UpdatedAt:               updated,
 		CI:                      ci,
 		Checks:                  checks,
-		MergeStatus:             mergeStatusOf(p),
+		MergeStatus:             c.mergeStatus(owner, name, p),
 		Behind:                  isBehind(p),
 		HeadSHA:                 sha,
 		BaseBranch:              branchRef(p.Base),
@@ -1193,6 +1211,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 	path := fmt.Sprintf("/repos/%s/%s/pulls", owner, name)
 	opt := gitea.ListPullRequestsOptions{State: gitea.StateOpen, PageSize: pageLimit}
 	open := map[string]struct{}{}
+	unconfirmed := map[string]struct{}{}
 
 	for {
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
@@ -1203,6 +1222,9 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 		for _, p := range batch {
 			open[reviewKey(owner, name, p.Index)] = struct{}{}
+			if mergeStatusOf(p) == dashboard.MergeChecking {
+				unconfirmed[conflictKey(owner, name, p)] = struct{}{}
+			}
 			prs = append(prs, c.toPullRequest(ctx, owner, name, repo, p))
 		}
 		if resp.NextPage == 0 {
@@ -1212,6 +1234,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 	}
 	c.pruneReviews(owner, name, open)
 	c.pruneSchedules(owner, name, open)
+	c.conflicts.prune(owner, name, unconfirmed)
 	c.applyScheduledMerges(ctx, owner, name, prs)
 
 	return prs, nil

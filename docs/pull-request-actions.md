@@ -146,9 +146,11 @@ pull request stands out. It is readable in both themes (4.5:1 for the words,
 Checking for conflicts stay as merge pills, since they say what the merge needs.
 Forgejo has one `mergeable` flag, false for a conflict and also while the forge
 rechecks after a base push, so a Forgejo pull request that is false with a moved
-base says "Checking for conflicts" (`mergeStatus: checking`) and never
-"Conflicting". Its Merge stays locked with the same words, and it re-reads on
-the next refresh. GitHub reports conflicts itself and is unchanged.
+base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
+seconds, two refresh intervals. Its Merge stays locked with the same words.
+If the flag is still false for the same head and base after that, the row says
+"Conflicting", and a new head or base starts the wait again. GitHub reports
+conflicts itself and is unchanged.
 On a phone the CI slot sits at the top right and the attributes take a line of
 their own.
 
