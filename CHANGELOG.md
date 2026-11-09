@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.0](https://github.com/alrayyes/forge-dashboard/compare/v9.4.2...v9.5.0) (2026-11-09)
+
+
+### Features
+
+* **web:** add a Storybook component catalogue ([#3299](https://github.com/alrayyes/forge-dashboard/issues/3299)) ([bb5514f](https://github.com/alrayyes/forge-dashboard/commit/bb5514f39b081a9099cdc712b5f64c02ba9d1d30)), closes [#3239](https://github.com/alrayyes/forge-dashboard/issues/3239)
+
 ## [9.4.2](https://github.com/alrayyes/forge-dashboard/compare/v9.4.1...v9.4.2) (2026-11-09)
 
 
