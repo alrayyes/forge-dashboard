@@ -20,7 +20,14 @@ export const COPIED_LOG_KEPT_MS = 60_000;
 
 export type LogResult =
   | { ok: true; text: string; truncated: boolean }
-  | { ok: false; message: string; signedOut?: boolean };
+  | {
+      ok: false;
+      message: string;
+      signedOut?: boolean;
+      // Which failures the panel follows with a link to the job: a refused
+      // token and a missing log. Anything else gets the message alone.
+      kind: 'forbidden' | 'missing' | 'other';
+    };
 
 // The repository a dialog's checks belong to: where a job's log is read from.
 export type RepoRef = { forge: string; fullName: string };
@@ -36,9 +43,10 @@ export function logUrl(
   return `/api/v1/checks/log?${new URLSearchParams({ forge, fullName, jobId: String(jobId) })}`;
 }
 
-// What the dialog says above a log the server cut.
-export function notePlaces(forgeName: string): string {
-  return `Showing the last ${KEPT_KB} KB of this output. Open the run on ${forgeName} for the rest.`;
+// What the dialog says above a log the server cut. The link to the job sits
+// beside it, so the sentence names no forge.
+export function notePlaces(): string {
+  return `Showing the last ${KEPT_KB} KB of this output.`;
 }
 
 // Reads one job's output. A refusal is a sentence a person can use, never the
@@ -62,7 +70,11 @@ export async function loadRunLog(
           ? err.message
           : String(err);
 
-    return { ok: false, message: `Couldn't load the output (${why}).` };
+    return {
+      ok: false,
+      kind: 'other',
+      message: `Couldn't load the output (${why}).`,
+    };
   }
 }
 
@@ -80,6 +92,7 @@ async function readRunLog(
     return {
       ok: false,
       signedOut: true,
+      kind: 'other',
       message: 'Your session ended. Sign in again.',
     };
   }
@@ -94,27 +107,35 @@ async function readRunLog(
       return { ok: true, text: body.text, truncated: body.truncated === true };
     }
 
-    return { ok: false, message: "Couldn't read the answer for this output." };
+    return {
+      ok: false,
+      kind: 'other',
+      message: "Couldn't read the answer for this output.",
+    };
   }
   switch (res.status) {
     case 403:
       return {
         ok: false,
-        message: `The saved ${forgeName} token can't read this job's output. Open the run on ${forgeName} instead.`,
+        kind: 'forbidden',
+        message: `The saved ${forgeName} token can't read this output.`,
       };
     case 404:
       return {
         ok: false,
-        message: `${forgeName} has no output for this job. It may have expired, or this check isn't a job that keeps one.`,
+        kind: 'missing',
+        message: `${forgeName} has no output for this check. It may have expired.`,
       };
     case 429:
       return {
         ok: false,
+        kind: 'other',
         message: `${forgeName} is limiting requests right now. Wait a moment and try again.`,
       };
     default:
       return {
         ok: false,
+        kind: 'other',
         message: `Couldn't load the output: ${forgeName} didn't answer (${res.status}).`,
       };
   }
@@ -287,14 +308,14 @@ export function copyStatus(
     }
     const cut =
       prepared.kind === 'cut'
-        ? ` It is the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`
+        ? ` It is the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the job on ${forgeName} for the rest.`
         : '';
 
     return `Couldn't copy automatically. The ${noun} is selected below: ${press}.${cut}`;
   }
   if (only) return `Copied the excerpt only.${lost}`;
   if (prepared.kind === 'cut') {
-    return `Copied the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the run on ${forgeName} for the rest.`;
+    return `Copied the last ${KEPT_KB} KB of the ${noun}, which is all the dashboard keeps. Open the job on ${forgeName} for the rest.`;
   }
 
   return 'Copied';

@@ -219,7 +219,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.run-output-status')).toHaveText(
-      'Copied the last 256 KB of the output, which is all the dashboard keeps. Open the run on GitHub for the rest.',
+      'Copied the last 256 KB of the output, which is all the dashboard keeps. Open the job on GitHub for the rest.',
     );
   });
 
@@ -266,10 +266,54 @@ test.describe('a check run output in the pipeline dialog', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Show output: build' }).click();
 
-    await expect(dialog.locator('.run-output-note')).toContainText(
-      'last 256 KB',
+    const note = dialog.locator('.run-output-note');
+    await expect(note).toContainText('Showing the last 256 KB of this output.');
+    const link = note.getByRole('link', {
+      name: checkLinkName('Open job on GitHub for the rest', 'build'),
+    });
+    await expect(link).toHaveText('Open job on GitHub for the rest');
+    await expect(link).toHaveAttribute('href', runUrl);
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a missing output says so and links to the job', async ({ page }) => {
+    await setup(page, { status: 404, body: { error: 'gone' } });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+
+    const error = dialog.locator('.run-output-error');
+    await expect(error).toContainText(
+      'GitHub has no output for this check. It may have expired.',
     );
-    await expect(dialog.locator('.run-output-note')).toContainText('GitHub');
+    const link = error.getByRole('link', {
+      name: checkLinkName('Open job on GitHub', 'build'),
+    });
+    await expect(link).toHaveAttribute('href', runUrl);
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a rate limit keeps its message and has no job link', async ({
+    page,
+  }) => {
+    await setup(page, { status: 429, body: {} });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+
+    const error = dialog.locator('.run-output-error');
+    await expect(error).toContainText('is limiting requests right now');
+    await expect(error.getByRole('link')).toHaveCount(0);
   });
 
   test('a refused read is a plain message, not the raw error', async ({
@@ -282,10 +326,21 @@ test.describe('a check run output in the pipeline dialog', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Show output: build' }).click();
 
-    await expect(dialog.locator('.run-output-error')).toContainText(
-      "can't read this job's output",
+    const error = dialog.locator('.run-output-error');
+    await expect(error).toContainText(
+      "The saved GitHub token can't read this output.",
     );
+    await expect(
+      error.getByRole('link', {
+        name: checkLinkName('Open job on GitHub', 'build'),
+      }),
+    ).toHaveAttribute('href', runUrl);
     await expect(dialog).not.toContainText('Resource not accessible');
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
     await expect(
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toBeDisabled();
@@ -411,7 +466,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
-      /^Copied the excerpt only\. .*no output for this job/,
+      /^Copied the excerpt only\. .*no output for this check/,
     );
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       'boom: exit 1',

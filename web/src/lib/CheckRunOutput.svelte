@@ -33,6 +33,8 @@
   let text = $state("");
   let truncated = $state(false);
   let message = $state("");
+  // Whether the failure gets a link to the job beside its sentence.
+  let linkable = $state(false);
   // A late answer for a closed panel is dropped. The one polite line, for the
   // load and for a copy alike, is the flow's.
   const flow = new CopyFlow(() => forgeName, "output");
@@ -63,6 +65,7 @@
       if (output) output.scrollTop = output.scrollHeight;
     } else {
       message = got.message;
+      linkable = got.kind !== "other";
       phase = "error";
       flow.status = "";
     }
@@ -79,6 +82,14 @@
   }
 </script>
 
+{#snippet jobLink(label: string)}
+  <a
+    href={runUrl}
+    target="_blank"
+    rel="noopener"
+    aria-label={checkLinkLabel(label, name)}>{label}</a
+  >
+{/snippet}
 <button
   type="button"
   class="pipeline-check-link"
@@ -116,10 +127,16 @@
       {flow.busy ? "Copying" : flow.status}
     </p>
     {#if phase === "error"}
-      <p class="run-output-error">{message}</p>
+      <p class="run-output-error">
+        {message}
+        {#if linkable}{@render jobLink("Open job on " + forgeName)}{/if}
+      </p>
     {:else if phase === "ready"}
       {#if truncated}
-        <p class="run-output-note">{notePlaces(forgeName)}</p>
+        <p class="run-output-note">
+          {notePlaces()}
+          {@render jobLink("Open job on " + forgeName + " for the rest")}
+        </p>
       {/if}
       <!-- It scrolls, so it takes focus to be reachable from the keyboard. -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
