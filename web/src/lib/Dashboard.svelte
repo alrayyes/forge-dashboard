@@ -6355,7 +6355,8 @@
       action: QueuedActionItem["action"],
       button: HTMLButtonElement,
     ) {
-      button.disabled = true;
+      if (isPending(button)) return;
+      markPending(button, true);
       fetch("/api/v1/queued-actions", {
         method: "POST",
         headers: {
@@ -6386,7 +6387,7 @@
           });
         })
         .catch((err: Error) => {
-          button.disabled = false;
+          markPending(button, false);
           showError(
             `Couldn't queue the ${QUEUE_VERBS[action]} for ${item.repo}#${item.number}: ${err.message}`,
           );
@@ -9162,8 +9163,12 @@
       });
     }
 
+    // aria-disabled, not `disabled`, so the button keeps keyboard focus while
+    // it runs and through the cooldown (#3289, #690); a press while pending
+    // is ignored here.
     forceRefreshButton?.addEventListener("click", () => {
-      forceRefreshButton.disabled = true;
+      if (isPending(forceRefreshButton)) return;
+      markPending(forceRefreshButton, true);
       forceRefreshButton.classList.add("is-refreshing");
       let lockSeconds: number | undefined;
       refreshDashboardNow()
@@ -9180,11 +9185,11 @@
           // stays locked that long; a click that fetched needs no lock, the
           // next one is the server's to answer.
           if (lockSeconds === undefined) {
-            forceRefreshButton.disabled = false;
+            markPending(forceRefreshButton, false);
             return;
           }
           setTimeout(() => {
-            forceRefreshButton.disabled = false;
+            markPending(forceRefreshButton, false);
           }, lockSeconds * 1000);
         });
     });
