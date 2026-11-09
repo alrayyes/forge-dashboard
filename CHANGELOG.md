@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.8.0](https://github.com/alrayyes/forge-dashboard/compare/v9.7.0...v9.8.0) (2026-11-09)
+
+
+### Features
+
+* **web:** name the unknown checks group by the missing fact ([#3346](https://github.com/alrayyes/forge-dashboard/issues/3346)) ([c84390d](https://github.com/alrayyes/forge-dashboard/commit/c84390d4e78fb9c35bf554f5c2639f6ffbeaf64e))
+
+
+### Bug Fixes
+
+* **web:** draw one accent focus ring on every control ([#3347](https://github.com/alrayyes/forge-dashboard/issues/3347)) ([93bc478](https://github.com/alrayyes/forge-dashboard/commit/93bc47863e86a815e48001a6d15e2ac29ea3173d)), closes [#3262](https://github.com/alrayyes/forge-dashboard/issues/3262)
+
 ## [9.7.0](https://github.com/alrayyes/forge-dashboard/compare/v9.6.0...v9.7.0) (2026-11-09)
 
 
