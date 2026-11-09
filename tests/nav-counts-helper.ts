@@ -21,9 +21,18 @@ type Page = {
   running: number;
   failed: number;
   passed: number;
+  noChecks: number;
 };
 
-const empty = (): Page => ({ total: 0, running: 0, failed: 0, passed: 0 });
+const states = ['running', 'failed', 'passed', 'noChecks'] as const;
+
+const empty = (): Page => ({
+  total: 0,
+  running: 0,
+  failed: 0,
+  passed: 0,
+  noChecks: 0,
+});
 
 export function navCountsFor(pullRequests: unknown[], openIssueCount: number) {
   const pages: Record<string, Page> = {
@@ -48,7 +57,12 @@ export function navCountsFor(pullRequests: unknown[], openIssueCount: number) {
     if (!row.page) continue;
     const page = pages[row.page];
     page.total++;
-    if (row.state !== 'none') page[row.state as keyof Page]++;
+    const state = states.find((s) => s === row.state);
+    if (!state)
+      throw new Error(
+        `nav-counts fixture row for kind "${kind}", ci "${ci}" names state "${row.state}", which this helper does not count`,
+      );
+    page[state]++;
   }
 
   return {

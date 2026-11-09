@@ -1636,6 +1636,7 @@ button.title:focus-visible {
   flex: 1 1 100%;
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -1649,8 +1650,11 @@ button.title:focus-visible {
    and smaller than the CI slot. The colours are held to 4.5:1 by
    web/src/lib/attr-chip-contrast.test.ts. */
 .attr-cluster {
-  flex: 1 1 0;
-  min-width: 0;
+  /* Never narrower than its widest chip: when that doesn't fit beside the CI
+     slot, the cluster drops under it (the state group wraps) instead of
+     squeezing the chip (#3250). */
+  flex: 1 1 auto;
+  min-width: min-content;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1671,7 +1675,6 @@ button.title:focus-visible {
   background: transparent;
   color: var(--ink-2);
   white-space: nowrap;
-  flex-wrap: wrap;
 }
 /* Out of date: the one chip that asks to be seen. Warning colour on its own
    fill, with the icon and the words, so colour is never the only signal.
@@ -2096,6 +2099,12 @@ a.ci-pill:hover {
 }
 .merge-pill.blocked .dot {
   background: var(--warning);
+}
+/* The one chip that wraps: its note sits on a second line by design, so the
+   chip needs a line to put it on. Every other chip keeps icon and words on
+   one line (#3250). */
+.attr-chip:has(> .pill-note) {
+  flex-wrap: wrap;
 }
 /* "Managed by Forge Dashboard": the app, not the forge, does this merge. */
 .attr-chip .pill-note {
@@ -3736,7 +3745,7 @@ footer a.mono:focus-visible {
 .pipeline-check-link:focus-visible {
   text-decoration: underline;
 }
-/* View run and Copy are buttons that read as the link beside them. */
+/* Show output and Copy are buttons that read as the link beside them. */
 button.pipeline-check-link {
   padding: 0;
   border: 0;
@@ -4762,7 +4771,7 @@ footer a[aria-current="page"] {
   max-width: 100%;
 }
 
-/* A check's output, opened under it by View run. */
+/* A check's output, opened under it by Show output. */
 .run-output {
   flex: 1 1 100%;
   min-width: 0;
@@ -4838,7 +4847,7 @@ footer a[aria-current="page"] {
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-  margin: 0 0 12px;
+  padding: 12px 18px;
 }
 .rebase-all[hidden] {
   display: none;
@@ -4927,7 +4936,7 @@ footer a[aria-current="page"] {
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-  margin: 0 0 12px;
+  padding: 12px 18px;
 }
 .update-all[hidden] {
   display: none;

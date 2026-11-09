@@ -80,6 +80,21 @@ describe('headerLabel', () => {
     );
   });
 
+  test('names the pull requests without checks last, so the parts add up (#3241)', () => {
+    expect(
+      headerLabel('Bots', {
+        total: 3,
+        failed: 1,
+        passed: 1,
+        running: 0,
+        noChecks: 1,
+      }),
+    ).toBe('3 1 1 1, Bots, 3 total, 1 failing, 1 passing, 1 without checks');
+    expect(
+      tabLabel('Bots', { total: 3, failed: 1, passed: 1, noChecks: 1 }),
+    ).toBe('3 1 1 1 Bots, 1 failing, 1 passing, 1 without checks');
+  });
+
   test('large numbers are named whole', () => {
     expect(
       headerLabel('Pull requests', {
@@ -152,6 +167,12 @@ describe('pillParts', () => {
     ]);
   });
 
+  test('lists the pull requests without checks after the branches without a pipeline (#3241)', () => {
+    expect(pillParts({ total: 4, failed: 0, noChecks: 2 })).toEqual([
+      { kind: 'noChecks', n: 2, words: 'without checks' },
+    ]);
+  });
+
   test('leaves out a zero or a missing count', () => {
     expect(pillParts({ total: 4, failed: 0, running: 1 })).toEqual([
       { kind: 'running', n: 1, words: 'running' },
@@ -160,13 +181,14 @@ describe('pillParts', () => {
   });
 
   test('the names list the numbers in the same order, for every mix of counts', () => {
-    for (let mask = 0; mask < 16; mask++) {
+    for (let mask = 0; mask < 32; mask++) {
       const count = {
         total: 100,
         failed: mask & 1 ? 1 : 0,
         passed: mask & 2 ? 2 : 0,
         running: mask & 4 ? 3 : 0,
         none: mask & 8 ? 4 : 0,
+        noChecks: mask & 16 ? 5 : 0,
       };
       const expected = ['100', ...pillParts(count).map((p) => String(p.n))];
       expect(headerLabel('X', count).split(',')[0]).toBe(expected.join(' '));

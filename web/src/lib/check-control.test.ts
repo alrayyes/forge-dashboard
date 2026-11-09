@@ -8,7 +8,7 @@ const forgejo = { forge: 'forgejo', fullName: 'a/b' };
 const url = 'https://example.test/run/1';
 
 // What the pipeline dialog offers beside a check, decided with no browser. A
-// queued job has no log yet, so it never offers View run.
+// queued job has no log yet, so it never offers Show output.
 describe('checkControl', () => {
   test('a queued job links to the forge, with or without a job id', () => {
     expect(checkControl({ status: 'queued', url, jobId: 7 }, repo)).toBe(
@@ -81,8 +81,8 @@ describe('checkControl', () => {
 // callers together can't stay green.
 describe('checkLinkLabel', () => {
   test('starts with the visible text, then the new-tab warning, then the check', () => {
-    expect(checkLinkLabel('View run', 'build')).toBe(
-      'View run (opens in a new tab): build',
+    expect(checkLinkLabel('Open check page', 'build')).toBe(
+      'Open check page (opens in a new tab): build',
     );
     expect(checkLinkLabel('Open on GitHub', 'lint')).toBe(
       'Open on GitHub (opens in a new tab): lint',
@@ -119,10 +119,10 @@ describe('checkLinkText', () => {
     expect(checkLinkText(running, 'running', 'GitHub')).toBe('Watch on GitHub');
   });
 
-  test('a held workflow is approved and any other plain link is a run', () => {
+  test('a held workflow is approved and any other plain link opens the check page', () => {
     expect(checkLinkText('link', 'awaiting_approval', 'GitHub')).toBe(
       'Approve on GitHub',
     );
-    expect(checkLinkText('link', 'success', 'GitHub')).toBe('View run');
+    expect(checkLinkText('link', 'success', 'GitHub')).toBe('Open check page');
   });
 });

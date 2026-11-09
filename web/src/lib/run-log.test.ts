@@ -34,7 +34,7 @@ const respond = (status: number, body: unknown) =>
     })) as unknown as typeof fetch;
 
 describe('loadRunLog', () => {
-  test('puts no time limit on a read unless asked, so View run waits as it did', async () => {
+  test('puts no time limit on a read unless asked, so Show output waits as it did', async () => {
     let signal: AbortSignal | null | undefined = null;
     const capture = ((_url: string, init?: RequestInit) => {
       signal = init?.signal;

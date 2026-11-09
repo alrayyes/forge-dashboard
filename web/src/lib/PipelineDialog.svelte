@@ -548,7 +548,7 @@
   // Copy log is for a failed or timed-out check that has something to copy:
   // an excerpt, or a job whose full log the board's checks url can name. Only
   // those two states carry an excerpt from the server, and a cancelled run is
-  // not a failure to debug (View run still opens its output).
+  // not a failure to debug (Show output still opens its output).
   function copyableLog(check: Check): boolean {
     return canCopyLog(check, target?.repo);
   }

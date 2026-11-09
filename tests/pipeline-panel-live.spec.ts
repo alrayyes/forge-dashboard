@@ -162,7 +162,7 @@ async function update(
 const dialog = (page: Page) => page.locator('#pipeline-dialog');
 
 test.describe('pipeline panel updates live', () => {
-  test('a check going from queued to running shows View run at once on Forgejo, with no reload', async ({
+  test('a check going from queued to running shows Show output at once on Forgejo, with no reload', async ({
     page,
   }) => {
     const QUEUED = pr(
@@ -190,7 +190,9 @@ test.describe('pipeline panel updates live', () => {
       },
     ];
     const state = await open(page, QUEUED, before);
-    const view = dialog(page).getByRole('button', { name: 'View run: test' });
+    const view = dialog(page).getByRole('button', {
+      name: 'Show output: test',
+    });
     await expect(view).toHaveCount(0);
     await expect(
       dialog(page).getByRole('link', {
@@ -376,7 +378,7 @@ test.describe('pipeline panel updates live', () => {
     ];
     const state = await open(page, RUNNING_FORGEJO, three, 3);
     const link = dialog(page).getByRole('link', {
-      name: checkLinkName('View run', 'test'),
+      name: checkLinkName('Open check page', 'test'),
     });
     await link.focus();
 
@@ -402,7 +404,7 @@ test.describe('pipeline panel updates live', () => {
     );
     await expect(
       dialog(page).getByRole('link', {
-        name: checkLinkName('View run', 'test'),
+        name: checkLinkName('Open check page', 'test'),
       }),
     ).toBeFocused();
   });
@@ -412,7 +414,7 @@ test.describe('pipeline panel updates live', () => {
   }) => {
     const state = await open(page, RUNNING_FORGEJO, RUN);
     await dialog(page)
-      .getByRole('link', { name: checkLinkName('View run', 'test') })
+      .getByRole('link', { name: checkLinkName('Open check page', 'test') })
       .focus();
 
     state.checks = [

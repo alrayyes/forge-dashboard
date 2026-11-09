@@ -1,5 +1,27 @@
 # Changelog
 
+## [9.3.0](https://github.com/alrayyes/forge-dashboard/compare/v9.2.13...v9.3.0) (2026-11-09)
+
+
+### Features
+
+* **web:** rename the checks dialog's View run to Show output and Open check page ([#3270](https://github.com/alrayyes/forge-dashboard/issues/3270)) ([f04422e](https://github.com/alrayyes/forge-dashboard/commit/f04422e9e6efa3bd8f4b5cb3fa442b962c803cfa)), closes [#3253](https://github.com/alrayyes/forge-dashboard/issues/3253)
+
+## [9.2.13](https://github.com/alrayyes/forge-dashboard/compare/v9.2.12...v9.2.13) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** pad the Bots and Pull requests update strip like the card heading ([#3259](https://github.com/alrayyes/forge-dashboard/issues/3259)) ([6a92716](https://github.com/alrayyes/forge-dashboard/commit/6a927168c3b2dc0fd45d75b7db9b3de124d564a1)), closes [#3246](https://github.com/alrayyes/forge-dashboard/issues/3246)
+
+## [9.2.12](https://github.com/alrayyes/forge-dashboard/compare/v9.2.11...v9.2.12) (2026-11-09)
+
+
+### Bug Fixes
+
+* **deps-dev:** bump the bun-dependencies group across 1 directory with 6 updates ([#3249](https://github.com/alrayyes/forge-dashboard/issues/3249)) ([806d3a2](https://github.com/alrayyes/forge-dashboard/commit/806d3a2d77f836e02b6c3ceee696761aa431b860))
+* **web:** count a pull request with no checks in the Bots, Pull requests and Releases pills ([#3242](https://github.com/alrayyes/forge-dashboard/issues/3242)) ([65466b9](https://github.com/alrayyes/forge-dashboard/commit/65466b93ff035d8bd622a0d187470c41c1242d5c)), closes [#3241](https://github.com/alrayyes/forge-dashboard/issues/3241)
+
 ## [9.2.11](https://github.com/alrayyes/forge-dashboard/compare/v9.2.10...v9.2.11) (2026-11-09)
 
 

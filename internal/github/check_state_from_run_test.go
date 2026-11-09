@@ -28,7 +28,7 @@ func TestCheckStateFromRunInProgressIsRunning(t *testing.T) {
 }
 
 // Only in_progress has a log; a status GitHub adds later has not started
-// either, so it reads queued rather than offering "View run" on nothing.
+// either, so it reads queued rather than offering "Show output" on nothing.
 func TestCheckStateFromRunUnknownStatusIsQueued(t *testing.T) {
 	t.Parallel()
 	got := checkStateFromRun(&ghsdk.CheckRun{Status: new("brand_new_status")})
