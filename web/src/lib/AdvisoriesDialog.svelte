@@ -612,14 +612,23 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    /* One badge column shared by every row, sized by the widest badge, so the
+       text column starts at the same x in each. li and button are subgrids. */
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 8px 12px;
+  }
+  .adv-list > li {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
   }
   .adv-row {
-    display: flex;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     gap: 12px;
-    align-items: flex-start;
+    align-items: start;
     width: 100%;
     box-sizing: border-box;
     padding: 10px 12px;
