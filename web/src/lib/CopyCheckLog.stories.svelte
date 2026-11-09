@@ -27,7 +27,7 @@
     `=== RUN   TestStatic_ServerWiring\n--- FAIL: TestStatic_ServerWiring (0.02s)\n    static_test.go:48: GET /style.css: status 404, want 200\nFAIL${extra}\n`;
 </script>
 
-<!-- A failed check: the excerpt and the Copy log button. -->
+<!-- A failed check: the excerpt and the Copy output button. -->
 <Story name="Failed check" />
 
 <!-- The button is pressed while the whole log is still being read. -->
