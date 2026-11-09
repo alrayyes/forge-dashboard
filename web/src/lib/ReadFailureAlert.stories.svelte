@@ -20,6 +20,15 @@
   }}
 />
 
+<!-- A page with a read of its own passes the message and the retry (#3272). -->
+<Story
+  name="Page read error"
+  args={{
+    message: "The backend answered with an error (500).",
+    onretry: () => {},
+  }}
+/>
+
 <!-- No error: the component renders nothing. -->
 <Story
   name="Hidden"
