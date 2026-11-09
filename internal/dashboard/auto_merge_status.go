@@ -85,18 +85,14 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 		return status(AutoMergeWaiting, ActionBlockedByProtection, "Auto-merge is waiting for workflow approval. Approve the runs on "+forgeName(pr.Forge)+" and it carries on.")
 	case pr.CI == CIFailure:
 		return status(AutoMergeStopped, ActionChecksFailing, "Auto-merge stopped: a check failed. It carries on once checks pass.")
-	case pr.CI == CICancelled:
-		return status(AutoMergeWaiting, ActionChecksPending, "Auto-merge is waiting: the only run left was cancelled. It carries on once a run passes.")
 	case pr.Empty:
 		return status(AutoMergeStopped, ActionAlreadyUpToDate, "Auto-merge stopped: nothing left to merge.")
 	case pr.Draft:
 		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for the draft to be marked ready.")
 	case pr.StackedOn != nil:
 		return status(AutoMergeWaiting, ActionStacked, "Auto-merge is waiting for the pull request it is stacked on to merge.")
-	case pr.CI == CINone:
-		return status(AutoMergeWaiting, ActionChecksPending, "Auto-merge is waiting for a check to report and pass.")
-	case pr.CI == CIPending:
-		return status(AutoMergeWaiting, ActionChecksPending, "Auto-merge is waiting for checks to finish.")
+	case pr.CI == CINone || pr.CI == CIPending || pr.CI == CICancelled:
+		return status(AutoMergeWaiting, ActionChecksPending, waitingOnChecks(pr.CI))
 	case pr.MergeStatus != MergeMergeable:
 		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for "+forgeName(pr.Forge)+" to say it can merge.")
 	}
@@ -106,6 +102,19 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 	}
 
 	return status(AutoMergeWaiting, "", "Checks passed. Auto-merge merges it on the next refresh.")
+}
+
+// waitingOnChecks says what an armed pull request with no passing run is
+// waiting for.
+func waitingOnChecks(ci CIStatus) string {
+	switch ci {
+	case CICancelled:
+		return "Auto-merge is waiting: the only run left was cancelled. It carries on once a run passes."
+	case CIPending:
+		return "Auto-merge is waiting for checks to finish."
+	default:
+		return "Auto-merge is waiting for a check to report and pass."
+	}
 }
 
 func forgeName(f Forge) string {
