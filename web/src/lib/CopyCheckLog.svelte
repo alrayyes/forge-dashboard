@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A failed check's log excerpt with its Copy log button. One click copies the
+  // A failed check's log excerpt with its Copy output button. One click copies the
   // whole log from the log endpoint, or the excerpt when the whole log can't be
   // read, and the status says which landed. Text only: nothing here is parsed
   // as markup.
@@ -21,6 +21,7 @@
     forgeName,
     copyable,
     runKey,
+    outputLoaded = false,
   }: {
     name: string;
     jobId?: number;
@@ -32,9 +33,12 @@
     // What tells one run of the job from another when the forge reuses the job
     // id for a rerun.
     runKey: string;
+    // The row's output panel is open and loaded: it has the text and its own
+    // Copy button, so the excerpt and this button step aside (#3257).
+    outputLoaded?: boolean;
   } = $props();
 
-  const flow = new CopyFlow(() => forgeName);
+  const flow = new CopyFlow(() => forgeName, "output");
 
   // The row is keyed by the check's name, so a rerun hands the same component a
   // new job. What was copied or shown for the old one must not stay for the
@@ -89,15 +93,15 @@
   }
 </script>
 
-{#if excerpt}
+{#if excerpt && !outputLoaded}
   <!-- It scrolls, so it takes focus to be reachable from the keyboard. -->
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <pre
     class="pipeline-check-excerpt"
     tabindex="0"
-    aria-label="Log excerpt: {name}">{excerpt}</pre>
+    aria-label="Output excerpt: {name}">{excerpt}</pre>
 {/if}
-{#if copyable}
+{#if copyable && !outputLoaded}
   <div class="pipeline-check-copy">
     <button
       bind:this={flow.button}
@@ -106,7 +110,7 @@
       aria-disabled={flow.busy ? "true" : undefined}
       aria-busy={flow.busy ? "true" : undefined}
       onclick={copy}
-      aria-label="Copy log: {name}">Copy log</button
+      aria-label="Copy output: {name}">Copy output</button
     >
     <span class="pipeline-check-copy-status" role="status"
       >{flow.busy ? "Copying" : flow.status}</span
@@ -119,6 +123,6 @@
     class="pipeline-check-manual"
     readonly
     rows="6"
-    aria-label="Log to copy: {name}">{flow.manual}</textarea
+    aria-label="Output to copy: {name}">{flow.manual}</textarea
   >
 {/if}

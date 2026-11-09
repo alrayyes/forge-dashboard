@@ -343,7 +343,8 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(results.violations).toEqual([]);
     await expect(
       dialog.getByRole('button', { name: 'Copy output: build' }),
-    ).toBeDisabled();
+    ).toHaveText('Copy output');
+    await expect(dialog.locator('.run-output-bar button')).toHaveCount(0);
   });
 
   // Which control each state gets is proved by checkControl's unit test; this
@@ -466,7 +467,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     ).toBeVisible();
   });
 
-  test('a failed check has a Copy log button beside its excerpt that copies the whole log', async ({
+  test('a failed check has a Copy output button beside its excerpt that copies the whole log', async ({
     page,
     context,
   }) => {
@@ -476,7 +477,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'step 1\nboom: exit 1\n', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
 
     await copy.focus();
     await page.keyboard.press('Enter');
@@ -494,7 +495,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('when the full log cannot be read, Copy log copies the excerpt and says so', async ({
+  test('when the full log cannot be read, Copy output copies the excerpt and says so', async ({
     page,
     context,
   }) => {
@@ -502,7 +503,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(page, { status: 404, body: { error: 'gone' } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
       /^Copied the excerpt only\. .*no output for this check/,
@@ -512,7 +513,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     );
   });
 
-  test('a failed job with no excerpt still has Copy log, and no excerpt box', async ({
+  test('a failed job with no excerpt still has Copy output, and no excerpt box', async ({
     page,
     context,
   }) => {
@@ -533,7 +534,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
     await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
       'Copied',
@@ -560,7 +561,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await page.evaluate(() => navigator.clipboard.writeText('keep me'));
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
       'Nothing was copied',
@@ -569,7 +570,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       'keep me',
     );
     await expect(
-      dialog.getByRole('button', { name: 'Copy log: build' }),
+      dialog.getByRole('button', { name: 'Copy output: build' }),
     ).not.toHaveAttribute('aria-disabled');
   });
 
@@ -588,16 +589,16 @@ test.describe('a check run output in the pipeline dialog', () => {
 
     await expect(dialog.getByRole('listitem')).toHaveCount(1);
     await expect(
-      dialog.getByRole('button', { name: 'Copy log: build' }),
+      dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toHaveCount(0);
   });
 
-  test('a passed check has no Copy log button', async ({ page }) => {
+  test('a passed check has no Copy output button', async ({ page }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog.getByRole('listitem')).toHaveCount(2);
     await expect(
-      dialog.getByRole('button', { name: 'Copy log: lint' }),
+      dialog.getByRole('button', { name: 'Copy output: lint' }),
     ).toHaveCount(0);
   });
 
@@ -611,7 +612,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
       "Couldn't copy automatically",
@@ -629,7 +630,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
       'Copied the last 256 KB',
@@ -644,7 +645,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(page, { status: 401, body: {} });
     const release = await holdLog(page, { status: 401, body: {} });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
 
     await copy.focus();
     await page.keyboard.press('Enter');
@@ -673,7 +674,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     await page.keyboard.press('Escape');
     release();
     await logWasRead(page);
@@ -691,9 +692,11 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toHaveValue('line one\nline two\n');
     await expect(field).toBeFocused();
     expect(
@@ -704,10 +707,10 @@ test.describe('a check run output in the pipeline dialog', () => {
     ).toEqual([0, 18]);
     const status = dialog.locator('.pipeline-check-copy-status');
     await expect(status).toContainText('Cmd+C');
-    await expect(status).toContainText('The log is selected below');
+    await expect(status).toContainText('The output is selected below');
   });
 
-  test('pressing Copy log again keeps the field to copy from until the new log arrives', async ({
+  test('pressing Copy output again keeps the field to copy from until the new log arrives', async ({
     page,
   }) => {
     await refuseClipboard(page);
@@ -715,8 +718,10 @@ test.describe('a check run output in the pipeline dialog', () => {
     // not kept: the second press reads the log again.
     await setup(page, { status: 404, body: {} });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     await expect(field).toHaveValue('boom: exit 1');
 
     const release = await holdLog(page, {
@@ -725,7 +730,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     await field.focus();
     await dialog
-      .getByRole('button', { name: 'Copy log: build' })
+      .getByRole('button', { name: 'Copy output: build' })
       .press('Enter');
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
@@ -872,8 +877,10 @@ test.describe('a rerun gives a failed check a new job', () => {
   }) => {
     await refuseClipboard(page);
     const { dialog, rerun } = await openBranchFailure(page);
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toHaveValue('log of job 9\n');
 
     await rerun();
@@ -890,8 +897,10 @@ test.describe('a rerun gives a failed check a new job', () => {
   }) => {
     await refuseClipboard(page);
     const { dialog, rerunSameJob } = await openBranchFailure(page);
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toHaveValue('log of job 9\n');
 
     await rerunSameJob();
@@ -911,8 +920,10 @@ test.describe('a rerun gives a failed check a new job', () => {
     state.seconds = undefined;
     state.attempt = 1;
     await poll();
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toHaveValue('log of job 9\n');
 
     await retryAttempt();
@@ -928,9 +939,11 @@ test.describe('a rerun gives a failed check a new job', () => {
   }) => {
     await refuseClipboard(page);
     const { dialog, rerun } = await openBranchFailure(page);
-    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
     await copy.click();
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toBeFocused();
 
     await rerun();
@@ -944,15 +957,17 @@ test.describe('a rerun gives a failed check a new job', () => {
   }) => {
     await refuseClipboard(page);
     const { dialog, state, poll } = await openBranchFailure(page);
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toHaveValue('log of job 9\n');
 
     state.check = 'running';
     await poll();
 
     await expect(
-      dialog.getByRole('button', { name: 'Copy log: build' }),
+      dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toHaveCount(0);
     await expect(field).toHaveCount(0);
   });
@@ -965,7 +980,7 @@ test.describe('a rerun gives a failed check a new job', () => {
     const { dialog } = await openBranchFailure(page, async () => {
       reads++;
     });
-    const copy = dialog.getByRole('button', { name: 'Copy log: build' });
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
     await copy.click();
     await expect(dialog.locator('.pipeline-check-copy-status')).not.toHaveText(
       'Copying',
@@ -986,8 +1001,10 @@ test.describe('a rerun gives a failed check a new job', () => {
     const { dialog, state, poll } = await openBranchFailure(page);
     state.seconds = undefined;
     await poll();
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toHaveValue('log of job 9\n');
 
     state.excerpt = 'failed again';
@@ -1005,8 +1022,10 @@ test.describe('a rerun gives a failed check a new job', () => {
   }) => {
     await refuseClipboard(page);
     const { dialog, state, poll } = await openBranchFailure(page);
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
-    const field = dialog.getByRole('textbox', { name: 'Log to copy: build' });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
     await expect(field).toHaveValue('log of job 9\n');
 
     state.excerpt = 'a later line of the same job';
@@ -1029,7 +1048,7 @@ test.describe('a rerun gives a failed check a new job', () => {
     await watchLogReads(page);
     await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
       'Copying',
     );
@@ -1065,10 +1084,10 @@ test.describe('the copy status line', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(
-      dialog.getByRole('textbox', { name: 'Log to copy: build' }),
+      dialog.getByRole('textbox', { name: 'Output to copy: build' }),
     ).toHaveValue('old log\n');
     await expect(dialog.locator('textarea:not([aria-label])')).toHaveCount(0);
     await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
@@ -1099,7 +1118,7 @@ test.describe('the copy status line', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     await page.keyboard.press('Escape');
     release();
     await logWasRead(page);
@@ -1125,7 +1144,7 @@ test.describe('the copy status line', () => {
     await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     await page.keyboard.press('Escape');
     release();
     await logWasRead(page);
@@ -1144,7 +1163,7 @@ test.describe('the copy status line', () => {
     await page.evaluate(() => navigator.clipboard.writeText('SENTINEL'));
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await dialog.getByRole('button', { name: 'Copy log: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
       'Sign in again',
@@ -1164,7 +1183,7 @@ test.describe('the copy status line', () => {
       body: { text: 'a log\n', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const button = dialog.getByRole('button', { name: 'Copy log: build' });
+    const button = dialog.getByRole('button', { name: 'Copy output: build' });
     const status = dialog.locator('.pipeline-check-copy-status');
     await button.click();
     await expect(status).toHaveText('Copied');
@@ -1185,5 +1204,142 @@ test.describe('the copy status line', () => {
       () => (window as unknown as { seen: string[] }).seen,
     );
     expect(seen).toEqual(['Copying', 'Copied']);
+  });
+});
+
+// One Copy button for a failed row (#3257): the excerpt's while the output
+// isn't there, the panel's once it is.
+test.describe('a failed row has one Copy button', () => {
+  const failed = [
+    {
+      name: 'build',
+      status: 'completed',
+      conclusion: 'failure',
+      url: runUrl,
+      jobId: 9,
+      excerpt: 'boom: exit 1',
+      failedStep: 'Run tests',
+    },
+  ];
+  const log = {
+    status: 200,
+    body: { text: 'step 1\nboom: exit 1\n', truncated: false },
+  };
+
+  test('a closed row shows the step, the excerpt and Copy output', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(dialog.getByText('Failed step: Run tests')).toBeVisible();
+    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
+    await expect(copy).toHaveCount(1);
+    await expect(copy).toHaveText('Copy output');
+    await expect(
+      dialog.locator('pre[aria-label="Output excerpt: build"]'),
+    ).toBeVisible();
+  });
+
+  test('an open, loaded row hides the excerpt and its button and keeps the step', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+
+    await expect(
+      dialog.getByRole('region', { name: 'Output: build' }),
+    ).toBeVisible();
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.getByText('Failed step: Run tests')).toBeVisible();
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
+    await expect(copy).toHaveCount(1);
+    await expect(copy).toHaveText('Copy');
+    await expect(dialog.getByRole('button', { name: /^Copy log/ })).toHaveCount(
+      0,
+    );
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+
+    // Closing it brings the excerpt back, and focus stays on the toggle.
+    await dialog.getByRole('button', { name: 'Hide output: build' }).click();
+    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Show output: build' }),
+    ).toBeFocused();
+    await expect(
+      dialog.getByRole('button', { name: 'Copy output: build' }),
+    ).toHaveText('Copy output');
+  });
+
+  test('while the output loads the excerpt stays and the panel has no Copy; focus moves when the output lands', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const release = await holdLog(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
+    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    await expect(copy).toHaveCount(1);
+    await expect(copy).toHaveText('Copy output');
+
+    await copy.focus();
+    release();
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(copy).toHaveText('Copy');
+    await expect(copy).toBeFocused();
+  });
+
+  test('when the output fails to load the excerpt stays and copies itself', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, { status: 404, body: { error: 'gone' } }, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+
+    await expect(dialog.locator('.run-output-error')).toBeVisible();
+    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    const copy = dialog.getByRole('button', { name: 'Copy output: build' });
+    await expect(copy).toHaveCount(1);
+    await expect(copy).toHaveText('Copy output');
+
+    await copy.click();
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      /^Copied the excerpt only\. /,
+    );
+  });
+
+  test('a check update redraws the row to match its output state', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const subject = {
+      kind: 'pull_request' as const,
+      forge: 'github',
+      fullName: pr.repo,
+      number: pr.number,
+    };
+
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await pushChecks(page, subject, [{ ...failed[0], excerpt: 'boom again' }]);
+    await expect(
+      dialog.getByRole('region', { name: 'Output: build' }),
+    ).toBeVisible();
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(
+      dialog.getByRole('button', { name: 'Copy output: build' }),
+    ).toHaveCount(1);
   });
 });

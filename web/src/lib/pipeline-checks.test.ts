@@ -110,7 +110,7 @@ describe('groupChecks', () => {
     expect(groupChecks(list)).toEqual([{ id: '', title: '', checks: list }]);
   });
 
-  test('Required, Advisory and Status unknown, each only when it has checks', () => {
+  test('Required, Advisory and Not known if required, each only when it has checks', () => {
     const req = check({ name: 'r', required: true });
     const adv = check({ name: 'a', required: false });
     const unk = check({ name: 'u' });
@@ -120,7 +120,8 @@ describe('groupChecks', () => {
       { id: 'pipeline-group-advisory', title: 'Advisory', checks: [adv] },
       {
         id: 'pipeline-group-unknown',
-        title: 'Status unknown',
+        title: 'Not known if required',
+        hint: "The forge didn't say whether these block the merge.",
         checks: [unk],
       },
     ]);

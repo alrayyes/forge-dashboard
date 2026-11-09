@@ -826,7 +826,7 @@ commit the checks belong to, and when it isn't the head of the pull request the
 pill stays pending until they agree.
 
 A check that failed or timed out, and has an excerpt or a job to read, also
-has a `Copy log` button under it. A cancelled check doesn't. The button copies
+has a `Copy output` button under it. A cancelled check doesn't. The button copies
 the whole log of the job, or the last 256 KB of it when the log is longer, and
 the excerpt alone when the log can't be read; the status line beside the button
 says which of these it copied. A log the forge doesn't send within 30 seconds
@@ -835,6 +835,12 @@ reuses the log it read; after that it reads the log again, since a read just
 after a job finished can miss lines. Where the browser refuses every way of copying,
 the log is put in a text field, selected, for the
 person to copy with Ctrl+C (Cmd+C on a Mac).
+
+While the check's output is open and loaded, the excerpt and its `Copy output`
+button are hidden, since the output panel has the whole text and one `Copy`
+button of its own (named "Copy output: {check}"). The `Failed step` line stays.
+While the output is loading or failed to load, the panel has no Copy button and
+the excerpt and its button stay.
 
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
@@ -1000,7 +1006,8 @@ status checks and its rulesets are both read, and Forgejo's
 `status_check_contexts` patterns. Reading branch protection needs more
 permission than listing checks (admin on GitHub's classic rules and on
 Forgejo), so with a token that can't, or for a check the dashboard can't
-match to a protection entry, the check lands under `Status unknown`
+match to a protection entry, the check lands under `Not known if required`,
+with a one-line hint that the forge didn't say whether it blocks the merge,
 rather than being guessed advisory (the pill has its own fallback, described
 earlier). A
 Forgejo Actions job is only marked required when a pattern matches its job

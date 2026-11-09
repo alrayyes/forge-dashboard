@@ -1,5 +1,38 @@
 # Changelog
 
+## [9.8.0](https://github.com/alrayyes/forge-dashboard/compare/v9.7.0...v9.8.0) (2026-11-09)
+
+
+### Features
+
+* **web:** name the unknown checks group by the missing fact ([#3346](https://github.com/alrayyes/forge-dashboard/issues/3346)) ([c84390d](https://github.com/alrayyes/forge-dashboard/commit/c84390d4e78fb9c35bf554f5c2639f6ffbeaf64e))
+
+
+### Bug Fixes
+
+* **web:** draw one accent focus ring on every control ([#3347](https://github.com/alrayyes/forge-dashboard/issues/3347)) ([93bc478](https://github.com/alrayyes/forge-dashboard/commit/93bc47863e86a815e48001a6d15e2ac29ea3173d)), closes [#3262](https://github.com/alrayyes/forge-dashboard/issues/3262)
+
+## [9.7.0](https://github.com/alrayyes/forge-dashboard/compare/v9.6.0...v9.7.0) (2026-11-09)
+
+
+### Features
+
+* **web:** show one Copy button on an open pipeline output row ([#3339](https://github.com/alrayyes/forge-dashboard/issues/3339)) ([816efe8](https://github.com/alrayyes/forge-dashboard/commit/816efe80cf1f62313effb1c770868c4f68e74061))
+
+## [9.6.0](https://github.com/alrayyes/forge-dashboard/compare/v9.5.8...v9.6.0) (2026-11-09)
+
+
+### Features
+
+* **web:** say why a pipeline check row has no control ([#3337](https://github.com/alrayyes/forge-dashboard/issues/3337)) ([10e01bb](https://github.com/alrayyes/forge-dashboard/commit/10e01bbc3a5f2f642256c8bad70483818e52e5fe)), closes [#3258](https://github.com/alrayyes/forge-dashboard/issues/3258)
+
+## [9.5.8](https://github.com/alrayyes/forge-dashboard/compare/v9.5.7...v9.5.8) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep a readable description on a short screen ([#3336](https://github.com/alrayyes/forge-dashboard/issues/3336)) ([fdf2108](https://github.com/alrayyes/forge-dashboard/commit/fdf21089ea797e414c64aa3b39d12fd5f27e4a6c)), closes [#3271](https://github.com/alrayyes/forge-dashboard/issues/3271)
+
 ## [9.5.7](https://github.com/alrayyes/forge-dashboard/compare/v9.5.6...v9.5.7) (2026-11-09)
 
 

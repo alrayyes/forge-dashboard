@@ -185,6 +185,14 @@ a {
   color: inherit;
 }
 
+/* One focus ring for every control (#3262). :where() keeps the specificity
+   at a bare :focus-visible, so the per-class rules below only need to say
+   where they differ (a tighter offset, or a ring drawn inside the box). */
+:where(a, button, select, input, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .wrap {
   max-width: 1220px;
   margin: 0 auto;
@@ -225,11 +233,6 @@ header,
   color: inherit;
   text-decoration: none;
   border-radius: 8px;
-}
-
-.brand:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .brand-mark {
@@ -402,10 +405,6 @@ header,
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
-}
-.theme-toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 .theme-toggle svg {
   display: block;
@@ -747,10 +746,6 @@ section.board {
 }
 .text-filter input::placeholder {
   color: var(--ink-3);
-}
-.text-filter input[type="text"]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 @media (max-width: 760px) {
   .text-filter {
@@ -1174,11 +1169,6 @@ select.col-filter {
   color: var(--ink-3);
   cursor: default;
 }
-.label-filter-clear:focus-visible,
-.label-filter-option input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 
 /* Always visible (#354's own "Design decisions" section, not this file's
    own restraint elsewhere for e.g. mergeStatusPill): hiding it would
@@ -1452,10 +1442,6 @@ button.title {
   border: 0;
   padding: 0;
   cursor: pointer;
-}
-button.title:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .title-text {
@@ -2063,10 +2049,6 @@ a.ci-pill:hover {
 .review-pill:hover {
   text-decoration: underline;
 }
-.review-pill:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 
 /* What a pull request is waiting on or blocked by, in one place on the row
    (#1375): an icon and words, on a line of its own above the actions. */
@@ -2601,11 +2583,6 @@ a.ci-pill:hover {
   cursor: pointer;
 }
 
-.error-banner-retry:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 @media (max-width: 760px) {
   .error-banner-retry {
     min-height: var(--tap);
@@ -2641,14 +2618,6 @@ a.ci-pill:hover {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
-}
-
-.activity-toggle:focus-visible,
-.activity-clear:focus-visible,
-.feedback-link:focus-visible,
-.feedback-toast-dismiss:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .activity-panel {
@@ -3271,11 +3240,6 @@ a.ci-pill:hover {
   text-decoration: none;
 }
 
-.unreachable-banner-retry:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 .rate-limit-banner-row {
   display: flex;
   align-items: baseline;
@@ -3740,6 +3704,12 @@ footer a.mono:focus-visible {
   font-size: 12px;
   color: var(--ink-3);
 }
+.pipeline-check-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
 .pipeline-check-step {
   flex: 1 1 100%;
   margin: 0;
@@ -3796,6 +3766,15 @@ footer a.mono:focus-visible {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--ink-3);
+}
+.pipeline-group-title:has(+ .pipeline-group-hint) {
+  margin-bottom: 2px;
+}
+.pipeline-group-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
 }
 .pipeline-check-link {
   flex: none;
@@ -3928,19 +3907,11 @@ button.pipeline-check-link:disabled {
   background: var(--accent);
   color: var(--accent-ink);
 }
-.segment button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 
 .quick-pill[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
-}
-.quick-pill:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* The Show drafts toggle (#791): quieter than the quick pills, since it is a
@@ -3960,10 +3931,6 @@ button.pipeline-check-link:disabled {
   border-style: solid;
   border-color: var(--accent);
   color: var(--ink);
-}
-.drafts-toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 .drafts-hidden {
   margin-inline-start: 6px;
@@ -4345,10 +4312,6 @@ button.pipeline-check-link:disabled {
   border-radius: 999px;
   cursor: pointer;
 }
-.stack-chip:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 .stack-note {
   flex-basis: 100%;
   color: var(--ink-2);
@@ -4457,12 +4420,6 @@ button.pipeline-check-link:disabled {
 .hidden-prs-toggle[hidden] {
   display: none;
 }
-.hide-status-undo:focus-visible,
-.hidden-prs-toggle:focus-visible,
-.hidden-prs-restore:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 .hidden-prs-panel {
   margin: 0 0 12px;
   border: 1px solid var(--border);
@@ -4519,10 +4476,6 @@ button.pipeline-check-link:disabled {
   border-radius: 6px;
   resize: vertical;
 }
-.feedback-details:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 
 /* The rerun's failure sentence and its Copy (#1323), side by side in the
    pipeline panel; the box for the details takes a full line below. */
@@ -4570,10 +4523,6 @@ button.pipeline-check-link:disabled {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
-}
-.held-pick-clear:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* The first refresh after a restart (#1672): a status line and placeholder
@@ -4948,11 +4897,6 @@ footer a[aria-current="page"] {
   cursor: default;
   opacity: 0.7;
 }
-.rebase-all-button:focus-visible,
-.rebase-all-actions button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 .rebase-all-dialog::backdrop {
   background: var(--backdrop);
 }
@@ -5037,12 +4981,6 @@ footer a[aria-current="page"] {
 #update-all-confirm:disabled {
   cursor: default;
   opacity: 0.7;
-}
-.update-all-button:focus-visible,
-.update-all-actions button:focus-visible,
-.update-all-label input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 .update-all-dialog::backdrop {
   background: var(--backdrop);
