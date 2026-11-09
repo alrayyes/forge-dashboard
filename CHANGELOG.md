@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.1](https://github.com/alrayyes/forge-dashboard/compare/v9.5.0...v9.5.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **forgejo:** say Checking for conflicts, not Conflicting ([#3307](https://github.com/alrayyes/forge-dashboard/issues/3307)) ([1e14ad5](https://github.com/alrayyes/forge-dashboard/commit/1e14ad5011053fe11d4b845dc4cf5b5bac541409))
+
 ## [9.5.0](https://github.com/alrayyes/forge-dashboard/compare/v9.4.2...v9.5.0) (2026-11-09)
 
 
