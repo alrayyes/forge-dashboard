@@ -10,7 +10,12 @@ import { test } from './server-fixture';
 // must sit inside the viewport and inside its own tab, with at least 2px
 // between neighbours.
 
-const WIDTHS = [320, 360, 375, 390, 412];
+// 352 to 361 straddle the width where tabs start keeping 44px (BREAKPOINT).
+const WIDTHS = [
+  320, 352, 353, 354, 355, 356, 357, 359, 360, 361, 375, 390, 412,
+];
+// Eight tabs of 44px, one of them the 50px Webhooks, need 358px of bar.
+const BREAKPOINT = 360;
 
 // The numbers drawn above the icons (#1315) must not widen a tab either.
 const MIXED = {
@@ -57,6 +62,8 @@ test.describe('bottom nav labels (#3288)', () => {
         }
         await page.goto('/insights.html');
         await expect(page.locator('.bottom-nav-label')).toHaveCount(8);
+        // Widths are those of the web font, not the fallback it replaces.
+        await page.evaluate(() => document.fonts.ready);
         if (counts) {
           // Branches, PRs, Releases, Bots and Issues each draw a pill.
           await expect(page.locator('.bottom-nav .nav-pills')).toHaveCount(5);
@@ -78,6 +85,14 @@ test.describe('bottom nav labels (#3288)', () => {
         );
 
         const problems: string[] = [];
+        // Tabs are at least 44px wide where eight fit and 32px below that.
+        const minTab = width >= BREAKPOINT ? 44 : 32;
+        for (const b of boxes) {
+          if (b.tabRight - b.tabLeft < minTab - 0.01)
+            problems.push(
+              `${b.name} tab is ${(b.tabRight - b.tabLeft).toFixed(1)}px, under ${minTab}px`,
+            );
+        }
         for (const [i, b] of boxes.entries()) {
           if (b.left < 0 || b.right > width)
             problems.push(
