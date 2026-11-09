@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.3.1](https://github.com/alrayyes/forge-dashboard/compare/v9.3.0...v9.3.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep the Out of date chip's icon and words in one box ([#3267](https://github.com/alrayyes/forge-dashboard/issues/3267)) ([bf494c8](https://github.com/alrayyes/forge-dashboard/commit/bf494c8feda24b36f2a59a232f87dd4db08c10ed)), closes [#3250](https://github.com/alrayyes/forge-dashboard/issues/3250)
+
 ## [9.3.0](https://github.com/alrayyes/forge-dashboard/compare/v9.2.13...v9.3.0) (2026-11-09)
 
 
