@@ -1271,6 +1271,24 @@
     }
   }
 
+  /* A short screen (a phone held sideways, 400% zoom): the header and footer
+     are flex: none and would squeeze the body to a strip. The body keeps a
+     readable height and the dialog, which scrolls, takes the rest, so the
+     footer actions stay reachable by scrolling (#3271). */
+  @media (max-height: 500px) {
+    .details-body {
+      flex: 1 0 120px;
+      min-height: 120px;
+    }
+    .details-header {
+      padding: 10px 18px 8px;
+    }
+    .details-footer {
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+  }
+
   @media (max-width: 480px) {
     .details-dialog {
       width: 100vw;
