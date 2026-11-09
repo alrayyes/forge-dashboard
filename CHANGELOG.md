@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.3.2](https://github.com/alrayyes/forge-dashboard/compare/v9.3.1...v9.3.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** give output errors a plain sentence and a link to the job ([#3284](https://github.com/alrayyes/forge-dashboard/issues/3284)) ([b26de52](https://github.com/alrayyes/forge-dashboard/commit/b26de52d66684cc055fbe96fad44d90eeab46a1a))
+
 ## [9.3.1](https://github.com/alrayyes/forge-dashboard/compare/v9.3.0...v9.3.1) (2026-11-09)
 
 
