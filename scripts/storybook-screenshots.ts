@@ -130,8 +130,9 @@ async function waitForIndex(base: string): Promise<IndexEntry[]> {
 // Both signals here are private to Storybook: window.__STORYBOOK_PREVIEW__
 // .currentRender.phase, and patching emit on the channel at
 // window.__STORYBOOK_ADDONS_CHANNEL__. Neither is a public API. Recheck them
-// on every Storybook upgrade; a rename shows up as every story timing out. A failure is read off the preview channel's
-// events as they are emitted: the channel's own listeners do not hear them.
+// on every Storybook upgrade; a rename shows up as every story timing out.
+// A failure is read off the preview channel's events as they are emitted: the
+// channel's own listeners do not hear them.
 // The hook is installed before the page's scripts run and keeps looking until
 // the preview exists.
 const WATCH = `

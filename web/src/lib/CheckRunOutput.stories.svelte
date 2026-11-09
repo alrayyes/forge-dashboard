@@ -31,7 +31,7 @@
   };
 </script>
 
-<!-- Closed: View run and the link to the forge. -->
+<!-- Closed: Show output and the link to the forge. -->
 <Story name="Closed" />
 
 <!-- The output is being read. -->
@@ -116,5 +116,5 @@
   }}
 />
 
-<!-- No repository is named, so View run is disabled; the forge link stays. -->
-<Story name="View run disabled" args={{ repo: undefined }} />
+<!-- No repository is named, so Show output is disabled; the forge link stays. -->
+<Story name="Show output disabled" args={{ repo: undefined }} />
