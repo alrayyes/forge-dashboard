@@ -502,7 +502,7 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
   // https://github.com/alrayyes/forge-dashboard/issues/3191
   // https://github.com/alrayyes/forge-dashboard/issues/3192
   // The sweep opened the details and Update all dialogs and missed this one:
-  // its Close was 30px and its row links and Copy log were about 15px tall.
+  // its Close was 30px and its row links and Copy output were about 15px tall.
   // One Show output is expanded so the run-output Copy and Hide output buttons,
   // which share the row link class, are swept too.
   test('pull requests: the Pipeline checks dialog open', async ({ page }) => {
@@ -583,9 +583,9 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
       expect(close?.width, `close @${size.width}`).toBeCloseTo(30, 0);
       expect(close?.height, `close @${size.width}`).toBeCloseTo(30, 0);
       const link = await dialog
-        .getByRole('button', { name: 'Copy log: test' })
+        .getByRole('button', { name: 'Copy output: test' })
         .boundingBox();
-      expect(link?.height, `copy log @${size.width}`).toBeLessThan(20);
+      expect(link?.height, `copy output @${size.width}`).toBeLessThan(20);
     }
   });
 

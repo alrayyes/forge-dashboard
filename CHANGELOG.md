@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.7.0](https://github.com/alrayyes/forge-dashboard/compare/v9.6.0...v9.7.0) (2026-11-09)
+
+
+### Features
+
+* **web:** show one Copy button on an open pipeline output row ([#3339](https://github.com/alrayyes/forge-dashboard/issues/3339)) ([816efe8](https://github.com/alrayyes/forge-dashboard/commit/816efe80cf1f62313effb1c770868c4f68e74061))
+
 ## [9.6.0](https://github.com/alrayyes/forge-dashboard/compare/v9.5.8...v9.6.0) (2026-11-09)
 
 
