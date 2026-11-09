@@ -186,7 +186,7 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 			continue
 		}
 		switch {
-		case a.Blocked == nil && pr.CI != CIFailure:
+		case a.Blocked == nil && pr.CI != CIFailure && pr.CI != CICancelled:
 			return []ActionName{ActionMerge}
 		case a.Blocked != nil && a.Blocked.Code == ActionBehind:
 			return append([]ActionName{ActionUpdateBranch}, botRebases()...)

@@ -85,6 +85,8 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 		return status(AutoMergeWaiting, ActionBlockedByProtection, "Auto-merge is waiting for workflow approval. Approve the runs on "+forgeName(pr.Forge)+" and it carries on.")
 	case pr.CI == CIFailure:
 		return status(AutoMergeStopped, ActionChecksFailing, "Auto-merge stopped: a check failed. It carries on once checks pass.")
+	case pr.CI == CICancelled:
+		return status(AutoMergeWaiting, ActionChecksPending, "Auto-merge is waiting: the only run left was cancelled. It carries on once a run passes.")
 	case pr.Empty:
 		return status(AutoMergeStopped, ActionAlreadyUpToDate, "Auto-merge stopped: nothing left to merge.")
 	case pr.Draft:
