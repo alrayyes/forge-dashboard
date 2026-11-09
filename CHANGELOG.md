@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.10](https://github.com/alrayyes/forge-dashboard/compare/v9.2.9...v9.2.10) (2026-11-09)
+
+
+### Bug Fixes
+
+* **deps:** bump golang from `d9b6a1b` to `dc0963f` ([#3234](https://github.com/alrayyes/forge-dashboard/issues/3234)) ([d63fb79](https://github.com/alrayyes/forge-dashboard/commit/d63fb79f72d72ee7d548f07961d05a6463d6f5d1))
+* **deps:** bump the go-dependencies group with 2 updates ([#3231](https://github.com/alrayyes/forge-dashboard/issues/3231)) ([17e4dec](https://github.com/alrayyes/forge-dashboard/commit/17e4dec00136d34a3d98894e0b0a97b8483e5542))
+
 ## [9.2.9](https://github.com/alrayyes/forge-dashboard/compare/v9.2.8...v9.2.9) (2026-11-08)
 
 
