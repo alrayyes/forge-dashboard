@@ -15,13 +15,22 @@ type Counts = {
   failed: number;
 };
 
-function pr(number: number, title: string, ci: string, checks?: Counts) {
+function pr(
+  number: number,
+  title: string,
+  ci: string,
+  checks?: Counts,
+  forge = 'github',
+) {
   return {
-    forge: 'github',
+    forge,
     repo: 'alrayyes/app',
     number,
     title,
-    url: `https://github.com/alrayyes/app/pull/${number}`,
+    url:
+      forge === 'github'
+        ? `https://github.com/alrayyes/app/pull/${number}`
+        : `https://git.example/alrayyes/app/pull/${number}`,
     author: 'claude',
     draft: false,
     ci,
@@ -60,6 +69,15 @@ const PRS = [
     failed: 0,
   }),
   pr(6, 'Going', 'pending', { passed: 5, running: 2, waiting: 3, failed: 0 }),
+  // A Forgejo commit with 31 statuses, past one page of 30 (#3248): the server
+  // tallies all of them, so the row draws counts like a GitHub one.
+  pr(
+    7,
+    'Forgejo big pipeline',
+    'pending',
+    { passed: 28, running: 1, waiting: 2, failed: 0 },
+    'forgejo',
+  ),
 ];
 
 async function open(page: Page) {
@@ -148,6 +166,22 @@ test.describe('Passed and Failed pill counts (#2074)', () => {
 
     await expect(live('Mixed run').locator('.check-glyph-arc')).toBeHidden();
     await expect(live('Mixed run').locator('.check-glyph-clock')).toBeVisible();
+  });
+
+  test('a Forgejo pull request with 31 statuses reads Running with the same counts a GitHub row draws (#3248)', async ({
+    page,
+  }) => {
+    await open(page);
+
+    await expect(
+      pill(page, 'Forgejo big pipeline').locator('.ci-seg-label'),
+    ).toHaveText('Running');
+    await expect(segments(page, 'Forgejo big pipeline')).toHaveText([
+      '28',
+      '1',
+      '2',
+    ]);
+    await expect(segments(page, 'Going')).toHaveText(['5', '2', '3']);
   });
 
   test('each pill keeps its own state colours', async ({ page }) => {

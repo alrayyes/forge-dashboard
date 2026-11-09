@@ -294,7 +294,11 @@ its JSON endpoints (pull requests, issues, commit statuses, Actions runs,
 repositories, search), and it answers a request with `If-None-Match` or
 `If-Modified-Since` with a full `200`. We haven't tested other versions.
 Forgejo reports no request budget of its own to spend, so each read costs a
-round trip and nothing more. Check again when you upgrade Forgejo; if it starts
+round trip and nothing more. A pull request row reads the combined status of its
+commit 50 statuses at a time, so a commit with 50 statuses or fewer costs the one
+request it always did and each further 50 costs one more, up to 1,000. If a later
+page can't be read, the row keeps the first page's state and draws no counts
+rather than a short one. Check again when you upgrade Forgejo; if it starts
 sending ETags, add a cache for it the way GitHub's works. Until then the
 default-branch pill keeps a finished run's job list in memory (a finished run
 never changes) and reads the jobs of runs still going on each poll. A pull
