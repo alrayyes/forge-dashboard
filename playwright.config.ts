@@ -192,6 +192,7 @@ const singleUserSpecs = [
   '**/card-spacing.spec.ts',
   '**/page-widths.spec.ts',
   '**/auth.spec.ts',
+  '**/author-name-ellipsis.spec.ts',
   '**/css-bundle.spec.ts',
   '**/error-pages.spec.ts',
   '**/font-preload.spec.ts',
