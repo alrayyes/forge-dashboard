@@ -779,3 +779,40 @@ func TestAggregator_Refresh_DependabotCommandsBlocked_PostsNothing(t *testing.T)
 	require.Len(t, agg.Get().Forges, 1)
 	assert.Equal(t, "Dependabot ignores GitHub Apps", agg.Get().Forges[0].DependabotCommandsBlocked)
 }
+
+// A rebase whose only run was cancelled hasn't failed, so Dependabot's pull
+// request is not recreated over it. It stays watched, and a later real failure
+// still gets its recreate (#3301).
+func TestAggregator_Refresh_DependabotRebaseThenOnlyCancelled_WaitsThenRecreatesOnRealFailure(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // see the neighbouring tests: the wrapper carries more fields than the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", CI: dashboard.CIPending},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch(lister)
+	agg.Refresh(t.Context())
+
+	src.result.PullRequests = []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Author: "dependabot", CI: dashboard.CICancelled},
+	}
+	agg.Refresh(t.Context())
+	assert.Equal(t, []string{"alrayyes/a#1: " + dashboard.DependabotRebaseComment}, src.comments(),
+		"a cancelled-only head is waited on, not recreated")
+
+	src.result.PullRequests = []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Author: "dependabot", CI: dashboard.CIFailure},
+	}
+	agg.Refresh(t.Context())
+	assert.Equal(t, []string{
+		"alrayyes/a#1: " + dashboard.DependabotRebaseComment,
+		"alrayyes/a#1: " + dashboard.DependabotRecreateComment,
+	}, src.comments())
+}
