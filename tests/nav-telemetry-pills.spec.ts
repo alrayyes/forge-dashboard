@@ -14,6 +14,7 @@ type Counts = {
   running: number;
   failed: number;
   passed: number;
+  noChecks?: number;
 };
 
 const MIXED: Counts = { total: 15, running: 3, failed: 2, passed: 10 };
@@ -96,6 +97,27 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
       'aria-hidden',
       'true',
     );
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/3241
+  test('a pull request with no checks gets a neutral count, so the Bots pill adds up (#3241)', async ({
+    page,
+  }) => {
+    await open(page, {
+      bots: { total: 3, running: 0, failed: 1, passed: 1, noChecks: 1 },
+    });
+    const bots = header(page, '/bots.html');
+
+    await expect(bots.locator('.nav-pills .nav-noChecks')).toHaveText('1');
+    await expect(bots.locator('.nav-pills .nav-noChecks svg')).toBeAttached();
+    await expect(bots).toHaveAttribute(
+      'aria-label',
+      '3 1 1 1, Bots, 3 total, 1 failing, 1 passing, 1 without checks',
+    );
+    // A zero is never drawn.
+    await expect(
+      header(page, PRS).locator('.nav-pills .nav-noChecks'),
+    ).toHaveCount(0);
   });
 
   test('the divider is drawn only when a running count follows an outcome (#1563)', async ({
