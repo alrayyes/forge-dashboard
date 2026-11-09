@@ -147,7 +147,7 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(items.nth(1)).toContainText('Running');
 
     const buildLink = dialog.getByRole('link', {
-      name: checkLinkName('View run', 'build'),
+      name: checkLinkName('Open check page', 'build'),
     });
     await expect(buildLink).toHaveAttribute(
       'href',
@@ -166,7 +166,7 @@ test.describe('pull request pipeline checks panel', () => {
     ]);
   });
 
-  test('a skipped check shows its status but no "View run" link', async ({
+  test('a skipped check shows its status but no "Open check page" link', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
@@ -199,17 +199,17 @@ test.describe('pull request pipeline checks panel', () => {
 
     await expect(
       dialog.getByRole('link', {
-        name: checkLinkName('View run', 'build'),
+        name: checkLinkName('Open check page', 'build'),
       }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('link', {
-        name: checkLinkName('View run', 'deploy'),
+        name: checkLinkName('Open check page', 'deploy'),
       }),
     ).toHaveCount(0);
   });
 
-  test('a check with no URL (a legacy commit status set with no target_url) shows no "View run" link', async ({
+  test('a check with no URL (a legacy commit status set with no target_url) shows no "Open check page" link', async ({
     page,
   }) => {
     await mockDashboard(page, 'github', makePR());
@@ -241,12 +241,12 @@ test.describe('pull request pipeline checks panel', () => {
 
     await expect(
       dialog.getByRole('link', {
-        name: checkLinkName('View run', 'build'),
+        name: checkLinkName('Open check page', 'build'),
       }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('link', {
-        name: checkLinkName('View run', 'legacy-ci'),
+        name: checkLinkName('Open check page', 'legacy-ci'),
       }),
     ).toHaveCount(0);
   });
@@ -580,7 +580,7 @@ test.describe('pull request pipeline checks panel', () => {
     const failed = dialog.locator('.pipeline-check', { hasText: 'test' });
     await expect(failed).toBeVisible();
     await expect(
-      failed.getByRole('button', { name: 'View run: test' }),
+      failed.getByRole('button', { name: 'Show output: test' }),
     ).toBeVisible();
     await expect(failed.locator('pre.pipeline-check-excerpt')).toHaveCount(0);
     await expect.poll(() => asked.length).toBe(1);
@@ -1460,7 +1460,7 @@ test.describe('pull request pipeline checks panel', () => {
       dialog.getByRole('button', { name: 'Close pipeline checks' }),
     ).toBeFocused();
     const firstLink = dialog.getByRole('link', {
-      name: checkLinkName('View run', 'build'),
+      name: checkLinkName('Open check page', 'build'),
     });
     await expect(firstLink).toBeVisible();
     await page.keyboard.press('Tab');

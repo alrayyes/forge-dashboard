@@ -448,13 +448,13 @@ test.describe('Main branches page (#1224, #1279)', () => {
     // A skipped job, and one with no page, have no link.
     await expect(
       panel.getByRole('link', {
-        name: checkLinkName('View run', 'lint'),
+        name: checkLinkName('Open check page', 'lint'),
         exact: true,
       }),
     ).toHaveCount(1);
     await expect(
       panel.getByRole('link', {
-        name: checkLinkName('View run', 'e2e-playwright'),
+        name: checkLinkName('Open check page', 'e2e-playwright'),
         exact: true,
       }),
     ).toHaveCount(0);
@@ -523,13 +523,13 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(link).toHaveAccessibleName(/acme\/ingress-controller/);
   });
 
-  test('every row with a pipeline has a pill button named for its status, and there is no View run', async ({
+  test('every row with a pipeline has a pill button named for its status, and there is no Show output', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
     await page.goto('/');
     await expect(rows(page)).toHaveCount(6);
-    await expect(page.getByText('View run')).toHaveCount(0);
+    await expect(page.getByText('Show output')).toHaveCount(0);
     await expect(page.locator('.mb-action, .mb-actions')).toHaveCount(0);
     for (const [n, word] of [
       [0, 'Failed'],
