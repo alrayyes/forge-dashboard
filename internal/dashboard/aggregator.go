@@ -35,6 +35,12 @@ type Aggregator struct {
 	// for that repo and must not replace the newer (#966). Guarded by mu.
 	scopedSeq map[repoKey]uint64
 
+	// fullSeq is the fetchSeq of the newest full refresh swapped in. A scoped
+	// refresh that began before it read the forge before that refresh did, so
+	// its rows must not replace the ones the full refresh wrote: a pull request
+	// merged in between would come back as open.
+	fullSeq uint64
+
 	// autoUpdate is nil unless EnableAutoUpdateBranch was called — see
 	// auto_update_branch.go.
 	autoUpdate *autoUpdateBranchConfig
@@ -663,6 +669,9 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 	wrote := false
 	var fetched map[string]bool
 	for _, r := range repos {
+		if seq < a.fullSeq {
+			continue
+		}
 		prs, issues, ok := r.rows(merged)
 		if !ok {
 			continue
@@ -1136,6 +1145,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	// cancel takes, so none can land between the settling and the swap.
 	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] }, read)
 	a.snap = snap
+	a.fullSeq = max(a.fullSeq, seq)
 	a.lastGood = goodAt
 	a.mu.Unlock()
 	a.markFirstRefreshed()
