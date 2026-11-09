@@ -144,6 +144,7 @@ const singleUserSpecs = [
   '**/phone-row-gap.spec.ts',
   '**/auto-merge-focus.spec.ts',
   '**/refresh-queue-focus.spec.ts',
+  '**/pagination-focus.spec.ts',
   '**/label-chip-pill-overlap.spec.ts',
   '**/inline-feedback.spec.ts',
   '**/label-in-name.spec.ts',
