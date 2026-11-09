@@ -4838,7 +4838,7 @@ footer a[aria-current="page"] {
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-  margin: 0 0 12px;
+  padding: 12px 18px;
 }
 .rebase-all[hidden] {
   display: none;
@@ -4927,7 +4927,7 @@ footer a[aria-current="page"] {
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-  margin: 0 0 12px;
+  padding: 12px 18px;
 }
 .update-all[hidden] {
   display: none;
