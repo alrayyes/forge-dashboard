@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.6.0](https://github.com/alrayyes/forge-dashboard/compare/v9.5.8...v9.6.0) (2026-11-09)
+
+
+### Features
+
+* **web:** say why a pipeline check row has no control ([#3337](https://github.com/alrayyes/forge-dashboard/issues/3337)) ([10e01bb](https://github.com/alrayyes/forge-dashboard/commit/10e01bbc3a5f2f642256c8bad70483818e52e5fe)), closes [#3258](https://github.com/alrayyes/forge-dashboard/issues/3258)
+
 ## [9.5.8](https://github.com/alrayyes/forge-dashboard/compare/v9.5.7...v9.5.8) (2026-11-09)
 
 
