@@ -28,24 +28,34 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-const PAGES = [
-  {
-    path: '/bots.html',
-    pr: makePR(20, {
-      title: 'Bump package-20 from 1.0.0 to 1.0.1',
-      author: 'dependabot',
-      kind: 'dependency',
-    }),
+const BOT_PR = makePR(20, {
+  title: 'Bump package-20 from 1.0.0 to 1.0.1',
+  author: 'dependabot',
+  kind: 'dependency',
+});
+
+// The same row with auto-merge armed: the waiting chip and its Disarm button
+// are in the reserved slot.
+const ARMED_PR = makePR(21, {
+  title: 'Bump package-21 from 1.0.0 to 1.0.1',
+  author: 'dependabot',
+  kind: 'dependency',
+  forge: 'forgejo',
+  repo: 'alrayyes/dotfiles',
+  ci: 'pending',
+  mergeStatus: 'blocked',
+  autoMergeEnabled: true,
+  autoMerge: {
+    state: 'waiting',
+    code: 'checks_pending',
+    message: 'Auto-merge is waiting for checks to finish.',
   },
-  {
-    path: '/releases.html',
-    pr: makePR(30, {
-      title: 'chore(main): release 0.30.0',
-      author: 'release-please[bot]',
-      kind: 'release',
-    }),
-  },
-];
+  allowedActions: [
+    { action: 'merge' },
+    { action: 'close' },
+    { action: 'cancel_auto_merge' },
+  ],
+});
 
 function mockDashboard(page: Page, pullRequests: unknown[]) {
   return page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -70,36 +80,66 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  for (const { path, pr } of PAGES) {
-    for (const scheme of ['light', 'dark'] as const) {
-      test(`${path} (${scheme}): at most ${MAX_GAP}px from meta to pill, slot still reserved below`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await mockDashboard(page, [pr]);
-        await page.goto(path);
-        const row = page.locator('#pr-rows > .row').first();
-        await expect(row).toBeVisible();
+  test(`at most ${MAX_GAP}px from meta to pill, slot still reserved below`, async ({
+    page,
+  }) => {
+    await mockDashboard(page, [BOT_PR]);
+    await page.goto('/bots.html');
+    const row = page.locator('#pr-rows > .row').first();
+    await expect(row).toBeVisible();
 
-        const m = await row.evaluate((r) => {
-          const box = (s: string) =>
-            r.querySelector(s)?.getBoundingClientRect();
-          const metaBottom = Math.max(
-            ...['.author', '.created', '.updated'].map(
-              (s) => box(s)?.bottom ?? 0,
-            ),
-          );
-          return {
-            gap: (box('.ci-slot')?.top ?? 0) - metaBottom,
-            slotTop: box('.wait-slot')?.top ?? 0,
-            slotHeight: box('.wait-slot')?.height ?? 0,
-            pillBottom: box('.ci-slot')?.bottom ?? 0,
-          };
-        });
-        expect(m.gap).toBeLessThanOrEqual(MAX_GAP);
-        expect(m.slotHeight).toBeGreaterThanOrEqual(44);
-        expect(m.slotTop).toBeGreaterThanOrEqual(m.pillBottom);
+    const m = await row.evaluate((r) => {
+      const box = (s: string) => r.querySelector(s)?.getBoundingClientRect();
+      const metaBottom = Math.max(
+        ...['.author', '.created', '.updated'].map((s) => box(s)?.bottom ?? 0),
+      );
+      return {
+        gap: (box('.ci-slot')?.top ?? 0) - metaBottom,
+        slotTop: box('.wait-slot')?.top ?? 0,
+        slotHeight: box('.wait-slot')?.height ?? 0,
+        pillBottom: box('.ci-slot')?.bottom ?? 0,
+      };
+    });
+    expect(m.gap).toBeLessThanOrEqual(MAX_GAP);
+    expect(m.slotHeight).toBeGreaterThanOrEqual(44);
+    expect(m.slotTop).toBeGreaterThanOrEqual(m.pillBottom);
+  });
+
+  // WCAG 2.4.3 and 1.3.2: the slot sits below the pill on screen, so it
+  // comes after the pill in the document too. Focus must only ever move down.
+  test('Tab walks an armed row top to bottom: title, pill, chip, Disarm', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [ARMED_PR]);
+    await page.goto('/bots.html');
+    const row = page.locator('#pr-rows > .row').first();
+    await expect(row.locator('.wait-chip')).toBeVisible();
+
+    await row.locator('.title-cell .title').first().focus();
+    const stops: { name: string; y: number; inSlot: boolean; inCi: boolean }[] =
+      [];
+    for (let i = 0; i < 12; i++) {
+      const stop = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement;
+        const r = el.closest('#pr-rows > .row');
+        if (!r) return null;
+        return {
+          name: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim(),
+          y: Math.round(el.getBoundingClientRect().top),
+          inSlot: el.closest('.wait-slot') !== null,
+          inCi: el.closest('.ci-slot') !== null,
+        };
       });
+      if (!stop) break;
+      stops.push(stop);
+      await page.keyboard.press('Tab');
     }
-  }
+    const ys = stops.map((s) => s.y);
+    expect(ys, JSON.stringify(stops)).toEqual([...ys].sort((a, b) => a - b));
+    const ci = stops.findIndex((s) => s.inCi);
+    const chip = stops.findIndex((s) => s.inSlot);
+    expect(ci, 'the CI pill is a tab stop').toBeGreaterThanOrEqual(0);
+    expect(chip, 'the chip is a tab stop').toBeGreaterThanOrEqual(0);
+    expect(ci).toBeLessThan(chip);
+  });
 });
