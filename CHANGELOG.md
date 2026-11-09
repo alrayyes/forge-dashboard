@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.3.0](https://github.com/alrayyes/forge-dashboard/compare/v9.2.13...v9.3.0) (2026-11-09)
+
+
+### Features
+
+* **web:** rename the checks dialog's View run to Show output and Open check page ([#3270](https://github.com/alrayyes/forge-dashboard/issues/3270)) ([f04422e](https://github.com/alrayyes/forge-dashboard/commit/f04422e9e6efa3bd8f4b5cb3fa442b962c803cfa)), closes [#3253](https://github.com/alrayyes/forge-dashboard/issues/3253)
+
 ## [9.2.13](https://github.com/alrayyes/forge-dashboard/compare/v9.2.12...v9.2.13) (2026-11-09)
 
 
