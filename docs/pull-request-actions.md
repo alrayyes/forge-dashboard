@@ -766,18 +766,25 @@ A pull request whose only trouble is a cancelled job reads Cancelled: the same
 word and grey pill a main branch uses, and the word the pipeline panel gives the
 job. Nothing broke, so it is not Failed. On GitHub, whose combined state calls a
 cancelled run a failure, the server reads the rollup itself: with no failed or
-timed-out check, no failed status, no run held for approval and
-nothing running, the row's `ci` is `cancelled`, `checks.failed` is 0 and
-`checks.cancelled` counts the cancelled runs. A real failure beside it stays
-Failed and counts only itself, and a cancelled run beside one still going stays
-Running. A Cancelled row is not in the Failing CI filter or the Failed number of
-the menu pill, and it is not a pass either: Ready, Merge and auto-merge still
-wait for a run to pass. Forgejo leaves cancelled jobs out of the failed count,
-so its row reads No checks or Passed. The page folds the jobs the panel lists
-the way a branch does, and the row follows the panel: a cancelled job beside one
-still going is Running, beside a real failure it is Failed, and beside passed
-jobs alone it is Cancelled, with no counts. Close the panel and the row goes
-back to what the server sent.
+timed-out check, no failed status, no run held for approval and nothing running,
+the row's `ci` is `cancelled`, `checks.failed` is 0 and `checks.cancelled`
+counts the cancelled runs. A real failure beside it stays Failed and counts only
+itself, and a cancelled run beside one still going stays Running. The pill is
+the word alone, like the branch pill; the count is in `checks.cancelled`. A
+Cancelled row is not in the Failing CI filter or the Failed number of the menu
+pill, and it is not a pass either: Ready, Merge and auto-merge still wait for a
+run to pass. Forgejo leaves cancelled jobs out of the failed count, so its row
+reads No checks or Passed. The page folds the jobs the panel lists the way a
+branch does, and the row follows the panel: a cancelled job beside one still
+going is Running, beside a real failure it is Failed, and beside passed jobs
+alone it is Cancelled, with no counts. Close the panel and the row goes back to
+what the server sent.
+
+Where branch protection also holds the merge, the row's status line says
+"Blocked, the only run was cancelled" beside the Cancelled pill, because the
+merge really is blocked and the line says how to clear it. Dependabot's
+recreate-on-failure watch treats a cancelled-only head as not failed: it keeps
+waiting, and recreates the pull request only if a real failure follows.
 
 On GitHub, the pill stays pending while a check that branch protection or a
 ruleset requires hasn't finished. GitHub's combined status only counts checks
