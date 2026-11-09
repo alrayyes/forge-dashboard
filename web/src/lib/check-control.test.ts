@@ -1,7 +1,12 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { factsOf } from './check-facts-fixture';
-import { checkControl, checkLinkLabel, checkLinkText } from './run-log';
+import {
+  checkControl,
+  checkHint,
+  checkLinkLabel,
+  checkLinkText,
+} from './run-log';
 
 const repo = { forge: 'github', fullName: 'a/b' };
 const forgejo = { forge: 'forgejo', fullName: 'a/b' };
@@ -130,5 +135,59 @@ describe('checkLinkText', () => {
       'Approve on GitHub',
     );
     expect(checkLinkText('link', 'success', 'GitHub')).toBe('Open check page');
+  });
+});
+
+// The muted line under a row that has no output or no page to open. The first
+// rule that matches wins.
+describe('checkHint', () => {
+  test('a skipped check says nothing, its chip already does', () => {
+    expect(
+      checkHint({ status: 'completed', conclusion: 'skipped', url }, repo),
+    ).toBeNull();
+    expect(
+      checkHint({ status: 'completed', conclusion: 'skipped' }, repo),
+    ).toBeNull();
+  });
+
+  test('a queued check has not started, with or without a page', () => {
+    expect(checkHint({ status: 'queued', url }, repo)).toBe('Not started yet.');
+    expect(checkHint({ status: 'queued' }, repo)).toBe('Not started yet.');
+  });
+
+  test('a running GitHub job with a page says its output waits for the end', () => {
+    expect(checkHint({ status: 'in_progress', url, jobId: 7 }, repo)).toBe(
+      'Output is available when it finishes.',
+    );
+  });
+
+  test('a running Forgejo job streams its log and needs no line', () => {
+    expect(
+      checkHint({ status: 'in_progress', url, jobId: 7 }, forgejo),
+    ).toBeNull();
+  });
+
+  test('any other state with no page says there is none', () => {
+    for (const state of [
+      'failure',
+      'success',
+      'cancelled',
+      'running',
+      'timed_out',
+      'awaiting_approval',
+    ]) {
+      expect(checkHint({ ...factsOf(state), url: '' }, repo), state).toBe(
+        'No page for this check.',
+      );
+    }
+    expect(checkHint({ status: 'in_progress', jobId: 7 }, repo)).toBe(
+      'No page for this check.',
+    );
+  });
+
+  test('a check with a page and its own control needs no line', () => {
+    for (const state of ['failure', 'success', 'awaiting_approval']) {
+      expect(checkHint({ ...factsOf(state), url, jobId: 7 }, repo)).toBeNull();
+    }
   });
 });

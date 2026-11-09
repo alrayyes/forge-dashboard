@@ -74,6 +74,7 @@
   import {
     canCopyLog,
     checkControl,
+    checkHint,
     checkLinkLabel,
     checkLinkText,
     type RepoRef,
@@ -627,6 +628,7 @@
       {@const copyable = copyableLog(check)}
       {@const forge = target ? forgeLabel(target) : "the forge"}
       {@const control = checkControl(check, target?.repo)}
+      {@const hint = checkHint(check, target?.repo)}
       {@const secs = checkDurationSeconds(check)}
       {@const state = checkState(check)}
       <li class="pipeline-check">
@@ -677,6 +679,9 @@
             aria-label={checkLinkLabel(linkText, check.name)}
             >{linkText}<ExternalLinkIcon /></a
           >
+        {/if}
+        {#if hint}
+          <p class="pipeline-check-hint">{hint}</p>
         {/if}
         {#if check.failedStep}
           <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
