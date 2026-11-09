@@ -1277,15 +1277,14 @@
      footer actions stay reachable by scrolling (#3271). */
   @media (max-height: 500px) {
     .details-body {
-      flex: 1 0 120px;
       min-height: 120px;
     }
     .details-header {
       padding: 10px 18px 8px;
     }
+    /* Top only: the phone rule below owns the bottom (safe-area inset). */
     .details-footer {
       padding-top: 8px;
-      padding-bottom: 8px;
     }
   }
 
