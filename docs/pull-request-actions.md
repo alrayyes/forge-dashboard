@@ -113,6 +113,12 @@ is what holds the merge back, so it sits with the required checks and says
 "Blocking". The Failing CI quick filter and the Failed number in the menu pill
 follow one answer from the server, `failingCi`, which leaves these pull requests
 out when held runs are the only failure: nothing failed, someone has to approve.
+
+Every link in the pipeline panel that leaves the dashboard ends in an external-link
+icon and opens a new tab. A job with output reads "Open job on GitHub" (or
+Forgejo) and opens that job's page. The footer link reads "Open the whole run
+on GitHub" and opens the run page. A held workflow reads "Approve on" the
+forge's name.
 A job that really failed beside a held run still counts as failed. With
 auto-merge armed, the status line says it is waiting for workflow approval, not
 that a check failed.

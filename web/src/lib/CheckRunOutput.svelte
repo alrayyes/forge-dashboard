@@ -1,6 +1,6 @@
 <script lang="ts">
   // One check's "Show output": a button that opens the job's output under the
-  // check, with a Copy button beside it, and a link to the run on the forge for
+  // check, with a Copy button beside it, and a link to the job on the forge for
   // when the output is cut or can't be read. Text only: the output is never
   // parsed as markup.
   import { onDestroy, tick } from "svelte";
