@@ -3757,6 +3757,9 @@
 
       confirmButton.addEventListener("click", (e) => {
         if (tooSoon(e)) return;
+        // Pending is aria-disabled, which a press still reaches (#3279).
+        // Pending is aria-disabled, which a press still reaches (#3279).
+        if (isPending(confirmButton)) return;
         confirmArm.disarm("confirmed", armKey);
         onConfirm();
       });

@@ -116,6 +116,7 @@ for (const sc of scenarios) {
     }) => {
       let current = makePR(sc.before);
       const posted: unknown[] = [];
+      let replied = false;
       let release: () => void = () => {};
       const gate = new Promise<void>((r) => {
         release = r;
@@ -164,6 +165,7 @@ for (const sc of scenarios) {
       await page.route(`**${sc.endpoint}`, async (route: Route) => {
         posted.push(route.request().postDataJSON());
         await gate;
+        replied = true;
         if (status === 204) {
           current = makePR(sc.after);
           return route.fulfill({ status: 204 });
@@ -194,10 +196,13 @@ for (const sc of scenarios) {
       await expect.poll(() => posted.length).toBe(1);
       const f1 = await sample(page);
       expect(f1.tag, JSON.stringify({ f0, f1 })).not.toBe('BODY');
-      // A second Enter while the first runs sends nothing.
+      // A second Enter while the first runs sends nothing. On the row it goes
+      // to the chip that stands in for Disarm, which has no action of its own.
       await page.keyboard.press('Enter');
 
       release();
+      // f2 is taken once the route has answered, not at a fixed delay.
+      await expect.poll(() => replied).toBe(true);
       const f2 = await sample(page);
       // Settled: the pending label is gone, and on a 204 so is the pressed
       // button, which the reply replaced or removed.
@@ -228,8 +233,92 @@ for (const sc of scenarios) {
       } else if (sc.inDialog) {
         expect(f3.inDialog, trace).toBe(true);
       } else {
-        expect(f3.inDialog, trace).toBe(false);
+        // AC2: the row's title button, never BODY.
+        expect(f3.id, trace).toMatch(/^details-trigger-/);
       }
     });
   }
+}
+
+// The merge and close confirm buttons: pending is aria-disabled, which a press
+// still reaches, so the confirm handler ignores it. Enter, Enter, Space sends
+// one request, and focus is never on BODY.
+for (const kind of ['merge', 'close'] as const) {
+  test(`${kind} confirm sends one request for Enter, Enter, Space and keeps focus`, async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    const current = makePR(IDLE);
+    const posted: unknown[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+    for (const glob of ['**/api/v1/dashboard*', '**/api/v1/dashboard/refresh*'])
+      await page.route(glob, (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+            pullRequests: [current],
+            issues: [],
+            openIssueCount: 0,
+            navCounts: navCountsFor([current], 0),
+          }),
+        }),
+      );
+    await page.route(
+      `**/api/v1/pull-requests/${kind}`,
+      async (route: Route) => {
+        posted.push(route.request().postDataJSON());
+        await gate;
+        return route.fulfill({ status: 204 });
+      },
+    );
+    await page.goto('/pull-requests.html');
+    const row = page.locator('#pr-rows .row').first();
+    await expect(row).toBeVisible();
+
+    let scope: Locator = row;
+    let arm: Locator;
+    let confirmName: string;
+    if (kind === 'merge') {
+      arm = row.getByRole('button', { name: 'Merge', exact: true });
+      confirmName = 'Confirm merge?';
+    } else {
+      scope = actionsFooter(await openActionsDialog(row));
+      arm = scope.getByRole('button', {
+        name: 'Close pull request',
+        exact: true,
+      });
+      confirmName = 'Confirm close pull request?';
+    }
+    await arm.click();
+    const confirm = scope.getByRole('button', { name: confirmName });
+    await expect(confirm).toBeVisible();
+    // Past the 400ms double-click guard, on the page's own clock.
+    await page.clock.fastForward(500);
+    await confirm.focus();
+    const f0 = await sample(page);
+
+    await page.keyboard.press('Enter');
+    await expect.poll(() => posted.length).toBe(1);
+    const f1 = await sample(page);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Space');
+    // The label changes while it runs, so find the same button by its class.
+    const pending = scope.locator('button.row-action.confirm');
+    await expect(pending).toHaveAttribute('aria-disabled', 'true');
+    await expect(pending).not.toHaveAttribute('disabled', /.*/);
+
+    release();
+    await expect(pending).toHaveCount(0);
+    const f3 = await sample(page);
+    const trace = JSON.stringify({ f0, f1, f3 });
+    expect(posted, trace).toHaveLength(1);
+    for (const s of [f0, f1, f3]) expect(s.tag, trace).not.toBe('BODY');
+  });
 }
