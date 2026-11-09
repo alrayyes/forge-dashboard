@@ -248,6 +248,21 @@ test.describe('pipeline check states (#1473)', () => {
       'Output is available when it finishes.',
     );
     await expect(running.getByRole('link')).toContainText('Watch on GitHub');
+
+    // Both hint rows, at phone and desktop width, in both themes.
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 800 });
+      for (const theme of ['light', 'dark']) {
+        await page.evaluate(
+          (t) => document.documentElement.setAttribute('data-theme', t),
+          theme,
+        );
+        expect(
+          (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+          `${width}px ${theme}`,
+        ).toEqual([]);
+      }
+    }
   });
 
   test('a failed, timed-out or held required check carries its Blocking badge', async ({
