@@ -221,7 +221,7 @@ jobs:
     # tag in step with @playwright/test, and a step below checks the
     # image's Bun against package.json.
     container:
-      image: ghcr.io/alrayyes/ci-playwright:1.64.1@sha256:8475bb332de43de88e3a442ed5c168586a378790b6a5c109753e7de93bc1dd3d
+      image: ghcr.io/alrayyes/ci-playwright:1.65.0@sha256:73f37a0066d395e150ca5e67518dd57424a2fc682def7696c67b0478f8d7dcba
       options: --ipc=host --init
     permissions:
       contents: write
