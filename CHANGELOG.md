@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.8](https://github.com/alrayyes/forge-dashboard/compare/v9.5.7...v9.5.8) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep a readable description on a short screen ([#3336](https://github.com/alrayyes/forge-dashboard/issues/3336)) ([fdf2108](https://github.com/alrayyes/forge-dashboard/commit/fdf21089ea797e414c64aa3b39d12fd5f27e4a6c)), closes [#3271](https://github.com/alrayyes/forge-dashboard/issues/3271)
+
 ## [9.5.7](https://github.com/alrayyes/forge-dashboard/compare/v9.5.6...v9.5.7) (2026-11-09)
 
 
