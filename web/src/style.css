@@ -2734,6 +2734,15 @@ a.ci-pill:hover {
   z-index: 1;
 }
 
+/* Wider than a phone the slot is drawn above the status, as it always was
+   (#3264 only moves it on a phone). It follows the status in the markup, so
+   Tab visits an armed row's chip after the pill there. */
+@media (min-width: 761px) {
+  .wait-slot {
+    order: -1;
+  }
+}
+
 .wait-chip {
   position: relative;
   display: flex;
@@ -3376,6 +3385,9 @@ footer a.mono:focus-visible {
     flex: 1 1 100%;
     min-width: 0;
   }
+  /* The slot (#1229) follows the pill and the lines under it in the markup,
+     so the reserved room reads as space below the status, not a gap above
+     it (#3264), and Tab never jumps back up. */
   .wait-slot {
     height: 52px;
   }

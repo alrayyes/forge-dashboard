@@ -134,6 +134,7 @@ const singleUserSpecs = [
   '**/forge-health-live-region.spec.ts',
   '**/forgejo-auto-merge.spec.ts',
   '**/hit-areas.spec.ts',
+  '**/phone-row-gap.spec.ts',
   '**/label-chip-pill-overlap.spec.ts',
   '**/inline-feedback.spec.ts',
   '**/label-in-name.spec.ts',
