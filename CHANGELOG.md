@@ -1,5 +1,40 @@
 # Changelog
 
+## [9.5.0](https://github.com/alrayyes/forge-dashboard/compare/v9.4.2...v9.5.0) (2026-11-09)
+
+
+### Features
+
+* **web:** add a Storybook component catalogue ([#3299](https://github.com/alrayyes/forge-dashboard/issues/3299)) ([bb5514f](https://github.com/alrayyes/forge-dashboard/commit/bb5514f39b081a9099cdc712b5f64c02ba9d1d30)), closes [#3239](https://github.com/alrayyes/forge-dashboard/issues/3239)
+
+## [9.4.2](https://github.com/alrayyes/forge-dashboard/compare/v9.4.1...v9.4.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep label chips clear of the CI pill at tablet width ([#3293](https://github.com/alrayyes/forge-dashboard/issues/3293)) ([d270174](https://github.com/alrayyes/forge-dashboard/commit/d27017404a1c9db8daa3243d4b2413bf8c927708)), closes [#3261](https://github.com/alrayyes/forge-dashboard/issues/3261)
+
+## [9.4.1](https://github.com/alrayyes/forge-dashboard/compare/v9.4.0...v9.4.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** line up the text column in the advisories dialog list ([#3292](https://github.com/alrayyes/forge-dashboard/issues/3292)) ([c07607b](https://github.com/alrayyes/forge-dashboard/commit/c07607b74ef60ca85ebf08d7b9e72bc5a692e29b)), closes [#3278](https://github.com/alrayyes/forge-dashboard/issues/3278)
+
+## [9.4.0](https://github.com/alrayyes/forge-dashboard/compare/v9.3.2...v9.4.0) (2026-11-09)
+
+
+### Features
+
+* **web:** say whether a checks dialog link opens the job or the run, and mark it external ([#3285](https://github.com/alrayyes/forge-dashboard/issues/3285)) ([6f0bb28](https://github.com/alrayyes/forge-dashboard/commit/6f0bb288a37d9fa007b2ecefde759c1b2ca1057a)), closes [#3254](https://github.com/alrayyes/forge-dashboard/issues/3254)
+
+## [9.3.2](https://github.com/alrayyes/forge-dashboard/compare/v9.3.1...v9.3.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** give output errors a plain sentence and a link to the job ([#3284](https://github.com/alrayyes/forge-dashboard/issues/3284)) ([b26de52](https://github.com/alrayyes/forge-dashboard/commit/b26de52d66684cc055fbe96fad44d90eeab46a1a))
+
 ## [9.3.1](https://github.com/alrayyes/forge-dashboard/compare/v9.3.0...v9.3.1) (2026-11-09)
 
 

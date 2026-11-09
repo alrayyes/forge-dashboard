@@ -67,6 +67,7 @@
   } from "#lib/check-feed.js";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
   import CopyCheckLog from "#lib/CopyCheckLog.svelte";
+  import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
@@ -673,7 +674,8 @@
             href={check.url}
             target="_blank"
             rel="noopener"
-            aria-label={checkLinkLabel(linkText, check.name)}>{linkText}</a
+            aria-label={checkLinkLabel(linkText, check.name)}
+            >{linkText}<ExternalLinkIcon /></a
           >
         {/if}
         {#if check.failedStep}
@@ -839,8 +841,10 @@
           href={runLink}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Open run on {forgeLabel(target)} (opens in a new tab)"
-          >Open run on {forgeLabel(target)}</a
+          aria-label="Open the whole run on {forgeLabel(
+            target,
+          )} (opens in a new tab)"
+          >Open the whole run on {forgeLabel(target)}<ExternalLinkIcon /></a
         >
       </p>
     {/if}

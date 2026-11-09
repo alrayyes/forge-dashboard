@@ -1,0 +1,6 @@
+/* Components sit on a card in the app, not on the page background, and the
+   accent colour is only contrasted against --surface. A story renders the
+   component alone, so it gets the card colour for its canvas. */
+body {
+  background: var(--surface);
+}

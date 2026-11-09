@@ -25,6 +25,11 @@ const (
 	CIFailure CIStatus = "failure"
 	CIPending CIStatus = "pending"
 	CINone    CIStatus = "none"
+	// CICancelled is a GitHub pull request whose only non-passing checks are
+	// cancelled runs: nothing broke, and nothing is running to replace them
+	// (#3301). It is not failing, and it is not a pass either, so the merge
+	// rules that want CISuccess still wait.
+	CICancelled CIStatus = "cancelled"
 )
 
 // CheckCounts is how many of a pull request's checks are in each state, read
@@ -43,6 +48,10 @@ type CheckCounts struct {
 	Running int `json:"running"`
 	Waiting int `json:"waiting"`
 	Failed  int `json:"failed"`
+	// Cancelled is how many runs were cancelled, set only when they are the
+	// whole reason the pull request is not passing (CI is CICancelled). It is
+	// none of the other four, as a cancelled run is everywhere else.
+	Cancelled int `json:"cancelled,omitempty"`
 }
 
 // MergeStatus is a pull request's mergeable/blocked state, as coarse as

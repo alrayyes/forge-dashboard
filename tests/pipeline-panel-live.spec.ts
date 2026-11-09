@@ -214,7 +214,7 @@ test.describe('pipeline panel updates live', () => {
     await expect(view).toBeVisible();
     await expect(
       dialog(page).getByRole('link', {
-        name: checkLinkName('Open on Forgejo', 'test'),
+        name: checkLinkName('Open job on Forgejo', 'test'),
       }),
     ).toHaveCount(1);
   });
@@ -273,7 +273,7 @@ test.describe('pipeline panel updates live', () => {
       },
     ]);
     const link = dialog(page).getByRole('link', {
-      name: 'Open run on Forgejo (opens in a new tab)',
+      name: 'Open the whole run on Forgejo (opens in a new tab)',
     });
     await expect(link).toHaveAttribute(
       'href',

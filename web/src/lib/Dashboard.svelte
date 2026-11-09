@@ -2489,16 +2489,6 @@
         // grid-template-columns unchanged regardless of how many of
         // them this particular row has anything to say.
         const statusCell = el("div", "status-cell");
-        // The action area's reserved slot: the waiting chip lives here, so
-        // it comes and goes without moving the row (#1229).
-        const waitSlot = el("div", "wait-slot");
-        const autoMergeWait = autoMergeWaitChip(pr);
-        if (autoMergeWait) waitSlot.appendChild(autoMergeWait);
-        else {
-          const queuedWait = queuedWaitChip(pr);
-          if (queuedWait) waitSlot.appendChild(queuedWait);
-        }
-        statusCell.appendChild(waitSlot);
         const mergeAction = mergeActionCell(pr);
         // The CI slot (state and outcome, fixed size) and the attribute
         // cluster, side by side (#1563).
@@ -2523,6 +2513,18 @@
         // What it is waiting on, in its own place above the actions (#1375).
         const statusAreaEl = settledRow ? null : statusArea(pr);
         if (statusAreaEl) statusCell.appendChild(statusAreaEl);
+        // The action area's reserved slot: the waiting chip lives here, so
+        // it comes and goes without moving the row (#1229). It follows the
+        // status in the markup as it does on screen, so Tab only moves down
+        // (#3264).
+        const waitSlot = el("div", "wait-slot");
+        const autoMergeWait = autoMergeWaitChip(pr);
+        if (autoMergeWait) waitSlot.appendChild(autoMergeWait);
+        else {
+          const queuedWait = queuedWaitChip(pr);
+          if (queuedWait) waitSlot.appendChild(queuedWait);
+        }
+        statusCell.appendChild(waitSlot);
         // The row draws one control: the action the server marked primary,
         // or, while Merge is locked, the greyed Merge with its reason. Every
         // other action is in the details pop-up's footer, built by the same
