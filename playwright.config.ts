@@ -70,6 +70,7 @@ const singleUserSpecs = [
   '**/bot-rebase-all.spec.ts',
   '**/update-all.spec.ts',
   '**/ci-pill-counts.spec.ts',
+  '**/checking-for-conflicts.spec.ts',
   '**/running-pill-counts.spec.ts',
   '**/issue-author-avatar.spec.ts',
   '**/pr-author-avatar.spec.ts',

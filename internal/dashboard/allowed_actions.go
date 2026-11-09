@@ -274,6 +274,10 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 			"Merge unlocks once "+parent+" merges and this pull request is retargeted.")
 	case pr.MergeStatus == MergeConflicting:
 		return mergeBlocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
+	case pr.MergeStatus == MergeChecking:
+		// The forge's flag is false while it rechecks after a base push, the
+		// same as for a conflict, so Merge waits without calling it one (#3304).
+		return mergeBlocked(ActionChecksPending, "Checking for conflicts", "Merge unlocks once the forge finishes")
 	case pr.Draft:
 		return mergeBlocked(ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge")
 	case pr.MergeStatus == MergeUnstable:
