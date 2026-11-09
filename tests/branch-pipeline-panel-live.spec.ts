@@ -214,7 +214,7 @@ test.describe('main branches pipeline panel updates live', () => {
     ];
     const state = await open(page, RUNNING_FORGEJO, three, 3);
     await panel(page)
-      .getByRole('link', { name: checkLinkName('View run', 'test') })
+      .getByRole('link', { name: checkLinkName('Open check page', 'test') })
       .focus();
 
     state.row = PASSED_FORGEJO;
@@ -224,7 +224,7 @@ test.describe('main branches pipeline panel updates live', () => {
     await expect(panel(page).getByRole('listitem')).toHaveCount(2);
     await expect(
       panel(page).getByRole('link', {
-        name: checkLinkName('View run', 'test'),
+        name: checkLinkName('Open check page', 'test'),
       }),
     ).toBeFocused();
   });
@@ -234,7 +234,7 @@ test.describe('main branches pipeline panel updates live', () => {
   }) => {
     const state = await open(page, RUNNING_FORGEJO, RUN);
     await panel(page)
-      .getByRole('link', { name: checkLinkName('View run', 'test') })
+      .getByRole('link', { name: checkLinkName('Open check page', 'test') })
       .focus();
 
     state.row = PASSED_FORGEJO;

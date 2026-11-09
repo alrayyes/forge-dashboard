@@ -119,14 +119,3 @@ func TestListOpenPullRequests_NothingLeftToWaitForSettlesTheRow(t *testing.T) {
 
 	assert.Equal(t, dashboard.CISuccess, got.CI)
 }
-
-// A status list the forge cut short is counted as nothing, blocked jobs too.
-func TestListOpenPullRequests_ACappedStatusListStaysUncounted(t *testing.T) {
-	t.Parallel()
-	f := blockedBehindFailures("failure")
-	f.totalCount = 40
-
-	got := f.pullRequest(t)
-
-	assert.Equal(t, dashboard.CheckCounts{}, got.Checks)
-}

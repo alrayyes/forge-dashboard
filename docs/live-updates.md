@@ -174,11 +174,13 @@ own glyph so colour is never the only signal. Branches counts default
 branches. Pull requests, Releases and Bots count their pull requests (without
 the ones that belong to another of the three). All four show those three
 counts, in that order. The divider appears only when a running count follows an
-outcome, and not on a phone. A pull request with no checks is in the total
-only, so its numbers needn't add up. Branches adds a fifth, neutral count with
-a dashed circle for the branches with no pipeline, last, so its numbers do add
-up. A zero is never drawn, and the link's name says the same in words, in the
-same order, after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
+outcome, and not on a phone. A pull request with no checks gets a neutral
+count with a dashed circle, last, worded "without checks"; it is not counted
+as running. One held for workflow approval is in the total only, so those
+numbers needn't add up. Branches adds a neutral count with the same dashed
+circle for the branches with no pipeline, so its numbers do add up. A zero is
+never drawn, and the link's name says the same in words, in the same order,
+after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
 2 failing, 10 passing, 3 running", and "7 2 3 1 1, Branches, 7 total, 2 failing,
 3 passing, 1 running, 1 without a pipeline". On
 a phone the total sits on its own line before the counts, and with three-digit
@@ -218,11 +220,12 @@ The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
 
 `GET /api/v1/dashboard` and its stream carry `navCounts`, the numbers behind the
 navigation badges for Pull requests, Releases and Bots: a `total` and how many
-have CI `running`, `failed` and `passed`; and for Issues a `total` only. A pull
-request with no checks counts in the total alone, so the four numbers need not
-add up. They count what each page shows when it opens. Pull requests leave out
-ignored repos, drafts and hidden ones (even while Show drafts or Show hidden is
-on). They are always present, zero when nothing is there.
+have CI `running`, `failed` and `passed`, or `noChecks` when it has none; and
+for Issues a `total` only. One held for workflow approval counts in the total
+alone, so the numbers need not add up. They count what each page shows when it
+opens. Pull requests leave out ignored repos, drafts and hidden ones (even
+while Show drafts or Show hidden is on). They are always present, zero when
+nothing is there.
 
 The Branches badge isn't in `navCounts`. The page counts the default branches
 in `mainBranchPage`, the same rows the Main branches page lists, so the badge

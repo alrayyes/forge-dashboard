@@ -1,5 +1,50 @@
 # Changelog
 
+## [9.3.1](https://github.com/alrayyes/forge-dashboard/compare/v9.3.0...v9.3.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep the Out of date chip's icon and words in one box ([#3267](https://github.com/alrayyes/forge-dashboard/issues/3267)) ([bf494c8](https://github.com/alrayyes/forge-dashboard/commit/bf494c8feda24b36f2a59a232f87dd4db08c10ed)), closes [#3250](https://github.com/alrayyes/forge-dashboard/issues/3250)
+
+## [9.3.0](https://github.com/alrayyes/forge-dashboard/compare/v9.2.13...v9.3.0) (2026-11-09)
+
+
+### Features
+
+* **web:** rename the checks dialog's View run to Show output and Open check page ([#3270](https://github.com/alrayyes/forge-dashboard/issues/3270)) ([f04422e](https://github.com/alrayyes/forge-dashboard/commit/f04422e9e6efa3bd8f4b5cb3fa442b962c803cfa)), closes [#3253](https://github.com/alrayyes/forge-dashboard/issues/3253)
+
+## [9.2.13](https://github.com/alrayyes/forge-dashboard/compare/v9.2.12...v9.2.13) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** pad the Bots and Pull requests update strip like the card heading ([#3259](https://github.com/alrayyes/forge-dashboard/issues/3259)) ([6a92716](https://github.com/alrayyes/forge-dashboard/commit/6a927168c3b2dc0fd45d75b7db9b3de124d564a1)), closes [#3246](https://github.com/alrayyes/forge-dashboard/issues/3246)
+
+## [9.2.12](https://github.com/alrayyes/forge-dashboard/compare/v9.2.11...v9.2.12) (2026-11-09)
+
+
+### Bug Fixes
+
+* **deps-dev:** bump the bun-dependencies group across 1 directory with 6 updates ([#3249](https://github.com/alrayyes/forge-dashboard/issues/3249)) ([806d3a2](https://github.com/alrayyes/forge-dashboard/commit/806d3a2d77f836e02b6c3ceee696761aa431b860))
+* **web:** count a pull request with no checks in the Bots, Pull requests and Releases pills ([#3242](https://github.com/alrayyes/forge-dashboard/issues/3242)) ([65466b9](https://github.com/alrayyes/forge-dashboard/commit/65466b93ff035d8bd622a0d187470c41c1242d5c)), closes [#3241](https://github.com/alrayyes/forge-dashboard/issues/3241)
+
+## [9.2.11](https://github.com/alrayyes/forge-dashboard/compare/v9.2.10...v9.2.11) (2026-11-09)
+
+
+### Bug Fixes
+
+* **a11y:** draw the author link focus ring inside the link ([#3245](https://github.com/alrayyes/forge-dashboard/issues/3245)) ([d3fe1d7](https://github.com/alrayyes/forge-dashboard/commit/d3fe1d7a7cf7e3845b4d3ba936eadd93d78a30ac)), closes [#3237](https://github.com/alrayyes/forge-dashboard/issues/3237)
+* **ui:** end a long author name in an ellipsis and expose the full name ([#3244](https://github.com/alrayyes/forge-dashboard/issues/3244)) ([6f5b061](https://github.com/alrayyes/forge-dashboard/commit/6f5b0616c2898b7ba6102c268888e873ae9ba24e)), closes [#3238](https://github.com/alrayyes/forge-dashboard/issues/3238)
+
+## [9.2.10](https://github.com/alrayyes/forge-dashboard/compare/v9.2.9...v9.2.10) (2026-11-09)
+
+
+### Bug Fixes
+
+* **deps:** bump golang from `d9b6a1b` to `dc0963f` ([#3234](https://github.com/alrayyes/forge-dashboard/issues/3234)) ([d63fb79](https://github.com/alrayyes/forge-dashboard/commit/d63fb79f72d72ee7d548f07961d05a6463d6f5d1))
+* **deps:** bump the go-dependencies group with 2 updates ([#3231](https://github.com/alrayyes/forge-dashboard/issues/3231)) ([17e4dec](https://github.com/alrayyes/forge-dashboard/commit/17e4dec00136d34a3d98894e0b0a97b8483e5542))
+
 ## [9.2.9](https://github.com/alrayyes/forge-dashboard/compare/v9.2.8...v9.2.9) (2026-11-08)
 
 

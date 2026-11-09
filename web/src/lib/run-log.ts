@@ -9,7 +9,7 @@ const KEPT_KB = 256;
 
 // How long a read for Copy log may take, answer and body, before it counts as
 // failed. Without a bound a stalled read would leave a copy waiting for good.
-// View run sets none: it shows its own loading state and can be closed.
+// Show output sets none: it shows its own loading state and can be closed.
 const COPY_LOG_TIMEOUT_MS = 30_000;
 
 // How long a log read for Copy log is reused before it is read again. The
@@ -230,7 +230,9 @@ export function checkLinkText(
     return `${state === 'running' ? 'Watch' : 'Open'} on ${forgeName}`;
   }
 
-  return state === 'awaiting_approval' ? 'Approve on GitHub' : 'View run';
+  return state === 'awaiting_approval'
+    ? 'Approve on GitHub'
+    : 'Open check page';
 }
 
 // What a failed check's Copy button puts on the clipboard: the whole log when

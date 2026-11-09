@@ -1263,17 +1263,14 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	c = c.withContext(ctx)
 	ctx = withJobPagesMemo(ctx)
 
-	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
+	combined, whole, err := c.combinedStatus(ctx, owner, name, sha)
 	if err != nil {
-		return dashboard.CINone, dashboard.CheckCounts{}, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+		return dashboard.CINone, dashboard.CheckCounts{}, err
 	}
-	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
 	counts := checkCountsOf(combined.Statuses)
-	if statusListIsCapped(resp, combined) {
-		// One page of the statuses was read: a count of it would undercount.
+	if !whole {
+		// Some of the statuses were not read: a count of the rest would undercount.
 		counts = dashboard.CheckCounts{}
 	}
 	state := statusFromCombinedState(combined.State)
@@ -1570,21 +1567,97 @@ func cancelledByName(jobs []*gitea.ActionWorkflowJob, refs []jobRef) int {
 	return n
 }
 
-// statusListIsCapped reports whether the combined-status answer holds fewer
-// statuses than the commit has. The SDK has no paging option for the call, so it
-// reads the forge's first page, and the forge puts the full number in the
-// X-Total-Count header. Not tried on a live instance: the header is read from
-// the API's documented paging contract, and a missing or unreadable one counts
-// as not capped.
-func statusListIsCapped(resp *gitea.Response, combined *gitea.CombinedStatus) bool {
-	total := combined.TotalCount
-	if resp != nil && resp.Header != nil {
-		if n, err := strconv.Atoi(resp.Header.Get("X-Total-Count")); err == nil && n > total {
-			total = n
+// maxStatusPages bounds the walk through a commit's statuses, so a forge that
+// keeps claiming more than it serves can't hold a poll forever.
+const maxStatusPages = 20
+
+// combinedStatus reads the commit's combined status a page at a time, through
+// rawRequest because the SDK has no paging option for the call. The forge puts
+// the number of statuses in all in the X-Total-Count header (total_count is only
+// the length of the page), so the walk goes on until that many are read. Only
+// the combined status itself is read: /statuses lists every status the commit
+// ever had, and would count a rerun twice.
+//
+// Page 1 failing is an error. A later page failing, or the walk running out of
+// pages, returns what was read with whole false, as the caller can still use its
+// state but not its counts. The state is the worst of the pages' states and of
+// the statuses read: a forge may work it out per page.
+func (c *Client) combinedStatus(ctx context.Context, owner, name, sha string) (*gitea.CombinedStatus, bool, error) {
+	var combined *gitea.CombinedStatus
+	total := 0
+	for page := 1; page <= maxStatusPages; page++ {
+		got, pageTotal, err := c.combinedStatusPage(ctx, owner, name, sha, page)
+		if err != nil {
+			if page == 1 {
+				return nil, false, err
+			}
+			slog.Debug("forgejo status page failed", "repo", owner+"/"+name, "sha", sha, "page", page, "error", err)
+
+			return withStatusState(combined), false, nil
+		}
+		if combined == nil {
+			combined, total = got, pageTotal
+		} else {
+			combined.Statuses = append(combined.Statuses, got.Statuses...)
+			combined.State = worseState(combined.State, got.State)
+		}
+		if len(combined.Statuses) >= total || len(got.Statuses) == 0 {
+			return withStatusState(combined), true, nil
+		}
+	}
+	slog.Debug("forgejo commit has more statuses than are read", "repo", owner+"/"+name, "sha", sha, "statuses", maxStatusPages*pageLimit)
+
+	return withStatusState(combined), false, nil
+}
+
+// combinedStatusPage reads one page of the combined status, and the number of
+// statuses the forge says the commit has, or 0 when it doesn't say.
+func (c *Client) combinedStatusPage(ctx context.Context, owner, name, sha string, page int) (*gitea.CombinedStatus, int, error) {
+	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status?page=%d&limit=%d", owner, name, sha, page, pageLimit)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
+	body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, 0, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+	}
+	var got gitea.CombinedStatus
+	if jsonErr := json.Unmarshal(body, &got); jsonErr != nil {
+		return nil, 0, fmt.Errorf("forgejo: unmarshal combined status response: %w", jsonErr)
+	}
+	total, _ := strconv.Atoi(resp.Header.Get("X-Total-Count"))
+
+	return &got, total, nil
+}
+
+// withStatusState raises combined's state to the worst of its statuses, so a
+// failing status on a page the forge's own state did not cover still fails it.
+func withStatusState(combined *gitea.CombinedStatus) *gitea.CombinedStatus {
+	for _, s := range combined.Statuses {
+		if s != nil {
+			combined.State = worseState(combined.State, s.State)
 		}
 	}
 
-	return total > len(combined.Statuses)
+	return combined
+}
+
+// worseState is the one of two combined states that needs more attention:
+// failure over pending over the rest.
+func worseState(a, b gitea.StatusState) gitea.StatusState {
+	rank := func(s gitea.StatusState) int {
+		switch s {
+		case gitea.StatusFailure, gitea.StatusError:
+			return 2
+		case gitea.StatusPending:
+			return 1
+		default:
+			return 0
+		}
+	}
+	if rank(b) > rank(a) {
+		return b
+	}
+
+	return a
 }
 
 // splitRunning tells the running checks from the queued ones among counts'

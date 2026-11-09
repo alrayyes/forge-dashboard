@@ -10,6 +10,7 @@ const singleUserSpecs = [
   '**/settings-field-errors.spec.ts',
   '**/insights-webhooks-read-failure.spec.ts',
   '**/out-of-date-filter.spec.ts',
+  '**/out-of-date-chip-fit.spec.ts',
   '**/branch-pill-dialog-agree.spec.ts',
   '**/repo-name-hover.spec.ts',
   '**/filter-persistence.spec.ts',
@@ -55,6 +56,7 @@ const singleUserSpecs = [
   '**/show-row-clears-filters.spec.ts',
   '**/webhooks-clear-filters.spec.ts',
   '**/nav-empty-links.spec.ts',
+  '**/nav-counts-helper.spec.ts',
   '**/nav-pills.spec.ts',
   '**/nav-public-pages.spec.ts',
   '**/nav.spec.ts',
@@ -192,6 +194,7 @@ const singleUserSpecs = [
   '**/card-spacing.spec.ts',
   '**/page-widths.spec.ts',
   '**/auth.spec.ts',
+  '**/author-name-ellipsis.spec.ts',
   '**/css-bundle.spec.ts',
   '**/error-pages.spec.ts',
   '**/font-preload.spec.ts',
@@ -202,6 +205,7 @@ const singleUserSpecs = [
   '**/pull-request-rows-live.spec.ts',
   '**/issue-rows-live.spec.ts',
   '**/main-branch-snapshot-runs.spec.ts',
+  '**/author-link-focus-ring.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the

@@ -8,10 +8,17 @@ type Count = {
   running?: number;
   passed?: number;
   none?: number;
+  noChecks?: number;
   awaitingApproval?: number;
 } | null;
 
-export type PillKind = 'failed' | 'passed' | 'running' | 'awaiting' | 'none';
+export type PillKind =
+  | 'failed'
+  | 'passed'
+  | 'running'
+  | 'awaiting'
+  | 'none'
+  | 'noChecks';
 
 // The counts after the total, in the order the pill draws them (#1563): the
 // outcomes, failing then passing, then the running state, then the branches
@@ -34,6 +41,11 @@ export function pillParts(
       kind: 'none' as const,
       n: count.none ?? 0,
       words: 'without a pipeline',
+    },
+    {
+      kind: 'noChecks' as const,
+      n: count.noChecks ?? 0,
+      words: 'without checks',
     },
   ].filter((part) => part.n > 0);
 }
