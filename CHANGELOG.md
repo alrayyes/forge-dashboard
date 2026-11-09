@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.4.0](https://github.com/alrayyes/forge-dashboard/compare/v9.3.2...v9.4.0) (2026-11-09)
+
+
+### Features
+
+* **web:** say whether a checks dialog link opens the job or the run, and mark it external ([#3285](https://github.com/alrayyes/forge-dashboard/issues/3285)) ([6f0bb28](https://github.com/alrayyes/forge-dashboard/commit/6f0bb288a37d9fa007b2ecefde759c1b2ca1057a)), closes [#3254](https://github.com/alrayyes/forge-dashboard/issues/3254)
+
 ## [9.3.2](https://github.com/alrayyes/forge-dashboard/compare/v9.3.1...v9.3.2) (2026-11-09)
 
 
