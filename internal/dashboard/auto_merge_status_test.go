@@ -21,6 +21,7 @@ func TestAutoMergeStatusOf(t *testing.T) {
 	}{
 		{"checks pending", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }, dashboard.AutoMergeWaiting, dashboard.ActionChecksPending},
 		{"no checks reported yet", func(p *dashboard.PullRequest) { p.CI = dashboard.CINone }, dashboard.AutoMergeWaiting, dashboard.ActionChecksPending},
+		{"only a cancelled run is left", func(p *dashboard.PullRequest) { p.CI = dashboard.CICancelled }, dashboard.AutoMergeWaiting, dashboard.ActionChecksPending},
 		{"checks failing", func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }, dashboard.AutoMergeStopped, dashboard.ActionChecksFailing},
 		{"checks failing only because workflow runs are held for approval", func(p *dashboard.PullRequest) {
 			p.CI, p.AwaitingWorkflowApproval, p.FailingOnlyForApproval = dashboard.CIFailure, true, true
@@ -165,4 +166,12 @@ func TestAutoMergeStatusOf_HeldWorkflowRuns_AskForApproval(t *testing.T) {
 
 	assert.Contains(t, got.Message, "waiting for workflow approval")
 	assert.NotContains(t, got.Message, "a check failed")
+}
+
+func TestAutoMergeStatusOf_CancelledOnly_SaysTheRunWasCancelled(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.AutoMergeStatusOf(amPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CICancelled }), nil)
+
+	assert.Equal(t, "Auto-merge is waiting: the only run left was cancelled. It carries on once a run passes.", got.Message)
 }

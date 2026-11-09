@@ -26,3 +26,21 @@ func TestBuildNavCounts_HeldForApprovalIsNotFailed(t *testing.T) {
 	assert.Equal(t, 0, counts.PullRequests.Running)
 	assert.Equal(t, 0, counts.PullRequests.Passed)
 }
+
+// A pull request whose only trouble is a cancelled run counts in the total and
+// nowhere else: nothing failed, so it is not Failed, and nothing is running or
+// passing either (#3301).
+func TestBuildNavCounts_CancelledOnlyIsInTheTotalNotFailed(t *testing.T) {
+	t.Parallel()
+
+	var cancelled pullRequestView
+	cancelled.CI = dashboard.CICancelled
+
+	counts := buildNavCounts([]pullRequestView{cancelled}, 0)
+
+	assert.Equal(t, 1, counts.PullRequests.Total)
+	assert.Equal(t, 0, counts.PullRequests.Failed)
+	assert.Equal(t, 0, counts.PullRequests.Running)
+	assert.Equal(t, 0, counts.PullRequests.Passed)
+	assert.Equal(t, 0, counts.PullRequests.NoChecks)
+}

@@ -52,6 +52,9 @@ func TestFetch_CheckCountsAgreeWithTheOverallState(t *testing.T) {
 				assert.Zero(t, pr.Checks.Failed, "a pending pull request shows no failed count: %+v", pr.Checks)
 			case dashboard.CISuccess:
 				assert.Equal(t, dashboard.CheckCounts{Passed: pr.Checks.Passed}, pr.Checks, "a passed pull request has nothing left to do")
+			case ciCancelled:
+				assert.Zero(t, pr.Checks.Failed, "a cancelled pull request has nothing failed: %+v", pr.Checks)
+				assert.Positive(t, cancelledCount(t, pr.Checks))
 			case dashboard.CIFailure:
 				heldOrCancelled := runs["ACTION_REQUIRED"] > 0 || runs["CANCELLED"] > 0
 				assert.True(t, pr.Checks.Failed > 0 || heldOrCancelled,
