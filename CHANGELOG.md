@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.2](https://github.com/alrayyes/forge-dashboard/compare/v9.5.1...v9.5.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** show a failed Branches load as the shared error banner ([#3310](https://github.com/alrayyes/forge-dashboard/issues/3310)) ([4d2d3d0](https://github.com/alrayyes/forge-dashboard/commit/4d2d3d0d5bbaf98ba8525a468d28b49881d8d3d8))
+
 ## [9.5.1](https://github.com/alrayyes/forge-dashboard/compare/v9.5.0...v9.5.1) (2026-11-09)
 
 

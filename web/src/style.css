@@ -440,14 +440,20 @@ header,
 }
 
 .bottom-nav-link {
-  flex: 1 1 0;
+  /* Sized by its word, then the spare width shared out evenly. Equal widths
+     left "Webhooks" wider than its tab on a phone, running into its
+     neighbours (#3288). min-width keeps a short word like "PRs" a wide
+     target: 44px from 360px up (hit-areas.spec.ts), and 32px below it,
+     over WCAG 2.5.8's 24px. 360px is seven 44px tabs plus the 50px
+     Webhooks tab (its 48px label and padding), rounded up. */
+  flex: 1 1 auto;
+  min-width: 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
   /* From the bottom, so every tab's icon and word line up whether or not it
      has numbers above it (#1315). */
   justify-content: flex-end;
-  min-width: 0;
   gap: 3px;
   /* min-height plus the row's own padding keeps every tab's touch target
      at least 44px tall, this account's craft convention for a control an
@@ -457,6 +463,12 @@ header,
   color: var(--ink-2);
   text-decoration: none;
   border-radius: var(--radius);
+}
+
+@media (min-width: 360px) {
+  .bottom-nav-link {
+    min-width: 44px;
+  }
 }
 
 .bottom-nav-link:hover {
@@ -577,6 +589,13 @@ header,
   max-width: 100%;
   border-radius: 8px;
   font-size: 10px;
+}
+/* In a bottom tab the pill takes the tab's width and adds nothing to it: tabs
+   size by their label, and a wide pill ("12 · 3 · 9") would otherwise widen
+   its tab and squeeze the rest (#3288). */
+.bottom-nav-link .nav-pills.stacked {
+  max-width: 0;
+  min-width: 100%;
 }
 .nav-pills.stacked .nav-total {
   flex: 1 1 100%;
