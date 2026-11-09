@@ -23,6 +23,11 @@
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
+  import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
+  import {
+    BackendStatusError,
+    dashboardReadFailureMessage,
+  } from "#lib/dashboard-read-error.js";
   import {
     applyServerState,
     currentPage,
@@ -83,7 +88,8 @@
   import { createRowWatcher } from "#lib/row-watcher.js";
 
   let data = $state<MainBranches | null>(null);
-  let failed = $state(false);
+  // What the failed read says, in the wording the other pages use (#3272).
+  let failure = $state<string | null>(null);
   // The rerun control could not be redrawn on the last poll.
   let redrawFailed = $state(false);
   let loading = $state(true);
@@ -339,7 +345,7 @@
   function apply(next: MainBranches) {
     if (!supersedes(next, data)) return;
     data = next;
-    failed = false;
+    failure = null;
     redrawOpenControl();
   }
 
@@ -360,11 +366,16 @@
       const res = await fetch("/api/v1/main-branches", {
         headers: { Accept: "application/json" },
       });
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) throw new BackendStatusError(res.status);
       apply((await res.json()) as MainBranches);
-    } catch {
+    } catch (err) {
       // A refresh that fails keeps the rows already on screen.
-      if (initial || !data) failed = true;
+      if (initial || !data) {
+        failure = dashboardReadFailureMessage(
+          err instanceof Error ? err : new Error(String(err)),
+          false,
+        );
+      }
       redrawOpenControl();
     } finally {
       loading = false;
@@ -372,7 +383,7 @@
   }
 
   function retry() {
-    failed = false;
+    failure = null;
     loading = true;
     load(true);
   }
@@ -910,11 +921,8 @@
     </div>
   {:else if loading}
     <p class="mb-loading" role="status">Loading the main branches…</p>
-  {:else if failed}
-    <div class="mb-note" role="alert">
-      <p>Couldn't load the main branches.</p>
-      <button type="button" class="mb-toggle" onclick={retry}>Retry</button>
-    </div>
+  {:else if failure}
+    <ReadFailureAlert message={failure} onretry={retry} />
   {:else if data}
     {#if startingRows.length > 0}
       <div class="mb-banner" role="status" data-testid="starting-banner">

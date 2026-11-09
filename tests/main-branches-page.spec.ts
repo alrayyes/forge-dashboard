@@ -901,7 +901,9 @@ test.describe('Main branches page (#1224, #1279)', () => {
     // Behind the same dashboard gate as every other test.
     await mock(page, snapshot(MIXED), () => fail);
     await page.goto('/');
-    await expect(page.getByRole('alert')).toContainText(/couldn't load/i);
+    await expect(page.getByRole('alert')).toContainText(
+      'The backend answered with an error (500).',
+    );
     fail = false;
     await page.getByRole('button', { name: /retry/i }).click();
     await expect(rows(page)).toHaveCount(6);
