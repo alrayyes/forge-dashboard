@@ -91,7 +91,7 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for the draft to be marked ready.")
 	case pr.StackedOn != nil:
 		return status(AutoMergeWaiting, ActionStacked, "Auto-merge is waiting for the pull request it is stacked on to merge.")
-	case pr.CI == CINone || pr.CI == CIPending || pr.CI == CICancelled:
+	case waitingOnChecks(pr.CI) != "":
 		return status(AutoMergeWaiting, ActionChecksPending, waitingOnChecks(pr.CI))
 	case pr.MergeStatus != MergeMergeable:
 		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for "+forgeName(pr.Forge)+" to say it can merge.")
@@ -105,15 +105,17 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 }
 
 // waitingOnChecks says what an armed pull request with no passing run is
-// waiting for.
+// waiting for, or "" when checks aren't what it waits on.
 func waitingOnChecks(ci CIStatus) string {
 	switch ci {
 	case CICancelled:
 		return "Auto-merge is waiting: the only run left was cancelled. It carries on once a run passes."
 	case CIPending:
 		return "Auto-merge is waiting for checks to finish."
-	default:
+	case CINone:
 		return "Auto-merge is waiting for a check to report and pass."
+	default:
+		return ""
 	}
 }
 
