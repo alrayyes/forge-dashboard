@@ -1,5 +1,5 @@
 <script lang="ts">
-  // One check's "View run": a button that opens the job's output under the
+  // One check's "Show output": a button that opens the job's output under the
   // check, with a Copy button beside it, and a link to the run on the forge for
   // when the output is cut or can't be read. Text only: the output is never
   // parsed as markup.
@@ -86,8 +86,8 @@
   aria-controls={panelId}
   disabled={!url}
   onclick={toggle}
-  aria-label="{shown ? 'Hide run' : 'View run'}: {name}"
-  >{shown ? "Hide run" : "View run"}</button
+  aria-label="{shown ? 'Hide output' : 'Show output'}: {name}"
+  >{shown ? "Hide output" : "Show output"}</button
 >
 <a
   class="pipeline-check-link"

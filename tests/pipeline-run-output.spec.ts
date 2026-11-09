@@ -145,7 +145,7 @@ async function holdLog(
 }
 
 test.describe('a check run output in the pipeline dialog', () => {
-  test('View run shows the output with a Copy button, and copies it', async ({
+  test('Show output shows the output with a Copy button, and copies it', async ({
     page,
     context,
   }) => {
@@ -156,12 +156,12 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    const toggle = dialog.getByRole('button', { name: 'View run: build' });
+    const toggle = dialog.getByRole('button', { name: 'Show output: build' });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await toggle.click();
 
     await expect(
-      dialog.getByRole('button', { name: 'Hide run: build' }),
+      dialog.getByRole('button', { name: 'Hide output: build' }),
     ).toHaveAttribute('aria-expanded', 'true');
     const output = dialog.getByRole('region', { name: 'Output: build' });
     await expect(output).toContainText('boom: exit 1');
@@ -185,7 +185,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('when every copy route is refused, View run puts the output in a field to copy by hand', async ({
+  test('when every copy route is refused, Show output puts the output in a field to copy by hand', async ({
     page,
   }) => {
     await refuseClipboard(page);
@@ -194,7 +194,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'step 1\nboom: exit 1\n', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     const field = dialog.getByRole('textbox', {
@@ -215,7 +215,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'tail\n', truncated: true },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.run-output-status')).toHaveText(
@@ -230,7 +230,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await setup(page, { status: 200, body: { text: '', truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.run-output-status')).toHaveText(
@@ -246,7 +246,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'line\n', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const toggle = dialog.getByRole('button', { name: 'View run: build' });
+    const toggle = dialog.getByRole('button', { name: 'Show output: build' });
     await toggle.focus();
     await page.keyboard.press('Enter');
     const output = dialog.getByRole('region', { name: 'Output: build' });
@@ -254,7 +254,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await output.focus();
     await expect(output).toBeFocused();
 
-    await dialog.getByRole('button', { name: 'Hide run: build' }).click();
+    await dialog.getByRole('button', { name: 'Hide output: build' }).click();
     await expect(output).toHaveCount(0);
   });
 
@@ -264,7 +264,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'tail\n', truncated: true },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
 
     await expect(dialog.locator('.run-output-note')).toContainText(
       'last 256 KB',
@@ -280,7 +280,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { error: 'Resource not accessible' },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'View run: build' }).click();
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
 
     await expect(dialog.locator('.run-output-error')).toContainText(
       "can't read this job's output",
@@ -293,7 +293,7 @@ test.describe('a check run output in the pipeline dialog', () => {
 
   // Which control each state gets is proved by checkControl's unit test; this
   // is the one journey that shows the dialog draws it.
-  test('a queued or running GitHub check has no View run, only the link to the forge, and a finished one has it', async ({
+  test('a queued or running GitHub check has no Show output, only the link to the forge, and a finished one has it', async ({
     page,
   }) => {
     await setup(page, { status: 200, body: { text: '', truncated: false } }, [
@@ -314,7 +314,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     ]);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
-      dialog.getByRole('button', { name: 'View run: done-job' }),
+      dialog.getByRole('button', { name: 'Show output: done-job' }),
     ).toBeVisible();
     // GitHub serves a job's log only once it has finished.
     for (const [name, words] of [
@@ -322,7 +322,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       ['running-job', 'Watch on GitHub'],
     ]) {
       await expect(
-        dialog.getByRole('button', { name: `View run: ${name}` }),
+        dialog.getByRole('button', { name: `Show output: ${name}` }),
       ).toHaveCount(0);
       await expect(
         dialog.getByRole('link', { name: checkLinkName(words, name) }),
@@ -330,7 +330,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     }
   });
 
-  test('a running Forgejo check keeps View run, since Forgejo streams its log', async ({
+  test('a running Forgejo check keeps Show output, since Forgejo streams its log', async ({
     page,
   }) => {
     await setup(
@@ -341,7 +341,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     );
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
-      dialog.getByRole('button', { name: 'View run: running-job' }),
+      dialog.getByRole('button', { name: 'Show output: running-job' }),
     ).toBeVisible();
   });
 
@@ -366,7 +366,9 @@ test.describe('a check run output in the pipeline dialog', () => {
     await setup(page, { status: 200, body: { text: '', truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(
-      dialog.getByRole('link', { name: checkLinkName('View run', 'lint') }),
+      dialog.getByRole('link', {
+        name: checkLinkName('Open check page', 'lint'),
+      }),
     ).toBeVisible();
   });
 

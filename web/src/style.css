@@ -3736,7 +3736,7 @@ footer a.mono:focus-visible {
 .pipeline-check-link:focus-visible {
   text-decoration: underline;
 }
-/* View run and Copy are buttons that read as the link beside them. */
+/* Show output and Copy are buttons that read as the link beside them. */
 button.pipeline-check-link {
   padding: 0;
   border: 0;
@@ -4762,7 +4762,7 @@ footer a[aria-current="page"] {
   max-width: 100%;
 }
 
-/* A check's output, opened under it by View run. */
+/* A check's output, opened under it by Show output. */
 .run-output {
   flex: 1 1 100%;
   min-width: 0;
