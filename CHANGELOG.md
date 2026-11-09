@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.4.2](https://github.com/alrayyes/forge-dashboard/compare/v9.4.1...v9.4.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep label chips clear of the CI pill at tablet width ([#3293](https://github.com/alrayyes/forge-dashboard/issues/3293)) ([d270174](https://github.com/alrayyes/forge-dashboard/commit/d27017404a1c9db8daa3243d4b2413bf8c927708)), closes [#3261](https://github.com/alrayyes/forge-dashboard/issues/3261)
+
 ## [9.4.1](https://github.com/alrayyes/forge-dashboard/compare/v9.4.0...v9.4.1) (2026-11-09)
 
 
