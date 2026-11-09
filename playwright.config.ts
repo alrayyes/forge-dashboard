@@ -55,6 +55,7 @@ const singleUserSpecs = [
   '**/show-row-clears-filters.spec.ts',
   '**/webhooks-clear-filters.spec.ts',
   '**/nav-empty-links.spec.ts',
+  '**/nav-counts-helper.spec.ts',
   '**/nav-pills.spec.ts',
   '**/nav-public-pages.spec.ts',
   '**/nav.spec.ts',
