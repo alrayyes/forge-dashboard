@@ -78,6 +78,29 @@ test.describe('Label chips and the CI pill (#3261)', () => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
+  // The narrower status track wraps a row's notes, so rows are taller with it.
+  // It is only there to keep the chips off the pill at the narrow end; above
+  // 860px the track stays 280px and ordinary rows keep their old height.
+  for (const [width, track] of [
+    [820, '232px'],
+    [860, '232px'],
+    [881, '280px'],
+    [961, '280px'],
+    [1103, '280px'],
+  ] as const) {
+    test(`status track is ${track} at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mockDashboard(page, [PAGES[0].pr]);
+      await page.goto(PAGES[0].path);
+      const row = page.locator('#pr-rows > .row').first();
+      await expect(row).toBeVisible();
+      const tracks = await row.evaluate((el) =>
+        getComputedStyle(el).gridTemplateColumns.split(' '),
+      );
+      expect(tracks[2]).toBe(track);
+    });
+  }
+
   for (const { name, path, pr } of PAGES) {
     for (const scheme of ['light', 'dark'] as const) {
       for (const width of [390, 820, 1280]) {
