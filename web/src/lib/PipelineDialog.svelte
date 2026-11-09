@@ -139,6 +139,9 @@
   let excerpts = $state<Record<string, string>>({});
   let reads = newExcerptReads();
   let excerptRun = 0;
+  // Rows whose output panel is open and loaded, by row key. Their excerpt and
+  // its copy button give way to the panel's own.
+  let outputLoaded = $state<Record<string, boolean>>({});
 
   // Cancel run: one entry per run the person has started to cancel, by run id.
   // `confirm` waits for the second click, `cancelling` is the forge accepting,
@@ -665,6 +668,8 @@
             repo={target.repo}
             runUrl={check.url}
             forgeName={forge}
+            onloaded={(loaded) =>
+              (outputLoaded[keyOf.get(check) ?? ""] = loaded)}
           />
         {:else if control === "open-on-forge" || control === "link"}
           <!-- Never an empty href, which would resolve to this page. A job with
@@ -694,6 +699,7 @@
           forgeName={forge}
           {copyable}
           runKey={checkRunKey(check)}
+          outputLoaded={outputLoaded[keyOf.get(check) ?? ""] ?? false}
         />
       </li>
     {/each}
