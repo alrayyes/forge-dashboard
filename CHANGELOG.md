@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.2.13](https://github.com/alrayyes/forge-dashboard/compare/v9.2.12...v9.2.13) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** pad the Bots and Pull requests update strip like the card heading ([#3259](https://github.com/alrayyes/forge-dashboard/issues/3259)) ([6a92716](https://github.com/alrayyes/forge-dashboard/commit/6a927168c3b2dc0fd45d75b7db9b3de124d564a1)), closes [#3246](https://github.com/alrayyes/forge-dashboard/issues/3246)
+
 ## [9.2.12](https://github.com/alrayyes/forge-dashboard/compare/v9.2.11...v9.2.12) (2026-11-09)
 
 
