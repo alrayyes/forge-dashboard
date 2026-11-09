@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.8.1](https://github.com/alrayyes/forge-dashboard/compare/v9.8.0...v9.8.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep keyboard focus on the pagination button after a page change ([#3322](https://github.com/alrayyes/forge-dashboard/issues/3322)) ([d3e07a3](https://github.com/alrayyes/forge-dashboard/commit/d3e07a30d01a32a2449aaad217bfeccc42f6a963))
+
 ## [9.8.0](https://github.com/alrayyes/forge-dashboard/compare/v9.7.0...v9.8.0) (2026-11-09)
 
 
