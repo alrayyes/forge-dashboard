@@ -530,7 +530,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
       // fallback for the others the 10 s default.
       const huge = advice > 1000;
       await page.clock.runFor(huge ? 301_000 : 60_000);
-      expect(reads).toBeGreaterThanOrEqual(2);
+      await expect.poll(() => reads).toBeGreaterThanOrEqual(2);
       expect(reads).toBeLessThanOrEqual(huge ? 3 : 8);
     });
   }
