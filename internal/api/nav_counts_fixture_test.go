@@ -17,8 +17,8 @@ const navCountsFixturePath = "../../tests/generated/nav-counts.json"
 
 // navCountsContribution is what one pull request adds to the badges: the page
 // it lands on and which number it raises beside the total ("running", "failed",
-// "passed", or "none" for a pull request with no checks). Page is empty when
-// the badges leave it out (a draft or a hidden one).
+// "passed", or "noChecks" for a pull request with no checks). Page is empty
+// when the badges leave it out (a draft or a hidden one).
 type navCountsContribution struct {
 	Kind   string `json:"kind"`
 	CI     string `json:"ci"`
