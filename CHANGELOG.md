@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.6](https://github.com/alrayyes/forge-dashboard/compare/v9.5.5...v9.5.6) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** say how many pull requests can be updated, not that they are out of date ([#3329](https://github.com/alrayyes/forge-dashboard/issues/3329)) ([8cbd028](https://github.com/alrayyes/forge-dashboard/commit/8cbd02852e227a75982fdb4e890f97d2ee34b87b)), closes [#3275](https://github.com/alrayyes/forge-dashboard/issues/3275)
+
 ## [9.5.5](https://github.com/alrayyes/forge-dashboard/compare/v9.5.4...v9.5.5) (2026-11-09)
 
 
