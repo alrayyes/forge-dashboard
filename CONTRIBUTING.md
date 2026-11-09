@@ -141,8 +141,8 @@ database, so nothing needs cleaning up and a dev server on 8080 can keep
 running. Extra arguments go to Playwright
 (`./tests/run-local.sh tests/auth.spec.ts --workers=2`).
 
-CI runs the browser jobs (the e2e shards, Lighthouse, and the release
-screenshots) in our own image, `ghcr.io/alrayyes/ci-playwright:<version>`,
+CI runs the browser jobs (the e2e shards, Lighthouse, the Storybook
+screenshots, and the release screenshots) in our own image, `ghcr.io/alrayyes/ci-playwright:<version>`,
 built from Playwright's official image with bun added. It already holds the
 browsers, bun, node, git, `gh`, and ImageMagick, so no job downloads a
 browser, installs bun, or runs apt. The tag is the `@playwright/test` version,

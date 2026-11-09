@@ -249,6 +249,18 @@ pre-push:
     - name: tests-types
       run: bun run check:tests
 
+    # Builds the Storybook catalog, screenshots every story into
+    # docs/storybook/ and scans each with axe. The same script CI's storybook
+    # job runs. Needs Playwright's Chromium (`bunx playwright install
+    # chromium` once), the same as tests/run-local.sh.
+    - name: storybook
+      glob:
+        - "web/**"
+        - "scripts/storybook-screenshots.ts"
+        - "package.json"
+        - "bun.lock"
+      run: bun run storybook:screenshots
+
     # Proves the image still builds before anyone pushes, without publishing
     # anything. Here rather than at commit: it builds the tree, not the commit.
     - name: docker-build
