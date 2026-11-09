@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.3](https://github.com/alrayyes/forge-dashboard/compare/v9.5.2...v9.5.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** size bottom nav tabs by their label so Webhooks fits at 320px ([#3309](https://github.com/alrayyes/forge-dashboard/issues/3309)) ([e7bfa96](https://github.com/alrayyes/forge-dashboard/commit/e7bfa962ccb1d55188bbcbaaaf1c21b3b0a2ff7e)), closes [#3288](https://github.com/alrayyes/forge-dashboard/issues/3288)
+
 ## [9.5.2](https://github.com/alrayyes/forge-dashboard/compare/v9.5.1...v9.5.2) (2026-11-09)
 
 
