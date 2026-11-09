@@ -7380,6 +7380,11 @@
 
         const pages = document.getElementById(`${idPrefix}-pagination-pages`);
         if (!pages) return;
+        // Rebuilding the buttons removes the one the keyboard user pressed, so
+        // note which it was and focus its replacement (#3290).
+        const held = pages.contains(document.activeElement)
+          ? (document.activeElement?.textContent ?? "")
+          : null;
         pages.innerHTML = "";
 
         const prev = buttonEl("pagination-nav", "Previous");
@@ -7410,6 +7415,21 @@
           setPage(state.page + 1);
         });
         pages.appendChild(next);
+
+        if (held === null) return;
+        // The same button, else the nearest one still enabled: Previous and
+        // Next swap at either end of the list.
+        const byLabel = (label: string) =>
+          Array.from(pages.querySelectorAll("button")).find(
+            (b) => b.textContent === label && !b.disabled,
+          );
+        const fallback =
+          held === "Next"
+            ? "Previous"
+            : held === "Previous"
+              ? "Next"
+              : String(state.page);
+        (byLabel(held) ?? byLabel(fallback))?.focus({ preventScroll: true });
       }
 
       // What the board filters by: the saved rules, less what Settings
