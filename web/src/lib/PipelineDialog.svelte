@@ -836,10 +836,20 @@
         {#if group.id === ""}
           {@render list(group.checks)}
         {:else}
-          <div class="pipeline-group" role="group" aria-labelledby={group.id}>
+          <div
+            class="pipeline-group"
+            role="group"
+            aria-labelledby={group.id}
+            aria-describedby={group.hint ? `${group.id}-hint` : undefined}
+          >
             <h3 class="pipeline-group-title" id={group.id}>
               {group.title} ({group.checks.length})
             </h3>
+            {#if group.hint}
+              <p class="pipeline-group-hint" id="{group.id}-hint">
+                {group.hint}
+              </p>
+            {/if}
             {@render list(group.checks)}
           </div>
         {/if}

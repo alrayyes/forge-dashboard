@@ -163,7 +163,13 @@ export function runPageUrl(checks: Check[]): string | undefined {
   return newest?.url;
 }
 
-export type CheckGroup = { id: string; title: string; checks: Check[] };
+export type CheckGroup = {
+  id: string;
+  title: string;
+  // One generic line under the heading, for a group that needs one.
+  hint?: string;
+  checks: Check[];
+};
 
 // The dialog's sections. Without a single known `required` the forge said
 // nothing about branch protection, so the checks stay one flat list (an empty
@@ -187,7 +193,8 @@ export function groupChecks(checks: Check[]): CheckGroup[] {
     },
     {
       id: 'pipeline-group-unknown',
-      title: 'Status unknown',
+      title: 'Not known if required',
+      hint: "The forge didn't say whether these block the merge.",
       checks: checks.filter((check) => check.required === undefined),
     },
   ];
