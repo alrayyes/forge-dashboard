@@ -202,6 +202,7 @@ const singleUserSpecs = [
   '**/pull-request-rows-live.spec.ts',
   '**/issue-rows-live.spec.ts',
   '**/main-branch-snapshot-runs.spec.ts',
+  '**/author-link-focus-ring.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the
