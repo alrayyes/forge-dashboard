@@ -3008,7 +3008,8 @@
           details,
         );
       }
-      renderPRBoard();
+      // The pressed button comes back; focus goes with it (#3279).
+      keepFocusAcross(renderPRBoard);
     }
 
     // Actually calls the merge endpoint, once the confirm click lands —
@@ -3021,7 +3022,7 @@
     ): void {
       const key = prKey(item);
       mergeState[key] = { phase: "merging" };
-      confirmButton.disabled = true;
+      markPending(confirmButton, true);
       confirmButton.textContent = "Merging…";
       const fkey = `merge:${key}`;
       feedback.start({
@@ -3327,7 +3328,7 @@
           confirming ? "Confirm merge?" : "Merging…",
         );
         confirmButton.id = `${scope}merge-confirm-${domSafeId(key)}`;
-        confirmButton.disabled = !confirming;
+        markPending(confirmButton, !confirming);
         if (confirming) {
           confirmGroup("merge", item, wrap, confirmButton, () =>
             doMerge(item, confirmButton),
@@ -3394,7 +3395,7 @@
     ) {
       const key = prKey(item);
       autoMergeState[key] = { phase: "enabling" };
-      button.disabled = true;
+      markPending(button, true);
       button.textContent = "Enabling…";
       const fkey = `auto-merge:${key}`;
       feedback.start({
@@ -3445,7 +3446,7 @@
           // poll's own interval.
           // The forge already took the action. A refresh that fails is not a
           // failed action: the next poll brings the board up to date.
-          return refreshBoard();
+          return refreshBoard(true);
         })
         .catch(async (err: ActionRequestError) => {
           // No status: the request may have run. A fresh snapshot showing
@@ -3515,8 +3516,9 @@
         enabling ? "Enabling…" : "Enable auto-merge",
       );
       button.type = "button";
-      button.disabled = enabling;
+      markPending(button, enabling);
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doEnableAutoMerge(item, button);
       });
       return button;
@@ -3543,7 +3545,6 @@
         ? "Cancelling the merge scheduled on Forgejo…"
         : "Cancelling auto-merge…";
       cancelAutoMergeState[key] = { phase: "requesting" };
-      keepFocusAcross(renderPRBoard);
       const fkey = `cancel-auto-merge:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -3556,6 +3557,9 @@
         announce: cancelling,
         retry: () => doCancelAutoMerge(item),
       });
+      // After feedback.start, which redraws the row itself: the redraw that
+      // keeps the pressed button focused has to be the last one (#3279).
+      keepFocusAcross(renderPRBoard);
 
       fetch("/api/v1/pull-requests/auto-merge/cancel", {
         method: "POST",
@@ -3589,7 +3593,7 @@
           });
           // The forge already took the action. A refresh that fails is not a
           // failed action: the next poll brings the board up to date.
-          return refreshBoard();
+          return refreshBoard(true);
         })
         .catch(async (err: ActionRequestError) => {
           // No status: the cancel may have run. A fresh snapshot showing
@@ -3656,8 +3660,12 @@
       if (forgeHolds(item))
         button.title = "Cancels the merge scheduled on Forgejo.";
       button.type = "button";
-      button.disabled = requesting;
+      markPending(button, requesting);
+      // The label changes while the request runs, so the slot is how a redraw
+      // finds this button again (#3279).
+      button.dataset.focusSlot = "cancel-auto-merge";
       button.addEventListener("click", () => {
+        if (isPending(button)) return;
         doCancelAutoMerge(item);
       });
       return button;
@@ -3915,7 +3923,7 @@
     function doClose(item: PullRequestItem, confirmButton: HTMLButtonElement) {
       const key = prKey(item);
       closeState[key] = { phase: "closing" };
-      confirmButton.disabled = true;
+      markPending(confirmButton, true);
       confirmButton.textContent = "Closing…";
       const fkey = `close:${key}`;
       feedback.start({
@@ -4044,7 +4052,7 @@
           confirming ? "Confirm close pull request?" : "Closing…",
         );
         confirmButton.id = `${scope}close-confirm-${domSafeId(key)}`;
-        confirmButton.disabled = !confirming;
+        markPending(confirmButton, !confirming);
         if (confirming) {
           confirmGroup("close", item, wrap, confirmButton, () =>
             doClose(item, confirmButton),
@@ -5427,8 +5435,12 @@
         active instanceof HTMLElement && active.closest("#pr-rows, #issue-rows")
           ? active.id
           : "";
+      // A wait chip holds focus too: it takes it from a button it hides while
+      // that button's request runs (#3279).
+      const inChip =
+        active instanceof HTMLElement && !!active.closest(".wait-chip");
       const key =
-        active instanceof HTMLButtonElement
+        active instanceof HTMLButtonElement || inChip
           ? active.closest<HTMLElement>("#pr-rows .row")?.dataset.prKey
           : undefined;
       const label = active?.textContent;
@@ -5448,15 +5460,27 @@
       const row = Array.from(
         document.querySelectorAll<HTMLElement>("#pr-rows .row"),
       ).find((r) => r.dataset.prKey === key);
-      const buttons = Array.from(row?.querySelectorAll("button") ?? []);
+      // A hidden button cannot take focus (the chip of an auto-merge being
+      // disarmed hides while its request runs), so only the shown ones count.
+      const buttons = Array.from(row?.querySelectorAll("button") ?? []).filter(
+        (b) => !b.closest("[hidden]"),
+      );
       // The same button, found by what it says. A request that is replaced by
       // its cancel says something else, so a button also names the slot it
-      // fills, and the one now in that slot takes the focus.
+      // fills, and the one now in that slot takes the focus. Failing that, the
+      // chip that stands in for it, and last the row's title button, so focus
+      // never drops to the page (#3279).
       (
         buttons.find(
           (b) => b.className === className && b.textContent === label,
         ) ??
-        (slot ? buttons.find((b) => b.dataset.focusSlot === slot) : undefined)
+        (slot
+          ? buttons.find((b) => b.dataset.focusSlot === slot)
+          : undefined) ??
+        (inChip
+          ? row?.querySelector<HTMLElement>(".wait-chip:not([hidden])")
+          : undefined) ??
+        row?.querySelector<HTMLElement>("button[id^='details-trigger-']")
       )?.focus({ preventScroll: true });
     }
 

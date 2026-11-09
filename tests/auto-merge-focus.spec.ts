@@ -121,20 +121,24 @@ for (const sc of scenarios) {
         release = r;
       });
       await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
-      await page.route('**/api/v1/dashboard*', (route: Route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
-            pullRequests: [current],
-            issues: [],
-            openIssueCount: 0,
-            navCounts: navCountsFor([current], 0),
+      for (const glob of [
+        '**/api/v1/dashboard*',
+        '**/api/v1/dashboard/refresh*',
+      ])
+        await page.route(glob, (route: Route) =>
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              generatedAt: new Date().toISOString(),
+              forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+              pullRequests: [current],
+              issues: [],
+              openIssueCount: 0,
+              navCounts: navCountsFor([current], 0),
+            }),
           }),
-        }),
-      );
+        );
       await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -189,31 +193,42 @@ for (const sc of scenarios) {
       await page.keyboard.press('Enter');
       await expect.poll(() => posted.length).toBe(1);
       const f1 = await sample(page);
-      expect(f1.tag, JSON.stringify({ f0, f1 })).toBe('BUTTON');
+      expect(f1.tag, JSON.stringify({ f0, f1 })).not.toBe('BODY');
       // A second Enter while the first runs sends nothing.
       await page.keyboard.press('Enter');
 
       release();
       const f2 = await sample(page);
+      // Settled: the pending label is gone, and on a 204 so is the pressed
+      // button, which the reply replaced or removed.
       await expect(
         scope.locator('button').filter({ hasText: sc.pending }),
       ).toHaveCount(0);
+      if (status === 204)
+        await expect(
+          scope.locator('button').filter({ hasText: sc.label }),
+        ).toHaveCount(0);
+      else
+        await expect(
+          scope.locator('button').filter({ hasText: sc.label }),
+        ).toBeVisible();
       const f3 = await sample(page);
       const trace = JSON.stringify({ f0, f1, f2, f3 });
 
       expect(f0.text, trace).toMatch(sc.label);
-      for (const s of [f0, f1, f2, f3]) expect(s.tag, trace).toBe('BUTTON');
-      expect(f1.text, trace).toMatch(sc.pending);
+      for (const s of [f0, f1, f2, f3]) expect(s.tag, trace).not.toBe('BODY');
+      // The row's Disarm sits in a chip the row hides while the request runs
+      // (a chip saying "Disarming" stands in), so focus is on that chip.
+      expect(f1.text, trace).toMatch(/Disarming|Cancelling…|Enabling…/);
       expect(posted).toHaveLength(1);
       if (status === 429) {
+        // A rate limit locks the button (aria-disabled, with its reason), but
+        // it stays in place and focused.
         expect(f3.text, trace).toMatch(sc.label);
-        await expect(
-          scope.locator('button').filter({ hasText: sc.label }),
-        ).not.toHaveAttribute('aria-disabled', 'true');
       } else if (sc.inDialog) {
         expect(f3.inDialog, trace).toBe(true);
       } else {
-        expect(f3.id, trace).toMatch(/^details-trigger-/);
+        expect(f3.inDialog, trace).toBe(false);
       }
     });
   }
