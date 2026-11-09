@@ -87,7 +87,7 @@ bun_step_state() { # job block
       else print "ok"
     }' <<<"$1"
 }
-for entry in ci.yml:e2e-shard ci.yml:lighthouse release.yml:screenshots; do
+for entry in ci.yml:e2e-shard ci.yml:lighthouse ci.yml:storybook release.yml:screenshots; do
   file=${entry%%:*}
   job=${entry#*:}
   path=$(printf '%s\n' $workflows | grep -E "(^|/)$file\$" | head -n1 || true)
