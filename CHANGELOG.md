@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.11](https://github.com/alrayyes/forge-dashboard/compare/v9.2.10...v9.2.11) (2026-11-09)
+
+
+### Bug Fixes
+
+* **a11y:** draw the author link focus ring inside the link ([#3245](https://github.com/alrayyes/forge-dashboard/issues/3245)) ([d3fe1d7](https://github.com/alrayyes/forge-dashboard/commit/d3fe1d7a7cf7e3845b4d3ba936eadd93d78a30ac)), closes [#3237](https://github.com/alrayyes/forge-dashboard/issues/3237)
+* **ui:** end a long author name in an ellipsis and expose the full name ([#3244](https://github.com/alrayyes/forge-dashboard/issues/3244)) ([6f5b061](https://github.com/alrayyes/forge-dashboard/commit/6f5b0616c2898b7ba6102c268888e873ae9ba24e)), closes [#3238](https://github.com/alrayyes/forge-dashboard/issues/3238)
+
 ## [9.2.10](https://github.com/alrayyes/forge-dashboard/compare/v9.2.9...v9.2.10) (2026-11-09)
 
 
