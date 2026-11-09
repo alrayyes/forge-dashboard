@@ -440,14 +440,18 @@ header,
 }
 
 .bottom-nav-link {
-  flex: 1 1 0;
+  /* Sized by its word, then the spare width shared out evenly. Equal widths
+     left "Webhooks" wider than its tab on a phone, running into its
+     neighbours (#3288). min-width keeps a short word like "PRs" a
+     24px target (WCAG 2.5.8). */
+  flex: 1 1 auto;
+  min-width: 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   /* From the bottom, so every tab's icon and word line up whether or not it
      has numbers above it (#1315). */
   justify-content: flex-end;
-  min-width: 0;
   gap: 3px;
   /* min-height plus the row's own padding keeps every tab's touch target
      at least 44px tall, this account's craft convention for a control an
