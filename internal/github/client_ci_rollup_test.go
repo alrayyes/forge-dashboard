@@ -1,6 +1,7 @@
 package github_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +23,21 @@ func stateCounts(counts map[string]int) []map[string]any {
 	}
 
 	return out
+}
+
+// ciCancelled is the state of a pull request whose only trouble is a cancelled
+// run (#3301). A literal, so the test reads the wire value.
+const ciCancelled = dashboard.CIStatus("cancelled")
+
+// cancelledCount is checks.cancelled as the wire carries it.
+func cancelledCount(t *testing.T, c dashboard.CheckCounts) int {
+	t.Helper()
+	raw, err := json.Marshal(c)
+	require.NoError(t, err)
+	var m map[string]int
+	require.NoError(t, json.Unmarshal(raw, &m))
+
+	return m["cancelled"]
 }
 
 func rollupFixture(state string, runs, statuses map[string]int) map[string]any {
@@ -134,8 +150,24 @@ func TestFetch_RollupCI_CancelledRunWhileOthersRun(t *testing.T) {
 			expected: dashboard.CIFailure,
 		},
 		{
-			name:     "cancelled only with nothing running stays failure",
+			// alrayyes/forgejo-mirror-sync#62: nothing broke, so it isn't failed (#3301).
+			name:     "cancelled only with nothing running is cancelled",
 			rollup:   rollupFixture("FAILURE", map[string]int{"CANCELLED": 1, "SUCCESS": 4, "SKIPPED": 1}, nil),
+			expected: ciCancelled,
+		},
+		{
+			name:     "cancelled beside a real failure stays failure",
+			rollup:   rollupFixture("FAILURE", map[string]int{"CANCELLED": 1, "TIMED_OUT": 1, "SUCCESS": 4}, nil),
+			expected: dashboard.CIFailure,
+		},
+		{
+			name:     "cancelled beside a failed legacy status stays failure",
+			rollup:   rollupFixture("FAILURE", map[string]int{"CANCELLED": 1, "SUCCESS": 4}, map[string]int{"ERROR": 1}),
+			expected: dashboard.CIFailure,
+		},
+		{
+			name:     "cancelled beside a held run stays failure",
+			rollup:   rollupFixture("FAILURE", map[string]int{"CANCELLED": 1, "ACTION_REQUIRED": 1}, nil),
 			expected: dashboard.CIFailure,
 		},
 		{
@@ -258,8 +290,13 @@ func TestFetch_NoToken_CheckRunCI_CancelledRunWhileOthersRun(t *testing.T) {
 			expected: dashboard.CIFailure,
 		},
 		{
-			name:     "cancelled only with nothing running stays failure",
+			name:     "cancelled only with nothing running is cancelled",
 			runs:     []map[string]string{done("cancelled"), done("success")},
+			expected: ciCancelled,
+		},
+		{
+			name:     "cancelled beside a real failure stays failure",
+			runs:     []map[string]string{done("cancelled"), done("failure")},
 			expected: dashboard.CIFailure,
 		},
 		{
@@ -359,4 +396,48 @@ func TestFetch_RollupFailingOnlyForApproval(t *testing.T) {
 			assert.Equal(t, tt.want, pullRequestFromGraphQLRollup(t, tt.rollup).FailingOnlyForApproval)
 		})
 	}
+}
+
+// A pull request whose only non-passing check is cancelled says Cancelled and
+// counts the cancelled run beside, not under, the failed ones (#3301).
+func TestFetch_RollupCancelledOnly_CountsCancelledNotFailed(t *testing.T) {
+	t.Parallel()
+
+	pr := pullRequestFromGraphQLRollup(t, rollupFixture("FAILURE",
+		map[string]int{"CANCELLED": 1, "SUCCESS": 17, "SKIPPED": 3}, nil))
+
+	assert.Equal(t, ciCancelled, pr.CI)
+	assert.Zero(t, pr.Checks.Failed)
+	assert.Equal(t, 1, cancelledCount(t, pr.Checks))
+	assert.False(t, dashboard.IsFailingCI(pr), "the Failing CI filter and the menu pill leave it out")
+}
+
+func TestFetch_RollupCancelledBesideARealFailure_CountsOnlyTheFailure(t *testing.T) {
+	t.Parallel()
+
+	for _, state := range []string{"FAILURE", "TIMED_OUT", "STARTUP_FAILURE"} {
+		pr := pullRequestFromGraphQLRollup(t, rollupFixture("FAILURE",
+			map[string]int{"CANCELLED": 2, state: 1, "SUCCESS": 4}, nil))
+
+		assert.Equal(t, dashboard.CIFailure, pr.CI, state)
+		assert.Equal(t, 1, pr.Checks.Failed, state)
+		assert.Zero(t, cancelledCount(t, pr.Checks), state)
+	}
+
+	pr := pullRequestFromGraphQLRollup(t, rollupFixture("FAILURE",
+		map[string]int{"CANCELLED": 2}, map[string]int{"ERROR": 1}))
+	assert.Equal(t, dashboard.CIFailure, pr.CI)
+	assert.Equal(t, 1, pr.Checks.Failed)
+	assert.Zero(t, cancelledCount(t, pr.Checks))
+}
+
+func TestFetch_RollupCancelledBesideARunningCheck_IsPendingWithNoCancelledCount(t *testing.T) {
+	t.Parallel()
+
+	pr := pullRequestFromGraphQLRollup(t, rollupFixture("FAILURE",
+		map[string]int{"CANCELLED": 1, "IN_PROGRESS": 1, "SUCCESS": 4}, nil))
+
+	assert.Equal(t, dashboard.CIPending, pr.CI)
+	assert.Zero(t, pr.Checks.Failed)
+	assert.Zero(t, cancelledCount(t, pr.Checks))
 }
