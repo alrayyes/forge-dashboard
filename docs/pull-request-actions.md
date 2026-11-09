@@ -766,7 +766,7 @@ A pull request whose only trouble is a cancelled job reads Cancelled: the same
 word and grey pill a main branch uses, and the word the pipeline panel gives the
 job. Nothing broke, so it is not Failed. On GitHub, whose combined state calls a
 cancelled run a failure, the server reads the rollup itself: with no failed or
-timed-out check, no failed or errored status, no run held for approval and
+timed-out check, no failed status, no run held for approval and
 nothing running, the row's `ci` is `cancelled`, `checks.failed` is 0 and
 `checks.cancelled` counts the cancelled runs. A real failure beside it stays
 Failed and counts only itself, and a cancelled run beside one still going stays
