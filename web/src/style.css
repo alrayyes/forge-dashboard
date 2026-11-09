@@ -1584,6 +1584,7 @@ button.title:focus-visible {
   object-fit: cover;
 }
 .author-name {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
