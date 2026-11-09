@@ -42,5 +42,5 @@ A dialog opens from a small button in the story, and a `play` function clicks it
 ## Where it runs
 
 The pre-push hook and the `storybook` CI job both run
-`bun run storybook:screenshots`, so they can't disagree. CI uploads the PNGs as
+`bun run storybook:screenshots`, so they can't disagree. CI uploads the images as
 the `storybook-screenshots` artifact for a week.
