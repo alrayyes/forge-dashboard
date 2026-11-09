@@ -224,7 +224,7 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
-    await open(page, { bots: MIXED });
+    await open(page, { bots: { ...MIXED, total: 19, noChecks: 4 } });
     // Wait for the pill, or the pill checks below would be skipped.
     await expect(page.locator('.bottom-nav .nav-pills').first()).toBeVisible();
 
@@ -274,11 +274,15 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
   });
 
   for (const [label, counts, maxBar] of [
-    ['three digits', { total: 128, running: 12, failed: 24, passed: 92 }, 112],
+    [
+      'three digits',
+      { total: 129, running: 12, failed: 24, passed: 92, noChecks: 1 },
+      128,
+    ],
     [
       'four digits',
-      { total: 1204, running: 85, failed: 18, passed: 1100 },
-      120,
+      { total: 1205, running: 85, failed: 18, passed: 1100, noChecks: 2 },
+      128,
     ],
   ] as const) {
     test(`on a 360px phone ${label} still fit their tab, and the bar is at most ${maxBar}px (a known cost: one count per line)`, async ({
@@ -327,7 +331,7 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
       await page.emulateMedia({ colorScheme: scheme });
       await open(page, {
         releases: { total: 6, running: 6, failed: 0, passed: 0 },
-        bots: MIXED,
+        bots: { total: 16, running: 3, failed: 2, passed: 10, noChecks: 1 },
       });
 
       for (const size of [
