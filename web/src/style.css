@@ -868,7 +868,17 @@ section.board {
      it was 107px, narrower than a label chip, which then ran under the status
      cell). */
   .row {
-    grid-template-columns: 240px 1fr 280px 22px;
+    grid-template-columns: 240px minmax(0, 1fr) 280px 22px;
+  }
+  /* A plain 1fr takes its content's minimum width, and a label chip does not
+     wrap, so three long labels pushed the title column over the status
+     column and the chips ran under the CI pill (#3261). minmax(0, 1fr) lets
+     the column be as wide as it is, and a chip with a long label wraps its
+     text inside the column instead of running out of it. */
+  .row .label-chip {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .row .author,
   .row .author.has-avatar,
@@ -882,6 +892,19 @@ section.board {
   }
   .row .go {
     grid-column: 4;
+  }
+}
+/* Only the narrow end needs a narrower status track. At 820px a label chip
+   with a long name ran under the CI pill even with minmax(0, 1fr), so the
+   status track gives up 48px there. Measured with three long labels, the
+   overlap on the 280px track ends at 851px; 860px leaves a margin. The cost
+   is that the status cell wraps its notes ("Draft pull request / Mark it
+   ready for review to unlock Merge") and the Out of date chip, so a row is
+   up to 40px taller. Above this width the track stays 280px and rows keep
+   the height they had. */
+@media (min-width: 761px) and (max-width: 860px) {
+  .row {
+    grid-template-columns: 240px minmax(0, 1fr) 232px 22px;
   }
 }
 
