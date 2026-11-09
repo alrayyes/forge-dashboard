@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.5](https://github.com/alrayyes/forge-dashboard/compare/v9.5.4...v9.5.5) (2026-11-09)
+
+
+### Bug Fixes
+
+* **dashboard:** drop stale scoped reads and mark held-back rows stale ([#3323](https://github.com/alrayyes/forge-dashboard/issues/3323)) ([a84e58d](https://github.com/alrayyes/forge-dashboard/commit/a84e58d0cd75d44494ed0cc4ae3683e74bc9b62c)), closes [#3311](https://github.com/alrayyes/forge-dashboard/issues/3311)
+
 ## [9.5.4](https://github.com/alrayyes/forge-dashboard/compare/v9.5.3...v9.5.4) (2026-11-09)
 
 
