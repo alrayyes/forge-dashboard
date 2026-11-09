@@ -162,6 +162,7 @@ describe('loadRunLog', () => {
     expect(got).toEqual({
       ok: false,
       signedOut: true,
+      kind: 'other',
       message: 'Your session ended. Sign in again.',
     });
   });

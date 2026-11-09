@@ -451,7 +451,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await dialog.getByRole('button', { name: 'Copy log: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
-      /^Copied the excerpt only\. .*no output for this job/,
+      /^Copied the excerpt only\. .*no output for this check/,
     );
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       'boom: exit 1',
