@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.5.4](https://github.com/alrayyes/forge-dashboard/compare/v9.5.3...v9.5.4) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** keep focus on Refresh now and Queue update while they run ([#3321](https://github.com/alrayyes/forge-dashboard/issues/3321)) ([40d320e](https://github.com/alrayyes/forge-dashboard/commit/40d320e15319f9a0306afc0d7081c908071227ca)), closes [#3289](https://github.com/alrayyes/forge-dashboard/issues/3289)
+
 ## [9.5.3](https://github.com/alrayyes/forge-dashboard/compare/v9.5.2...v9.5.3) (2026-11-09)
 
 
