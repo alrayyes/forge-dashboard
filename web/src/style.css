@@ -443,8 +443,9 @@ header,
   /* Sized by its word, then the spare width shared out evenly. Equal widths
      left "Webhooks" wider than its tab on a phone, running into its
      neighbours (#3288). min-width keeps a short word like "PRs" a wide
-     target: 44px from 353px up, where eight tabs fit at that width
-     (hit-areas.spec.ts), and 32px below it, over WCAG 2.5.8's 24px. */
+     target: 44px from 360px up (hit-areas.spec.ts), and 32px below it,
+     over WCAG 2.5.8's 24px. 360px is seven 44px tabs plus the 50px
+     Webhooks tab (its 48px label and padding), rounded up. */
   flex: 1 1 auto;
   min-width: 32px;
   display: flex;
@@ -464,7 +465,7 @@ header,
   border-radius: var(--radius);
 }
 
-@media (min-width: 353px) {
+@media (min-width: 360px) {
   .bottom-nav-link {
     min-width: 44px;
   }
