@@ -34,6 +34,7 @@ const singleUserSpecs = [
   '**/stacked-prs.spec.ts',
   '**/webhooks-page.spec.ts',
   '**/webhooks-phone-sort.spec.ts',
+  '**/bottom-nav-focus-order.spec.ts',
   '**/bottom-nav-focus-padding.spec.ts',
   '**/bottom-nav-labels.spec.ts',
   '**/webhooks-status-line.spec.ts',
