@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.4.1](https://github.com/alrayyes/forge-dashboard/compare/v9.4.0...v9.4.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **web:** line up the text column in the advisories dialog list ([#3292](https://github.com/alrayyes/forge-dashboard/issues/3292)) ([c07607b](https://github.com/alrayyes/forge-dashboard/commit/c07607b74ef60ca85ebf08d7b9e72bc5a692e29b)), closes [#3278](https://github.com/alrayyes/forge-dashboard/issues/3278)
+
 ## [9.4.0](https://github.com/alrayyes/forge-dashboard/compare/v9.3.2...v9.4.0) (2026-11-09)
 
 
