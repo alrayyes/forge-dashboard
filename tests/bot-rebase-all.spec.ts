@@ -277,3 +277,43 @@ for (const scheme of ['light', 'dark'] as const) {
     ).toBe(true);
   });
 }
+
+// The summary line and its button sit inside the card's own padding (#3246):
+// the sentence starts where the heading does, the button ends 18px inside the
+// card's right edge, and 12px separates the block from the header rule and
+// from the first row, measured to the content (the strip's own padding).
+for (const width of [390, 1280]) {
+  test(`the Rebase all block sits inside the card padding at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await open(page, [pr(1), pr(2)]);
+    const button = page.locator('#rebase-all-button');
+    await expect(button).toBeVisible();
+    const m = await page.evaluate(() => {
+      const r = (el: Element | null) => el!.getBoundingClientRect();
+      const card = document.querySelector('section.board')!;
+      const summary = document.getElementById('rebase-all-summary')!;
+      const button = document.getElementById('rebase-all-button')!;
+      return {
+        headingLeft: r(card.querySelector('.board-head h2')).left,
+        headBottom: r(card.querySelector('.board-head')).bottom,
+        cardInnerRight: r(card).right - card.clientLeft,
+        summaryLeft: r(summary).left,
+        buttonRight: r(button).right,
+        blockTop: Math.min(r(summary).top, r(button).top),
+        blockBottom: Math.max(r(summary).bottom, r(button).bottom),
+        rowTop: r(document.querySelector('#pr-rows > .row')).top,
+        buttonMinHeight: getComputedStyle(button).minHeight,
+        scrollW: document.documentElement.scrollWidth,
+        innerW: window.innerWidth,
+      };
+    });
+    expect(m.summaryLeft).toBeCloseTo(m.headingLeft, 0);
+    expect(m.cardInnerRight - m.buttonRight).toBeCloseTo(18, 0);
+    expect(m.blockTop - m.headBottom).toBeCloseTo(12, 0);
+    expect(m.rowTop - m.blockBottom).toBeCloseTo(12, 0);
+    expect(m.buttonMinHeight).toBe('44px');
+    expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+  });
+}
