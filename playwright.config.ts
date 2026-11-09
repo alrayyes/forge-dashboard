@@ -12,6 +12,7 @@ const singleUserSpecs = [
   '**/out-of-date-filter.spec.ts',
   '**/out-of-date-chip-fit.spec.ts',
   '**/branch-pill-dialog-agree.spec.ts',
+  '**/cancelled-only-row.spec.ts',
   '**/repo-name-hover.spec.ts',
   '**/filter-persistence.spec.ts',
   '**/first-refresh-first-paint.spec.ts',
