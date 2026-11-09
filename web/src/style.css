@@ -582,6 +582,13 @@ header,
   border-radius: 8px;
   font-size: 10px;
 }
+/* In a bottom tab the pill takes the tab's width and adds nothing to it: tabs
+   size by their label, and a wide pill ("12 · 3 · 9") would otherwise widen
+   its tab and squeeze the rest (#3288). */
+.bottom-nav-link .nav-pills.stacked {
+  max-width: 0;
+  min-width: 100%;
+}
 .nav-pills.stacked .nav-total {
   flex: 1 1 100%;
   height: 16px;
