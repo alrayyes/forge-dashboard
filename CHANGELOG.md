@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.2.12](https://github.com/alrayyes/forge-dashboard/compare/v9.2.11...v9.2.12) (2026-11-09)
+
+
+### Bug Fixes
+
+* **deps-dev:** bump the bun-dependencies group across 1 directory with 6 updates ([#3249](https://github.com/alrayyes/forge-dashboard/issues/3249)) ([806d3a2](https://github.com/alrayyes/forge-dashboard/commit/806d3a2d77f836e02b6c3ceee696761aa431b860))
+* **web:** count a pull request with no checks in the Bots, Pull requests and Releases pills ([#3242](https://github.com/alrayyes/forge-dashboard/issues/3242)) ([65466b9](https://github.com/alrayyes/forge-dashboard/commit/65466b93ff035d8bd622a0d187470c41c1242d5c)), closes [#3241](https://github.com/alrayyes/forge-dashboard/issues/3241)
+
 ## [9.2.11](https://github.com/alrayyes/forge-dashboard/compare/v9.2.10...v9.2.11) (2026-11-09)
 
 
