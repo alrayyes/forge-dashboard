@@ -2217,7 +2217,8 @@ a.ci-pill:hover {
     animation: none;
   }
 }
-.row-action.confirm:disabled {
+.row-action.confirm:disabled,
+.row-action.confirm[aria-disabled="true"] {
   opacity: 0.7;
   cursor: default;
 }

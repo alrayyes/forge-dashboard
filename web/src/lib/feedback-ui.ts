@@ -493,6 +493,11 @@ export function mountFeedbackUI(
   function decorateChip(row: HTMLElement, key: string) {
     const slot = row.querySelector<HTMLElement>('.status-cell > .wait-slot');
     if (!slot) return;
+    // Focus in the slot is on the chip being swapped, or on a button the swap
+    // hides: put it on whatever now stands in for it (#3279).
+    const held =
+      document.activeElement instanceof HTMLElement &&
+      slot.contains(document.activeElement);
     slot
       .querySelectorAll(':scope > .wait-chip[data-source="feedback"]')
       .forEach((chip) => {
@@ -506,6 +511,11 @@ export function mountFeedbackUI(
       ),
     ))
       own.hidden = wait !== null;
+    if (held && !slot.contains(document.activeElement))
+      (
+        slot.querySelector<HTMLElement>('.wait-chip:not([hidden]) button') ??
+        slot.querySelector<HTMLElement>('.wait-chip:not([hidden])')
+      )?.focus({ preventScroll: true });
   }
 
   function syncRows() {
