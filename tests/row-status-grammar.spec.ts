@@ -307,9 +307,11 @@ test.describe('row status grammar (#1563)', () => {
     const cluster = await row.locator('.attr-cluster').boundingBox();
     const details = await row.locator('.go').boundingBox();
     expect(slot && cluster && details).toBeTruthy();
-    expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
-      (cluster?.x ?? 0) + 1,
-    );
+    // The attributes come after the slot: beside it when the widest chip fits
+    // there, on a line below it when not, never squeezed (#3250).
+    const beside = (slot?.x ?? 0) + (slot?.width ?? 0) <= (cluster?.x ?? 0) + 1;
+    const below = (cluster?.y ?? 0) >= (slot?.y ?? 0) + (slot?.height ?? 0) - 1;
+    expect(beside || below).toBe(true);
     expect(cluster?.x ?? 0).toBeLessThan(details?.x ?? 0);
   });
 

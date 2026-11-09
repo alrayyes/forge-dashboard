@@ -10,6 +10,7 @@ const singleUserSpecs = [
   '**/settings-field-errors.spec.ts',
   '**/insights-webhooks-read-failure.spec.ts',
   '**/out-of-date-filter.spec.ts',
+  '**/out-of-date-chip-fit.spec.ts',
   '**/branch-pill-dialog-agree.spec.ts',
   '**/repo-name-hover.spec.ts',
   '**/filter-persistence.spec.ts',
