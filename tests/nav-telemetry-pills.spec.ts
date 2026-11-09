@@ -14,6 +14,7 @@ type Counts = {
   running: number;
   failed: number;
   passed: number;
+  noChecks?: number;
 };
 
 const MIXED: Counts = { total: 15, running: 3, failed: 2, passed: 10 };
@@ -96,6 +97,27 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
       'aria-hidden',
       'true',
     );
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/3241
+  test('a pull request with no checks gets a neutral count, so the Bots pill adds up (#3241)', async ({
+    page,
+  }) => {
+    await open(page, {
+      bots: { total: 3, running: 0, failed: 1, passed: 1, noChecks: 1 },
+    });
+    const bots = header(page, '/bots.html');
+
+    await expect(bots.locator('.nav-pills .nav-noChecks')).toHaveText('1');
+    await expect(bots.locator('.nav-pills .nav-noChecks svg')).toBeAttached();
+    await expect(bots).toHaveAttribute(
+      'aria-label',
+      '3 1 1 1, Bots, 3 total, 1 failing, 1 passing, 1 without checks',
+    );
+    // A zero is never drawn.
+    await expect(
+      header(page, PRS).locator('.nav-pills .nav-noChecks'),
+    ).toHaveCount(0);
   });
 
   test('the divider is drawn only when a running count follows an outcome (#1563)', async ({
@@ -202,7 +224,7 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
-    await open(page, { bots: MIXED });
+    await open(page, { bots: { ...MIXED, total: 19, noChecks: 4 } });
     // Wait for the pill, or the pill checks below would be skipped.
     await expect(page.locator('.bottom-nav .nav-pills').first()).toBeVisible();
 
@@ -252,11 +274,15 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
   });
 
   for (const [label, counts, maxBar] of [
-    ['three digits', { total: 128, running: 12, failed: 24, passed: 92 }, 112],
+    [
+      'three digits',
+      { total: 129, running: 12, failed: 24, passed: 92, noChecks: 1 },
+      128,
+    ],
     [
       'four digits',
-      { total: 1204, running: 85, failed: 18, passed: 1100 },
-      120,
+      { total: 1205, running: 85, failed: 18, passed: 1100, noChecks: 2 },
+      128,
     ],
   ] as const) {
     test(`on a 360px phone ${label} still fit their tab, and the bar is at most ${maxBar}px (a known cost: one count per line)`, async ({
@@ -305,7 +331,7 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
       await page.emulateMedia({ colorScheme: scheme });
       await open(page, {
         releases: { total: 6, running: 6, failed: 0, passed: 0 },
-        bots: MIXED,
+        bots: { total: 16, running: 3, failed: 2, passed: 10, noChecks: 1 },
       });
 
       for (const size of [

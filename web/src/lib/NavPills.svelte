@@ -130,9 +130,9 @@
             ><circle cx="12" cy="12" r="10" /><path d="M10 9v6M14 9v6" /></svg
           >{part.n}</span
         >
-      {:else if part.kind === "none"}
+      {:else if part.kind === "none" || part.kind === "noChecks"}
         <!-- A dashed circle: no run to be good or bad. Neutral ink. -->
-        <span class="nav-count nav-none"
+        <span class="nav-count nav-none nav-{part.kind}"
           ><svg
             width="11"
             height="11"

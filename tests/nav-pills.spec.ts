@@ -359,6 +359,7 @@ test.describe('the real server serves what the nav reads (#1315)', () => {
       running: expect.any(Number),
       failed: expect.any(Number),
       passed: expect.any(Number),
+      noChecks: expect.any(Number),
     };
     expect(body.navCounts).toEqual({
       pullRequests: checkedPage,

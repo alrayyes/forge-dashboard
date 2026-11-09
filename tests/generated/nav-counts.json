@@ -7,7 +7,7 @@
       "draft": false,
       "hidden": false,
       "page": "pullRequests",
-      "state": "none"
+      "state": "noChecks"
     },
     {
       "kind": "regular",
@@ -135,7 +135,7 @@
       "draft": false,
       "hidden": false,
       "page": "releases",
-      "state": "none"
+      "state": "noChecks"
     },
     {
       "kind": "release",
@@ -263,7 +263,7 @@
       "draft": false,
       "hidden": false,
       "page": "bots",
-      "state": "none"
+      "state": "noChecks"
     },
     {
       "kind": "dependency",
