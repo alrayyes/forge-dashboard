@@ -275,6 +275,11 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(link).toHaveAttribute('href', runUrl);
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', /noopener/);
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('a missing output says so and links to the job', async ({ page }) => {
@@ -292,6 +297,11 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(link).toHaveAttribute('href', runUrl);
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', /noopener/);
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('a rate limit keeps its message and has no job link', async ({
@@ -326,6 +336,11 @@ test.describe('a check run output in the pipeline dialog', () => {
       }),
     ).toHaveAttribute('href', runUrl);
     await expect(dialog).not.toContainText('Resource not accessible');
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
     await expect(
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toBeDisabled();
