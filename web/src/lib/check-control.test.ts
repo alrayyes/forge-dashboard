@@ -119,6 +119,12 @@ describe('checkLinkText', () => {
     expect(checkLinkText(running, 'running', 'GitHub')).toBe('Watch on GitHub');
   });
 
+  test('a held workflow is approved on the forge that holds it', () => {
+    expect(checkLinkText('link', 'awaiting_approval', 'Forgejo')).toBe(
+      'Approve on Forgejo',
+    );
+  });
+
   test('a held workflow is approved and any other plain link opens the check page', () => {
     expect(checkLinkText('link', 'awaiting_approval', 'GitHub')).toBe(
       'Approve on GitHub',
