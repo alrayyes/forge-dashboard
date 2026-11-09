@@ -1,0 +1,141 @@
+import { expect, type Page, type Route } from '@playwright/test';
+import { openActionsDialog } from './actions-dialog-helper';
+import { test } from './server-fixture';
+
+// https://github.com/alrayyes/forge-dashboard/issues/3271
+//
+// On a short screen (a phone held sideways, 400% zoom) the header and footer
+// of the details dialog are flex: none, so the description and comments got a
+// strip of 14% of the height or less. The body keeps a usable minimum and the
+// dialog scrolls as a whole when that does not fit.
+
+const now = new Date().toISOString();
+const noReactions = {
+  thumbsUp: { count: 0, logins: [] },
+  thumbsDown: { count: 0, logins: [] },
+};
+
+const pr = {
+  forge: 'github',
+  repo: 'alrayyes/forge-dashboard',
+  number: 42,
+  title: 'Add structured logging to every request handler in the API',
+  url: 'https://example.com/42',
+  author: 'ryankes',
+  draft: false,
+  ci: 'failure',
+  labels: [
+    { name: 'kind/feature', color: 'a2eeef' },
+    { name: 'topic/logging', color: 'cccccc' },
+  ],
+  createdAt: now,
+  updatedAt: now,
+  mergeStatus: 'mergeable',
+  behind: false,
+  kind: 'regular',
+  allowedActions: [{ action: 'merge', primary: true }, { action: 'close' }],
+};
+
+const long = Array.from(
+  { length: 30 },
+  (_, i) => `Paragraph ${i} of a long description.`,
+).join('\n\n');
+
+async function open(page: Page) {
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: now,
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [pr],
+        issues: [],
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        description: {
+          text: long,
+          format: 'markdown',
+          truncated: false,
+          edited: false,
+          reactions: noReactions,
+        },
+        comments: Array.from({ length: 12 }, (_, i) => ({
+          id: `c${i}`,
+          author: { login: 'alice', avatarUrl: '' },
+          createdAt: now,
+          updatedAt: null,
+          edited: false,
+          text: `Comment ${i}`,
+          format: 'markdown',
+          truncated: false,
+          reactions: noReactions,
+        })),
+        commentCount: 12,
+        commentsTruncated: false,
+        releaseNotes: null,
+      }),
+    }),
+  );
+  await page.goto('/pull-requests.html');
+  await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+  const dialog = await openActionsDialog(page.locator('#pr-rows .row').first());
+  await expect(dialog.locator('.details-body .markdown').first()).toBeVisible();
+  return dialog;
+}
+
+for (const size of [
+  { width: 667, height: 375 },
+  { width: 844, height: 390 },
+  { width: 320, height: 256 },
+]) {
+  test(`${size.width}x${size.height}: the body keeps 120px and every footer action is reachable`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const dialog = await open(page);
+
+    const body = await dialog.locator('.details-body').boundingBox();
+    expect(body?.height).toBeGreaterThanOrEqual(120);
+
+    const buttons = dialog.locator('.details-footer').getByRole('button');
+    expect(await buttons.count()).toBeGreaterThanOrEqual(3);
+    for (const button of await buttons.all()) {
+      await button.scrollIntoViewIfNeeded();
+      const box = await button.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
+        size.height + 1,
+      );
+      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
+        size.width + 1,
+      );
+    }
+
+    const overflowX = await page.evaluate(() => {
+      const d = document.querySelector('.details-dialog') as HTMLElement;
+      return d.scrollWidth - d.clientWidth;
+    });
+    expect(overflowX).toBeLessThanOrEqual(0);
+  });
+}
+
+test('390x844 portrait: the body still takes more than half the height', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const dialog = await open(page);
+  const body = await dialog.locator('.details-body').boundingBox();
+  expect(body?.height).toBeGreaterThan(844 / 2);
+});
