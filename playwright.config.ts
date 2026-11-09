@@ -34,6 +34,7 @@ const singleUserSpecs = [
   '**/webhooks-page.spec.ts',
   '**/webhooks-phone-sort.spec.ts',
   '**/bottom-nav-focus-padding.spec.ts',
+  '**/bottom-nav-labels.spec.ts',
   '**/webhooks-status-line.spec.ts',
   '**/webhooks-rebase-bots.spec.ts',
   '**/auto-merge-filter.spec.ts',
