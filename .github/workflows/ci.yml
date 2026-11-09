@@ -647,6 +647,36 @@ jobs:
             --output coverage.xml "${PAGE_URL%/}/reports/coverage/coverage.xml"
           grep -q '<coverage ' coverage.xml
 
+  # Builds the Storybook catalog, screenshots every story and scans each with
+  # axe (rules/storybook.md, rules/a11y.md). The same script the pre-push hook
+  # runs. It needs only the browser, so it takes the e2e jobs' image but no Go.
+  storybook:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-24.04
+    # Set from the first green run: re-size it to about 1.5x the slowest one.
+    timeout-minutes: 10
+    # Our own CI image, as the e2e and Lighthouse jobs use it; see their
+    # comment. scripts/test-playwright-image.sh checks this copy too.
+    container:
+      image: ghcr.io/alrayyes/ci-playwright:1.65.0@sha256:73f37a0066d395e150ca5e67518dd57424a2fc682def7696c67b0478f8d7dcba
+      options: --ipc=host --init
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: the image's bun is the one package.json names
+        run: bash scripts/check-image-bun.sh
+      - run: bun install --frozen-lockfile
+      - name: build the catalog, screenshot every story and scan it with axe
+        run: bun run storybook:screenshots
+      - name: upload the screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: storybook-screenshots
+          path: docs/storybook
+          retention-days: 7
+          if-no-files-found: error
+
   # Biome leads for every file type it supports -- linting.md. Same command
   # the pre-push hook runs, so the two can't drift.
   js:
@@ -786,6 +816,7 @@ jobs:
         audit,
         svelte-check,
         tests-types,
+        storybook,
         commits,
       ]
     runs-on: ubuntu-24.04

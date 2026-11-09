@@ -147,6 +147,9 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
   dashboard runs on its own.
 - [Error pages](docs/error-pages.md): the app's own 404 and 500 pages and what they
   show.
+- [Component catalogue](docs/storybook.md): the Storybook stories, and the
+  screenshots and accessibility scan that run over them. `bun run
+storybook:screenshots` writes one PNG per story to `docs/storybook/`.
 - [Reports](docs/reports.md): the test, coverage, and Lighthouse reports published
   after every green push to `main`.
 - [Architecture](ARCHITECTURE.md#design): the design choices behind the app, from

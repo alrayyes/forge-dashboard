@@ -22,8 +22,10 @@
     "lint:refs": "bun scripts/check-doc-ticket-refs.ts",
     "lint:specs": "bun scripts/check-spec-api-routes.ts",
     "prepare": "lefthook install",
+    "storybook:screenshots": "bun scripts/storybook-screenshots.ts",
     "test:e2e": "playwright test",
     "test:lighthouse": "lhci autorun",
+    "test:storybook": "bun test ./scripts/storybook-smoke.ts",
     "test:unit": "bun test web/src scripts"
   },
   "browserslist": [
