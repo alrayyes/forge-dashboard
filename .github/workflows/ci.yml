@@ -647,8 +647,6 @@ jobs:
             --output coverage.xml "${PAGE_URL%/}/reports/coverage/coverage.xml"
           grep -q '<coverage ' coverage.xml
 
-  # Biome leads for every file type it supports -- linting.md. Same command
-  # the pre-push hook runs, so the two can't drift.
   # Builds the Storybook catalog, screenshots every story and scans each with
   # axe (rules/storybook.md, rules/a11y.md). The same script the pre-push hook
   # runs. It needs only the browser, so it takes the e2e jobs' image but no Go.
@@ -679,6 +677,8 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # Biome leads for every file type it supports -- linting.md. Same command
+  # the pre-push hook runs, so the two can't drift.
   js:
     needs: changes
     if: needs.changes.outputs.web == 'true'
