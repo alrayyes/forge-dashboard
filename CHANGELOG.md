@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.2](https://github.com/alrayyes/forge-dashboard/compare/v9.10.1...v9.10.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **web:** keep a long pick inside its filter control ([#3379](https://github.com/alrayyes/forge-dashboard/issues/3379)) ([b39b3af](https://github.com/alrayyes/forge-dashboard/commit/b39b3af3bd3ce45d6cd96465cf9edaf69d05cda9)), closes [#3370](https://github.com/alrayyes/forge-dashboard/issues/3370)
+
 ## [9.10.1](https://github.com/alrayyes/forge-dashboard/compare/v9.10.0...v9.10.1) (2026-11-10)
 
 
