@@ -64,6 +64,7 @@ const PAGES = [
     zeroText: '0 repositories tracked',
     real: { selector: '#insights-tracked', text: '2 repositories tracked' },
     skeletons: 5,
+    busyRegions: 4,
   },
   {
     name: 'Webhooks',
@@ -74,10 +75,11 @@ const PAGES = [
     zeroText: 'Nothing tracked yet',
     real: { selector: '#webhooks-table', text: 'acme/web' },
     skeletons: 1,
+    busyRegions: 1,
   },
 ];
 
-const wrap = (page: Page) => page.locator('[aria-busy="true"]');
+const busy = (page: Page) => page.locator('[aria-busy="true"]');
 
 for (const p of PAGES) {
   test.describe(`${p.name} while the first read is pending`, () => {
@@ -88,7 +90,7 @@ for (const p of PAGES) {
       await page.goto(p.url);
 
       await expect(page.getByTestId('list-skeleton')).toHaveCount(p.skeletons);
-      await expect(wrap(page)).toHaveCount(1);
+      await expect(busy(page)).toHaveCount(p.busyRegions);
       await expect(page.getByTestId('first-refresh-status')).toHaveText(
         'Loading your repositories…',
       );
@@ -96,6 +98,18 @@ for (const p of PAGES) {
         'aria-live',
         'polite',
       );
+      // One live region, outside every busy region, and not drawn: the
+      // neutral label and the skeleton are the only visible loading text.
+      const live = page.locator('[aria-live="polite"]', {
+        hasText: 'Loading your repositories…',
+      });
+      await expect(live).toHaveCount(1);
+      await expect(
+        live.locator('xpath=ancestor::*[@aria-busy="true"]'),
+      ).toHaveCount(0);
+      const box = await live.boundingBox();
+      expect(box?.width).toBeLessThanOrEqual(1);
+      expect(box?.height).toBeLessThanOrEqual(1);
       if (p.name === 'Insights') {
         await expect(page.locator('#insights-tracked')).toHaveText(p.neutral);
       }
@@ -107,7 +121,7 @@ for (const p of PAGES) {
       release();
       await expect(page.locator(p.real.selector)).toContainText(p.real.text);
       await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
-      await expect(wrap(page)).toHaveCount(0);
+      await expect(busy(page)).toHaveCount(0);
       await expect(page.getByTestId('first-refresh-status')).toHaveText('');
     });
 
@@ -122,7 +136,7 @@ for (const p of PAGES) {
       release();
 
       await expect(page.getByTestId('list-skeleton')).toHaveCount(p.skeletons);
-      await expect(wrap(page)).toHaveCount(1);
+      await expect(busy(page)).toHaveCount(p.busyRegions);
       for (const text of p.emptyTexts) {
         await expect(page.locator('body')).not.toContainText(text);
       }
@@ -137,7 +151,7 @@ for (const p of PAGES) {
 
       await expect(page.locator('body')).toContainText(p.zeroText);
       await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
-      await expect(wrap(page)).toHaveCount(0);
+      await expect(busy(page)).toHaveCount(0);
       if (p.name === 'Insights') {
         await expect(page.locator('body')).toContainText(
           'No open pull requests.',
@@ -161,7 +175,7 @@ for (const p of PAGES) {
         'The backend answered with an error (500)',
       );
       await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
-      await expect(wrap(page)).toHaveCount(0);
+      await expect(busy(page)).toHaveCount(0);
       await expect(page.locator('body')).not.toContainText(p.neutral);
       for (const text of p.failedHides) {
         await expect(page.locator('body')).not.toContainText(text);

@@ -1059,15 +1059,15 @@
   </style>
 </svelte:head>
 
-<div class="webhooks-wrap" aria-busy={awaiting ? "true" : undefined}>
+<div class="webhooks-wrap">
   <div class="webhooks-header">
     <h1>Webhooks</h1>
   </div>
 
   <ReadFailureAlert />
-  <FirstRefreshStatus pending={showSkeleton} />
+  <FirstRefreshStatus pending={showSkeleton} srOnly />
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <p class="hint" id="webhooks-hint">
       Every tracked repo, and whether this dashboard has confirmed a webhook for
       it. <a href="/settings.html#webhooks">Webhook setup</a>

@@ -706,7 +706,7 @@
   </style>
 </svelte:head>
 
-<div class="insights-wrap" aria-busy={awaiting ? "true" : undefined}>
+<div class="insights-wrap">
   <div class="insights-header">
     <h1>Insights</h1>
     {#if !(dashboardRead.lastError && !dashboardRead.data)}
@@ -714,7 +714,7 @@
     {/if}
   </div>
   <ReadFailureAlert />
-  <FirstRefreshStatus pending={showSkeleton} />
+  <FirstRefreshStatus pending={showSkeleton} srOnly />
 
   <div class="card">
     <h2>Filters</h2>
@@ -816,7 +816,7 @@
     {/if}
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>CI status</h2>
     <p class="hint">
       The combined check result across every currently open pull request, broken
@@ -869,7 +869,7 @@
     {/if}
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>Busiest repos</h2>
     <p class="hint">
       Tracked repos ranked by how many open pull requests and issues they
@@ -940,7 +940,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>Pull request age</h2>
     <p class="hint">
       How long currently open pull requests have been sitting — a stale one
@@ -991,7 +991,7 @@
     {/if}
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>Issue age</h2>
     <p class="hint">Same idea as pull request age, for open issues.</p>
 
