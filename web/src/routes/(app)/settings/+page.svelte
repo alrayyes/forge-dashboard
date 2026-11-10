@@ -1908,12 +1908,11 @@
                   name="forgejoToken"
                   type={forgejoTokenShown ? "text" : "password"}
                   autocomplete="off"
-                  placeholder="Leave blank to keep the saved token"
+                  placeholder={forgejoTokenSet ? "Unchanged" : "Paste a token"}
                   aria-invalid={fieldErrors.forgejoToken ? "true" : undefined}
-                  aria-describedby={describedBy(
-                    "forgejoToken",
-                    "forgejo-token",
-                  )}
+                  aria-describedby={forgejoTokenSet
+                    ? `forgejo-token-saved ${describedBy("forgejoToken", "forgejo-token")}`
+                    : describedBy("forgejoToken", "forgejo-token")}
                   bind:value={forgejoToken}
                 />
                 <button
@@ -1928,6 +1927,11 @@
                   >{forgejoTokenShown ? "Hide" : "Show"}</button
                 >
               </div>
+              {#if forgejoTokenSet}
+                <p class="field-hint" id="forgejo-token-saved">
+                  Token saved. Leave blank to keep it.
+                </p>
+              {/if}
               <p
                 class="pattern-error"
                 id="forgejo-token-error"
