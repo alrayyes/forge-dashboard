@@ -785,12 +785,15 @@ itself, and a cancelled run beside one still going stays Running. The pill is
 the word alone, like the branch pill; the count is in `checks.cancelled`. A
 Cancelled row is not in the Failing CI filter or the Failed number of the menu
 pill, and it is not a pass either: Ready, Merge and auto-merge still wait for a
-run to pass. Forgejo leaves cancelled jobs out of the failed count, so its row
-reads No checks or Passed. The page folds the jobs the panel lists the way a
-branch does, and the row follows the panel: a cancelled job beside one still
-going is Running, beside a real failure it is Failed, and beside passed jobs
-alone it is Cancelled, with no counts. Close the panel and the row goes back to
-what the server sent.
+run to pass. Forgejo records a cancelled job as a failure status, and the server
+leaves those out of the failed count. When that leaves no failed check and
+nothing waiting, the row reads Cancelled too, with `checks.cancelled` counting
+the cancelled jobs beside the jobs that passed before the stop. A run that was
+re-run and passed has no failure statuses left, so it reads Passed. The page
+folds the jobs the panel lists the way a branch does, and the row follows the
+panel: a cancelled job beside one still going is Running, beside a real failure
+it is Failed, and beside passed jobs alone it is Cancelled, with no counts.
+Close the panel and the row goes back to what the server sent.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the

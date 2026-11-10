@@ -11,13 +11,19 @@ import { test } from './server-fixture';
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-function pr(number: number, title: string, ci: string, checks: object) {
+function pr(
+  number: number,
+  title: string,
+  ci: string,
+  checks: object,
+  forge = 'github',
+) {
   return {
-    forge: 'github',
+    forge,
     repo: 'alrayyes/forgejo-mirror-sync',
     number,
     title,
-    url: `https://github.com/alrayyes/forgejo-mirror-sync/pull/${number}`,
+    url: `https://example.test/alrayyes/forgejo-mirror-sync/pull/${number}`,
     author: 'claude',
     draft: false,
     ci,
@@ -35,6 +41,14 @@ const CANCELLED = pr(62, 'Only cancelled', 'cancelled', {
   skipped: 3,
   cancelled: 1,
 });
+// scaffold-php-api#204 (#3378): a Forgejo run cancelled after four jobs passed.
+const FORGEJO_CANCELLED = pr(
+  64,
+  'Forgejo cancelled run',
+  'cancelled',
+  { passed: 4, cancelled: 9 },
+  'forgejo',
+);
 const FAILED = pr(63, 'Really failed', 'failure', { passed: 18, failed: 1 });
 
 const JOBS = [
@@ -56,7 +70,7 @@ async function open(page: Page) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: [CANCELLED, FAILED],
+        pullRequests: [CANCELLED, FAILED, FORGEJO_CANCELLED],
         issues: [],
         openIssueCount: 0,
         repos: [],
@@ -65,7 +79,7 @@ async function open(page: Page) {
     }),
   );
   await page.goto('/pull-requests.html');
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
 }
 
 const row = (page: Page, title: string) =>
@@ -83,6 +97,16 @@ test.describe('a cancelled-only pull request (3301)', () => {
     await expect(row(page, 'Really failed').locator('.ci-pill')).toContainText(
       'Failed',
     );
+  });
+
+  test('a Forgejo run cancelled after some jobs passed says Cancelled, not Passed', async ({
+    page,
+  }) => {
+    await open(page);
+
+    const pill = row(page, 'Forgejo cancelled run').locator('.ci-pill');
+    await expect(pill).toContainText('Cancelled');
+    await expect(pill).not.toContainText('Passed');
   });
 
   test('the dialog lists the same cancelled check', async ({ page }) => {
