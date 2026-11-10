@@ -2,6 +2,10 @@
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
+  import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
+  import ListSkeleton from "#lib/ListSkeleton.svelte";
+  import { firstRefresh } from "#lib/first-refresh.svelte.js";
+  import { firstRefreshLoading, readPhase } from "#lib/first-refresh.js";
   import * as Filters from "#lib/filters.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
@@ -103,8 +107,18 @@
     forges: Forge[];
   }>({ pullRequests: [], issues: [], forges: [] });
 
+  // Until the first read has an answer worth drawing, no chart may say "No
+  // open ..." and the counter may not say zero (#3367). The skeleton and the
+  // status line follow the Pull requests pattern, including its show delay, so
+  // a warm load draws neither.
+  const awaiting = $derived(
+    readPhase(dashboardRead, firstRefresh.done) === "pending",
+  );
+  const showSkeleton = $derived(awaiting && firstRefreshLoading(firstRefresh));
+
   // How many repositories the forges report, across both (#1325).
   const trackedText = $derived.by(() => {
+    if (awaiting) return "Checking tracked repositories...";
     const repos = lastSnapshot.forges.reduce(
       (sum, f) => sum + (f.repoCount || 0),
       0,
@@ -700,6 +714,7 @@
     {/if}
   </div>
   <ReadFailureAlert />
+  <FirstRefreshStatus pending={showSkeleton} srOnly />
 
   <div class="card">
     <h2>Filters</h2>
@@ -801,14 +816,16 @@
     {/if}
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>CI status</h2>
     <p class="hint">
       The combined check result across every currently open pull request, broken
       out by state.
     </p>
 
-    {#if prItems.length === 0}
+    {#if awaiting}
+      {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+    {:else if prItems.length === 0}
       <p class="empty-state" id="ci-status-empty">No open pull requests.</p>
     {:else}
       <div class="ci-bars" id="ci-status-chart">
@@ -852,7 +869,7 @@
     {/if}
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>Busiest repos</h2>
     <p class="hint">
       Tracked repos ranked by how many open pull requests and issues they
@@ -862,7 +879,9 @@
     <div class="rank-columns">
       <section aria-labelledby="repo-pr-ranking-heading">
         <h3 id="repo-pr-ranking-heading">Pull requests</h3>
-        {#if prRepoRanking.top.length === 0}
+        {#if awaiting}
+          {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+        {:else if prRepoRanking.top.length === 0}
           <p class="empty-state" id="repo-pr-ranking-empty">
             No open pull requests.
           </p>
@@ -890,7 +909,9 @@
       </section>
       <section aria-labelledby="repo-issue-ranking-heading">
         <h3 id="repo-issue-ranking-heading">Issues</h3>
-        {#if issueRepoRanking.top.length === 0}
+        {#if awaiting}
+          {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+        {:else if issueRepoRanking.top.length === 0}
           <p class="empty-state" id="repo-issue-ranking-empty">
             No open issues.
           </p>
@@ -919,14 +940,16 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>Pull request age</h2>
     <p class="hint">
       How long currently open pull requests have been sitting — a stale one
       stands out here instead of just in its own row's timestamp.
     </p>
 
-    {#if prItems.length === 0}
+    {#if awaiting}
+      {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+    {:else if prItems.length === 0}
       <p class="empty-state" id="pr-age-empty">No open pull requests.</p>
     {:else}
       <div class="age-bars" id="pr-age-chart">
@@ -968,11 +991,13 @@
     {/if}
   </div>
 
-  <div class="card">
+  <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <h2>Issue age</h2>
     <p class="hint">Same idea as pull request age, for open issues.</p>
 
-    {#if issueItems.length === 0}
+    {#if awaiting}
+      {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+    {:else if issueItems.length === 0}
       <p class="empty-state" id="issue-age-empty">No open issues.</p>
     {:else}
       <div class="age-bars" id="issue-age-chart">

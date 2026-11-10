@@ -5,7 +5,10 @@
   // The one polite status line for the first refresh (#1672). It stays in the
   // page and only its text changes, so a screen reader hears "loading" once
   // and the later "still loading" once, and nothing when the rows arrive.
-  let { pending }: { pending: boolean } = $props();
+  // `srOnly` is for pages that draw their own visible loading text (Insights,
+  // Webhooks, #3367): the line is still the one live region, but not drawn.
+  let { pending, srOnly = false }: { pending: boolean; srOnly?: boolean } =
+    $props();
 
   let elapsed = $state(0);
 
@@ -29,7 +32,8 @@
 
 <p
   class="first-refresh-status"
-  class:active={pending}
+  class:active={pending && !srOnly}
+  class:sr-only={srOnly}
   role="status"
   aria-live="polite"
   data-testid="first-refresh-status"
