@@ -773,8 +773,25 @@
     .adv-close {
       width: 44px;
     }
+    /* The title and the X share the first row; Open on GitHub, when there is
+       one, takes the row under them. The grid places the controls without
+       moving them in the DOM, so the tab order stays as it was. */
     .adv-header {
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+    }
+    .adv-header-actions {
+      display: contents;
+    }
+    .adv-close {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .adv-header-actions .adv-ghost {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: start;
     }
   }
 </style>
