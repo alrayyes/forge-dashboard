@@ -3914,6 +3914,18 @@ button.pipeline-check-link:disabled {
   color: var(--accent-ink);
 }
 
+/* Forced colors drops the accent fill and border of a pressed pill, which
+   leaves aria-pressed as the only difference (#3377). An inset system-colour
+   outline marks it without moving neighbours; the focus ring keeps its own
+   offset. */
+@media (forced-colors: active) {
+  .quick-pill[aria-pressed="true"]:not(:focus-visible),
+  .mb-pill[aria-pressed="true"]:not(:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: -3px;
+  }
+}
+
 /* The Show drafts toggle (#791): quieter than the quick pills, since it is a
    separate on/off choice rather than one of their exclusive set. Dashed
    when off, solid accent outline when on, and the label says which. */
