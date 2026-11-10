@@ -204,6 +204,21 @@ test.describe('Queue update keeps focus (#3289)', () => {
       for (const s of [f0, f1, f2, f3]) expect(s.tag, trace).not.toBe('BODY');
       expect(posts).toBe(1);
       if (status === 500) expect(f3.text, trace).toMatch(/^Queue update for/);
+      if (status === 201) {
+        // #3312: not merely off BODY. The queue button is gone, so focus is
+        // on its replacement, the Cancel button in the row's wait chip.
+        const landed = await page.evaluate(() => {
+          const a = document.activeElement;
+          return {
+            inRow: !!a?.closest('#pr-rows .row'),
+            label: a?.getAttribute('aria-label') ?? '',
+          };
+        });
+        expect(landed.inRow, JSON.stringify(landed)).toBe(true);
+        expect(landed.label, JSON.stringify(landed)).toMatch(
+          /^Cancel queued update for /,
+        );
+      }
     });
   }
 });
