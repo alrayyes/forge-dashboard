@@ -1047,6 +1047,12 @@ select.col-filter {
     5px 5px;
   background-repeat: no-repeat;
 }
+/* The button is a plain child of its host, not a flex item, so the bar's
+   \`.col-filter { width: auto }\` would size it to its text and a long pick
+   would run out of the host, under the control beside it. */
+.filter-bar .label-filter-button {
+  width: 100%;
+}
 .label-filter-panel {
   position: absolute;
   top: calc(100% + 4px);
