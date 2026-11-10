@@ -6350,6 +6350,7 @@
       });
       const cancel = buttonEl("row-action wait-chip-action", "Cancel");
       cancel.type = "button";
+      cancel.dataset.focusSlot = "queued-action";
       cancel.setAttribute(
         "aria-label",
         `Cancel queued ${QUEUE_VERBS[queued.action]} for ${item.repo}#${item.number}`,
@@ -6392,6 +6393,9 @@
         `Queue ${QUEUE_VERBS[action]} for ${formatTime(resets)}`,
       );
       button.type = "button";
+      // The queue button gives way to the wait chip's Cancel; the slot is how
+      // focus follows the swap (#3312).
+      button.dataset.focusSlot = "queued-action";
       button.addEventListener("click", () =>
         queueForReset(item, action, button),
       );
@@ -6428,7 +6432,7 @@
               feedback.announce(
                 `${queuedText(q)} for ${item.repo}#${item.number}.`,
               );
-              return refreshDashboardNow();
+              return refreshDashboardNow(true);
             });
           return readActionFailure(res).then((err) => {
             throw err;
@@ -9212,7 +9216,9 @@
     // before forcing another one: the Retry-After of an answer given inside
     // the refresh cooldown, which carries the current snapshot instead of a
     // fetch. undefined when the server did fetch.
-    function refreshDashboardNow(): Promise<number | undefined> {
+    function refreshDashboardNow(
+      keepFocus = false,
+    ): Promise<number | undefined> {
       const seq = ++requestSeq;
       return fetch(withDrafts("/api/v1/dashboard/refresh"), {
         method: "POST",
@@ -9225,7 +9231,8 @@
         if (!res.ok) throw new Error(`backend answered ${res.status}`);
         const wait = Number.parseInt(res.headers.get("Retry-After") ?? "", 10);
         return res.json().then((data) => {
-          applySnapshot(data, true, seq);
+          if (keepFocus) keepFocusAcross(() => applySnapshot(data, true, seq));
+          else applySnapshot(data, true, seq);
           return wait >= 1 ? wait : undefined;
         });
       });

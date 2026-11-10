@@ -67,6 +67,7 @@
   } from "#lib/check-feed.js";
   import CheckRunOutput from "#lib/CheckRunOutput.svelte";
   import CopyCheckLog from "#lib/CopyCheckLog.svelte";
+  import type { CopyFlow } from "#lib/copy-flow.svelte.js";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
@@ -142,6 +143,9 @@
   // Rows whose output panel is open and loaded, by row key. Their excerpt and
   // its copy button give way to the panel's own.
   let outputLoaded = $state<Record<string, boolean>>({});
+  // Each row's excerpt copy flow, by row key, for the panel to report a copy
+  // that was pressed while the output loaded (#3343).
+  let excerptFlows = $state.raw<Record<string, CopyFlow>>({});
 
   // Cancel run: one entry per run the person has started to cancel, by run id.
   // `confirm` waits for the second click, `cancelling` is the forge accepting,
@@ -670,6 +674,7 @@
             forgeName={forge}
             onloaded={(loaded) =>
               (outputLoaded[keyOf.get(check) ?? ""] = loaded)}
+            earlier={excerptFlows[keyOf.get(check) ?? ""]}
           />
         {:else if control === "open-on-forge" || control === "link"}
           <!-- Never an empty href, which would resolve to this page. A job with
@@ -700,6 +705,11 @@
           {copyable}
           runKey={checkRunKey(check)}
           outputLoaded={outputLoaded[keyOf.get(check) ?? ""] ?? false}
+          onflow={(flow) =>
+            (excerptFlows = {
+              ...excerptFlows,
+              [keyOf.get(check) ?? ""]: flow,
+            })}
         />
       </li>
     {/each}

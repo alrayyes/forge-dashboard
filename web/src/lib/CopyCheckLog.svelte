@@ -3,7 +3,7 @@
   // whole log from the log endpoint, or the excerpt when the whole log can't be
   // read, and the status says which landed. Text only: nothing here is parsed
   // as markup.
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { CopyFlow } from "#lib/copy-flow.svelte.js";
   import {
     COPIED_LOG_KEPT_MS,
@@ -22,6 +22,7 @@
     copyable,
     runKey,
     outputLoaded = false,
+    onflow,
   }: {
     name: string;
     jobId?: number;
@@ -36,9 +37,13 @@
     // The row's output panel is open and loaded: it has the text and its own
     // Copy button, so the excerpt and this button step aside (#3257).
     outputLoaded?: boolean;
+    // Hands the copy flow to the row's output panel, which reports a copy that
+    // finishes after this button has stepped aside (#3343).
+    onflow?: (flow: CopyFlow) => void;
   } = $props();
 
   const flow = new CopyFlow(() => forgeName, "output");
+  onMount(() => onflow?.(flow));
 
   // The row is keyed by the check's name, so a rerun hands the same component a
   // new job. What was copied or shown for the old one must not stay for the

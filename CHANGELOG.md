@@ -1,5 +1,20 @@
 # Changelog
 
+## [9.9.0](https://github.com/alrayyes/forge-dashboard/compare/v9.8.2...v9.9.0) (2026-11-10)
+
+
+### Features
+
+* **web:** show the Bots Rebase all summary as a status strip with count chips ([#3354](https://github.com/alrayyes/forge-dashboard/issues/3354)) ([5f7ae03](https://github.com/alrayyes/forge-dashboard/commit/5f7ae038b6048aeece1245844f71c9780251ff74)), closes [#3276](https://github.com/alrayyes/forge-dashboard/issues/3276)
+
+## [9.8.2](https://github.com/alrayyes/forge-dashboard/compare/v9.8.1...v9.8.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* keep the copy status when the excerpt unmounts mid-copy ([#3355](https://github.com/alrayyes/forge-dashboard/issues/3355)) ([cb69844](https://github.com/alrayyes/forge-dashboard/commit/cb69844263df43a05ae6cfc9fcd9f38adc153d7d)), closes [#3343](https://github.com/alrayyes/forge-dashboard/issues/3343)
+* move focus to Cancel after queueing an action for the reset ([#3352](https://github.com/alrayyes/forge-dashboard/issues/3352)) ([68d8d36](https://github.com/alrayyes/forge-dashboard/commit/68d8d363d2f13af610502e53779e8a365e652167)), closes [#3312](https://github.com/alrayyes/forge-dashboard/issues/3312)
+
 ## [9.8.1](https://github.com/alrayyes/forge-dashboard/compare/v9.8.0...v9.8.1) (2026-11-09)
 
 
