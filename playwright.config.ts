@@ -25,6 +25,7 @@ const singleUserSpecs = [
   '**/auth-single-user.spec.ts',
   '**/board-title-width.spec.ts',
   '**/filter-bar-widths.spec.ts',
+  '**/filter-bar-overlap.spec.ts',
   '**/hide-pull-request.spec.ts',
   '**/pull-request-action-refusals.spec.ts',
   '**/pull-request-dependabot-action.spec.ts',
