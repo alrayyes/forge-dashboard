@@ -277,14 +277,18 @@ for (const width of [390, 1280]) {
       const card = document.querySelector('section.board')!;
       const summary = document.getElementById('update-all-summary')!;
       const button = document.getElementById('update-all-button')!;
+      // The strip's own box, less its padding: the chips and the stacked
+      // phone layout move the content, but the insets stay 12px and 18px.
+      const block = document.querySelector('.update-all')!;
+      const pad = getComputedStyle(block);
       return {
         headingLeft: r(card.querySelector('.board-head h2')).left,
         headBottom: r(card.querySelector('.board-head')).bottom,
         cardInnerRight: r(card).right - card.clientLeft,
         summaryLeft: r(summary).left,
         buttonRight: r(button).right,
-        blockTop: Math.min(r(summary).top, r(button).top),
-        blockBottom: Math.max(r(summary).bottom, r(button).bottom),
+        blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
+        blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
         rowTop: r(document.querySelector('#pr-rows > .row')).top,
         buttonMinHeight: getComputedStyle(button).minHeight,
         scrollW: document.documentElement.scrollWidth,
@@ -297,5 +301,113 @@ for (const width of [390, 1280]) {
     expect(m.rowTop - m.blockBottom).toBeCloseTo(12, 0);
     expect(m.buttonMinHeight).toBe('44px');
     expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+  });
+}
+
+// The summary as a status strip (#3277): the headline, two count chips and the
+// button, laid out like the Bots page's (#3276). The chips repeat the numbers
+// in the headline for scanning, so they sit outside the element the button's
+// aria-describedby reads.
+const chips = (page: Page) => page.locator('.update-all-chips > li');
+
+test('the strip shows the counts as chips beside the headline', async ({
+  page,
+}) => {
+  await open(page, [pr(1), pr(2), pr(4), pr(5, { allowedActions: [] })]);
+  await expect(chips(page)).toHaveText(['3 ready to update', '4 listed']);
+  await expect(page.locator('.update-all-headline')).toHaveText(
+    '3 of 4 can be updated.',
+  );
+  await expect(
+    page.locator('#update-all-summary .update-all-chips'),
+  ).toHaveCount(0);
+  await expect(page.locator('#update-all-button')).toHaveAttribute(
+    'aria-describedby',
+    'update-all-summary',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Update all (3)' }),
+  ).toBeVisible();
+});
+
+test('on a phone the chips keep their words and the button fills the strip', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await open(page, [pr(1), pr(2), pr(4), pr(5, { allowedActions: [] })]);
+  await expect(chips(page)).toHaveText(['3 ready to update', '4 listed']);
+  const m = await page.evaluate(() => {
+    const r = (el: Element) => el.getBoundingClientRect();
+    const block = document.querySelector('.update-all')!;
+    const button = document.getElementById('update-all-button')!;
+    const style = getComputedStyle(block);
+    return {
+      buttonLeft: r(button).left,
+      buttonRight: r(button).right,
+      buttonHeight: r(button).height,
+      left:
+        r(block).left + Number.parseFloat(style.paddingLeft) + block.clientLeft,
+      right:
+        r(block).right -
+        Number.parseFloat(style.paddingRight) -
+        block.clientLeft,
+      chipHeights: [...document.querySelectorAll('.update-all-chips > li')].map(
+        (li) => Math.round(r(li).height),
+      ),
+      scrollW: document.documentElement.scrollWidth,
+      innerW: window.innerWidth,
+    };
+  });
+  expect(m.buttonLeft).toBeCloseTo(m.left, 0);
+  expect(m.buttonRight).toBeCloseTo(m.right, 0);
+  expect(m.buttonHeight).toBeGreaterThanOrEqual(44);
+  // One line tall: a chip's words never break mid-word.
+  expect(Math.max(...m.chipHeights)).toBeLessThan(40);
+  expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+});
+
+test('the strip stays through a run and the chips follow it', async ({
+  page,
+}) => {
+  await open(page, [pr(1), pr(2)]);
+  let answer!: () => void;
+  const held = new Promise<void>((resolve) => {
+    answer = resolve;
+  });
+  await page.route('**/api/v1/pull-requests/update-branch', async (route) => {
+    if (route.request().postDataJSON().number === 2) await held;
+    await route.fulfill({ status: 204 });
+  });
+  await page.getByRole('button', { name: 'Update all (2)' }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Update', exact: true })
+    .click();
+  await expect(
+    page.getByRole('button', { name: /Updating 1 of 2/ }),
+  ).toBeVisible();
+  await expect(page.locator('.update-all-chips')).toBeVisible();
+  await expect(chips(page)).toHaveText([/^[01] ready to update$/, '2 listed']);
+  answer();
+  await expect(page.locator('#update-all-status')).toHaveText(
+    'Update requested for 2.',
+  );
+});
+
+test('with nothing to update the chip list is hidden with the strip', async ({
+  page,
+}) => {
+  await open(page, [pr(1, { allowedActions: [] })]);
+  await expect(page.locator('.board-head')).toBeVisible();
+  await expect(page.locator('.update-all')).toBeHidden();
+  await expect(page.locator('.update-all-chips')).toBeHidden();
+});
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the strip passes axe in ${scheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await open(page, [pr(1), pr(2, { allowedActions: [] })]);
+    await expect(chips(page)).toHaveText(['1 ready to update', '2 listed']);
+    await expectNoAxeViolations(page);
   });
 }

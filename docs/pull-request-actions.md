@@ -1057,9 +1057,12 @@ chips keep counting as rows are rebased.
 The Pull requests page header has the `Update all` button, where the Bots page
 has `Rebase all`. It counts the pull requests the filters leave whose `Update
 branch` action the server offers and doesn't block, so `Update all (4)` means
-four, and a filter that narrows the list narrows the count. A line beside it
-says how many of the listed pull requests can be updated, for example `4 of 6
-can be updated.` Bots have their own page and aren't listed here.
+four, and a filter that narrows the list narrows the count. A headline beside
+it says how many of the listed pull requests can be updated, for example `4 of 6
+can be updated.`, and two chips repeat the numbers for a quick read: `4 ready to
+update` and `6 listed`. The ready chip is green above zero. On a phone the
+headline, the chips and a full-width button stack, as on the Bots page. Bots
+have their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or
@@ -1078,10 +1081,11 @@ requested for 3 of 4. 1 failed.`
 
 Escape, or `Close`, before `Update` updates nothing.
 
-The button and its line show only while a listed pull request can be updated.
-When none can, because they're all current or a filter hides the ones that
-aren't, both go away, and focus moves to the `All` quick filter if the button
-had it. A run that's under way keeps the button until it ends.
+The strip shows only while a listed pull request can be updated. When none can,
+because they're all current or a filter hides the ones that aren't, all of it
+goes away, chips included, and focus moves to the `All` quick filter if the
+button had it. A run that's under way keeps the strip until it ends, and the
+ready chip counts down as rows are sent.
 
 ## Deleting the source branch on merge
 

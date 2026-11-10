@@ -4870,22 +4870,26 @@ footer a[aria-current="page"] {
 }
 
 /* Rebase all, on the Bots page (#2859). */
-.rebase-all {
+.rebase-all,
+.update-all {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
   padding: 12px 18px;
 }
-.rebase-all[hidden] {
+.rebase-all[hidden],
+.update-all[hidden] {
   display: none;
 }
 /* The headline and the reason are the sentence the button's aria-describedby
    reads; the chips beside them are for scanning (#3276). */
-.rebase-all-summary {
+.rebase-all-summary,
+.update-all-summary {
   min-width: 0;
 }
-.rebase-all-headline {
+.rebase-all-headline,
+.update-all-headline {
   margin: 0;
   font-size: 0.875rem;
   font-weight: 600;
@@ -4900,15 +4904,18 @@ footer a[aria-current="page"] {
 .rebase-all-reason[hidden] {
   display: none;
 }
-.rebase-all-button {
+.rebase-all-button,
+.update-all-button {
   margin-left: auto;
 }
 @media (max-width: 640px) {
-  .rebase-all {
+  .rebase-all,
+  .update-all {
     flex-direction: column;
     align-items: stretch;
   }
-  .rebase-all-button {
+  .rebase-all-button,
+  .update-all-button {
     margin-left: 0;
   }
 }
@@ -5024,23 +5031,8 @@ footer a[aria-current="page"] {
   color: var(--ink-3);
 }
 
-/* Update all, on the Pull requests page (#3011). */
-.update-all {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding: 12px 18px;
-}
-.update-all[hidden] {
-  display: none;
-}
-.update-all-summary {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--ink-2);
-}
+/* Update all, on the Pull requests page (#3011). Its strip, headline, chips
+   and button layout are the Rebase all rules above (#3277). */
 .update-all-button,
 .update-all-actions button {
   min-height: 44px;
