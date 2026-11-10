@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.10.1](https://github.com/alrayyes/forge-dashboard/compare/v9.10.0...v9.10.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* keep focus on the Webhooks pager at either end ([#3353](https://github.com/alrayyes/forge-dashboard/issues/3353)) ([ff27942](https://github.com/alrayyes/forge-dashboard/commit/ff27942d0f0a7807f8d3c0fa7b2582a5dfffcdcd)), closes [#3325](https://github.com/alrayyes/forge-dashboard/issues/3325)
+* **web:** give the Branches repo link a 44px tap target on a phone ([#3375](https://github.com/alrayyes/forge-dashboard/issues/3375)) ([7766268](https://github.com/alrayyes/forge-dashboard/commit/7766268490d7f57322a883503e56b4570b412690)), closes [#3362](https://github.com/alrayyes/forge-dashboard/issues/3362)
+
 ## [9.10.0](https://github.com/alrayyes/forge-dashboard/compare/v9.9.1...v9.10.0) (2026-11-10)
 
 
