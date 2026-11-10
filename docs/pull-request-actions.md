@@ -1026,8 +1026,13 @@ the quietest weight, and Cancelled a stop square in a circle.
 The Bots page header has a `Rebase all` button for the whole list. It counts
 the pull requests the filters leave that are behind their base and offer a
 rebase, so `Rebase all (6)` means six, and a filter that narrows the list
-narrows the count. A line beside it says how many of the listed pull requests
-are out of date, for example `6 of 9 are out of date.`
+narrows the count. A headline beside it says how many of the listed pull
+requests are out of date, for example `6 of 9 are out of date.`, and three chips
+count what the strip is about: `6 out of date`, `1 failing` and `5 ready to
+rebase`. The failing chip counts every listed pull request the Failing CI pill
+counts, up to date or not, so one whose workflow waits for approval isn't in it.
+A chip with a zero count is grey. On a phone the headline, the chips and a
+full-width button stack, with the same chip words.
 
 Pressing it opens a confirm dialog that lists each pull request with its forge.
 `Rebase` then asks the bots one pull request after another, through the same
@@ -1039,12 +1044,13 @@ retry, and the others carry on.
 A pull request that is empty, already has a rebase requested, or has no rebase
 to offer isn't counted. When no pull request can be asked, the button is
 unavailable. A Dependabot pull request on a GitHub App with no saved personal
-token is left out too, and the line gives the reason.
+token is left out too, and a line under the headline gives the reason.
 
-The button and its line show only while a listed pull request is out of date.
-When none is, because they're all current or a filter hides the ones that
-aren't, both go away, and focus moves to the `All` quick filter if the button
-had it. A run that's under way keeps the button until it ends.
+The strip shows only while a listed pull request is out of date. When none is,
+because they're all current or a filter hides the ones that aren't, all of it
+goes away, chips included, and focus moves to the `All` quick filter if the
+button had it. A run that's under way keeps the strip until it ends, and its
+chips keep counting as rows are rebased.
 
 ## Updating every out-of-date pull request
 

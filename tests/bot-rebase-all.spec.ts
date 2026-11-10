@@ -295,14 +295,18 @@ for (const width of [390, 1280]) {
       const card = document.querySelector('section.board')!;
       const summary = document.getElementById('rebase-all-summary')!;
       const button = document.getElementById('rebase-all-button')!;
+      // The strip's own box, less its padding: the chips and the stacked
+      // phone layout move the content, but the insets stay 12px and 18px.
+      const block = document.querySelector('.rebase-all')!;
+      const pad = getComputedStyle(block);
       return {
         headingLeft: r(card.querySelector('.board-head h2')).left,
         headBottom: r(card.querySelector('.board-head')).bottom,
         cardInnerRight: r(card).right - card.clientLeft,
         summaryLeft: r(summary).left,
         buttonRight: r(button).right,
-        blockTop: Math.min(r(summary).top, r(button).top),
-        blockBottom: Math.max(r(summary).bottom, r(button).bottom),
+        blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
+        blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
         rowTop: r(document.querySelector('#pr-rows > .row')).top,
         buttonMinHeight: getComputedStyle(button).minHeight,
         scrollW: document.documentElement.scrollWidth,
@@ -315,5 +319,300 @@ for (const width of [390, 1280]) {
     expect(m.rowTop - m.blockBottom).toBeCloseTo(12, 0);
     expect(m.buttonMinHeight).toBe('44px');
     expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+  });
+}
+
+// The summary as a status strip (#3276): a headline, an optional reason line,
+// three count chips and the button. The chips repeat the headline's numbers for
+// scanning, so they sit outside the element the button's aria-describedby
+// reads.
+const chipTexts = (page: Page) =>
+  page.locator('.rebase-all-chips > li').allInnerTexts();
+
+test('the strip shows the counts as chips beside the headline', async ({
+  page,
+}) => {
+  await open(page, [pr(1), pr(2)]);
+  await expect(page.locator('.rebase-all-chips > li')).toHaveText([
+    '2 out of date',
+    '0 failing',
+    '2 ready to rebase',
+  ]);
+  await expect(page.locator('.rebase-all-headline')).toHaveText(
+    '2 of 2 are out of date.',
+  );
+  await expect(page.locator('#rebase-all-summary')).toContainText(
+    '2 of 2 are out of date.',
+  );
+  // The chips repeat the counts, so the description leaves them out.
+  await expect(
+    page.locator('#rebase-all-summary .rebase-all-chips'),
+  ).toHaveCount(0);
+  await expect(page.locator('#rebase-all-button')).toHaveAttribute(
+    'aria-describedby',
+    'rebase-all-summary',
+  );
+});
+
+test('the chips count the rows the filters leave, not held CI or waiting requests', async ({
+  page,
+}) => {
+  const posts = await open(
+    page,
+    [
+      // A: out of date and rebasable.
+      renovate(1),
+      // B: out of date, on a forge that refuses Dependabot commands.
+      pr(2),
+      // C: current, failing.
+      pr(3, { behind: false, ci: 'failure', failingCi: true }),
+      // D: current, failing only for a workflow held for approval.
+      pr(4, { behind: false, ci: 'failure', failingCi: false }),
+      // E: out of date, a rebase already asked for below.
+      pr(5, {
+        forge: 'forgejo',
+        repo: 'acme/site',
+        author: 'renovate[bot]',
+        allowedActions: [{ action: 'renovate_rebase', primary: true }],
+      }),
+    ],
+    [
+      {
+        forge: 'github',
+        reachable: true,
+        repoCount: 1,
+        dependabotCommandsBlocked: 'Dependabot needs a personal token.',
+      },
+      { forge: 'forgejo', reachable: true, repoCount: 1 },
+    ],
+  );
+  await page
+    .locator('#pr-rows > .row', { hasText: 'Bump dependency 5' })
+    .getByRole('button', { name: 'Renovate: Rebase' })
+    .click();
+  await expect.poll(() => posts.length).toBe(1);
+  await expect(page.locator('.rebase-all-chips > li')).toHaveText([
+    '3 out of date',
+    '1 failing',
+    '1 ready to rebase',
+  ]);
+  expect(posts).toHaveLength(1);
+});
+
+test('the reason is its own line and a narrower view narrows every chip', async ({
+  page,
+}) => {
+  await open(
+    page,
+    [pr(1), renovate(4)],
+    [
+      {
+        forge: 'github',
+        reachable: true,
+        repoCount: 1,
+        dependabotCommandsBlocked: 'Dependabot needs a personal token.',
+      },
+      { forge: 'forgejo', reachable: true, repoCount: 1 },
+    ],
+  );
+  const reason = page.locator('.rebase-all-reason');
+  await expect(reason).toHaveText('Dependabot needs a personal token.');
+  await expect(
+    page.locator('#rebase-all-summary').locator('.rebase-all-reason'),
+  ).toHaveCount(1);
+  await expect(page.locator('.rebase-all-chips > li')).toHaveText([
+    '2 out of date',
+    '0 failing',
+    '1 ready to rebase',
+  ]);
+  await page
+    .locator('.quick-pill.forge-pill[data-pill="github"]')
+    .evaluate((el) => {
+      (el as HTMLElement).click();
+    });
+  await expect(page.locator('.rebase-all-chips > li')).toHaveText([
+    '1 out of date',
+    '0 failing',
+    '0 ready to rebase',
+  ]);
+});
+
+test('with nothing rebasable the reason sits under the headline and the button says why', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const reason =
+    'Dependabot commands need a personal token on this forge, so these pull requests cannot be asked to rebase from here, and this sentence is long enough to wrap.';
+  await open(
+    page,
+    [pr(1)],
+    [
+      {
+        forge: 'github',
+        reachable: true,
+        repoCount: 1,
+        dependabotCommandsBlocked: reason,
+      },
+    ],
+  );
+  const button = page.locator('#rebase-all-button');
+  await expect(button).toHaveAttribute('aria-disabled', 'true');
+  await expect(button).toHaveAttribute(
+    'aria-describedby',
+    'rebase-all-summary',
+  );
+  await expect(page.locator('.rebase-all-reason')).toHaveText(reason);
+  const m = await page.evaluate(() => {
+    const r = (el: Element | null) => el!.getBoundingClientRect();
+    const card = document.querySelector('section.board')!;
+    const reason = document.querySelector('.rebase-all-reason')!;
+    const headline = document.querySelector('.rebase-all-headline')!;
+    return {
+      headlineBottom: r(headline).bottom,
+      reasonTop: r(reason).top,
+      reasonLeft: r(reason).left,
+      reasonRight: r(reason).right,
+      cardLeft: r(card).left,
+      cardRight: r(card).right,
+      color: getComputedStyle(reason).color,
+      ink2: getComputedStyle(document.documentElement)
+        .getPropertyValue('--ink-2')
+        .trim(),
+      scrollW: document.documentElement.scrollWidth,
+      innerW: window.innerWidth,
+    };
+  });
+  expect(m.reasonTop).toBeGreaterThanOrEqual(m.headlineBottom);
+  expect(m.reasonLeft - m.cardLeft).toBeGreaterThanOrEqual(18);
+  expect(m.cardRight - m.reasonRight).toBeGreaterThanOrEqual(18);
+  expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+  await expectNoAxeViolations(page);
+});
+
+test('on a phone the chips keep their words and the button fills the strip', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await open(page, [pr(1), pr(2)]);
+  await expect(page.locator('.rebase-all-chips > li')).toHaveCount(3);
+  expect(await chipTexts(page)).toEqual([
+    '2 out of date',
+    '0 failing',
+    '2 ready to rebase',
+  ]);
+  const m = await page.evaluate(() => {
+    const r = (el: Element) => el.getBoundingClientRect();
+    const block = document.querySelector('.rebase-all')!;
+    const button = document.getElementById('rebase-all-button')!;
+    const style = getComputedStyle(block);
+    const left =
+      r(block).left + Number.parseFloat(style.paddingLeft) + block.clientLeft;
+    const right =
+      r(block).right - Number.parseFloat(style.paddingRight) - block.clientLeft;
+    return {
+      buttonLeft: r(button).left,
+      buttonRight: r(button).right,
+      buttonHeight: r(button).height,
+      left,
+      right,
+      chipLines: [...document.querySelectorAll('.rebase-all-chips > li')].map(
+        (li) => Math.round(r(li).height),
+      ),
+      scrollW: document.documentElement.scrollWidth,
+      innerW: window.innerWidth,
+    };
+  });
+  expect(m.buttonLeft).toBeCloseTo(m.left, 0);
+  expect(m.buttonRight).toBeCloseTo(m.right, 0);
+  expect(m.buttonHeight).toBeGreaterThanOrEqual(44);
+  // A chip is one line tall: its words never break mid-word.
+  expect(Math.max(...m.chipLines)).toBeLessThan(40);
+  expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+});
+
+test('the chip list is hidden with the strip', async ({ page }) => {
+  await open(page, [pr(1, { behind: false })]);
+  await expect(page.locator('.rebase-all-chips')).toBeHidden();
+  await expect(page.locator('.rebase-all')).toBeHidden();
+});
+
+test('the chips follow a run, one snapshot at a time', async ({ page }) => {
+  const rows = [pr(1), pr(2)];
+  await open(page, rows);
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    '**/api/v1/pull-requests/dependabot-action',
+    async (route) => {
+      await held;
+      await route.fulfill({ status: 204 });
+    },
+  );
+  await page.getByRole('button', { name: 'Rebase all (2)' }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Rebase', exact: true })
+    .click();
+  await expect(page.locator('#rebase-all-button')).toHaveText(
+    'Rebasing 0 of 2',
+  );
+  await expect(page.locator('.rebase-all-chips')).toBeVisible();
+  await expect(page.locator('.rebase-all-chips > li')).toHaveText([
+    '2 out of date',
+    '0 failing',
+    // Requests go one after another, so 0 or 1 are still left to ask.
+    /^[01] ready to rebase$/,
+  ]);
+  release();
+  await expect(page.locator('#rebase-all-status')).toHaveText(
+    'Rebase requested for 2.',
+  );
+  for (const row of rows) row.behind = false;
+  await page.locator('#force-refresh-button').click();
+  await expect(page.locator('.rebase-all')).toBeHidden();
+  await expect(page.locator('.rebase-all-chips')).toBeHidden();
+});
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`the strip passes axe in ${scheme} with every chip tint`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await open(page, [
+      pr(1),
+      pr(2, { behind: false, ci: 'failure', failingCi: true }),
+    ]);
+    await expect(page.locator('.rebase-all-chips > li')).toHaveText([
+      '1 out of date',
+      '1 failing',
+      '1 ready to rebase',
+    ]);
+    await expectNoAxeViolations(page);
+  });
+
+  test(`the strip passes axe in ${scheme} with zero chips`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await open(
+      page,
+      [pr(1)],
+      [
+        {
+          forge: 'github',
+          reachable: true,
+          repoCount: 1,
+          dependabotCommandsBlocked: 'Dependabot needs a personal token.',
+        },
+      ],
+    );
+    await expect(page.locator('.rebase-all-chips > li')).toHaveText([
+      '1 out of date',
+      '0 failing',
+      '0 ready to rebase',
+    ]);
+    await expectNoAxeViolations(page);
   });
 }

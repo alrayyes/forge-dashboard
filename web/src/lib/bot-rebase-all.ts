@@ -3,6 +3,7 @@
 // the server already offers, so it holds no rule of its own about who may.
 
 import { type AllowedAction, findAction } from './allowed-actions';
+import { isFailing } from './filters';
 
 export type RebaseRow = {
   forge: string;
@@ -11,6 +12,9 @@ export type RebaseRow = {
   title: string;
   behind?: boolean;
   empty?: boolean;
+  // What the Failing CI pill reads, so the strip counts the same rows.
+  ci?: string;
+  failingCi?: boolean;
   allowedActions?: AllowedAction[];
 };
 
@@ -24,6 +28,8 @@ export type RebasePlan<T extends RebaseRow> = {
   total: number;
   // Rows behind their base, whether or not a rebase can be asked for.
   behind: number;
+  // Rows listed, behind or not, that the Failing CI pill counts (#3276).
+  failing: number;
   // Why Dependabot rows that are behind were left out, each reason once.
   blockedReasons: string[];
 };
@@ -55,7 +61,9 @@ export function rebaseAllPlan<T extends RebaseRow>(
   const eligible: Eligible<T>[] = [];
   const blockedReasons: string[] = [];
   let behind = 0;
+  let failing = 0;
   for (const item of items) {
+    if (isFailing(item)) failing++;
     if (!isOutOfDate(item)) continue;
     behind++;
     if (requested?.(item)) continue;
@@ -70,7 +78,7 @@ export function rebaseAllPlan<T extends RebaseRow>(
     }
     eligible.push({ item, bot });
   }
-  return { eligible, total: items.length, behind, blockedReasons };
+  return { eligible, total: items.length, behind, failing, blockedReasons };
 }
 
 // The control only earns its place when something listed is out of date. A

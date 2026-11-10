@@ -19,6 +19,8 @@ type Row = {
   title: string;
   behind?: boolean;
   empty?: boolean;
+  ci?: string;
+  failingCi?: boolean;
   allowedActions?: AllowedAction[];
 };
 
@@ -181,5 +183,46 @@ describe('showRebaseAll', () => {
       blockedReason: none,
     });
     expect(showRebaseAll(plan, true)).toBe(true);
+  });
+});
+
+// The Failing chip on the strip (#3276): every listed row, out of date or not,
+// that the Failing CI pill would count.
+describe('rebaseAllPlan failing count', () => {
+  test('counts failing rows, not ones held for approval', () => {
+    const plan = rebaseAllPlan(
+      [
+        row({ number: 1 }),
+        row({
+          number: 2,
+          allowedActions: [],
+        }),
+        row({ number: 3, behind: false, ci: 'failure', failingCi: true }),
+        row({ number: 4, behind: false, ci: 'failure', failingCi: false }),
+        row({ number: 5 }),
+      ],
+      { blockedReason: none, requested: (item) => item.number === 5 },
+    );
+    expect(plan.behind).toBe(3);
+    expect(plan.eligible.map((e) => e.item.number)).toEqual([1]);
+    expect(plan.failing).toBe(1);
+  });
+
+  test('reads the raw CI state when the server gives no failingCi', () => {
+    const plan = rebaseAllPlan(
+      [
+        row({ number: 1, ci: 'failure' }),
+        row({ number: 2, ci: 'failure', behind: false }),
+        row({ number: 3, ci: 'success' }),
+      ],
+      { blockedReason: none },
+    );
+    expect(plan.failing).toBe(2);
+  });
+
+  test('is zero when nothing fails', () => {
+    expect(
+      rebaseAllPlan([row({ number: 1 })], { blockedReason: none }).failing,
+    ).toBe(0);
   });
 });
