@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
   import {
@@ -251,6 +251,22 @@
   const pageNumbers = $derived(
     Array.from({ length: totalPages }, (_, i) => i + 1),
   );
+
+  // Next and Previous go `disabled` at the ends of the list, and a disabled
+  // button can't hold focus, so it would drop to BODY. Once the page has
+  // changed, a pressed button that went inert hands focus to the other one
+  // (#3325).
+  let prevButton = $state<HTMLButtonElement>();
+  let nextButton = $state<HTMLButtonElement>();
+  async function goToPage(n: number) {
+    const held = document.activeElement;
+    page = n;
+    await tick();
+    if (held === prevButton && prevButton?.disabled)
+      nextButton?.focus({ preventScroll: true });
+    else if (held === nextButton && nextButton?.disabled)
+      prevButton?.focus({ preventScroll: true });
+  }
 
   // The phone "Sort by" select and the wide table's header buttons share
   // sortKey and sortDir. One value carries both, "fullName:desc".
@@ -1537,7 +1553,8 @@
                 type="button"
                 class="pagination-nav"
                 disabled={clampedPage <= 1}
-                onclick={() => (page = clampedPage - 1)}>Previous</button
+                bind:this={prevButton}
+                onclick={() => goToPage(clampedPage - 1)}>Previous</button
               >
               {#each pageNumbers as n (n)}
                 <button
@@ -1552,7 +1569,8 @@
                 type="button"
                 class="pagination-nav"
                 disabled={clampedPage >= totalPages}
-                onclick={() => (page = clampedPage + 1)}>Next</button
+                bind:this={nextButton}
+                onclick={() => goToPage(clampedPage + 1)}>Next</button
               >
             </div>
             <label class="pagination-size">
