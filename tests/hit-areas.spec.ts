@@ -689,13 +689,37 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     await mockDashboard(page);
     await mockBranches(page);
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
-    await page.goto('/branches.html');
+    // Branches is the home route; /branches.html is a 404 in this build.
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
-    await sweepAll(page, '/branches.html', problems);
+    await expect(page.locator('a.mb-repo').first()).toBeVisible();
+    // Not at NARROW yet: the filter pills are 36px there (#3369).
+    await sweepAll(page, '/ (branches)', problems, {
+      sizes: [PHONE, TABLET, DESKTOP],
+    });
     await page.goto('/insights.html');
     await page.waitForLoadState('networkidle');
     await sweepAll(page, '/insights.html', problems);
     expectNone(problems);
+  });
+
+  test('branches: the repo link does not take the CI pill taps (#3362)', async ({
+    page,
+  }) => {
+    await mockDashboard(page);
+    await mockBranches(page);
+    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
+    await page.goto('/');
+    const pill = page.locator('.mb-row .ci-pill').first();
+    await expect(pill).toBeVisible();
+    const box = await pill.boundingBox();
+    if (!box) throw new Error('no CI pill');
+    // The pill's lowest pixel row, straight above the repo link's extension.
+    const owner = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest('.ci-pill') !== null,
+      [box.x + box.width / 2, box.y + box.height - 0.5],
+    );
+    expect(owner).toBe(true);
   });
 });
 

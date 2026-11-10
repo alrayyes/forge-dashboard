@@ -664,6 +664,27 @@
       font-size: 15px;
       color: var(--ink);
       overflow-wrap: anywhere;
+      /* The line is about 19px tall. An invisible ::after reaches the hit
+         area to 24px, and to 44px on a phone, with nothing moving. */
+      position: relative;
+    }
+    .mb-repo::after {
+      content: "";
+      position: absolute;
+      inset: -3px 0;
+    }
+    /* On a phone the CI pill sits 6px above the link, so the rest of the 44px
+       goes below, over the meta text. The buttons that can wrap onto the line
+       below are positioned too, so they paint over the extension and keep
+       their own taps. */
+    @media (max-width: 760px) {
+      .mb-repo::after {
+        inset: -6px 0 -20px;
+      }
+    }
+    .mb-release,
+    .mb-advisory {
+      position: relative;
     }
     .mb-chip {
       display: inline-flex;
