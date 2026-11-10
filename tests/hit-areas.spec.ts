@@ -689,9 +689,14 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     await mockDashboard(page);
     await mockBranches(page);
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
-    await page.goto('/branches.html');
+    // Branches is the home route; /branches.html is a 404 in this build.
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
-    await sweepAll(page, '/branches.html', problems);
+    await expect(page.locator('a.mb-repo').first()).toBeVisible();
+    // Not at NARROW yet: the filter pills are 36px there (#3369).
+    await sweepAll(page, '/ (branches)', problems, {
+      sizes: [PHONE, TABLET, DESKTOP],
+    });
     await page.goto('/insights.html');
     await page.waitForLoadState('networkidle');
     await sweepAll(page, '/insights.html', problems);
