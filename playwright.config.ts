@@ -10,6 +10,7 @@ const singleUserSpecs = [
   '**/dashboard-error-banner.spec.ts',
   '**/settings-field-errors.spec.ts',
   '**/insights-webhooks-read-failure.spec.ts',
+  '**/insights-webhooks-pending.spec.ts',
   '**/branches-load-failure.spec.ts',
   '**/out-of-date-filter.spec.ts',
   '**/out-of-date-chip-fit.spec.ts',

@@ -2,6 +2,10 @@
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
+  import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
+  import ListSkeleton from "#lib/ListSkeleton.svelte";
+  import { firstRefresh } from "#lib/first-refresh.svelte.js";
+  import { firstRefreshLoading, readPhase } from "#lib/first-refresh.js";
   import {
     type ActionRequestError,
     interpretActionFailure,
@@ -98,6 +102,12 @@
   }
 
   let loaded = $state(false);
+  // Until the first read has an answer worth drawing the table must not say
+  // "Nothing tracked yet" (#3367). Same pattern and show delay as Pull requests.
+  const awaiting = $derived(
+    readPhase(dashboardRead, firstRefresh.done) === "pending",
+  );
+  const showSkeleton = $derived(awaiting && firstRefreshLoading(firstRefresh));
   let repos = $state<Repo[]>([]);
   // A failed read with nothing to show: the alert speaks, the card stays blank.
   const readFailedEmpty = $derived(
@@ -1049,12 +1059,13 @@
   </style>
 </svelte:head>
 
-<div class="webhooks-wrap">
+<div class="webhooks-wrap" aria-busy={awaiting ? "true" : undefined}>
   <div class="webhooks-header">
     <h1>Webhooks</h1>
   </div>
 
   <ReadFailureAlert />
+  <FirstRefreshStatus pending={showSkeleton} />
 
   <div class="card">
     <p class="hint" id="webhooks-hint">
@@ -1127,7 +1138,9 @@
       </button>
     {/if}
 
-    {#if readFailedEmpty}
+    {#if awaiting}
+      {#if showSkeleton}<ListSkeleton />{/if}
+    {:else if readFailedEmpty}
       <!-- The alert above says why; an empty card must not read as a result. -->
     {:else if loaded && repos.length === 0}
       <p class="empty-state" id="webhooks-empty">

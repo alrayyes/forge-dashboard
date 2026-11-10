@@ -74,3 +74,19 @@ export function firstRefreshJustFinished(
 ): boolean {
   return previous === false && next === true;
 }
+
+// What Insights and Webhooks may say about the dashboard read (#3367). Three
+// states, not a boolean: "pending" has no answer worth drawing yet (nothing
+// came back, or the server said the first refresh is still running and sent an
+// empty snapshot), "failed" is the alert's business, and only "resolved" may
+// say a count is zero.
+export type ReadPhase = 'pending' | 'failed' | 'resolved';
+
+export function readPhase(
+  read: { state: 'pending' | 'answered' | 'failed'; lastError: string | null },
+  firstRefreshDone: boolean | undefined,
+): ReadPhase {
+  if (read.state === 'failed' || read.lastError !== null) return 'failed';
+  if (read.state === 'pending') return 'pending';
+  return firstRefreshPending(firstRefreshDone) ? 'pending' : 'resolved';
+}
