@@ -117,7 +117,7 @@ func TestListOpenPullRequests_AFinishedRunRerunIsReadAgain(t *testing.T) {
 	f := cancelledPassing("cancelled")
 	f.runs[1] = actionsRun(12, 2, "cancelled", map[string]any{"started": "2026-09-01T00:00:00Z"})
 	s := f.serve(t)
-	require.Equal(t, dashboard.CISuccess, s.pullRequest(t).CI)
+	require.Equal(t, dashboard.CICancelled, s.pullRequest(t).CI)
 
 	f.runs[1]["started"] = "2026-09-01T00:05:00Z"
 	f.jobs[12][0] = "failure"

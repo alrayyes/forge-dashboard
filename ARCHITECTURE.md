@@ -115,9 +115,9 @@ One more server-only fact never reaches the wire: on GitHub, whether held
 runs are the only reason CI reads as failing. The menu pill count reads it.
 
 A run that was only cancelled reads as cancelled in the fold, on a branch as
-on a pull request. The server's own pull request verdict differs (GitHub's
-combined result says failure, Forgejo's says none or success), which is why
-the pill of a watched row can differ from the field until the next refresh.
+on a pull request. The server's own pull request verdict reads cancelled-only
+runs as cancelled too, on GitHub and on Forgejo, but a watched row can still
+differ from the field until the next refresh.
 
 ## One user per instance
 
