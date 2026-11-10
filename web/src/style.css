@@ -4862,17 +4862,88 @@ footer a[aria-current="page"] {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px 16px;
   padding: 12px 18px;
 }
 .rebase-all[hidden] {
   display: none;
 }
+/* The headline and the reason are the sentence the button's aria-describedby
+   reads; the chips beside them are for scanning (#3276). */
 .rebase-all-summary {
+  min-width: 0;
+}
+.rebase-all-headline {
   margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rebase-all-reason {
+  margin: 2px 0 0;
   font-size: 0.8125rem;
   color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.rebase-all-reason[hidden] {
+  display: none;
+}
+.rebase-all-button {
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .rebase-all {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .rebase-all-button {
+    margin-left: 0;
+  }
+}
+/* The count chips of the Rebase all and Update all strips (#3276, #3277).
+   Neutral by default, which is also the state of a zero count; a tint says
+   more than zero. web/src/lib/strip-chip-contrast.test.ts holds each text
+   and fill pair to 4.5:1 in both themes. The words carry the meaning. */
+.strip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.strip-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--ink-2);
+  background: var(--neutral-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.strip-chip.warn {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+.strip-chip.good {
+  color: var(--good);
+  background: var(--good-bg);
+  border-color: var(--good);
+}
+.strip-chip.bad {
+  color: var(--critical);
+  background: var(--critical-bg);
+  border-color: var(--critical);
+}
+.strip-chip .attr-icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
 }
 .rebase-all-button,
 .rebase-all-actions button {

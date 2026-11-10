@@ -1173,17 +1173,40 @@
       behind: '<path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3.5 13.5h9"/>',
       "auto-update": '<path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3"/>',
     };
-    function attrChip(name: string, label: string): HTMLElement {
-      const chip = el("span", `attr-chip ${name}`);
+    function attrIcon(name: string): SVGElement {
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("viewBox", "0 0 16 16");
       svg.setAttribute("class", "attr-icon");
       svg.setAttribute("aria-hidden", "true");
       svg.setAttribute("focusable", "false");
       svg.innerHTML = ATTR_ICONS[name] ?? "";
-      chip.appendChild(svg);
+      return svg;
+    }
+    function attrChip(name: string, label: string): HTMLElement {
+      const chip = el("span", `attr-chip ${name}`);
+      chip.appendChild(attrIcon(name));
       chip.appendChild(document.createTextNode(label));
       return chip;
+    }
+
+    // The count chips of an Update all or Rebase all strip (#3276). Each is one
+    // list item: a count with its words, so it reads alone. The tint is extra;
+    // a zero count stays neutral. A glyph is optional and hidden from
+    // assistive technology.
+    type StripChip = {
+      text: string;
+      tone?: "warn" | "good" | "bad";
+      glyph?: string;
+    };
+    function renderStripChips(list: Element, chips: StripChip[]) {
+      list.replaceChildren(
+        ...chips.map(({ text, tone, glyph }) => {
+          const li = el("li", tone ? `strip-chip ${tone}` : "strip-chip");
+          if (glyph) li.appendChild(attrIcon(glyph));
+          li.appendChild(document.createTextNode(text));
+          return li;
+        }),
+      );
     }
 
     // Marks a pull request whose automatic update is its own choice, not the
@@ -5827,11 +5850,33 @@
         ? progressLabel(rebaseAllRun.done, rebaseAllRun.total)
         : rebaseAllLabel(asking);
       markPending(button, rebaseAllRun !== null || asking === 0);
-      const lines = [summaryLine(plan.behind, plan.total)];
-      if (plan.behind > 0 && asking === 0 && plan.blockedReasons.length === 0)
-        lines.push("None can be asked to rebase now.");
-      lines.push(...plan.blockedReasons);
-      summary.textContent = lines.join(" ");
+      const headline = summary.querySelector(".rebase-all-headline");
+      const reason = summary.querySelector<HTMLElement>(".rebase-all-reason");
+      const chips = document.querySelector(".rebase-all-chips");
+      if (headline) headline.textContent = summaryLine(plan.behind, plan.total);
+      const reasons = [...plan.blockedReasons];
+      if (plan.behind > 0 && asking === 0 && reasons.length === 0)
+        reasons.push("None can be asked to rebase now.");
+      if (reason) {
+        reason.textContent = reasons.join(" ");
+        reason.hidden = reasons.length === 0;
+      }
+      if (chips)
+        renderStripChips(chips, [
+          {
+            text: `${plan.behind} out of date`,
+            tone: plan.behind > 0 ? "warn" : undefined,
+            glyph: "behind",
+          },
+          {
+            text: `${plan.failing} failing`,
+            tone: plan.failing > 0 ? "bad" : undefined,
+          },
+          {
+            text: `${asking} ready to rebase`,
+            tone: asking > 0 ? "good" : undefined,
+          },
+        ]);
     }
 
     function rebaseAllDialog(): HTMLDialogElement | null {
@@ -10104,7 +10149,11 @@
 
       {#if view === "bots"}
         <div class="rebase-all" hidden>
-          <p class="rebase-all-summary" id="rebase-all-summary"></p>
+          <div class="rebase-all-summary" id="rebase-all-summary">
+            <p class="rebase-all-headline"></p>
+            <p class="rebase-all-reason" hidden></p>
+          </div>
+          <ul class="strip-chips rebase-all-chips"></ul>
           <button
             type="button"
             class="rebase-all-button"
