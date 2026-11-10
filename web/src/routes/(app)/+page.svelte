@@ -579,6 +579,14 @@
       border-color: var(--accent);
       color: var(--accent-ink);
     }
+    @media (forced-colors: active) {
+      /* Forced colors drops the accent fill (#3377): a thicker system-colour
+         border marks the pressed pill, padding cut to match. */
+      .mb-pill[aria-pressed="true"] {
+        border: 3px solid Highlight;
+        padding: 0 10px;
+      }
+    }
     .mb-pill:focus-visible,
     .mb-toggle:focus-visible,
     .mb-search:focus-visible {
