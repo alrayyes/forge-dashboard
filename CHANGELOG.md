@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.9.0](https://github.com/alrayyes/forge-dashboard/compare/v9.8.2...v9.9.0) (2026-11-10)
+
+
+### Features
+
+* **web:** show the Bots Rebase all summary as a status strip with count chips ([#3354](https://github.com/alrayyes/forge-dashboard/issues/3354)) ([5f7ae03](https://github.com/alrayyes/forge-dashboard/commit/5f7ae038b6048aeece1245844f71c9780251ff74)), closes [#3276](https://github.com/alrayyes/forge-dashboard/issues/3276)
+
 ## [9.8.2](https://github.com/alrayyes/forge-dashboard/compare/v9.8.1...v9.8.2) (2026-11-10)
 
 
