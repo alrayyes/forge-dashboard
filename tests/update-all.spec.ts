@@ -277,14 +277,18 @@ for (const width of [390, 1280]) {
       const card = document.querySelector('section.board')!;
       const summary = document.getElementById('update-all-summary')!;
       const button = document.getElementById('update-all-button')!;
+      // The strip's own box, less its padding: the chips and the stacked
+      // phone layout move the content, but the insets stay 12px and 18px.
+      const block = document.querySelector('.update-all')!;
+      const pad = getComputedStyle(block);
       return {
         headingLeft: r(card.querySelector('.board-head h2')).left,
         headBottom: r(card.querySelector('.board-head')).bottom,
         cardInnerRight: r(card).right - card.clientLeft,
         summaryLeft: r(summary).left,
         buttonRight: r(button).right,
-        blockTop: Math.min(r(summary).top, r(button).top),
-        blockBottom: Math.max(r(summary).bottom, r(button).bottom),
+        blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
+        blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
         rowTop: r(document.querySelector('#pr-rows > .row')).top,
         buttonMinHeight: getComputedStyle(button).minHeight,
         scrollW: document.documentElement.scrollWidth,

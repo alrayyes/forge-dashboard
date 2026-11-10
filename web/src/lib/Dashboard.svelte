@@ -189,9 +189,11 @@
     progressLabel as updateProgressLabel,
     showUpdateAll,
     summaryLine as updateSummaryLine,
+    updateAllChips,
     updateAllLabel,
     updateAllPlan,
   } from "#lib/update-all.js";
+  import type { StripChip } from "#lib/strip-chip.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import {
     formatClock,
@@ -1193,12 +1195,10 @@
     // list item: a count with its words, so it reads alone. The tint is extra;
     // a zero count stays neutral. A glyph is optional and hidden from
     // assistive technology.
-    type StripChip = {
-      text: string;
-      tone?: "warn" | "good" | "bad";
-      glyph?: string;
-    };
-    function renderStripChips(list: Element, chips: StripChip[]) {
+    function renderStripChips(
+      list: Element,
+      chips: (StripChip & { glyph?: string })[],
+    ) {
       list.replaceChildren(
         ...chips.map(({ text, tone, glyph }) => {
           const li = el("li", tone ? `strip-chip ${tone}` : "strip-chip");
@@ -5996,7 +5996,10 @@
         ? updateProgressLabel(updateAllRun.done, updateAllRun.total)
         : updateAllLabel(ready);
       markPending(button, updateAllRun !== null);
-      summary.textContent = updateSummaryLine(ready, plan.total);
+      const headline = summary.querySelector(".update-all-headline");
+      if (headline) headline.textContent = updateSummaryLine(ready, plan.total);
+      const chips = document.querySelector(".update-all-chips");
+      if (chips) renderStripChips(chips, updateAllChips(plan));
     }
 
     function updateAllDialog(): HTMLDialogElement | null {
@@ -10181,7 +10184,10 @@
         </dialog>
       {:else if view === "pulls"}
         <div class="update-all" hidden>
-          <p class="update-all-summary" id="update-all-summary"></p>
+          <div class="update-all-summary" id="update-all-summary">
+            <p class="update-all-headline"></p>
+          </div>
+          <ul class="strip-chips update-all-chips"></ul>
           <button
             type="button"
             class="update-all-button"
