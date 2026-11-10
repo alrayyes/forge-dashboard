@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.4](https://github.com/alrayyes/forge-dashboard/compare/v9.10.3...v9.10.4) (2026-11-10)
+
+
+### Bug Fixes
+
+* **web:** mark the pressed filter pill with a border in forced-colors mode ([#3384](https://github.com/alrayyes/forge-dashboard/issues/3384)) ([05a1ff3](https://github.com/alrayyes/forge-dashboard/commit/05a1ff331688d7d4ed595c6baa1fde1594e44d0f))
+
 ## [9.10.3](https://github.com/alrayyes/forge-dashboard/compare/v9.10.2...v9.10.3) (2026-11-10)
 
 
