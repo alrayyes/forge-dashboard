@@ -21,6 +21,15 @@ async function shape(pill: Locator) {
 }
 
 // The quick pills other than All stay hidden until the page has rows.
+async function boxes(pills: Locator) {
+  return pills.evaluateAll((els) =>
+    els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return [r.x, r.y, r.width, r.height].map((n) => Math.round(n * 10) / 10);
+    }),
+  );
+}
+
 async function seedPulls(page: Page) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -140,23 +149,33 @@ for (const width of [390, 1280]) {
       await expect(pressed).toBeVisible();
       await expect(open).toBeVisible();
       expect(await shape(pressed)).not.toBe(await shape(open));
+
+      // Focused, a pressed pill still differs from an open one, and the
+      // ring keeps its offset.
+      await page.keyboard.press('Shift');
+      await pressed.focus();
+      const focusedPressed = await shape(pressed);
+      await open.focus();
+      const focusedOpen = await shape(open);
+      expect(focusedPressed).not.toBe(focusedOpen);
+      await pressed.focus();
+      await expect(pressed).toHaveCSS('outline-offset', '2px');
+      await page.locator('body').click({ position: { x: 1, y: 1 } });
+
+      // The mark takes no room: no pill moves or resizes, none overlaps.
+      const withMark = await boxes(pills);
+      await page.emulateMedia({ forcedColors: 'none' });
+      expect(withMark).toEqual(await boxes(pills));
+      for (const [i, a] of withMark.entries()) {
+        for (const b of withMark.slice(i + 1)) {
+          const apart =
+            a[0] + a[2] <= b[0] + 0.5 ||
+            b[0] + b[2] <= a[0] + 0.5 ||
+            a[1] + a[3] <= b[1] + 0.5 ||
+            b[1] + b[3] <= a[1] + 0.5;
+          expect(apart).toBe(true);
+        }
+      }
     });
   }
 }
-
-test('a pressed pill keeps the focus ring offset under forced colors', async ({
-  page,
-}) => {
-  await page.emulateMedia({ forcedColors: 'active' });
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto('/pull-requests.html');
-  const pressed = page.locator('.quick-pill[aria-pressed="true"]').first();
-  await page.keyboard.press('Shift');
-  await pressed.focus();
-  await expect(pressed).toBeFocused();
-  await expect(pressed).toHaveCSS('outline-style', 'solid');
-  const offset = await pressed.evaluate(
-    (el) => getComputedStyle(el).outlineOffset,
-  );
-  expect(offset).toBe('2px');
-});
