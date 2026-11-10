@@ -702,6 +702,25 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     await sweepAll(page, '/insights.html', problems);
     expectNone(problems);
   });
+
+  test('branches: the repo link does not take the CI pill taps (#3362)', async ({
+    page,
+  }) => {
+    await mockDashboard(page);
+    await mockBranches(page);
+    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
+    await page.goto('/');
+    const pill = page.locator('.mb-row .ci-pill').first();
+    await expect(pill).toBeVisible();
+    const box = await pill.boundingBox();
+    if (!box) throw new Error('no CI pill');
+    // The pill's lowest pixel row, straight above the repo link's extension.
+    const owner = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest('.ci-pill') !== null,
+      [box.x + box.width / 2, box.y + box.height - 0.5],
+    );
+    expect(owner).toBe(true);
+  });
 });
 
 test.describe('hit areas on the pages that read the server (#1753)', () => {
