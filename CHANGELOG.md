@@ -1,5 +1,56 @@
 # Changelog
 
+## [9.10.3](https://github.com/alrayyes/forge-dashboard/compare/v9.10.2...v9.10.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **forgejo:** read a pull request whose run was cancelled as Cancelled, not Passed ([#3382](https://github.com/alrayyes/forge-dashboard/issues/3382)) ([4981222](https://github.com/alrayyes/forge-dashboard/commit/4981222a192285578b58cd4b38ac8ee44257ee5f)), closes [#3378](https://github.com/alrayyes/forge-dashboard/issues/3378)
+
+## [9.10.2](https://github.com/alrayyes/forge-dashboard/compare/v9.10.1...v9.10.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* **web:** keep a long pick inside its filter control ([#3379](https://github.com/alrayyes/forge-dashboard/issues/3379)) ([b39b3af](https://github.com/alrayyes/forge-dashboard/commit/b39b3af3bd3ce45d6cd96465cf9edaf69d05cda9)), closes [#3370](https://github.com/alrayyes/forge-dashboard/issues/3370)
+
+## [9.10.1](https://github.com/alrayyes/forge-dashboard/compare/v9.10.0...v9.10.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* keep focus on the Webhooks pager at either end ([#3353](https://github.com/alrayyes/forge-dashboard/issues/3353)) ([ff27942](https://github.com/alrayyes/forge-dashboard/commit/ff27942d0f0a7807f8d3c0fa7b2582a5dfffcdcd)), closes [#3325](https://github.com/alrayyes/forge-dashboard/issues/3325)
+* **web:** give the Branches repo link a 44px tap target on a phone ([#3375](https://github.com/alrayyes/forge-dashboard/issues/3375)) ([7766268](https://github.com/alrayyes/forge-dashboard/commit/7766268490d7f57322a883503e56b4570b412690)), closes [#3362](https://github.com/alrayyes/forge-dashboard/issues/3362)
+
+## [9.10.0](https://github.com/alrayyes/forge-dashboard/compare/v9.9.1...v9.10.0) (2026-11-10)
+
+
+### Features
+
+* **web:** show the Pull requests Update all summary as a status strip with count chips ([#3356](https://github.com/alrayyes/forge-dashboard/issues/3356)) ([d180ccb](https://github.com/alrayyes/forge-dashboard/commit/d180ccb0a0265e9de048bdcd767b15758019395c)), closes [#3277](https://github.com/alrayyes/forge-dashboard/issues/3277)
+
+## [9.9.1](https://github.com/alrayyes/forge-dashboard/compare/v9.9.0...v9.9.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **web:** keep the advisories dialog close button top-right on phone ([#3364](https://github.com/alrayyes/forge-dashboard/issues/3364)) ([3b8e0e8](https://github.com/alrayyes/forge-dashboard/commit/3b8e0e85b5f160ea8e876268947b45be33f91346)), closes [#3357](https://github.com/alrayyes/forge-dashboard/issues/3357)
+
+## [9.9.0](https://github.com/alrayyes/forge-dashboard/compare/v9.8.2...v9.9.0) (2026-11-10)
+
+
+### Features
+
+* **web:** show the Bots Rebase all summary as a status strip with count chips ([#3354](https://github.com/alrayyes/forge-dashboard/issues/3354)) ([5f7ae03](https://github.com/alrayyes/forge-dashboard/commit/5f7ae038b6048aeece1245844f71c9780251ff74)), closes [#3276](https://github.com/alrayyes/forge-dashboard/issues/3276)
+
+## [9.8.2](https://github.com/alrayyes/forge-dashboard/compare/v9.8.1...v9.8.2) (2026-11-10)
+
+
+### Bug Fixes
+
+* keep the copy status when the excerpt unmounts mid-copy ([#3355](https://github.com/alrayyes/forge-dashboard/issues/3355)) ([cb69844](https://github.com/alrayyes/forge-dashboard/commit/cb69844263df43a05ae6cfc9fcd9f38adc153d7d)), closes [#3343](https://github.com/alrayyes/forge-dashboard/issues/3343)
+* move focus to Cancel after queueing an action for the reset ([#3352](https://github.com/alrayyes/forge-dashboard/issues/3352)) ([68d8d36](https://github.com/alrayyes/forge-dashboard/commit/68d8d363d2f13af610502e53779e8a365e652167)), closes [#3312](https://github.com/alrayyes/forge-dashboard/issues/3312)
+
 ## [9.8.1](https://github.com/alrayyes/forge-dashboard/compare/v9.8.0...v9.8.1) (2026-11-09)
 
 

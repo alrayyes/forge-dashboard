@@ -785,12 +785,15 @@ itself, and a cancelled run beside one still going stays Running. The pill is
 the word alone, like the branch pill; the count is in `checks.cancelled`. A
 Cancelled row is not in the Failing CI filter or the Failed number of the menu
 pill, and it is not a pass either: Ready, Merge and auto-merge still wait for a
-run to pass. Forgejo leaves cancelled jobs out of the failed count, so its row
-reads No checks or Passed. The page folds the jobs the panel lists the way a
-branch does, and the row follows the panel: a cancelled job beside one still
-going is Running, beside a real failure it is Failed, and beside passed jobs
-alone it is Cancelled, with no counts. Close the panel and the row goes back to
-what the server sent.
+run to pass. Forgejo records a cancelled job as a failure status, and the server
+leaves those out of the failed count. When that leaves no failed check and
+nothing waiting, the row reads Cancelled too, with `checks.cancelled` counting
+the cancelled jobs beside the jobs that passed before the stop. A run that was
+re-run and passed has no failure statuses left, so it reads Passed. The page
+folds the jobs the panel lists the way a branch does, and the row follows the
+panel: a cancelled job beside one still going is Running, beside a real failure
+it is Failed, and beside passed jobs alone it is Cancelled, with no counts.
+Close the panel and the row goes back to what the server sent.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the
@@ -1026,8 +1029,13 @@ the quietest weight, and Cancelled a stop square in a circle.
 The Bots page header has a `Rebase all` button for the whole list. It counts
 the pull requests the filters leave that are behind their base and offer a
 rebase, so `Rebase all (6)` means six, and a filter that narrows the list
-narrows the count. A line beside it says how many of the listed pull requests
-are out of date, for example `6 of 9 are out of date.`
+narrows the count. A headline beside it says how many of the listed pull
+requests are out of date, for example `6 of 9 are out of date.`, and three chips
+count what the strip is about: `6 out of date`, `1 failing` and `5 ready to
+rebase`. The failing chip counts every listed pull request the Failing CI pill
+counts, up to date or not, so one whose workflow waits for approval isn't in it.
+A chip with a zero count is grey. On a phone the headline, the chips and a
+full-width button stack, with the same chip words.
 
 Pressing it opens a confirm dialog that lists each pull request with its forge.
 `Rebase` then asks the bots one pull request after another, through the same
@@ -1039,21 +1047,25 @@ retry, and the others carry on.
 A pull request that is empty, already has a rebase requested, or has no rebase
 to offer isn't counted. When no pull request can be asked, the button is
 unavailable. A Dependabot pull request on a GitHub App with no saved personal
-token is left out too, and the line gives the reason.
+token is left out too, and a line under the headline gives the reason.
 
-The button and its line show only while a listed pull request is out of date.
-When none is, because they're all current or a filter hides the ones that
-aren't, both go away, and focus moves to the `All` quick filter if the button
-had it. A run that's under way keeps the button until it ends.
+The strip shows only while a listed pull request is out of date. When none is,
+because they're all current or a filter hides the ones that aren't, all of it
+goes away, chips included, and focus moves to the `All` quick filter if the
+button had it. A run that's under way keeps the strip until it ends, and its
+chips keep counting as rows are rebased.
 
 ## Updating every out-of-date pull request
 
 The Pull requests page header has the `Update all` button, where the Bots page
 has `Rebase all`. It counts the pull requests the filters leave whose `Update
 branch` action the server offers and doesn't block, so `Update all (4)` means
-four, and a filter that narrows the list narrows the count. A line beside it
-says how many of the listed pull requests can be updated, for example `4 of 6
-can be updated.` Bots have their own page and aren't listed here.
+four, and a filter that narrows the list narrows the count. A headline beside
+it says how many of the listed pull requests can be updated, for example `4 of 6
+can be updated.`, and two chips repeat the numbers for a quick read: `4 ready to
+update` and `6 listed`. The ready chip is green above zero. On a phone the
+headline, the chips and a full-width button stack, as on the Bots page. Bots
+have their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or
@@ -1072,10 +1084,11 @@ requested for 3 of 4. 1 failed.`
 
 Escape, or `Close`, before `Update` updates nothing.
 
-The button and its line show only while a listed pull request can be updated.
-When none can, because they're all current or a filter hides the ones that
-aren't, both go away, and focus moves to the `All` quick filter if the button
-had it. A run that's under way keeps the button until it ends.
+The strip shows only while a listed pull request can be updated. When none can,
+because they're all current or a filter hides the ones that aren't, all of it
+goes away, chips included, and focus moves to the `All` quick filter if the
+button had it. A run that's under way keeps the strip until it ends, and the
+ready chip counts down as rows are sent.
 
 ## Deleting the source branch on merge
 

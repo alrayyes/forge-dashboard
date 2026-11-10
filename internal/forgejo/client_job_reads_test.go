@@ -55,7 +55,7 @@ func TestListOpenPullRequests_OnlyThePageHoldingTheStatusJobIsRead(t *testing.T)
 
 	got := s.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 	assert.EqualValues(t, 1, s.jobReads.Load())
 }
 
@@ -70,7 +70,7 @@ func TestListOpenPullRequests_AJobNotAtItsPositionIsFoundByName(t *testing.T) {
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 // Two jobs of one name leave the status unexcused: nothing says which it is.
@@ -157,7 +157,7 @@ func TestListOpenPullRequests_AJobOnAnotherPageThanItsPositionIsFoundByName(t *t
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 // A run still going with one failed job and one running: the row needs its jobs

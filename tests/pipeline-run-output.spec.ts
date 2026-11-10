@@ -1343,3 +1343,81 @@ test.describe('a failed row has one Copy button', () => {
     ).toHaveCount(1);
   });
 });
+
+// #3343: the excerpt and its Copy output button leave when the output lands.
+// A copy pressed on them while the output loads must not lose its status or
+// the keyboard's place: the panel's status line carries it on.
+test.describe('a copy pressed while the output loads', () => {
+  const failed = [
+    {
+      name: 'build',
+      status: 'completed',
+      conclusion: 'failure',
+      url: runUrl,
+      jobId: 9,
+      excerpt: 'boom: exit 1',
+    },
+  ];
+  const log = {
+    status: 200,
+    body: { text: 'step 1\nboom: exit 1\n', truncated: false },
+  };
+
+  const active = (page: Page) =>
+    page.evaluate(() => {
+      const a = document.activeElement;
+      return { tag: a?.tagName ?? '', label: a?.getAttribute('aria-label') };
+    });
+
+  test('keeps its Copied status, once, in the panel', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, log, failed);
+    const release = await holdLog(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    release();
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-output-status')).toHaveText('Copied');
+    // Visible once: the excerpt's own status went with its button.
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveCount(0);
+    const a = await active(page);
+    expect(a.tag).not.toBe('BODY');
+    expect(a.label).toBe('Copy output: build');
+  });
+
+  test('keeps the failure message when the copy is refused', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    await setup(page, log, failed);
+    const release = await holdLog(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    release();
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-output-status')).toContainText(
+      "Couldn't copy automatically",
+    );
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveCount(0);
+    expect((await active(page)).tag).not.toBe('BODY');
+  });
+
+  test('changes nothing when no copy was pressed', async ({ page }) => {
+    await setup(page, log, failed);
+    const release = await holdLog(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    release();
+
+    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-output-status')).toHaveText('');
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveCount(0);
+  });
+});

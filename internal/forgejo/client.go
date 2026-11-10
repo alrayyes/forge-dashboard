@@ -1305,12 +1305,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	}
 	runs, haveRuns := c.commitRuns(ctx, owner, name, sha)
 	if haveRuns && maybeCancelled {
-		if n := c.cancelledFailures(ctx, owner, name, runs, combined.Statuses); n > 0 {
-			counts.Failed -= n
-			if counts.Failed == 0 {
-				state = stateWithoutFailures(counts, combined.Statuses)
-			}
-		}
+		state, counts = c.excuseCancelled(ctx, owner, name, runs, combined.Statuses, state, counts)
 	}
 	if haveRuns {
 		counts = c.splitWaiting(ctx, owner, name, runs, combined.Statuses, counts)
@@ -1318,6 +1313,28 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	}
 
 	return state, counts, nil
+}
+
+// excuseCancelled takes the failure statuses of cancelled jobs out of the
+// failed count. When that leaves nothing failed, the excused jobs never ran, so
+// a row with nothing waiting is no pass: it reads Cancelled with the jobs
+// counted beside the ones that passed (#3378).
+func (c *Client) excuseCancelled(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, state dashboard.CIStatus, counts dashboard.CheckCounts) (dashboard.CIStatus, dashboard.CheckCounts) {
+	n := c.cancelledFailures(ctx, owner, name, runs, statuses)
+	if n == 0 {
+		return state, counts
+	}
+	counts.Failed -= n
+	if counts.Failed > 0 {
+		return state, counts
+	}
+	state = stateWithoutFailures(counts, statuses)
+	if state == dashboard.CISuccess || state == dashboard.CINone {
+		state = dashboard.CICancelled
+		counts.Cancelled = n
+	}
+
+	return state, counts
 }
 
 // settledState is state once the waits are split out. A pending state that

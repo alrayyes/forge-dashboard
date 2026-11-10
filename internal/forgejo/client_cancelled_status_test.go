@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"net/http"
@@ -56,6 +57,8 @@ type forge struct {
 	ignorePaging bool
 	// totalCount is the total_count of the combined status.
 	totalCount int
+	// state is the combined state; empty answers failure.
+	state string
 }
 
 // jobsPageSize is how many jobs the fake forge serves a page when the request
@@ -128,7 +131,8 @@ func (f forge) serve(t *testing.T) served {
 		}})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{"state": "failure", "statuses": f.statuses, "total_count": f.totalCount})
+		state := cmp.Or(f.state, "failure")
+		writeJSON(t, w, map[string]any{"state": state, "statuses": f.statuses, "total_count": f.totalCount})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		s.runReads.Add(1)
@@ -199,7 +203,7 @@ func TestListOpenPullRequests_ACancelledJobIsNotCountedAsFailed(t *testing.T) {
 
 	got := cancelledPassing("cancelled").pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 func TestListOpenPullRequests_ACancelledJobDoesNotMakeTheRowFail(t *testing.T) {
@@ -207,7 +211,7 @@ func TestListOpenPullRequests_ACancelledJobDoesNotMakeTheRowFail(t *testing.T) {
 
 	got := cancelledPassing("cancelled").pullRequest(t)
 
-	assert.Equal(t, dashboard.CISuccess, got.CI)
+	assert.Equal(t, dashboard.CICancelled, got.CI)
 }
 
 func TestListOpenPullRequests_AJobThatFailedStillCountsAsFailed(t *testing.T) {
@@ -271,7 +275,7 @@ func TestListOpenPullRequests_AWorkflowNamedUnlikeItsFileStillExcusesACancelledJ
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 // When the jobs can't be read, the statuses stand as the forge sent them.
@@ -352,7 +356,7 @@ func TestListOpenPullRequests_AnOddStoppedTimeDoesNotFailTheRunList(t *testing.T
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 // A finished run's jobs never change, so a second poll doesn't read them again.
@@ -399,7 +403,7 @@ func TestListOpenPullRequests_AJobPastTheFirstPageIsFound(t *testing.T) {
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 // The run lists a cancelled job first, but the status numbers the job that
@@ -437,7 +441,7 @@ func TestListOpenPullRequests_ACancelledMatrixJobWithParenthesesInItsNameIsExcus
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 // A workflow's name can hold " / " itself, and the runs API doesn't give it.
@@ -449,7 +453,7 @@ func TestListOpenPullRequests_ACancelledJobOfAWorkflowNamedWithASlashIsExcused(t
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1}, got.Checks)
 }
 
 // A context that names no job can't be checked against the run, so it stays a
@@ -482,4 +486,59 @@ func TestListOpenPullRequests_AForgeThatIgnoresPagingIsReadTwice(t *testing.T) {
 	s.pullRequest(t)
 
 	assert.Equal(t, int32(2), s.jobReads.Load()) // the status's page is the walk's first
+}
+
+// scaffold-php-api#204 (#3378): four contexts finished before the run was
+// cancelled, and nine jobs of the one cancelled run carry failure statuses.
+func cancelledRun() forge {
+	f := forge{
+		runs: []map[string]any{actionsRun(11, 1, "success", nil), actionsRun(12, 2, "cancelled", nil)},
+		jobs: map[int][]string{11: {"success", "success", "success", "success"}, 12: {}},
+	}
+	for i, c := range []string{"changes", "commits", "pr-title", "secrets"} {
+		f.statuses = append(f.statuses, jobStatus("success", "ci / "+c+" (pull_request)", 1, i))
+	}
+	for i := range 9 {
+		f.statuses = append(f.statuses, jobStatus("failure", fmt.Sprintf("ci / job%d (pull_request)", i), 2, i))
+		f.jobs[12] = append(f.jobs[12], "cancelled")
+	}
+
+	return f
+}
+
+func TestListOpenPullRequests_ARunCancelledAfterSomeJobsPassedReadsCancelled(t *testing.T) {
+	t.Parallel()
+
+	got := cancelledRun().pullRequest(t)
+
+	assert.Equal(t, dashboard.CICancelled, got.CI)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 4, Cancelled: 9}, got.Checks)
+}
+
+func TestListOpenPullRequests_ACancelledRunBesideARealFailureStillReadsFailed(t *testing.T) {
+	t.Parallel()
+	f := cancelledRun()
+	f.jobs[12][0] = "failure"
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CIFailure, got.CI)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 4, Failed: 1}, got.Checks)
+}
+
+// A re-run replaces the statuses of the cancelled jobs, so nothing is left to
+// excuse.
+func TestListOpenPullRequests_ACancelledRunThatWasRerunAndPassedReadsPassed(t *testing.T) {
+	t.Parallel()
+	f := cancelledRun()
+	for i := 4; i < len(f.statuses); i++ {
+		f.statuses[i]["status"] = "success"
+	}
+	f.runs[1] = actionsRun(12, 2, "success", nil)
+	f.state = "success"
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CISuccess, got.CI)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 13}, got.Checks)
 }

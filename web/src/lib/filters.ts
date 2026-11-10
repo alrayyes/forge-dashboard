@@ -92,7 +92,9 @@ export function showBlockedChip(
 
 // What Failing means to the filters: the server's own answer where it gives
 // one, else the raw CI state of a server that predates it (#1946).
-function isFailing(item: FilterableItem): boolean {
+export function isFailing(
+  item: Pick<FilterableItem, 'ci' | 'failingCi'>,
+): boolean {
   return item.failingCi ?? item.ci === 'failure';
 }
 

@@ -21,6 +21,7 @@
     runUrl,
     forgeName,
     onloaded,
+    earlier,
   }: {
     name: string;
     jobId: number;
@@ -30,6 +31,9 @@
     // Told when the panel is open with its text loaded, and when it stops
     // being: the row hides its excerpt and second Copy button meanwhile.
     onloaded?: (loaded: boolean) => void;
+    // The excerpt's copy flow. Its button leaves when this panel loads, so a
+    // copy pressed meanwhile reports here instead of into nothing (#3343).
+    earlier?: CopyFlow;
   } = $props();
 
   const url = $derived(logUrl(repo, jobId));
@@ -43,6 +47,12 @@
   // A late answer for a closed panel is dropped. The one polite line, for the
   // load and for a copy alike, is the flow's.
   const flow = new CopyFlow(() => forgeName, "output");
+  // This panel's own line wins; the excerpt's copy fills in when it has none.
+  const statusLine = $derived(
+    flow.busy
+      ? "Copying"
+      : flow.status || (earlier?.busy ? "Copying" : (earlier?.status ?? "")),
+  );
   onDestroy(() => {
     flow.destroy();
     onloaded?.(false);
@@ -144,7 +154,7 @@
       {/if}
     </div>
     <p class="run-output-status" aria-live="polite">
-      {flow.busy ? "Copying" : flow.status}
+      {statusLine}
     </p>
     {#if phase === "error"}
       <p class="run-output-error">

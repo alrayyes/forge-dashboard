@@ -1047,6 +1047,12 @@ select.col-filter {
     5px 5px;
   background-repeat: no-repeat;
 }
+/* The button is a plain child of its host, not a flex item, so the bar's
+   \`.col-filter { width: auto }\` would size it to its text and a long pick
+   would run out of the host, under the control beside it. */
+.filter-bar .label-filter-button {
+  width: 100%;
+}
 .label-filter-panel {
   position: absolute;
   top: calc(100% + 4px);
@@ -4858,21 +4864,99 @@ footer a[aria-current="page"] {
 }
 
 /* Rebase all, on the Bots page (#2859). */
-.rebase-all {
+.rebase-all,
+.update-all {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px 16px;
   padding: 12px 18px;
 }
-.rebase-all[hidden] {
+.rebase-all[hidden],
+.update-all[hidden] {
   display: none;
 }
-.rebase-all-summary {
+/* The headline and the reason are the sentence the button's aria-describedby
+   reads; the chips beside them are for scanning (#3276). */
+.rebase-all-summary,
+.update-all-summary {
+  min-width: 0;
+}
+.rebase-all-headline,
+.update-all-headline {
   margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rebase-all-reason {
+  margin: 2px 0 0;
   font-size: 0.8125rem;
   color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.rebase-all-reason[hidden] {
+  display: none;
+}
+.rebase-all-button,
+.update-all-button {
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .rebase-all,
+  .update-all {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .rebase-all-button,
+  .update-all-button {
+    margin-left: 0;
+  }
+}
+/* The count chips of the Rebase all and Update all strips (#3276, #3277).
+   Neutral by default, which is also the state of a zero count; a tint says
+   more than zero. web/src/lib/strip-chip-contrast.test.ts holds each text
+   and fill pair to 4.5:1 in both themes. The words carry the meaning. */
+.strip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.strip-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--ink-2);
+  background: var(--neutral-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.strip-chip.warn {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning);
+}
+.strip-chip.good {
+  color: var(--good);
+  background: var(--good-bg);
+  border-color: var(--good);
+}
+.strip-chip.bad {
+  color: var(--critical);
+  background: var(--critical-bg);
+  border-color: var(--critical);
+}
+.strip-chip .attr-icon {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
 }
 .rebase-all-button,
 .rebase-all-actions button {
@@ -4941,23 +5025,8 @@ footer a[aria-current="page"] {
   color: var(--ink-3);
 }
 
-/* Update all, on the Pull requests page (#3011). */
-.update-all {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding: 12px 18px;
-}
-.update-all[hidden] {
-  display: none;
-}
-.update-all-summary {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--ink-2);
-}
+/* Update all, on the Pull requests page (#3011). Its strip, headline, chips
+   and button layout are the Rebase all rules above (#3277). */
 .update-all-button,
 .update-all-actions button {
   min-height: 44px;
