@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.0](https://github.com/alrayyes/forge-dashboard/compare/v9.9.1...v9.10.0) (2026-11-10)
+
+
+### Features
+
+* **web:** show the Pull requests Update all summary as a status strip with count chips ([#3356](https://github.com/alrayyes/forge-dashboard/issues/3356)) ([d180ccb](https://github.com/alrayyes/forge-dashboard/commit/d180ccb0a0265e9de048bdcd767b15758019395c)), closes [#3277](https://github.com/alrayyes/forge-dashboard/issues/3277)
+
 ## [9.9.1](https://github.com/alrayyes/forge-dashboard/compare/v9.9.0...v9.9.1) (2026-11-10)
 
 
