@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.3](https://github.com/alrayyes/forge-dashboard/compare/v9.10.2...v9.10.3) (2026-11-10)
+
+
+### Bug Fixes
+
+* **forgejo:** read a pull request whose run was cancelled as Cancelled, not Passed ([#3382](https://github.com/alrayyes/forge-dashboard/issues/3382)) ([4981222](https://github.com/alrayyes/forge-dashboard/commit/4981222a192285578b58cd4b38ac8ee44257ee5f)), closes [#3378](https://github.com/alrayyes/forge-dashboard/issues/3378)
+
 ## [9.10.2](https://github.com/alrayyes/forge-dashboard/compare/v9.10.1...v9.10.2) (2026-11-10)
 
 
