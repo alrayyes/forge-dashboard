@@ -9,6 +9,7 @@ import {
   firstRefreshPending,
   firstRefreshStatus,
   hasTimestamp,
+  readPhase,
 } from './first-refresh';
 
 // The page does not decide whether it has loaded; the server says so with
@@ -135,5 +136,31 @@ describe('firstRefreshJustFinished', () => {
     expect(firstRefreshJustFinished(false, false)).toBe(false);
     expect(firstRefreshJustFinished(true, false)).toBe(false);
     expect(firstRefreshJustFinished(false, undefined)).toBe(false);
+  });
+});
+
+describe('readPhase', () => {
+  const read = (
+    state: 'pending' | 'answered' | 'failed',
+    lastError: string | null = null,
+  ) => ({ state, lastError });
+
+  test('is pending before any answer', () => {
+    expect(readPhase(read('pending'), undefined)).toBe('pending');
+  });
+
+  test('is pending for an answer that says the first refresh is running', () => {
+    expect(readPhase(read('answered'), false)).toBe('pending');
+  });
+
+  test('is resolved for an answer that is done or carries no flag', () => {
+    expect(readPhase(read('answered'), true)).toBe('resolved');
+    expect(readPhase(read('answered'), undefined)).toBe('resolved');
+  });
+
+  test('is failed for a latched failure or a read that errored', () => {
+    expect(readPhase(read('failed'), undefined)).toBe('failed');
+    expect(readPhase(read('pending', 'boom'), undefined)).toBe('failed');
+    expect(readPhase(read('answered', 'boom'), false)).toBe('failed');
   });
 });
