@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.9.1](https://github.com/alrayyes/forge-dashboard/compare/v9.9.0...v9.9.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **web:** keep the advisories dialog close button top-right on phone ([#3364](https://github.com/alrayyes/forge-dashboard/issues/3364)) ([3b8e0e8](https://github.com/alrayyes/forge-dashboard/commit/3b8e0e85b5f160ea8e876268947b45be33f91346)), closes [#3357](https://github.com/alrayyes/forge-dashboard/issues/3357)
+
 ## [9.9.0](https://github.com/alrayyes/forge-dashboard/compare/v9.8.2...v9.9.0) (2026-11-10)
 
 
