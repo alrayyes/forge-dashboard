@@ -7,6 +7,7 @@ import {
   progressLabel,
   showUpdateAll,
   summaryLine,
+  updateAllChips,
   updateAllLabel,
   updateAllPlan,
 } from './update-all';
@@ -182,5 +183,35 @@ describe('showUpdateAll', () => {
   test('keeps the button while a run is under way', () => {
     const plan = updateAllPlan([row({ number: 1, allowedActions: [] })]);
     expect(showUpdateAll(plan, true)).toBe(true);
+  });
+});
+
+// The chips on the strip (#3277): what the plan already counts, as words.
+describe('updateAllChips', () => {
+  const four = () => [
+    row({ number: 1 }),
+    row({ number: 2 }),
+    row({ number: 3 }),
+    row({ number: 4, allowedActions: [] }),
+  ];
+
+  test('reads the eligible count and the rows listed', () => {
+    expect(updateAllChips(updateAllPlan(four()))).toEqual([
+      { text: '3 ready to update', tone: 'good' },
+      { text: '4 listed' },
+    ]);
+  });
+
+  test('the ready chip is neutral at zero, as during a run', () => {
+    const plan = updateAllPlan([row({ number: 1, allowedActions: [] })]);
+    expect(updateAllChips(plan)).toEqual([
+      { text: '0 ready to update' },
+      { text: '1 listed' },
+    ]);
+  });
+
+  test('a request already waiting is not ready', () => {
+    const plan = updateAllPlan(four(), { updating: (r) => r.number === 1 });
+    expect(updateAllChips(plan)[0].text).toBe('2 ready to update');
   });
 });
