@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.5](https://github.com/alrayyes/forge-dashboard/compare/v9.10.4...v9.10.5) (2026-11-10)
+
+
+### Bug Fixes
+
+* **settings:** say the Forgejo token is saved in a helper line, not the placeholder ([#3408](https://github.com/alrayyes/forge-dashboard/issues/3408)) ([86b9753](https://github.com/alrayyes/forge-dashboard/commit/86b9753b6bf3a824e5e4e007c6d3913bbccc346e)), closes [#3372](https://github.com/alrayyes/forge-dashboard/issues/3372)
+
 ## [9.10.4](https://github.com/alrayyes/forge-dashboard/compare/v9.10.3...v9.10.4) (2026-11-10)
 
 
