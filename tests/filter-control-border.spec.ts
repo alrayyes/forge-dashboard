@@ -141,31 +141,36 @@ async function seed(page: Page, path: string) {
   );
 }
 
-const CONTROLS = [
-  ['/pull-requests.html', 'input.col-filter[data-col="title"]'],
-  ['/pull-requests.html', 'select.group-select'],
-  ['/pull-requests.html', 'button.label-filter-button.col-filter'],
-  ['/issues.html', 'input.col-filter[data-col="title"]'],
-  ['/releases.html', 'input.col-filter[data-col="title"]'],
-  ['/bots.html', 'input.col-filter[data-col="title"]'],
-  ['/webhooks.html', 'input.col-filter'],
-  ['/webhooks.html', 'select.col-filter'],
-  ['/insights.html', 'input.col-filter'],
-  ['/', 'input.mb-search'],
-] as const;
+// One test per page per theme: the controls on a page share a load, so
+// each is checked in turn after it.
+const CONTROLS: Record<string, string[]> = {
+  '/pull-requests.html': [
+    'input.col-filter[data-col="title"]',
+    'select.group-select',
+    'button.label-filter-button.col-filter',
+  ],
+  '/issues.html': ['input.col-filter[data-col="title"]'],
+  '/releases.html': ['input.col-filter[data-col="title"]'],
+  '/bots.html': ['input.col-filter[data-col="title"]'],
+  '/webhooks.html': ['input.col-filter', 'select.col-filter'],
+  '/insights.html': ['input.col-filter'],
+  '/': ['input.mb-search'],
+};
 
 for (const scheme of ['light', 'dark'] as const) {
-  for (const [path, selector] of CONTROLS) {
-    test(`${selector} on ${path} has a 3:1 border in ${scheme}`, async ({
+  for (const [path, selectors] of Object.entries(CONTROLS)) {
+    test(`the filter controls on ${path} have a 3:1 border in ${scheme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await seed(page, path);
       await page.goto(path);
-      const control = page.locator(selector).first();
-      await expect(control).toBeVisible();
-      const { border, behind } = await edge(control);
-      expect(contrast(border, behind)).toBeGreaterThanOrEqual(3);
+      for (const selector of selectors) {
+        const control = page.locator(selector).first();
+        await expect(control, selector).toBeVisible();
+        const { border, behind } = await edge(control);
+        expect(contrast(border, behind), selector).toBeGreaterThanOrEqual(3);
+      }
     });
   }
 }

@@ -52,29 +52,34 @@ async function edge(
   });
 }
 
-// One control per Settings group, plus the ones with their own rule.
-const CONTROLS = [
-  ['/settings.html#display', '#timezone-select'],
-  ['/settings.html#connections', '#github-token'],
-  ['/settings.html#behaviour', '#ignored-pattern'],
-  ['/settings.html#integrations', '#passkey-label'],
-  ['/settings.html#integrations', '#token-label'],
-  ['/settings.html#integrations', '#token-expiry-preset'],
-  ['/issues.html', '#issue-hide-title-regex'],
-] as const;
+// One control per Settings group, plus the ones with their own rule. One
+// test per page per theme; the Settings groups are anchors on one page.
+const CONTROLS: Record<string, [string, string][]> = {
+  '/settings.html': [
+    ['#display', '#timezone-select'],
+    ['#connections', '#github-token'],
+    ['#behaviour', '#ignored-pattern'],
+    ['#integrations', '#passkey-label'],
+    ['#integrations', '#token-label'],
+    ['#integrations', '#token-expiry-preset'],
+  ],
+  '/issues.html': [['', '#issue-hide-title-regex']],
+};
 
 for (const scheme of ['light', 'dark'] as const) {
-  for (const [path, selector] of CONTROLS) {
-    test(`${selector} on ${path} has a 3:1 border in ${scheme}`, async ({
+  for (const [path, controls] of Object.entries(CONTROLS)) {
+    test(`the controls on ${path} have a 3:1 border in ${scheme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
-      await page.goto(path);
-      const control = page.locator(selector);
-      await expect(control).toBeVisible();
-      const { border, fill, behind } = await edge(control);
-      expect(contrast(border, behind)).toBeGreaterThanOrEqual(3);
-      expect(contrast(border, fill)).toBeGreaterThanOrEqual(3);
+      for (const [hash, selector] of controls) {
+        await page.goto(`${path}${hash}`);
+        const control = page.locator(selector);
+        await expect(control, selector).toBeVisible();
+        const { border, fill, behind } = await edge(control);
+        expect(contrast(border, behind), selector).toBeGreaterThanOrEqual(3);
+        expect(contrast(border, fill), selector).toBeGreaterThanOrEqual(3);
+      }
     });
   }
 }
