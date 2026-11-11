@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.14](https://github.com/alrayyes/forge-dashboard/compare/v9.10.13...v9.10.14) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** make the filter bar's pick triggers and native selects look like one control ([#3429](https://github.com/alrayyes/forge-dashboard/issues/3429)) ([9d50dd3](https://github.com/alrayyes/forge-dashboard/commit/9d50dd344e0f2efd477a30fae19ecfcca26f78d4))
+
 ## [9.10.13](https://github.com/alrayyes/forge-dashboard/compare/v9.10.12...v9.10.13) (2026-11-11)
 
 
