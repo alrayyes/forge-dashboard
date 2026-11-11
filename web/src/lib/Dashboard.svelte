@@ -6384,7 +6384,11 @@
         // closes, so the next press asks again.
         if (round === rerunDialogRound || !("unknown" in answer))
           rerunProbes.set(rerunProbeKey(next), answer);
-        if (round !== rerunDialogRound) return;
+        if (round !== rerunDialogRound) {
+          // The dialog closed while this was out; the count may have moved.
+          updateRerunAll();
+          return;
+        }
       }
       renderRerunPlan();
       updateRerunAll();

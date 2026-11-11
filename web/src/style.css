@@ -5275,10 +5275,11 @@ footer a[aria-current="page"] {
 .rerun-all[hidden] {
   display: none;
 }
-/* On a phone the heading and the count don't leave room for the button, so
-   the controls take a row of their own whether or not the button is there.
-   The header is then the same height either way. */
-@media (max-width: 480px) {
+/* On a phone or small tablet (600px and narrower) the heading and the count
+   don't leave room for the button, so the controls take a row of their own
+   whether or not the button is there. The header is then the same height
+   either way. */
+@media (max-width: 600px) {
   .board-head:has(.rerun-all) .board-head-controls {
     flex: 1 1 100%;
     flex-wrap: nowrap;

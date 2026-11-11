@@ -1126,11 +1126,11 @@ ready chip counts down as rows are sent.
 Both the Pull requests and the Bots page header have a `Rerun failed checks`
 button for the failing pull requests the filters leave, beside the count. It
 sits in the header row and adds no height, so a row turning red doesn't move
-the list. On a phone (480px and narrower) the header's controls take a row of
-their own, with or without the button, for the same reason. The button counts
-the failing pull requests it may still rerun, so `Rerun failed checks (3)`
-means three, and a filter that narrows the list narrows the count. The count
-is a ceiling: the server hasn't looked yet.
+the list. On a phone or small tablet (600px and narrower) the header's controls
+take a row of their own, with or without the button, for the same reason. The
+button counts the failing pull requests it may still rerun, so `Rerun failed
+checks (3)` means three, and a filter that narrows the list narrows the count.
+The count is a ceiling: the server hasn't looked yet.
 
 The page doesn't guess which failing pull requests have a job to restart: the
 list doesn't carry each check's run. It asks the server, and only once the
