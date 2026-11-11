@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.19.1](https://github.com/alrayyes/forge-dashboard/compare/v9.19.0...v9.19.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **github:** show a gateway error as the forge answering, not unreachable ([#3531](https://github.com/alrayyes/forge-dashboard/issues/3531)) ([bbe5b40](https://github.com/alrayyes/forge-dashboard/commit/bbe5b405fa38f8194d613f90220f0fab3c82b9be))
+
 ## [9.19.0](https://github.com/alrayyes/forge-dashboard/compare/v9.18.0...v9.19.0) (2026-11-11)
 
 
