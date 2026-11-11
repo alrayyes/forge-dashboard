@@ -33,7 +33,7 @@ var (
 func builtPage(t *testing.T, name string) string {
 	t.Helper()
 
-	body, err := os.ReadFile(filepath.Join("static", name))
+	body, err := os.ReadFile(filepath.Join("static", name)) //nolint:gosec // name is a literal from this test file
 	require.NoError(t, err, "run `bun run build:web` first")
 
 	return string(body)
