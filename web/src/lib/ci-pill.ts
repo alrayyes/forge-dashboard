@@ -78,6 +78,16 @@ function cancelledWords({
     : `${cancelled} cancelled`;
 }
 
+// "13 checks", or "1 check".
+function cancelledTotal({
+  passed,
+  cancelled,
+}: NonNullable<CiPillModel['cancelled']>): string {
+  const total = passed + cancelled;
+
+  return `${total} ${total === 1 ? 'check' : 'checks'}`;
+}
+
 export function ciPillModel(input: CiPillInput): CiPillModel {
   const awaiting = input.awaiting === true;
   const cancelled = cancelledCounts(input, awaiting);
@@ -103,7 +113,7 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
     live,
     cancelled,
     name: cancelled
-      ? `CI status: ${word}. ${cancelledWords(cancelled)} out of ${cancelled.passed + cancelled.cancelled} checks.`
+      ? `CI status: ${word}. ${cancelledWords(cancelled)} out of ${cancelledTotal(cancelled)}.`
       : segmented
         ? `${pillName(word, segments)}${live ? ', still running' : ''}`
         : word,
@@ -208,7 +218,7 @@ export function renderCiPill(
 
   if (onOpen) {
     if (id) root.id = id;
-    // The visible word leads the name (WCAG 2.5.3).
+    // The name contains the visible text (WCAG 2.5.3).
     root.setAttribute(
       'aria-label',
       `${model.name}${model.name.endsWith('.') ? '' : '.'} Open pipeline`,

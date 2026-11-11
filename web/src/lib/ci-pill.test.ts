@@ -170,6 +170,17 @@ describe('ciPillModel', () => {
     expect(m.name).toBe('CI status: Cancelled. 13 cancelled out of 13 checks.');
   });
 
+  test('a single cancelled check reads "1 check", not "1 checks"', () => {
+    const m = ciPillModel({
+      cls: 'cancelled',
+      glyph: 'cancelled',
+      word: 'Cancelled',
+      counts: { passed: 0, running: 0, waiting: 0, failed: 0, cancelled: 1 },
+    });
+
+    expect(m.name).toBe('CI status: Cancelled. 1 cancelled out of 1 check.');
+  });
+
   test('a cancelled pill without counts stays the plain word', () => {
     const m = ciPillModel({
       cls: 'cancelled',

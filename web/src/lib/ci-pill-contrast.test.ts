@@ -170,6 +170,32 @@ describe('Segmented pill colours on hover', () => {
   });
 });
 
+// The Cancelled pill is not segmented: its words sit on the neutral pair of
+// .ci-pill.cancelled (#3395), not on the segmented pill's own background.
+describe('Cancelled pill colours', () => {
+  const cancelled = (source: string, theme: Map<string, string>) => {
+    const body = block(source, '.ci-pill.cancelled {');
+    const bg = resolve(declared(body, 'background') ?? '', theme);
+    const color = resolve(declared(body, 'color') ?? '', theme);
+
+    return ratio(color, bg);
+  };
+
+  for (const [name, theme] of themes) {
+    test(`the Cancelled pill's words read at 4.5:1 in the ${name} theme`, () => {
+      expect(cancelled(css, theme)).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
+  test('fails when the Cancelled colour is made unreadable', () => {
+    const bad = css.replace(
+      /(\.ci-pill\.cancelled \{[^}]*color:)\s*[^;]+;/,
+      '$1 #ffff00;',
+    );
+    expect(cancelled(bad, light)).toBeLessThan(4.5);
+  });
+});
+
 describe('Segmented pill colours', () => {
   test('the pill draws its own background, never a state tint', () => {
     expect(declared(block(css, '.ci-pill.segmented {'), 'background')).toBe(

@@ -122,9 +122,17 @@ test.describe('Cancelled pill counts (#3395)', () => {
     await page.setViewportSize({ width: 390, height: 900 });
     await open(page);
 
-    const box = await pill(page, 'Some passed').boundingBox();
+    const target = pill(page, 'Some passed');
+    const box = await target.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
     expect(box?.width).toBeGreaterThanOrEqual(44);
+
+    // Nothing is clipped: the text fits inside the pill it is drawn on.
+    const clipped = await target.evaluate((el) => ({
+      x: el.scrollWidth > el.clientWidth,
+      y: el.scrollHeight > el.clientHeight,
+    }));
+    expect(clipped).toEqual({ x: false, y: false });
   });
 
   // axe files the pill's text colour as incomplete when it cannot resolve the
