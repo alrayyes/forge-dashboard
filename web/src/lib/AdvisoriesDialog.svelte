@@ -679,6 +679,14 @@
     color: var(--ink-2);
     white-space: nowrap;
   }
+  /* A list chip wraps inside its row instead of running past it, so a long
+     package name keeps the ecosystem that follows it visible. */
+  .adv-chips .adv-chip {
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .adv-sev {
     gap: 4px;
   }

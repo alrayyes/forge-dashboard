@@ -8,6 +8,7 @@ const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/forced-colors-pressed-pills.spec.ts',
   '**/filter-pill-count-contrast.spec.ts',
+  '**/advisory-chip-fit.spec.ts',
   '**/dashboard-error-banner.spec.ts',
   '**/settings-field-errors.spec.ts',
   '**/forgejo-token-saved-hint.spec.ts',
