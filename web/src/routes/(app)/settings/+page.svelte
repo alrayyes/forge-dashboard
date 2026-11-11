@@ -1287,6 +1287,12 @@
       outline: 2px solid var(--accent);
       outline-offset: 1px;
     }
+    /* A card's intro paragraphs sit outside any .field and run to several
+       lines, so 13px rather than the 12px of a one-line hint. */
+    .card > .field-hint {
+      font-size: 13px;
+      color: var(--ink-3);
+    }
     .field .field-hint {
       font-size: 12px;
       color: var(--ink-3);
