@@ -693,9 +693,8 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('a.mb-repo').first()).toBeVisible();
-    // Not at NARROW yet: the filter pills are 36px there (#3369).
     await sweepAll(page, '/ (branches)', problems, {
-      sizes: [PHONE, TABLET, DESKTOP],
+      sizes: [PHONE, NARROW, TABLET, DESKTOP],
     });
     await page.goto('/insights.html');
     await page.waitForLoadState('networkidle');
