@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.13.0](https://github.com/alrayyes/forge-dashboard/compare/v9.12.0...v9.13.0) (2026-11-11)
+
+
+### Features
+
+* show images embedded in a pull request, issue or release ([#3470](https://github.com/alrayyes/forge-dashboard/issues/3470)) ([14b6508](https://github.com/alrayyes/forge-dashboard/commit/14b650831f8b28f6188bdac598a01180db55860d)), closes [#3405](https://github.com/alrayyes/forge-dashboard/issues/3405)
+
 ## [9.12.0](https://github.com/alrayyes/forge-dashboard/compare/v9.11.1...v9.12.0) (2026-11-11)
 
 
