@@ -3898,6 +3898,12 @@ button.pipeline-check-link:disabled {
   gap: 10px;
   margin-bottom: 12px;
 }
+.pipeline-rerun-count {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
 .pipeline-rerun-status,
 .pipeline-rerun .pipeline-error {
   margin: 0;

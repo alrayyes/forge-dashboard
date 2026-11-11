@@ -422,7 +422,13 @@ test.describe('pull request pipeline checks panel', () => {
     await mockChecks(page, {
       checks: [
         { name: 'build', status: 'completed', conclusion: 'success', url: '' },
-        { name: 'test', status: 'completed', conclusion: 'failure', url: '' },
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          runId: 1,
+        },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -706,6 +712,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -761,6 +768,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -807,6 +815,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -852,6 +861,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -881,6 +891,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -927,6 +938,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -974,6 +986,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -1024,6 +1037,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },
@@ -1091,6 +1105,7 @@ test.describe('pull request pipeline checks panel', () => {
             name: 'test',
             status: 'completed',
             conclusion: 'failure',
+            runId: 1,
             url: '',
             required: true,
           },
@@ -1133,7 +1148,13 @@ test.describe('pull request pipeline checks panel', () => {
     await mockDashboard(page, 'github', makePR({ ci: 'failure' }));
     await mockChecks(page, {
       checks: [
-        { name: 'test', status: 'completed', conclusion: 'failure', url: '' },
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          runId: 1,
+        },
       ],
     });
     await page.route('**/api/v1/pull-requests/rerun-checks', (route) =>
@@ -1175,7 +1196,13 @@ test.describe('pull request pipeline checks panel', () => {
     );
     await mockChecks(page, {
       checks: [
-        { name: 'test', status: 'completed', conclusion: 'failure', url: '' },
+        {
+          name: 'test',
+          status: 'completed',
+          conclusion: 'failure',
+          url: '',
+          runId: 1,
+        },
       ],
     });
     await page.goto('/pull-requests.html');
@@ -1210,6 +1237,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'lint',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: 'https://example.com/2',
           required: true,
         },
@@ -1447,6 +1475,7 @@ test.describe('pull request pipeline checks panel', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: 'https://example.com/2',
         },
       ],
@@ -1511,6 +1540,7 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: '',
           required: true,
         },

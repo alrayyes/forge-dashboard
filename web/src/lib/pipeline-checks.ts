@@ -163,6 +163,26 @@ export function runPageUrl(checks: Check[]): string | undefined {
   return newest?.url;
 }
 
+// How many failed checks a rerun restarts and how many it leaves out. The
+// rerun works per Actions run, so a failed check that names no run (a
+// third-party check, a legacy status, an external CI) is skipped. This counts
+// only what the dialog shows; the forge can still refuse a run.
+export function rerunnableCounts(checks: Check[]): {
+  rerun: number;
+  skipped: number;
+} {
+  let rerun = 0;
+  let skipped = 0;
+  for (const check of checks) {
+    const state = checkState(check);
+    if (state !== 'failure' && state !== 'timed_out') continue;
+    if (check.runId !== undefined && check.runId > 0) rerun++;
+    else skipped++;
+  }
+
+  return { rerun, skipped };
+}
+
 export type CheckGroup = {
   id: string;
   title: string;
