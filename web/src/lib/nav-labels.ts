@@ -50,23 +50,37 @@ export function pillParts(
   ].filter((part) => part.n > 0);
 }
 
+// Whether the pill draws the neutral total (#3489). It leaves it out only when
+// exactly one category is present and that count is the total: "2 running" and
+// not "2 2". With two categories, or one that falls short of the total (the
+// rest sit in no category), the total says something the counts don't. The
+// pill and both names ask here, so what is drawn and what is spoken agree.
+export function showTotal(count: NonNullable<Count>): boolean {
+  const parts = pillParts(count);
+  return !(parts.length === 1 && parts[0].n === count.total);
+}
+
 function states(count: NonNullable<Count>): string {
   const parts = pillParts(count).map((p) => `${p.n} ${p.words}`);
   return parts.length ? `, ${parts.join(', ')}` : '';
 }
 
-// The text the pill draws, in the order it draws it: the total, then the rest.
+// The text the pill draws, in the order it draws it: the total (unless
+// showTotal leaves it out), then the rest.
 function drawn(count: NonNullable<Count>): string {
-  return [count.total, ...pillParts(count).map((p) => p.n)].join(' ');
+  const total = showTotal(count) ? [count.total] : [];
+  return [...total, ...pillParts(count).map((p) => p.n)].join(' ');
 }
 
 // The header icon has only the pills on screen. WCAG 2.5.3 wants the name to
 // contain the visible text, so it opens with the numbers as drawn, then says
 // them in words: "15 2 10 3, Pull requests, 15 total, 2 failing, 10 passing,
-// 3 running". With no count, or none listed, just the page (#1944).
+// 3 running". When the total only repeats the one count, it is neither drawn
+// nor spoken: "2, Pull requests, 2 running". With no count, or none listed, just the page (#1944).
 export function headerLabel(name: string, count: Count): string {
   if (!count || count.total === 0) return name;
-  return `${drawn(count)}, ${name}, ${count.total} total${states(count)}`;
+  const total = showTotal(count) ? `, ${count.total} total` : '';
+  return `${drawn(count)}, ${name}${total}${states(count)}`;
 }
 
 // The tab shows the numbers above its word, so the name reads the same way

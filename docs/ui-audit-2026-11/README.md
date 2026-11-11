@@ -13,3 +13,7 @@ fix that wraps long label names.
 `before-landscape/` and `after-landscape/` show the four list pages on a
 phone held sideways, at 844×390 and 667×375, before and after the chrome
 folds up to leave room for a list row on the first screen.
+
+`before-nav-pill/` and `after-nav-pill/` show the navigation pills in the header
+and on the phone tab bar, light and dark, before and after the total is left out
+when it only repeats the one count beside it (2 running of 2 draws "2 running").
