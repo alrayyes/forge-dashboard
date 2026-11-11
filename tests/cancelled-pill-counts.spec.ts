@@ -118,6 +118,53 @@ test.describe('Cancelled pill counts (#3395)', () => {
     await expect(pill(page, 'Some passed')).toHaveAttribute('title', name);
   });
 
+  test('at 390px the pill is a 44px hit area', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await open(page);
+
+    const box = await pill(page, 'Some passed').boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+  });
+
+  // axe files the pill's text colour as incomplete when it cannot resolve the
+  // background, so the ratio is read from the painted colours here.
+  for (const mode of ['light', 'dark', 'forced-colors'] as const) {
+    test(`the pill text keeps 4.5:1 in ${mode}`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      if (mode === 'forced-colors') {
+        await page.emulateMedia({ forcedColors: 'active' });
+      } else {
+        await page.emulateMedia({ colorScheme: mode });
+      }
+      await open(page);
+
+      const ratio = await pill(page, 'Some passed').evaluate((el) => {
+        const rgb = (c: string) => {
+          const m = c.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
+
+          return m.slice(0, 3);
+        };
+        const lum = (c: number[]) => {
+          const [r, g, b] = c.map((v) => {
+            const s = v / 255;
+
+            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+          });
+
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const style = getComputedStyle(el);
+        const fg = lum(rgb(style.color));
+        const bg = lum(rgb(style.backgroundColor));
+        const [hi, lo] = fg > bg ? [fg, bg] : [bg, fg];
+
+        return (hi + 0.05) / (lo + 0.05);
+      });
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+
   for (const scheme of ['light', 'dark'] as const) {
     for (const width of [320, 390, 1280]) {
       test(`has no axe violations at ${width}px, ${scheme}`, async ({
