@@ -101,17 +101,21 @@ test.describe('the Branches pill and its dialog agree', () => {
     await expect(items.filter({ hasText: 'Passed' })).toHaveCount(4);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe violations, ${scheme}`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page);
-      await expect(panel(page).getByRole('listitem')).toHaveCount(JOBS.length);
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`has no axe violations, light and dark`, async ({ page }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await open(page);
+        await expect(panel(page).getByRole('listitem')).toHaveCount(
+          JOBS.length,
+        );
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });
 
 // A manual rerun of a failed run keeps the run and its job ids, and the jobs

@@ -92,41 +92,43 @@ test.describe('failing repo badge', () => {
     );
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [1280, 390]) {
-      test(`axe and layout are clean in ${scheme} at ${width}px`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.setViewportSize({ width, height: 800 });
-        await mockDashboard(page, [
-          {
-            forge: 'github',
-            fullName: 'alrayyes/broken',
-            hasWebhook: true,
-            failingSince: HOURS_AGO(3),
-          },
-          {
-            forge: 'github',
-            fullName: 'alrayyes/old-and-a-very-long-repository-name',
-            hasWebhook: true,
-            failingSince: HOURS_AGO(30),
-            failingForGood: true,
-          },
-        ]);
-        await page.goto('/webhooks.html');
-        await expect(page.locator('.failing-badge')).toHaveCount(2);
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-        const overflow = await page.evaluate(
-          () =>
-            document.documentElement.scrollWidth >
-            document.documentElement.clientWidth,
-        );
-        expect(overflow).toBe(false);
-      });
+  test(`axe and layout are clean in light and dark at every width`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [1280, 390]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.setViewportSize({ width, height: 800 });
+          await mockDashboard(page, [
+            {
+              forge: 'github',
+              fullName: 'alrayyes/broken',
+              hasWebhook: true,
+              failingSince: HOURS_AGO(3),
+            },
+            {
+              forge: 'github',
+              fullName: 'alrayyes/old-and-a-very-long-repository-name',
+              hasWebhook: true,
+              failingSince: HOURS_AGO(30),
+              failingForGood: true,
+            },
+          ]);
+          await page.goto('/webhooks.html');
+          await expect(page.locator('.failing-badge')).toHaveCount(2);
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+          const overflow = await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth >
+              document.documentElement.clientWidth,
+          );
+          expect(overflow).toBe(false);
+        });
+      }
     }
-  }
+  });
 });

@@ -335,24 +335,26 @@ test.describe('Issues page follows the settings (#1630)', () => {
     expect(widths.scroll).toBeLessThanOrEqual(widths.client);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`axe with the note and a field removed, ${scheme}`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await standIn(page, {
-        hideDependencyDashboard: true,
-        ignoredTitles: ['^Weekly report'],
-        hidden: 4,
+  test(`axe with the note and a field removed, light and dark`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await standIn(page, {
+          hideDependencyDashboard: true,
+          ignoredTitles: ['^Weekly report'],
+          hidden: 4,
+        });
+        await page.goto('/issues.html');
+        await expect(note(page)).toBeVisible();
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
       });
-      await page.goto('/issues.html');
-      await expect(note(page)).toBeVisible();
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+    }
+  });
 });
 
 test.describe('Insights follows the settings (#1630)', () => {

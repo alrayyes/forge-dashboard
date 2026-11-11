@@ -204,35 +204,36 @@ test.describe("Close pull request looks unlike the dialog's own close", () => {
     ).toBeVisible();
   });
 
-  for (const theme of ['light', 'dark']) {
-    test(`has no axe-core violations with Close and its confirm showing, ${theme}`, async ({
-      page,
-      context,
-      baseURL,
-    }) => {
-      await context.addCookies([
-        { name: 'forge-board-theme', value: theme, url: baseURL ?? '' },
-      ]);
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      await mockDashboard(
-        page,
-        makePR({ mergeStatus: 'mergeable', empty: true }),
-      );
-      await page.goto('/pull-requests.html');
-      const close = await closeButton(page);
-      expect(
-        (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
-      ).toEqual([]);
-
-      await close.click();
-      await expect(
-        details(page).getByRole('button', {
-          name: 'Confirm close pull request?',
-        }),
-      ).toBeVisible();
-      expect(
-        (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
-      ).toEqual([]);
-    });
-  }
+  test(`has no axe-core violations with Close and its confirm showing, light and dark`, async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    for (const theme of ['light', 'dark']) {
+      await test.step(`${theme}`, async () => {
+        await context.addCookies([
+          { name: 'forge-board-theme', value: theme, url: baseURL ?? '' },
+        ]);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await mockDashboard(
+          page,
+          makePR({ mergeStatus: 'mergeable', empty: true }),
+        );
+        await page.goto('/pull-requests.html');
+        const close = await closeButton(page);
+        expect(
+          (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+        ).toEqual([]);
+        await close.click();
+        await expect(
+          details(page).getByRole('button', {
+            name: 'Confirm close pull request?',
+          }),
+        ).toBeVisible();
+        expect(
+          (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+        ).toEqual([]);
+      });
+    }
+  });
 });

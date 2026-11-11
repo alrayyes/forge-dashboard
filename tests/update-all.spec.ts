@@ -241,25 +241,27 @@ test('Update all sits where Rebase all sits on the Bots page', async ({
   expect(block!.y - (head!.y + head!.height)).toBeLessThan(40);
 });
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`the confirm fits a phone in ${scheme} and passes axe`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await page.setViewportSize({ width: 360, height: 800 });
-    await open(page, [pr(1), pr(2)]);
-    await page.getByRole('button', { name: 'Update all (2)' }).click();
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await expectNoAxeViolations(page);
-    expect(
-      await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth <=
-          document.documentElement.clientWidth,
-      ),
-    ).toBe(true);
-  });
-}
+test(`the confirm fits a phone in light and dark and passes axe`, async ({
+  page,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 360, height: 800 });
+      await open(page, [pr(1), pr(2)]);
+      await page.getByRole('button', { name: 'Update all (2)' }).click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await expectNoAxeViolations(page);
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+    });
+  }
+});
 
 // The summary line and its button sit inside the card's own padding (#3246):
 // the sentence starts where the heading does, the button ends 18px inside the
@@ -396,14 +398,16 @@ test('with nothing to update the chip list is hidden with the strip', async ({
   await expect(page.locator('.update-all-chips')).toBeHidden();
 });
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`the strip passes axe in ${scheme}`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await open(page, [pr(1), pr(2, { allowedActions: [] })]);
-    await expect(chips(page)).toHaveText(['1 ready to update']);
-    await expectNoAxeViolations(page);
-  });
-}
+test(`the strip passes axe in light and dark`, async ({ page }) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await open(page, [pr(1), pr(2, { allowedActions: [] })]);
+      await expect(chips(page)).toHaveText(['1 ready to update']);
+      await expectNoAxeViolations(page);
+    });
+  }
+});
 
 test('the header counts the rows and the strip only the ready ones', async ({
   page,

@@ -142,151 +142,158 @@ test.describe('pull request details dialog', () => {
   });
 
   // The release pull request's description opens with :robot: (#1995).
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`shows emoji shortcodes as emoji in ${scheme} mode, with no axe violations`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await mockDashboard(page, [makePR()]);
-      await mockDetails(
-        page,
-        details({
-          description: body(':robot: I have created a release *beep* *boop*'),
-          comments: [
-            {
-              id: 'c1',
-              author: { login: 'alice', avatarUrl: '' },
-              createdAt: ago(30),
-              updatedAt: null,
-              edited: false,
-              text: 'Ship it :tada: at 10:30:45 `:robot:`',
-              format: 'markdown',
-              truncated: false,
-              reactions: noReactions,
-            },
-          ],
-          commentCount: 1,
-        }),
-      );
-      await page.goto('/pull-requests.html');
-
-      await trigger(page).click();
-      await expect(dialog(page)).toContainText(
-        '🤖 I have created a release beep boop',
-      );
-      await expect(dialog(page)).not.toContainText(':robot: I have');
-      await expect(dialog(page)).toContainText('Ship it 🎉 at 10:30:45');
-      await expect(dialog(page).locator('code')).toHaveText(':robot:');
-      await expect(dialog(page).locator('img[alt*="robot" i]')).toHaveCount(0);
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`shows emoji shortcodes as emoji in light and dark mode, with no axe violations`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockDashboard(page, [makePR()]);
+        await mockDetails(
+          page,
+          details({
+            description: body(':robot: I have created a release *beep* *boop*'),
+            comments: [
+              {
+                id: 'c1',
+                author: { login: 'alice', avatarUrl: '' },
+                createdAt: ago(30),
+                updatedAt: null,
+                edited: false,
+                text: 'Ship it :tada: at 10:30:45 `:robot:`',
+                format: 'markdown',
+                truncated: false,
+                reactions: noReactions,
+              },
+            ],
+            commentCount: 1,
+          }),
+        );
+        await page.goto('/pull-requests.html');
+        await trigger(page).click();
+        await expect(dialog(page)).toContainText(
+          '🤖 I have created a release beep boop',
+        );
+        await expect(dialog(page)).not.toContainText(':robot: I have');
+        await expect(dialog(page)).toContainText('Ship it 🎉 at 10:30:45');
+        await expect(dialog(page).locator('code')).toHaveText(':robot:');
+        await expect(dialog(page).locator('img[alt*="robot" i]')).toHaveCount(
+          0,
+        );
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 
   // The header names the repository and the item as two links, and #N in
   // running text links to the item on the same forge. Each forge keeps its
   // own address scheme.
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`links the repository, the number and #N references to the forge in ${scheme} mode, with no axe violations`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await mockDashboard(page, [
-        makePR({
-          url: 'https://github.com/alrayyes/forge-dashboard/pull/42',
-        }),
-      ]);
-      await mockDetails(
-        page,
-        details({
-          description: body(
-            'Closes #1859, see other/repo#12 and `#7` or abc#5.',
-          ),
-        }),
-      );
-      await page.goto('/pull-requests.html');
-
-      await trigger(page).click();
-      const header = dialog(page).locator('.details-ref');
-      await expect(
-        header.getByRole('link', { name: /^alrayyes\/forge-dashboard/ }),
-      ).toHaveAttribute('href', 'https://github.com/alrayyes/forge-dashboard');
-      await expect(header.getByRole('link', { name: /^#42/ })).toHaveAttribute(
-        'href',
-        'https://github.com/alrayyes/forge-dashboard/pull/42',
-      );
-      const text = dialog(page).locator('.markdown').first();
-      await expect(text.getByRole('link', { name: '#1859' })).toHaveAttribute(
-        'href',
-        'https://github.com/alrayyes/forge-dashboard/issues/1859',
-      );
-      await expect(
-        text.getByRole('link', { name: 'other/repo#12' }),
-      ).toHaveAttribute('href', 'https://github.com/other/repo/issues/12');
-      await expect(text.getByRole('link')).toHaveCount(2);
-      await expect(text.locator('code')).toHaveText('#7');
-      await expect(text).toContainText('abc#5.');
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`links the repository, the number and #N references to the forge in light and dark mode, with no axe violations`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockDashboard(page, [
+          makePR({
+            url: 'https://github.com/alrayyes/forge-dashboard/pull/42',
+          }),
+        ]);
+        await mockDetails(
+          page,
+          details({
+            description: body(
+              'Closes #1859, see other/repo#12 and `#7` or abc#5.',
+            ),
+          }),
+        );
+        await page.goto('/pull-requests.html');
+        await trigger(page).click();
+        const header = dialog(page).locator('.details-ref');
+        await expect(
+          header.getByRole('link', { name: /^alrayyes\/forge-dashboard/ }),
+        ).toHaveAttribute(
+          'href',
+          'https://github.com/alrayyes/forge-dashboard',
+        );
+        await expect(
+          header.getByRole('link', { name: /^#42/ }),
+        ).toHaveAttribute(
+          'href',
+          'https://github.com/alrayyes/forge-dashboard/pull/42',
+        );
+        const text = dialog(page).locator('.markdown').first();
+        await expect(text.getByRole('link', { name: '#1859' })).toHaveAttribute(
+          'href',
+          'https://github.com/alrayyes/forge-dashboard/issues/1859',
+        );
+        await expect(
+          text.getByRole('link', { name: 'other/repo#12' }),
+        ).toHaveAttribute('href', 'https://github.com/other/repo/issues/12');
+        await expect(text.getByRole('link')).toHaveCount(2);
+        await expect(text.locator('code')).toHaveText('#7');
+        await expect(text).toContainText('abc#5.');
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 
   // The links wrap with a long repository name, stay out of each other's way
   // and are 44px targets on a phone, with a cue other than colour.
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`keeps the header links usable at 390px in ${scheme} mode, with no axe violations`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width: 390, height: 780 });
-      await page.emulateMedia({ colorScheme: scheme });
-      const repo = `some-organisation-with-a-long-name/${'a-very-long-repository-name-'.repeat(2)}end`;
-      await mockDashboard(page, [
-        makePR({
-          repo,
-          url: `https://github.com/${repo}/pull/42`,
-        }),
-      ]);
-      await mockDetails(page, details());
-      await page.goto('/pull-requests.html');
-
-      await trigger(page).click();
-      const d = dialog(page);
-      const links = d.locator('.details-ref').getByRole('link');
-      await expect(links).toHaveCount(2);
-      const boxes = [];
-      for (const link of await links.all()) {
-        const b = await link.boundingBox();
-        expect(b?.height).toBeGreaterThanOrEqual(44);
-        expect(b?.width).toBeGreaterThanOrEqual(44);
-        expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
-        boxes.push(b);
-      }
-      const [first, second] = boxes;
-      const apart =
-        (first?.x ?? 0) + (first?.width ?? 0) <= (second?.x ?? 0) ||
-        (first?.y ?? 0) + (first?.height ?? 0) <= (second?.y ?? 0);
-      expect(apart).toBe(true);
-      await expect(links.first()).toHaveCSS(
-        'text-decoration-line',
-        'underline',
-      );
-      const overflow = await d.evaluate(
-        (el) => el.scrollWidth - el.clientWidth,
-      );
-      expect(overflow).toBe(0);
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`keeps the header links usable at 390px in light and dark mode, with no axe violations`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.setViewportSize({ width: 390, height: 780 });
+        await page.emulateMedia({ colorScheme: scheme });
+        const repo = `some-organisation-with-a-long-name/${'a-very-long-repository-name-'.repeat(2)}end`;
+        await mockDashboard(page, [
+          makePR({
+            repo,
+            url: `https://github.com/${repo}/pull/42`,
+          }),
+        ]);
+        await mockDetails(page, details());
+        await page.goto('/pull-requests.html');
+        await trigger(page).click();
+        const d = dialog(page);
+        const links = d.locator('.details-ref').getByRole('link');
+        await expect(links).toHaveCount(2);
+        const boxes = [];
+        for (const link of await links.all()) {
+          const b = await link.boundingBox();
+          expect(b?.height).toBeGreaterThanOrEqual(44);
+          expect(b?.width).toBeGreaterThanOrEqual(44);
+          expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
+          boxes.push(b);
+        }
+        const [first, second] = boxes;
+        const apart =
+          (first?.x ?? 0) + (first?.width ?? 0) <= (second?.x ?? 0) ||
+          (first?.y ?? 0) + (first?.height ?? 0) <= (second?.y ?? 0);
+        expect(apart).toBe(true);
+        await expect(links.first()).toHaveCSS(
+          'text-decoration-line',
+          'underline',
+        );
+        const overflow = await d.evaluate(
+          (el) => el.scrollWidth - el.clientWidth,
+        );
+        expect(overflow).toBe(0);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 
   test('builds the same links from a Forgejo address', async ({ page }) => {
     await mockDashboard(page, [
@@ -1107,112 +1114,119 @@ test.describe('pull request details dialog', () => {
     expect((attrs?.x ?? 0) + (attrs?.width ?? 0)).toBeLessThanOrEqual(360);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe-core violations with the dialog open (${scheme})`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await mockDashboard(page, [
-        makePR({
-          ci: 'failure',
-          mergeStatus: 'conflicting',
-          kind: 'dependency',
-          draft: true,
-          behind: true,
-          autoMergeEnabled: true,
-          labels: [{ name: 'kind/chore', color: 'cccccc' }],
-        }),
-      ]);
-      await mockDetails(
-        page,
-        details({
-          description: body('d', {
-            reactions: {
-              thumbsUp: { count: 2, logins: ['alice', 'bob'] },
-              thumbsDown: { count: 1, logins: ['carol'] },
-            },
-          }),
-          comments: [comment('c1'), comment('c2', { author: null })],
-          commentCount: 80,
-          commentsTruncated: true,
-        }),
-      );
-      await page.goto('/bots.html');
-      await trigger(page).click();
-      await expect(dialog(page).locator('.details-comment')).toHaveCount(2);
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
-  // A plain-text description that scrolls has nothing inside it to focus, so
-  // the box itself must be a tab stop (#3454).
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [1280, 320]) {
-      test(`has no axe-core violations with a long plain-text description (${scheme}, ${width}px)`, async ({
-        page,
-      }) => {
-        await page.setViewportSize({ width, height: 500 });
+  test(`has no axe-core violations with the dialog open (light and dark)`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
-        await mockDashboard(page, [makePR()]);
-        await mockDetails(
-          page,
-          details({
-            description: body(
-              Array.from({ length: 60 }, (_, i) => `Paragraph ${i + 1}.`).join(
-                '\n\n',
-              ),
-            ),
+        await mockDashboard(page, [
+          makePR({
+            ci: 'failure',
+            mergeStatus: 'conflicting',
+            kind: 'dependency',
+            draft: true,
+            behind: true,
+            autoMergeEnabled: true,
+            labels: [{ name: 'kind/chore', color: 'cccccc' }],
           }),
-        );
-        await page.goto('/pull-requests.html');
-        await trigger(page).click();
-        await expect(dialog(page).locator('.markdown')).toBeVisible();
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
-    }
-  }
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [1280, 360]) {
-      test(`has no axe-core violations with a reaction list open (${scheme}, ${width}px)`, async ({
-        page,
-      }) => {
-        await page.setViewportSize({ width, height: 800 });
-        await page.emulateMedia({ colorScheme: scheme });
-        await mockDashboard(page, [makePR()]);
+        ]);
         await mockDetails(
           page,
           details({
             description: body('d', {
               reactions: {
                 thumbsUp: { count: 2, logins: ['alice', 'bob'] },
-                thumbsDown: { count: 0, logins: [] },
+                thumbsDown: { count: 1, logins: ['carol'] },
               },
             }),
+            comments: [comment('c1'), comment('c2', { author: null })],
+            commentCount: 80,
+            commentsTruncated: true,
           }),
         );
-        await page.goto('/pull-requests.html');
+        await page.goto('/bots.html');
         await trigger(page).click();
-        await dialog(page)
-          .getByRole('group', { name: /thumbs up/ })
-          .focus();
-        await expect(dialog(page).locator('.reaction-people')).toBeVisible();
+        await expect(dialog(page).locator('.details-comment')).toHaveCount(2);
         const results = await new AxeBuilder({ page })
-          .withTags([
-            'wcag2a',
-            'wcag2aa',
-            'wcag21a',
-            'wcag21aa',
-            'wcag22aa',
-            'best-practice',
-          ])
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
         expect(results.violations).toEqual([]);
       });
     }
-  }
+  });
+  // A plain-text description that scrolls has nothing inside it to focus, so
+  // the box itself must be a tab stop (#3454).
+  test(`has no axe-core violations with a long plain-text description (light and dark, every width)`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [1280, 320]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.setViewportSize({ width, height: 500 });
+          await page.emulateMedia({ colorScheme: scheme });
+          await mockDashboard(page, [makePR()]);
+          await mockDetails(
+            page,
+            details({
+              description: body(
+                Array.from(
+                  { length: 60 },
+                  (_, i) => `Paragraph ${i + 1}.`,
+                ).join('\n\n'),
+              ),
+            }),
+          );
+          await page.goto('/pull-requests.html');
+          await trigger(page).click();
+          await expect(dialog(page).locator('.markdown')).toBeVisible();
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      }
+    }
+  });
+  test(`has no axe-core violations with a reaction list open (light and dark, every width)`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [1280, 360]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.setViewportSize({ width, height: 800 });
+          await page.emulateMedia({ colorScheme: scheme });
+          await mockDashboard(page, [makePR()]);
+          await mockDetails(
+            page,
+            details({
+              description: body('d', {
+                reactions: {
+                  thumbsUp: { count: 2, logins: ['alice', 'bob'] },
+                  thumbsDown: { count: 0, logins: [] },
+                },
+              }),
+            }),
+          );
+          await page.goto('/pull-requests.html');
+          await trigger(page).click();
+          await dialog(page)
+            .getByRole('group', { name: /thumbs up/ })
+            .focus();
+          await expect(dialog(page).locator('.reaction-people')).toBeVisible();
+          const results = await new AxeBuilder({ page })
+            .withTags([
+              'wcag2a',
+              'wcag2aa',
+              'wcag21a',
+              'wcag21aa',
+              'wcag22aa',
+              'best-practice',
+            ])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      }
+    }
+  });
 });

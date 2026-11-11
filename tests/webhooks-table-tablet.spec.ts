@@ -127,13 +127,15 @@ test.describe('webhooks table at tablet width', () => {
     expect(fits).toBe(true);
   });
 
-  for (const width of [820, 1280]) {
-    test(`axe finds nothing at ${width}px`, async ({ page }) => {
-      await open(page, width);
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`axe finds nothing at every width`, async ({ page }) => {
+    for (const width of [820, 1280]) {
+      await test.step(`${width}px`, async () => {
+        await open(page, width);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

@@ -329,50 +329,52 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     ).toBeVisible();
   });
 
-  for (const width of [360, 768, 1280]) {
-    for (const theme of ['light', 'dark'] as const) {
-      test(`the forge note stays inside the chip at ${width}px in ${theme} mode, with no axe-core violations`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: theme });
-        await page.setViewportSize({ width, height: 900 });
-        await mockDashboard(
-          page,
-          snapshot(
-            armed({ state: 'waiting', code: '', message: 'Ready.' }, 'forge'),
-          ),
-        );
-        await page.goto('/pull-requests.html');
-        const chip = page
-          .locator('#pr-rows .row')
-          .first()
-          .locator('.attr-chip.auto-merge');
-        await expect(chip.locator('.pill-note')).toHaveText(
-          'Scheduled on Forgejo',
-        );
-        const fit = await chip.evaluate((el) => {
-          const box = el.getBoundingClientRect();
-          const note = (
-            el.querySelector('.pill-note') as HTMLElement
-          ).getBoundingClientRect();
-          return {
-            inside:
-              note.left >= box.left - 0.5 &&
-              note.right <= box.right + 0.5 &&
-              note.top >= box.top - 0.5 &&
-              note.bottom <= box.bottom + 0.5,
-            clipped: el.scrollWidth > el.clientWidth,
-          };
+  test(`the forge note stays inside the chip at every width in light and dark mode, with no axe-core violations`, async ({
+    page,
+  }) => {
+    for (const width of [360, 768, 1280]) {
+      for (const theme of ['light', 'dark'] as const) {
+        await test.step(`${width}px ${theme}`, async () => {
+          await page.emulateMedia({ colorScheme: theme });
+          await page.setViewportSize({ width, height: 900 });
+          await mockDashboard(
+            page,
+            snapshot(
+              armed({ state: 'waiting', code: '', message: 'Ready.' }, 'forge'),
+            ),
+          );
+          await page.goto('/pull-requests.html');
+          const chip = page
+            .locator('#pr-rows .row')
+            .first()
+            .locator('.attr-chip.auto-merge');
+          await expect(chip.locator('.pill-note')).toHaveText(
+            'Scheduled on Forgejo',
+          );
+          const fit = await chip.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const note = (
+              el.querySelector('.pill-note') as HTMLElement
+            ).getBoundingClientRect();
+            return {
+              inside:
+                note.left >= box.left - 0.5 &&
+                note.right <= box.right + 0.5 &&
+                note.top >= box.top - 0.5 &&
+                note.bottom <= box.bottom + 0.5,
+              clipped: el.scrollWidth > el.clientWidth,
+            };
+          });
+          expect(fit.inside).toBe(true);
+          expect(fit.clipped).toBe(false);
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
         });
-        expect(fit.inside).toBe(true);
-        expect(fit.clipped).toBe(false);
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
+      }
     }
-  }
+  });
 
   test('an armed row has no axe-core violations', async ({ page }) => {
     await mockDashboard(

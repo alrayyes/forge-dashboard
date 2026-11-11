@@ -1055,57 +1055,59 @@ test.describe('the footer across rebuilds', () => {
   });
 });
 
-for (const scheme of ['light', 'dark'] as const) {
-  for (const width of [1280, 390]) {
-    test(`has no axe-core violations in the open dialog (${scheme}, ${width}px)`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width, height: 800 });
-      await page.emulateMedia({ colorScheme: scheme });
-      await start(
-        page,
-        [
-          makePR({
-            behind: true,
-            ci: 'pending',
-            status: {
-              code: 'checks_pending',
-              message: 'Waiting for CI to finish',
-              next: 'Merge unlocks automatically',
-            },
-            allowedActions: [
-              {
-                action: 'merge',
-                blocked: {
-                  code: 'checks_pending',
-                  message: 'Waiting for CI to finish',
-                  next: 'Merge unlocks automatically',
-                },
+test(`has no axe-core violations in the open dialog (light and dark, every width)`, async ({
+  page,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [1280, 390]) {
+      await test.step(`${scheme} ${width}px`, async () => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.emulateMedia({ colorScheme: scheme });
+        await start(
+          page,
+          [
+            makePR({
+              behind: true,
+              ci: 'pending',
+              status: {
+                code: 'checks_pending',
+                message: 'Waiting for CI to finish',
+                next: 'Merge unlocks automatically',
               },
-              { action: 'update_branch', primary: false },
-              { action: 'auto_merge' },
-              { action: 'close' },
-            ],
-          }),
-        ],
-        {
-          '/api/v1/pull-requests/update-branch': {
-            status: 500,
-            body: { error: 'raw' },
+              allowedActions: [
+                {
+                  action: 'merge',
+                  blocked: {
+                    code: 'checks_pending',
+                    message: 'Waiting for CI to finish',
+                    next: 'Merge unlocks automatically',
+                  },
+                },
+                { action: 'update_branch', primary: false },
+                { action: 'auto_merge' },
+                { action: 'close' },
+              ],
+            }),
+          ],
+          {
+            '/api/v1/pull-requests/update-branch': {
+              status: 500,
+              body: { error: 'raw' },
+            },
           },
-        },
-      );
-      const dialog = await openActionsDialog(row(page));
-      await footer(dialog)
-        .getByRole('button', { name: 'Update branch', exact: true })
-        .click();
-      await expect(
-        dialog.locator('.details-feedback .row-feedback-line'),
-      ).toContainText('Failed');
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
+        );
+        const dialog = await openActionsDialog(row(page));
+        await footer(dialog)
+          .getByRole('button', { name: 'Update branch', exact: true })
+          .click();
+        await expect(
+          dialog.locator('.details-feedback .row-feedback-line'),
+        ).toContainText('Failed');
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
   }
-}
+});

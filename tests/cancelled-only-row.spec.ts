@@ -134,19 +134,21 @@ test.describe('a cancelled-only pull request (3301)', () => {
     await expect(row(page, 'Really failed')).toBeVisible();
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [390, 820, 1280]) {
-      test(`has no axe violations at ${width}px, ${scheme}`, async ({
-        page,
-      }) => {
-        await page.setViewportSize({ width, height: 900 });
-        await page.emulateMedia({ colorScheme: scheme });
-        await open(page);
-        const results = await new AxeBuilder({ page })
-          .withTags(AXE_TAGS)
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
+  test(`has no axe violations at every width, light and dark`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [390, 820, 1280]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.setViewportSize({ width, height: 900 });
+          await page.emulateMedia({ colorScheme: scheme });
+          await open(page);
+          const results = await new AxeBuilder({ page })
+            .withTags(AXE_TAGS)
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      }
     }
-  }
+  });
 });

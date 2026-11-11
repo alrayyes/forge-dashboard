@@ -404,37 +404,51 @@ test.describe('settings groups', () => {
     });
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [1280, 360]) {
-      test(`axe passes in every group, ${scheme}, ${width}px`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.setViewportSize({ width, height: 900 });
-        for (const g of GROUPS) {
-          await page.goto(`/settings.html#${g.id}`);
-          await expect(cardHeading(page, g.cards[0])).toBeVisible();
-          const results = await new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-            .analyze();
-          // Help opened as well: its text and chevron are part of the page.
-          const toggles = page.locator('.disclosure-toggle:visible');
-          for (let i = 0; i < (await toggles.count()); i++) {
-            await toggles.nth(i).click();
+  test(`axe passes in every group, light and dark, every width`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [1280, 360]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.setViewportSize({ width, height: 900 });
+          for (const g of GROUPS) {
+            await page.goto(`/settings.html#${g.id}`);
+            await expect(cardHeading(page, g.cards[0])).toBeVisible();
+            const results = await new AxeBuilder({ page })
+              .withTags([
+                'wcag2a',
+                'wcag2aa',
+                'wcag21a',
+                'wcag21aa',
+                'wcag22aa',
+              ])
+              .analyze();
+            // Help opened as well: its text and chevron are part of the page.
+            const toggles = page.locator('.disclosure-toggle:visible');
+            for (let i = 0; i < (await toggles.count()); i++) {
+              await toggles.nth(i).click();
+            }
+            const opened = await new AxeBuilder({ page })
+              .withTags([
+                'wcag2a',
+                'wcag2aa',
+                'wcag21a',
+                'wcag21aa',
+                'wcag22aa',
+              ])
+              .analyze();
+            expect(
+              opened.violations,
+              `${g.id} (help open): ${opened.violations.map((v) => v.id).join(', ')}`,
+            ).toEqual([]);
+            expect(
+              results.violations,
+              `${g.id}: ${results.violations.map((v) => v.id).join(', ')}`,
+            ).toEqual([]);
           }
-          const opened = await new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-            .analyze();
-          expect(
-            opened.violations,
-            `${g.id} (help open): ${opened.violations.map((v) => v.id).join(', ')}`,
-          ).toEqual([]);
-          expect(
-            results.violations,
-            `${g.id}: ${results.violations.map((v) => v.id).join(', ')}`,
-          ).toEqual([]);
-        }
-      });
+        });
+      }
     }
-  }
+  });
 });

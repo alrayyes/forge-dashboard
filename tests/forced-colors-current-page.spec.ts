@@ -83,13 +83,15 @@ for (const n of NAVS) {
     expect(await box(other)).toEqual(otherBox);
   });
 
-  for (const theme of ['light', 'dark']) {
-    test(`${n.name}: axe finds nothing in ${theme}`, async ({ page }) => {
-      await page.goto('/');
-      await setTheme(page, theme);
-      await open(page, n.width);
-      const results = await new AxeBuilder({ page }).include('nav').analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`${n.name}: axe finds nothing in light and dark`, async ({ page }) => {
+    for (const theme of ['light', 'dark']) {
+      await test.step(`${theme}`, async () => {
+        await page.goto('/');
+        await setTheme(page, theme);
+        await open(page, n.width);
+        const results = await new AxeBuilder({ page }).include('nav').analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 }

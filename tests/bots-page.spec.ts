@@ -146,35 +146,36 @@ test.describe('Bots page (#1192)', () => {
     ).toHaveCount(1);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`rows without the pill have no axe violations in ${scheme} and fit at 390px`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await mockDashboard(page, SNAPSHOT);
-      await page.goto('/bots.html');
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
-      await expect(page.locator('#pr-rows .attr-chip.bot')).toHaveCount(0);
-      expect(
-        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
-          .violations,
-      ).toEqual([]);
-
-      await page.setViewportSize({ width: 390, height: 844 });
-      const fits = await page
-        .locator('#pr-rows .row')
-        .evaluateAll((els) =>
-          els.map((el) => el.scrollWidth <= el.clientWidth + 1),
+  test(`rows without the pill have no axe violations in light and dark and fit at 390px`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockDashboard(page, SNAPSHOT);
+        await page.goto('/bots.html');
+        await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
+        await expect(page.locator('#pr-rows .attr-chip.bot')).toHaveCount(0);
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
+        await page.setViewportSize({ width: 390, height: 844 });
+        const fits = await page
+          .locator('#pr-rows .row')
+          .evaluateAll((els) =>
+            els.map((el) => el.scrollWidth <= el.clientWidth + 1),
+          );
+        expect(fits.every(Boolean)).toBe(true);
+        const overflow = await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
         );
-      expect(fits.every(Boolean)).toBe(true);
-      const overflow = await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth -
-          document.documentElement.clientWidth,
-      );
-      expect(overflow).toBeLessThanOrEqual(0);
-    });
-  }
+        expect(overflow).toBeLessThanOrEqual(0);
+      });
+    }
+  });
 
   // The desktop light scan of these rows is the one in the scheme loop above,
   // so this test scans only the 390px layout.

@@ -204,23 +204,27 @@ test.describe('Settings: counting after the first save (#1676)', () => {
     expect(server.gets - before).toBe(5);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`axe with Counting… shown at 360px, ${scheme}`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await page.setViewportSize({ width: 360, height: 780 });
-      await standIn(page, []);
-      await firstSave(page, `^${'a'.repeat(150)}`);
-      await expect(row(page, '^aaaa')).toContainText('Counting…');
-      const widths = await page.evaluate(() => ({
-        scroll: document.documentElement.scrollWidth,
-        client: document.documentElement.clientWidth,
-      }));
-      expect(widths.scroll).toBeLessThanOrEqual(widths.client);
-      const results = await new AxeBuilder({ page })
-        .include('#issue-settings')
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`axe with Counting… shown at 360px, light and dark`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width: 360, height: 780 });
+        await standIn(page, []);
+        await firstSave(page, `^${'a'.repeat(150)}`);
+        await expect(row(page, '^aaaa')).toContainText('Counting…');
+        const widths = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          client: document.documentElement.clientWidth,
+        }));
+        expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+        const results = await new AxeBuilder({ page })
+          .include('#issue-settings')
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

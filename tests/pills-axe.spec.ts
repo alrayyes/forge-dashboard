@@ -167,26 +167,29 @@ const PRS = [
   ),
 ];
 
-for (const scheme of THEMES) {
-  test(`pull request pills in every state have no axe violations in the ${scheme} theme`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await routeDashboard(page, {
-      forges: [
-        { forge: 'github', reachable: true, repoCount: 1 },
-        { forge: 'forgejo', reachable: true, repoCount: 1 },
-      ],
-      pullRequests: PRS,
+test(`pull request pills in every state have no axe violations in both themes`, async ({
+  page,
+}) => {
+  for (const scheme of THEMES) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await routeDashboard(page, {
+        forges: [
+          { forge: 'github', reachable: true, repoCount: 1 },
+          { forge: 'forgejo', reachable: true, repoCount: 1 },
+        ],
+        pullRequests: PRS,
+      });
+      await page.goto('/pull-requests.html');
+      await expect(page.locator('#pr-rows > .row').first()).toBeVisible();
+      await expectAccessible(page, [WIDE, PHONE, NARROW], () =>
+        expect(page.locator('#pr-rows > .row .ci-pill')).toHaveCount(
+          PRS.length,
+        ),
+      );
     });
-    await page.goto('/pull-requests.html');
-    await expect(page.locator('#pr-rows > .row').first()).toBeVisible();
-
-    await expectAccessible(page, [WIDE, PHONE, NARROW], () =>
-      expect(page.locator('#pr-rows > .row .ci-pill')).toHaveCount(PRS.length),
-    );
-  });
-}
+  }
+});
 
 // ---- issues ----
 
@@ -217,21 +220,20 @@ const ISSUES = [
   linkedPullRequests: [linked(12 + i, counts)],
 }));
 
-for (const scheme of THEMES) {
-  test(`issue pills have no axe violations in the ${scheme} theme`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await routeDashboard(page, { issues: ISSUES, openIssueCount: 2 });
-    await page.goto('/issues.html');
-
-    await expectAccessible(page, [WIDE, PHONE], () =>
-      expect(page.locator('#issue-rows .row .linked-pr')).toHaveCount(
-        ISSUES.length,
-      ),
-    );
-  });
-}
+test(`issue pills have no axe violations in both themes`, async ({ page }) => {
+  for (const scheme of THEMES) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await routeDashboard(page, { issues: ISSUES, openIssueCount: 2 });
+      await page.goto('/issues.html');
+      await expectAccessible(page, [WIDE, PHONE], () =>
+        expect(page.locator('#issue-rows .row .linked-pr')).toHaveCount(
+          ISSUES.length,
+        ),
+      );
+    });
+  }
+});
 
 // ---- Main branches ----
 
@@ -284,40 +286,41 @@ const BRANCHES = [
   branch('acme/new', 'none', checks({})),
 ];
 
-for (const scheme of THEMES) {
-  test(`Main branches pills have no axe violations in the ${scheme} theme`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await routeDashboard(page, {});
-    await page.route('**/api/v1/main-branches', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          counts: {
-            failed: 3,
-            passed: 4,
-            running: 1,
-            cancelled: 1,
-            awaitingApproval: 0,
-            none: 1,
-            total: BRANCHES.length,
-          },
-          branches: BRANCHES,
+test(`Main branches pills have no axe violations in both themes`, async ({
+  page,
+}) => {
+  for (const scheme of THEMES) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await routeDashboard(page, {});
+      await page.route('**/api/v1/main-branches', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            counts: {
+              failed: 3,
+              passed: 4,
+              running: 1,
+              cancelled: 1,
+              awaitingApproval: 0,
+              none: 1,
+              total: BRANCHES.length,
+            },
+            branches: BRANCHES,
+          }),
         }),
-      }),
-    );
-    await page.goto('/');
-
-    await expectAccessible(page, [WIDE, PHONE], () =>
-      expect(page.locator('[data-testid="main-branch-row"]')).toHaveCount(
-        BRANCHES.length,
-      ),
-    );
-  });
-}
+      );
+      await page.goto('/');
+      await expectAccessible(page, [WIDE, PHONE], () =>
+        expect(page.locator('[data-testid="main-branch-row"]')).toHaveCount(
+          BRANCHES.length,
+        ),
+      );
+    });
+  }
+});
 
 // ---- nav ----
 
@@ -335,39 +338,38 @@ const nav = (
   noChecks,
 });
 
-for (const scheme of THEMES) {
-  test(`nav pills have no axe violations in the ${scheme} theme`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await routeDashboard(page, {
-      openIssueCount: 4,
-      navCounts: {
-        pullRequests: nav(15, 3, 2, 10),
-        issues: { total: 4 },
-        releases: nav(6, 6, 0, 0),
-        bots: nav(16, 3, 2, 10, 1),
-      },
-      mainBranchPage: mainBranchPageOf([
-        'failed',
-        'failed',
-        'running',
-        'passed',
-        'passed',
-        'passed',
-        'none',
-        'awaiting_approval',
-      ]),
+test(`nav pills have no axe violations in both themes`, async ({ page }) => {
+  for (const scheme of THEMES) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await routeDashboard(page, {
+        openIssueCount: 4,
+        navCounts: {
+          pullRequests: nav(15, 3, 2, 10),
+          issues: { total: 4 },
+          releases: nav(6, 6, 0, 0),
+          bots: nav(16, 3, 2, 10, 1),
+        },
+        mainBranchPage: mainBranchPageOf([
+          'failed',
+          'failed',
+          'running',
+          'passed',
+          'passed',
+          'passed',
+          'none',
+          'awaiting_approval',
+        ]),
+      });
+      await page.goto('/settings.html');
+      await expectAccessible(page, [WIDE, NAV_PHONE], async () => {
+        await expect(
+          page.locator('header nav a[href="/pull-requests.html"] .nav-pills'),
+        ).toHaveCount(1);
+        await expect(
+          page.locator('header nav a[href="/"] .nav-pills'),
+        ).toHaveCount(1);
+      });
     });
-    await page.goto('/settings.html');
-
-    await expectAccessible(page, [WIDE, NAV_PHONE], async () => {
-      await expect(
-        page.locator('header nav a[href="/pull-requests.html"] .nav-pills'),
-      ).toHaveCount(1);
-      await expect(
-        page.locator('header nav a[href="/"] .nav-pills'),
-      ).toHaveCount(1);
-    });
-  });
-}
+  }
+});

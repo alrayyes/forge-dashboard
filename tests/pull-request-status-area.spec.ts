@@ -148,28 +148,29 @@ test.describe('the status area on a pull request row (#1375)', () => {
     ).toBeEnabled();
   });
 
-  for (const [label, size] of [
-    ['desktop', { width: 1280, height: 800 }],
-    ['a 360px phone', { width: 360, height: 740 }],
-  ] as const) {
-    test(`has no axe-core violations on ${label}, and the area stays inside its row`, async ({
-      page,
-    }) => {
-      await page.setViewportSize(size);
-      await open(page, [EMPTY, WAITING, READY]);
-
-      for (const title of ['Empty', 'Waiting']) {
-        const r = row(page, title);
-        const area = await r.locator('.status-area').boundingBox();
-        const box = await r.boundingBox();
-        expect((area?.x ?? 0) + (area?.width ?? 0)).toBeLessThanOrEqual(
-          (box?.x ?? 0) + (box?.width ?? 0) + 1,
-        );
-      }
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`has no axe-core violations on every size, and the area stays inside its row`, async ({
+    page,
+  }) => {
+    for (const [label, size] of [
+      ['desktop', { width: 1280, height: 800 }],
+      ['a 360px phone', { width: 360, height: 740 }],
+    ] as const) {
+      await test.step(`${label}`, async () => {
+        await page.setViewportSize(size);
+        await open(page, [EMPTY, WAITING, READY]);
+        for (const title of ['Empty', 'Waiting']) {
+          const r = row(page, title);
+          const area = await r.locator('.status-area').boundingBox();
+          const box = await r.boundingBox();
+          expect((area?.x ?? 0) + (area?.width ?? 0)).toBeLessThanOrEqual(
+            (box?.x ?? 0) + (box?.width ?? 0) + 1,
+          );
+        }
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

@@ -134,38 +134,40 @@ test.describe('rerun failed checks says how many it reruns', () => {
     );
   });
 
-  for (const theme of ['light', 'dark'] as const) {
-    for (const width of [320, 820]) {
-      test(`a long list of failures with no run scrolls by keyboard at ${width}px in ${theme} with no axe violation`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: theme });
-        await page.setViewportSize({ width, height: 600 });
-        const long = 'x'.repeat(40);
-        const checks = Array.from({ length: 30 }, (_, i) =>
-          failed(`ci/external-${i} ${long}`),
-        );
-        const dialog = await open(page, checks);
-        await expect(dialog.locator('.pipeline-rerun-count')).toBeVisible();
-        const body = dialog.locator('.pipeline-dialog-body');
-        expect(
-          await body.evaluate((b) => b.scrollHeight > b.clientHeight),
-        ).toBe(true);
-        await expect(body).toHaveAttribute('tabindex', '0');
-        await expect(body).toHaveAccessibleName('Pipeline checks');
-        await body.focus();
-        await expect(body).toBeFocused();
-        await page.keyboard.press('End');
-        await expect
-          .poll(() => body.evaluate((b) => b.scrollTop))
-          .toBeGreaterThan(0);
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
+  test(`a long list of failures with no run scrolls by keyboard at every width in light and dark with no axe violation`, async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      for (const width of [320, 820]) {
+        await test.step(`${theme} ${width}px`, async () => {
+          await page.emulateMedia({ colorScheme: theme });
+          await page.setViewportSize({ width, height: 600 });
+          const long = 'x'.repeat(40);
+          const checks = Array.from({ length: 30 }, (_, i) =>
+            failed(`ci/external-${i} ${long}`),
+          );
+          const dialog = await open(page, checks);
+          await expect(dialog.locator('.pipeline-rerun-count')).toBeVisible();
+          const body = dialog.locator('.pipeline-dialog-body');
+          expect(
+            await body.evaluate((b) => b.scrollHeight > b.clientHeight),
+          ).toBe(true);
+          await expect(body).toHaveAttribute('tabindex', '0');
+          await expect(body).toHaveAccessibleName('Pipeline checks');
+          await body.focus();
+          await expect(body).toBeFocused();
+          await page.keyboard.press('End');
+          await expect
+            .poll(() => body.evaluate((b) => b.scrollTop))
+            .toBeGreaterThan(0);
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      }
     }
-  }
+  });
 
   test('a Forgejo with no rerun route draws no count, only its reason', async ({
     page,
@@ -200,36 +202,38 @@ test.describe('rerun failed checks says how many it reruns', () => {
     );
   });
 
-  for (const theme of ['light', 'dark'] as const) {
-    for (const width of [320, 390, 820, 1280]) {
-      test(`the line and button fit at ${width}px in ${theme} with no axe violation`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: theme });
-        await page.setViewportSize({ width, height: 900 });
-        const dialog = await open(page, [
-          failed('build', { runId: 1 }),
-          failed('ci/circleci'),
-        ]);
-        const button = dialog.getByRole('button', {
-          name: 'Rerun failed checks (1)',
+  test(`the line and button fit at every width in light and dark with no axe violation`, async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      for (const width of [320, 390, 820, 1280]) {
+        await test.step(`${theme} ${width}px`, async () => {
+          await page.emulateMedia({ colorScheme: theme });
+          await page.setViewportSize({ width, height: 900 });
+          const dialog = await open(page, [
+            failed('build', { runId: 1 }),
+            failed('ci/circleci'),
+          ]);
+          const button = dialog.getByRole('button', {
+            name: 'Rerun failed checks (1)',
+          });
+          await expect(button).toBeVisible();
+          const box = await button.boundingBox();
+          if (width <= 760) expect(box?.height).toBeGreaterThanOrEqual(44);
+          const pageOverflows = await page.evaluate(
+            () => document.documentElement.scrollWidth > window.innerWidth,
+          );
+          expect(pageOverflows).toBe(false);
+          const dialogFits = await dialog.evaluate(
+            (d) => d.scrollWidth <= d.clientWidth,
+          );
+          expect(dialogFits).toBe(true);
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
         });
-        await expect(button).toBeVisible();
-        const box = await button.boundingBox();
-        if (width <= 760) expect(box?.height).toBeGreaterThanOrEqual(44);
-        const pageOverflows = await page.evaluate(
-          () => document.documentElement.scrollWidth > window.innerWidth,
-        );
-        expect(pageOverflows).toBe(false);
-        const dialogFits = await dialog.evaluate(
-          (d) => d.scrollWidth <= d.clientWidth,
-        );
-        expect(dialogFits).toBe(true);
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
+      }
     }
-  }
+  });
 });

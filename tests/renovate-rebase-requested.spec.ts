@@ -540,26 +540,30 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     await expect(row.getByRole('button', { name: REQUEST_NAME })).toBeFocused();
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe violations with the cancel (${scheme})`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await serve(page, { rebase: CANCEL, extra: { botRequest: BOT_REQUEST } });
-      const dialog = await open(page);
-      await expect(
-        dialog.getByRole('button', { name: CANCEL_NAME }),
-      ).toBeVisible();
-
-      expect(
-        (
-          await new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-            .analyze()
-        ).violations,
-      ).toEqual([]);
-    });
-  }
+  test(`has no axe violations with the cancel (light and dark)`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await serve(page, {
+          rebase: CANCEL,
+          extra: { botRequest: BOT_REQUEST },
+        });
+        const dialog = await open(page);
+        await expect(
+          dialog.getByRole('button', { name: CANCEL_NAME }),
+        ).toBeVisible();
+        expect(
+          (
+            await new AxeBuilder({ page })
+              .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+              .analyze()
+          ).violations,
+        ).toEqual([]);
+      });
+    }
+  });
 
   test('has no axe violations with the cancel at 390px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
