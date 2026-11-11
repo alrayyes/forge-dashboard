@@ -222,25 +222,6 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('Update branch shows only when listed, whatever the raw fields say', async ({
-    page,
-  }) => {
-    const listed = await open(
-      page,
-      makePR({
-        behind: false,
-        allowedActions: [
-          { action: 'merge' },
-          { action: 'update_branch' },
-          { action: 'close' },
-        ],
-      }),
-    );
-    await expect(
-      (await footerOf(listed)).getByRole('button', { name: 'Update branch' }),
-    ).toBeVisible();
-  });
-
   test('a behind pull request with no update_branch entry has no Update branch', async ({
     page,
   }) => {
@@ -280,23 +261,6 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(
       footer.getByRole('button', { name: 'Update branch' }),
     ).toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('Enable auto-merge shows only when listed', async ({ page }) => {
-    // Clean and passing: the old rule hid it (#662).
-    const row = await open(
-      page,
-      makePR({
-        allowedActions: [
-          { action: 'merge' },
-          { action: 'auto_merge' },
-          { action: 'close' },
-        ],
-      }),
-    );
-    await expect(
-      (await footerOf(row)).getByRole('button', { name: 'Enable auto-merge' }),
-    ).toBeVisible();
   });
 
   test('no auto_merge entry means no Enable auto-merge', async ({ page }) => {
@@ -363,25 +327,6 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(
       (await footerOf(row)).getByRole('button', { name: /^Dependabot:/ }),
     ).toHaveCount(0);
-  });
-
-  test('Renovate rebase shows only when listed', async ({ page }) => {
-    const listed = await open(
-      page,
-      makePR({
-        author: 'a-person',
-        allowedActions: [
-          { action: 'merge' },
-          { action: 'renovate_rebase' },
-          { action: 'close' },
-        ],
-      }),
-    );
-    await expect(
-      (await footerOf(listed)).getByRole('button', {
-        name: 'Renovate: Rebase',
-      }),
-    ).toBeVisible();
   });
 
   test('Close shows only when listed', async ({ page }) => {

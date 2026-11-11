@@ -1,6 +1,10 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { type AllowedAction, primaryAction } from './allowed-actions';
+import {
+  type AllowedAction,
+  findAction,
+  primaryAction,
+} from './allowed-actions';
 
 // The server marks at most one available action primary and the page only
 // renders that. These pin the reading, not the rule.
@@ -43,5 +47,36 @@ describe('primaryAction', () => {
         ],
       })?.action,
     ).toBe('update_branch');
+  });
+});
+
+// The row and the dialog draw an action only when this finds it, whatever the
+// raw fields say (#3506).
+describe('findAction', () => {
+  const allowedActions: AllowedAction[] = [
+    { action: 'merge' },
+    { action: 'update_branch' },
+    { action: 'auto_merge' },
+    { action: 'renovate_rebase' },
+  ];
+
+  test.each(['update_branch', 'auto_merge', 'renovate_rebase'] as const)(
+    'a listed %s is found',
+    (action) => {
+      expect(findAction({ allowedActions }, action)?.action).toBe(action);
+    },
+  );
+
+  test('an action the server did not list is not found', () => {
+    expect(findAction({ allowedActions }, 'close')).toBeUndefined();
+    expect(findAction({}, 'merge')).toBeUndefined();
+  });
+
+  test('a listed action keeps the reason it is blocked', () => {
+    const blocked = { code: 'x', message: 'Held', next: 'Wait' };
+    expect(
+      findAction({ allowedActions: [{ action: 'merge', blocked }] }, 'merge')
+        ?.blocked,
+    ).toEqual(blocked);
   });
 });

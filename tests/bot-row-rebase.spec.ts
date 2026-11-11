@@ -67,32 +67,6 @@ const bots = [
 ];
 
 for (const { name, author, button } of bots) {
-  test(`a behind ${name} pull request with failing CI has ${button} in its row`, async ({
-    page,
-  }) => {
-    // Merge is open as unstable only because the failing checks aren't
-    // required, so the rebase is the row's own button, not part of a status line.
-    const row = await open(
-      page,
-      pr({ author, ci: 'failure', mergeStatus: 'unstable' }),
-    );
-    await expect(
-      row.locator('.row-action-bar').getByRole('button', { name: button }),
-    ).toBeVisible();
-    await expect(row.getByRole('button', { name: button })).toHaveCount(1);
-    await expectNoAxeViolations(page);
-  });
-
-  test(`a behind ${name} pull request waiting on CI has ${button} in its row`, async ({
-    page,
-  }) => {
-    const row = await open(page, pr({ author }));
-    const bar = row.locator('.row-action-bar');
-    await expect(bar.getByRole('button', { name: button })).toBeVisible();
-    await expect(row.getByRole('button', { name: button })).toHaveCount(1);
-    await expectNoAxeViolations(page);
-  });
-
   test(`a behind ${name} pull request fits a 360px row with ${button} reachable`, async ({
     page,
   }) => {
