@@ -96,6 +96,7 @@ const singleUserSpecs = [
   '**/pr-details-dialog.spec.ts',
   '**/pr-details-short-viewport.spec.ts',
   '**/pr-details-task-lists.spec.ts',
+  '**/pr-details-title-code.spec.ts',
   '**/pr-dialog-actions.spec.ts',
   '**/pull-request-auto-merge.spec.ts',
   '**/pull-request-checks.spec.ts',
