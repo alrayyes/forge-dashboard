@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.20.0](https://github.com/alrayyes/forge-dashboard/compare/v9.19.2...v9.20.0) (2026-11-11)
+
+
+### Features
+
+* **web:** rerun every failing pull request from the Pull requests and Bots pages ([#3534](https://github.com/alrayyes/forge-dashboard/issues/3534)) ([6b913ff](https://github.com/alrayyes/forge-dashboard/commit/6b913ff7202a772b4a9375df6f6abc167dea5f9b))
+
 ## [9.19.2](https://github.com/alrayyes/forge-dashboard/compare/v9.19.1...v9.19.2) (2026-11-11)
 
 
