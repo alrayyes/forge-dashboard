@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.16.0](https://github.com/alrayyes/forge-dashboard/compare/v9.15.0...v9.16.0) (2026-11-11)
+
+
+### Features
+
+* **web:** say how many failed checks Rerun failed checks will rerun ([#3511](https://github.com/alrayyes/forge-dashboard/issues/3511)) ([a37742d](https://github.com/alrayyes/forge-dashboard/commit/a37742de4db2094e2d75f50d50b40fe0e3b19a3b))
+
 ## [9.15.0](https://github.com/alrayyes/forge-dashboard/compare/v9.14.2...v9.15.0) (2026-11-11)
 
 
