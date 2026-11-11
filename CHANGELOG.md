@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.11](https://github.com/alrayyes/forge-dashboard/compare/v9.10.10...v9.10.11) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** say Data unavailable on Insights charts while the read has failed ([#3417](https://github.com/alrayyes/forge-dashboard/issues/3417)) ([d4c7835](https://github.com/alrayyes/forge-dashboard/commit/d4c7835eff6653c4d8d9672ccd6904f30f3a9ce8))
+
 ## [9.10.10](https://github.com/alrayyes/forge-dashboard/compare/v9.10.9...v9.10.10) (2026-11-11)
 
 
