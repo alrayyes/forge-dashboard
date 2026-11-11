@@ -1055,6 +1055,15 @@ select.col-filter {
   background-repeat: no-repeat;
 }
 
+/* Forced colors drops background images, which would take the drawn chevron
+   and leave a select with no arrow. Hand the selects back their native one. */
+@media (forced-colors: active) {
+  .filter-bar select.col-filter,
+  .filter-bar select.group-select {
+    appearance: auto;
+  }
+}
+
 /* The Label filter: a button that names the pick, opening a group of
    checkboxes. It sits in the bar like the selects around it. */
 .label-filter {

@@ -91,3 +91,24 @@ for (const [name, path] of [
     });
   }
 }
+
+// Forced colors strips the drawn chevron's background image, so a select that
+// opted out of its native arrow would be left with no dropdown affordance.
+// Each select must show an arrow of some kind: the drawn one or the native one.
+for (const scheme of ['light', 'dark'] as const) {
+  test(`pull requests: every select keeps a dropdown arrow in forced colors, ${scheme} (3374)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
+    await open(page, '/pull-requests.html', 1280);
+    for (const selector of SELECTS) {
+      const shown = await page.locator(selector).evaluate((el) => ({
+        appearance: getComputedStyle(el).appearance,
+        chevron: getComputedStyle(el).backgroundImage,
+      }));
+      const hasArrow =
+        shown.appearance !== 'none' || !/^none(, none)*$/.test(shown.chevron);
+      expect(hasArrow, `${selector} ${JSON.stringify(shown)}`).toBe(true);
+    }
+  });
+}
