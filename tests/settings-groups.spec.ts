@@ -32,14 +32,6 @@ const GROUPS = [
   },
 ] as const;
 
-const ANCHORS: Record<string, string> = {
-  'issue-settings': 'behaviour',
-  'forgejo-auto-merge': 'behaviour',
-  webhooks: 'integrations',
-  passkeys: 'integrations',
-  'api-tokens': 'integrations',
-};
-
 const cardHeading = (page: Page, name: string) =>
   page.getByRole('heading', { level: 2, name, exact: true });
 const groupLink = (page: Page, label: string) =>
@@ -106,22 +98,17 @@ test.describe('settings groups', () => {
     }
   });
 
-  for (const [anchor, group] of Object.entries(ANCHORS)) {
-    test(`/settings.html#${anchor} opens ${group} and scrolls the card into view`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width: 1280, height: 500 });
-      await page.goto(`/settings.html#${anchor}`);
-      const card = page.locator(`#${anchor}`);
-      await expect(card).toBeVisible();
-      await expect(card).toBeInViewport();
-      const g = GROUPS.find((x) => x.id === group);
-      await expect(groupLink(page, g?.label ?? '').first()).toHaveAttribute(
-        'aria-current',
-        'page',
-      );
-    });
-  }
+  // The anchor-to-group mapping is pinned in settings-groups.test.ts. This one
+  // proves the scroll: the API tokens card sits below the fold at 500px high.
+  test('/settings.html#api-tokens opens its group and scrolls the card into view', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await page.goto('/settings.html#api-tokens');
+    const card = page.locator('#api-tokens');
+    await expect(card).toBeVisible();
+    await expect(card).toBeInViewport();
+  });
 
   test('hashchange, back and forward move between groups', async ({ page }) => {
     await page.goto('/settings.html');
