@@ -373,6 +373,7 @@ test.describe('Copy error details on a failed Rerun failed checks (#1323)', () =
         name: 'test',
         status: 'completed',
         conclusion: 'failure',
+        runId: 1,
         url: '',
         required: true,
       },

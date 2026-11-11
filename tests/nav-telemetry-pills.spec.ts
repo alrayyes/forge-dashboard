@@ -185,7 +185,8 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
     await expect(bots.locator('.nav-running')).toHaveText('3');
     await expect(bots.locator('.nav-passed')).toHaveText('10');
     const releases = header(page, '/releases.html').locator('.nav-pills');
-    await expect(releases.locator('.nav-total')).toHaveText('6');
+    // Six running of six: the total would only repeat it (#3489).
+    await expect(releases.locator('.nav-total')).toHaveCount(0);
     await expect(releases.locator('.nav-running')).toHaveText('6');
     await expect(releases.locator('.nav-failed')).toHaveCount(0);
   });

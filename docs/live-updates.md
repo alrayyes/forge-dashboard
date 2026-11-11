@@ -179,7 +179,10 @@ count with a dashed circle, last, worded "without checks"; it is not counted
 as running. One held for workflow approval is in the total only, so those
 numbers needn't add up. Branches adds a neutral count with the same dashed
 circle for the branches with no pipeline, so its numbers do add up. A zero is
-never drawn, and the link's name says the same in words, in the same order,
+never drawn. The total is left out when it would only repeat the pill's single
+count (2 running of 2 shows "2 running", not "2 2"); with two categories, or
+one that falls short of the total, it stays. The link's name says the same in
+words, in the same order,
 after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
 2 failing, 10 passing, 3 running", and "7 2 3 1 1, Branches, 7 total, 2 failing,
 3 passing, 1 running, 1 without a pipeline". On

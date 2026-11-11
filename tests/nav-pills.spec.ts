@@ -124,7 +124,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
 
     await expect(page.locator('.app-nav .nav-failed')).toHaveCount(0);
     await expect(header(page, '/')).toHaveAccessibleName(
-      '12 12, Branches, 12 total, 12 passing',
+      '12, Branches, 12 passing',
     );
   });
 
@@ -180,7 +180,8 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
     state.counts = { ...MIXED, branches: { total: 13, failed: 0 } };
     await page.locator('#force-refresh-button').click();
 
-    await expect(header(page, '/').locator('.nav-total')).toHaveText('13');
+    // 13 passing of 13: the one count says it all (#3489).
+    await expect(header(page, '/').locator('.nav-pills')).toHaveText('13');
     await expect(header(page, '/').locator('.nav-failed')).toHaveCount(0);
   });
 
@@ -202,7 +203,7 @@ test.describe('nav counts: a total and a red failed count (#1315)', () => {
 
       await expect(header(page, '/').locator('.nav-failed')).toHaveCount(0);
       await expect(header(page, '/')).toHaveAccessibleName(
-        '12 12, Branches, 12 total, 12 passing',
+        '12, Branches, 12 passing',
       );
     });
   }

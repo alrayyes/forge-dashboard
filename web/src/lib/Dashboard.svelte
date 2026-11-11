@@ -48,7 +48,7 @@
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
-  import type { Check } from "#lib/pipeline-checks.js";
+  import { type Check, rerunnableCounts } from "#lib/pipeline-checks.js";
   import { foldPullRequest, type PullRequestFold } from "#lib/pr-fold.js";
   import {
     linkedPullRequestsToWatch,
@@ -179,6 +179,7 @@
   } from "#lib/forge-starting.js";
   import {
     progressLabel,
+    leftOutLine,
     rebaseAllLabel,
     rebaseAllPlan,
     showRebaseAll,
@@ -5858,9 +5859,16 @@
       const reasons = [...plan.blockedReasons];
       if (plan.behind > 0 && asking === 0 && reasons.length === 0)
         reasons.push("None can be asked to rebase now.");
+      const line =
+        asking > 0 && plan.leftOut.length > 0
+          ? leftOutLine(
+              asking,
+              plan.leftOut.map((l) => l.reason),
+            )
+          : reasons.join(" ");
       if (reason) {
-        reason.textContent = reasons.join(" ");
-        reason.hidden = reasons.length === 0;
+        reason.textContent = line;
+        reason.hidden = line === "";
       }
       if (chips)
         renderStripChips(chips, [
@@ -5895,23 +5903,37 @@
       if (title)
         title.textContent = `Rebase ${count} pull request${count === 1 ? "" : "s"}?`;
       const list = document.getElementById("rebase-all-list");
+      const rebaseAllItem = (item: PullRequestItem, why?: string) => {
+        const li = el("li", "rebase-all-item");
+        const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+        badge.appendChild(el("span", "dot"));
+        badge.appendChild(
+          document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
+        );
+        li.appendChild(badge);
+        li.appendChild(
+          document.createTextNode(
+            ` ${item.repo} #${item.number} \u00b7 ${item.title}`,
+          ),
+        );
+        if (why) li.appendChild(el("span", "rebase-all-why", why));
+        return li;
+      };
       list?.replaceChildren(
-        ...plan.eligible.map(({ item }) => {
-          const li = el("li", "rebase-all-item");
-          const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
-          badge.appendChild(el("span", "dot"));
-          badge.appendChild(
-            document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
-          );
-          li.appendChild(badge);
-          li.appendChild(
-            document.createTextNode(
-              ` ${item.repo} #${item.number} \u00b7 ${item.title}`,
-            ),
-          );
-          return li;
-        }),
+        ...plan.eligible.map(({ item }) => rebaseAllItem(item)),
       );
+      const leftBlock = document.getElementById("rebase-all-left-out");
+      const leftTitle = document.getElementById("rebase-all-left-out-title");
+      if (leftTitle)
+        leftTitle.textContent = `Left out (${plan.leftOut.length})`;
+      document
+        .getElementById("rebase-all-left-out-list")
+        ?.replaceChildren(
+          ...plan.leftOut.map(({ item, reason }) =>
+            rebaseAllItem(item, reason),
+          ),
+        );
+      if (leftBlock) leftBlock.hidden = plan.leftOut.length === 0;
       dialog.showModal();
       // Cancel is the safe default, whether or not the list becomes a stop.
       document.getElementById("rebase-all-cancel")?.focus();
@@ -6727,7 +6749,10 @@
     // "Rerun failed checks" (#698), shown only where the server lists
     // rerun_checks for this pull request and something actually failed. The
     // forge queues the jobs; the next refresh carries their result.
-    function pipelineRerunControl(item: PullRequestItem): HTMLElement | null {
+    function pipelineRerunControl(
+      item: PullRequestItem,
+      checks: Check[],
+    ): HTMLElement | null {
       pipelineRerunLock.drawn(pipelineRerunLockKey(item));
       if (!findAction(item, "rerun_checks")) return null;
       // The same locks as the row's cell: a spent budget or an unreachable
@@ -6751,7 +6776,23 @@
         return wrap;
       }
       const key = prKey(item);
-      const button = buttonEl("row-action", "Rerun failed checks");
+      // What the press will do, from the checks the dialog shows.
+      const { rerun, skipped } = rerunnableCounts(checks);
+      const count = el("p", "pipeline-rerun-count");
+      const forgeName = FORGE_LABELS[item.forge] || item.forge;
+      const left = skipped > 0 ? ` ${skipped} can't be rerun from here.` : "";
+      count.textContent =
+        rerun > 0
+          ? `${rerun} failed ${rerun === 1 ? "check" : "checks"} will rerun on ${forgeName}.${left}`
+          : skipped === 1
+            ? "The failed check can't be rerun from here."
+            : `None of the ${skipped} failed checks can be rerun from here.`;
+      if (rerun === 0) {
+        wrap.appendChild(count);
+        return wrap;
+      }
+      const label = `Rerun failed checks (${rerun})`;
+      const button = buttonEl("row-action", label);
       button.type = "button";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
@@ -6769,7 +6810,7 @@
         const held = rerunQueued(item);
         const state = rerunState[key];
         const sending = state?.phase === "requesting";
-        button.textContent = held ? "Rerun queued" : "Rerun failed checks";
+        button.textContent = held ? "Rerun queued" : label;
         markPending(button, held || sending);
         status.textContent = held
           ? "Rerun queued. The new results show here after the next refresh."
@@ -6796,7 +6837,7 @@
         if (isPending(button)) return;
         doRerunChecks(item, sync);
       });
-      wrap.append(button, status, failureBox);
+      wrap.append(count, button, status, failureBox);
       return wrap;
     }
 
@@ -6833,7 +6874,7 @@
         controls: (failed, checks, runs) => {
           showLiveFold(item, checks, runs);
           return failed && pipelineItem
-            ? pipelineRerunControl(pipelineItem)
+            ? pipelineRerunControl(pipelineItem, checks)
             : null;
         },
         // Cancel run is offered while the server lists cancel_run for the row,
@@ -10209,6 +10250,14 @@
             Asks Dependabot and Renovate to rebase. Nothing is pushed by you.
           </p>
           <ul class="rebase-all-list" id="rebase-all-list"></ul>
+          <div class="rebase-all-left-out" id="rebase-all-left-out" hidden>
+            <h3 id="rebase-all-left-out-title">Left out</h3>
+            <ul
+              class="rebase-all-list rebase-all-left-out-list"
+              id="rebase-all-left-out-list"
+              aria-labelledby="rebase-all-left-out-title"
+            ></ul>
+          </div>
           <div class="rebase-all-actions">
             <button type="button" id="rebase-all-cancel">Cancel</button>
             <button type="button" id="rebase-all-confirm">Rebase</button>

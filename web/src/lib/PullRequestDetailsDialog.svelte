@@ -68,6 +68,7 @@
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
   import { tick } from "svelte";
+  import { syncScrollRegion } from "#lib/scroll-region.js";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
@@ -128,6 +129,7 @@
   } = $props();
 
   let dialogEl = $state<HTMLDialogElement>();
+  let bodyEl = $state<HTMLElement>();
   // These three hosts exist from the start so the page can fill them in the
   // same tick it opens the dialog, and move focus into them at once.
   let statusHost = $state<HTMLElement>();
@@ -379,6 +381,21 @@
     }
   }
 
+  // A description that scrolls and holds nothing focusable would be out of a
+  // keyboard user's reach (#3454). The body becomes a named tab stop while it
+  // overflows. The watch starts again whenever the pull request or what is
+  // drawn changes, so the new children are observed and the answer is judged
+  // on the content that arrived, not the skeleton before it.
+  $effect(() => {
+    void [target, phase, details, html];
+    const el = bodyEl;
+    if (!el) return;
+    return syncScrollRegion(el, {
+      label: "Description",
+      skipIfFocusableDescendant: true,
+    });
+  });
+
   // The one reaction list on show, if any (WCAG 1.4.13): hover or focus
   // shows it, leaving hides it, and Escape dismisses it without moving focus.
   let shownReaction = $state<string | null>(null);
@@ -622,7 +639,7 @@
   <div class="details-status-block" bind:this={statusHost} hidden></div>
 
   {#if target}
-    <div class="details-body">
+    <div class="details-body" bind:this={bodyEl}>
       {#if phase === "loading"}
         <div class="details-skeleton" role="status">
           <span class="visually-hidden">Loading details</span>
@@ -914,6 +931,9 @@
     overflow-x: hidden;
     flex: 1 1 auto;
     min-width: 0;
+  }
+  .details-body:focus-visible {
+    outline-offset: -2px;
   }
   .details-section + .details-section {
     margin-top: 22px;

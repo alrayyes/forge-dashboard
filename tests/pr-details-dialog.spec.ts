@@ -1146,6 +1146,36 @@ test.describe('pull request details dialog', () => {
       expect(results.violations).toEqual([]);
     });
   }
+  // A plain-text description that scrolls has nothing inside it to focus, so
+  // the box itself must be a tab stop (#3454).
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [1280, 320]) {
+      test(`has no axe-core violations with a long plain-text description (${scheme}, ${width}px)`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 500 });
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockDashboard(page, [makePR()]);
+        await mockDetails(
+          page,
+          details({
+            description: body(
+              Array.from({ length: 60 }, (_, i) => `Paragraph ${i + 1}.`).join(
+                '\n\n',
+              ),
+            ),
+          }),
+        );
+        await page.goto('/pull-requests.html');
+        await trigger(page).click();
+        await expect(dialog(page).locator('.markdown')).toBeVisible();
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
   for (const scheme of ['light', 'dark'] as const) {
     for (const width of [1280, 360]) {
       test(`has no axe-core violations with a reaction list open (${scheme}, ${width}px)`, async ({

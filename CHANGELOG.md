@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.16.0](https://github.com/alrayyes/forge-dashboard/compare/v9.15.0...v9.16.0) (2026-11-11)
+
+
+### Features
+
+* **web:** say how many failed checks Rerun failed checks will rerun ([#3511](https://github.com/alrayyes/forge-dashboard/issues/3511)) ([a37742d](https://github.com/alrayyes/forge-dashboard/commit/a37742de4db2094e2d75f50d50b40fe0e3b19a3b))
+
+## [9.15.0](https://github.com/alrayyes/forge-dashboard/compare/v9.14.2...v9.15.0) (2026-11-11)
+
+
+### Features
+
+* **web:** say which out-of-date rows Rebase all leaves out and why ([#3493](https://github.com/alrayyes/forge-dashboard/issues/3493)) ([a2624c1](https://github.com/alrayyes/forge-dashboard/commit/a2624c1fdba59da9e685dbd5a4093e8a8f949beb))
+
+## [9.14.2](https://github.com/alrayyes/forge-dashboard/compare/v9.14.1...v9.14.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** make a scrolling pull request description keyboard reachable ([#3488](https://github.com/alrayyes/forge-dashboard/issues/3488)) ([ce0f9b9](https://github.com/alrayyes/forge-dashboard/commit/ce0f9b9827e607ab052e25b45ec487509f2b2a24))
+
+## [9.14.1](https://github.com/alrayyes/forge-dashboard/compare/v9.14.0...v9.14.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** keep the Webhooks Per page select once a size is chosen ([#3481](https://github.com/alrayyes/forge-dashboard/issues/3481)) ([6066a93](https://github.com/alrayyes/forge-dashboard/commit/6066a93d1732a6356b33f3772b6056d9fc171e83)), closes [#3462](https://github.com/alrayyes/forge-dashboard/issues/3462)
+
 ## [9.14.0](https://github.com/alrayyes/forge-dashboard/compare/v9.13.0...v9.14.0) (2026-11-11)
 
 

@@ -18,3 +18,7 @@ folds up to leave room for a list row on the first screen.
 strip on the Pull requests page at 1280px and 390px, light and dark, before and
 after the sentence and the listed chip are left out. The board header counts
 the rows.
+
+`before-nav-pill/` and `after-nav-pill/` show the navigation pills in the header
+and on the phone tab bar, light and dark, before and after the total is left out
+when it only repeats the one count beside it (2 running of 2 draws "2 running").

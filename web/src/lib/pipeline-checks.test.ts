@@ -11,6 +11,7 @@ import {
   formatCheckDuration,
   groupChecks,
   isBlocking,
+  rerunnableCounts,
   runPageUrl,
 } from './pipeline-checks';
 
@@ -275,5 +276,34 @@ describe('checkState', () => {
     expect(
       checkState(check({ status: 'in_progress', conclusion: 'failure' })),
     ).toBe('running');
+  });
+});
+
+describe('rerunnableCounts', () => {
+  test('counts failed and timed-out checks that name a run', () => {
+    const counts = rerunnableCounts([
+      check({ conclusion: 'failure', runId: 1 }),
+      check({ conclusion: 'timed_out', runId: 2 }),
+      check({ conclusion: 'success', runId: 3 }),
+    ]);
+    expect(counts).toEqual({ rerun: 2, skipped: 0 });
+  });
+
+  test('a failed check with no run is skipped, whatever its job id', () => {
+    const counts = rerunnableCounts([
+      check({ conclusion: 'failure', runId: 1 }),
+      check({ conclusion: 'failure', jobId: 7 }),
+      check({ conclusion: 'failure' }),
+    ]);
+    expect(counts).toEqual({ rerun: 1, skipped: 2 });
+  });
+
+  test('passed, running and cancelled checks count for nothing', () => {
+    const counts = rerunnableCounts([
+      check({ conclusion: 'success' }),
+      check({ status: 'in_progress', conclusion: undefined }),
+      check({ conclusion: 'cancelled' }),
+    ]);
+    expect(counts).toEqual({ rerun: 0, skipped: 0 });
   });
 });

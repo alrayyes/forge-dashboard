@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { AllowedAction } from './allowed-actions';
 import {
+  leftOutLine,
   progressLabel,
   rebaseAllLabel,
   rebaseAllPlan,
@@ -224,5 +225,84 @@ describe('rebaseAllPlan failing count', () => {
     expect(
       rebaseAllPlan([row({ number: 1 })], { blockedReason: none }).failing,
     ).toBe(0);
+  });
+});
+
+// Rows that count as out of date but are not asked (#3281) keep a reason, in
+// the words the row itself uses.
+describe('rebaseAllPlan left-out rows', () => {
+  test('lists a row already asked, with the row chip wording', () => {
+    const plan = rebaseAllPlan([row({ number: 1 }), row({ number: 2 })], {
+      blockedReason: none,
+      requested: (item) => item.number === 1,
+    });
+    expect(plan.leftOut.map((l) => [l.item.number, l.reason])).toEqual([
+      [1, 'Rebase requested.'],
+    ]);
+  });
+
+  test('lists a Dependabot row on a forge that blocks commands', () => {
+    const plan = rebaseAllPlan([row({ number: 1 })], {
+      blockedReason: () => 'no token',
+    });
+    expect(plan.leftOut.map((l) => [l.item.number, l.reason])).toEqual([
+      [1, 'no token'],
+    ]);
+  });
+
+  test('uses the message the server blocked the action with', () => {
+    const plan = rebaseAllPlan(
+      [
+        row({
+          number: 1,
+          allowedActions: [
+            {
+              action: 'dependabot_rebase',
+              blocked: { code: 'x', message: 'Conflicts need a human.' },
+            },
+          ],
+        }),
+      ],
+      { blockedReason: none },
+    );
+    expect(plan.leftOut.map((l) => l.reason)).toEqual([
+      'Conflicts need a human.',
+    ]);
+  });
+
+  test('says so when the server offers no rebase at all', () => {
+    const plan = rebaseAllPlan([row({ number: 1, allowedActions: [] })], {
+      blockedReason: none,
+    });
+    expect(plan.leftOut.map((l) => l.reason)).toEqual([
+      'No rebase is offered for this pull request.',
+    ]);
+  });
+
+  test('leaves out nothing when every behind row can run', () => {
+    const plan = rebaseAllPlan(
+      [row({ number: 1 }), row({ number: 2, behind: false })],
+      { blockedReason: none },
+    );
+    expect(plan.leftOut).toEqual([]);
+  });
+
+  test('every behind row is either eligible or left out', () => {
+    const plan = rebaseAllPlan(
+      [row({ number: 1 }), row({ number: 2 }), row({ number: 3 })],
+      { blockedReason: none, requested: (i) => i.number === 2 },
+    );
+    expect(plan.eligible.length + plan.leftOut.length).toBe(plan.behind);
+  });
+});
+
+describe('leftOutLine', () => {
+  test('counts the rows that can run and names each reason once', () => {
+    expect(leftOutLine(2, ['Rebase requested.', 'Rebase requested.'])).toBe(
+      '2 can be rebased. 2 are left out: Rebase requested.',
+    );
+    expect(leftOutLine(2, ['Rebase requested.'])).toBe(
+      '2 can be rebased. 1 is left out: Rebase requested.',
+    );
   });
 });

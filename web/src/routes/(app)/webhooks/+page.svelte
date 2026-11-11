@@ -122,6 +122,9 @@
   let sortDir = $state<"asc" | "desc">("asc");
   let page = $state(1);
   let pageSize = $state(25);
+  // Once a size is picked the select stays, even when one page holds
+  // everything, so the choice and keyboard focus survive (#3462).
+  let sizeChosen = $state(false);
 
   let statusMessage = $state("");
   let statusKind = $state<"" | "error">("");
@@ -1566,40 +1569,45 @@
           </tbody>
         </table>
 
-        {#if totalPages > 1}
+        {#if totalPages > 1 || sizeChosen}
           <div class="pagination" id="webhooks-pagination">
-            <div class="pagination-pages" id="webhooks-pagination-pages">
-              <button
-                type="button"
-                class="pagination-nav"
-                disabled={clampedPage <= 1}
-                bind:this={prevButton}
-                onclick={() => goToPage(clampedPage - 1)}>Previous</button
-              >
-              {#each pageNumbers as n (n)}
+            {#if totalPages > 1}
+              <div class="pagination-pages" id="webhooks-pagination-pages">
                 <button
                   type="button"
-                  class="pagination-page"
-                  class:active={n === clampedPage}
-                  aria-current={n === clampedPage ? "page" : undefined}
-                  onclick={() => (page = n)}>{n}</button
+                  class="pagination-nav"
+                  disabled={clampedPage <= 1}
+                  bind:this={prevButton}
+                  onclick={() => goToPage(clampedPage - 1)}>Previous</button
                 >
-              {/each}
-              <button
-                type="button"
-                class="pagination-nav"
-                disabled={clampedPage >= totalPages}
-                bind:this={nextButton}
-                onclick={() => goToPage(clampedPage + 1)}>Next</button
-              >
-            </div>
+                {#each pageNumbers as n (n)}
+                  <button
+                    type="button"
+                    class="pagination-page"
+                    class:active={n === clampedPage}
+                    aria-current={n === clampedPage ? "page" : undefined}
+                    onclick={() => (page = n)}>{n}</button
+                  >
+                {/each}
+                <button
+                  type="button"
+                  class="pagination-nav"
+                  disabled={clampedPage >= totalPages}
+                  bind:this={nextButton}
+                  onclick={() => goToPage(clampedPage + 1)}>Next</button
+                >
+              </div>
+            {/if}
             <label class="pagination-size">
               Per page
               <select
                 id="webhooks-page-size"
                 aria-label="Results per page"
                 bind:value={pageSize}
-                onchange={() => (page = 1)}
+                onchange={() => {
+                  sizeChosen = true;
+                  page = 1;
+                }}
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
