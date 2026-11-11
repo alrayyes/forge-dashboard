@@ -3401,6 +3401,101 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/v1/images:
+    get:
+      operationId: getImage
+      summary: Read an image embedded in a forge's Markdown, through the server
+      description: |
+        The details dialog shows the images in a description or comment by
+        pointing its `<img>` here, never at the forge or a third party. The
+        server fetches the image and returns the bytes, so the browser sends no
+        request to another host, and a private repository's attachment loads
+        without the forge token ever reaching the browser.
+
+        Only the forge the item belongs to is reached. Forgejo: the saved
+        instance, with the saved token sent to that host only. GitHub:
+        `github.com` and its user-content hosts (`user-images`,
+        `private-user-images` and `raw.githubusercontent.com`), without a
+        token, since its attachment links are signed. Any other host, scheme or
+        address answers 403 without a request. A redirect is followed only to
+        another allowed host, and at most three times. GitHub's hosts are also
+        refused at connect time if they resolve to a non-public address.
+
+        The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
+        host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
+        415. The answer carries `nosniff` and a sandboxing
+        `Content-Security-Policy`, and is cacheable by the browser for an hour.
+      tags: [dashboard]
+      x-mcp-excluded: Returns image bytes for a browser to draw; an MCP tool has no use for them.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [github, forgejo]
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The absolute address of the image, as written in the Markdown.
+      responses:
+        "200":
+          description: The image.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        "400":
+          description: "`url` is missing, `forge` is not github or forgejo, or no credentials are saved for that forge."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The address is outside the forge's hosts, or the saved token can't read the image.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge has no such image.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: The image is over 8 MiB.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "415":
+          description: The address does not serve a PNG, JPEG, GIF or WebP image.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable or answered something this app could not use.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/v1/main-branches/advisories:
     get:
       operationId: listAdvisories
