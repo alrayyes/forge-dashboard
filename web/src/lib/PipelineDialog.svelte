@@ -70,6 +70,7 @@
   import type { CopyFlow } from "#lib/copy-flow.svelte.js";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import { FORGE_LABELS } from "#lib/forges.js";
+  import { syncScrollRegion } from "#lib/scroll-region.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
   import {
@@ -586,6 +587,28 @@
     }),
   );
 
+  // The body scrolls when the list is long. It needs a tab stop of its own
+  // unless a link or button inside it already is one (a dialog whose failures
+  // all lack a run has neither). Its children come and go with the phase, so
+  // the watch starts again when they do.
+  function scrollStop(body: HTMLElement) {
+    const start = () =>
+      syncScrollRegion(body, {
+        label: "Pipeline checks",
+        skipIfFocusableDescendant: true,
+      });
+    let stop = start();
+    const changes = new MutationObserver(() => {
+      stop();
+      stop = start();
+    });
+    changes.observe(body, { childList: true, subtree: true });
+    return () => {
+      changes.disconnect();
+      stop();
+    };
+  }
+
   // The board's own control, drawn again with each change of the checks. A
   // control the keyboard was on keeps focus.
   function controls(host: HTMLElement) {
@@ -819,7 +842,7 @@
     {staleNote}
   </p>
   <p class="sr-only pipeline-live-status" aria-live="polite">{announcement}</p>
-  <div class="pipeline-dialog-body">
+  <div class="pipeline-dialog-body" {@attach scrollStop}>
     {#if phase === "loading"}
       <p class="pipeline-status">Loading checks…</p>
     {:else if phase === "error"}

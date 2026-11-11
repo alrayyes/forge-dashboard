@@ -906,13 +906,15 @@ write) on a GitHub App. A permission added to an App that is already installed
 does nothing until the owner accepts it on the installation's page. When the
 forge refuses (no permission, a run too old or already running), the panel shows
 its reason and the button stays for another try.
-The button names how many it will rerun ("Rerun failed checks (2)") and a line
-above it says so: "2 failed checks will rerun on GitHub." It counts the failed
-or timed-out checks in the panel that name a workflow run, and adds "1 can't be
-rerun from here." for the ones that don't. With none to rerun there is no
-button, only "None of the 2 failed checks can be rerun from here." The count
-promises only what the panel shows; the forge can still refuse. Where the
-button is locked or the forge has no rerun route, the line isn't drawn.
+The button carries the number of checks it reruns ("Rerun failed checks (2)")
+and a line before it gives the same count: "2 failed checks will rerun on
+GitHub." The count covers the failed or timed-out checks in the panel that name
+a workflow run, and the line adds "1 can't be rerun from here." for the ones
+that don't. With none to rerun there is no button, only a line: "The failed
+check can't be rerun from here." for one, "None of the 2 failed checks can be
+rerun from here." for more. The count promises only what the panel shows; the
+forge can still refuse. Where the button is locked or the forge has no rerun
+route, the line isn't drawn.
 A failed check that isn't an Actions job, such as an external CI, can't be
 rerun and is skipped; a pull request with nothing left to rerun answers "no
 failed job to rerun" (`POST /api/v1/pull-requests/rerun-checks`, listed as

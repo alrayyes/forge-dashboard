@@ -6766,7 +6766,9 @@
       count.textContent =
         rerun > 0
           ? `${rerun} failed ${rerun === 1 ? "check" : "checks"} will rerun on ${forgeName}.${left}`
-          : `None of the ${skipped} failed checks can be rerun from here.`;
+          : skipped === 1
+            ? "The failed check can't be rerun from here."
+            : `None of the ${skipped} failed checks can be rerun from here.`;
       if (rerun === 0) {
         wrap.appendChild(count);
         return wrap;

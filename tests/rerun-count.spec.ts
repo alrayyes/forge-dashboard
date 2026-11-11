@@ -125,6 +125,48 @@ test.describe('rerun failed checks says how many it reruns', () => {
     ).toHaveCount(0);
   });
 
+  test('a single failed check with no run reads in the singular', async ({
+    page,
+  }) => {
+    const dialog = await open(page, [failed('ci/circleci')]);
+    await expect(dialog.locator('.pipeline-rerun-count')).toHaveText(
+      "The failed check can't be rerun from here.",
+    );
+  });
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of [320, 820]) {
+      test(`a long list of failures with no run scrolls by keyboard at ${width}px in ${theme} with no axe violation`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize({ width, height: 600 });
+        const long = 'x'.repeat(40);
+        const checks = Array.from({ length: 30 }, (_, i) =>
+          failed(`ci/external-${i} ${long}`),
+        );
+        const dialog = await open(page, checks);
+        await expect(dialog.locator('.pipeline-rerun-count')).toBeVisible();
+        const body = dialog.locator('.pipeline-dialog-body');
+        expect(
+          await body.evaluate((b) => b.scrollHeight > b.clientHeight),
+        ).toBe(true);
+        await expect(body).toHaveAttribute('tabindex', '0');
+        await expect(body).toHaveAccessibleName('Pipeline checks');
+        await body.focus();
+        await expect(body).toBeFocused();
+        await page.keyboard.press('End');
+        await expect
+          .poll(() => body.evaluate((b) => b.scrollTop))
+          .toBeGreaterThan(0);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
+
   test('a Forgejo with no rerun route draws no count, only its reason', async ({
     page,
   }) => {
