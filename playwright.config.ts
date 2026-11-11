@@ -164,6 +164,7 @@ const singleUserSpecs = [
   '**/refresh-queue-focus.spec.ts',
   '**/pagination-focus.spec.ts',
   '**/webhooks-pager-focus.spec.ts',
+  '**/webhooks-page-size-stays.spec.ts',
   '**/label-chip-pill-overlap.spec.ts',
   '**/inline-feedback.spec.ts',
   '**/label-in-name.spec.ts',
