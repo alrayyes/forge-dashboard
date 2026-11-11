@@ -70,6 +70,8 @@ test.describe('Webhooks Per page select stays (#3462)', () => {
   }) => {
     await mock(page, 5);
     await page.goto('/webhooks.html');
+    // Wait for the rows first: an absence check on an unrendered page passes.
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(5);
     await expect(page.locator('#webhooks-page-size')).toHaveCount(0);
     await expect(page.locator('#webhooks-pagination')).toHaveCount(0);
   });
