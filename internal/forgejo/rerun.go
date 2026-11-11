@@ -71,6 +71,43 @@ func (c *Client) rerunBlocked(ctx context.Context) error {
 	return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNoRerunRoute}
 }
 
+// CanRerunFailedChecks implements dashboard.ChecksRerunProber (#3236): it finds
+// the failed runs RerunFailedChecks would work on and restarts no job.
+func (c *Client) CanRerunFailedChecks(ctx context.Context, owner, name string, number int) error {
+	failed, err := c.failedRunsOfPullRequest(ctx, owner, name, number)
+	if err != nil {
+		return err
+	}
+	if len(failed) == 0 {
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerun}
+	}
+
+	return nil
+}
+
+// failedRunsOfPullRequest is the failed Actions runs on the pull request's head
+// commit, after the version check a rerun needs.
+func (c *Client) failedRunsOfPullRequest(ctx context.Context, owner, name string, number int) ([]int64, error) {
+	if err := c.rerunBlocked(ctx); err != nil {
+		return nil, err
+	}
+	c = c.withContext(ctx)
+	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
+	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
+	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
+	if err != nil {
+		return nil, c.forgejoError(ctx, http.MethodGet, prPath, resp, err)
+	}
+	c.recordRequest(ctx, http.MethodGet, prPath, resp.StatusCode, requestlog.OutcomeSuccess)
+
+	var sha string
+	if pr.Head != nil {
+		sha = pr.Head.Sha
+	}
+
+	return c.failedRunIDs(ctx, owner, name, sha)
+}
+
 // RerunFailedChecks implements dashboard.ChecksRerunner: it finds the Actions
 // runs on the pull request's head commit, reads the jobs of each run that
 // failed, and asks Forgejo to rerun each job that failed. A commit status
@@ -82,26 +119,11 @@ func (c *Client) rerunBlocked(ctx context.Context) error {
 // refusal, and Forgejo's own reason (a token without the Actions scope, an
 // instance without the route) is what a person needs.
 func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
-	if err := c.rerunBlocked(ctx); err != nil {
+	failed, err := c.failedRunsOfPullRequest(ctx, owner, name, number)
+	if err != nil {
 		return err
 	}
 	c = c.withContext(ctx)
-	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", prPath)
-	pr, resp, err := c.sdk.GetPullRequest(owner, name, int64(number))
-	if err != nil {
-		return c.forgejoError(ctx, http.MethodGet, prPath, resp, err)
-	}
-	c.recordRequest(ctx, http.MethodGet, prPath, resp.StatusCode, requestlog.OutcomeSuccess)
-
-	var sha string
-	if pr.Head != nil {
-		sha = pr.Head.Sha
-	}
-	failed, err := c.failedRunIDs(ctx, owner, name, sha)
-	if err != nil {
-		return err
-	}
 	if len(failed) == 0 {
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerun}
 	}

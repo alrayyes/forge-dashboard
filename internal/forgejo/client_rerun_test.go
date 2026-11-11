@@ -198,3 +198,27 @@ func TestRerunFailedChecks_PullRequestLookupFails_ReturnsTheError(t *testing.T) 
 	got := dashboard.ClassifyActionRefusalFor(dashboard.PullRequestActionRerunChecks, err, nil)
 	assert.Equal(t, "The forge couldn't find that run, job or pull request. It may not support rerunning checks from here, or the token can't see this repository.", got.Message)
 }
+
+var _ dashboard.ChecksRerunProber = (*forgejo.Client)(nil)
+
+// CanRerunFailedChecks answers what RerunFailedChecks would do without
+// restarting a job (#3236).
+func TestCanRerunFailedChecks_AFailedRunCanBeRerun_AndNothingIsRestarted(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 42, "status": "failure"}}}
+
+	require.NoError(t, s.start(t).CanRerunFailedChecks(t.Context(), "alrayyes", "a", 5))
+
+	assert.Empty(t, s.rerunsSeen())
+}
+
+func TestCanRerunFailedChecks_NoFailedRunIsAConflict(t *testing.T) {
+	t.Parallel()
+	s := &rerunServer{runs: []map[string]any{{"id": 41, "status": "success"}}}
+
+	err := s.start(t).CanRerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	require.True(t, ok, "want a ClientError, got %v", err)
+	assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+}

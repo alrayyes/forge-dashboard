@@ -179,6 +179,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/v1/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsList(deps)))
 	mux.Handle("POST /api/v1/queued-actions", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCreate(deps)))
 	mux.Handle("DELETE /api/v1/queued-actions/{id}", auth.RequireAuth(deps.AuthStore)(handleQueuedActionsCancel(deps)))
+	mux.Handle("GET /api/v1/pull-requests/rerunnable", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestRerunnable(deps))))
 	mux.Handle("GET /api/v1/pull-requests/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handlePullRequestDetails(deps))))
 	mux.Handle("GET /api/v1/releases/details", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleReleaseDetails(deps))))
 	mux.Handle("POST /api/v1/issues/close", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handleIssueClose(deps))))
