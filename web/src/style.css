@@ -1251,6 +1251,15 @@ select.col-filter {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+/* Forced colors drops the border colour and inset shadow that mark a paused
+   updates bar (#3388). A 3px system-colour border marks it, with the padding
+   cut by the 2px it gained so the button keeps its size. */
+@media (forced-colors: active) {
+  .updates-bar .updates-pause[aria-pressed="true"] {
+    border: 3px solid Highlight;
+    padding: 3px 8px;
+  }
+}
 
 /* The marker is words, so it doesn't rely on colour or motion; the fade
    only plays for people who haven't asked for reduced motion. */
@@ -3920,6 +3929,15 @@ button.pipeline-check-link:disabled {
 .segment button[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-ink);
+}
+/* Forced colors drops the accent fill of a pressed segment button (#3388).
+   Same mark as the quick pills: a 3px system-colour border, padding cut to
+   match so nothing moves. */
+@media (forced-colors: active) {
+  .segment button[aria-pressed="true"] {
+    border: 3px solid Highlight;
+    padding: 1px 8px;
+  }
 }
 
 .quick-pill[aria-pressed="true"] {
