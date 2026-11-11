@@ -41,6 +41,7 @@ async function open(
   opts: {
     forges?: Record<string, unknown>[];
     refuse?: Record<number, string>;
+    hidden?: number;
   } = {},
 ) {
   const posts: number[] = [];
@@ -55,6 +56,7 @@ async function open(
       issues: [],
       repos: [],
       hiddenDrafts: 0,
+      hiddenPullRequests: opts.hidden ?? 0,
     });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -371,38 +373,49 @@ for (const [scheme, width] of [
 }
 
 // The header is as tall with the button as without it, so a row turning red
-// moves nothing below it (#3236). Phones are where the button used to wrap.
+// moves nothing below it (#3236). Phones are where the button used to wrap,
+// and the Hidden toggle is what takes the room beside it.
 for (const [name, path] of [
   ['Pull requests', '/pull-requests.html'],
   ['Bots', '/bots.html'],
 ] as const) {
-  for (const width of [320, 390, 820]) {
-    test(`${name}: the header keeps its height when the button appears at ${width}px`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width, height: 800 });
-      const rows = (ci: string) => [
-        pr(1, { ci, author: name === 'Bots' ? 'dependabot[bot]' : 'ryankes' }),
-        pr(2, { ci, author: name === 'Bots' ? 'dependabot[bot]' : 'ryankes' }),
-      ];
-      await open(page, path, rows('success'), {});
-      await expect(page.locator('.row').first()).toBeVisible();
-      await expect(page.locator('#rerun-all-button')).toBeHidden();
-      const head = page.locator('.board-head');
-      const without = (await head.boundingBox())?.height;
-      const rowTop = (await page.locator('.row').first().boundingBox())?.y;
+  for (const hidden of [0, 2]) {
+    for (const width of [320, 390, 480, 820]) {
+      test(`${name}: the header keeps its height when the button appears at ${width}px${hidden ? ' with the Hidden toggle' : ''}`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        const author = name === 'Bots' ? 'dependabot[bot]' : 'ryankes';
+        const rows = (ci: string) => [
+          pr(1, { ci, author }),
+          pr(2, { ci, author }),
+        ];
+        await open(page, path, rows('success'), {}, { hidden });
+        await expect(page.locator('.row').first()).toBeVisible();
+        await expect(page.locator('#rerun-all-button')).toBeHidden();
+        if (hidden)
+          await expect(page.locator('#hidden-prs-toggle')).toBeVisible();
+        const head = page.locator('.board-head');
+        const without = (await head.boundingBox())?.height;
+        const rowTop = (await page.locator('.row').first().boundingBox())?.y;
 
-      const withIt = await page.context().newPage();
-      await withIt.setViewportSize({ width, height: 800 });
-      await open(withIt, path, rows('failure'), {});
-      await expect(withIt.locator('#rerun-all-button')).toBeVisible();
-      expect((await withIt.locator('.board-head').boundingBox())?.height).toBe(
-        without,
-      );
-      expect((await withIt.locator('.row').first().boundingBox())?.y).toBe(
-        rowTop,
-      );
-      await withIt.close();
-    });
+        const withIt = await page.context().newPage();
+        await withIt.setViewportSize({ width, height: 800 });
+        await open(withIt, path, rows('failure'), {}, { hidden });
+        const button = withIt.locator('#rerun-all-button');
+        await expect(button).toBeVisible();
+        expect(
+          (await withIt.locator('.board-head').boundingBox())?.height,
+        ).toBe(without);
+        expect((await withIt.locator('.row').first().boundingBox())?.y).toBe(
+          rowTop,
+        );
+        // The target never lands on the heading above it.
+        const h2 = await withIt.locator('.board-head h2').boundingBox();
+        const b = await button.boundingBox();
+        if (width <= 480) expect(h2 && b && b.y >= h2.y + h2.height).toBe(true);
+        await withIt.close();
+      });
+    }
   }
 }
