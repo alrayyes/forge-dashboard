@@ -248,6 +248,15 @@ type ChecksRerunner interface {
 	RerunFailedChecks(ctx context.Context, owner, name string, number int) error
 }
 
+// ChecksRerunProber is ChecksRerunner's read-only half (#3236): it finds what
+// RerunFailedChecks would rerun and restarts nothing. It answers nil when a
+// rerun would find a job, and an error of kind ForgeErrorConflict, with the
+// sentence a person reads, when there is none. Bulk "Rerun failed checks"
+// asks it before sending anything.
+type ChecksRerunProber interface {
+	CanRerunFailedChecks(ctx context.Context, owner, name string, number int) error
+}
+
 // DefaultBranchRerunner is implemented by a ForgeClient (or, for github.Client,
 // a Source directly) that can rerun the failed jobs of the newest pipeline on a
 // repository's default branch: the branch twin of ChecksRerunner. An error of

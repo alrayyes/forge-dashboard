@@ -23,9 +23,11 @@ import (
 // a test can tell a refusal made by the server from one made by the forge.
 type rerunSource struct {
 	fakeConfiguredSource
-	err    error
-	mu     sync.Mutex
-	called []string
+	err error
+	// probeErr is what the read-only check answers.
+	probeErr error
+	mu       sync.Mutex
+	called   []string
 }
 
 func (s *rerunSource) RerunFailedChecks(_ context.Context, owner, name string, number int) error {
@@ -251,4 +253,71 @@ func TestPullRequestRerunChecks_OnForgejo_TheTokenMayNotRerun_Is403(t *testing.T
 	status, _ := postRerunChecksFor(t, "forgejo", srv.URL, cookie)
 
 	assert.Equal(t, http.StatusForbidden, status)
+}
+
+func (s *rerunSource) CanRerunFailedChecks(_ context.Context, _, _ string, _ int) error {
+	return s.probeErr
+}
+
+func getRerunnable(t *testing.T, srvURL string, cookie *http.Cookie) (int, map[string]any) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/pull-requests/rerunnable?forge=github&fullName=alrayyes/a&number=5", nil)
+	require.NoError(t, err)
+	req.AddCookie(cookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	var got map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+
+	return resp.StatusCode, got
+}
+
+func TestPullRequestRerunnable_SaysYes_WithoutRerunning(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, src := rerunBoard(t, nil, failingPR())
+
+	status, body := getRerunnable(t, srv.URL, cookie)
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, true, body["rerunnable"])
+	assert.Empty(t, src.calls(), "a probe must not rerun anything")
+}
+
+func TestPullRequestRerunnable_NothingToRerun_IsAnAnswerNotAnError(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, src := rerunBoard(t, nil, failingPR())
+	src.probeErr = &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errors.New("no failed GitHub Actions job to rerun on this pull request")}
+
+	status, body := getRerunnable(t, srv.URL, cookie)
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, false, body["rerunnable"])
+	assert.Equal(t, "no failed GitHub Actions job to rerun on this pull request", body["reason"])
+}
+
+func TestPullRequestRerunnable_OtherForgeErrors_KeepTheirStatus(t *testing.T) {
+	t.Parallel()
+
+	srv, cookie, src := rerunBoard(t, nil, failingPR())
+	src.probeErr = &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("slow down")}
+
+	status, body := getRerunnable(t, srv.URL, cookie)
+
+	assert.Equal(t, http.StatusTooManyRequests, status)
+	assert.Equal(t, "slow down", body["error"])
+}
+
+func TestPullRequestRerunnable_ForgeWithNoSupport_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
+	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	status, _ := getRerunnable(t, srvURL, cookie)
+
+	assert.Equal(t, http.StatusBadRequest, status)
 }

@@ -2236,6 +2236,100 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionError"
 
+  /api/v1/pull-requests/rerunnable:
+    get:
+      operationId: getPullRequestRerunnable
+      x-mcp-excluded: "Not offered to MCP clients: only the bulk Rerun failed checks control reads it."
+      summary: Say whether Rerun failed checks would find a job on one pull request, without rerunning anything
+      description: |
+        Reads what POST /api/v1/pull-requests/rerun-checks reads and restarts
+        nothing: on GitHub the failed check runs on the head commit, each mapped
+        to its workflow run; on Forgejo the failed Actions runs on the head
+        commit, after the same version check. The bulk "Rerun failed checks"
+        control asks it for each failing row, to sort them before it sends a
+        request.
+
+        "No" is an answer, not an error: `rerunnable` is false and `reason`
+        carries the same sentence the rerun's 409 would (only non-Actions checks
+        failed, nothing ran, a Forgejo older than 17). A forge that can't be read
+        keeps its own status. The forge can still refuse the rerun itself (the
+        run is too old, the token can't write to Actions), which only the rerun
+        learns.
+
+        This costs forge requests on every call (the pull request, its check
+        runs and one job lookup per failed check on GitHub), so it is never part
+        of the snapshot.
+      tags: [pull-requests]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: forge
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Forge"
+        - name: fullName
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '"owner/repo", matching a Repo.fullName from GET /api/v1/dashboard.'
+        - name: number
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Matching a PullRequest.number from GET /api/v1/dashboard.
+      responses:
+        "200":
+          description: Whether a rerun would find a failed job, and why not when it wouldn't.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rerunnable]
+                properties:
+                  rerunnable:
+                    type: boolean
+                  reason:
+                    type: string
+                    description: The forge's plain sentence for why nothing can be rerun. Present only when `rerunnable` is false.
+        "400":
+          description: '`number` wasn''t an integer, `fullName` wasn''t "owner/repo", no credentials are saved for that forge, or that forge''s client can''t rerun checks.'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie or token was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: The forge rejected the request as unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: The forge reported the repo or pull request doesn't exist (or isn't visible to this token).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          description: The forge rate-limited the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/v1/pull-requests/details:
     get:
       operationId: getPullRequestDetails

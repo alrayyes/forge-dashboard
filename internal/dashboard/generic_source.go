@@ -580,6 +580,18 @@ func (s *GenericSource) RerunFailedChecks(ctx context.Context, owner, name strin
 	return rerunner.RerunFailedChecks(ctx, owner, name, number) //nolint:wrapcheck // see above
 }
 
+// CanRerunFailedChecks implements ChecksRerunProber at the Source level, the
+// same shape as RerunFailedChecks.
+func (s *GenericSource) CanRerunFailedChecks(ctx context.Context, owner, name string, number int) error {
+	prober, ok := s.client.(ChecksRerunProber)
+	if !ok {
+		return fmt.Errorf("dashboard: %s's client can't check reruns: %w", s.forge, errUnsupportedByClient)
+	}
+
+	// Not wrapped, for the same reason as RerunFailedChecks.
+	return prober.CanRerunFailedChecks(ctx, owner, name, number) //nolint:wrapcheck // see above
+}
+
 // RerunFailedDefaultBranchChecks implements DefaultBranchRerunner at the Source
 // level, the same shape as RerunFailedChecks.
 func (s *GenericSource) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, defaultBranch string) error {

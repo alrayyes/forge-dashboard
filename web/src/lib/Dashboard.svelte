@@ -193,6 +193,14 @@
     updateAllLabel,
     updateAllPlan,
   } from "#lib/update-all.js";
+  import {
+    type Probe as RerunProbe,
+    rerunAllLabel,
+    rerunAllPlan,
+    rerunNoneLine,
+    rerunProgressLabel,
+    showRerunAll,
+  } from "#lib/rerun-all.js";
   import type { StripChip } from "#lib/strip-chip.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import { syncScrollRegion } from "#lib/scroll-region.js";
@@ -1494,23 +1502,39 @@
     // panel's both call it. `onChange` lets the panel redraw its own control
     // in place after each state change.
     function doRerunChecks(item: PullRequestItem, onChange?: () => void) {
-      const key = prKey(item);
-      rerunState[key] = { phase: "requesting" };
+      rerunState[prKey(item)] = { phase: "requesting" };
       onChange?.();
       renderPRBoard();
-      postRerunChecks(item)
+      void sendRerun(item, true).finally(() => {
+        onChange?.();
+        renderPRBoard();
+      });
+    }
+
+    // Asks for one rerun and records the outcome on the row's state. Resolves
+    // with the refusal's message, or null once the forge queued it. Rerun
+    // failed checks (all) passes announce=false and speaks once at the end.
+    function sendRerun(
+      item: PullRequestItem,
+      announce: boolean,
+    ): Promise<string | null> {
+      const key = prKey(item);
+      return postRerunChecks(item)
         .then(() => {
           rerunState[key] = {
             phase: "queued",
             queuedAt: Date.now(),
             updatedAt: livePullRequest(item)?.updatedAt ?? item.updatedAt,
           };
-          feedback.announce(
-            "Rerun queued. The new results show after the next refresh.",
-          );
+          if (announce)
+            feedback.announce(
+              "Rerun queued. The new results show after the next refresh.",
+            );
+          return null;
         })
         .catch((err: ActionRequestError) => {
-          feedback.announce(`Couldn't rerun the checks: ${err.message}`);
+          if (announce)
+            feedback.announce(`Couldn't rerun the checks: ${err.message}`);
           rerunState[key] = {
             phase: "failed",
             message: err.message,
@@ -1521,10 +1545,7 @@
               number: item.number,
             }),
           };
-        })
-        .finally(() => {
-          onChange?.();
-          renderPRBoard();
+          return err.message;
         });
     }
 
@@ -6146,6 +6167,288 @@
       .getElementById("update-all-confirm")
       ?.addEventListener("click", () => void runUpdateAll());
 
+    // ---- rerun failed checks (all), on the Pull requests and Bots pages
+    // (#3236) ----
+    // The rows the filters leave that fail are sorted before anything is sent.
+    // Whether a failing row has a job a rerun can restart is the server's to
+    // say (GET /api/v1/pull-requests/rerunnable). Each answer costs the forge
+    // REST calls, so the page asks only once the button is pressed, one row at
+    // a time, and remembers an answer until the row's updatedAt moves. Each
+    // chosen row then goes through the same request as the row's own Rerun
+    // failed checks.
+    let rerunAllRun: { done: number; total: number } | null = null;
+    // Bumped each time the dialog closes, so a probe pass stops with it.
+    let rerunDialogRound = 0;
+    const rerunProbes = new Map<string, RerunProbe>();
+    const rerunProbeKey = (item: PullRequestItem) =>
+      `${prKey(item)}@${item.updatedAt}`;
+
+    function currentRerunPlan() {
+      return rerunAllPlan(visiblePullRows, {
+        probe: (item) => rerunProbes.get(rerunProbeKey(item)),
+        lockReason: (forge) =>
+          proactiveActionLockReason(forge)?.reason ??
+          rerunBlockedLock(lastForges, forge)?.reason,
+        queued: rerunQueued,
+      });
+    }
+
+    async function probeRerunnable(item: PullRequestItem): Promise<RerunProbe> {
+      const query = new URLSearchParams({
+        forge: item.forge,
+        fullName: item.repo,
+        number: String(item.number),
+      });
+      try {
+        const res = await fetch(
+          `/api/v1/pull-requests/rerunnable?${query.toString()}`,
+          { headers: { Accept: "application/json" } },
+        );
+        if (res.status === 401) {
+          window.location.href = "/login.html";
+          return { unknown: true };
+        }
+        if (!res.ok) return { unknown: true };
+        const body = (await res.json()) as {
+          rerunnable?: boolean;
+          reason?: string;
+        };
+        return body.rerunnable
+          ? { rerunnable: true }
+          : { rerunnable: false, reason: body.reason ?? "" };
+      } catch {
+        return { unknown: true };
+      }
+    }
+
+    function updateRerunAll() {
+      const button = document.getElementById("rerun-all-button");
+      if (!(button instanceof HTMLButtonElement)) return;
+      const plan = currentRerunPlan();
+      // Rows not asked about yet count: pressing the button asks.
+      const ready = plan.eligible.length + plan.checking.length;
+      const block = button.parentElement;
+      if (block) {
+        const show = showRerunAll(plan, rerunAllRun !== null);
+        // A button that vanishes under focus would drop it to the body.
+        if (!show && !block.hidden && block.contains(document.activeElement))
+          document
+            .querySelector<HTMLElement>(
+              '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
+            )
+            ?.focus();
+        block.hidden = !show;
+      }
+      button.textContent = rerunAllRun
+        ? rerunProgressLabel(rerunAllRun.done, rerunAllRun.total)
+        : rerunAllLabel(ready);
+      markPending(button, rerunAllRun !== null);
+      const none = document.getElementById("rerun-all-none");
+      if (none) {
+        const nothing = !rerunAllRun && ready === 0 && plan.failing > 0;
+        const reasons = [...new Set(plan.leftOut.map((l) => l.reason))];
+        none.textContent = nothing
+          ? [rerunNoneLine(plan.failing), ...reasons].join(" ")
+          : "";
+        none.hidden = !nothing;
+        button.title = nothing ? (none.textContent ?? "") : "";
+      }
+    }
+
+    function rerunAllDialog(): HTMLDialogElement | null {
+      const dialog = document.getElementById("rerun-all-dialog");
+      return dialog instanceof HTMLDialogElement ? dialog : null;
+    }
+
+    let stopRerunAllScroll: (() => void) | null = null;
+
+    // The dialog shows one of three things: the probe running, the sorted
+    // rows, or what a finished run could not queue.
+    function rerunDialogMode(
+      mode: "checking" | "plan" | "result",
+      title: string,
+      cancel = "Cancel",
+    ) {
+      const show = (id: string, on: boolean) => {
+        const node = document.getElementById(id);
+        if (node) node.hidden = !on;
+      };
+      show("rerun-all-intro", mode !== "result");
+      show("rerun-all-checking", mode === "checking");
+      show("rerun-all-plan", mode === "plan");
+      show("rerun-all-result", mode === "result");
+      const heading = document.getElementById("rerun-all-title");
+      if (heading) heading.textContent = title;
+      const cancelButton = document.getElementById("rerun-all-cancel");
+      if (cancelButton) cancelButton.textContent = cancel;
+    }
+
+    const rerunItem = (item: PullRequestItem, why?: string) => {
+      const li = el("li", "rebase-all-item");
+      const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+      badge.appendChild(el("span", "dot"));
+      badge.appendChild(
+        document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
+      );
+      li.appendChild(badge);
+      li.appendChild(
+        document.createTextNode(
+          ` ${item.repo} #${item.number} · ${item.title}`,
+        ),
+      );
+      if (why) li.appendChild(el("span", "rebase-all-why", why));
+      return li;
+    };
+
+    function renderRerunPlan() {
+      const plan = currentRerunPlan();
+      const count = plan.eligible.length;
+      const noun = `pull request${count === 1 ? "" : "s"}`;
+      rerunDialogMode(
+        "plan",
+        count === 0 ? "Nothing to rerun" : `Rerun ${count} ${noun}?`,
+        count === 0 ? "Close" : "Cancel",
+      );
+      const confirm = document.getElementById("rerun-all-confirm");
+      if (confirm) {
+        confirm.textContent = `Rerun ${count} ${noun}`;
+        confirm.hidden = count === 0;
+      }
+      const willTitle = document.getElementById("rerun-all-will-title");
+      if (willTitle) {
+        willTitle.textContent = `Will rerun (${count})`;
+        willTitle.hidden = count === 0;
+      }
+      const list = document.getElementById("rerun-all-list");
+      if (list) list.hidden = count === 0;
+      list?.replaceChildren(...plan.eligible.map((item) => rerunItem(item)));
+      const leftBlock = document.getElementById("rerun-all-left-out");
+      const leftTitle = document.getElementById("rerun-all-left-out-title");
+      if (leftTitle)
+        leftTitle.textContent = `Can't rerun (${plan.leftOut.length})`;
+      document
+        .getElementById("rerun-all-left-out-list")
+        ?.replaceChildren(
+          ...plan.leftOut.map(({ item, reason }) => rerunItem(item, reason)),
+        );
+      if (leftBlock) leftBlock.hidden = plan.leftOut.length === 0;
+      stopRerunAllScroll?.();
+      stopRerunAllScroll =
+        list && count > 0
+          ? syncScrollRegion(list, {
+              label: `Pull requests to rerun (${count})`,
+            })
+          : null;
+    }
+
+    function showRerunDialog(dialog: HTMLDialogElement) {
+      if (dialog.open) return;
+      dialog.showModal();
+      document.getElementById("rerun-all-cancel")?.focus();
+      dialog.addEventListener(
+        "close",
+        () => {
+          rerunDialogRound++;
+          for (const [key, answer] of rerunProbes)
+            if ("unknown" in answer) rerunProbes.delete(key);
+          updateRerunAll();
+          stopRerunAllScroll?.();
+          stopRerunAllScroll = null;
+        },
+        { once: true },
+      );
+    }
+
+    async function openRerunAll() {
+      const dialog = rerunAllDialog();
+      if (!dialog || dialog.open || rerunAllRun) return;
+      const first = currentRerunPlan();
+      // With nothing that can run the dialog still opens, to say why.
+      if (first.failing === 0) return;
+      const confirm = document.getElementById("rerun-all-confirm");
+      if (confirm) confirm.hidden = true;
+      rerunDialogMode("checking", "Checking pull requests");
+      showRerunDialog(dialog);
+      const round = rerunDialogRound;
+      const total = first.checking.length;
+      let asked = 0;
+      for (;;) {
+        const next = currentRerunPlan().checking[0];
+        if (!next) break;
+        asked++;
+        const line = document.getElementById("rerun-all-checking");
+        if (line) line.textContent = `Checking ${asked} of ${total}.`;
+        const answer = await probeRerunnable(next);
+        // A failed probe is kept only while the dialog is open (the row is
+        // left in, and the forge decides). It is dropped when the dialog
+        // closes, so the next press asks again.
+        if (round === rerunDialogRound || !("unknown" in answer))
+          rerunProbes.set(rerunProbeKey(next), answer);
+        if (round !== rerunDialogRound) {
+          // The dialog closed while this was out; the count may have moved.
+          updateRerunAll();
+          return;
+        }
+      }
+      renderRerunPlan();
+      updateRerunAll();
+    }
+
+    // One after another, so a forge sees a steady trickle and not a burst. A
+    // refusal is listed in the dialog with its row, and the row keeps its own
+    // retry.
+    async function runRerunAll() {
+      if (rerunAllRun) return;
+      const { eligible } = currentRerunPlan();
+      if (eligible.length === 0) return;
+      const status = document.getElementById("rerun-all-status");
+      const result = document.getElementById("rerun-all-result");
+      result?.replaceChildren();
+      rerunAllRun = { done: 0, total: eligible.length };
+      const refused: string[] = [];
+      updateRerunAll();
+      for (const item of eligible) {
+        const message = await sendRerun(item, false);
+        if (message !== null)
+          refused.push(`${item.repo} #${item.number}: ${message}`);
+        rerunAllRun.done++;
+        updateRerunAll();
+      }
+      const total = rerunAllRun.total;
+      rerunAllRun = null;
+      renderPRBoard();
+      const queued = total - refused.length;
+      const line =
+        refused.length === 0
+          ? `Rerun queued for ${total}.`
+          : `Rerun queued for ${queued} of ${total}. ${refused.length} refused.`;
+      if (status) status.textContent = line;
+      const dialog = rerunAllDialog();
+      if (result && dialog && refused.length > 0) {
+        result.replaceChildren(...refused.map((text) => el("li", "", text)));
+        rerunDialogMode("result", line, "Close");
+        const confirm = document.getElementById("rerun-all-confirm");
+        if (confirm) confirm.hidden = true;
+        showRerunDialog(dialog);
+      }
+    }
+
+    document
+      .getElementById("rerun-all-button")
+      ?.addEventListener("click", (event) => {
+        if (isPending(event.currentTarget as HTMLButtonElement)) return;
+        openRerunAll();
+      });
+    document
+      .getElementById("rerun-all-cancel")
+      ?.addEventListener("click", () => rerunAllDialog()?.close());
+    document
+      .getElementById("rerun-all-confirm")
+      ?.addEventListener("click", () => {
+        rerunAllDialog()?.close();
+        void runRerunAll();
+      });
+
     // A button that stands in for another when the request turns into its
     // cancel names the place it holds, so focus can follow the swap.
     function inFocusSlot(
@@ -7609,6 +7912,7 @@
           else rowWatcher.stop();
           updateRebaseAll();
           updateUpdateAll();
+          updateRerunAll();
         }
         const count = document.getElementById(`${idPrefix}-count`);
         if (count)
@@ -10221,6 +10525,18 @@
               : "Pull requests"}
         </h2>
         <div class="board-head-controls">
+          {#if view === "bots" || view === "pulls"}
+            <div class="rerun-all" hidden>
+              <p class="sr-only" id="rerun-all-none" hidden></p>
+              <button
+                type="button"
+                class="rerun-all-button"
+                id="rerun-all-button"
+                aria-haspopup="dialog"
+                aria-describedby="rerun-all-none">Rerun failed checks</button
+              >
+            </div>
+          {/if}
           <button
             type="button"
             class="hidden-prs-toggle"
@@ -10296,6 +10612,49 @@
             <button type="button" id="update-all-confirm">Update</button>
           </div>
           <p class="update-all-hint">Esc closes this.</p>
+        </dialog>
+      {/if}
+
+      {#if view === "bots" || view === "pulls"}
+        <span class="sr-only" id="rerun-all-status" role="status"></span>
+        <dialog
+          id="rerun-all-dialog"
+          class="rebase-all-dialog rerun-all-dialog"
+          aria-labelledby="rerun-all-title"
+        >
+          <h2 id="rerun-all-title">Rerun pull requests?</h2>
+          <p id="rerun-all-intro">
+            Restarts only the failed jobs of each pull request, on its own
+            forge.
+          </p>
+          <p
+            class="rebase-all-hint"
+            id="rerun-all-checking"
+            role="status"
+            hidden
+          ></p>
+          <div id="rerun-all-plan">
+            <h3 id="rerun-all-will-title">Will rerun</h3>
+            <ul
+              class="rebase-all-list"
+              id="rerun-all-list"
+              aria-labelledby="rerun-all-will-title"
+            ></ul>
+            <div class="rebase-all-left-out" id="rerun-all-left-out" hidden>
+              <h3 id="rerun-all-left-out-title">Can't rerun</h3>
+              <ul
+                class="rebase-all-list rebase-all-left-out-list"
+                id="rerun-all-left-out-list"
+                aria-labelledby="rerun-all-left-out-title"
+              ></ul>
+            </div>
+          </div>
+          <ul class="rerun-all-result" id="rerun-all-result" hidden></ul>
+          <div class="rebase-all-actions">
+            <button type="button" id="rerun-all-cancel">Cancel</button>
+            <button type="button" id="rerun-all-confirm">Rerun</button>
+          </div>
+          <p class="rebase-all-hint">Esc closes this.</p>
         </dialog>
       {/if}
 

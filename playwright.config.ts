@@ -91,6 +91,7 @@ const singleUserSpecs = [
   '**/bot-rebase-all.spec.ts',
   '**/bot-rebase-all-left-out.spec.ts',
   '**/update-all.spec.ts',
+  '**/rerun-all.spec.ts',
   '**/ci-pill-counts.spec.ts',
   '**/checking-for-conflicts.spec.ts',
   '**/running-pill-counts.spec.ts',

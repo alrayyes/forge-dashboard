@@ -5192,7 +5192,8 @@ footer a[aria-current="page"] {
   cursor: pointer;
 }
 .rebase-all-button:not([aria-disabled="true"]),
-#rebase-all-confirm {
+#rebase-all-confirm,
+#rerun-all-confirm {
   color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);
@@ -5240,7 +5241,8 @@ footer a[aria-current="page"] {
 .rebase-all-left-out[hidden] {
   display: none;
 }
-.rebase-all-left-out h3 {
+.rebase-all-left-out h3,
+.rerun-all-dialog h3 {
   margin: 0 0 4px;
   font-size: 0.8125rem;
   color: var(--ink-2);
@@ -5258,6 +5260,88 @@ footer a[aria-current="page"] {
   margin: 12px 0 0;
   font-size: 0.75rem;
   color: var(--ink-3);
+}
+
+/* Rerun failed checks (all), on the Pull requests and Bots pages (#3236). The
+   button sits in the board header beside the count, so a failing row turning
+   up or clearing doesn't move the list. The dialog shares the Rebase all
+   rules above. */
+.rerun-all {
+  display: inline-flex;
+  /* The 44px target spills into the header's padding, so the header is as
+     tall with the button as without it. */
+  margin-block: -14px;
+}
+.rerun-all[hidden] {
+  display: none;
+}
+/* On a phone or small tablet (600px and narrower) the heading and the count
+   don't leave room for the button, so the controls take a row of their own
+   whether or not the button is there. The header is then the same height
+   either way. */
+@media (max-width: 600px) {
+  .board-head:has(.rerun-all) .board-head-controls {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 8px;
+    /* The row is as tall as the button whether or not it shows, so the
+       button needs no negative margin and never lands on the heading. */
+    min-height: 44px;
+  }
+  .board-head:has(.rerun-all) .board-head-controls .count {
+    margin-left: auto;
+  }
+  .rerun-all {
+    margin-block: 0;
+    min-width: 0;
+  }
+  /* The label wraps in two lines when the Hidden toggle shares the row. */
+  .rerun-all-button {
+    padding: 4px 8px;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+}
+.rerun-all-button {
+  min-height: 44px;
+  padding: 4px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+@media (min-width: 701px) {
+  .rerun-all {
+    margin-block: -7px;
+  }
+  .rerun-all-button {
+    min-height: 30px;
+  }
+}
+.rerun-all-button:not([aria-disabled="true"]) {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.rerun-all-button[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.7;
+}
+.rerun-all-result {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.rerun-all-result[hidden] {
+  display: none;
 }
 
 /* Update all, on the Pull requests page (#3011). Its strip, headline, chips

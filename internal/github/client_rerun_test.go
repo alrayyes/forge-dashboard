@@ -134,3 +134,38 @@ func TestRerunFailedChecks(t *testing.T) {
 		assert.Contains(t, err.Error(), "Resource not accessible by integration")
 	})
 }
+
+var _ dashboard.ChecksRerunProber = (*github.Client)(nil)
+
+// CanRerunFailedChecks answers what RerunFailedChecks would do, without
+// asking GitHub to rerun anything (#3236).
+func TestCanRerunFailedChecks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a failed Actions job can be rerun, and nothing is rerun", func(t *testing.T) {
+		t.Parallel()
+		s := &rerunServer{
+			conclusions: map[int64]string{77: "failure"},
+			jobs:        map[int64]int64{77: 900},
+		}
+
+		require.NoError(t, s.start(t).CanRerunFailedChecks(t.Context(), "alrayyes", "a", 5))
+
+		assert.Empty(t, s.reruns)
+	})
+
+	t.Run("only a failed non-Actions check is a conflict", func(t *testing.T) {
+		t.Parallel()
+		s := &rerunServer{
+			conclusions: map[int64]string{77: "failure"},
+			jobs:        map[int64]int64{77: 0},
+		}
+
+		err := s.start(t).CanRerunFailedChecks(t.Context(), "alrayyes", "a", 5)
+
+		clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+		require.True(t, ok, "want a ClientError, got %v", err)
+		assert.Equal(t, dashboard.ForgeErrorConflict, clientErr.Kind)
+		assert.Empty(t, s.reruns)
+	})
+}

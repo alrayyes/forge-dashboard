@@ -22,11 +22,35 @@ var errNothingToRerun = errors.New("no failed GitHub Actions job to rerun on thi
 // jobs of every such run, once per run. A check that isn't an Actions job
 // (a third-party check, a legacy status) can't be rerun here and is skipped.
 func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
+	runs, err := c.pullRequestCheckRuns(ctx, owner, name, number)
+	if err != nil {
+		return err
+	}
+
+	return c.rerunFailedRuns(ctx, owner, name, runs, errNothingToRerun)
+}
+
+// CanRerunFailedChecks implements dashboard.ChecksRerunProber (#3236): it does
+// RerunFailedChecks' lookups and stops before asking GitHub to rerun anything.
+func (c *Client) CanRerunFailedChecks(ctx context.Context, owner, name string, number int) error {
+	runs, err := c.pullRequestCheckRuns(ctx, owner, name, number)
+	if err != nil {
+		return err
+	}
+	if len(c.failedWorkflowRuns(ctx, owner, name, runs)) == 0 {
+		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errNothingToRerun}
+	}
+
+	return nil
+}
+
+// pullRequestCheckRuns is the check runs on the pull request's head commit.
+func (c *Client) pullRequestCheckRuns(ctx context.Context, owner, name string, number int) ([]*ghsdk.CheckRun, error) {
 	prPath := fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, name, number)
 	slog.Debug("github request", "method", http.MethodGet, "url", prPath)
 	pr, prResp, err := c.restClient.PullRequests.Get(ctx, owner, name, number)
 	if err != nil {
-		return asClientError(c.restError(ctx, http.MethodGet, prPath, err))
+		return nil, asClientError(c.restError(ctx, http.MethodGet, prPath, err))
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, prPath, prResp)
 
@@ -35,11 +59,11 @@ func (c *Client) RerunFailedChecks(ctx context.Context, owner, name string, numb
 	slog.Debug("github request", "method", http.MethodGet, "url", runsPath)
 	runs, runsResp, err := c.restClient.Checks.ListCheckRunsForRef(ctx, owner, name, sha, &ghsdk.ListCheckRunsOptions{PerPage: perPage})
 	if err != nil {
-		return asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
+		return nil, asClientError(c.restError(ctx, http.MethodGet, runsPath, err))
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, runsPath, runsResp)
 
-	return c.rerunFailedRuns(ctx, owner, name, runs.CheckRuns, errNothingToRerun)
+	return runs.CheckRuns, nil
 }
 
 // errNothingToRerunOnBranch is errNothingToRerun for a default branch.
@@ -75,16 +99,7 @@ func (c *Client) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name
 // runs and asks GitHub to rerun the failed jobs of each, once per workflow run.
 // none is the conflict's sentence when no such run is found.
 func (c *Client) rerunFailedRuns(ctx context.Context, owner, name string, checkRuns []*ghsdk.CheckRun, none error) error {
-	var workflowRuns []int64
-	for _, r := range checkRuns {
-		if state := checkStateFromRun(r); state != dashboard.CheckFailure && state != dashboard.CheckTimedOut {
-			continue
-		}
-		runID, ok := c.workflowRunOf(ctx, owner, name, r.GetID())
-		if ok && !slices.Contains(workflowRuns, runID) {
-			workflowRuns = append(workflowRuns, runID)
-		}
-	}
+	workflowRuns := c.failedWorkflowRuns(ctx, owner, name, checkRuns)
 	if len(workflowRuns) == 0 {
 		return &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: none}
 	}
@@ -100,6 +115,23 @@ func (c *Client) rerunFailedRuns(ctx context.Context, owner, name string, checkR
 	}
 
 	return nil
+}
+
+// failedWorkflowRuns is the workflow run of each failed or timed-out check run
+// that is an Actions job, once each.
+func (c *Client) failedWorkflowRuns(ctx context.Context, owner, name string, checkRuns []*ghsdk.CheckRun) []int64 {
+	var workflowRuns []int64
+	for _, r := range checkRuns {
+		if state := checkStateFromRun(r); state != dashboard.CheckFailure && state != dashboard.CheckTimedOut {
+			continue
+		}
+		runID, ok := c.workflowRunOf(ctx, owner, name, r.GetID())
+		if ok && !slices.Contains(workflowRuns, runID) {
+			workflowRuns = append(workflowRuns, runID)
+		}
+	}
+
+	return workflowRuns
 }
 
 // workflowRunOf is the workflow run that Actions job id belongs to. The bool
