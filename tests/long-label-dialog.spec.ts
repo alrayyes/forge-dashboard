@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
@@ -89,9 +90,18 @@ test.describe('a long label name stays inside the details dialog (#3403)', () =>
     ],
     ['Issue', '/issues.html', '#issue-rows', /^Issue details/],
   ] as const) {
-    for (const width of [320, 390]) {
-      test(`${name} dialog: chip fits at ${width}px`, async ({ page }) => {
+    for (const [width, scheme] of [
+      [320, 'light'],
+      [390, 'light'],
+      [820, 'light'],
+      [1280, 'light'],
+      [320, 'dark'],
+    ] as const) {
+      test(`${name} dialog: chip fits at ${width}px, ${scheme}`, async ({
+        page,
+      }) => {
         await page.setViewportSize({ width, height: 800 });
+        await page.emulateMedia({ colorScheme: scheme });
         await mock(page);
         await page.goto(path);
         await page
@@ -109,6 +119,17 @@ test.describe('a long label name stays inside the details dialog (#3403)', () =>
         if (!d || !c) return;
         expect(c.x + c.width).toBeLessThanOrEqual(d.x + d.width);
         expect(c.x).toBeGreaterThanOrEqual(d.x);
+        expect(
+          await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth >
+              document.documentElement.clientWidth,
+          ),
+        ).toBe(false);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
       });
     }
   }

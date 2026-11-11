@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
@@ -60,9 +61,16 @@ test.describe('a long label name stays inside its card (#3396)', () => {
     ['Pull requests', '/pull-requests.html', '#pr-rows'],
     ['Issues', '/issues.html', '#issue-rows'],
   ] as const) {
-    for (const width of [320, 390]) {
-      test(`${name}: chip fits the card at ${width}px`, async ({ page }) => {
+    for (const [width, scheme] of [
+      [320, 'light'],
+      [390, 'light'],
+      [320, 'dark'],
+    ] as const) {
+      test(`${name}: chip fits the card at ${width}px, ${scheme}`, async ({
+        page,
+      }) => {
         await page.setViewportSize({ width, height: 800 });
+        await page.emulateMedia({ colorScheme: scheme });
         await mock(page);
         await page.goto(path);
         const row = page.locator(`${rows} > .row`).first();
@@ -74,6 +82,17 @@ test.describe('a long label name stays inside its card (#3396)', () => {
         if (!r || !c) return;
         expect(c.x + c.width).toBeLessThanOrEqual(r.x + r.width);
         expect(c.x).toBeGreaterThanOrEqual(r.x);
+        expect(
+          await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth >
+              document.documentElement.clientWidth,
+          ),
+        ).toBe(false);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
       });
     }
   }
