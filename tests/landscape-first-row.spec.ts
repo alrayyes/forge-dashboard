@@ -11,6 +11,10 @@ import { setTheme } from './theme-helper';
 // and Refresh join the status row, search and the quick filters share a line,
 // and the sticky Activity bar scrolls away with the rest.
 // https://github.com/alrayyes/forge-dashboard/issues/3406
+//
+// Pull requests and issues stand for every board: Releases and Bots render the
+// same #pr-rows list under the same chrome, and the short-height rules in
+// style.css are not keyed to a page (#3499).
 
 const LANDSCAPE = [
   { width: 844, height: 390 },
@@ -20,8 +24,6 @@ const LANDSCAPE = [
 const PAGES = [
   { path: '/pull-requests.html', rows: '#pr-rows > .row' },
   { path: '/issues.html', rows: '#issue-rows > .row' },
-  { path: '/releases.html', rows: '#pr-rows > .row' },
-  { path: '/bots.html', rows: '#pr-rows > .row' },
 ] as const;
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
