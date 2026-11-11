@@ -13,3 +13,8 @@ fix that wraps long label names.
 `before-landscape/` and `after-landscape/` show the four list pages on a
 phone held sideways, at 844×390 and 667×375, before and after the chrome
 folds up to leave room for a list row on the first screen.
+
+`before-update-all-strip/` and `after-update-all-strip/` show the Update all
+strip on the Pull requests page at 1280px and 390px, light and dark, before and
+after the sentence and the listed chip are left out. The board header counts
+the rows.

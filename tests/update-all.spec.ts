@@ -420,6 +420,7 @@ test('at 320px the chip and the button stack without sideways scroll', async ({
   await open(page, [pr(1), pr(2)]);
   const button = page.locator('#update-all-button');
   await expect(button).toBeVisible();
+  await expect(chips(page)).toHaveText(['2 ready to update']);
   const m = await page.evaluate(() => ({
     h: document.getElementById('update-all-button')!.getBoundingClientRect()
       .height,
