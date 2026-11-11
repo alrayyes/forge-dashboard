@@ -23,7 +23,7 @@ import { test } from './server-fixture';
 // main-branches-server-copy.spec.ts and Insights by filter-late-copy.spec.ts.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
-type Board = 'pulls' | 'issues';
+type Board = 'pulls' | 'issues' | 'releases' | 'bots';
 
 const BOARDS: Record<
   Board,
@@ -42,6 +42,20 @@ const BOARDS: Record<
     rows: '#issue-rows > .row',
     count: '#issue-count',
     away: 'pulls',
+  },
+  releases: {
+    url: '/releases.html',
+    name: 'releases',
+    rows: '#pr-rows > .row',
+    count: '#pr-count',
+    away: 'issues',
+  },
+  bots: {
+    url: '/bots.html',
+    name: 'bots',
+    rows: '#pr-rows > .row',
+    count: '#pr-count',
+    away: 'issues',
   },
 };
 
@@ -526,7 +540,7 @@ async function notRemembered(page: Page, board: Board) {
   });
 }
 
-const BOARD_ROUNDS: Record<Board, Control[][]> = {
+const BOARD_ROUNDS: Record<'pulls' | 'issues', Control[][]> = {
   pulls: PULLS_ROUNDS,
   issues: ISSUES_ROUNDS,
 };
@@ -535,11 +549,26 @@ for (const board of ['pulls', 'issues'] as const) {
   test(`${board}: every remembered control survives leaving and coming back`, async ({
     page,
   }) => {
+    // Twelve rounds of five reads each; the default 30 s is too close under load.
+    test.setTimeout(90_000);
     await open(page, board);
     await notRemembered(page, board);
     for (const round of BOARD_ROUNDS[board]) {
       await readBackRound(page, boardSurface(board), round);
     }
+  });
+}
+
+// Releases and Bots are Pull requests with a `view` prop, so one control each
+// is enough to show their pages read the same saved keys back.
+for (const board of ['releases', 'bots'] as const) {
+  test(`${board}: a remembered control survives leaving and coming back`, async ({
+    page,
+  }) => {
+    await open(page, board);
+    await readBackRound(page, boardSurface(board), [
+      pill('Failing CI', 'failing'),
+    ]);
   });
 }
 
@@ -650,6 +679,7 @@ const WEBHOOK_ROUNDS: Control[][] = [
 test('webhooks: every remembered control survives leaving and coming back', async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   await openWebhooks(page);
 
   await test.step('page size and current page are not remembered', async () => {
