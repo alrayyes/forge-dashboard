@@ -321,6 +321,12 @@ cheaply:
   status, belongs to no run. GitHub reports no start or end for a run, so a
   GitHub run has none. A commit with more than 50 checks marks every run
   `jobsTruncated`.
+  When the newest commit has no checks (a release bot's `[skip ci]` commit), the
+  refresh walks back to the newest commit that has some. It first asks, for up to
+  25 repositories at a time, which of each one's last 10 commits have a check
+  rollup, then reads the checks of just the commit it picked, up to 10
+  repositories at a time. No request can return more than about 10,000 nodes, so
+  a long list of repositories no longer ends in a gateway timeout.
   A username with no token has no rows, because its hourly budget is too small
   to spend on this.
 - **Forgejo**: the refresh lists the Actions runs of each repo's default
