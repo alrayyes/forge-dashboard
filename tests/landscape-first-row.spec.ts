@@ -247,9 +247,11 @@ const EXPECTED: Record<
     filterBar: 120,
     updatesBar: 58,
   },
+  // The header is one row here, not two: Releases and Bots draw 2 passing
+  // without a repeated total (#3489), so the nav pills fit beside the brand.
   '820x1180': {
     activityPosition: 'sticky',
-    header: 128,
+    header: 82,
     toolbar: 54,
     filterBar: 135,
     updatesBar: 41,
