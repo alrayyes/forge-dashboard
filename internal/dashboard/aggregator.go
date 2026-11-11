@@ -134,6 +134,9 @@ type Aggregator struct {
 	// refresh can carry its data over and say how old it is (#922). Guarded
 	// by mu, like snap.
 	lastGood map[Forge]time.Time
+	// failStreak counts each forge's consecutive failed fetches
+	// (ForgeFailureThreshold).
+	failStreak map[Forge]int
 
 	// activity says whether anyone is using the dashboard, so Run can rest
 	// its scheduled refresh while nobody is. Nil means always in use.
@@ -1114,6 +1117,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.mu.RLock()
 	earlier := a.snap
 	goodAt := maps.Clone(a.lastGood)
+	streaks := cloneStreaks(a.failStreak)
 	a.mu.RUnlock()
 
 	snap := newEmptySnapshot()
@@ -1124,13 +1128,9 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	for i, sr := range results {
 		r := sr.Result
 		forge := a.sources[i].Forge()
-		r = settleSource(r, sr.asked, earlier, goodAt, snap.GeneratedAt, readForges, unread, forge)
+		r = settleOrHold(r, sr.asked, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
 		noteBlockedActions(&r.Health, a.sources[i])
-		snap.Forges = append(snap.Forges, r.Health)
-		snap.PullRequests = append(snap.PullRequests, r.PullRequests...)
-		snap.Issues = append(snap.Issues, r.Issues...)
-		snap.Repos = append(snap.Repos, r.Repos...)
-		snap.MainBranches = append(snap.MainBranches, r.MainBranches...)
+		snap.add(r)
 	}
 	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
 	reachable := reachableForges(snap.Forges)
@@ -1149,6 +1149,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.snap = snap
 	a.noteFullRead(seq, readForges, unread)
 	a.lastGood = goodAt
+	a.failStreak = streaks
 	a.mu.Unlock()
 	a.markFirstRefreshed()
 
@@ -1157,6 +1158,71 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.publish(ctx, snap)
 	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// ForgeFailureThreshold is how many fetches in a row must fail with the forge's
+// own 5xx before the forge is shown as down. One gateway timeout on a heavy
+// query among healthy fetches is not an outage (#3527); a request that got no
+// response at all is not held back.
+const ForgeFailureThreshold = 3
+
+// add appends one source's result to the snapshot being built.
+func (s *Snapshot) add(r Result) {
+	s.Forges = append(s.Forges, r.Health)
+	s.PullRequests = append(s.PullRequests, r.PullRequests...)
+	s.Issues = append(s.Issues, r.Issues...)
+	s.Repos = append(s.Repos, r.Repos...)
+	s.MainBranches = append(s.MainBranches, r.MainBranches...)
+}
+
+// cloneStreaks is a writable copy of m, empty when m is nil.
+func cloneStreaks(m map[Forge]int) map[Forge]int {
+	out := make(map[Forge]int, len(m))
+	maps.Copy(out, m)
+
+	return out
+}
+
+// settleOrHold is forge's result for the snapshot: held over from earlier for a
+// blip of the forge's own 5xx, else settled as settleSource does.
+func settleOrHold(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, now time.Time, readForges map[Forge]bool, unread map[repoKey]bool, forge Forge) Result {
+	if held, ok := holdUpstreamError(r, asked, earlier, goodAt, streaks, forge); ok {
+		return held
+	}
+
+	return settleSource(r, asked, earlier, goodAt, now, readForges, unread, forge)
+}
+
+// holdUpstreamError counts forge's consecutive failed fetches in streaks, and
+// turns the first ForgeFailureThreshold-1 failures that were the forge's own 5xx
+// into the rows and health it last had, so the page does not flip to a banner
+// for a blip. A fetch that read the forge resets the count.
+func holdUpstreamError(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, forge Forge) (Result, bool) {
+	if r.Health.Reachable {
+		if asked {
+			streaks[forge] = 0
+		}
+
+		return r, false
+	}
+	streaks[forge]++
+	if r.Health.ErrorKind != ForgeErrorUpstream || streaks[forge] >= ForgeFailureThreshold {
+		return r, false
+	}
+	if _, good := goodAt[forge]; !good {
+		return r, false
+	}
+	prev, ok := healthOf(earlier, forge)
+	if !ok || !prev.Reachable {
+		return r, false
+	}
+	held := Result{Health: prev}
+	held.PullRequests = slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool { return pr.Forge != forge })
+	held.Issues = slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool { return i.Forge != forge })
+	held.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(x Repo) bool { return x.Forge != forge })
+	held.MainBranches = slices.DeleteFunc(slices.Clone(earlier.MainBranches), func(b MainBranch) bool { return b.Forge != forge })
+
+	return held, true
 }
 
 // settleSource is forge's result as the snapshot should show it: freshly read

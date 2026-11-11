@@ -280,8 +280,19 @@ banner that stays in view while you scroll, on a phone too, says "GitHub is
 unreachable. Showing the last data from 14:32.", gives the cause in plain words,
 and has the one Retry, which forces a refresh. GitHub's row also links to
 githubstatus.com in a new tab, so you can see whether GitHub is reporting an
-incident; a Forgejo instance is self-hosted and has no such page. When the forge
-answers again the
+incident; a Forgejo instance is self-hosted and has no such page.
+
+A forge that answers but fails is not unreachable. If GitHub replies 502, 503 or
+504 (a gateway timeout on a heavy query, say), the banner reads "GitHub returned
+504 Gateway Timeout. Showing the last data from 14:32.", and the API and MCP
+output carry the same text with `errorKind: "upstream_error"` and
+`upstreamStatus: 504`. The dashboard tries the request three times, waiting
+about 0.2 and then 0.4 seconds (randomised) between tries so a burst of
+failures does not retry in step. It also waits for three refreshes in a row to
+fail this way before it marks the forge down. One failure among healthy
+refreshes changes nothing on the page, and the first good refresh clears it.
+A request that gets no answer at all still shows as unreachable at once. When
+the forge answers again the
 controls return without a reload, with a polite "GitHub is reachable again,
 actions available" toast, and the banner clears. A row's own reason for Merge
 (stacked, waiting for CI) shows whenever its forge can be reached.

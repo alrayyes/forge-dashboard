@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"slices"
@@ -1395,6 +1396,10 @@ func forgeErrorKindFromStatus(statusCode int) dashboard.ForgeErrorKind {
 	// case the same endpoint also uses.
 	case http.StatusMethodNotAllowed, http.StatusConflict:
 		return dashboard.ForgeErrorConflict
+	// GitHub's edge answering for a backend that did not: it responded, so
+	// this is not unreachable (#3527).
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return dashboard.ForgeErrorUpstream
 	default:
 		return dashboard.ForgeErrorUnknown
 	}
@@ -2563,10 +2568,16 @@ func (c *Client) graphqlExec(ctx context.Context, query string, variables map[st
 		select {
 		case <-ctx.Done():
 			return failed, err
-		case <-time.After(delay):
+		case <-time.After(retryDelay(delay)):
 		}
 		delay *= 2
 	}
+}
+
+// retryDelay is base with up to half of it added or taken away at random, so
+// requests that failed together do not retry together (#3527).
+func retryDelay(base time.Duration) time.Duration {
+	return base/2 + rand.N(base+1) //nolint:gosec // jitter, not a secret
 }
 
 // graphqlSend posts the request once.
@@ -2678,10 +2689,22 @@ func (c *Client) unreachableResult(err error) dashboard.Result {
 	if apiErr, ok := errors.AsType[*apiError](err); ok {
 		health.RateLimitGraphQL = apiErr.rateLimit
 		health.ErrorKind = apiErr.kind
+		upstreamHealth(&health, apiErr)
 	}
 	health.RateLimitREST = c.lastRESTRate.Load()
 
 	return dashboard.Result{Health: health}
+}
+
+// upstreamHealth names the 5xx GitHub answered with, in the error and in
+// UpstreamStatus, when that is what failed: "GitHub returned 504 Gateway
+// Timeout". It carries no request id or account text.
+func upstreamHealth(h *dashboard.ForgeHealth, e *apiError) {
+	if e.kind != dashboard.ForgeErrorUpstream || e.status == 0 {
+		return
+	}
+	h.UpstreamStatus = e.status
+	h.Error = fmt.Sprintf("GitHub returned %d %s", e.status, http.StatusText(e.status))
 }
 
 // fetchTokenRepos discovers repositories for a personal-access-token
@@ -3754,6 +3777,7 @@ func (c *Client) fetchPublicViaREST(ctx context.Context) dashboard.Result {
 		}
 		if apiErr, ok := errors.AsType[*apiError](err); ok {
 			health.ErrorKind = apiErr.kind
+			upstreamHealth(&health, apiErr)
 		}
 		health.RateLimitREST = c.lastRESTRate.Load()
 

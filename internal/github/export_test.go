@@ -135,3 +135,6 @@ func (c *Client) ReadSuiteChecks(ctx context.Context, ids []string) (counts map[
 
 	return counts, more
 }
+
+// RetryDelayForTest is the jittered wait before a retry of base.
+func RetryDelayForTest(base time.Duration) time.Duration { return retryDelay(base) }
