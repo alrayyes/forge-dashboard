@@ -222,6 +222,26 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
   });
 
+  test('Update branch shows when listed, even though the pull request is not behind', async ({
+    page,
+  }) => {
+    // The row follows the server's list, not its own reading of `behind`.
+    const listed = await open(
+      page,
+      makePR({
+        behind: false,
+        allowedActions: [
+          { action: 'merge' },
+          { action: 'update_branch' },
+          { action: 'close' },
+        ],
+      }),
+    );
+    await expect(
+      (await footerOf(listed)).getByRole('button', { name: 'Update branch' }),
+    ).toBeVisible();
+  });
+
   test('a behind pull request with no update_branch entry has no Update branch', async ({
     page,
   }) => {
@@ -327,6 +347,28 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(
       (await footerOf(row)).getByRole('button', { name: /^Dependabot:/ }),
     ).toHaveCount(0);
+  });
+
+  test('Renovate rebase shows when listed, whoever authored the pull request', async ({
+    page,
+  }) => {
+    // The row follows the server's list, not a guess from the author's name.
+    const listed = await open(
+      page,
+      makePR({
+        author: 'a-person',
+        allowedActions: [
+          { action: 'merge' },
+          { action: 'renovate_rebase' },
+          { action: 'close' },
+        ],
+      }),
+    );
+    await expect(
+      (await footerOf(listed)).getByRole('button', {
+        name: 'Renovate: Rebase',
+      }),
+    ).toBeVisible();
   });
 
   test('Close shows only when listed', async ({ page }) => {
