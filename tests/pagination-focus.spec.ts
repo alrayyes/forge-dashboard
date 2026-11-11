@@ -145,3 +145,29 @@ for (const b of boards) {
     });
   });
 }
+
+// #3400: a size that fits every row on one page used to hide the whole pager,
+// select included, so focus fell to BODY and the person couldn't go back.
+for (const b of boards) {
+  test(`${b.name} page size select stays visible and focused on one page`, async ({
+    page,
+  }) => {
+    await mock(page);
+    await page.goto(b.path);
+    const buttons = page.locator(
+      `#${b.prefix}-pagination-pages .pagination-page`,
+    );
+    await expect(buttons).toHaveCount(3);
+
+    const size = page.locator(`#${b.prefix}-page-size`);
+    await size.focus();
+    await size.selectOption('100');
+    await expect(size).toBeVisible();
+    await expect(buttons).toHaveCount(0);
+    await expect(size).toBeFocused();
+
+    await size.selectOption('25');
+    await expect(buttons).toHaveCount(3);
+    await expect(size).toBeFocused();
+  });
+}
