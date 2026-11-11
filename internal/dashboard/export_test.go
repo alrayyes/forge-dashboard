@@ -45,3 +45,12 @@ func MergeRetryAfterFailureForTest(err error) (forever bool, wait time.Duration)
 
 	return attempt.forever, time.Until(attempt.until)
 }
+
+// DebounceRememberedForTest is how many repos the webhook debouncer still
+// remembers a recent run of.
+func (a *Aggregator) DebounceRememberedForTest() int {
+	a.debounce.mu.Lock()
+	defer a.debounce.mu.Unlock()
+
+	return len(a.debounce.lastFired)
+}

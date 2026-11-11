@@ -245,7 +245,7 @@ func TestRefreshRepoDebounced_AnEventInTheNextBurstStartsANewWindow(t *testing.T
 
 // A push's check_run deliveries arrive over tens of seconds, with gaps longer
 // than the quiet window, so the window alone merges nothing.
-func TestRefreshRepoDebounced_FiveEventsOver23SecondsRefreshAtMostTwice(t *testing.T) {
+func TestRefreshRepoDebounced_FiveEventsOver23SecondsRefreshTwice(t *testing.T) {
 	t.Parallel()
 	f := newDebounceFixture(t)
 
@@ -256,7 +256,21 @@ func TestRefreshRepoDebounced_FiveEventsOver23SecondsRefreshAtMostTwice(t *testi
 	}
 	f.clock.Advance(time.Minute)
 
-	assert.LessOrEqual(t, f.src.repoFetchCallCount("alrayyes/a"), 2)
+	assert.Equal(t, 2, f.src.repoFetchCallCount("alrayyes/a"))
+}
+
+func TestRefreshRepoDebounced_ARepoThatRanLongAgoIsForgottenOnceAnotherRuns(t *testing.T) {
+	t.Parallel()
+	f := newDebounceFixture(t)
+
+	f.event(t.Context(), "alrayyes/a")
+	f.clock.Advance(2 * time.Second)
+	require.Equal(t, 1, f.agg.DebounceRememberedForTest())
+	f.clock.Advance(time.Minute)
+	f.event(t.Context(), "alrayyes/b")
+	f.clock.Advance(2 * time.Second)
+
+	assert.Equal(t, 1, f.agg.DebounceRememberedForTest(), "only b, the one that ran within the interval")
 }
 
 func TestRefreshRepoDebounced_TheLastEventOfAThrottledBurstIsStillRefreshed(t *testing.T) {

@@ -15,8 +15,9 @@ import (
 // quiet is the gap that ends a burst: the refresh runs this long after the
 // newest event. maxHold caps the whole wait, counted from the first event, so
 // a repo whose events never stop (a busy CI) still refreshes instead of being
-// pushed back for ever. A lone event therefore waits webhookQuiet, and no
-// event waits longer than webhookMaxHold.
+// pushed back for ever. A lone event therefore waits webhookQuiet, and an
+// event waits no longer than webhookMaxHold unless webhookMinInterval, below,
+// holds it back further.
 //
 // A push's check runs send events over tens of seconds, with gaps longer than
 // quiet, so those two alone cost a refresh per event. webhookMinInterval is the
@@ -43,7 +44,9 @@ func realAfterFunc(d time.Duration, f func()) func() bool {
 // debouncer turns a burst of calls for one key into a single call of the
 // latest fn, quiet after the newest and at most maxHold after the first. It
 // holds an entry only while a call is pending, so memory is bounded by the
-// number of repos with events in flight, and an idle debouncer holds nothing.
+// number of repos with events in flight. It also remembers when each key last
+// ran, until the interval is over and a later fire prunes it, so an idle
+// debouncer holds at most one small entry per repo that ran recently.
 // It starts no goroutine of its own: the timer's callback is the only code
 // that runs, and a cancelled context removes its entry and stops its timer.
 type debouncer struct {
@@ -100,6 +103,7 @@ func (d *debouncer) close() {
 		e.release()
 		delete(d.entries, key)
 	}
+	clear(d.lastFired)
 }
 
 // Submit records an event for key. fn runs once, after the burst, with the
@@ -196,7 +200,8 @@ func WithDebounceOwner(ctx context.Context) AggregatorOption {
 
 // RefreshRepoDebounced is RefreshRepo for a webhook delivery: events for one
 // repo that arrive close together cause one scoped refresh after the last of
-// them, not one each. Polls, force refreshes and user actions call RefreshRepo
+// them, not one each, and no two refreshes of a repo start less than
+// webhookMinInterval apart. Polls, force refreshes and user actions call RefreshRepo
 // (or Refresh) directly and are never held back.
 //
 // It reports false at once, arming nothing, when no Source can do a scoped

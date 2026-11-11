@@ -215,8 +215,14 @@ once per delivery would fetch the same data several times over, so the
 dashboard waits for the repo's deliveries to go quiet and refreshes once. The
 refresh runs 2 seconds after the latest delivery. A repo that never goes quiet,
 a busy CI for example, is still refreshed 5 seconds after its first delivery,
-so the longest a delivery waits is 5 seconds and a lone one waits 2. Two repos
-are held back independently of each other. Only deliveries wait: the periodic
+so a burst waits at most 5 seconds and a lone delivery waits 2. A repo is also
+refreshed at most once every 30 seconds, the browser tab's own poll period: a
+delivery inside that interval waits for it to pass, and the one refresh then
+reads everything that arrived meanwhile. A push's check runs send deliveries
+over tens of seconds, and refreshing for each would multiply the load on a
+forge that may already be struggling. After a rerun, a check change can
+therefore show up to 30 seconds late. Two repos are held back independently of
+each other. Only deliveries wait: the periodic
 refresh, the CI-status poll, the refresh button and anything you do on a pull
 request run at once. A delivery that arrives while a refresh of the same repo
 is running is not lost; it causes exactly one more refresh when the running one
