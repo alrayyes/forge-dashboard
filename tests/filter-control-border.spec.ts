@@ -51,6 +51,40 @@ async function edge(control: Locator): Promise<{ border: Rgb; behind: Rgb }> {
 // The Webhooks and Branches pages draw their filters only once the server
 // has repos or branches to list, so those two get one of each.
 async function seed(page: Page, path: string) {
+  // The Repositories button is hidden until the list holds two repositories.
+  if (path === '/pull-requests.html') {
+    const pr = (number: number, repo: string) => ({
+      forge: 'github',
+      repo,
+      number,
+      title: `Change ${number}`,
+      url: `https://example.com/${number}`,
+      author: 'ryan',
+      draft: false,
+      ci: 'success',
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mergeStatus: 'mergeable',
+    });
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+          pullRequests: [pr(1, 'acme/a'), pr(2, 'acme/b')],
+          issues: [],
+          repos: [],
+          hiddenDrafts: 0,
+          firstRefreshDone: true,
+        }),
+      }),
+    );
+    return;
+  }
   if (path !== '/webhooks.html' && path !== '/') return;
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>

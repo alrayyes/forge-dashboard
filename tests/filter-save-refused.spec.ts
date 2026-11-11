@@ -15,7 +15,23 @@ const ISSUES = [
     title: 'Issue 1',
     url: 'https://example.com/issues/1',
     author: 'ryan',
-    labels: [{ name: 'bug', color: 'd73a4a' }],
+    labels: [
+      { name: 'bug', color: 'd73a4a' },
+      { name: 'docs', color: '0366d6' },
+    ],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  // A second author and label keep both filters in the bar, which hides a
+  // filter that has one choice.
+  {
+    forge: 'github',
+    repo: 'acme/app',
+    number: 2,
+    title: 'Issue 2',
+    url: 'https://example.com/issues/2',
+    author: 'sam',
+    labels: [{ name: 'docs', color: '0366d6' }],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -45,7 +61,7 @@ async function open(page: Page) {
 
 test('a refused filter save is reported on the page', async ({ page }) => {
   await open(page);
-  await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+  await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
 
   await page.route('**/api/v1/settings/filter-state', (route) => {
     if (route.request().method() !== 'PUT') return route.fallback();

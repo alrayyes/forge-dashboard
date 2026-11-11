@@ -37,6 +37,40 @@ export interface PickHosts {
 // applied but its own.
 export type PickPools = (key: PickKey) => FilterableItem[];
 
+// A pick filter earns its place in the bar when it can narrow the list, or
+// when it holds a pick the reader may want to clear (#3496).
+export function pickFilterVisible(choices: number, picked: number): boolean {
+  return choices > 1 || picked > 0;
+}
+
+const FOCUSABLE = 'button, select, input, a[href]';
+
+function focusableIn(
+  start: Element | null,
+  dir: 'previousElementSibling' | 'nextElementSibling',
+): HTMLElement | null {
+  for (let el = start; el; el = el[dir]) {
+    if (!(el instanceof HTMLElement) || el.hidden) continue;
+    const target = el.matches(FOCUSABLE)
+      ? el
+      : el.querySelector<HTMLElement>(FOCUSABLE);
+    if (target && !(target as HTMLButtonElement).disabled) return target;
+  }
+  return null;
+}
+
+// Hides or shows a pick filter's host. When it hides with focus inside, focus
+// goes to the nearest control before it (else after it), not the page body.
+function setVisible(host: HTMLElement | null | undefined, visible: boolean) {
+  if (!host || host.hidden === !visible) return;
+  if (!visible && host.contains(document.activeElement))
+    (
+      focusableIn(host.previousElementSibling, 'previousElementSibling') ??
+      focusableIn(host.nextElementSibling, 'nextElementSibling')
+    )?.focus({ preventScroll: true });
+  host.hidden = !visible;
+}
+
 export class SharedPicks {
   label: LabelFilterControl | null = null;
   repo: PickFilterControl | null = null;
@@ -51,6 +85,8 @@ export class SharedPicks {
     private readonly logoFor: (key: string) => string | undefined,
   ) {}
 
+  private hosts: PickHosts = {};
+
   mount(hosts: PickHosts, onPick: (key: PickKey, next: string[]) => void) {
     if (hosts.label)
       this.label = mountLabelFilter(hosts.label, (next) =>
@@ -64,6 +100,7 @@ export class SharedPicks {
       this.author = mountPickFilter(hosts.author, AUTHOR_CONFIG, (next) =>
         onPick('author', next),
       );
+    this.hosts = hosts;
     this.drawn = {};
   }
 
@@ -126,6 +163,10 @@ export class SharedPicks {
         picked,
       );
     else this[key]?.render(choices, picked);
+    setVisible(
+      this.hosts[key],
+      pickFilterVisible(choices.length, picked.length),
+    );
   }
 }
 
