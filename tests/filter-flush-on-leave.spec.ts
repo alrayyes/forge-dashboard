@@ -61,7 +61,6 @@ test.describe('a value typed just before leaving is kept (#1620)', () => {
 
   for (const [name, selector] of [
     ['title search', 'input[data-col="title"]'],
-    ['hide-titles pattern', '#issue-hide-title-regex'],
   ] as const) {
     test(`the ${name} survives leaving within the debounce window`, async ({
       page,

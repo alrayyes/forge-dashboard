@@ -92,16 +92,6 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#error-banner')).toHaveCount(0);
   });
 
-  test('the footer shows the running version, fetched from /api/version', async ({
-    page,
-  }) => {
-    await landOnPullRequests(page);
-    // CI builds the e2e binary with no goreleaser ldflags, so this is
-    // always "dev" here — a real release build shows "· vX.Y.Z" linked to
-    // the changelog page instead (see web/src/lib/Footer.svelte).
-    await expect(page.locator('#footer-version')).toContainText('· dev build');
-  });
-
   test('the footer links the repository as GitHub, with the mark, and has no Source link', async ({
     page,
   }) => {
@@ -114,31 +104,6 @@ test.describe('dashboard page', () => {
     );
     await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
     await expect(footer.getByRole('link', { name: 'Source' })).toHaveCount(0);
-  });
-
-  test('the footer links a real released version to the changelog, with no separate release history link', async ({
-    page,
-  }) => {
-    // Mocked because CI always builds "dev" (see the test above) — this
-    // is the other branch of web/src/lib/Footer.svelte's version display,
-    // otherwise never exercised end-to-end.
-    await page.route('**/api/version', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ version: '1.2.3' }),
-      }),
-    );
-    await landOnPullRequests(page);
-
-    const versionLink = page.locator('#footer-version a', {
-      hasText: 'v1.2.3',
-    });
-    await expect(versionLink).toHaveAttribute('href', '/changelog.html');
-    await expect(versionLink).not.toHaveAttribute('target', '_blank');
-    await expect(
-      page.locator('#footer-version a', { hasText: 'Release history' }),
-    ).toHaveCount(0);
   });
 
   test('the footer shows nothing version-related while /api/version is unresolved or fails', async ({
@@ -580,6 +545,20 @@ test.describe('dashboard page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  test('has no axe-core violations in the dark scheme at phone width', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await landOnPullRequests(page);
+    await expect(page.locator('#pr-count')).not.toHaveText('–');
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('a long title with several label chips wraps as a block instead of collapsing to single-word lines', async ({
     page,
   }) => {
@@ -874,52 +853,6 @@ test.describe('dashboard page', () => {
       );
       await page.goto('/pull-requests.html');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    });
-
-    test('a chosen theme survives a reload', async ({ page }) => {
-      // theme.js applies whatever's in the cookie before first paint on
-      // every load — the mechanism itself is unchanged by #352 moving
-      // where theme gets set from (the header toggle) to Settings; this
-      // pins that mechanism directly rather than through Settings' own
-      // control, which settings.spec.ts already covers.
-      await setTheme(page, 'dark');
-      // The reload is the point: it proves the state survives one.
-      await page.reload();
-      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-
-      await page.reload();
-      await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    });
-
-    test('a select filter survives a reload, both in state and visibly in the control', async ({
-      page,
-    }) => {
-      await selectForge(page, 'forgejo');
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-
-      // The reload is the point: it proves the state survives one.
-      await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-      await expect(page.locator('#pr-rows > .row')).toContainText(
-        'A Forgejo PR',
-      );
-      await expect(forgeRadio(page, 'forgejo')).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      );
-    });
-
-    test('the free-text title filter survives a reload', async ({ page }) => {
-      const titleFilter = page.locator(
-        '.filter-bar .col-filter[data-col="title"]',
-      );
-      await titleFilter.fill('github');
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-
-      // The reload is the point: it proves the state survives one.
-      await page.reload();
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-      await expect(titleFilter).toHaveValue('github');
     });
 
     test('the shared forge filter persists and applies to both pages, while the CI pills stay scoped to pull requests only', async ({

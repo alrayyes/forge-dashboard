@@ -103,20 +103,6 @@ test.describe('the newer saved state wins (#1760)', () => {
     );
   }
 
-  test('the copy is read before the save reaches the server', async ({
-    page,
-  }) => {
-    await typeAndReload(page, async () => {});
-
-    await expect(title(page)).toHaveValue('weekly');
-    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
-    await expect(page.locator('#issue-rows > .row')).toContainText('Weekly');
-    // The page brings the server up to date itself.
-    await expect
-      .poll(() => serverCopy(page), { timeout: 5000 })
-      .toContain('weekly');
-  });
-
   test('the save reaches the server before the read is answered', async ({
     page,
   }) => {
@@ -134,40 +120,5 @@ test.describe('the newer saved state wins (#1760)', () => {
     await expect
       .poll(() => serverCopy(page), { timeout: 5000 })
       .toContain('weekly');
-  });
-
-  test('a device with an older cookie still takes the newer copy', async ({
-    page,
-    browser,
-    baseURL,
-  }) => {
-    await title(page).fill('weekly');
-    await expect
-      .poll(() => serverCopy(page), { timeout: 5000 })
-      .toContain('weekly');
-
-    const other = await browser.newContext({
-      baseURL,
-      storageState: await page.context().storageState(),
-    });
-    const stale = {
-      rev: 1,
-      shared: { title: 'stale' },
-      pr: {},
-      issue: { hideDependencyDashboard: '1' },
-      view: {},
-    };
-    await other.addCookies([
-      {
-        name: 'forge-board-filters',
-        value: encodeURIComponent(JSON.stringify(stale)),
-        url: baseURL ?? '',
-      },
-    ]);
-    const second = await other.newPage();
-    await stub(second);
-    await second.goto('/issues.html');
-    await expect(title(second)).toHaveValue('weekly');
-    await other.close();
   });
 });

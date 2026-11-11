@@ -16,6 +16,7 @@ import {
   matchesClosing,
   matchesFilters,
   matchesQuickFilter,
+  offerPills,
   optionPool,
   QUICK_FILTERS,
   showBlockedChip,
@@ -261,6 +262,12 @@ describe('the failing filters follow failingCi', () => {
     expect(matchesQuickFilter(oldServer, 'failing')).toBe(true);
   });
 
+  test('a draft is filtered by its CI like any other row', () => {
+    const draft = (ci: string) => choiceItem({ ci, draft: true });
+    expect(matchesQuickFilter(draft('failure'), 'failing')).toBe(true);
+    expect(matchesQuickFilter(draft('success'), 'failing')).toBe(false);
+  });
+
   test('counts file a held pull request under running, not failing', () => {
     expect(ciBucket(held)).toBe('pending');
     expect(ciBucket(broken)).toBe('failure');
@@ -282,6 +289,17 @@ describe('the No checks quick filter', () => {
     );
     for (const ci of ['success', 'failure', 'pending', undefined])
       expect(matchesQuickFilter(choiceItem({ ci }), 'no-checks')).toBe(false);
+  });
+
+  test('is offered only while a pull request has no checks, or is picked', () => {
+    const noChecks = { dataset: { pill: 'no-checks' }, hidden: false };
+    const offered = (pool: FilterableItem[], active: string) => {
+      offerPills([noChecks as unknown as HTMLElement], [], pool, active);
+      return !noChecks.hidden;
+    };
+    expect(offered([choiceItem({ ci: 'none' })], '')).toBe(true);
+    expect(offered([choiceItem({ ci: 'success' })], '')).toBe(false);
+    expect(offered([choiceItem({ ci: 'success' })], 'no-checks')).toBe(true);
   });
 
   test('the old CI status key no longer filters', () => {
