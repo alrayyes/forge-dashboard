@@ -1514,12 +1514,17 @@ button.title {
   border-radius: 999px;
   padding: 1px 7px;
   flex: none;
-  /* A label name has no length limit. The chip wraps its text inside its
-     container at every width rather than running out of the card (#3396). */
+  cursor: pointer;
+}
+
+/* A label name has no length limit. A label chip, in a card or in a details
+   dialog, wraps its text inside its container at every width rather than
+   running out of it (#3396, #3403). */
+.label-chip,
+.attr-chip.label {
   max-width: 100%;
   white-space: normal;
   overflow-wrap: anywhere;
-  cursor: pointer;
 }
 
 .label-chip:focus-visible {
