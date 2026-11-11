@@ -43,6 +43,7 @@ const singleUserSpecs = [
   '**/bottom-nav-labels.spec.ts',
   '**/webhooks-status-line.spec.ts',
   '**/webhooks-rebase-bots.spec.ts',
+  '**/webhooks-table-tablet.spec.ts',
   '**/auto-merge-filter.spec.ts',
   '**/conflicts-filter.spec.ts',
   '**/filter-choices-pills.spec.ts',

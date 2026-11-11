@@ -867,6 +867,10 @@
       cursor: default;
       text-decoration: none;
     }
+    .data-table td.action button {
+      white-space: nowrap;
+      hyphens: none;
+    }
     .webhook-locked {
       display: flex;
       flex-direction: column;
@@ -874,7 +878,7 @@
       max-width: 220px;
     }
     .webhook-locked-reason {
-      font-size: 11px;
+      font-size: 12px;
       color: var(--ink-3);
       white-space: normal;
     }
@@ -1367,7 +1371,6 @@
                   ></button
                 >
               </th>
-              <th scope="col" role="columnheader">Set up</th>
               <th scope="col" role="columnheader">Auto-update</th>
               <th scope="col" role="columnheader"
                 >Rebase bots
@@ -1424,12 +1427,10 @@
                   role="cell"
                   data-label="Webhook"
                   class={repo.hasWebhook
-                    ? "status-confirmed"
-                    : "status-pending"}
+                    ? "action status-confirmed"
+                    : "action status-pending"}
                 >
                   {repo.hasWebhook ? "Confirmed" : "Not yet"}
-                </td>
-                <td class="action" role="cell">
                   {#if !repo.hasWebhook}
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
@@ -1494,6 +1495,9 @@
                   <button
                     type="button"
                     disabled={autoUpdateBusy[rowKey(repo)]}
+                    aria-label={autoUpdateBusy[rowKey(repo)]
+                      ? undefined
+                      : `${repo.autoUpdateBranch ? "Disable" : "Enable"} auto-update on ${repo.fullName}`}
                     onclick={() =>
                       setAutoUpdateBranch(repo, !repo.autoUpdateBranch)}
                     >{autoUpdateBusy[rowKey(repo)]
@@ -1522,6 +1526,9 @@
                     <button
                       type="button"
                       aria-pressed={repo.rebaseBots}
+                      aria-label={rebaseBotsBusy[rowKey(repo)]
+                        ? undefined
+                        : `Rebase bots: ${repo.rebaseBots ? "on" : "off"} for ${repo.fullName}`}
                       disabled={rebaseBotsBusy[rowKey(repo)]}
                       onclick={() => setRebaseBots(repo, !repo.rebaseBots)}
                       >{rebaseBotsBusy[rowKey(repo)]

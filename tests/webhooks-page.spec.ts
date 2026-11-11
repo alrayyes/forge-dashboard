@@ -1567,7 +1567,7 @@ test.describe('webhooks page', () => {
       await page.goto('/webhooks.html');
 
       const headers = page.locator('#webhooks-table thead th');
-      await expect(headers).toHaveCount(7);
+      await expect(headers).toHaveCount(6);
       for (const header of await headers.all()) {
         await expect(header).not.toHaveText('');
       }
