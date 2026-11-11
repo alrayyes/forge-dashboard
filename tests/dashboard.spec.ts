@@ -545,6 +545,20 @@ test.describe('dashboard page', () => {
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
   });
 
+  test('has no axe-core violations in the dark scheme at phone width', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await landOnPullRequests(page);
+    await expect(page.locator('#pr-count')).not.toHaveText('–');
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('a long title with several label chips wraps as a block instead of collapsing to single-word lines', async ({
     page,
   }) => {
