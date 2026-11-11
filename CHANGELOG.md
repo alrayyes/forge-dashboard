@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.14.1](https://github.com/alrayyes/forge-dashboard/compare/v9.14.0...v9.14.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** keep the Webhooks Per page select once a size is chosen ([#3481](https://github.com/alrayyes/forge-dashboard/issues/3481)) ([6066a93](https://github.com/alrayyes/forge-dashboard/commit/6066a93d1732a6356b33f3772b6056d9fc171e83)), closes [#3462](https://github.com/alrayyes/forge-dashboard/issues/3462)
+
 ## [9.14.0](https://github.com/alrayyes/forge-dashboard/compare/v9.13.0...v9.14.0) (2026-11-11)
 
 
