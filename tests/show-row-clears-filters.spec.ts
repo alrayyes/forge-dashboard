@@ -13,7 +13,8 @@ function pr(number: number, ci: string, autoMergeEnabled: boolean) {
     number,
     title: `Pull request ${number}`,
     url: `https://example.com/pull/${number}`,
-    author: 'claude',
+    // Pull request 3 has another author, so the Author filter stays in the bar.
+    author: number === 3 ? 'ryan' : 'claude',
     draft: false,
     ci,
     labels: [],
@@ -25,8 +26,13 @@ function pr(number: number, ci: string, autoMergeEnabled: boolean) {
   };
 }
 
-// 1 is the one the test acts on; 2 is what keeps the filter meaningful.
-const PRS = [pr(1, 'success', false), pr(2, 'failure', true)];
+// 1 is the one the test acts on; 2 is what keeps the filter meaningful; 3 is
+// the second author the Author filter needs to stay in the bar.
+const PRS = [
+  pr(1, 'success', false),
+  pr(2, 'failure', true),
+  pr(3, 'success', false),
+];
 
 async function open(page: Page) {
   await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
@@ -58,7 +64,7 @@ async function open(page: Page) {
     }),
   );
   await page.goto('/pull-requests.html');
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
 }
 
 const titles = (page: Page) => page.locator('#pr-rows > .row .title-text');

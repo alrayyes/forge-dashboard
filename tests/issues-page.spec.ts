@@ -64,6 +64,9 @@ const ISSUES = [
     makeIssue(i + 1, {
       repo: i < 7 ? 'alrayyes/forge-dashboard' : 'alrayyes/other-repo',
       title: i === 4 ? 'Needle in the haystack' : `Issue ${i + 1}`,
+      author: i === 1 ? 'claude' : 'alrayyes',
+      // Two labels, so the Label filter has a choice and stays in the bar.
+      labels: [{ name: i % 2 ? 'bug' : 'docs', color: 'ededed' }],
     }),
   ),
   makeIssue(99, { title: 'Dependency Dashboard', author: 'renovate[bot]' }),
@@ -167,6 +170,16 @@ test.describe('issues page (#827)', () => {
     await page.goto('/issues.html');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(12);
 
+    // Checked before the title narrows the list to one author and one label.
+    for (const id of [
+      '#shared-author-filter-button',
+      '#shared-label-filter-button',
+      '[data-col="created"]',
+      '[data-col="updated"]',
+    ]) {
+      await expect(page.locator(id)).toBeVisible();
+    }
+
     await pickOnly(page, 'repo', 'github:alrayyes/other-repo');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(5);
 
@@ -176,15 +189,6 @@ test.describe('issues page (#827)', () => {
       .fill('Needle');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
     await expect(page.locator('#issue-rows > .row')).toContainText('Needle');
-
-    for (const id of [
-      '#shared-author-filter-button',
-      '#shared-label-filter-button',
-      '[data-col="created"]',
-      '[data-col="updated"]',
-    ]) {
-      await expect(page.locator(id)).toBeVisible();
-    }
   });
 
   test('each page offers only the repos, authors and labels it actually lists (#1071)', async ({
