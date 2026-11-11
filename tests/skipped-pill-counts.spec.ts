@@ -1,4 +1,3 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
@@ -344,41 +343,3 @@ test.describe('skipped counts on the Issues page pill', () => {
     );
   });
 });
-
-async function expectAccessibleAndNarrow(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
-  expect(results.violations).toEqual([]);
-  const [scroll, client] = await page.evaluate(() => [
-    document.documentElement.scrollWidth,
-    document.documentElement.clientWidth,
-  ]);
-  expect(scroll).toBeLessThanOrEqual(client);
-}
-
-for (const scheme of ['light', 'dark'] as const) {
-  for (const width of [1280, 390]) {
-    test.describe(`${scheme} at ${width}px`, () => {
-      test.use({ colorScheme: scheme, viewport: { width, height: 800 } });
-
-      test('pull request pills have no axe violations and no sideways scroll', async ({
-        page,
-      }) => {
-        await openBoard(page, '/pull-requests.html');
-        await expect(prPill(page, 'Skipped and failing')).toBeVisible();
-
-        await expectAccessibleAndNarrow(page);
-      });
-
-      test('issue pills have no axe violations and no sideways scroll', async ({
-        page,
-      }) => {
-        await openIssues(page);
-        await expect(issuePill(page, 1)).toBeVisible();
-
-        await expectAccessibleAndNarrow(page);
-      });
-    });
-  }
-}

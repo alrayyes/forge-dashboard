@@ -289,6 +289,28 @@ const PULL_REQUESTS = [
   }),
   makePR(8, { draft: true, ci: 'pending' }),
   makePR(9, { forge: 'forgejo', repo: 'homelab/infra', ci: 'none' }),
+  // Pills that draw a count per state (#2004, #2074, #2145, #3395). The
+  // per-feature pill specs leave their 44px target to this sweep (#3500).
+  makePR(10, {
+    ci: 'pending',
+    checks: { passed: 5, running: 2, waiting: 3, failed: 0 },
+  }),
+  makePR(11, {
+    ci: 'failure',
+    mergeStatus: 'unstable',
+    checks: { passed: 8, running: 1, waiting: 2, failed: 3 },
+  }),
+  makePR(12, {
+    ci: 'success',
+    checks: { passed: 8, skipped: 2, running: 0, waiting: 0, failed: 0 },
+  }),
+  makePR(13, {
+    forge: 'forgejo',
+    repo: 'homelab/infra',
+    ci: 'cancelled',
+    mergeStatus: 'blocked',
+    checks: { passed: 4, running: 0, waiting: 0, failed: 0, cancelled: 9 },
+  }),
 ];
 
 const ISSUES = [1, 2, 3].map((number) => ({
@@ -342,6 +364,10 @@ function branchRow(fullName: string, status: string) {
       committedAt: ago(30),
     },
     failingJobs: status === 'failed' ? ['lint', 'e2e'] : [],
+    checks:
+      status === 'failed'
+        ? { passed: 8, running: 1, waiting: 2, failed: 3 }
+        : { passed: 12, running: 0, waiting: 0, failed: 0 },
     finishedAt: ago(12),
     durationSeconds: 252,
     runUrl: `https://example.com/${fullName}/actions/runs/1`,
