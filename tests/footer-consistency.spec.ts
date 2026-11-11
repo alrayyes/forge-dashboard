@@ -69,13 +69,13 @@ async function expectAxeAndNoSidewaysScroll(page: Page) {
 
 test.describe('the footer is the same on every page', () => {
   test.describe('signed in', () => {
-    for (const [path, current] of Object.entries(SIGNED_IN)) {
-      test(`${path} shows the same footer items`, async ({ page }) => {
-        await mockVersion(page);
+    test('every page shows the same footer items', async ({ page }) => {
+      await mockVersion(page);
+      for (const [path, current] of Object.entries(SIGNED_IN)) {
         await page.goto(path);
         await expectFooter(page, current);
-      });
-    }
+      }
+    });
   });
 
   test.describe('signed out', () => {
@@ -83,13 +83,13 @@ test.describe('the footer is the same on every page', () => {
       await context.clearCookies();
     });
 
-    for (const [path, current] of Object.entries(SIGNED_OUT)) {
-      test(`${path} shows the same footer items`, async ({ page }) => {
-        await mockVersion(page);
+    test('every page shows the same footer items', async ({ page }) => {
+      await mockVersion(page);
+      for (const [path, current] of Object.entries(SIGNED_OUT)) {
         await page.goto(path);
         await expectFooter(page, current);
-      });
-    }
+      }
+    });
   });
 
   // The error pages are prerendered HTML that runs no script, so the Go
@@ -97,18 +97,18 @@ test.describe('the footer is the same on every page', () => {
   // unmatched address gets the 404 page, including /500.html asked for by
   // name and a bare /disclaimer, so the real binary is the only place this
   // can be checked. Dev binary in CI: the version slot is the dev label.
-  for (const path of [
-    '/nope',
-    '/404.html',
-    '/500.html',
-    '/disclaimer',
-    '/disclaimer/',
-  ]) {
-    test(`${path} (an error page) shows the same five footer items, none current`, async ({
-      page,
-    }) => {
+  test('the error pages show the same footer items, none current', async ({
+    page,
+  }) => {
+    for (const path of [
+      '/nope',
+      '/404.html',
+      '/500.html',
+      '/disclaimer',
+      '/disclaimer/',
+    ]) {
       const response = await page.goto(path);
-      expect(response?.status()).toBe(404);
+      expect(response?.status(), path).toBe(404);
       await expect(page.locator('footer')).not.toContainText(
         'Read-only mirror',
       );
@@ -145,8 +145,8 @@ test.describe('the footer is the same on every page', () => {
         );
       }
       await expect(page.locator('footer a[aria-current]')).toHaveCount(0);
-    });
-  }
+    }
+  });
 
   // CI builds a dev binary, so the unmocked version is the dev label.
   test('a dev build shows the same five items, with a dev build label', async ({
