@@ -886,11 +886,17 @@
       min-height: 32px;
       align-items: center;
     }
+    /* The 44px phone policy (#1753) runs to 760px, past the 420px layout
+       break below, so the pills get their height here. */
+    @media (max-width: 760px) {
+      .mb-pill {
+        min-height: 44px;
+      }
+    }
     @media (max-width: 420px) {
       .mb-wrap {
         padding-top: 16px;
       }
-      .mb-pill,
       .mb-search,
       .mb-toggle {
         min-height: 44px;
