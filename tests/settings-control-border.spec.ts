@@ -77,8 +77,10 @@ for (const scheme of ['light', 'dark'] as const) {
         const control = page.locator(selector);
         await expect(control, selector).toBeVisible();
         const { border, fill, behind } = await edge(control);
-        expect(contrast(border, behind), selector).toBeGreaterThanOrEqual(3);
-        expect(contrast(border, fill), selector).toBeGreaterThanOrEqual(3);
+        expect
+          .soft(contrast(border, behind), selector)
+          .toBeGreaterThanOrEqual(3);
+        expect.soft(contrast(border, fill), selector).toBeGreaterThanOrEqual(3);
       }
     });
   }

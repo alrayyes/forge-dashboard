@@ -108,7 +108,9 @@ test.describe('bottom nav labels (#3288)', () => {
               `${b.name}/${next.name} gap ${(next.left - b.right).toFixed(1)}px`,
             );
         }
-        expect(problems, `${width}px\n${problems.join('\n')}\n`).toEqual([]);
+        expect
+          .soft(problems, `${width}px\n${problems.join('\n')}\n`)
+          .toEqual([]);
       }
     });
   }

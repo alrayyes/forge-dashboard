@@ -44,15 +44,17 @@ async function mockVersion(page: Page) {
 
 async function expectFooter(page: Page, current: string | undefined) {
   const links = page.locator('footer a');
-  await expect(links).toHaveText([...EXPECTED]);
-  await expect(page.locator('footer')).not.toContainText('Read-only mirror');
+  await expect.soft(links).toHaveText([...EXPECTED]);
+  await expect
+    .soft(page.locator('footer'))
+    .not.toContainText('Read-only mirror');
   const marked = page.locator('footer a[aria-current]');
   if (current) {
-    await expect(marked).toHaveCount(1);
-    await expect(marked).toHaveText(current);
-    await expect(marked).toHaveAttribute('aria-current', 'page');
+    await expect.soft(marked).toHaveCount(1);
+    await expect.soft(marked).toHaveText(current);
+    await expect.soft(marked).toHaveAttribute('aria-current', 'page');
   } else {
-    await expect(marked).toHaveCount(0);
+    await expect.soft(marked).toHaveCount(0);
   }
 }
 
@@ -72,8 +74,10 @@ test.describe('the footer is the same on every page', () => {
     test('every page shows the same footer items', async ({ page }) => {
       await mockVersion(page);
       for (const [path, current] of Object.entries(SIGNED_IN)) {
-        await page.goto(path);
-        await expectFooter(page, current);
+        await test.step(path, async () => {
+          await page.goto(path);
+          await expectFooter(page, current);
+        });
       }
     });
   });
@@ -86,8 +90,10 @@ test.describe('the footer is the same on every page', () => {
     test('every page shows the same footer items', async ({ page }) => {
       await mockVersion(page);
       for (const [path, current] of Object.entries(SIGNED_OUT)) {
-        await page.goto(path);
-        await expectFooter(page, current);
+        await test.step(path, async () => {
+          await page.goto(path);
+          await expectFooter(page, current);
+        });
       }
     });
   });
@@ -107,44 +113,46 @@ test.describe('the footer is the same on every page', () => {
       '/disclaimer',
       '/disclaimer/',
     ]) {
-      const response = await page.goto(path);
-      expect(response?.status(), path).toBe(404);
-      await expect(page.locator('footer')).not.toContainText(
-        'Read-only mirror',
-      );
-      const slot = (await page.locator('#footer-version').innerText()).trim();
-      const text = await page
-        .locator('footer')
-        .evaluate((el) =>
-          (el as HTMLElement).innerText.replace(/\u00a0/g, ' ').trim(),
+      await test.step(path, async () => {
+        const response = await page.goto(path);
+        expect(response?.status(), path).toBe(404);
+        await expect(page.locator('footer')).not.toContainText(
+          'Read-only mirror',
         );
-      if (/dev build/.test(slot)) {
-        await expect(page.locator('footer a')).toHaveText([
-          'GitHub',
-          'Disclaimer',
-          'Privacy',
-        ]);
-        expect(text).toMatch(
-          /^GitHub\s+· dev build\s+· Disclaimer\s+· Privacy$/,
-        );
-      } else {
-        // A release binary: the version is a link to the changelog.
-        const version = (
-          await page.locator('#footer-version a').innerText()
-        ).trim();
-        expect(version).toMatch(/^v\d\S*$/);
-        await expect(page.locator('footer a')).toHaveText([
-          'GitHub',
-          version,
-          'Disclaimer',
-          'Privacy',
-        ]);
-        await expect(page.locator('#footer-version a')).toHaveAttribute(
-          'href',
-          '/changelog.html',
-        );
-      }
-      await expect(page.locator('footer a[aria-current]')).toHaveCount(0);
+        const slot = (await page.locator('#footer-version').innerText()).trim();
+        const text = await page
+          .locator('footer')
+          .evaluate((el) =>
+            (el as HTMLElement).innerText.replace(/\u00a0/g, ' ').trim(),
+          );
+        if (/dev build/.test(slot)) {
+          await expect(page.locator('footer a')).toHaveText([
+            'GitHub',
+            'Disclaimer',
+            'Privacy',
+          ]);
+          expect(text).toMatch(
+            /^GitHub\s+· dev build\s+· Disclaimer\s+· Privacy$/,
+          );
+        } else {
+          // A release binary: the version is a link to the changelog.
+          const version = (
+            await page.locator('#footer-version a').innerText()
+          ).trim();
+          expect(version).toMatch(/^v\d\S*$/);
+          await expect(page.locator('footer a')).toHaveText([
+            'GitHub',
+            version,
+            'Disclaimer',
+            'Privacy',
+          ]);
+          await expect(page.locator('#footer-version a')).toHaveAttribute(
+            'href',
+            '/changelog.html',
+          );
+        }
+        await expect(page.locator('footer a[aria-current]')).toHaveCount(0);
+      });
     }
   });
 
