@@ -725,8 +725,17 @@ test.describe('insights page', () => {
     // control is a height. Each control must take its own height instead.
     async function open(page: Page, width: number) {
       await page.setViewportSize({ width, height: 900 });
+      // Two repos, authors and labels, so every pick filter stays in the bar.
       await mockDashboard(page, {
-        pullRequests: [pr('success')],
+        pullRequests: [
+          pr('success', { labels: [{ name: 'docs', color: 'ededed' }] }),
+          pr('failure', {
+            number: 2,
+            repo: 'alrayyes/other',
+            author: 'other',
+            labels: [{ name: 'bug', color: 'ededed' }],
+          }),
+        ],
         issues: [issue()],
       });
       await page.goto('/insights.html');

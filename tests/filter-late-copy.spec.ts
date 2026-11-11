@@ -234,6 +234,9 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     // which also has an author, is still out.
     await page.goto('/issues.html');
     await expect.poll(() => pickedLabels(page)).toEqual(['bug']);
+    // With the author still picked only bug is on offer, and a label filter
+    // with one choice and no pick leaves the bar, so free the author first.
+    await pickOnly(page, 'author', '');
     await clearLabels(page);
     await toggleLabels(page, 'bug');
     await expect

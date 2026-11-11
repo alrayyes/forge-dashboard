@@ -1672,6 +1672,43 @@ test.describe('dashboard page', () => {
     test('a repo+author combination that stops co-occurring clears both selections, not just one', async ({
       page,
     }) => {
+      // A second author in that repo keeps the Author filter in the bar once
+      // the repo is picked: a filter with one choice is hidden.
+      const pr = (n: number, forge: string, repo: string, author: string) => ({
+        forge,
+        repo,
+        number: n,
+        title: `PR ${n}`,
+        url: `https://example.com/${n}`,
+        author,
+        ci: 'success',
+        labels: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [
+              { forge: 'github', reachable: true, repoCount: 2 },
+              { forge: 'forgejo', reachable: true, repoCount: 1 },
+            ],
+            pullRequests: [
+              pr(1, 'github', 'shared/tools', 'claude'),
+              pr(2, 'forgejo', 'shared/tools', 'ryan'),
+              pr(3, 'github', 'alrayyes/only-here', 'claude'),
+              pr(4, 'forgejo', 'shared/tools', 'zed'),
+            ],
+            issues: [],
+          }),
+        }),
+      );
+      await page.reload();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
+
       // Both picks are valid together at the time they're made: the
       // Forgejo shared/tools repo really is authored by ryan.
       await pickOnly(page, 'repo', 'forgejo:shared/tools');

@@ -1079,6 +1079,9 @@ select.col-filter {
 
 /* The Label filter: a button that names the pick, opening a group of
    checkboxes. It sits in the bar like the selects around it. */
+.label-filter[hidden] {
+  display: none;
+}
 .label-filter {
   position: relative;
   flex: 1 1 130px;

@@ -9,14 +9,25 @@ export const labelButton = (page: Page): Locator =>
 export const labelPanel = (page: Page): Locator =>
   page.locator('#shared-label-filter-panel').first();
 
+// A filter with one choice and no pick is hidden (#3496); its choices are
+// still in the markup, so reading them needs no click.
+async function shown(button: Locator): Promise<boolean> {
+  return button
+    .waitFor({ state: 'visible', timeout: 1500 })
+    .then(() => true)
+    .catch(() => false);
+}
+
 async function open(page: Page) {
   const button = labelButton(page);
+  if (!(await shown(button))) return;
   if ((await button.getAttribute('aria-expanded')) !== 'true')
     await button.click();
 }
 
 async function close(page: Page) {
   const button = labelButton(page);
+  if (!(await button.isVisible())) return;
   if ((await button.getAttribute('aria-expanded')) === 'true')
     await button.click();
 }
@@ -88,12 +99,14 @@ export const pickPanel = (page: Page, key: PickKey): Locator =>
 
 async function openPick(page: Page, key: PickKey) {
   const button = pickButton(page, key);
+  if (!(await shown(button))) return;
   if ((await button.getAttribute('aria-expanded')) !== 'true')
     await button.click();
 }
 
 async function closePick(page: Page, key: PickKey) {
   const button = pickButton(page, key);
+  if (!(await button.isVisible())) return;
   if ((await button.getAttribute('aria-expanded')) === 'true')
     await button.click();
 }

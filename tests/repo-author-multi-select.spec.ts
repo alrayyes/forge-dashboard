@@ -407,16 +407,20 @@ test.describe('Repo and Author: logos and avatars', () => {
       pr(1, 'dave', 'acme/api', {
         authorAvatarUrl: 'http://avatars.example.com/dave.png',
       }),
+      // A second author keeps the filter in the bar (#3496).
+      pr(2, 'erin', 'acme/api'),
     ];
     await open(page, '/pull-requests.html', prs);
     await pickButton(page, 'author').click();
-    const dave = pickPanel(page, 'author').locator('.label-filter-option');
+    const dave = pickPanel(page, 'author')
+      .locator('.label-filter-option')
+      .filter({ hasText: 'dave' });
     await expect(dave.locator('.pick-image img')).toHaveCount(0);
     await expect(dave.locator('.pick-initial')).toHaveText('D');
   });
 
   test('a plain http repo logo is not loaded', async ({ page }) => {
-    await mock(page, [pr(1, 'dave', 'acme/api')]);
+    await mock(page, [pr(1, 'dave', 'acme/api'), pr(2, 'dave', 'acme/web')]);
     // Registered last, so it answers first.
     await page.route('**/api/v1/dashboard*', (route: Route) =>
       route.fulfill({
@@ -425,7 +429,7 @@ test.describe('Repo and Author: logos and avatars', () => {
         body: JSON.stringify({
           generatedAt: NOW,
           forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-          pullRequests: [pr(1, 'dave', 'acme/api')],
+          pullRequests: [pr(1, 'dave', 'acme/api'), pr(2, 'dave', 'acme/web')],
           issues: [],
           openIssueCount: 0,
           repos: [repoEntry('acme/api', 'http://logos.example.com/api.png')],
@@ -435,7 +439,9 @@ test.describe('Repo and Author: logos and avatars', () => {
     );
     await page.goto('/pull-requests.html');
     await pickButton(page, 'repo').click();
-    const api = pickPanel(page, 'repo').locator('.label-filter-option');
+    const api = pickPanel(page, 'repo')
+      .locator('.label-filter-option')
+      .filter({ hasText: 'acme/api' });
     await expect(api.locator('.pick-image img')).toHaveCount(0);
     await expect(api.locator('.pick-initial')).toHaveText('A');
   });
@@ -678,19 +684,20 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seedCookie(page, baseURL, {
-      repo: 'github:acme/api\ngithub:acme/docs',
+      // Web has two authors, so the Author filter stays in the bar.
+      repo: 'github:acme/web',
     });
     await open(page);
 
-    await expect(page.locator('#active-filters .filter-chip')).toHaveCount(2);
+    await expect(page.locator('#active-filters .filter-chip')).toHaveCount(1);
     await page.getByRole('button', { name: /^Filters/ }).click();
     await pickButton(page, 'author').click();
     await pickPanel(page, 'author')
-      .getByRole('checkbox', { name: 'alice' })
+      .getByRole('checkbox', { name: 'bob' })
       .check();
-    await expect(page.locator('#active-filters .filter-chip')).toHaveCount(3);
+    await expect(page.locator('#active-filters .filter-chip')).toHaveCount(2);
     const box = await pickPanel(page, 'author')
-      .getByRole('checkbox', { name: 'alice' })
+      .getByRole('checkbox', { name: 'bob' })
       .locator('xpath=ancestor::label')
       .boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
