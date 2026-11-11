@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.15](https://github.com/alrayyes/forge-dashboard/compare/v9.10.14...v9.10.15) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** keep a long package name inside its row in the advisories list ([#3433](https://github.com/alrayyes/forge-dashboard/issues/3433)) ([33bf492](https://github.com/alrayyes/forge-dashboard/commit/33bf492f551db016e1294a9281d9d9684cfb5172)), closes [#3389](https://github.com/alrayyes/forge-dashboard/issues/3389)
+
 ## [9.10.14](https://github.com/alrayyes/forge-dashboard/compare/v9.10.13...v9.10.14) (2026-11-11)
 
 
