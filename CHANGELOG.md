@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.13](https://github.com/alrayyes/forge-dashboard/compare/v9.10.12...v9.10.13) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** wrap a long check name in the pipeline dialog ([#3439](https://github.com/alrayyes/forge-dashboard/issues/3439)) ([e540dc1](https://github.com/alrayyes/forge-dashboard/commit/e540dc1d2a864bab7f93380d9a8d893805748e58)), closes [#3391](https://github.com/alrayyes/forge-dashboard/issues/3391)
+
 ## [9.10.12](https://github.com/alrayyes/forge-dashboard/compare/v9.10.11...v9.10.12) (2026-11-11)
 
 
