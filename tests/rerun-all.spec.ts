@@ -232,13 +232,19 @@ test('a filter that hides a failing row takes it out of the count', async ({
   await open(
     page,
     '/pull-requests.html',
-    [pr(1), pr(2, { repo: 'acme/other' })],
+    [pr(1), pr(2, { forge: 'forgejo', repo: 'home/app' })],
     {},
+    {
+      forges: [
+        { forge: 'github', reachable: true, repoCount: 1 },
+        { forge: 'forgejo', reachable: true, repoCount: 1 },
+      ],
+    },
   );
   await expect(
     page.getByRole('button', { name: 'Rerun failed checks (2)' }),
   ).toBeVisible();
-  await page.goto('/pull-requests.html?q=other');
+  await page.locator('.quick-pill.forge-pill[data-pill="forgejo"]').click();
   await expect(
     page.getByRole('button', { name: 'Rerun failed checks (1)' }),
   ).toBeVisible();
