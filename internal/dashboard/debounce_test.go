@@ -238,6 +238,63 @@ func TestRefreshRepoDebounced_AnEventInTheNextBurstStartsANewWindow(t *testing.T
 	f.event(t.Context(), "alrayyes/a")
 	f.clock.Advance(2 * time.Second)
 	f.event(t.Context(), "alrayyes/a")
+	f.clock.Advance(30 * time.Second)
+
+	assert.Equal(t, 2, f.src.repoFetchCallCount("alrayyes/a"), "the second burst waits out the minimum interval, then refreshes")
+}
+
+// A push's check_run deliveries arrive over tens of seconds, with gaps longer
+// than the quiet window, so the window alone merges nothing.
+func TestRefreshRepoDebounced_FiveEventsOver23SecondsRefreshAtMostTwice(t *testing.T) {
+	t.Parallel()
+	f := newDebounceFixture(t)
+
+	gaps := []time.Duration{6 * time.Second, 6 * time.Second, 5 * time.Second, 6 * time.Second, 0}
+	for _, gap := range gaps {
+		require.True(t, f.event(t.Context(), "alrayyes/a"))
+		f.clock.Advance(gap)
+	}
+	f.clock.Advance(time.Minute)
+
+	assert.LessOrEqual(t, f.src.repoFetchCallCount("alrayyes/a"), 2)
+}
+
+func TestRefreshRepoDebounced_TheLastEventOfAThrottledBurstIsStillRefreshed(t *testing.T) {
+	t.Parallel()
+	f := newDebounceFixture(t)
+
+	f.event(t.Context(), "alrayyes/a")
+	f.clock.Advance(2 * time.Second)
+	require.Equal(t, 1, f.src.repoFetchCallCount("alrayyes/a"))
+	f.clock.Advance(10 * time.Second)
+	f.event(t.Context(), "alrayyes/a")
+	f.clock.Advance(5 * time.Second)
+	assert.Equal(t, 1, f.src.repoFetchCallCount("alrayyes/a"), "held back by the minimum interval")
+
+	f.clock.Advance(time.Minute)
+
+	assert.Equal(t, 2, f.src.repoFetchCallCount("alrayyes/a"))
+}
+
+func TestRefreshRepoDebounced_AnotherRepoIsNotHeldBackByTheThrottle(t *testing.T) {
+	t.Parallel()
+	f := newDebounceFixture(t)
+
+	f.event(t.Context(), "alrayyes/a")
+	f.clock.Advance(2 * time.Second)
+	f.event(t.Context(), "alrayyes/b")
+	f.clock.Advance(2 * time.Second)
+
+	assert.Equal(t, 1, f.src.repoFetchCallCount("alrayyes/b"))
+}
+
+func TestRefreshRepoDebounced_AnEventAfterTheIntervalRefreshesAfterTheQuietWindow(t *testing.T) {
+	t.Parallel()
+	f := newDebounceFixture(t)
+
+	f.event(t.Context(), "alrayyes/a")
+	f.clock.Advance(time.Minute)
+	f.event(t.Context(), "alrayyes/a")
 	f.clock.Advance(2 * time.Second)
 
 	assert.Equal(t, 2, f.src.repoFetchCallCount("alrayyes/a"))
@@ -281,7 +338,7 @@ func TestRefreshRepoDebounced_AnEventDuringARunningRefreshCausesOneFollowUp(t *t
 	for range 3 {
 		f.event(t.Context(), "alrayyes/a")
 	}
-	f.clock.AdvanceWithoutWaiting(2 * time.Second)
+	f.clock.AdvanceWithoutWaiting(30 * time.Second)
 	close(release)
 	f.clock.Wait()
 

@@ -297,7 +297,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		opt(a)
 	}
 	a.fetching = make([]atomic.Bool, len(a.sources))
-	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold)
+	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold, webhookMinInterval)
 	if a.snapCache != nil {
 		a.restoreSnapshot(context.Background())
 	}
