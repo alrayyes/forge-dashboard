@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.12](https://github.com/alrayyes/forge-dashboard/compare/v9.10.11...v9.10.12) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** show which toggle is pressed in forced-colors mode on the remaining aria-pressed buttons ([#3432](https://github.com/alrayyes/forge-dashboard/issues/3432)) ([7bbfef0](https://github.com/alrayyes/forge-dashboard/commit/7bbfef0dd84ea1fe0884d0f663725c501b64a0b0))
+
 ## [9.10.11](https://github.com/alrayyes/forge-dashboard/compare/v9.10.10...v9.10.11) (2026-11-11)
 
 
