@@ -38,21 +38,21 @@ func TestFetch_MainBranch_ACommitFoundBehindASkipCiCommitReadsItsNewestRun(t *te
 	}
 
 	var mu sync.Mutex
-	var historyQuery string
+	var commitQuery string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
-		query := readGraphQLRequest(t, r).Query
+		req := readGraphQLRequest(t, r)
+		query := req.Query
 		rate := map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"}
+		data := map[string]any{"rateLimit": rate}
 		switch {
-		case strings.Contains(query, "history("):
-			mu.Lock()
-			historyQuery = query
-			mu.Unlock()
-			writeJSON(t, w, map[string]any{"data": map[string]any{"rateLimit": rate, "m0": map[string]any{
-				"defaultBranchRef": map[string]any{"target": map[string]any{
-					"history": map[string]any{"nodes": []map[string]any{skipCI, checked}},
-				}},
-			}}})
+		case lookupAnswer(req, data, func(string) []map[string]any { return []map[string]any{skipCI, checked} }):
+			if strings.Contains(query, "object(oid") {
+				mu.Lock()
+				commitQuery = query
+				mu.Unlock()
+			}
+			writeJSON(t, w, map[string]any{"data": data})
 		case strings.Contains(query, "nodes(ids"):
 			writeJSON(t, w, map[string]any{"data": map[string]any{"nodes": []map[string]any{{
 				"id": "S2", "checkRuns": map[string]any{"nodes": []map[string]any{
@@ -86,9 +86,9 @@ func TestFetch_MainBranch_ACommitFoundBehindASkipCiCommitReadsItsNewestRun(t *te
 	assert.Equal(t, dashboard.MainBranchPassed, result.MainBranches[0].Status)
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Contains(t, historyQuery, "checkSuites(last: 50)", "the walk-back asks for the commit's suites")
-	assert.Contains(t, historyQuery, "contexts(first: 100)", "and as many checks as the head read does")
-	assert.Contains(t, historyQuery, "workflowRun", "and the run each check belongs to")
+	assert.Contains(t, commitQuery, "checkSuites(last: 50)", "the walk-back asks for the commit's suites")
+	assert.Contains(t, commitQuery, "contexts(first: 100)", "and as many checks as the head read does")
+	assert.Contains(t, commitQuery, "workflowRun", "and the run each check belongs to")
 }
 
 // The commit behind a "[skip ci]" one may carry only Dependabot Updates runs,
@@ -115,14 +115,10 @@ func TestFetch_MainBranch_AWalkBackSkipsACommitWithOnlyDependabotUpdateRuns(t *t
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
-		query := readGraphQLRequest(t, r).Query
 		rate := map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"}
-		if strings.Contains(query, "history(") {
-			writeJSON(t, w, map[string]any{"data": map[string]any{"rateLimit": rate, "m0": map[string]any{
-				"defaultBranchRef": map[string]any{"target": map[string]any{
-					"history": map[string]any{"nodes": []map[string]any{skipCI, dependabotOnly}},
-				}},
-			}}})
+		data := map[string]any{"rateLimit": rate}
+		if lookupAnswer(readGraphQLRequest(t, r), data, func(string) []map[string]any { return []map[string]any{skipCI, dependabotOnly} }) {
+			writeJSON(t, w, map[string]any{"data": data})
 
 			return
 		}
