@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.14.2](https://github.com/alrayyes/forge-dashboard/compare/v9.14.1...v9.14.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** make a scrolling pull request description keyboard reachable ([#3488](https://github.com/alrayyes/forge-dashboard/issues/3488)) ([ce0f9b9](https://github.com/alrayyes/forge-dashboard/commit/ce0f9b9827e607ab052e25b45ec487509f2b2a24))
+
 ## [9.14.1](https://github.com/alrayyes/forge-dashboard/compare/v9.14.0...v9.14.1) (2026-11-11)
 
 
