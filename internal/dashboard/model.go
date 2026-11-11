@@ -399,7 +399,11 @@ type ForgeErrorKind string
 // limit — so this stays as coarse as MergeStatus does, rather than
 // chasing every status code a forge can return.
 const (
-	ForgeErrorUnreachable  ForgeErrorKind = "unreachable"
+	ForgeErrorUnreachable ForgeErrorKind = "unreachable"
+	// ForgeErrorUpstream is the forge answering with a 5xx (a gateway
+	// timeout on a heavy query, say). It did answer, so it is not
+	// ForgeErrorUnreachable, which is for requests that got no response.
+	ForgeErrorUpstream     ForgeErrorKind = "upstream_error"
 	ForgeErrorUnauthorized ForgeErrorKind = "unauthorized"
 	ForgeErrorNotFound     ForgeErrorKind = "not_found"
 	ForgeErrorRateLimited  ForgeErrorKind = "rate_limited"
@@ -420,6 +424,7 @@ const (
 // account ID nobody outside this codebase should see).
 var forgeErrorDetails = map[ForgeErrorKind]string{
 	ForgeErrorUnreachable:  "The forge didn't respond, or the connection to it failed.",
+	ForgeErrorUpstream:     "The forge answered, but with a server error. It should recover on its own.",
 	ForgeErrorUnauthorized: "The saved credential was rejected — it may be missing, expired, or revoked.",
 	ForgeErrorNotFound:     "The configured instance URL doesn't match anything reachable.",
 	ForgeErrorRateLimited:  "This account's request budget with the forge is used up for now.",
@@ -446,7 +451,10 @@ type ForgeHealth struct {
 	Reachable bool           `json:"reachable"`
 	Error     string         `json:"error,omitempty"`
 	ErrorKind ForgeErrorKind `json:"errorKind,omitempty"`
-	RepoCount int            `json:"repoCount"`
+	// UpstreamStatus is the 5xx the forge answered with when ErrorKind is
+	// ForgeErrorUpstream, and absent otherwise.
+	UpstreamStatus int `json:"upstreamStatus,omitempty"`
+	RepoCount      int `json:"repoCount"`
 	// Starting is set while the rows shown for this forge are the ones the
 	// last run saved and no fetch has answered since this start. The forge
 	// has not been asked yet, so it is neither reachable nor in error: the

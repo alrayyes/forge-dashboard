@@ -361,6 +361,8 @@
   type Forge = ForgeHealthEntry & {
     repoCount: number;
     errorKind?: string;
+    // The 5xx GitHub answered with when errorKind is "upstream_error".
+    upstreamStatus?: number;
     error?: string;
     // Set with reachable: false when the rows shown are the last good ones
     // (#933): when that data was fetched.
@@ -8412,6 +8414,8 @@
     const ERROR_HEADLINES: Record<string, string> = {
       unreachable:
         "Temporarily unreachable — try the refresh button above, or it’ll retry automatically.",
+      upstream_error:
+        "The forge answered with a server error — it’ll retry automatically.",
       unauthorized: "Check the token in Settings.",
       not_found: "Check the instance URL in Settings.",
       rate_limited: "Rate limit exceeded.",
@@ -8637,6 +8641,8 @@
       switch (f.errorKind) {
         case "unreachable":
           return "It isn’t answering. This page tries again on its own.";
+        case "upstream_error":
+          return "It answered, but with a server error. This page tries again on its own.";
         case "unauthorized":
           return "Check the token in Settings.";
         case "not_found":
@@ -8647,6 +8653,17 @@
     }
 
     const GITHUB_STATUS_PAGE = "https://www.githubstatus.com/";
+
+    // What the banner leads with. A forge that answered with a 5xx is not
+    // unreachable, so it says what it answered (#3527).
+    function outageHeadline(f: Forge, label: string): string {
+      const upstream =
+        f.errorKind === "upstream_error" && f.upstreamStatus && f.error;
+      const what = upstream ? `${f.error}.` : `${label} is unreachable.`;
+      return f.staleSince
+        ? `${what} Showing the last data from ${formatTime(f.staleSince)}.`
+        : what;
+    }
 
     function renderUnreachableBanner() {
       const existing = document.getElementById("unreachable-banner");
@@ -8678,15 +8695,7 @@
         const label = FORGE_LABELS[f.forge] || f.forge;
         const row = el("div", "unreachable-banner-row");
         const text = el("p", "unreachable-banner-text");
-        text.appendChild(
-          el(
-            "strong",
-            "",
-            f.staleSince
-              ? `${label} is unreachable. Showing the last data from ${formatTime(f.staleSince)}.`
-              : `${label} is unreachable.`,
-          ),
-        );
+        text.appendChild(el("strong", "", outageHeadline(f, label)));
         text.appendChild(document.createTextNode(` ${unreachableCause(f)}`));
         row.appendChild(text);
         // GitHub's own status page says whether the fault is theirs. A
