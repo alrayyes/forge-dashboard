@@ -65,6 +65,10 @@
   async function toggle() {
     shown = !shown;
     flow.reset();
+    // What the excerpt's copy said was heard once; hiding the panel ends it, so
+    // showing the panel again doesn't announce it as new (#3360). A copy still
+    // running keeps going.
+    if (!shown && earlier && !earlier.busy) earlier.reset();
     if (!shown || !url) {
       ask++;
       onloaded?.(false);
