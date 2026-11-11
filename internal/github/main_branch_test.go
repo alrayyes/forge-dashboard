@@ -311,15 +311,12 @@ func TestFetch_MainBranch_SkipsCommitsNoCheckRanOn(t *testing.T) {
 	var queries []string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
-		query := readGraphQLRequest(t, r).Query
-		queries = append(queries, query)
+		req := readGraphQLRequest(t, r)
+		queries = append(queries, req.Query)
 		rate := map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"}
-		if strings.Contains(query, "history(") {
-			writeJSON(t, w, map[string]any{"data": map[string]any{"rateLimit": rate, "m0": map[string]any{
-				"defaultBranchRef": map[string]any{"target": map[string]any{
-					"history": map[string]any{"nodes": []map[string]any{skipCI, checked}},
-				}},
-			}}})
+		data := map[string]any{"rateLimit": rate}
+		if lookupAnswer(req, data, func(string) []map[string]any { return []map[string]any{skipCI, checked} }) {
+			writeJSON(t, w, map[string]any{"data": data})
 
 			return
 		}
@@ -350,7 +347,7 @@ func TestFetch_MainBranch_SkipsCommitsNoCheckRanOn(t *testing.T) {
 	require.NotNil(t, row.Commit)
 	assert.Equal(t, "322ca56", row.Commit.SHA, "the commit the checks ran on")
 	assert.Equal(t, "perf: count pages without pdf-lib (#131)", row.Commit.Subject)
-	assert.Len(t, queries, 2, "one extra query, only for the repo whose newest commit has no checks")
+	assert.Len(t, queries, 3, "two extra queries, only for the repo whose newest commit has no checks")
 }
 
 // TestFetch_MainBranch_ANewestCommitWithHeldRunsAwaitsApproval pins #2024. A

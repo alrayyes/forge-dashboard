@@ -496,11 +496,49 @@ func branchTimes(checks []branchContext) (finished *time.Time, seconds *int) {
 	return &newest.last, &d
 }
 
-// checkedCommitsQuery builds one query that reads, for each repo, its newest
-// commits with the CI that ran on them. Used only for a repo whose newest
+// Bounds on the checked-commit lookup (#3530). GitHub times a request out well
+// before its node limit, and one request that read ten commits of every repo
+// in full did (#3527). So the lookup first reads only whether each commit has a
+// rollup, for lookupAliases repos at a time, then reads the checks of the one
+// commit it means to show, for commitAliases repos at a time.
+const (
+	lookupAliases = 25
+	commitAliases = 10
+)
+
+// checkedCommitQuery builds one query that reads, for each repo, the one commit
+// named by its oid with the CI that ran on it.
+func checkedCommitQuery(repos []branchRepo, oids []string) (string, map[string]any) {
+	var q strings.Builder
+	vars := make(map[string]any, len(repos)*3)
+	q.WriteString("query(")
+	for i, r := range repos {
+		fmt.Fprintf(&q, "$owner%d: String!, $name%d: String!, $oid%d: GitObjectID!, ", i, i, i)
+		vars[fmt.Sprintf("owner%d", i)] = r.owner
+		vars[fmt.Sprintf("name%d", i)] = r.name
+		vars[fmt.Sprintf("oid%d", i)] = oids[i]
+	}
+	q.WriteString(") {\n  rateLimit { cost }\n")
+	for i := range repos {
+		fmt.Fprintf(&q, `  c%[1]d: repository(owner: $owner%[1]d, name: $name%[1]d) {
+    object(oid: $oid%[1]d) { ... on Commit {
+      oid abbreviatedOid messageHeadline url committedDate
+      author { name user { login } }
+`+commitChecks+`
+    } }
+  }
+`, i)
+	}
+	q.WriteString("}")
+
+	return q.String(), vars
+}
+
+// checkedHistoryQuery builds one query that reads, for each repo, whether each
+// of its newest commits has a check rollup. Used only for a repo whose newest
 // commit has no checks at all (#1265): a release bot's "[skip ci]" commit
 // leaves the branch with no rollup, though the commit before it has one.
-func checkedCommitsQuery(repos []branchRepo) (string, map[string]any) {
+func checkedHistoryQuery(repos []branchRepo) (string, map[string]any) {
 	var q strings.Builder
 	vars := make(map[string]any, len(repos)*2)
 	q.WriteString("query(")
@@ -513,9 +551,8 @@ func checkedCommitsQuery(repos []branchRepo) (string, map[string]any) {
 	for i := range repos {
 		fmt.Fprintf(&q, `  m%[1]d: repository(owner: $owner%[1]d, name: $name%[1]d) {
     defaultBranchRef { target { ... on Commit { history(first: 10) { nodes {
-      oid abbreviatedOid messageHeadline url committedDate
-      author { name user { login } }
-`+commitChecks+`
+      oid
+      statusCheckRollup { state }
     } } } } }
   }
 `, i)
@@ -582,16 +619,59 @@ func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) [
 	return unchecked
 }
 
+// lookup is one repo's walk back: the oids of its newest commits that have a
+// check rollup, newest first, still to be read.
+type lookup struct {
+	repo branchRepo
+	oids []string
+}
+
 // withCheckedCommits moves each ref's target to the newest commit a check ran
 // on, for the repos whose newest commit has none and no runs held for approval.
-// Dependabot Updates runs don't count as checks. Any failure leaves the refs as
-// they were, so the row reads none rather than the poll failing.
+// Dependabot Updates runs don't count as checks. Any failure leaves the refs it
+// touched as they were, so the row reads none rather than the poll failing.
+//
+// It reads in two steps (#3530): which of each repo's newest commits have a
+// rollup, then the checks of the newest of those. A commit whose checks are all
+// Dependabot Updates runs only shows once its checks are read, so the next
+// commit with a rollup is read in a further round.
 func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) {
-	unchecked := c.uncheckedBranches(ctx, tracked)
-	if len(unchecked) == 0 {
-		return
+	pending := c.rolledUpCommits(ctx, c.uncheckedBranches(ctx, tracked))
+	for len(pending) > 0 {
+		commits := c.readCommits(ctx, pending)
+		var next []lookup
+		for i, l := range pending {
+			commit, ok := commits[i]
+			if !ok {
+				continue
+			}
+			if commit.StatusCheckRollup != nil && !commit.StatusCheckRollup.onlyDynamic() {
+				l.repo.ref.Target = commit
+
+				continue
+			}
+			if len(l.oids) > 1 {
+				next = append(next, lookup{l.repo, l.oids[1:]})
+			}
+		}
+		pending = next
 	}
-	query, vars := checkedCommitsQuery(unchecked)
+}
+
+// rolledUpCommits lists, for each repo, the oids of its newest commits that
+// have a check rollup. A repo whose read failed or has none is left out.
+func (c *Client) rolledUpCommits(ctx context.Context, repos []branchRepo) []lookup {
+	var found []lookup
+	for chunk := range slices.Chunk(repos, lookupAliases) {
+		found = append(found, c.rolledUpChunk(ctx, chunk)...)
+	}
+
+	return found
+}
+
+// rolledUpChunk is rolledUpCommits for the repos of one request.
+func (c *Client) rolledUpChunk(ctx context.Context, repos []branchRepo) []lookup {
+	query, vars := checkedHistoryQuery(repos)
 	var resp map[string]struct {
 		DefaultBranchRef *struct {
 			Target struct {
@@ -604,21 +684,56 @@ func (c *Client) withCheckedCommits(ctx context.Context, tracked []graphqlRepo) 
 	if err := c.graphqlDo(ctx, query, vars, &resp); err != nil {
 		slog.Warn("github checked-commit lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
 
-		return
+		return nil
 	}
-	for i, r := range unchecked {
+	var found []lookup
+	for i, r := range repos {
 		repo, ok := resp[fmt.Sprintf("m%d", i)]
 		if !ok || repo.DefaultBranchRef == nil {
 			continue
 		}
+		l := lookup{repo: r}
 		for _, commit := range repo.DefaultBranchRef.Target.History.Nodes {
-			if commit.StatusCheckRollup != nil && !commit.StatusCheckRollup.onlyDynamic() {
-				r.ref.Target = commit
+			if commit.StatusCheckRollup != nil {
+				l.oids = append(l.oids, commit.OID)
+			}
+		}
+		if len(l.oids) > 0 {
+			found = append(found, l)
+		}
+	}
 
-				break
+	return found
+}
+
+// readCommits reads, in full, the first commit each lookup still has to read,
+// keyed by the lookup's index. A commit whose read failed is left out.
+func (c *Client) readCommits(ctx context.Context, lookups []lookup) map[int]graphqlCommit {
+	found := map[int]graphqlCommit{}
+	for start := 0; start < len(lookups); start += commitAliases {
+		chunk := lookups[start:min(start+commitAliases, len(lookups))]
+		repos := make([]branchRepo, len(chunk))
+		oids := make([]string, len(chunk))
+		for i, l := range chunk {
+			repos[i], oids[i] = l.repo, l.oids[0]
+		}
+		query, vars := checkedCommitQuery(repos, oids)
+		var resp map[string]struct {
+			Object *graphqlCommit `json:"object"`
+		}
+		if err := c.graphqlDo(ctx, query, vars, &resp); err != nil {
+			slog.Warn("github checked-commit lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
+
+			continue
+		}
+		for i := range chunk {
+			if repo, ok := resp[fmt.Sprintf("c%d", i)]; ok && repo.Object != nil {
+				found[start+i] = *repo.Object
 			}
 		}
 	}
+
+	return found
 }
 
 // mainBranchQuery reads one repository's default branch, the same selection

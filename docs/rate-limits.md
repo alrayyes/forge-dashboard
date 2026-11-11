@@ -615,6 +615,11 @@ server and was not measured live.
   changed, which costs far less than a full refresh. A burst of deliveries for one
   repo, which is what a push sends, is merged into one refresh that runs 2
   seconds after the last of them (never more than 5 seconds after the first).
+  A repo is also refreshed at most once every 30 seconds this way, which is
+  how often the page polls anyway. CI sends events for a repo over tens of
+  seconds, so without that limit each one cost a refresh. Events inside the
+  30 seconds are not lost: one refresh follows when it is up and reads all of
+  them.
   With working webhooks the full refresh is a safety net, and it runs four
   times less often on its own (80 minutes at the default) while every repo has
   a healthy webhook and every forge's last fetch worked. A repo the forge could
