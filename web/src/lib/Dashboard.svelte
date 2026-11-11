@@ -195,6 +195,7 @@
   } from "#lib/update-all.js";
   import type { StripChip } from "#lib/strip-chip.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
+  import { syncScrollRegion } from "#lib/scroll-region.js";
   import {
     formatClock,
     formatTime,
@@ -5884,6 +5885,7 @@
       return dialog instanceof HTMLDialogElement ? dialog : null;
     }
 
+    let stopRebaseAllScroll: (() => void) | null = null;
     function openRebaseAll() {
       const dialog = rebaseAllDialog();
       const plan = currentRebasePlan();
@@ -5911,14 +5913,21 @@
         }),
       );
       dialog.showModal();
-      // A list that scrolls needs a tab stop and a name, or a keyboard user
-      // can't read past the first rows (#3402). One that fits gets neither.
-      if (list && list.scrollHeight > list.clientHeight) {
-        list.tabIndex = 0;
-        list.setAttribute("aria-label", `Pull requests to rebase (${count})`);
-      } else if (list) {
-        list.removeAttribute("tabindex");
-        list.removeAttribute("aria-label");
+      // A list that scrolls is a named tab stop, for as long as it scrolls
+      // (#3402): the viewport and text size can change while this is open.
+      stopRebaseAllScroll?.();
+      if (list) {
+        stopRebaseAllScroll = syncScrollRegion(list, {
+          label: `Pull requests to rebase (${count})`,
+        });
+        dialog.addEventListener(
+          "close",
+          () => {
+            stopRebaseAllScroll?.();
+            stopRebaseAllScroll = null;
+          },
+          { once: true },
+        );
       }
     }
 
@@ -10193,7 +10202,9 @@
           </p>
           <ul class="rebase-all-list" id="rebase-all-list"></ul>
           <div class="rebase-all-actions">
-            <button type="button" id="rebase-all-cancel">Cancel</button>
+            <button type="button" id="rebase-all-cancel" autofocus
+              >Cancel</button
+            >
             <button type="button" id="rebase-all-confirm">Rebase</button>
           </div>
           <p class="rebase-all-hint">Esc closes this.</p>

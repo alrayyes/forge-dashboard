@@ -642,9 +642,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(list).toHaveAttribute('tabindex', '0');
       await expect(list).toHaveAccessibleName('Pull requests to rebase (6)');
 
-      // The dialog opens on the list, and it stays in the Tab cycle.
-      await expect(list).toBeFocused();
-      await page.keyboard.press('Tab');
+      // Initial focus stays on Cancel; the list is the stop before it.
       await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
       await page.keyboard.press('Shift+Tab');
       await expect(list).toBeFocused();
@@ -658,6 +656,8 @@ for (const scheme of ['light', 'dark'] as const) {
         .poll(() => list.evaluate((el) => el.scrollTop))
         .toBeGreaterThan(0);
       await expectNoAxeViolations(page);
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
     });
   }
 }
@@ -671,4 +671,63 @@ test('a rebase list that fits is not an extra tab stop', async ({ page }) => {
     'tabindex',
     /.*/,
   );
+});
+
+test('initial focus is Cancel whether or not the list overflows', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page, [pr(1), pr(2)]);
+  await page.getByRole('button', { name: 'Rebase all (2)' }).click();
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
+});
+
+// The tab stop follows the list while the dialog is open (#3402).
+test('the tab stop appears when the list starts to overflow', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(
+    page,
+    [1, 2, 3].map((n) => pr(n, { title: longTitle(n) })),
+  );
+  await page.getByRole('button', { name: 'Rebase all (3)' }).click();
+  const list = page.locator('#rebase-all-list');
+  await expect(list).not.toHaveAttribute('tabindex', /.*/);
+  await page.setViewportSize({ width: 320, height: 400 });
+  await expect(list).toHaveAttribute('tabindex', '0');
+  await expect(list).toHaveAccessibleName('Pull requests to rebase (3)');
+});
+
+test('the tab stop goes when the list stops overflowing', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 520 });
+  await open(
+    page,
+    [1, 2, 3, 4, 5, 6].map((n) => pr(n, { title: longTitle(n) })),
+  );
+  await page.getByRole('button', { name: 'Rebase all (6)' }).click();
+  const list = page.locator('#rebase-all-list');
+  await expect(list).toHaveAttribute('tabindex', '0');
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  await expect(list).not.toHaveAttribute('tabindex', /.*/);
+  await expect(list).not.toHaveAttribute('aria-label', /.*/);
+});
+
+test('the tab stop follows the root font size while open', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(
+    page,
+    [1, 2, 3].map((n) => pr(n, { title: longTitle(n) })),
+  );
+  await page.getByRole('button', { name: 'Rebase all (3)' }).click();
+  const list = page.locator('#rebase-all-list');
+  await expect(list).not.toHaveAttribute('tabindex', /.*/);
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '64px';
+  });
+  await expect(list).toHaveAttribute('tabindex', '0');
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '';
+  });
+  await expect(list).not.toHaveAttribute('tabindex', /.*/);
 });
