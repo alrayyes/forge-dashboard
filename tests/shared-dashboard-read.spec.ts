@@ -7,9 +7,12 @@ import { test } from './server-fixture';
 // later answers until one is done. A read that was aborted or hit a 5xx must
 // not freeze a page on its empty state; a 4xx is final.
 
-// Every page runs the same layout code for this read, so the full set runs on
-// Insights. Settings keeps the 401 case, which it handles differently (it stays
-// put), and Webhooks keeps the poll-versus-edited-rows case at the end.
+// Every page runs the same layout code for this read, so the full set (the
+// abort and the 401 too) runs on Insights. Settings and Webhooks each have their
+// own effect that follows the layout's answers, so each keeps the two cases that
+// effect decides: following a not-done snapshot until a done one, and recovering
+// from a 500. Settings' 401 and Webhooks' poll-versus-edited-rows case are at the
+// end.
 const PAGES = [
   {
     name: 'Insights',
@@ -18,6 +21,25 @@ const PAGES = [
     text: '3 repositories tracked',
     empty: '0 repositories tracked',
     redirects: true,
+    full: true,
+  },
+  {
+    name: 'Settings',
+    url: '/settings.html',
+    shows: '#webhook-coverage-count',
+    text: '1 of 2 confirmed',
+    empty: undefined,
+    redirects: false,
+    full: false,
+  },
+  {
+    name: 'Webhooks',
+    url: '/webhooks.html',
+    shows: '#webhooks-table',
+    text: 'alrayyes/held',
+    empty: 'Nothing tracked yet',
+    redirects: true,
+    full: false,
   },
 ];
 
@@ -84,7 +106,7 @@ async function advance(page: Page, seconds: number) {
   }
 }
 
-for (const { name, url, shows, text, empty, redirects } of PAGES) {
+for (const { name, url, shows, text, empty, redirects, full } of PAGES) {
   test.describe(`${name}: the layout's dashboard read (#1801)`, () => {
     test('follows the answers of a first refresh until one is done', async ({
       page,
@@ -99,17 +121,19 @@ for (const { name, url, shows, text, empty, redirects } of PAGES) {
       expect(seen.max).toBe(1);
     });
 
-    test('a read that hit the 20 s abort leaves the page waiting for the next answer', async ({
-      page,
-    }) => {
-      await freezeClock(page);
-      const seen = await script(page, ['hold', body(true, true)]);
-      await page.goto(url);
-      await expect.poll(() => seen.started).toBe(1);
-      await advance(page, 55);
-      await expect(page.locator(shows)).toContainText(text);
-      expect(seen.max).toBe(1);
-    });
+    // The abort and the 401 belong to the layout, so Insights alone proves them.
+    if (full)
+      test('a read that hit the 20 s abort leaves the page waiting for the next answer', async ({
+        page,
+      }) => {
+        await freezeClock(page);
+        const seen = await script(page, ['hold', body(true, true)]);
+        await page.goto(url);
+        await expect.poll(() => seen.started).toBe(1);
+        await advance(page, 55);
+        await expect(page.locator(shows)).toContainText(text);
+        expect(seen.max).toBe(1);
+      });
 
     test('a 500 does not freeze the page, the next answer fills it', async ({
       page,
@@ -123,21 +147,22 @@ for (const { name, url, shows, text, empty, redirects } of PAGES) {
       expect(seen.max).toBe(1);
     });
 
-    test(`a 401 ${redirects ? 'sends the page to the login page, once' : 'leaves the page where it is'}`, async ({
-      page,
-    }) => {
-      const logins: string[] = [];
-      page.on('request', (req) => {
-        if (new URL(req.url()).pathname === '/login.html')
-          logins.push(req.url());
+    if (full)
+      test(`a 401 ${redirects ? 'sends the page to the login page, once' : 'leaves the page where it is'}`, async ({
+        page,
+      }) => {
+        const logins: string[] = [];
+        page.on('request', (req) => {
+          if (new URL(req.url()).pathname === '/login.html')
+            logins.push(req.url());
+        });
+        await script(page, [401]);
+        await page.goto(url);
+        if (redirects) await expect.poll(() => logins.length).toBe(1);
+        else await page.waitForTimeout(1500);
+        await page.waitForTimeout(500);
+        expect(logins.length).toBe(redirects ? 1 : 0);
       });
-      await script(page, [401]);
-      await page.goto(url);
-      if (redirects) await expect.poll(() => logins.length).toBe(1);
-      else await page.waitForTimeout(1500);
-      await page.waitForTimeout(500);
-      expect(logins.length).toBe(redirects ? 1 : 0);
-    });
   });
 }
 
