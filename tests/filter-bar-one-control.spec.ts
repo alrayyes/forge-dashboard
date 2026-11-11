@@ -8,16 +8,18 @@ import { test } from './server-fixture';
 // border, radius and chevron.
 // https://github.com/alrayyes/forge-dashboard/issues/3374
 
+// Two repositories, authors and labels, so all three triggers are in the bar:
+// a filter with one choice is hidden (#3496).
 const item = (number: number, repo: string) => ({
   forge: 'github',
   repo,
   number,
   title: `Item ${number}`,
   url: `https://example.com/${number}`,
-  author: 'ryan',
+  author: number === 1 ? 'ryan' : 'sam',
   draft: false,
   ci: 'success',
-  labels: [],
+  labels: [{ name: number === 1 ? 'docs' : 'bug', color: 'd73a4a' }],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   mergeStatus: 'mergeable',

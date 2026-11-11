@@ -222,6 +222,7 @@ const singleUserSpecs = [
   '**/mentioned-tickets.spec.ts',
   '**/linked-pull-requests.spec.ts',
   '**/filter-choices-board.spec.ts',
+  '**/filter-single-option.spec.ts',
   '**/pull-request-reopen.spec.ts',
   '**/transient-failure-clears.spec.ts',
   '**/ambiguous-action-outcome.spec.ts',

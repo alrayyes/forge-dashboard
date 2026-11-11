@@ -93,7 +93,7 @@ test.describe('age choices on the pull request page (#1427)', () => {
   }) => {
     await open(page, '/pull-requests.html', [
       pr(1, { ci: 'success' }),
-      pr(2, { ci: 'failure' }),
+      pr(2, { ci: 'failure', author: 'ann' }),
     ]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     await pickOnly(page, 'author', 'github:claude');

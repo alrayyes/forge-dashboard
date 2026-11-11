@@ -143,7 +143,8 @@ test.describe('the open pick panel keeps keyboard focus through a redraw', () =>
     await page.keyboard.press('Enter');
     const bob = page.getByRole('checkbox', { name: 'bob' });
     await bob.focus();
-    await push(page, [ONE_FORGE[0]]);
+    // Dave takes bob's place, so the filter still has two choices to show.
+    await push(page, [ONE_FORGE[0], pr('github', 'alrayyes/lib', 'dave', 2)]);
     await expect(page.getByRole('checkbox', { name: 'bob' })).toHaveCount(0);
     await expect(button).toBeFocused();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
