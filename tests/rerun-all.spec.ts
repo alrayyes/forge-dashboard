@@ -44,6 +44,10 @@ async function open(
     hidden?: number;
     // Probe answers that fail with a 500 before the real ones.
     probeFailures?: number;
+    // A probe waits for its promise before it answers (by pull request number).
+    hold?: Record<number, Promise<void>>;
+    // Pull requests whose held probe answers 500.
+    failHeld?: number[];
   } = {},
 ) {
   const posts: number[] = [];
@@ -75,6 +79,18 @@ async function open(
       new URL(route.request().url()).searchParams.get('number'),
     );
     probed.push(number);
+    const held = opts.hold?.[number];
+    if (held && probed.filter((n) => n === number).length === 1) {
+      return held.then(() =>
+        opts.failHeld?.includes(number)
+          ? route.fulfill({ status: 500, body: 'boom' })
+          : route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify(probes[number] ?? { rerunnable: true }),
+            }),
+      );
+    }
     if (probed.length <= (opts.probeFailures ?? 0))
       return route.fulfill({ status: 500, body: 'boom' });
     return route.fulfill({
@@ -383,9 +399,9 @@ for (const [name, path] of [
   ['Pull requests', '/pull-requests.html'],
   ['Bots', '/bots.html'],
 ] as const) {
-  for (const hidden of [0, 2]) {
-    for (const width of [320, 390, 480, 820]) {
-      test(`${name}: the header keeps its height when the button appears at ${width}px${hidden ? ' with the Hidden toggle' : ''}`, async ({
+  for (const hidden of [0, 2, 12]) {
+    for (const width of [320, 390, 480, 481, 500, 523, 560, 820]) {
+      test(`${name}: the header keeps its height when the button appears at ${width}px${hidden ? ` with the Hidden toggle (${hidden} hidden)` : ''}`, async ({
         page,
       }) => {
         await page.setViewportSize({ width, height: 800 });
@@ -417,7 +433,7 @@ for (const [name, path] of [
         // The target never lands on the heading above it.
         const h2 = await withIt.locator('.board-head h2').boundingBox();
         const b = await button.boundingBox();
-        if (width <= 480) expect(h2 && b && b.y >= h2.y + h2.height).toBe(true);
+        if (width <= 560) expect(h2 && b && b.y >= h2.y + h2.height).toBe(true);
         await withIt.close();
       });
     }
@@ -447,4 +463,89 @@ test('a failed probe is asked again on the next press', async ({ page }) => {
     page.getByRole('dialog', { name: 'Nothing to rerun' }),
   ).toBeVisible();
   expect(probed).toEqual([1, 1]);
+});
+
+// Closing the dialog while a probe is out: the button count is right at once,
+// and a probe that then fails is not remembered.
+test('closing the dialog mid-probe keeps the count right and retries a failed probe', async ({
+  page,
+}) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const { probed } = await open(
+    page,
+    '/pull-requests.html',
+    [pr(1), pr(2)],
+    { 1: { rerunnable: false, reason: 'no failed job to rerun' } },
+    { hold: { 2: held }, failHeld: [2] },
+  );
+  const button = page.locator('#rerun-all-button');
+  await expect(button).toHaveText('Rerun failed checks (2)');
+  await button.click();
+  await expect(page.locator('#rerun-all-checking')).toBeVisible();
+  await expect.poll(() => probed).toEqual([1, 2]);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+  // Row 1 is answered and cannot run; row 2 is still out.
+  await expect(button).toHaveText('Rerun failed checks (1)');
+  release();
+  await page.waitForTimeout(200);
+  await button.click();
+  await expect(page.locator('#rerun-all-plan')).toBeVisible();
+  expect(probed).toEqual([1, 2, 2]);
+});
+
+// An answer that lands after the dialog closed still updates the count.
+test('an answer that lands after the dialog closed updates the count', async ({
+  page,
+}) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await open(
+    page,
+    '/pull-requests.html',
+    [pr(1)],
+    { 1: { rerunnable: false, reason: 'no failed job to rerun' } },
+    { hold: { 1: held } },
+  );
+  const button = page.locator('#rerun-all-button');
+  await button.click();
+  await expect(page.locator('#rerun-all-checking')).toBeVisible();
+  await page.keyboard.press('Escape');
+  release();
+  await expect(button).toHaveText('Rerun failed checks');
+});
+
+// With the Hidden toggle on a 320px row the label wraps instead of spilling
+// over the toggle or past the edge.
+test('the button wraps its label beside the Hidden toggle at 320px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await open(page, '/pull-requests.html', [pr(1), pr(2)], {}, { hidden: 2 });
+  const button = page.locator('#rerun-all-button');
+  await expect(button).toBeVisible();
+  const toggle = page.locator('#hidden-prs-toggle');
+  await expect(toggle).toBeVisible();
+  const t = await toggle.boundingBox();
+  const b = await button.boundingBox();
+  expect(t && b && (t.x + t.width <= b.x || b.x + b.width <= t.x)).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  const lines = await button.evaluate((node) => {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return new Set([...range.getClientRects()].map((r) => Math.round(r.top)))
+      .size;
+  });
+  expect(lines).toBeGreaterThan(1);
 });
