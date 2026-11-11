@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.11.0](https://github.com/alrayyes/forge-dashboard/compare/v9.10.19...v9.11.0) (2026-11-11)
+
+
+### Features
+
+* **web:** show a list row on the first screen of a landscape phone ([#3466](https://github.com/alrayyes/forge-dashboard/issues/3466)) ([6abdb66](https://github.com/alrayyes/forge-dashboard/commit/6abdb665ba27365816aec486c3a6d014ca0d540f))
+
 ## [9.10.19](https://github.com/alrayyes/forge-dashboard/compare/v9.10.18...v9.10.19) (2026-11-11)
 
 
