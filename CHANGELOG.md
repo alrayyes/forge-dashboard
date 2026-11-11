@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.15.0](https://github.com/alrayyes/forge-dashboard/compare/v9.14.2...v9.15.0) (2026-11-11)
+
+
+### Features
+
+* **web:** say which out-of-date rows Rebase all leaves out and why ([#3493](https://github.com/alrayyes/forge-dashboard/issues/3493)) ([a2624c1](https://github.com/alrayyes/forge-dashboard/commit/a2624c1fdba59da9e685dbd5a4093e8a8f949beb))
+
 ## [9.14.2](https://github.com/alrayyes/forge-dashboard/compare/v9.14.1...v9.14.2) (2026-11-11)
 
 

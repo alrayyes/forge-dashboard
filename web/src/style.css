@@ -3898,6 +3898,12 @@ button.pipeline-check-link:disabled {
   gap: 10px;
   margin-bottom: 12px;
 }
+.pipeline-rerun-count {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
 .pipeline-rerun-status,
 .pipeline-rerun .pipeline-error {
   margin: 0;
@@ -5229,6 +5235,18 @@ footer a[aria-current="page"] {
 .rebase-all-item {
   padding: 4px 0;
   overflow-wrap: anywhere;
+}
+.rebase-all-left-out[hidden] {
+  display: none;
+}
+.rebase-all-left-out h3 {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+.rebase-all-why {
+  display: block;
+  color: var(--ink-2);
 }
 .rebase-all-actions {
   display: flex;

@@ -416,7 +416,9 @@ test('the reason is its own line and a narrower view narrows every chip', async 
     ],
   );
   const reason = page.locator('.rebase-all-reason');
-  await expect(reason).toHaveText('Dependabot needs a personal token.');
+  await expect(reason).toHaveText(
+    '1 can be rebased. 1 is left out: Dependabot needs a personal token.',
+  );
   await expect(
     page.locator('#rebase-all-summary').locator('.rebase-all-reason'),
   ).toHaveCount(1);
