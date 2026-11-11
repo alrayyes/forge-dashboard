@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.17](https://github.com/alrayyes/forge-dashboard/compare/v9.10.16...v9.10.17) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** mark the current page in the nav under forced colors ([#3444](https://github.com/alrayyes/forge-dashboard/issues/3444)) ([696982f](https://github.com/alrayyes/forge-dashboard/commit/696982f7ceec16ba3578d1f9ce2a4000f35f2822))
+
 ## [9.10.16](https://github.com/alrayyes/forge-dashboard/compare/v9.10.15...v9.10.16) (2026-11-11)
 
 
