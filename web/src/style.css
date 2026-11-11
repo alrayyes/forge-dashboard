@@ -1030,6 +1030,43 @@ select.col-filter {
   max-width: 180px;
 }
 
+/* One control family in the bar: the pick triggers (buttons) and the native
+   selects share height, type size, border, radius and chevron, so only the
+   behaviour differs (#3374). Selects keep their semantics; appearance: none
+   just hands the arrow to the same drawn chevron. */
+.filter-bar select.col-filter,
+.filter-bar select.group-select,
+.filter-bar .label-filter-button {
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 5px 22px 5px 8px;
+  appearance: none;
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 13px) 55%,
+    calc(100% - 8px) 55%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* Forced colors drops background images, which would take the drawn chevron
+   and leave a select with no arrow. Hand the selects back their native one. */
+@media (forced-colors: active) {
+  .filter-bar select.col-filter,
+  .filter-bar select.group-select {
+    appearance: auto;
+    /* The native arrow brings its own room; the 22px reserved for the drawn
+       one would clip the text next to it. */
+    padding-right: revert;
+  }
+}
+
 /* The Label filter: a button that names the pick, opening a group of
    checkboxes. It sits in the bar like the selects around it. */
 .label-filter {
