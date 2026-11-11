@@ -1127,6 +1127,9 @@
         grid-template-columns: minmax(0, 1fr);
         gap: 16px;
       }
+      .card {
+        padding-inline: 12px;
+      }
     }
     .settings-header h1 {
       font-size: 19px;
@@ -1412,9 +1415,23 @@
     #timezone-select {
       max-width: 100%;
     }
+    /* On a phone the label sits above a select as wide as the card, and the
+       select gives up some padding and size so "Browser default
+       (Europe/Amsterdam)" shows whole at 320px (#3366). */
+    @media (max-width: 760px) {
+      .timezone-row label {
+        flex-basis: 100%;
+      }
+      #timezone-select {
+        width: 100%;
+        font-size: 12px;
+        padding: 9px 3px 9px 6px;
+      }
+    }
     .timezone-preview {
       font-size: 13px;
       color: var(--ink-3);
+      overflow-wrap: anywhere;
     }
     .check-row {
       display: flex;
@@ -1672,6 +1689,9 @@
                   previewNow,
                   timezone.setting || detectedZone,
                 )}</time
+              >
+              <span class="timezone-name"
+                >({timezone.setting || detectedZone})</span
               >
             </span>
           </div>
