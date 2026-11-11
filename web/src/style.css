@@ -4702,6 +4702,11 @@ footer a[aria-current="page"] {
 }
 
 @media (max-width: 760px) {
+  /* The pager (#3397): the buttons wrap, so 44px tall and wide fits at 320. */
+  :root body :is(.pagination-nav, .pagination-page) {
+    min-height: var(--tap);
+    min-width: var(--tap);
+  }
   :root body :is(.label-chip, .linked-pr, .linked-pr-more)::after {
     /* Up to the title above (the gap between them), the rest below, and
        sideways to the neighbouring chip (see the column gap below). The
