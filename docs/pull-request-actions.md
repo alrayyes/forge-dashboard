@@ -1110,10 +1110,12 @@ ready chip counts down as rows are sent.
 ## Rerunning every failing pull request
 
 Both the Pull requests and the Bots page header have a `Rerun failed checks`
-button for the failing pull requests the filters leave. It counts the ones a
-rerun can restart, so `Rerun failed checks (3)` means three, and a filter that
-narrows the list narrows the count. Chips beside it read `5 failing`, `3 ready
-to rerun`, `1 can't be rerun` and, while the answers come in, `1 checking`.
+button for the failing pull requests the filters leave, beside the count. It
+sits in the header row and takes no height of its own, so a row turning red
+doesn't move the list. It counts the ones a rerun can restart, so `Rerun failed
+checks (3)` means three, and a filter that narrows the list narrows the count.
+When no failing pull request can run, the button is off and its tooltip and
+description say why.
 
 The page doesn't guess which failing pull requests have a job to restart: the
 list doesn't carry each check's run. It asks the server, one pull request at a

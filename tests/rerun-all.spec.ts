@@ -258,7 +258,7 @@ for (const [scheme, width] of [
   ['light', 1280],
   ['dark', 1280],
 ] as const) {
-  test(`the strip and dialog fit at ${width}px in ${scheme}`, async ({
+  test(`the control and dialog fit at ${width}px in ${scheme}`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme: scheme });

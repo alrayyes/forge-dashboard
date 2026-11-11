@@ -5087,8 +5087,7 @@ footer a[aria-current="page"] {
 
 /* Rebase all, on the Bots page (#2859). */
 .rebase-all,
-.update-all,
-.rerun-all {
+.update-all {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -5096,8 +5095,7 @@ footer a[aria-current="page"] {
   padding: 12px 18px;
 }
 .rebase-all[hidden],
-.update-all[hidden],
-.rerun-all[hidden] {
+.update-all[hidden] {
   display: none;
 }
 /* The headline and the reason are the sentence the button's aria-describedby
@@ -5121,20 +5119,17 @@ footer a[aria-current="page"] {
   display: none;
 }
 .rebase-all-button,
-.update-all-button,
-.rerun-all-button {
+.update-all-button {
   margin-left: auto;
 }
 @media (max-width: 640px) {
   .rebase-all,
-  .update-all,
-  .rerun-all {
+  .update-all {
     flex-direction: column;
     align-items: stretch;
   }
   .rebase-all-button,
-  .update-all-button,
-  .rerun-all-button {
+  .update-all-button {
     margin-left: 0;
   }
 }
@@ -5184,8 +5179,8 @@ footer a[aria-current="page"] {
   stroke-width: 2;
 }
 .rebase-all-button,
-.rerun-all-button,
-.rebase-all-actions button {
+.rebase-all-actions button,
+.rerun-all-actions button {
   min-height: 44px;
   padding: 6px 14px;
   font-family: inherit;
@@ -5270,12 +5265,50 @@ footer a[aria-current="page"] {
   color: var(--ink-3);
 }
 
-/* Rerun failed checks (all), on the Pull requests and Bots pages (#3236). It
-   shares the Rebase all strip, button and dialog rules above. */
+/* Rerun failed checks (all), on the Pull requests and Bots pages (#3236). The
+   button sits in the board header beside the count, so a failing row turning
+   up or clearing doesn't move the list. The dialog shares the Rebase all
+   rules above. */
+.rerun-all {
+  display: inline-flex;
+  /* The 44px target spills into the header's padding, so the header is as
+     tall with the button as without it. */
+  margin-block: -14px;
+}
+.rerun-all[hidden] {
+  display: none;
+}
+.rerun-all-button {
+  min-height: 44px;
+  padding: 4px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+@media (min-width: 701px) {
+  .rerun-all {
+    margin-block: -7px;
+  }
+  .rerun-all-button {
+    min-height: 30px;
+  }
+}
+.rerun-all-button:not([aria-disabled="true"]) {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.rerun-all-button[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.7;
+}
 .rerun-all-none {
-  flex: 1 1 14em;
-  min-width: 0;
-  margin: 0;
+  margin: 0 0 12px;
   font-size: 0.8125rem;
   color: var(--ink-2);
   overflow-wrap: anywhere;

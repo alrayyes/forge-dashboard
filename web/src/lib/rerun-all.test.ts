@@ -4,7 +4,6 @@ import type { AllowedAction } from './allowed-actions';
 import {
   type Probe,
   QUEUED_REASON,
-  rerunAllChips,
   rerunAllLabel,
   rerunAllPlan,
   rerunNoneLine,
@@ -167,25 +166,5 @@ describe('labels', () => {
     expect(showRerunAll(none, false)).toBe(false);
     expect(showRerunAll(none, true)).toBe(true);
     expect(showRerunAll(some, false)).toBe(true);
-  });
-
-  test('chips count failing, ready, left out and checking, skipping zeros that add nothing', () => {
-    const p = plan(
-      [row({ number: 1 }), row({ number: 2 }), row({ number: 3 })],
-      {
-        probe: (r) =>
-          r.number === 1
-            ? yes
-            : r.number === 2
-              ? { rerunnable: false, reason: 'no failed x' }
-              : undefined,
-      },
-    );
-    expect(rerunAllChips(p).map((c) => c.text)).toEqual([
-      '3 failing',
-      '1 ready to rerun',
-      "1 can't be rerun",
-      '1 checking',
-    ]);
   });
 });

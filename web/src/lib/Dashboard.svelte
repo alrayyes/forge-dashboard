@@ -195,7 +195,6 @@
   } from "#lib/update-all.js";
   import {
     type Probe as RerunProbe,
-    rerunAllChips,
     rerunAllLabel,
     rerunAllPlan,
     rerunNoneLine,
@@ -6267,9 +6266,8 @@
           ? [rerunNoneLine(plan.failing), ...reasons].join(" ")
           : "";
         none.hidden = !nothing;
+        button.title = nothing ? (none.textContent ?? "") : "";
       }
-      const chips = document.querySelector(".rerun-all-chips");
-      if (chips) renderStripChips(chips, rerunAllChips(plan));
       if (plan.checking.length > 0) void probeCheckingRows();
     }
 
@@ -10459,6 +10457,18 @@
               : "Pull requests"}
         </h2>
         <div class="board-head-controls">
+          {#if view === "bots" || view === "pulls"}
+            <div class="rerun-all" hidden>
+              <p class="sr-only" id="rerun-all-none" hidden></p>
+              <button
+                type="button"
+                class="rerun-all-button"
+                id="rerun-all-button"
+                aria-haspopup="dialog"
+                aria-describedby="rerun-all-none">Rerun failed checks</button
+              >
+            </div>
+          {/if}
           <button
             type="button"
             class="hidden-prs-toggle"
@@ -10538,17 +10548,6 @@
       {/if}
 
       {#if view === "bots" || view === "pulls"}
-        <div class="rerun-all" hidden>
-          <ul class="strip-chips rerun-all-chips"></ul>
-          <p class="rerun-all-none" id="rerun-all-none" hidden></p>
-          <button
-            type="button"
-            class="rerun-all-button"
-            id="rerun-all-button"
-            aria-haspopup="dialog"
-            aria-describedby="rerun-all-none">Rerun failed checks</button
-          >
-        </div>
         <span class="sr-only" id="rerun-all-status" role="status"></span>
         <ul class="rerun-all-result" id="rerun-all-result" hidden></ul>
         <dialog

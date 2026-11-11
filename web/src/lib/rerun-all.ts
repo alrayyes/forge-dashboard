@@ -7,7 +7,6 @@
 
 import { type AllowedAction, findAction } from './allowed-actions';
 import { isFailing } from './filters';
-import type { StripChip } from './strip-chip';
 
 export type RerunRow = {
   forge: string;
@@ -127,25 +126,4 @@ export function rerunNoneLine(failing: number): string {
   return failing === 1
     ? "The failing pull request can't be rerun from here."
     : `None of the ${failing} failing pull requests can be rerun from here.`;
-}
-
-// The strip's count chips. A zero that adds nothing is left off.
-export function rerunAllChips<T extends RerunRow>(
-  plan: RerunPlan<T>,
-): StripChip[] {
-  const chips: StripChip[] = [
-    {
-      text: `${plan.failing} failing`,
-      tone: plan.failing > 0 ? 'bad' : undefined,
-    },
-    {
-      text: `${plan.eligible.length} ready to rerun`,
-      tone: plan.eligible.length > 0 ? 'good' : undefined,
-    },
-  ];
-  if (plan.leftOut.length > 0)
-    chips.push({ text: `${plan.leftOut.length} can't be rerun`, tone: 'warn' });
-  if (plan.checking.length > 0)
-    chips.push({ text: `${plan.checking.length} checking` });
-  return chips;
 }
