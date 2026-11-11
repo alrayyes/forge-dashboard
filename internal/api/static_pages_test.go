@@ -2,13 +2,13 @@ package api_test
 
 import (
 	"io"
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,6 +24,7 @@ var (
 	metaDescription = regexp.MustCompile(`<meta name="description" content="([^"]*)"`)
 	fontPreload     = regexp.MustCompile(`<link[^>]*rel="preload"[^>]*as="font"[^>]*>`)
 	hrefAttr        = regexp.MustCompile(`href="([^"]*)"`)
+	fontURL         = regexp.MustCompile(`url\(([^)]+\.woff2?)\)`)
 	fontFace        = regexp.MustCompile(`@font-face\{[^}]*\}`)
 	// What a browser fetches to render: a stylesheet or script tag, an @import
 	// or a url(). A link to github.com in the text is not a request.
@@ -33,7 +34,10 @@ var (
 func builtPage(t *testing.T, name string) string {
 	t.Helper()
 
-	body, err := os.ReadFile(filepath.Join("static", name)) //nolint:gosec // name is a literal from this test file
+	static, err := fs.Sub(api.StaticFiles, "static")
+	require.NoError(t, err)
+
+	body, err := fs.ReadFile(static, name)
 	require.NoError(t, err, "run `bun run build:web` first")
 
 	return string(body)
@@ -157,5 +161,28 @@ func TestStaticPages_SayNoindexInTheHTML(t *testing.T) {
 
 	for _, name := range append(append([]string{}, publicPages...), signedInPages...) {
 		assert.Regexp(t, `<meta name="robots" content="noindex, nofollow"`, builtPage(t, name), name)
+	}
+}
+
+// A font face whose file moved or got a new hash would fall back to the system
+// font without a single error. Every url() an @font-face names has to be served.
+func TestStaticPages_EveryFontFaceFileIsServed(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+
+	for _, name := range append(append([]string{}, publicPages...), signedInPages...) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, face := range fontFace.FindAllString(builtPage(t, name), -1) {
+				for _, match := range fontURL.FindAllStringSubmatch(face, -1) {
+					resp, err := testClient(t).Get(srv.URL + "/" + strings.TrimPrefix(match[1], "./")) //nolint:noctx // test against a local server
+					require.NoError(t, err)
+					_ = resp.Body.Close()
+					assert.Equal(t, http.StatusOK, resp.StatusCode, match[1])
+				}
+			}
+		})
 	}
 }
