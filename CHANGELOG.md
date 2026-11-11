@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.19.0](https://github.com/alrayyes/forge-dashboard/compare/v9.18.0...v9.19.0) (2026-11-11)
+
+
+### Features
+
+* **web:** hide a pick filter that has only one choice ([#3517](https://github.com/alrayyes/forge-dashboard/issues/3517)) ([ef4d3fb](https://github.com/alrayyes/forge-dashboard/commit/ef4d3fbbf42c76dc9096120bffbfc4943f9df23a))
+
 ## [9.18.0](https://github.com/alrayyes/forge-dashboard/compare/v9.17.0...v9.18.0) (2026-11-11)
 
 
