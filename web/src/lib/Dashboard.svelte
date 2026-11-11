@@ -7279,7 +7279,8 @@
         items: (PullRequestItem | IssueItem)[];
         page: number;
         pageSize: number;
-      } = { items: [], page: 1, pageSize: 25 };
+        sizeChosen: boolean;
+      } = { items: [], page: 1, pageSize: 25, sizeChosen: false };
 
       // Grouped by repo or by forge, alphabetically (forge by its
       // display label, not the raw "github"/"forgejo" value, since
@@ -7428,11 +7429,16 @@
         if (!wrap) return;
 
         const needed = totalPages > 1;
-        wrap.hidden = !needed;
-        if (!needed) return;
-
+        // Once the person has picked a size, the select stays so they can
+        // pick another; before that a single page needs no pager (#3400).
+        wrap.hidden = !needed && !state.sizeChosen;
         const pages = document.getElementById(`${idPrefix}-pagination-pages`);
         if (!pages) return;
+        pages.hidden = !needed;
+        if (!needed) {
+          pages.innerHTML = "";
+          return;
+        }
         // Rebuilding the buttons removes the one the keyboard user pressed, so
         // note which it was and focus its replacement (#3290).
         const held = pages.contains(document.activeElement)
@@ -7567,6 +7573,7 @@
       pageSizeSelect?.addEventListener("change", () => {
         onUserChange?.();
         state.pageSize = Number(pageSizeSelect.value) || 25;
+        state.sizeChosen = true;
         state.page = 1;
         render();
       });
