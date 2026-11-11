@@ -10,6 +10,10 @@
   --ink-3: #4f5d6e;
   --accent: #0e7c86;
   --accent-ink: #ffffff;
+  /* Active filter pill fill: --accent leaves white 12px counts at 4.95:1, so
+     the pill takes a step darker for margin (#3317). */
+  --pill-active: #0c6972;
+  --pill-active-count-opacity: 1;
 
   /* #1e9e6b (the obvious mid-green) reads fine as a decorative dot but
      fails WCAG AA as text: 3.41:1 on --surface, 3.04:1 on --good-bg,
@@ -84,6 +88,8 @@
     --ink-3: #7c8aa0;
     --accent: #3fc7d1;
     --accent-ink: #06181a;
+    --pill-active: var(--accent);
+    --pill-active-count-opacity: 0.85;
 
     --good: #38c98a;
     --good-bg: #102a1f;
@@ -119,6 +125,8 @@
   --ink-3: #7c8aa0;
   --accent: #3fc7d1;
   --accent-ink: #06181a;
+  --pill-active: var(--accent);
+  --pill-active-count-opacity: 0.85;
 
   --good: #38c98a;
   --good-bg: #102a1f;
