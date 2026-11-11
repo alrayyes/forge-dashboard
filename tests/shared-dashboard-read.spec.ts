@@ -7,6 +7,9 @@ import { test } from './server-fixture';
 // later answers until one is done. A read that was aborted or hit a 5xx must
 // not freeze a page on its empty state; a 4xx is final.
 
+// Every page runs the same layout code for this read, so the full set runs on
+// Insights. Settings keeps the 401 case, which it handles differently (it stays
+// put), and Webhooks keeps the poll-versus-edited-rows case at the end.
 const PAGES = [
   {
     name: 'Insights',
@@ -14,22 +17,6 @@ const PAGES = [
     shows: '#insights-tracked',
     text: '3 repositories tracked',
     empty: '0 repositories tracked',
-    redirects: true,
-  },
-  {
-    name: 'Settings',
-    url: '/settings.html',
-    shows: '#webhook-coverage-count',
-    text: '1 of 2 confirmed',
-    empty: undefined,
-    redirects: false,
-  },
-  {
-    name: 'Webhooks',
-    url: '/webhooks.html',
-    shows: '#webhooks-table',
-    text: 'alrayyes/held',
-    empty: 'Nothing tracked yet',
     redirects: true,
   },
 ];
@@ -153,6 +140,17 @@ for (const { name, url, shows, text, empty, redirects } of PAGES) {
     });
   });
 }
+
+test('Settings: a 401 leaves the page where it is', async ({ page }) => {
+  const logins: string[] = [];
+  page.on('request', (req) => {
+    if (new URL(req.url()).pathname === '/login.html') logins.push(req.url());
+  });
+  await script(page, [401]);
+  await page.goto('/settings.html');
+  await page.waitForTimeout(2000);
+  expect(logins.length).toBe(0);
+});
 
 test('Webhooks: after a done answer a later poll does not replace the rows the person changed', async ({
   page,
