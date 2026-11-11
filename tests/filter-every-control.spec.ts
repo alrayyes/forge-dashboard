@@ -1,4 +1,4 @@
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import {
   pickedLabels,
   pickedValues,
@@ -8,20 +8,20 @@ import {
 import { test } from './server-fixture';
 
 // #1620, acceptance criterion 1: a list, from a test, of which filter controls
-// are remembered. For every control on Pull requests, Issues, Releases and Bots
-// this sets a value and then reads it back four ways: after a client
-// navigation away and back, after a full load away and back, after a reload,
-// and after the filter cookie is deleted and the page reloaded (what a second
-// browser sees: the server copy). The server copy is polled first each time,
-// so the last step never races the 500 ms save (that ordering gap is a
-// separate ticket, #1760, and nothing here depends on it).
+// are remembered. Pull requests, Issues and Webhooks each get one test that
+// sets the controls in rounds (a pill, or the controls that combine) and reads
+// every round back four ways: after a client navigation away and back, after a
+// full load away and back, after a reload, and after the filter cookie is
+// deleted and the page reloaded (what a second browser sees: the server copy).
+// The server copy is polled first each time, so the last step never races the
+// 500 ms save (that ordering gap is a separate ticket, #1760, and nothing here
+// depends on it).
 //
-// Controls that are deliberately not remembered get a negative assertion at
-// the end. Branches is covered by main-branches-server-copy.spec.ts and
-// Insights by filter-late-copy.spec.ts, so they are not repeated here.
+// Releases and Bots are the same Dashboard.svelte as Pull requests and store
+// under the same keys, so they are not repeated (#3498). Controls that are
+// deliberately not remembered get a negative assertion. Branches is covered by
+// main-branches-server-copy.spec.ts and Insights by filter-late-copy.spec.ts.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
-
-test.describe.configure({ mode: 'parallel' });
 
 type Board = 'pulls' | 'issues' | 'releases' | 'bots';
 
@@ -186,60 +186,47 @@ async function withoutServerCopy(page: Page, check: () => Promise<void>) {
   }
 }
 
-interface Control {
-  name: string;
-  boards: Board[];
-  // Where the choice is stored, and as what.
+// Where a choice is stored, and as what.
+interface Stored {
   group: string;
   key: string;
-  stored: V;
-  set: (page: Page, board: Board) => Promise<unknown>;
-  // Expects the control to show the choice.
-  show: (page: Page, board: Board) => Promise<void>;
+  value: string;
 }
 
-const PR_BOARDS: Board[] = ['pulls', 'releases', 'bots'];
-const ALL: Board[] = ['pulls', 'issues', 'releases', 'bots'];
-// The CI pills and a couple of controls are the same code on all three pull
-// request boards, so Releases and Bots get the controls with the most moving
-// parts rather than every pill.
-const PULLS_ONLY: Board[] = ['pulls'];
-
-// A value that is the same on every board, or one for Issues and one for the
-// pull request boards (the two lists have different authors and labels).
-type V = string | { issues: string; other: string };
-const perBoard = (v: V, board: Board): string =>
-  typeof v === 'string' ? v : board === 'issues' ? v.issues : v.other;
+interface Control {
+  name: string;
+  stored: Stored[];
+  set: (page: Page) => Promise<unknown>;
+  // Expects the control to show the choice.
+  show: (page: Page) => Promise<void>;
+}
 
 function select(
   name: string,
   selector: string,
-  value: V,
+  value: string,
   group: string,
   key: string,
-  boards: Board[] = ALL,
 ): Control {
   return {
     name,
-    boards,
-    group,
-    key,
-    stored: value,
-    set: (page, board) =>
-      page.locator(selector).selectOption(perBoard(value, board)),
-    show: (page, board) =>
-      expect(page.locator(selector)).toHaveValue(perBoard(value, board)),
+    stored: [{ group, key, value }],
+    set: (page) => page.locator(selector).selectOption(value),
+    show: (page) => expect(page.locator(selector)).toHaveValue(value),
   };
 }
 
-function pill(name: string, id: string, boards: Board[]): Control {
+function pill(name: string, id: string): Control {
   const forge = id === 'github' || id === 'forgejo';
   return {
     name: `${name} pill`,
-    boards,
-    group: forge ? 'shared' : 'pr',
-    key: forge ? 'forge' : 'quick',
-    stored: id,
+    stored: [
+      {
+        group: forge ? 'shared' : 'pr',
+        key: forge ? 'forge' : 'quick',
+        value: id,
+      },
+    ],
     set: (page) => page.locator(`.quick-pills [data-pill="${id}"]`).click(),
     show: (page) =>
       expect(page.locator(`.quick-pills [data-pill="${id}"]`)).toHaveAttribute(
@@ -254,28 +241,22 @@ function autoMerge(value: 'on' | 'off'): Control {
     page.locator(`.am-group:not(.sheet-only) [data-am="${value}"]`);
   return {
     name: `auto-merge ${value}`,
-    boards: value === 'on' ? PR_BOARDS : PULLS_ONLY,
-    group: 'pr',
-    key: 'autoMerge',
-    stored: value,
-    set: (page) => button(page).click(),
+    stored: [{ group: 'pr', key: 'autoMerge', value }],
+    // Off is only offered while it would show something, which an earlier
+    // pill can rule out, so the pill goes back to All first.
+    set: async (page) => {
+      await page.locator('.quick-pills [data-pill="all"]').click();
+      await button(page).click();
+    },
     show: (page) =>
       expect(button(page)).toHaveAttribute('aria-pressed', 'true'),
   };
 }
 
-function toggle(
-  name: string,
-  selector: string,
-  key: string,
-  boards: Board[],
-): Control {
+function toggle(name: string, selector: string, key: string): Control {
   return {
     name,
-    boards,
-    group: 'view',
-    key,
-    stored: '1',
+    stored: [{ group: 'view', key, value: '1' }],
     set: (page) => page.locator(selector).click(),
     show: (page) =>
       expect(page.locator(selector)).toHaveAttribute('aria-pressed', 'true'),
@@ -284,231 +265,258 @@ function toggle(
 
 const TITLE = '.filter-bar .col-filter[data-col="title"]';
 
-const CONTROLS: Control[] = [
-  pill('GitHub', 'github', ALL),
-  pill('Forgejo', 'forgejo', [...PULLS_ONLY, 'issues']),
-  pill('Failing CI', 'failing', PR_BOARDS),
-  pill('Running CI', 'running', PULLS_ONLY),
-  pill('Passing CI', 'passing', PULLS_ONLY),
-  pill('No checks', 'no-checks', PULLS_ONLY),
-  pill('Conflicts', 'conflicting', PULLS_ONLY),
-  pill('Out of date', 'out-of-date', PR_BOARDS),
-  pill('Ready to Merge', 'ready', PULLS_ONLY),
-  pill('Needs Review', 'needs-review', PULLS_ONLY),
-  pill('Review requested from me', 'review-requested', PR_BOARDS),
-  autoMerge('on'),
-  autoMerge('off'),
-  {
-    name: 'repo filter',
-    boards: ALL,
-    group: 'shared',
-    key: 'repo',
-    stored: 'github:acme/app',
-    set: (page) => togglePicks(page, 'repo', 'github:acme/app'),
-    show: (page) =>
-      expect
-        .poll(() => pickedValues(page, 'repo'))
-        .toEqual(['github:acme/app']),
-  },
-  {
-    name: 'author filter',
-    boards: ALL,
-    group: 'shared',
-    key: 'author',
-    stored: { issues: 'forgejo:sam', other: 'forgejo:dana' },
-    set: (page, board) =>
-      togglePicks(
-        page,
-        'author',
-        board === 'issues' ? 'forgejo:sam' : 'forgejo:dana',
-      ),
-    show: (page, board) =>
-      expect
-        .poll(() => pickedValues(page, 'author'))
-        .toEqual([board === 'issues' ? 'forgejo:sam' : 'forgejo:dana']),
-  },
-  {
-    name: 'label filter',
-    boards: ALL,
-    group: 'shared',
-    key: 'label',
-    stored: { issues: 'docs', other: 'bug' },
-    set: (page, board) =>
-      toggleLabels(page, board === 'issues' ? 'docs' : 'bug'),
-    show: (page, board) =>
-      expect
-        .poll(() => pickedLabels(page))
-        .toEqual([board === 'issues' ? 'docs' : 'bug']),
-  },
-  select('created select', '[data-col="created"]', '1440', 'shared', 'created'),
-  select('updated select', '[data-col="updated"]', '1440', 'shared', 'updated'),
-  select(
-    'group-by select',
-    '#shared-group-select',
-    'repo',
-    'shared',
-    'groupBy',
-  ),
-  select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
-  toggle('Show drafts', '#show-drafts-toggle', 'drafts', PR_BOARDS),
-  toggle('Pause live updates', '#pause-updates-button', 'paused', ALL),
-  {
-    name: 'title text',
-    boards: ALL,
-    group: 'shared',
-    key: 'title',
-    stored: { issues: 'issue', other: 'pull' },
-    set: (page, board) =>
-      page.locator(TITLE).fill(board === 'issues' ? 'issue' : 'pull'),
-    show: (page, board) =>
-      expect(page.locator(TITLE)).toHaveValue(
-        board === 'issues' ? 'issue' : 'pull',
-      ),
-  },
-  {
-    name: 'Hide Dependency Dashboard off',
-    boards: ['issues'],
-    group: 'issue',
-    key: 'hideDependencyDashboard',
-    stored: '',
-    set: (page) => page.locator('#issue-hide-dependency-dashboard').uncheck(),
-    show: (page) =>
-      expect(
-        page.locator('#issue-hide-dependency-dashboard'),
-      ).not.toBeChecked(),
-  },
-  {
-    name: 'hide titles matching (regex)',
-    boards: ['issues'],
-    group: 'issue',
-    key: 'hideTitleRegex',
-    stored: '^zzz',
-    set: (page) => page.locator('#issue-hide-title-regex').fill('^zzz'),
-    show: (page) =>
-      expect(page.locator('#issue-hide-title-regex')).toHaveValue('^zzz'),
-  },
-];
-
-for (const board of ALL) {
-  test.describe(`${board}: every remembered control`, () => {
-    for (const control of CONTROLS.filter((c) => c.boards.includes(board))) {
-      test(`${control.name} survives leaving and coming back`, async ({
-        page,
-      }) => {
-        await open(page, board);
-        const b = BOARDS[board];
-        const stored = perBoard(control.stored, board);
-
-        await control.set(page, board);
-        await control.show(page, board);
-
-        // The server copy first, so nothing below races the debounce.
-        await expect
-          .poll(
-            async () => (await serverCopy(page))[control.group]?.[control.key],
-          )
-          .toBe(stored);
-        expect((await cookieCopy(page))[control.group]?.[control.key]).toBe(
-          stored,
-        );
-
-        // Client navigation away and back.
-        await link(page, b.away).click();
-        await loaded(page, b.away);
-        await link(page, board).click();
-        await loaded(page, board);
-        await control.show(page, board);
-
-        // Full load away and back.
-        await page.goto(BOARDS[b.away].url);
-        await loaded(page, b.away);
-        await page.goto(b.url);
-        await loaded(page, board);
-        await control.show(page, board);
-
-        // Reload.
-        await page.reload();
-        await loaded(page, board);
-        await control.show(page, board);
-
-        // First paint from the cookie alone.
-        await withoutServerCopy(page, async () => {
-          await page.reload();
-          await loaded(page, board);
-          await control.show(page, board);
-        });
-
-        // A second browser: no cookie, only the server copy.
-        await expect
-          .poll(
-            async () => (await serverCopy(page))[control.group]?.[control.key],
-          )
-          .toBe(stored);
-        await page.context().clearCookies({ name: 'forge-board-filters' });
-        await page.reload();
-        await loaded(page, board);
-        await control.show(page, board);
-      });
-    }
-  });
+// The controls that combine, set together in one round. Every pick is the one
+// forgejo row, so the pills set earlier stay offered.
+function combined(board: Board): Control[] {
+  const issues = board === 'issues';
+  const author = issues ? 'forgejo:sam' : 'forgejo:dana';
+  const label = issues ? 'docs' : 'bug';
+  const title = issues ? 'issue' : 'pull';
+  const issueOnly: Control[] = [
+    {
+      name: 'Hide Dependency Dashboard off',
+      stored: [{ group: 'issue', key: 'hideDependencyDashboard', value: '' }],
+      set: (page) => page.locator('#issue-hide-dependency-dashboard').uncheck(),
+      show: (page) =>
+        expect(
+          page.locator('#issue-hide-dependency-dashboard'),
+        ).not.toBeChecked(),
+    },
+    {
+      name: 'hide titles matching (regex)',
+      stored: [{ group: 'issue', key: 'hideTitleRegex', value: '^zzz' }],
+      set: (page) => page.locator('#issue-hide-title-regex').fill('^zzz'),
+      show: (page) =>
+        expect(page.locator('#issue-hide-title-regex')).toHaveValue('^zzz'),
+    },
+  ];
+  return [
+    {
+      name: 'repo filter',
+      stored: [{ group: 'shared', key: 'repo', value: 'forgejo:acme/infra' }],
+      set: (page) => togglePicks(page, 'repo', 'forgejo:acme/infra'),
+      show: (page) =>
+        expect
+          .poll(() => pickedValues(page, 'repo'))
+          .toEqual(['forgejo:acme/infra']),
+    },
+    {
+      name: 'author filter',
+      stored: [{ group: 'shared', key: 'author', value: author }],
+      set: (page) => togglePicks(page, 'author', author),
+      show: (page) =>
+        expect.poll(() => pickedValues(page, 'author')).toEqual([author]),
+    },
+    {
+      name: 'label filter',
+      stored: [{ group: 'shared', key: 'label', value: label }],
+      set: (page) => toggleLabels(page, label),
+      show: (page) => expect.poll(() => pickedLabels(page)).toEqual([label]),
+    },
+    select(
+      'created select',
+      '[data-col="created"]',
+      '1440',
+      'shared',
+      'created',
+    ),
+    select(
+      'updated select',
+      '[data-col="updated"]',
+      '1440',
+      'shared',
+      'updated',
+    ),
+    select(
+      'group-by select',
+      '#shared-group-select',
+      'repo',
+      'shared',
+      'groupBy',
+    ),
+    select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
+    ...(issues ? [] : [toggle('Show drafts', '#show-drafts-toggle', 'drafts')]),
+    toggle('Pause live updates', '#pause-updates-button', 'paused'),
+    {
+      name: 'title text',
+      stored: [{ group: 'shared', key: 'title', value: title }],
+      set: (page) => page.locator(TITLE).fill(title),
+      show: (page) => expect(page.locator(TITLE)).toHaveValue(title),
+    },
+    ...(issues ? issueOnly : []),
+  ];
 }
 
-// Deliberately not remembered (docs/live-updates.md): the page, the page size, the
-// phone Filters sheet and the hidden-pull-request panel. Each is set, the page
-// is reloaded, and the control is back at its default and the saved copies
-// hold nothing for it.
-test.describe('deliberately not remembered', () => {
-  for (const board of ALL) {
-    const b = BOARDS[board];
-    const prefix = board === 'issues' ? 'issue' : 'pr';
+// A round is the controls set together, then read back. A pill is one choice
+// among several, and the auto-merge answers are too, so each of those gets a
+// round of its own. Auto-merge goes before the pill it is paired with, which
+// is the one that stays offered under it. The combined round comes last, since
+// its picks would leave the other pills nothing to show.
+const PULLS_ROUNDS: Control[][] = [
+  [pill('GitHub', 'github')],
+  [pill('Forgejo', 'forgejo')],
+  [pill('Running CI', 'running')],
+  [pill('Passing CI', 'passing')],
+  [pill('No checks', 'no-checks')],
+  [pill('Conflicts', 'conflicting')],
+  [pill('Out of date', 'out-of-date')],
+  [pill('Needs Review', 'needs-review')],
+  [pill('Review requested from me', 'review-requested')],
+  [autoMerge('on'), pill('Ready to Merge', 'ready')],
+  [autoMerge('off'), pill('Failing CI', 'failing')],
+  combined('pulls'),
+];
 
-    test(`${board}: page size and current page`, async ({ page }) => {
-      await open(page, board);
-      await expect(page.locator(`#${prefix}-pagination`)).toBeVisible();
-      await page.locator(`#${prefix}-page-size`).selectOption('10');
-      await page
-        .locator(`#${prefix}-pagination-pages .pagination-page`, {
-          hasText: '2',
-        })
-        .click();
-      await expect(
-        page.locator(`#${prefix}-pagination-pages .pagination-page.active`),
-      ).toHaveText('2');
-      // Something else gets saved, so the copies exist to be read.
-      await page.locator('#pr-sort-select').selectOption('created');
-      await expect
-        .poll(async () => (await serverCopy(page)).view?.sort)
-        .toBe('created');
+const ISSUES_ROUNDS: Control[][] = [
+  [pill('GitHub', 'github')],
+  [pill('Forgejo', 'forgejo')],
+  combined('issues'),
+];
 
-      await page.reload();
-      await loaded(page, board);
-      await expect(page.locator(`#${prefix}-page-size`)).toHaveValue('25');
-      await expect(
-        page.locator(`#${prefix}-pagination-pages .pagination-page.active`),
-      ).toHaveText('1');
-      for (const copy of [await serverCopy(page), await cookieCopy(page)]) {
-        expect(JSON.stringify(copy)).not.toMatch(/page|size/i);
+// The page a round is read back on, and where it goes to leave and come back.
+interface Surface {
+  url: string;
+  awayUrl: string;
+  link: (page: Page) => Locator;
+  awayLink: (page: Page) => Locator;
+  ready: (page: Page) => Promise<unknown>;
+  awayReady: (page: Page) => Promise<unknown>;
+}
+
+const webhooksRows = (page: Page) => page.locator('#webhooks-rows tr').first();
+
+function boardSurface(board: Board): Surface {
+  const away = BOARDS[board].away;
+  return {
+    url: BOARDS[board].url,
+    awayUrl: BOARDS[away].url,
+    link: (page) => link(page, board),
+    awayLink: (page) => link(page, away),
+    ready: (page) => loaded(page, board),
+    awayReady: (page) => loaded(page, away),
+  };
+}
+
+const WEBHOOKS_URL = '/webhooks.html';
+
+const webhooksSurface: Surface = {
+  url: WEBHOOKS_URL,
+  awayUrl: BOARDS.issues.url,
+  link: (page) => page.locator(`.app-nav a[href="${WEBHOOKS_URL}"]`),
+  awayLink: (page) => link(page, 'issues'),
+  ready: (page) => expect(webhooksRows(page)).toBeVisible(),
+  awayReady: (page) => loaded(page, 'issues'),
+};
+
+async function readBackRound(page: Page, s: Surface, round: Control[]) {
+  const names = round.map((c) => c.name).join(' + ');
+  await test.step(`set ${names}`, async () => {
+    for (const control of round) await control.set(page);
+  });
+  const showAll = async (where: string) => {
+    for (const control of round) {
+      await test.step(`${control.name} ${where}`, () => control.show(page));
+    }
+  };
+  const saved = async (where: string) => {
+    for (const control of round) {
+      for (const { group, key, value } of control.stored) {
+        await expect
+          .poll(async () => (await serverCopy(page))[group]?.[key], {
+            message: `${control.name}: server copy ${where}`,
+          })
+          .toBe(value);
       }
-    });
+    }
+  };
+  await showAll('shows the choice');
 
-    test(`${board}: the open Filters sheet on a phone`, async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 800 });
-      await open(page, board);
-      await page.locator('#filters-button').click();
-      await expect(page.locator('dialog#filter-sheet')).toBeVisible();
-
-      await page.reload();
-      await loaded(page, board);
-      await expect(page.locator('dialog#filter-sheet')).toBeHidden();
-    });
+  // The server copy first, so nothing below races the debounce.
+  await saved('after the save');
+  for (const control of round) {
+    for (const { group, key, value } of control.stored) {
+      expect(
+        (await cookieCopy(page))[group]?.[key],
+        `${control.name}: cookie copy`,
+      ).toBe(value);
+    }
   }
 
-  for (const board of PR_BOARDS) {
-    test(`${board}: the hidden pull requests panel`, async ({ page }) => {
-      await open(page, board);
-      const toggle = page.locator('#hidden-prs-toggle');
-      await toggle.click();
-      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  // Client navigation away and back.
+  await s.awayLink(page).click();
+  await s.awayReady(page);
+  await s.link(page).click();
+  await s.ready(page);
+  await showAll('after client navigation');
+
+  // Full load away and back.
+  await page.goto(s.awayUrl);
+  await s.awayReady(page);
+  await page.goto(s.url);
+  await s.ready(page);
+  await showAll('after a full load');
+
+  // Reload.
+  await page.reload();
+  await s.ready(page);
+  await showAll('after a reload');
+
+  // First paint from the cookie alone.
+  await withoutServerCopy(page, async () => {
+    await page.reload();
+    await s.ready(page);
+    await showAll('from the cookie alone');
+  });
+
+  // A second browser: no cookie, only the server copy.
+  await saved('before the cookie is cleared');
+  await page.context().clearCookies({ name: 'forge-board-filters' });
+  await page.reload();
+  await s.ready(page);
+  await showAll('from the server copy alone');
+}
+
+// Deliberately not remembered (docs/live-updates.md): the page, the page size,
+// the phone Filters sheet and the hidden-pull-request panel. Each is set, the
+// page is reloaded, and the control is back at its default and the saved
+// copies hold nothing for it. These run first, on the unfiltered list, since
+// the pager needs more than one page of rows.
+async function notRemembered(page: Page, board: Board) {
+  const prefix = board === 'issues' ? 'issue' : 'pr';
+
+  await test.step('page size and current page', async () => {
+    await expect(page.locator(`#${prefix}-pagination`)).toBeVisible();
+    await page.locator(`#${prefix}-page-size`).selectOption('10');
+    await page
+      .locator(`#${prefix}-pagination-pages .pagination-page`, {
+        hasText: '2',
+      })
+      .click();
+    await expect(
+      page.locator(`#${prefix}-pagination-pages .pagination-page.active`),
+    ).toHaveText('2');
+    // Something else gets saved, so the copies exist to be read.
+    await page.locator('#pr-sort-select').selectOption('created');
+    await expect
+      .poll(async () => (await serverCopy(page)).view?.sort)
+      .toBe('created');
+
+    await page.reload();
+    await loaded(page, board);
+    await expect(page.locator(`#${prefix}-page-size`)).toHaveValue('25');
+    await expect(
+      page.locator(`#${prefix}-pagination-pages .pagination-page.active`),
+    ).toHaveText('1');
+    for (const copy of [await serverCopy(page), await cookieCopy(page)]) {
+      expect(JSON.stringify(copy)).not.toMatch(/page|size/i);
+    }
+  });
+
+  if (board === 'pulls') {
+    await test.step('the hidden pull requests panel', async () => {
+      const panel = page.locator('#hidden-prs-toggle');
+      await panel.click();
+      await expect(panel).toHaveAttribute('aria-expanded', 'true');
 
       await page.reload();
       await loaded(page, board);
@@ -518,13 +526,55 @@ test.describe('deliberately not remembered', () => {
       );
     });
   }
-});
+
+  await test.step('the open Filters sheet on a phone', async () => {
+    const size = page.viewportSize();
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.locator('#filters-button').click();
+    await expect(page.locator('dialog#filter-sheet')).toBeVisible();
+
+    await page.reload();
+    await loaded(page, board);
+    await expect(page.locator('dialog#filter-sheet')).toBeHidden();
+    if (size) await page.setViewportSize(size);
+  });
+}
+
+const BOARD_ROUNDS: Record<'pulls' | 'issues', Control[][]> = {
+  pulls: PULLS_ROUNDS,
+  issues: ISSUES_ROUNDS,
+};
+
+for (const board of ['pulls', 'issues'] as const) {
+  test(`${board}: every remembered control survives leaving and coming back`, async ({
+    page,
+  }) => {
+    // Twelve rounds of five reads each; the default 30 s is too close under load.
+    test.setTimeout(90_000);
+    await open(page, board);
+    await notRemembered(page, board);
+    for (const round of BOARD_ROUNDS[board]) {
+      await readBackRound(page, boardSurface(board), round);
+    }
+  });
+}
+
+// Releases and Bots are Pull requests with a `view` prop, so one control each
+// is enough to show their pages read the same saved keys back.
+for (const board of ['releases', 'bots'] as const) {
+  test(`${board}: a remembered control survives leaving and coming back`, async ({
+    page,
+  }) => {
+    await open(page, board);
+    await readBackRound(page, boardSurface(board), [
+      pill('Failing CI', 'failing'),
+    ]);
+  });
+}
 
 // Webhooks: its own page with its own controls, saved as the `webhooks` group
-// (the way Branches is). Same four reads as above. The page size and the
-// current page stay unsaved, as on the other pages.
-const WEBHOOKS_URL = '/webhooks.html';
-
+// (the way Branches is). Same reads as above. The page size and the current
+// page stay unsaved, as on the other pages.
 const WEBHOOK_REPOS = [
   { forge: 'github', fullName: 'acme/app', hasWebhook: true },
   { forge: 'forgejo', fullName: 'acme/infra', hasWebhook: false },
@@ -560,7 +610,7 @@ async function openWebhooks(page: Page) {
     }),
   );
   await page.goto(WEBHOOKS_URL);
-  await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+  await expect(webhooksRows(page)).toBeVisible();
 }
 
 const forgeRadio = (page: Page, value: string) =>
@@ -568,122 +618,71 @@ const forgeRadio = (page: Page, value: string) =>
 const sortHeader = (page: Page, key: string) =>
   page.locator(`th:has([data-sort-key="${key}"])`);
 
-interface WebhookControl {
-  name: string;
-  // Every key the control stores in the `webhooks` group.
-  stored: Record<string, string>;
-  set: (page: Page) => Promise<unknown>;
-  show: (page: Page) => Promise<void>;
-}
+const webhooksStored = (stored: Record<string, string>): Stored[] =>
+  Object.entries(stored).map(([key, value]) => ({
+    group: 'webhooks',
+    key,
+    value,
+  }));
 
-const WEBHOOK_CONTROLS: WebhookControl[] = [
-  {
-    name: 'Forgejo forge button',
-    stored: { forge: 'forgejo' },
-    set: (page) => forgeRadio(page, 'forgejo').check(),
-    show: (page) => expect(forgeRadio(page, 'forgejo')).toBeChecked(),
-  },
-  {
-    name: 'GitHub forge button',
-    stored: { forge: 'github' },
-    set: (page) => forgeRadio(page, 'github').check(),
-    show: (page) => expect(forgeRadio(page, 'github')).toBeChecked(),
-  },
-  {
-    name: 'repo search',
-    stored: { repo: 'infra' },
-    set: (page) => page.locator('#webhooks-repo-filter').fill('infra'),
-    show: (page) =>
-      expect(page.locator('#webhooks-repo-filter')).toHaveValue('infra'),
-  },
-  {
-    name: 'status select',
-    stored: { status: 'pending' },
-    set: (page) =>
-      page.locator('#webhooks-status-filter').selectOption('pending'),
-    show: (page) =>
-      expect(page.locator('#webhooks-status-filter')).toHaveValue('pending'),
-  },
-  {
-    name: 'sort column',
-    stored: { sort: 'hasWebhook', dir: 'asc' },
-    set: (page) => page.locator('[data-sort-key="hasWebhook"]').click(),
-    show: (page) =>
-      expect(sortHeader(page, 'hasWebhook')).toHaveAttribute(
-        'aria-sort',
-        'ascending',
-      ),
-  },
-  {
-    name: 'sort direction',
-    stored: { sort: 'fullName', dir: 'desc' },
-    set: (page) => page.locator('[data-sort-key="fullName"]').click(),
-    show: (page) =>
-      expect(sortHeader(page, 'fullName')).toHaveAttribute(
-        'aria-sort',
-        'descending',
-      ),
-  },
+const webhookForge = (name: string, value: string): Control => ({
+  name,
+  stored: webhooksStored({ forge: value }),
+  set: (page) => forgeRadio(page, value).check(),
+  show: (page) => expect(forgeRadio(page, value)).toBeChecked(),
+});
+
+const webhookSort = (
+  name: string,
+  sort: string,
+  dir: 'asc' | 'desc',
+): Control => ({
+  name,
+  stored: webhooksStored({ sort, dir }),
+  set: (page) => page.locator(`[data-sort-key="${sort}"]`).click(),
+  show: (page) =>
+    expect(sortHeader(page, sort)).toHaveAttribute(
+      'aria-sort',
+      dir === 'asc' ? 'ascending' : 'descending',
+    ),
+});
+
+// The forge buttons are only offered while they'd show something, so GitHub
+// goes first, before the repo search leaves only the Forgejo row.
+const WEBHOOK_ROUNDS: Control[][] = [
+  [
+    webhookForge('GitHub forge button', 'github'),
+    // The default order is by name, ascending, so one click reverses it.
+    webhookSort('sort direction', 'fullName', 'desc'),
+  ],
+  [
+    webhookForge('Forgejo forge button', 'forgejo'),
+    {
+      name: 'repo search',
+      stored: webhooksStored({ repo: 'infra' }),
+      set: (page) => page.locator('#webhooks-repo-filter').fill('infra'),
+      show: (page) =>
+        expect(page.locator('#webhooks-repo-filter')).toHaveValue('infra'),
+    },
+    {
+      name: 'status select',
+      stored: webhooksStored({ status: 'pending' }),
+      set: (page) =>
+        page.locator('#webhooks-status-filter').selectOption('pending'),
+      show: (page) =>
+        expect(page.locator('#webhooks-status-filter')).toHaveValue('pending'),
+    },
+    webhookSort('sort column', 'hasWebhook', 'asc'),
+  ],
 ];
 
-const webhooksServer = async (page: Page) =>
-  ((await serverCopy(page)).webhooks ?? {}) as Record<string, string>;
-const webhooksCookie = async (page: Page) =>
-  ((await cookieCopy(page)).webhooks ?? {}) as Record<string, string>;
+test('webhooks: every remembered control survives leaving and coming back', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await openWebhooks(page);
 
-test.describe('webhooks: every remembered control', () => {
-  for (const control of WEBHOOK_CONTROLS) {
-    test(`${control.name} survives leaving and coming back`, async ({
-      page,
-    }) => {
-      await openWebhooks(page);
-      await control.set(page);
-      await control.show(page);
-
-      await expect
-        .poll(() => webhooksServer(page))
-        .toMatchObject(control.stored);
-      expect(await webhooksCookie(page)).toMatchObject(control.stored);
-
-      // Client navigation away and back.
-      await link(page, 'issues').click();
-      await loaded(page, 'issues');
-      await page.locator(`.app-nav a[href="${WEBHOOKS_URL}"]`).click();
-      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
-      await control.show(page);
-
-      // Full load away and back.
-      await page.goto(BOARDS.issues.url);
-      await loaded(page, 'issues');
-      await page.goto(WEBHOOKS_URL);
-      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
-      await control.show(page);
-
-      // Reload.
-      await page.reload();
-      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
-      await control.show(page);
-
-      // First paint from the cookie alone.
-      await withoutServerCopy(page, async () => {
-        await page.reload();
-        await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
-        await control.show(page);
-      });
-
-      // A second browser: no cookie, only the server copy.
-      await expect
-        .poll(() => webhooksServer(page))
-        .toMatchObject(control.stored);
-      await page.context().clearCookies({ name: 'forge-board-filters' });
-      await page.reload();
-      await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
-      await control.show(page);
-    });
-  }
-
-  test('page size and current page are not remembered', async ({ page }) => {
-    await openWebhooks(page);
+  await test.step('page size and current page are not remembered', async () => {
     await page.locator('#webhooks-page-size').selectOption('10');
     await page
       .locator('#webhooks-pagination-pages .pagination-page', { hasText: '2' })
@@ -694,20 +693,23 @@ test.describe('webhooks: every remembered control', () => {
     // Something else gets saved, so the copies exist to be read.
     await page.locator('#webhooks-status-filter').selectOption('confirmed');
     await expect
-      .poll(async () => (await webhooksServer(page)).status)
+      .poll(async () => (await serverCopy(page)).webhooks?.status)
       .toBe('confirmed');
 
     await page.reload();
-    await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+    await expect(webhooksRows(page)).toBeVisible();
     await expect(page.locator('#webhooks-page-size')).toHaveValue('25');
     await expect(
       page.locator('#webhooks-pagination-pages .pagination-page.active'),
     ).toHaveText('1');
-    for (const copy of [
-      await webhooksServer(page),
-      await webhooksCookie(page),
-    ]) {
-      expect(JSON.stringify(copy)).not.toMatch(/page|size/i);
+    for (const copy of [await serverCopy(page), await cookieCopy(page)]) {
+      expect(JSON.stringify(copy.webhooks)).not.toMatch(/page|size/i);
     }
+    // Back to every status, so the forge buttons are offered again.
+    await page.locator('#webhooks-status-filter').selectOption('');
   });
+
+  for (const round of WEBHOOK_ROUNDS) {
+    await readBackRound(page, webhooksSurface, round);
+  }
 });
