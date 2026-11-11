@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.10.8](https://github.com/alrayyes/forge-dashboard/compare/v9.10.7...v9.10.8) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** make the active filter pill count readable in the light theme ([#3422](https://github.com/alrayyes/forge-dashboard/issues/3422)) ([92fd3af](https://github.com/alrayyes/forge-dashboard/commit/92fd3af8cdc7b60ae9ccbf8421ebecf604af78e4))
+* **web:** set the Settings card intro paragraphs as helper text ([#3421](https://github.com/alrayyes/forge-dashboard/issues/3421)) ([665d630](https://github.com/alrayyes/forge-dashboard/commit/665d630374465e7392d9f66ee395a82ca7569d89))
+
 ## [9.10.7](https://github.com/alrayyes/forge-dashboard/compare/v9.10.6...v9.10.7) (2026-11-11)
 
 
