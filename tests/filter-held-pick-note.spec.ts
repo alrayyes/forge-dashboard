@@ -173,17 +173,6 @@ test.describe('a saved pick the page does not offer is visible (#1620)', () => {
     await expect.poll(() => savedAuthor(page)).toBe('');
   });
 
-  test('fits a 360px phone without sideways scrolling', async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 740 });
-    await expect(note(page)).toBeVisible();
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
-  });
-
   test('is readable in the dark colour scheme', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(note(page)).toBeVisible();

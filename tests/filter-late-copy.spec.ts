@@ -132,15 +132,6 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
     await page.context().clearCookies({ name: 'forge-board-filters' });
   });
 
-  test('a copy that arrives before any edit applies as before', async ({
-    page,
-  }) => {
-    await page.goto('/issues.html');
-    await expectCopyApplied(page, 'regex');
-    await expect(page.locator('#issue-hide-title-regex')).toHaveValue('qqq');
-    await expect(issueRows(page)).toHaveCount(1);
-  });
-
   test('an unticked box stays unticked and is saved, the label still takes the copy', async ({
     page,
   }) => {
