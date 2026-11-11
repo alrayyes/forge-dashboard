@@ -317,3 +317,25 @@ func TestFetch_HonoursACancelledContext(t *testing.T) {
 
 	require.Error(t, err)
 }
+
+func TestFetch_RefusesSpecialPurposeAddresses(t *testing.T) {
+	t.Parallel()
+	for name, host := range map[string]string{
+		"shared address space": "100.64.0.1",
+		"benchmarking":         "198.18.0.1",
+		"IETF protocol":        "192.0.0.8",
+		"NAT64":                "[64:ff9b::808:808]",
+		"6to4":                 "[2002:808:808::1]",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			p := imageproxy.New(imageproxy.Config{
+				Hosts: []string{host + ":80"}, Scheme: "http", Timeout: 2 * time.Second,
+			})
+
+			_, err := p.Fetch(t.Context(), "http://"+host+":80/a.png")
+
+			require.ErrorIs(t, err, imageproxy.ErrHostNotAllowed)
+		})
+	}
+}

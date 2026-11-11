@@ -111,8 +111,24 @@ func refuseNonPublic(_, address string, _ syscall.RawConn) error {
 	if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
 		return errBlockedAddress
 	}
+	for _, p := range specialPurpose {
+		if p.Contains(ip) {
+			return errBlockedAddress
+		}
+	}
 
 	return nil
+}
+
+// specialPurpose are the ranges net/netip counts as global unicast but that
+// reach a private network or a translator: shared address space (CGNAT,
+// Tailscale), benchmarking, IETF protocol assignments, NAT64 and 6to4.
+var specialPurpose = []netip.Prefix{
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("2002::/16"),
 }
 
 // check validates one hop's URL against the configured set.
