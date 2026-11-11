@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.12.0](https://github.com/alrayyes/forge-dashboard/compare/v9.11.1...v9.12.0) (2026-11-11)
+
+
+### Features
+
+* **web:** show passed and cancelled counts on the Cancelled pill ([#3465](https://github.com/alrayyes/forge-dashboard/issues/3465)) ([ea3e0d5](https://github.com/alrayyes/forge-dashboard/commit/ea3e0d588c29e99cd84bd0eef6fd61a8f8417a2e))
+
 ## [9.11.1](https://github.com/alrayyes/forge-dashboard/compare/v9.11.0...v9.11.1) (2026-11-11)
 
 
