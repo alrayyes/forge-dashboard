@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.6](https://github.com/alrayyes/forge-dashboard/compare/v9.10.5...v9.10.6) (2026-11-10)
+
+
+### Bug Fixes
+
+* **web:** show a loading state on Insights and Webhooks until the first read answers ([#3407](https://github.com/alrayyes/forge-dashboard/issues/3407)) ([65eca46](https://github.com/alrayyes/forge-dashboard/commit/65eca4698f9fb29ed4c11c6aee1a218452e1eaaa))
+
 ## [9.10.5](https://github.com/alrayyes/forge-dashboard/compare/v9.10.4...v9.10.5) (2026-11-10)
 
 
