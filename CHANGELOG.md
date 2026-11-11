@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.11.1](https://github.com/alrayyes/forge-dashboard/compare/v9.11.0...v9.11.1) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** make the rebase-all dialog list keyboard scrollable ([#3461](https://github.com/alrayyes/forge-dashboard/issues/3461)) ([f6512ed](https://github.com/alrayyes/forge-dashboard/commit/f6512edd5d47e2f778a5a93fa6d8cc993810aae7)), closes [#3402](https://github.com/alrayyes/forge-dashboard/issues/3402)
+
 ## [9.11.0](https://github.com/alrayyes/forge-dashboard/compare/v9.10.19...v9.11.0) (2026-11-11)
 
 
