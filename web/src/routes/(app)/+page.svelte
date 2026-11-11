@@ -575,9 +575,12 @@
       border-color: var(--border-strong);
     }
     .mb-pill[aria-pressed="true"] {
-      background: var(--accent);
-      border-color: var(--accent);
+      background: var(--pill-active);
+      border-color: var(--pill-active);
       color: var(--accent-ink);
+    }
+    .mb-pill[aria-pressed="true"] .mb-count {
+      opacity: var(--pill-active-count-opacity);
     }
     @media (forced-colors: active) {
       /* Forced colors drops the accent fill (#3377): a thicker system-colour
