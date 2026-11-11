@@ -1161,9 +1161,9 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 }
 
 // ForgeFailureThreshold is how many fetches in a row must fail, whatever the
-// cause, with the latest a forge's own 5xx, before the forge is shown as down. One gateway timeout on a heavy
-// query among healthy fetches is not an outage (#3527); a request that got no
-// response at all is not held back.
+// cause, with the latest a forge's own 5xx, before the forge is shown as down.
+// One gateway timeout on a heavy query among healthy fetches is not an outage
+// (#3527); a request that got no response at all is not held back.
 const ForgeFailureThreshold = 3
 
 // add appends one source's result to the snapshot being built.
