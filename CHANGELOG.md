@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.19](https://github.com/alrayyes/forge-dashboard/compare/v9.10.18...v9.10.19) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** keep the Per page select once a size fits everything on one page ([#3457](https://github.com/alrayyes/forge-dashboard/issues/3457)) ([74c506d](https://github.com/alrayyes/forge-dashboard/commit/74c506d213c05cc2d1636b98aede0f3f0b08ca14))
+
 ## [9.10.18](https://github.com/alrayyes/forge-dashboard/compare/v9.10.17...v9.10.18) (2026-11-11)
 
 
