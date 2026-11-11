@@ -189,7 +189,6 @@
     chosenRows,
     progressLabel as updateProgressLabel,
     showUpdateAll,
-    summaryLine as updateSummaryLine,
     updateAllChips,
     updateAllLabel,
     updateAllPlan,
@@ -6019,8 +6018,7 @@
 
     function updateUpdateAll() {
       const button = document.getElementById("update-all-button");
-      const summary = document.getElementById("update-all-summary");
-      if (!(button instanceof HTMLButtonElement) || !summary) return;
+      if (!(button instanceof HTMLButtonElement)) return;
       const plan = currentUpdatePlan();
       const ready = plan.eligible.length;
       const block = button.parentElement;
@@ -6039,8 +6037,6 @@
         ? updateProgressLabel(updateAllRun.done, updateAllRun.total)
         : updateAllLabel(ready);
       markPending(button, updateAllRun !== null);
-      const headline = summary.querySelector(".update-all-headline");
-      if (headline) headline.textContent = updateSummaryLine(ready, plan.total);
       const chips = document.querySelector(".update-all-chips");
       if (chips) renderStripChips(chips, updateAllChips(plan));
     }
@@ -10270,16 +10266,12 @@
         </dialog>
       {:else if view === "pulls"}
         <div class="update-all" hidden>
-          <div class="update-all-summary" id="update-all-summary">
-            <p class="update-all-headline"></p>
-          </div>
           <ul class="strip-chips update-all-chips"></ul>
           <button
             type="button"
             class="update-all-button"
             id="update-all-button"
-            aria-haspopup="dialog"
-            aria-describedby="update-all-summary">Update all</button
+            aria-haspopup="dialog">Update all</button
           >
         </div>
         <span class="sr-only" id="update-all-status" role="status"></span>

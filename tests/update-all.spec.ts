@@ -109,7 +109,8 @@ test('Update all updates the ticked rows', async ({ page }) => {
   ]);
   const button = page.getByRole('button', { name: 'Update all (3)' });
   await expect(button).toBeVisible();
-  await expect(page.getByText('3 of 4 can be updated.')).toBeVisible();
+  await expect(page.getByText('can be updated.')).toHaveCount(0);
+  await expect(chips(page)).toHaveText(['3 ready to update']);
 
   await button.click();
   const dialog = page.getByRole('dialog', { name: 'Update 3 pull requests?' });
@@ -275,7 +276,7 @@ for (const width of [390, 1280]) {
     const m = await page.evaluate(() => {
       const r = (el: Element | null) => el!.getBoundingClientRect();
       const card = document.querySelector('section.board')!;
-      const summary = document.getElementById('update-all-summary')!;
+      const chipList = document.querySelector('.update-all-chips')!;
       const button = document.getElementById('update-all-button')!;
       // The strip's own box, less its padding: the chips and the stacked
       // phone layout move the content, but the insets stay 12px and 18px.
@@ -285,7 +286,7 @@ for (const width of [390, 1280]) {
         headingLeft: r(card.querySelector('.board-head h2')).left,
         headBottom: r(card.querySelector('.board-head')).bottom,
         cardInnerRight: r(card).right - card.clientLeft,
-        summaryLeft: r(summary).left,
+        summaryLeft: r(chipList).left,
         buttonRight: r(button).right,
         blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
         blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
@@ -304,27 +305,19 @@ for (const width of [390, 1280]) {
   });
 }
 
-// The summary as a status strip (#3277): the headline, two count chips and the
-// button, laid out like the Bots page's (#3276). The chips repeat the numbers
-// in the headline for scanning, so they sit outside the element the button's
-// aria-describedby reads.
+// The summary as a status strip (#3277, #3490): one ready chip and the button.
+// The page header already counts the listed rows ("12 open", or "Showing 4 of
+// 12" under a filter), so the strip says only what is ready.
 const chips = (page: Page) => page.locator('.update-all-chips > li');
 
-test('the strip shows the counts as chips beside the headline', async ({
+test('the strip shows the ready count as a chip beside the button', async ({
   page,
 }) => {
   await open(page, [pr(1), pr(2), pr(4), pr(5, { allowedActions: [] })]);
-  await expect(chips(page)).toHaveText(['3 ready to update', '4 listed']);
-  await expect(page.locator('.update-all-headline')).toHaveText(
-    '3 of 4 can be updated.',
-  );
-  await expect(
-    page.locator('#update-all-summary .update-all-chips'),
-  ).toHaveCount(0);
-  await expect(page.locator('#update-all-button')).toHaveAttribute(
-    'aria-describedby',
-    'update-all-summary',
-  );
+  await expect(chips(page)).toHaveText(['3 ready to update']);
+  await expect(page.locator('.update-all-headline')).toHaveCount(0);
+  await expect(page.getByText('can be updated.')).toHaveCount(0);
+  await expect(page.locator('#pr-count')).toHaveText('4 open');
   await expect(
     page.getByRole('button', { name: 'Update all (3)' }),
   ).toBeVisible();
@@ -335,7 +328,7 @@ test('on a phone the chips keep their words and the button fills the strip', asy
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await open(page, [pr(1), pr(2), pr(4), pr(5, { allowedActions: [] })]);
-  await expect(chips(page)).toHaveText(['3 ready to update', '4 listed']);
+  await expect(chips(page)).toHaveText(['3 ready to update']);
   const m = await page.evaluate(() => {
     const r = (el: Element) => el.getBoundingClientRect();
     const block = document.querySelector('.update-all')!;
@@ -387,7 +380,7 @@ test('the strip stays through a run and the chips follow it', async ({
     page.getByRole('button', { name: /Updating 1 of 2/ }),
   ).toBeVisible();
   await expect(page.locator('.update-all-chips')).toBeVisible();
-  await expect(chips(page)).toHaveText([/^[01] ready to update$/, '2 listed']);
+  await expect(chips(page)).toHaveText([/^[01] ready to update$/]);
   answer();
   await expect(page.locator('#update-all-status')).toHaveText(
     'Update requested for 2.',
@@ -407,7 +400,33 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`the strip passes axe in ${scheme}`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme });
     await open(page, [pr(1), pr(2, { allowedActions: [] })]);
-    await expect(chips(page)).toHaveText(['1 ready to update', '2 listed']);
+    await expect(chips(page)).toHaveText(['1 ready to update']);
     await expectNoAxeViolations(page);
   });
 }
+
+test('the header counts the rows and the strip only the ready ones', async ({
+  page,
+}) => {
+  await open(page, [pr(1), pr(2), pr(3, { allowedActions: [] })]);
+  await expect(page.locator('#pr-count')).toHaveText('3 open');
+  await expect(chips(page)).toHaveText(['2 ready to update']);
+});
+
+test('at 320px the chip and the button stack without sideways scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await open(page, [pr(1), pr(2)]);
+  const button = page.locator('#update-all-button');
+  await expect(button).toBeVisible();
+  await expect(chips(page)).toHaveText(['2 ready to update']);
+  const m = await page.evaluate(() => ({
+    h: document.getElementById('update-all-button')!.getBoundingClientRect()
+      .height,
+    scrollW: document.documentElement.scrollWidth,
+    innerW: window.innerWidth,
+  }));
+  expect(m.h).toBeGreaterThanOrEqual(44);
+  expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+});

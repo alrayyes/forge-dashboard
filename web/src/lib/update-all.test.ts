@@ -6,7 +6,6 @@ import {
   chosenRows,
   progressLabel,
   showUpdateAll,
-  summaryLine,
   updateAllChips,
   updateAllLabel,
   updateAllPlan,
@@ -154,11 +153,6 @@ describe('labels', () => {
     expect(updateAllLabel(0)).toBe('Update all');
   });
 
-  test('counts how many of the listed rows can be updated', () => {
-    expect(summaryLine(1, 6)).toBe('1 of 6 can be updated.');
-    expect(summaryLine(4, 6)).toBe('4 of 6 can be updated.');
-  });
-
   test('reads the progress as done of total', () => {
     expect(progressLabel(2, 4)).toBe('Updating 2 of 4');
   });
@@ -195,19 +189,15 @@ describe('updateAllChips', () => {
     row({ number: 4, allowedActions: [] }),
   ];
 
-  test('reads the eligible count and the rows listed', () => {
+  test('reads the eligible count only; the page header counts the rows', () => {
     expect(updateAllChips(updateAllPlan(four()))).toEqual([
       { text: '3 ready to update', tone: 'good' },
-      { text: '4 listed' },
     ]);
   });
 
   test('the ready chip is neutral at zero, as during a run', () => {
     const plan = updateAllPlan([row({ number: 1, allowedActions: [] })]);
-    expect(updateAllChips(plan)).toEqual([
-      { text: '0 ready to update' },
-      { text: '1 listed' },
-    ]);
+    expect(updateAllChips(plan)).toEqual([{ text: '0 ready to update' }]);
   });
 
   test('a request already waiting is not ready', () => {

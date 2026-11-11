@@ -5097,12 +5097,10 @@ footer a[aria-current="page"] {
 }
 /* The headline and the reason are the sentence the button's aria-describedby
    reads; the chips beside them are for scanning (#3276). */
-.rebase-all-summary,
-.update-all-summary {
+.rebase-all-summary {
   min-width: 0;
 }
-.rebase-all-headline,
-.update-all-headline {
+.rebase-all-headline {
   margin: 0;
   font-size: 0.875rem;
   font-weight: 600;
