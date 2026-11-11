@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.16](https://github.com/alrayyes/forge-dashboard/compare/v9.10.15...v9.10.16) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** wrap long label names in cards and details dialogs ([#3436](https://github.com/alrayyes/forge-dashboard/issues/3436)) ([a324339](https://github.com/alrayyes/forge-dashboard/commit/a3243391ff5dd0e9e83d02c656b15bd0adc5514f))
+
 ## [9.10.15](https://github.com/alrayyes/forge-dashboard/compare/v9.10.14...v9.10.15) (2026-11-11)
 
 
