@@ -317,9 +317,10 @@ can't fire a tracking pixel when the dialog opens.
   their own signature).
 - The scheme must match, user info is refused, and every redirect hop is
   checked against the list again. At most three are followed.
-- Like the log download above, a dial to a non-public address is refused on the
-  resolved address. The exception is the configured Forgejo instance, which is
-  often on a private network.
+- Like the log download in the preceding section, a dial to a non-public
+  address (private, loopback, link-local, shared 100.64.0.0/10, benchmarking,
+  NAT64 and 6to4 ranges) is refused on the resolved address. The exception is
+  the configured Forgejo instance, which is often on a private network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
   the host's header. SVG is refused. Up to 8 megabytes and 10 seconds.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
@@ -327,8 +328,8 @@ can't fire a tracking pixel when the dialog opens.
 - The page repeats the list in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. The server is the one that
   enforces it.
-- Not yet covered: the page's `img-src` policy still allows what avatars and
-  repository logos need, so it doesn't yet forbid a direct load.
+- Not yet covered: the app sets no Content-Security-Policy yet, so nothing in
+  the browser forbids a direct image load. #3467 adds one that matches this list.
 
 ### What the passkey login covers
 

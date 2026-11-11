@@ -51,15 +51,15 @@ see [Configuration](docs/configuration.md).
 | **Settings**. Four groups, one at a time: display, connections, behaviour, and integrations and security.                                                                                                                                                                | ![Settings, light mode](docs/screenshots/settings-light.png)                        | ![Settings, dark mode](docs/screenshots/settings-dark.png)                        |
 | **Login**. Passkey sign-in.                                                                                                                                                                                                                                              | ![Login, light mode](docs/screenshots/login-light.png)                              | ![Login, dark mode](docs/screenshots/login-dark.png)                              |
 
-Images embedded in a description, a comment, or release notes load through the
-server, from the item's own forge only. The server holds the token for a
-private repository, so the browser never gets it, and no third party sees the
-page open. Any other image shows as a link.
-
 Fixture data, not a real account's actual repositories. The release
 workflow regenerates every screenshot on each release (see
 `scripts/capture-screenshots.ts`), so they're never more than one release
 stale.
+
+Images embedded in a description, a comment, or release notes load through the
+server, from the item's own forge only. The server holds the token for a
+private repository, so the browser never gets it, and no third party sees the
+page open. Any other image shows as a link.
 
 ## Requirements
 
