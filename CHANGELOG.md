@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.10.7](https://github.com/alrayyes/forge-dashboard/compare/v9.10.6...v9.10.7) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** keep Webhooks table actions on one line at tablet width ([#3416](https://github.com/alrayyes/forge-dashboard/issues/3416)) ([9838da3](https://github.com/alrayyes/forge-dashboard/commit/9838da3c247c4824972325b06f9ed6b62978fbef)), closes [#3373](https://github.com/alrayyes/forge-dashboard/issues/3373)
+* **web:** raise the Branches filter pills to 44px up to 760px ([#3415](https://github.com/alrayyes/forge-dashboard/issues/3415)) ([72c380d](https://github.com/alrayyes/forge-dashboard/commit/72c380d7756146b2a6f4b9c48915f7c416293a8d))
+
 ## [9.10.6](https://github.com/alrayyes/forge-dashboard/compare/v9.10.5...v9.10.6) (2026-11-10)
 
 
