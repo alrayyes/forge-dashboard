@@ -70,8 +70,9 @@ export function updateAllLabel(count: number): string {
 }
 
 // The count chips on the strip (#3277), from what the plan already holds. The
-// ready chip is green above zero and neutral at zero, as during a run; the
-// listed one is always neutral. Each reads alone, count and words together.
+// ready chip is green above zero and neutral at zero, as during a run. It reads
+// alone, count and words together. The rows listed aren't a chip: the page
+// header counts them (#3490).
 export function updateAllChips<T extends UpdateRow>(
   plan: UpdatePlan<T>,
 ): StripChip[] {
@@ -80,12 +81,7 @@ export function updateAllChips<T extends UpdateRow>(
     ready > 0
       ? { text: `${ready} ready to update`, tone: 'good' }
       : { text: `${ready} ready to update` },
-    { text: `${plan.total} listed` },
   ];
-}
-
-export function summaryLine(count: number, total: number): string {
-  return `${count} of ${total} can be updated.`;
 }
 
 export function progressLabel(done: number, count: number): string {
