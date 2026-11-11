@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.18](https://github.com/alrayyes/forge-dashboard/compare/v9.10.17...v9.10.18) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** make the pager buttons 44px at phone width ([#3446](https://github.com/alrayyes/forge-dashboard/issues/3446)) ([c13e1ce](https://github.com/alrayyes/forge-dashboard/commit/c13e1ce1204b7d294048cd5cc8c7a63af0b0c940)), closes [#3397](https://github.com/alrayyes/forge-dashboard/issues/3397)
+
 ## [9.10.17](https://github.com/alrayyes/forge-dashboard/compare/v9.10.16...v9.10.17) (2026-11-11)
 
 
