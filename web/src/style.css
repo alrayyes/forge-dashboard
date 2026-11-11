@@ -4098,6 +4098,12 @@ button.pipeline-check-link:disabled {
   button.ci-pill {
     min-height: 44px;
   }
+}
+
+/* The phone filter bar also serves a short window held sideways (#3406): a
+   search row, one scrolling row of quick filters, and the rest in the sheet.
+   The three rows of a desktop bar would fill a 390px-tall screen. */
+@media (max-width: 760px), (max-height: 440px) and (orientation: landscape) {
   .filter-bar {
     flex-direction: column;
     align-items: stretch;
@@ -4341,6 +4347,106 @@ button.pipeline-check-link:disabled {
     border: 1px solid var(--accent);
     background: var(--accent);
     color: var(--accent-ink);
+  }
+}
+
+/* A short, wide window (a phone held sideways) is mostly chrome. Fold it up so
+   the first list row shows (#3406): the Activity control joins the status
+   row beside Refresh instead of sticking on a row of its own, Pause live
+   updates sits beside the filter bar, search and the quick filters share a
+   line, and the header and filter bar scroll away with the page. Keyed to
+   height, so a short desktop window gets the same treatment. */
+@media (max-height: 440px) and (orientation: landscape) {
+  header {
+    padding: 4px 0 2px;
+    gap: 0 8px;
+  }
+  /* The name, the nav icons and sign out wrap as one row of header items
+     instead of as a block of their own. */
+  .header-status {
+    display: contents;
+  }
+  .app-nav {
+    gap: 2px;
+  }
+  .wrap:has(> .activity-bar) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    align-items: start;
+  }
+  .wrap:has(> .activity-bar) > * {
+    grid-column: 1 / -1;
+  }
+  .wrap:has(> .activity-bar) > .dashboard-toolbar,
+  .wrap:has(> .activity-bar) > .filter-bar {
+    grid-column: 1;
+  }
+  .wrap:has(> .activity-bar) > .activity-bar,
+  .wrap:has(> .activity-bar) > .updates-bar {
+    grid-column: 2;
+  }
+  .wrap:has(> .activity-bar) > .activity-bar,
+  .wrap:has(> .activity-bar) > .dashboard-toolbar {
+    grid-row: 1;
+  }
+  .wrap:has(> .activity-bar) > .filter-bar,
+  .wrap:has(> .activity-bar) > .updates-bar {
+    grid-row: 2;
+  }
+  .activity-bar {
+    position: relative;
+    top: auto;
+    margin: 0;
+  }
+  .dashboard-toolbar {
+    min-height: 44px;
+    padding: 0;
+    gap: 4px 12px;
+  }
+  .filter-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 4px 12px;
+    margin-bottom: 4px;
+  }
+  .filter-bar-top {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+  .quick-pills {
+    order: 1;
+    flex: 2 1 0;
+    min-width: 0;
+  }
+  .active-filters {
+    flex: 0 0 100%;
+  }
+  .updates-bar {
+    align-self: center;
+    padding: 0;
+    margin: 0 0 4px;
+  }
+  .board-head {
+    padding: 6px 18px 4px;
+  }
+  /* The issue board's hide-by-title field would otherwise take a full-width
+     line of its own below 761px. */
+  .text-filter {
+    flex-wrap: nowrap;
+  }
+  .text-filter input[type="text"] {
+    width: 160px;
+  }
+  /* The card's author and status share a line when the window is wide enough,
+     so the status is not a line further down. */
+  .status-cell {
+    flex: 1 1 260px;
+  }
+  .row {
+    padding-block: 8px;
+    row-gap: 4px;
   }
 }
 

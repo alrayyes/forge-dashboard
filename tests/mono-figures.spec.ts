@@ -6,23 +6,18 @@ import { test } from './server-fixture';
 // to tell from prose. Prose that happens to hold digits stays in the sans face.
 // https://github.com/alrayyes/forge-dashboard/issues/1754
 
-async function figures(locator: Locator) {
-  return locator.evaluate((el) => {
-    const cs = getComputedStyle(el);
-    return { family: cs.fontFamily, numeric: cs.fontVariantNumeric };
-  });
-}
-
+// Both helpers use web-first assertions: a one-shot getComputedStyle read of a
+// node a re-render has just replaced (or one not yet styled) comes back empty
+// under load, where toHaveCSS retries until the live node answers.
+// https://github.com/alrayyes/forge-dashboard/issues/3459
 async function expectMono(locator: Locator) {
-  const { family, numeric } = await figures(locator);
-  expect(family).toContain('IBM Plex Mono');
-  expect(numeric).toContain('tabular-nums');
+  await expect(locator).toHaveCSS('font-family', /IBM Plex Mono/);
+  await expect(locator).toHaveCSS('font-variant-numeric', /tabular-nums/);
 }
 
 async function expectSans(locator: Locator) {
-  const { family } = await figures(locator);
-  expect(family).toContain('IBM Plex Sans');
-  expect(family).not.toContain('IBM Plex Mono');
+  await expect(locator).toHaveCSS('font-family', /IBM Plex Sans/);
+  await expect(locator).not.toHaveCSS('font-family', /IBM Plex Mono/);
 }
 
 const RELEASES = [

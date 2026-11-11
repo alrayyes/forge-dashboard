@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.11.0](https://github.com/alrayyes/forge-dashboard/compare/v9.10.19...v9.11.0) (2026-11-11)
+
+
+### Features
+
+* **web:** show a list row on the first screen of a landscape phone ([#3466](https://github.com/alrayyes/forge-dashboard/issues/3466)) ([6abdb66](https://github.com/alrayyes/forge-dashboard/commit/6abdb665ba27365816aec486c3a6d014ca0d540f))
+
+## [9.10.19](https://github.com/alrayyes/forge-dashboard/compare/v9.10.18...v9.10.19) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** keep the Per page select once a size fits everything on one page ([#3457](https://github.com/alrayyes/forge-dashboard/issues/3457)) ([74c506d](https://github.com/alrayyes/forge-dashboard/commit/74c506d213c05cc2d1636b98aede0f3f0b08ca14))
+
 ## [9.10.18](https://github.com/alrayyes/forge-dashboard/compare/v9.10.17...v9.10.18) (2026-11-11)
 
 

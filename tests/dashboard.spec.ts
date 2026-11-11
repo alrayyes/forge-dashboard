@@ -1881,7 +1881,13 @@ test.describe('dashboard page', () => {
       // size rather than showing a confusing partial page.
       await page.selectOption('#pr-page-size', '50');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(30);
-      await expect(page.locator('#pr-pagination')).toBeHidden();
+      // The person chose this size, so the select stays; only the page
+      // buttons go (#3400).
+      await expect(page.locator('#pr-pagination')).toBeVisible();
+      await expect(page.locator('#pr-page-size')).toHaveValue('50');
+      await expect(
+        page.locator('#pr-pagination-pages .pagination-page'),
+      ).toHaveCount(0);
     });
 
     test('a filter narrowing the set below one page hides pagination and resets to page 1', async ({

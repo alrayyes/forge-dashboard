@@ -7280,7 +7280,8 @@
         items: (PullRequestItem | IssueItem)[];
         page: number;
         pageSize: number;
-      } = { items: [], page: 1, pageSize: 25 };
+        sizeChosen: boolean;
+      } = { items: [], page: 1, pageSize: 25, sizeChosen: false };
 
       // Grouped by repo or by forge, alphabetically (forge by its
       // display label, not the raw "github"/"forgejo" value, since
@@ -7429,11 +7430,16 @@
         if (!wrap) return;
 
         const needed = totalPages > 1;
-        wrap.hidden = !needed;
-        if (!needed) return;
-
+        // Once the person has picked a size, the select stays so they can
+        // pick another; before that a single page needs no pager (#3400).
+        wrap.hidden = !needed && !state.sizeChosen;
         const pages = document.getElementById(`${idPrefix}-pagination-pages`);
         if (!pages) return;
+        pages.hidden = !needed;
+        if (!needed) {
+          pages.innerHTML = "";
+          return;
+        }
         // Rebuilding the buttons removes the one the keyboard user pressed, so
         // note which it was and focus its replacement (#3290).
         const held = pages.contains(document.activeElement)
@@ -7568,6 +7574,7 @@
       pageSizeSelect?.addEventListener("change", () => {
         onUserChange?.();
         state.pageSize = Number(pageSizeSelect.value) || 25;
+        state.sizeChosen = true;
         state.page = 1;
         render();
       });
@@ -7998,13 +8005,15 @@
     }
 
     // ---- phones: the Filters sheet, active-filter chips (#828) ----
-    // Below 760px the bar is a search row, one scrolling row of quick
+    // Below 760px, or in a short window held sideways (#3406), the bar is a search row, one scrolling row of quick
     // filters and chips for what's active. Everything else lives in a
     // bottom sheet (a <dialog>): the controls move into it while it's open
     // and back when it closes, so their ids and handlers are the ones they
     // always had. Filters apply as you change them, and the sheet's "Show
     // N results" says what you'd see, so a refresh can't disturb an edit.
-    const phoneQuery = window.matchMedia("(max-width: 760px)");
+    const phoneQuery = window.matchMedia(
+      "(max-width: 760px), (max-height: 440px) and (orientation: landscape)",
+    );
     const filtersButton = document.getElementById(
       "filters-button",
     ) as HTMLButtonElement | null;
