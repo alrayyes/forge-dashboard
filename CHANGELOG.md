@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.18.0](https://github.com/alrayyes/forge-dashboard/compare/v9.17.0...v9.18.0) (2026-11-11)
+
+
+### Features
+
+* **web:** drop the sentence and listed chip from the Update all strip ([#3512](https://github.com/alrayyes/forge-dashboard/issues/3512)) ([78ac218](https://github.com/alrayyes/forge-dashboard/commit/78ac2188787368f9b15f128845145a0e47900f85))
+
 ## [9.17.0](https://github.com/alrayyes/forge-dashboard/compare/v9.16.0...v9.17.0) (2026-11-11)
 
 
