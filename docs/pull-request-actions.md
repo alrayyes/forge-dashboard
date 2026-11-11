@@ -908,7 +908,7 @@ forge refuses (no permission, a run too old or already running), the panel shows
 its reason and the button stays for another try.
 The button names how many it will rerun ("Rerun failed checks (2)") and a line
 above it says so: "2 failed checks will rerun on GitHub." It counts the failed
-or timed-out checks in the panel that name an Actions run, and adds "1 can't be
+or timed-out checks in the panel that name a workflow run, and adds "1 can't be
 rerun from here." for the ones that don't. With none to rerun there is no
 button, only "None of the 2 failed checks can be rerun from here." The count
 promises only what the panel shows; the forge can still refuse. Where the
