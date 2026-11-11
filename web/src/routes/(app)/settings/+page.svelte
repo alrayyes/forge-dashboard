@@ -1127,9 +1127,6 @@
         grid-template-columns: minmax(0, 1fr);
         gap: 16px;
       }
-      .card {
-        padding-inline: 12px;
-      }
     }
     .settings-header h1 {
       font-size: 19px;
@@ -1415,10 +1412,15 @@
     #timezone-select {
       max-width: 100%;
     }
-    /* On a phone the label sits above a select as wide as the card, and the
-       select gives up some padding and size so "Browser default
-       (Europe/Amsterdam)" shows whole at 320px (#3366). */
+    /* On a phone the label sits above a select as wide as the card. At 320px
+       the card's inside is 234px and "Browser default (Europe/Amsterdam)" is
+       236px at 13.5px, so this card alone trims its side padding to 14px and
+       the select takes 12px type; tests/timezone-select-phone.spec.ts pins
+       that the text fits (#3366). */
     @media (max-width: 760px) {
+      .card:has(#timezone-select) {
+        padding-inline: 14px;
+      }
       .timezone-row label {
         flex-basis: 100%;
       }

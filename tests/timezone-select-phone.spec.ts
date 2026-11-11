@@ -41,7 +41,7 @@ function textOverflow(page: Page): Promise<number> {
       s.clientWidth -
       parseFloat(style.paddingLeft) -
       parseFloat(style.paddingRight) -
-      16; // the dropdown arrow
+      24; // the dropdown arrow, with slack: Chromium reserves about 21px, other engines differ
     return ctx.measureText(text).width - room;
   });
 }
@@ -101,5 +101,11 @@ test('from 760px the label and select still share a row', async ({ page }) => {
     .locator('label[for="timezone-select"]')
     .boundingBox();
   const field = await select(page).boundingBox();
+  const row = await page
+    .locator('.timezone-row')
+    .evaluate((el) => el.getBoundingClientRect().width);
+  // Same row, and the select keeps its own width rather than filling the card.
+  expect(label && field).toBeTruthy();
   expect(label!.y + label!.height).toBeGreaterThan(field!.y);
+  expect(field!.width).toBeLessThan(row - 1);
 });
